@@ -20,6 +20,8 @@ BOCHS_LOG="$OUT_DIR/bochs.log"
 BOCHSRC="$TMP_DIR/bochsrc.txt"
 BOCHS_RC="$TMP_DIR/bochs.rc"
 CONSOLE_LOG="$OUT_DIR/bochs-console.log"
+POLY_PROBE_SRC="$ROOT_DIR/tools/polyprobe.c"
+POLY_PROBE_BIN="$OUT_DIR/polyprobe"
 
 download() {
   local url="$1"
@@ -29,9 +31,34 @@ download() {
   fi
 }
 
+build_poly_probe() {
+  if [[ -x "$POLY_PROBE_BIN" && "$POLY_PROBE_BIN" -nt "$POLY_PROBE_SRC" ]]; then
+    return
+  fi
+
+  local compiler=""
+  for candidate in "${POLY_PROBE_CC:-}" cc gcc; do
+    if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
+      compiler="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$compiler" ]]; then
+    if [[ -x "$POLY_PROBE_BIN" ]]; then
+      return
+    fi
+    echo "No compiler available for $POLY_PROBE_SRC and no prebuilt $POLY_PROBE_BIN found." >&2
+    exit 1
+  fi
+
+  "$compiler" -O2 -static -s "$POLY_PROBE_SRC" -o "$POLY_PROBE_BIN"
+}
+
 build_initramfs() {
   rm -rf "$TMP_DIR/initramfs-root"
   mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin}
+  build_poly_probe
   local busybox_version
   local busybox_apk
   local busybox_extract
@@ -63,6 +90,7 @@ build_initramfs() {
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/echo"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/cat"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/ls"
+  cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
 
   cat > "$TMP_DIR/initramfs-root/init" <<'EOF'
 #!/bin/busybox sh
@@ -82,6 +110,8 @@ fi
 
 echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
+
+/usr/bin/polyprobe >/dev/console 2>&1
 
 sleep 1
 poweroff -f || halt -f
