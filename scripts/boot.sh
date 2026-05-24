@@ -35,8 +35,10 @@ build_initramfs() {
   local busybox_version
   local busybox_apk
   local busybox_extract
+  local apkindex_archive="$CACHE_DIR/APKINDEX-x86_64.tar.gz"
+  download "$ALPINE_X86_64_MAIN_URL/APKINDEX.tar.gz" "$apkindex_archive"
   busybox_version="$({
-    curl -fsSL "$ALPINE_X86_64_MAIN_URL/APKINDEX.tar.gz" | tar -xzO | awk '
+    tar -xzOf "$apkindex_archive" APKINDEX | awk '
       /^P:busybox-static$/ {found=1; next}
       found && /^V:/ {sub(/^V:/, "", $0); print; exit}
     '
