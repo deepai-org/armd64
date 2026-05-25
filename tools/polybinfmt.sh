@@ -47,8 +47,8 @@ case "$path" in
   */aarch64-getcwd.elf) expected=6 ;;
   */aarch64-uname.elf) expected=0 ;;
   */aarch64-exit.elf) expected=7 ;;
-  */aarch64-brk.elf) expected=0x4c000105 ;;
-  */aarch64-svc.elf) expected=0x53000701 ;;
+  */aarch64-brk.elf) expected=0x4c000305 ;;
+  */aarch64-svc.elf) expected=0x53000703 ;;
   */riscv-add.elf) expected=27 ;;
   */riscv-regadd.elf) expected=123 ;;
   */riscv-mul.elf) expected=42 ;;
@@ -87,8 +87,8 @@ case "$path" in
   */riscv-getcwd.elf) expected=6 ;;
   */riscv-uname.elf) expected=0 ;;
   */riscv-exit.elf) expected=7 ;;
-  */riscv-ebreak.elf) expected=0x4c000205 ;;
-  */riscv-ecall.elf) expected=0x53000702 ;;
+  */riscv-ebreak.elf) expected=0x4c000405 ;;
+  */riscv-ecall.elf) expected=0x53000704 ;;
 esac
 
 echo "POLYBINFMT_EXEC: path=$path expected=${expected:-none}"

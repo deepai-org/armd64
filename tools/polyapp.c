@@ -312,7 +312,7 @@ static int load_payload(const char *path, struct payload *payload) {
 }
 
 static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_SIZE + 1], char scratch_hex_result[SCRATCH_SIZE * 2 + 1]) {
-  const size_t code_size = 3 + payload->insn_count * 8 + 1;
+  const size_t code_size = 3 + 8 + payload->insn_count * 4 + 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
     fprintf(stderr, "POLYAPP_FAIL: mmap failed: %s\n", strerror(errno));
@@ -323,28 +323,36 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
   code[1] = 0x90;
   code[2] = 0x90;
   size_t offset = 3;
-  const uint8_t prefix = payload->arch == POLY_ARCH_AARCH64 ? 0x67 : 0x26;
+  if (payload->arch == POLY_ARCH_AARCH64) {
+    const uint8_t raw_switch[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+  } else {
+    const uint8_t raw_switch[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+  }
   for (size_t n = 0; n < payload->insn_count; n++) {
     const uint32_t insn = payload->insns[n];
-    code[offset++] = prefix;
-    code[offset++] = 0x0f;
-    code[offset++] = 0x0b;
     code[offset++] = (uint8_t) (insn & 0xff);
     code[offset++] = (uint8_t) ((insn >> 8) & 0xff);
     code[offset++] = (uint8_t) ((insn >> 16) & 0xff);
     code[offset++] = (uint8_t) ((insn >> 24) & 0xff);
-    code[offset++] = 0x00;
   }
+  const uint32_t escape = payload->arch == POLY_ARCH_AARCH64 ? 0xd42fffe0U : 0x0000000bU;
+  code[offset++] = (uint8_t) (escape & 0xff);
+  code[offset++] = (uint8_t) ((escape >> 8) & 0xff);
+  code[offset++] = (uint8_t) ((escape >> 16) & 0xff);
+  code[offset++] = (uint8_t) ((escape >> 24) & 0xff);
   code[offset++] = 0xc3;
-
-  if (payload->arch == POLY_ARCH_AARCH64)
-    poly_mode_aarch64();
-  else
-    poly_mode_riscv();
 
   char scratch[SCRATCH_SIZE] = "poly!";
   uint64_t (*entry)(uint64_t *) = (uint64_t (*)(uint64_t *)) code;
   *result = entry((uint64_t *) scratch);
+  if (payload->arch == POLY_ARCH_AARCH64)
+    poly_mode_aarch64();
+  else
+    poly_mode_riscv();
   if (payload->check_syscall) {
     poly_syscall_status();
     *syscall_result = read_rax();

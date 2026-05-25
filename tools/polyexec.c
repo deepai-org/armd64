@@ -180,7 +180,7 @@ static int load_elf_program(const char *path, struct poly_program *program) {
 }
 
 static int emit_and_run(const struct poly_program *program, uint64_t *result) {
-  const size_t code_size = 3 + program->insn_count * 8 + 1;
+  const size_t code_size = 3 + 8 + program->insn_count * 4 + 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
     fprintf(stderr, "POLYEXEC_FAIL: mmap failed: %s\n", strerror(errno));
@@ -191,24 +191,28 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   code[1] = 0x90;
   code[2] = 0x90;
   size_t offset = 3;
-  const uint8_t prefix = program->arch == POLY_ARCH_AARCH64 ? 0x67 : 0x26;
+  if (program->arch == POLY_ARCH_AARCH64) {
+    const uint8_t raw_switch[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+  } else {
+    const uint8_t raw_switch[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+  }
   for (size_t n = 0; n < program->insn_count; n++) {
     const uint32_t insn = program->insns[n];
-    code[offset++] = prefix;
-    code[offset++] = 0x0f;
-    code[offset++] = 0x0b;
     code[offset++] = (uint8_t) (insn & 0xff);
     code[offset++] = (uint8_t) ((insn >> 8) & 0xff);
     code[offset++] = (uint8_t) ((insn >> 16) & 0xff);
     code[offset++] = (uint8_t) ((insn >> 24) & 0xff);
-    code[offset++] = 0x00;
   }
+  const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ? 0xd42fffe0U : 0x0000000bU;
+  code[offset++] = (uint8_t) (escape & 0xff);
+  code[offset++] = (uint8_t) ((escape >> 8) & 0xff);
+  code[offset++] = (uint8_t) ((escape >> 16) & 0xff);
+  code[offset++] = (uint8_t) ((escape >> 24) & 0xff);
   code[offset++] = 0xc3;
-
-  if (program->arch == POLY_ARCH_AARCH64)
-    poly_mode_aarch64();
-  else
-    poly_mode_riscv();
 
   char scratch[16] = "poly!";
   uint64_t (*entry)(uint64_t *) = (uint64_t (*)(uint64_t *)) code;

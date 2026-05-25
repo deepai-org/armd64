@@ -1,7 +1,7 @@
 # poly payload v1
 arch=riscv
 elf=/usr/lib/polyapps/riscv-ecall.elf
-expected=0x53000702
+expected=0x53000704
 syscall_expected=2
 syscall_number_expected=7
 libcall_id=0

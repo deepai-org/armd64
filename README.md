@@ -26,8 +26,10 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
   instruction streams, repeated mixed-mode switch stress, mixed libcalls, mixed
   syscalls, and status/counter markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
-  `tools/polyapps/*.poly`.
-- `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path.
+  `tools/polyapps/*.poly` by entering raw foreign mode, executing packed
+  32-bit foreign instructions, and escaping back to x86_64.
+- `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
+  using the same raw-mode execution path.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 
@@ -88,9 +90,11 @@ the tests: decoded `addi`, decoded register-register `add`, `sub`, `mul`,
 `xor`, `and`, `or` over the synthetic register file, `beq`/`bne`, `jalr`
 return, selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
 
-The raw-mode prototype currently covers a smaller direct-fetch subset:
-AArch64 `movz`, `add`/`sub` immediate, and `brk #0x7fff` escape; RISC-V
-`addi` and custom-0 `0x0000000b` escape.
+The raw-mode direct-fetch path covers the generated/probed subset used by
+`polyapp` and `polyexec`: the arithmetic, branch, return, selected memory,
+syscall, and libcall forms listed above, plus native escapes.  `polyprobe`
+still exercises the legacy instruction envelopes for low-level compatibility
+and uses raw mode for the direct-fetch smoke test.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:

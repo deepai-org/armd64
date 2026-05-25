@@ -378,8 +378,8 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-getcwd.elf=6 \
     /usr/lib/polyapps/aarch64-uname.elf=0 \
     /usr/lib/polyapps/aarch64-exit.elf=7 \
-    /usr/lib/polyapps/aarch64-brk.elf=0x4c000105 \
-    /usr/lib/polyapps/aarch64-svc.elf=0x53000701 \
+    /usr/lib/polyapps/aarch64-brk.elf=0x4c000305 \
+    /usr/lib/polyapps/aarch64-svc.elf=0x53000703 \
     /usr/lib/polyapps/riscv-add.elf=27 \
     /usr/lib/polyapps/riscv-regadd.elf=123 \
     /usr/lib/polyapps/riscv-mul.elf=42 \
@@ -420,8 +420,8 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-getcwd.elf=6 \
     /usr/lib/polyapps/riscv-uname.elf=0 \
     /usr/lib/polyapps/riscv-exit.elf=7 \
-    /usr/lib/polyapps/riscv-ebreak.elf=0x4c000205 \
-    /usr/lib/polyapps/riscv-ecall.elf=0x53000702 >/dev/ttyS0 2>&1
+    /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
+    /usr/lib/polyapps/riscv-ecall.elf=0x53000704 >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_BINFMT" = "1" ]; then
