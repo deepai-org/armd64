@@ -59,6 +59,7 @@ case "$path" in
   */riscv-mul.elf) expected=42 ;;
   */riscv-branch.elf) expected=42 ;;
   */riscv-jal.elf) expected=9 ;;
+  */riscv-jalr.elf) expected=5 ;;
   */riscv-branchcmp.elf) expected=127 ;;
   */riscv-condbranch.elf) expected=91 ;;
   */riscv-loop.elf) expected=0 ;;
