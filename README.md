@@ -77,6 +77,10 @@ after a scheduler switch or a fault in the raw-mode task.
 The current raw run loop batches up to 64 raw foreign instructions before
 returning to the outer Bochs event loop, while still checking async events and
 mode exits between individual raw instructions.
+Raw native returns stay native: AArch64 `ret` branches to `x30`/the selected
+link register and RISC-V `ret` is handled as ordinary `jalr x0, 0(ra)`.  The
+current x86-side raw loaders synthesize an explicit return landing pad by
+setting AArch64 `x30` or RISC-V `ra` to the following x86 escape instruction.
 
 The hybrid CPU currently defines foreign-mode memory ordering as x86_64 TSO.
 Raw and legacy AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and
@@ -100,9 +104,10 @@ Precompiled cross-ISA linking is expected to use native-ABI boundary thunks, not
 a custom compiler ABI.  For example, an x86_64 SysV caller entering a
 precompiled AArch64 library needs a thunk that maps SysV arguments into
 AAPCS64 `x0`-`x7`, switches mode, and routes the AArch64 return back through
-the thunk.  The same applies to RISC-V psABI `a0`-`a7`.  Direct register aliases
-are an implementation optimization only where they match the native ABI
-contract; they are not the external compatibility contract.
+the thunk via a native link-register landing pad.  The same applies to RISC-V
+psABI `a0`-`a7` and `ra`.  Direct register aliases are an implementation
+optimization only where they match the native ABI contract; they are not the
+external compatibility contract.
 
 `PolyCall`/`PolyRet` mode nesting is represented in guest userspace memory, not
 an emulator-only call stack.  `PolyCall` decrements shared `RSP` by 16 and
@@ -126,8 +131,8 @@ the tests: decoded U-type `lui` and `auipc`, decoded OP-IMM `addi`, `xori`,
 `sd`/`ld`, `fence`, `fence.i`, `ecall`, and `ebreak`.
 
 The raw-mode direct-fetch path covers the generated/probed subset used by
-`polyapp`, `polyexec`, and `polybench`: the arithmetic, shifted-register,
-branch, return, generic `jalr`, RV64 word arithmetic, RISC-V
+`polyapp`, `polyexec`, and `polybench`: AArch64 `adr`, the arithmetic,
+shifted-register, branch, native return, generic RISC-V `jalr`, RV64 word arithmetic, RISC-V
 compare/register-shift and division/remainder forms, generic
 byte/halfword/word/dword raw AArch64 and RISC-V load-store forms, syscall, and
 libcall forms listed above, plus native escapes.

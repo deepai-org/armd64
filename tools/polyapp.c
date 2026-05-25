@@ -134,6 +134,30 @@ static uint32_t read_le32(const unsigned char *bytes) {
     ((uint32_t) bytes[3] << 24);
 }
 
+static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
+  code[(*offset)++] = (uint8_t) (value & 0xff);
+  code[(*offset)++] = (uint8_t) ((value >> 8) & 0xff);
+  code[(*offset)++] = (uint8_t) ((value >> 16) & 0xff);
+  code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
+}
+
+static uint32_t aarch64_adr(unsigned rd, int64_t byte_offset) {
+  uint32_t imm = (uint32_t) byte_offset & 0x1fffffU;
+  return 0x10000000U | ((imm & 0x3U) << 29) | (((imm >> 2) & 0x7ffffU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t riscv_auipc(unsigned rd, int64_t byte_offset) {
+  int64_t hi20 = (byte_offset + 0x800) >> 12;
+  return (((uint32_t) hi20 & 0xfffffU) << 12) | ((rd & 0x1fU) << 7) | 0x17U;
+}
+
+static uint32_t riscv_addi(unsigned rd, unsigned rs1, int64_t byte_offset) {
+  int64_t hi20 = (byte_offset + 0x800) >> 12;
+  int64_t lo12 = byte_offset - (hi20 << 12);
+  return (((uint32_t) lo12 & 0xfffU) << 20) |
+    ((rs1 & 0x1fU) << 15) | ((rd & 0x1fU) << 7) | 0x13U;
+}
+
 static int append_insn(struct payload *payload, uint32_t insn) {
   if (payload->insn_count == payload->insn_capacity) {
     size_t new_capacity = payload->insn_capacity ? payload->insn_capacity * 2 : 16;
@@ -356,7 +380,8 @@ static void free_payload(struct payload *payload) {
 }
 
 static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_SIZE + 1], char scratch_hex_result[SCRATCH_SIZE * 2 + 1]) {
-  const size_t code_size = 3 + 8 + payload->insn_count * 4 + 4 + 1;
+  const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 1 : 2;
+  const size_t code_size = 3 + 8 + (return_setup_insns + payload->insn_count) * 4 + 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
     fprintf(stderr, "POLYAPP_FAIL: mmap failed: %s\n", strerror(errno));
@@ -371,23 +396,20 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
     const uint8_t raw_switch[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
+    emit_u32(code, &offset, aarch64_adr(30, (int64_t) (payload->insn_count + 1) * 4));
   } else {
     const uint8_t raw_switch[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
+    int64_t escape_offset = (int64_t) (payload->insn_count + 2) * 4;
+    emit_u32(code, &offset, riscv_auipc(1, escape_offset));
+    emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));
   }
   for (size_t n = 0; n < payload->insn_count; n++) {
-    const uint32_t insn = payload->insns[n];
-    code[offset++] = (uint8_t) (insn & 0xff);
-    code[offset++] = (uint8_t) ((insn >> 8) & 0xff);
-    code[offset++] = (uint8_t) ((insn >> 16) & 0xff);
-    code[offset++] = (uint8_t) ((insn >> 24) & 0xff);
+    emit_u32(code, &offset, payload->insns[n]);
   }
   const uint32_t escape = payload->arch == POLY_ARCH_AARCH64 ? 0xd42fffe0U : 0x0000000bU;
-  code[offset++] = (uint8_t) (escape & 0xff);
-  code[offset++] = (uint8_t) ((escape >> 8) & 0xff);
-  code[offset++] = (uint8_t) ((escape >> 16) & 0xff);
-  code[offset++] = (uint8_t) ((escape >> 24) & 0xff);
+  emit_u32(code, &offset, escape);
   code[offset++] = 0xc3;
 
   char scratch[SCRATCH_SIZE] = "poly!";
