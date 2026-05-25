@@ -229,10 +229,10 @@ EOF
   local bochs_cmd
   if [[ -n "${BOCHS_BIN:-}" ]]; then
     bochs_cmd="$BOCHS_BIN"
-  elif command -v bochs >/dev/null 2>&1; then
-    bochs_cmd="$(command -v bochs)"
   elif [[ -x /usr/local/bin/bochs-poly ]]; then
     bochs_cmd=/usr/local/bin/bochs-poly
+  elif command -v bochs >/dev/null 2>&1; then
+    bochs_cmd="$(command -v bochs)"
   else
     echo "No bochs binary found." >&2
     exit 1
