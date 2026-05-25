@@ -102,7 +102,7 @@ The current legacy RISC-V decoder supports the generated/probed RV64 subset used
 the tests: decoded U-type `lui` and `auipc`, decoded OP-IMM `addi`, `xori`,
 `ori`, `andi`, `slli`, `srli`, and `srai`, decoded register-register `add`,
 `sub`, `mul`, `xor`, `and`, `or` over the synthetic register file,
-`beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jalr` return, selected 64-bit
+`beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, `jalr` return, selected 64-bit
 `sd`/`ld`, `ecall`, and `ebreak`.
 
 The raw-mode direct-fetch path covers the generated/probed subset used by
