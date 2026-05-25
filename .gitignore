@@ -1,4 +1,9 @@
 cache/
 out/
+out*/
 tmp/
+tmp*/
 *.log
+bochs-bisect/
+bochs-prepoly-src/
+bochs-src/
