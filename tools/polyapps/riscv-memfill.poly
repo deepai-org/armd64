@@ -6,3 +6,4 @@ scratch_expected=RRRR!
 syscall_expected=2
 libcall_id=0
 libcall_expected=0x4c000200
+libcall_number_expected=2

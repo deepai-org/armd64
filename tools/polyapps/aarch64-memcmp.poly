@@ -5,3 +5,4 @@ expected=1
 syscall_expected=1
 libcall_id=0
 libcall_expected=0x4c000100
+libcall_number_expected=3
