@@ -285,9 +285,9 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
   else
     poly_mode_riscv();
 
-  uint64_t scratch = 0;
+  char scratch[16] = "poly!";
   uint64_t (*entry)(uint64_t *) = (uint64_t (*)(uint64_t *)) code;
-  *result = entry(&scratch);
+  *result = entry((uint64_t *) scratch);
   if (payload->check_syscall) {
     poly_syscall_status();
     *syscall_result = read_rax();

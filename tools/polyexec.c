@@ -210,9 +210,9 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   else
     poly_mode_riscv();
 
-  uint64_t scratch = 0;
+  char scratch[16] = "poly!";
   uint64_t (*entry)(uint64_t *) = (uint64_t (*)(uint64_t *)) code;
-  *result = entry(&scratch);
+  *result = entry((uint64_t *) scratch);
   poly_mode_x86();
   munmap(code, code_size);
   return 0;
