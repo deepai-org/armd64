@@ -63,7 +63,10 @@ Raw foreign modes are the migration path away from one `#UD` envelope per
 foreign instruction.  They still use the x86_64 switch envelope to enter from
 x86 code, but then Bochs bypasses x86 decode and fetches fixed 32-bit foreign
 instructions directly from `RIP`.  AArch64 `brk #0x7fff` and RISC-V custom-0
-instruction `0x0000000b` escape back to x86_64 at the next byte.
+instruction `0x0000000b` escape back to x86_64 at the next byte.  Raw foreign
+fetch is only active at guest CPL3; kernel, interrupt, and exception paths
+continue through normal x86_64 decode even if the current userspace poly mode is
+raw AArch64 or raw RISC-V.
 
 The current register bridge is deliberately small:
 
