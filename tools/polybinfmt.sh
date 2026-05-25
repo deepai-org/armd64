@@ -31,6 +31,7 @@ case "$path" in
   */aarch64-getpgid.elf) expected=4242 ;;
   */aarch64-getsid.elf) expected=4242 ;;
   */aarch64-getrusage.elf) expected=321 ;;
+  */aarch64-getcpu.elf) expected=12 ;;
   */aarch64-gettimeofday.elf) expected=246 ;;
   */aarch64-sysinfo.elf) expected=98765 ;;
   */aarch64-mmap.elf) expected=0 ;;
@@ -69,6 +70,7 @@ case "$path" in
   */riscv-getpgid.elf) expected=4242 ;;
   */riscv-getsid.elf) expected=4242 ;;
   */riscv-getrusage.elf) expected=321 ;;
+  */riscv-getcpu.elf) expected=12 ;;
   */riscv-gettimeofday.elf) expected=246 ;;
   */riscv-sysinfo.elf) expected=98765 ;;
   */riscv-mmap.elf) expected=0 ;;

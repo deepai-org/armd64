@@ -164,6 +164,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getpgid.elf" 0xd2800000 0xd2801368 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getsid.elf" 0xd2800000 0xd2801388 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getrusage.elf" 0xd2800000 0x91000041 0xd28014a8 0xd4000001 0xf9400040
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getcpu.elf" 0x91000040 0x91002041 0xd2801508 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-gettimeofday.elf" 0x91000040 0xd2800001 0xd2801528 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sysinfo.elf" 0x91000040 0xd2801668 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap.elf" 0xd2800000 0xd2801bc8 0xd4000001 0xcb020000
@@ -202,6 +203,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getpgid.elf" 0x00000513 0x09b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getsid.elf" 0x00000513 0x09c00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getrusage.elf" 0x00000513 0x00060593 0x0a500893 0x00000073 0x00063503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getcpu.elf" 0x00060513 0x00860593 0x0a800893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-gettimeofday.elf" 0x00060513 0x00000593 0x0a900893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sysinfo.elf" 0x00060513 0x0b300893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap.elf" 0x00000513 0x0de00893 0x00000073 0x40c50533
@@ -352,6 +354,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-getpgid.elf=4242 \
     /usr/lib/polyapps/aarch64-getsid.elf=4242 \
     /usr/lib/polyapps/aarch64-getrusage.elf=321 \
+    /usr/lib/polyapps/aarch64-getcpu.elf=12 \
     /usr/lib/polyapps/aarch64-gettimeofday.elf=246 \
     /usr/lib/polyapps/aarch64-sysinfo.elf=98765 \
     /usr/lib/polyapps/aarch64-mmap.elf=0 \
@@ -390,6 +393,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-getpgid.elf=4242 \
     /usr/lib/polyapps/riscv-getsid.elf=4242 \
     /usr/lib/polyapps/riscv-getrusage.elf=321 \
+    /usr/lib/polyapps/riscv-getcpu.elf=12 \
     /usr/lib/polyapps/riscv-gettimeofday.elf=246 \
     /usr/lib/polyapps/riscv-sysinfo.elf=98765 \
     /usr/lib/polyapps/riscv-mmap.elf=0 \
@@ -458,6 +462,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-getpgid.elf \
     /usr/lib/polyapps/aarch64-getsid.elf \
     /usr/lib/polyapps/aarch64-getrusage.elf \
+    /usr/lib/polyapps/aarch64-getcpu.elf \
     /usr/lib/polyapps/aarch64-gettimeofday.elf \
     /usr/lib/polyapps/aarch64-sysinfo.elf \
     /usr/lib/polyapps/aarch64-mmap.elf \
@@ -496,6 +501,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-getpgid.elf \
     /usr/lib/polyapps/riscv-getsid.elf \
     /usr/lib/polyapps/riscv-getrusage.elf \
+    /usr/lib/polyapps/riscv-getcpu.elf \
     /usr/lib/polyapps/riscv-gettimeofday.elf \
     /usr/lib/polyapps/riscv-sysinfo.elf \
     /usr/lib/polyapps/riscv-mmap.elf \
