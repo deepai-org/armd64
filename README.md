@@ -46,6 +46,7 @@ All current poly operations are wrapped in fixed 8-byte envelopes:
 | Switch to AArch64 mode | `65 0f 0b 41 41 52 36 34` | Sets current poly mode to AArch64. |
 | Switch to RISC-V mode | `66 0f 0b 52 49 53 43 56` | Sets current poly mode to RISC-V. |
 | Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while preserving the caller mode for `poly ret`. |
+| Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while preserving the caller mode for `poly ret`. |
 | Poly return | `f3 0f 0b 52 45 54 52 4e` | Restores the saved caller mode. |
 | Syscall status | `2e 0f 0b 53 59 53 43 30/31` | Returns current mode or last foreign syscall number in `RAX`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 30/31` | Returns current libcall status or last libcall number in `RAX`. |

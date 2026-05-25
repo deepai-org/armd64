@@ -7,6 +7,7 @@ static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58
 static inline void poly_mode_aarch64(void) { asm volatile(".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34" ::: "memory"); }
 static inline void poly_mode_riscv(void) { asm volatile(".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56" ::: "memory"); }
 static inline void poly_call_aarch64(void) { asm volatile(".byte 0xf2,0x0f,0x0b,0x43,0x41,0x4c,0x4c,0x41" ::: "memory"); }
+static inline void poly_call_riscv(void) { asm volatile(".byte 0xf2,0x0f,0x0b,0x43,0x41,0x4c,0x4c,0x52" ::: "memory"); }
 static inline void poly_ret(void) { asm volatile(".byte 0xf3,0x0f,0x0b,0x52,0x45,0x54,0x52,0x4e" ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x30" ::: "memory"); }
@@ -82,6 +83,30 @@ int main(void) {
   poly_syscall_x86();
   if (read_rax() != 0) {
     fprintf(stderr, "POLY_PROBE_FAIL: polyret did not restore x86 mode\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: call-riscv");
+  write_rax(sentinel);
+  poly_call_riscv();
+  if (read_rax() != sentinel) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv polycall clobbered RAX\n");
+    return 1;
+  }
+  poly_syscall_x86();
+  if (read_rax() != 2) {
+    fprintf(stderr, "POLY_PROBE_FAIL: polycall did not enter riscv mode\n");
+    return 1;
+  }
+  write_rax(sentinel);
+  poly_ret();
+  if (read_rax() != sentinel) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv polyret lost caller state\n");
+    return 1;
+  }
+  poly_syscall_x86();
+  if (read_rax() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv polyret did not restore x86 mode\n");
     return 1;
   }
 
