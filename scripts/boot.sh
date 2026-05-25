@@ -165,6 +165,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap-store.elf" 0xd2800000 0xd2801bc8 0xd4000001 0xd28009a1 0xf9000001 0xf9400000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getpid.elf" 0xd2801588 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getuid.elf" 0xd28015c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getgid.elf" 0xd2801608 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getcwd.elf" 0x91000040 0xd2800201 0xd2800228 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-uname.elf" 0x91000040 0xd2801408 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-exit.elf" 0xd28000e0 0xd2800ba8 0xd4000001 0xd2800c60
@@ -193,6 +194,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap-store.elf" 0x00000513 0x0de00893 0x00000073 0x04d00593 0x00b53023 0x00053503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getpid.elf" 0x0ac00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getuid.elf" 0x0ae00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getgid.elf" 0x0b000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getcwd.elf" 0x00060513 0x01000593 0x01100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-uname.elf" 0x00060513 0x0a000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-exit.elf" 0x00700513 0x05d00893 0x00000073 0x06300513
@@ -333,6 +335,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-mmap-store.elf=77 \
     /usr/lib/polyapps/aarch64-getpid.elf=4242 \
     /usr/lib/polyapps/aarch64-getuid.elf=1000 \
+    /usr/lib/polyapps/aarch64-getgid.elf=1000 \
     /usr/lib/polyapps/aarch64-getcwd.elf=6 \
     /usr/lib/polyapps/aarch64-uname.elf=0 \
     /usr/lib/polyapps/aarch64-exit.elf=7 \
@@ -361,6 +364,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-mmap-store.elf=77 \
     /usr/lib/polyapps/riscv-getpid.elf=4242 \
     /usr/lib/polyapps/riscv-getuid.elf=1000 \
+    /usr/lib/polyapps/riscv-getgid.elf=1000 \
     /usr/lib/polyapps/riscv-getcwd.elf=6 \
     /usr/lib/polyapps/riscv-uname.elf=0 \
     /usr/lib/polyapps/riscv-exit.elf=7 \
@@ -419,6 +423,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-mmap-store.elf \
     /usr/lib/polyapps/aarch64-getpid.elf \
     /usr/lib/polyapps/aarch64-getuid.elf \
+    /usr/lib/polyapps/aarch64-getgid.elf \
     /usr/lib/polyapps/aarch64-getcwd.elf \
     /usr/lib/polyapps/aarch64-uname.elf \
     /usr/lib/polyapps/aarch64-exit.elf \
@@ -447,6 +452,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-mmap-store.elf \
     /usr/lib/polyapps/riscv-getpid.elf \
     /usr/lib/polyapps/riscv-getuid.elf \
+    /usr/lib/polyapps/riscv-getgid.elf \
     /usr/lib/polyapps/riscv-getcwd.elf \
     /usr/lib/polyapps/riscv-uname.elf \
     /usr/lib/polyapps/riscv-exit.elf \
