@@ -32,8 +32,8 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
   using the same raw-mode execution path, including executable segments larger
   than one raw burst.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
-  guest and verifies that raw instruction counters advance across multiple
-  fetch/decode bursts.
+  guest, verifies that raw instruction counters advance across multiple
+  fetch/decode bursts, and checks one mixed raw AArch64-to-RISC-V code blob.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 
@@ -107,6 +107,9 @@ The raw-mode direct-fetch path covers the generated/probed subset used by
 selected memory, syscall, and libcall forms listed above, plus native escapes.
 `polyprobe` still exercises the legacy instruction envelopes for low-level
 compatibility and uses raw mode for the direct-fetch smoke test.
+`polybench` also validates the current efficient mixed-raw path: raw AArch64
+escapes to x86_64 with `brk #0x7fff`, the next bytes immediately enter raw
+RISC-V with the `RAWRV` envelope, and the RISC-V stream escapes with custom-0.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
