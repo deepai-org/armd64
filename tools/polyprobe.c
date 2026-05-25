@@ -9,6 +9,7 @@ static inline void poly_mode_riscv(void) { asm volatile(".byte 0x66,0x0f,0x0b,0x
 static inline void poly_call_aarch64(void) { asm volatile(".byte 0xf2,0x0f,0x0b,0x43,0x41,0x4c,0x4c,0x41" ::: "memory"); }
 static inline void poly_ret(void) { asm volatile(".byte 0xf3,0x0f,0x0b,0x52,0x45,0x54,0x52,0x4e" ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
+static inline void poly_switch_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x30" ::: "memory"); }
 static inline void poly_aarch64_movz_x0_42(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x40,0x05,0x80,0xd2,0x00" ::: "memory"); }
 static inline void poly_aarch64_add_x0_1(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x00,0x04,0x00,0x91,0x00" ::: "memory"); }
 static inline void poly_aarch64_movz_x8_getpid(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x88,0x15,0x80,0xd2,0x00" ::: "memory"); }
@@ -148,6 +149,8 @@ int main(void) {
   }
 
   stage("POLY_STAGE: switch-stress");
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
   write_rax(0);
   POLY_SWITCH_STRESS_STEP();
   POLY_SWITCH_STRESS_STEP();
@@ -159,6 +162,11 @@ int main(void) {
   POLY_SWITCH_STRESS_STEP();
   if (read_rax() != 56) {
     fprintf(stderr, "POLY_PROBE_FAIL: mode switch stress mismatch\n");
+    return 1;
+  }
+  poly_switch_count_status();
+  if (read_rax() != switches_before + 32) {
+    fprintf(stderr, "POLY_PROBE_FAIL: mode switch count mismatch\n");
     return 1;
   }
 
