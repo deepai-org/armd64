@@ -35,6 +35,7 @@ case "$path" in
   */aarch64-gettimeofday.elf) expected=246 ;;
   */aarch64-sysinfo.elf) expected=98765 ;;
   */aarch64-mmap.elf) expected=0 ;;
+  */aarch64-mmap6.elf) expected=65 ;;
   */aarch64-mmap-store.elf) expected=77 ;;
   */aarch64-getpid.elf) expected=4242 ;;
   */aarch64-getppid.elf) expected=4241 ;;
@@ -74,6 +75,7 @@ case "$path" in
   */riscv-gettimeofday.elf) expected=246 ;;
   */riscv-sysinfo.elf) expected=98765 ;;
   */riscv-mmap.elf) expected=0 ;;
+  */riscv-mmap6.elf) expected=65 ;;
   */riscv-mmap-store.elf) expected=77 ;;
   */riscv-getpid.elf) expected=4242 ;;
   */riscv-getppid.elf) expected=4241 ;;

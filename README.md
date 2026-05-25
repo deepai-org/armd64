@@ -63,7 +63,7 @@ The current register bridge is deliberately small:
   `x2` / RISC-V `a2` value until a payload explicitly writes that foreign
   register.
 - Bochs tracks additional synthetic foreign argument registers internally:
-  AArch64 `x1`, `x2`, `x8`; RISC-V `a1`, `a2`, `a7`.
+  AArch64 `x1`-`x5`, `x8`; RISC-V `a1`-`a5`, `a7`.
 
 ## Supported Foreign Subset
 
@@ -87,6 +87,10 @@ Foreign Linux syscall handling is deterministic and shared between AArch64
   and `uname`.
 - Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
   `gettimeofday`, `sysinfo`, and `mmap`.
+
+The shared syscall dispatcher carries six foreign Linux ABI arguments for both
+foreign architectures; current `mmap6` payloads verify argument registers beyond
+`arg2` reach the dispatcher.
 
 Foreign library calls are deterministic traps rather than real dynamic libc
 calls:
