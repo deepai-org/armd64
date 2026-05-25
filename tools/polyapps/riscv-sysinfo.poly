@@ -1,0 +1,6 @@
+# poly payload v1
+arch=riscv
+elf=/usr/lib/polyapps/riscv-sysinfo.elf
+expected=98765
+syscall_expected=2
+syscall_number_expected=179
