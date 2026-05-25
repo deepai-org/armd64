@@ -160,6 +160,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-loop.elf" 0xd2800060 0xd1000400 0xb5ffffe0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ret.elf" 0xd28006e0 0xd65f03c0 0xd2800020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mem.elf" 0xd28009a0 0xf9000040 0xd2800000 0xf9400040
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memwidth.elf" 0x928001a5 0x39000045 0x39400046 0x92800025 0xb9000445 0xb9400447 0xd2824685 0x79001045 0x79401048 0x8b0700c0 0x8b080000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-strlen.elf" 0xd4200020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memfill.elf" 0xd2800080 0xd2800821 0xd4200040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcmp.elf" 0xd2800082 0x91000441 0xd4200060
@@ -378,6 +379,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-loop.elf=0 \
     /usr/lib/polyapps/aarch64-ret.elf=55 \
     /usr/lib/polyapps/aarch64-mem.elf=77 \
+    /usr/lib/polyapps/aarch64-memwidth.elf=0x100001324 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
     /usr/lib/polyapps/aarch64-memfill.elf=4 \
     /usr/lib/polyapps/aarch64-memcmp.elf=1 \
@@ -507,6 +509,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-loop.elf \
     /usr/lib/polyapps/aarch64-ret.elf \
     /usr/lib/polyapps/aarch64-mem.elf \
+    /usr/lib/polyapps/aarch64-memwidth.elf \
     /usr/lib/polyapps/aarch64-strlen.elf \
     /usr/lib/polyapps/aarch64-memfill.elf \
     /usr/lib/polyapps/aarch64-memcmp.elf \

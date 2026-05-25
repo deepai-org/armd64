@@ -18,6 +18,7 @@ case "$path" in
   */aarch64-loop.elf) expected=0 ;;
   */aarch64-ret.elf) expected=55 ;;
   */aarch64-mem.elf) expected=77 ;;
+  */aarch64-memwidth.elf) expected=0x100001324 ;;
   */aarch64-strlen.elf) expected=5 ;;
   */aarch64-memfill.elf) expected=4 ;;
   */aarch64-memcmp.elf) expected=1 ;;
