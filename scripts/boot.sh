@@ -24,6 +24,8 @@ POLY_PROBE_SRC="$ROOT_DIR/tools/polyprobe.c"
 POLY_PROBE_BIN="$OUT_DIR/polyprobe"
 POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
+POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
+POLY_EXEC_BIN="$OUT_DIR/polyexec"
 POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
 POLY_ELF_GEN_SRC="$ROOT_DIR/tools/mkpolyelf.c"
 POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
@@ -85,6 +87,10 @@ build_poly_app() {
   compile_poly_tool "$POLY_APP_SRC" "$POLY_APP_BIN" "${POLY_APP_CC:-}"
 }
 
+build_poly_exec() {
+  compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}"
+}
+
 build_poly_elf_generator() {
   if [[ -x "$POLY_ELF_GEN_BIN" && "$POLY_ELF_GEN_BIN" -nt "$POLY_ELF_GEN_SRC" ]]; then
     return
@@ -121,6 +127,7 @@ build_initramfs() {
   mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin,usr/lib/polyapps}
   build_poly_probe
   build_poly_app
+  build_poly_exec
   local busybox_version
   local busybox_apk
   local busybox_extract
@@ -154,6 +161,7 @@ build_initramfs() {
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/ls"
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
+  cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
   build_poly_elf_payloads
 
@@ -184,6 +192,7 @@ fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then
   /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
+  /usr/bin/polyexec /usr/lib/polyapps/*.elf >/dev/ttyS0 2>&1
 fi
 
 sleep 1
@@ -315,6 +324,10 @@ EOF
       fi
       if [[ "$RUN_POLY_APPS" == "1" ]]; then
         if ! grep -q "POLYAPP_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
