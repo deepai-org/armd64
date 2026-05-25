@@ -1,0 +1,7 @@
+# poly payload v1
+arch=riscv
+elf=/usr/lib/polyapps/riscv-immops.elf
+expected=42
+syscall_expected=2
+libcall_id=0
+libcall_expected=0x4c000200

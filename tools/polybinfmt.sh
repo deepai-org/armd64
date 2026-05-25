@@ -50,6 +50,9 @@ case "$path" in
   */aarch64-brk.elf) expected=0x4c000305 ;;
   */aarch64-svc.elf) expected=0x53000703 ;;
   */riscv-add.elf) expected=27 ;;
+  */riscv-immops.elf) expected=42 ;;
+  */riscv-shifts.elf) expected=32 ;;
+  */riscv-srai.elf) expected=0xfffffffffffffffc ;;
   */riscv-regadd.elf) expected=123 ;;
   */riscv-mul.elf) expected=42 ;;
   */riscv-branch.elf) expected=42 ;;

@@ -197,6 +197,9 @@ build_poly_elf_payloads() {
   done
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-long.elf" "${aarch64_long[@]}"
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-add.elf" 0x01f00513 0xffc50513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-immops.elf" 0x00500513 0x00351513 0x00356513 0x00154513 0x03f57513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-shifts.elf" 0x04000513 0x00255513 0x00151513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-srai.elf" 0xff800513 0x40155513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-regadd.elf" 0x06400513 0x01700593 0x00b50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mul.elf" 0x00700513 0x00600593 0x02b50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-logical.elf" 0x0f000513 0x03c00593 0x00b54533 0x00b57533 0x00b56533
@@ -402,6 +405,9 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-svc.elf=0x53000703 \
     /usr/lib/polyapps/aarch64-long.elf=80 \
     /usr/lib/polyapps/riscv-add.elf=27 \
+    /usr/lib/polyapps/riscv-immops.elf=42 \
+    /usr/lib/polyapps/riscv-shifts.elf=32 \
+    /usr/lib/polyapps/riscv-srai.elf=0xfffffffffffffffc \
     /usr/lib/polyapps/riscv-regadd.elf=123 \
     /usr/lib/polyapps/riscv-mul.elf=42 \
     /usr/lib/polyapps/riscv-logical.elf=60 \
@@ -522,6 +528,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-svc.elf \
     /usr/lib/polyapps/aarch64-long.elf \
     /usr/lib/polyapps/riscv-add.elf \
+    /usr/lib/polyapps/riscv-immops.elf \
+    /usr/lib/polyapps/riscv-shifts.elf \
+    /usr/lib/polyapps/riscv-srai.elf \
     /usr/lib/polyapps/riscv-regadd.elf \
     /usr/lib/polyapps/riscv-mul.elf \
     /usr/lib/polyapps/riscv-logical.elf \
