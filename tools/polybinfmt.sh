@@ -25,6 +25,7 @@ case "$path" in
   */aarch64-write.elf) expected=5 ;;
   */aarch64-openat.elf) expected=3 ;;
   */aarch64-openat-read.elf) expected=4 ;;
+  */aarch64-openat-read-close.elf) expected=0 ;;
   */aarch64-clock-gettime.elf) expected=0 ;;
   */aarch64-mmap.elf) expected=0 ;;
   */aarch64-mmap-store.elf) expected=77 ;;
@@ -51,6 +52,7 @@ case "$path" in
   */riscv-write.elf) expected=5 ;;
   */riscv-openat.elf) expected=3 ;;
   */riscv-openat-read.elf) expected=4 ;;
+  */riscv-openat-read-close.elf) expected=0 ;;
   */riscv-clock-gettime.elf) expected=0 ;;
   */riscv-mmap.elf) expected=0 ;;
   */riscv-mmap-store.elf) expected=77 ;;
