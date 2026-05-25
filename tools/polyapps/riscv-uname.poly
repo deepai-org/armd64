@@ -1,0 +1,8 @@
+# poly payload v1
+arch=riscv
+elf=/usr/lib/polyapps/riscv-uname.elf
+expected=0
+scratch_expected=Linux
+syscall_expected=2
+libcall_id=0
+libcall_expected=0x4c000200
