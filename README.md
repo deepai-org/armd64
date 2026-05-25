@@ -59,21 +59,24 @@ The current register bridge is deliberately small:
 
 - x86_64 `RAX` carries the foreign return value and maps to AArch64 `x0` or
   RISC-V `a0` for supported operations.
-- x86_64 `RDI` is used as the shared scratch/base pointer and maps to the small
-  supported subset of AArch64 `x2` or RISC-V `a2` addressing patterns.
+- x86_64 `RDI` is used as the shared scratch/base pointer and default AArch64
+  `x2` / RISC-V `a2` value until a payload explicitly writes that foreign
+  register.
 - Bochs tracks additional synthetic foreign argument registers internally:
   AArch64 `x1`, `x2`, `x8`; RISC-V `a1`, `a2`, `a7`.
 
 ## Supported Foreign Subset
 
 The current AArch64 decoder supports the generated/probed subset used by the
-tests: `movz`, selected `add`/`sub` immediate and register forms, `mul`,
-selected `eor`/`and`/`orr` register forms, unconditional branch, `cbz`/`cbnz`,
-`ret`, selected 64-bit `str`/`ldr`, `svc`, and `brk`.
+tests: `movz`, selected `add`/`sub` immediate forms, decoded register-register
+`add`/`sub`/`mul`/`eor`/`and`/`orr` over the scaffold ABI registers,
+unconditional branch, `cbz`/`cbnz`, `ret`, selected 64-bit `str`/`ldr`, `svc`,
+and `brk`.
 
 The current RISC-V decoder supports the generated/probed RV64 subset used by
-the tests: selected `addi`, `add`, `sub`, `mul`, `xor`, `and`, `or`,
-`beq`/`bne`, `jalr` return, selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
+the tests: selected `addi`, decoded register-register `add`, `sub`, `mul`,
+`xor`, `and`, `or` over the scaffold ABI registers, `beq`/`bne`, `jalr`
+return, selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
