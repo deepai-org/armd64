@@ -10,11 +10,11 @@ fi
 expected=""
 case "$path" in
   */aarch64-add.elf) expected=43 ;;
-  */aarch64-brk.elf) expected=0x4c000100 ;;
-  */aarch64-svc.elf) expected=0x53000001 ;;
+  */aarch64-brk.elf) expected=0x4c000105 ;;
+  */aarch64-svc.elf) expected=0x53000701 ;;
   */riscv-add.elf) expected=22 ;;
-  */riscv-ebreak.elf) expected=0x4c000200 ;;
-  */riscv-ecall.elf) expected=0x53000002 ;;
+  */riscv-ebreak.elf) expected=0x4c000205 ;;
+  */riscv-ecall.elf) expected=0x53000702 ;;
 esac
 
 echo "POLYBINFMT_EXEC: path=$path expected=${expected:-none}"
