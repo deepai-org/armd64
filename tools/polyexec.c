@@ -21,9 +21,46 @@ struct poly_program {
   size_t insn_count;
 };
 
+struct poly_request {
+  char path[160];
+  uint64_t expected;
+  int check_expected;
+};
+
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
 static inline void poly_mode_aarch64(void) { asm volatile(".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34" ::: "memory"); }
 static inline void poly_mode_riscv(void) { asm volatile(".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56" ::: "memory"); }
+
+static int parse_u64(const char *text, uint64_t *value) {
+  char *end = NULL;
+  errno = 0;
+  unsigned long long parsed = strtoull(text, &end, 0);
+  if (errno || end == text || *end != '\0')
+    return -1;
+  *value = (uint64_t) parsed;
+  return 0;
+}
+
+static int parse_request(const char *arg, struct poly_request *request) {
+  memset(request, 0, sizeof(*request));
+  const char *expected = strchr(arg, '=');
+  size_t path_len = expected ? (size_t) (expected - arg) : strlen(arg);
+  if (path_len == 0 || path_len >= sizeof(request->path)) {
+    fprintf(stderr, "POLYEXEC_FAIL: bad argument: %s\n", arg);
+    return -1;
+  }
+
+  memcpy(request->path, arg, path_len);
+  request->path[path_len] = '\0';
+  if (expected) {
+    if (parse_u64(expected + 1, &request->expected) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad expected value: %s\n", arg);
+      return -1;
+    }
+    request->check_expected = 1;
+  }
+  return 0;
+}
 
 static int read_file(const char *path, unsigned char **data, size_t *size) {
   FILE *file = fopen(path, "rb");
@@ -182,14 +219,18 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: %s foreign.elf...\n", argv[0]);
+    fprintf(stderr, "usage: %s foreign.elf[=expected]...\n", argv[0]);
     return 2;
   }
 
   puts("POLYEXEC: start");
   for (int n = 1; n < argc; n++) {
+    struct poly_request request;
+    if (parse_request(argv[n], &request) < 0)
+      return 1;
+
     struct poly_program program;
-    if (load_elf_program(argv[n], &program) < 0)
+    if (load_elf_program(request.path, &program) < 0)
       return 1;
 
     printf("POLYEXEC_ELF: arch=%s insns=%zu path=%s\n",
@@ -201,6 +242,15 @@ int main(int argc, char **argv) {
 
     printf("POLYEXEC_RESULT: arch=%s value=%llu path=%s\n",
       program.arch_name, (unsigned long long) result, program.path);
+    if (request.check_expected) {
+      printf("POLYEXEC_EXPECT: arch=%s expected=%llu path=%s\n",
+        program.arch_name, (unsigned long long) request.expected, program.path);
+      if (result != request.expected) {
+        fprintf(stderr, "POLYEXEC_FAIL: %s expected %llu got %llu\n",
+          program.path, (unsigned long long) request.expected, (unsigned long long) result);
+        return 1;
+      }
+    }
   }
 
   puts("POLYEXEC_OK");

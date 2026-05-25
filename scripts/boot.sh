@@ -192,7 +192,13 @@ fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then
   /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
-  /usr/bin/polyexec /usr/lib/polyapps/*.elf >/dev/ttyS0 2>&1
+  /usr/bin/polyexec \
+    /usr/lib/polyapps/aarch64-add.elf=43 \
+    /usr/lib/polyapps/aarch64-brk.elf=0x4c000100 \
+    /usr/lib/polyapps/aarch64-svc.elf=0x53000001 \
+    /usr/lib/polyapps/riscv-add.elf=22 \
+    /usr/lib/polyapps/riscv-ebreak.elf=0x4c000200 \
+    /usr/lib/polyapps/riscv-ecall.elf=0x53000002 >/dev/ttyS0 2>&1
 fi
 
 sleep 1
