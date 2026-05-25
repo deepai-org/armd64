@@ -49,8 +49,8 @@ All current poly operations are wrapped in fixed 8-byte envelopes:
 | Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while pushing the caller mode for `poly ret`. |
 | Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while pushing the caller mode for `poly ret`. |
 | Poly return | `f3 0f 0b 52 45 54 52 4e` | Pops and restores the caller mode. |
-| Syscall status | `2e 0f 0b 53 59 53 43 30/31` | Returns current mode or last foreign syscall number in `RAX`. |
-| Libcall status | `3e 0f 0b 4c 49 42 43 30/31` | Returns current libcall status or last libcall number in `RAX`. |
+| Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
+| Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign instruction envelopes`, `3=foreign syscalls`, `4=foreign libcalls`. |
 | AArch64 instruction | `67 0f 0b <u32-le-insn> 00` | Decodes one supported AArch64 instruction when current mode is AArch64. |
 | RISC-V instruction | `26 0f 0b <u32-le-insn> 00` | Decodes one supported RISC-V instruction when current mode is RISC-V. |

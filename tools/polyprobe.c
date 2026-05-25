@@ -10,6 +10,10 @@ static inline void poly_call_aarch64(void) { asm volatile(".byte 0xf2,0x0f,0x0b,
 static inline void poly_call_riscv(void) { asm volatile(".byte 0xf2,0x0f,0x0b,0x43,0x41,0x4c,0x4c,0x52" ::: "memory"); }
 static inline void poly_ret(void) { asm volatile(".byte 0xf3,0x0f,0x0b,0x52,0x45,0x54,0x52,0x4e" ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
+static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x31" ::: "memory"); }
+static inline void poly_syscall_mode_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x32" ::: "memory"); }
+static inline void poly_libcall_number_status(void) { asm volatile(".byte 0x3e,0x0f,0x0b,0x4c,0x49,0x42,0x43,0x31" ::: "memory"); }
+static inline void poly_libcall_mode_status(void) { asm volatile(".byte 0x3e,0x0f,0x0b,0x4c,0x49,0x42,0x43,0x32" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x30" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x32" ::: "memory"); }
 static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x33" ::: "memory"); }
@@ -233,15 +237,35 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: mixed aarch64 libcall mismatch\n");
     return 1;
   }
+  poly_libcall_number_status();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 libcall number mismatch\n");
+    return 1;
+  }
+  poly_libcall_mode_status();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 libcall mode mismatch\n");
+    return 1;
+  }
   write_rdi((uint64_t) mixed_libcall_string);
   poly_mode_riscv();
   poly_riscv_addi_a7_1();
   poly_riscv_ebreak();
-  poly_mode_x86();
   if (read_rax() != 8) {
     fprintf(stderr, "POLY_PROBE_FAIL: mixed riscv libcall mismatch\n");
     return 1;
   }
+  poly_libcall_number_status();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv libcall number mismatch\n");
+    return 1;
+  }
+  poly_libcall_mode_status();
+  if (read_rax() != 2) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv libcall mode mismatch\n");
+    return 1;
+  }
+  poly_mode_x86();
 
   stage("POLY_STAGE: mixed-syscall");
   poly_mode_aarch64();
@@ -251,14 +275,34 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: mixed aarch64 syscall mismatch\n");
     return 1;
   }
+  poly_syscall_number_status();
+  if (read_rax() != 172) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 syscall number mismatch\n");
+    return 1;
+  }
+  poly_syscall_mode_status();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 syscall mode mismatch\n");
+    return 1;
+  }
   poly_mode_riscv();
   poly_riscv_addi_a7_getpid();
   poly_riscv_ecall();
-  poly_mode_x86();
   if (read_rax() != 4242) {
     fprintf(stderr, "POLY_PROBE_FAIL: mixed riscv syscall mismatch\n");
     return 1;
   }
+  poly_syscall_number_status();
+  if (read_rax() != 172) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv syscall number mismatch\n");
+    return 1;
+  }
+  poly_syscall_mode_status();
+  if (read_rax() != 2) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv syscall mode mismatch\n");
+    return 1;
+  }
+  poly_mode_x86();
 
   stage("POLY_STAGE: syscall");
   poly_mode_x86();
