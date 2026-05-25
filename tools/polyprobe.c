@@ -1,12 +1,14 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3f,0x00" ::: "memory"); }
-static inline void poly_mode_aarch64(void) { asm volatile(".byte 0x0f,0x3f,0x01" ::: "memory"); }
-static inline void poly_mode_riscv(void) { asm volatile(".byte 0x0f,0x3f,0x02" ::: "memory"); }
-static inline void poly_call_aarch64(void) { asm volatile(".byte 0x0f,0x3e,0x01" ::: "memory"); }
-static inline void poly_ret(void) { asm volatile(".byte 0x0f,0x3d" ::: "memory"); }
-static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x39,0x00" ::: "memory"); }
+static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
+static inline void poly_mode_aarch64(void) { asm volatile(".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34" ::: "memory"); }
+static inline void poly_mode_riscv(void) { asm volatile(".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56" ::: "memory"); }
+static inline void poly_call_aarch64(void) { asm volatile(".byte 0xf2,0x0f,0x0b,0x43,0x41,0x4c,0x4c,0x41" ::: "memory"); }
+static inline void poly_ret(void) { asm volatile(".byte 0xf3,0x0f,0x0b,0x52,0x45,0x54,0x52,0x4e" ::: "memory"); }
+static inline void poly_syscall_x86(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -18,24 +20,35 @@ static inline void write_rax(uint64_t value) {
   asm volatile("" :: "a"(value) : "memory");
 }
 
+static void stage(const char *msg) {
+  if (write(1, msg, strlen(msg)) < 0)
+    return;
+  ssize_t ignored = write(1, "\n", 1);
+  (void) ignored;
+}
+
 int main(void) {
   const uint64_t sentinel = 0x1122334455667788ULL;
 
-  puts("POLY_PROBE: start");
-  write_rax(sentinel);
+  stage("POLY_PROBE: start");
 
+  stage("POLY_STAGE: call");
+  write_rax(sentinel);
   poly_call_aarch64();
   if (read_rax() != sentinel) {
     fprintf(stderr, "POLY_PROBE_FAIL: polycall clobbered RAX\n");
     return 1;
   }
 
+  stage("POLY_STAGE: ret");
+  write_rax(sentinel);
   poly_ret();
   if (read_rax() != sentinel) {
     fprintf(stderr, "POLY_PROBE_FAIL: polyret lost caller state\n");
     return 1;
   }
 
+  stage("POLY_STAGE: mode1");
   write_rax(sentinel);
   poly_mode_aarch64();
   poly_mode_riscv();
@@ -45,6 +58,7 @@ int main(void) {
     return 1;
   }
 
+  stage("POLY_STAGE: mode2");
   write_rax(sentinel);
   poly_mode_riscv();
   poly_mode_x86();
@@ -53,6 +67,7 @@ int main(void) {
     return 1;
   }
 
+  stage("POLY_STAGE: syscall");
   poly_mode_x86();
   poly_syscall_x86();
   if (read_rax() != 0) {

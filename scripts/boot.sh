@@ -22,6 +22,14 @@ BOCHS_RC="$TMP_DIR/bochs.rc"
 CONSOLE_LOG="$OUT_DIR/bochs-console.log"
 POLY_PROBE_SRC="$ROOT_DIR/tools/polyprobe.c"
 POLY_PROBE_BIN="$OUT_DIR/polyprobe"
+POLY_ENABLED="${POLY_ENABLED:-0}"
+RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
+BOCHS_BIOS_DIR=""
+if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
+  BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
+elif [[ -d "$ROOT_DIR/bochs-prepoly-src/bochs/bios" ]]; then
+  BOCHS_BIOS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs/bios"
+fi
 
 download() {
   local url="$1"
@@ -37,7 +45,7 @@ build_poly_probe() {
   fi
 
   local compiler=""
-  for candidate in "${POLY_PROBE_CC:-}" cc gcc; do
+  for candidate in "${POLY_PROBE_CC:-}" x86_64-linux-gnu-gcc gcc-x86-64-linux-gnu cc gcc; do
     if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
       compiler="$candidate"
       break
@@ -52,7 +60,11 @@ build_poly_probe() {
     exit 1
   fi
 
-  "$compiler" -O2 -static -s "$POLY_PROBE_SRC" -o "$POLY_PROBE_BIN"
+  local -a compiler_args=(-O2 -static -s)
+  if [[ "$compiler" == x86_64-linux-gnu-gcc || "$compiler" == gcc-x86-64-linux-gnu ]]; then
+    compiler_args+=(--sysroot=/usr/x86_64-linux-gnu)
+  fi
+  "$compiler" "${compiler_args[@]}" "$POLY_PROBE_SRC" -o "$POLY_PROBE_BIN"
 }
 
 build_initramfs() {
@@ -92,9 +104,10 @@ build_initramfs() {
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/ls"
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
 
-  cat > "$TMP_DIR/initramfs-root/init" <<'EOF'
+  cat > "$TMP_DIR/initramfs-root/init" <<EOF
 #!/bin/busybox sh
 set -eu
+RUN_POLY_PROBE="$RUN_POLY_PROBE"
 
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -111,7 +124,9 @@ fi
 echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
 
-/usr/bin/polyprobe >/dev/console 2>&1
+if [ "$RUN_POLY_PROBE" = "1" ]; then
+  /usr/bin/polyprobe >/dev/ttyS0 2>&1
+fi
 
 sleep 1
 poweroff -f || halt -f
@@ -157,14 +172,39 @@ EOF
 }
 
 build_bochsrc() {
+  local vga_romimage
+  local bios_romimage=""
+  if [[ -n "$BOCHS_BIOS_DIR" ]]; then
+    bios_romimage="$BOCHS_BIOS_DIR/BIOS-bochs-latest"
+  fi
+  if [[ -z "$bios_romimage" || ! -s "$bios_romimage" ]]; then
+    bios_romimage="$(find /usr/share /usr/local/share -path '*/BIOS-bochs-latest' -o -path '*/BIOS-bochs-latest.bin' | head -n 1)"
+  fi
+  if [[ -z "$bios_romimage" || ! -s "$bios_romimage" ]]; then
+    echo "Unable to locate system BIOS image." >&2
+    exit 1
+  fi
+
+  if [[ -n "$BOCHS_BIOS_DIR" ]]; then
+    vga_romimage="$BOCHS_BIOS_DIR/VGABIOS-lgpl/VGABIOS-lgpl-latest.bin"
+  fi
+  if [[ -z "$vga_romimage" || ! -s "$vga_romimage" ]]; then
+    vga_romimage="$(find /usr/share /usr/local/share -path '*/VGABIOS-lgpl-latest.bin' -o -path '*/vgabios-stdvga.bin' | head -n 1)"
+  fi
+  if [[ -z "$vga_romimage" ]]; then
+    echo "Unable to locate VGA BIOS image." >&2
+    exit 1
+  fi
+
   cat > "$BOCHSRC" <<EOF
 megs: 128
-display_library: x
-romimage: file=/usr/share/bochs/BIOS-bochs-latest
-vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
+display_library: nogui
+romimage: file=$bios_romimage
+vgaromimage: file=$vga_romimage
 boot: cdrom
 ata0-master: type=cdrom, path="$ISO_IMAGE", status=inserted
 com1: enabled=1, mode=file, dev="$SERIAL_LOG"
+cpu: poly_enabled=$POLY_ENABLED
 log: "$BOCHS_LOG"
 panic: action=report
 error: action=report
@@ -186,9 +226,52 @@ c
 EOF
   build_bochsrc
 
-  timeout 120s xvfb-run -a bochs -q -f "$BOCHSRC" -rc "$BOCHS_RC" >"$CONSOLE_LOG" 2>&1 || true
+  local bochs_cmd
+  if [[ -n "${BOCHS_BIN:-}" ]]; then
+    bochs_cmd="$BOCHS_BIN"
+  elif command -v bochs >/dev/null 2>&1; then
+    bochs_cmd="$(command -v bochs)"
+  elif [[ -x /usr/local/bin/bochs-poly ]]; then
+    bochs_cmd=/usr/local/bin/bochs-poly
+  else
+    echo "No bochs binary found." >&2
+    exit 1
+  fi
 
-  if grep -q "BOOT_OK: initramfs reached userspace" "$SERIAL_LOG"; then
+  local -a bochs_args=(-q -f "$BOCHSRC")
+  if "$bochs_cmd" --help 2>&1 | grep -q -- ' -rc '; then
+    bochs_args+=(-rc "$BOCHS_RC")
+  fi
+
+  "$bochs_cmd" "${bochs_args[@]}" >"$CONSOLE_LOG" 2>&1 &
+  local bochs_pid=$!
+  local deadline=$((SECONDS + 120))
+  local success=0
+  while (( SECONDS < deadline )); do
+    if grep -q "BOOT_OK: initramfs reached userspace" "$SERIAL_LOG"; then
+      if [[ "$RUN_POLY_PROBE" == "1" ]]; then
+        if grep -q "POLY_PROBE_OK" "$SERIAL_LOG"; then
+          success=1
+          break
+        fi
+      else
+        success=1
+        break
+      fi
+    fi
+
+    if ! kill -0 "$bochs_pid" 2>/dev/null; then
+      break
+    fi
+    sleep 1
+  done
+
+  if kill -0 "$bochs_pid" 2>/dev/null; then
+    kill "$bochs_pid" 2>/dev/null || true
+  fi
+  wait "$bochs_pid" 2>/dev/null || true
+
+  if (( success )); then
     echo "Boot smoke test passed."
     exit 0
   fi
