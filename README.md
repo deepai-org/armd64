@@ -57,6 +57,8 @@ All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 | Switch to x86_64 mode | `64 0f 0b 58 4d 4f 44 45` | Sets current poly mode to x86_64. |
 | Switch to raw AArch64 mode | `65 0f 0b 52 41 57 36 34` | Sets current poly mode to raw AArch64; following bytes are fetched as fixed 32-bit AArch64 instructions. |
 | Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as fixed 32-bit RISC-V instructions. |
+| x86 SysV call to AArch64 | `40 0f 0b 50 43 41 36 34` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
+| x86 SysV call to RISC-V | `40 0f 0b 50 43 52 56 36` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign raw instructions`, `3=foreign syscalls`, `4=foreign libcalls`. |
@@ -75,9 +77,12 @@ The current raw run loop batches up to 64 raw foreign instructions before
 returning to the outer Bochs event loop, while still checking async events and
 mode exits between individual raw instructions.
 Raw native returns stay native: AArch64 `ret` branches to `x30`/the selected
-link register and RISC-V `ret` is handled as ordinary `jalr x0, 0(ra)`.  The
-current x86-side raw loaders synthesize an explicit return landing pad by
-setting AArch64 `x30` or RISC-V `ra` to the following x86 escape instruction.
+link register and RISC-V `ret` is handled as ordinary `jalr x0, 0(ra)`.  Raw
+loader tests may still synthesize an explicit return landing pad by setting
+AArch64 `x30` or RISC-V `ra` to a following x86 escape instruction.  The newer
+prototype `PCALL` forms set a hardware-style return cookie in `x30` or `ra`;
+ordinary foreign `ret` to that cookie switches back to x86_64 at the `R11`
+return address.
 
 The hybrid CPU currently defines foreign-mode memory ordering as x86_64 TSO.
 AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and `fence.i`
@@ -99,19 +104,22 @@ The current register bridge aliases the overlapping caller-visible integer ABI:
   by guest `CR3` and user `FSBASE`: AArch64 `x7`-`x30` plus syscall scratch
   `x8`, and RISC-V non-aliased registers including `a7`.
 
-Precompiled cross-ISA linking is expected to use native-ABI boundary thunks, not
-a custom compiler ABI.  For example, an x86_64 SysV caller entering a
-precompiled AArch64 library needs a thunk that maps SysV arguments into
-AAPCS64 `x0`-`x7`, switches mode, and routes the AArch64 return back through
-the thunk via a native link-register landing pad.  The same applies to RISC-V
-psABI `a0`-`a7` and `ra`.  Direct register aliases are an implementation
-optimization only where they match the native ABI contract; they are not the
-external compatibility contract.
+Precompiled cross-ISA linking is expected to use native ABI contracts, not a
+custom compiler ABI.  The prototype `PCALL.A64.SYSV` and `PCALL.RV64.SYSV`
+forms move the common thunk work into the emulated ISA: they map x86_64 SysV
+integer arguments into AAPCS64 `x0`-`x5` or RISC-V psABI `a0`-`a5`, preserve
+the shared `XMM0`-`XMM7` FP argument/return aliases, set `x30` or `ra` to a
+return cookie, and enter raw fetch at the `R10` target.  More complex ABI cases
+such as stack arguments, aggregate returns, variadic calls, TLS, unwind, and
+exceptions still need descriptor-driven or software thunk support.  Direct
+register aliases are an implementation optimization only where they match the
+native ABI contract; they are not the external compatibility contract.
 
 Cross-ISA returns are expected to use native return instructions.  AArch64
 libraries return with `ret` through `x30`, and RISC-V libraries return with
-`jalr x0, 0(ra)`.  x86-side thunks provide the link-register or return-address
-landing pad that escapes raw mode and resumes x86_64.
+`jalr x0, 0(ra)`.  For `PCALL`, the return cookie routes that native return
+back to the saved x86_64 continuation without executing a foreign breakpoint or
+custom escape instruction.
 
 Foreign traps are now recorded as explicit architectural exits before any
 compatibility behavior runs.  AArch64 `svc` and RISC-V `ecall` record reason

@@ -13,7 +13,18 @@ implementation should expose CPUID-gated x86 instructions for:
 - `PENTER.A64`: enter fixed-width AArch64 fetch at the next byte.
 - `PENTER.RV64`: enter fixed-width RISC-V fetch at the next byte.
 - `PEXIT`: return to x86_64 fetch without taking an exception.
-- Optional call helpers only if they preserve native ABI return semantics.
+- `PCALL.A64.SYSV`: call an AArch64 AAPCS64 target from an x86_64 SysV caller.
+- `PCALL.RV64.SYSV`: call a RISC-V psABI target from an x86_64 SysV caller.
+- Descriptor-based `PCALL` forms for stack arguments, aggregates, variadics,
+  unwind metadata, and other cases that cannot be encoded by one fixed shuffle.
+
+The fixed `PCALL` fast path is an architectural ABI bridge, not a custom ABI.
+For common scalar calls, hardware maps x86_64 SysV integer arguments into the
+native foreign argument registers, preserves the shared FP argument registers,
+sets the foreign link register to a return cookie, switches the frontend, and
+starts fetching at the foreign target.  A normal foreign return instruction to
+that cookie restores x86_64 fetch at the saved continuation and maps the native
+return registers back to the x86_64 result registers.
 
 Foreign architectural state must be explicit.  Non-aliased AArch64 and RISC-V
 registers are not hidden CR3/FSBASE maps in the ISA contract.  A hardware
@@ -41,6 +52,15 @@ invasive way to prototype the frontend switch:
 - `65 0f 0b 52 41 57 36 34`: enter raw AArch64 fetch.
 - `66 0f 0b 52 41 57 52 56`: enter raw RISC-V fetch.
 - `64 0f 0b 58 4d 4f 44 45`: return to x86_64 mode.
+- `40 0f 0b 50 43 41 36 34`: prototype `PCALL.A64.SYSV`.
+- `40 0f 0b 50 43 52 56 36`: prototype `PCALL.RV64.SYSV`.
+
+The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
+as the x86_64 return continuation.  They currently cover the common register
+fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` are mapped to
+AArch64 `x0`-`x5` or RISC-V `a0`-`a5`; `XMM0`-`XMM7` remain aliased to
+AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`; and AArch64 `ret x30` or RISC-V
+`jalr x0, 0(ra)` returns through a cookie to the saved x86 continuation.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:
@@ -63,5 +83,7 @@ software can save, restore, inspect, and route.
 Precompiled cross-ISA libraries remain native ABI objects.  Boundary thunks are
 responsible for mapping x86_64 SysV arguments to AAPCS64 or RISC-V psABI
 registers, setting a native return target, entering raw fetch, and handling trap
-exits.  Direct register aliasing is an implementation optimization, not the
+exits.  The target ISA makes the common thunk operation a fast hardware `PCALL`;
+software descriptors or thunks still handle ABI cases outside the fixed fast
+path.  Direct register aliasing is an implementation optimization, not the
 external ABI.

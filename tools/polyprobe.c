@@ -156,6 +156,50 @@ static inline void raw_riscv_abi_args_probe(void) {
     ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "memory");
 }
 
+static inline void pcall_aarch64_sysv_args_probe(void) {
+  asm volatile(
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x41,0x36,0x34\n"
+    "1:\n"
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0x8b020000\n" // add x0,x0,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void pcall_riscv_sysv_args_probe(void) {
+  asm volatile(
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x52,0x56,0x36\n"
+    "1:\n"
+    ".long 0x00b50533\n" // add a0,a0,a1
+    ".long 0x00c50533\n" // add a0,a0,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
 static inline void raw_fp64_aarch64_probe(void) {
   asm volatile(
     ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
@@ -174,6 +218,34 @@ static inline void raw_fp64_riscv_probe(void) {
     ".long 0x12b50553\n"
     ".long 0x0000000b\n"
     ::: "xmm0", "memory");
+}
+
+static inline void pcall_fp64_aarch64_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x41,0x36,0x34\n"
+    "1:\n"
+    ".long 0x1e612800\n"
+    ".long 0x1e613800\n"
+    ".long 0x1e610800\n"
+    ".long 0xd65f03c0\n"
+    "2:\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "xmm0", "memory");
+}
+
+static inline void pcall_fp64_riscv_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x52,0x56,0x36\n"
+    "1:\n"
+    ".long 0x02b50553\n"
+    ".long 0x0ab50553\n"
+    ".long 0x12b50553\n"
+    ".long 0x00008067\n"
+    "2:\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "xmm0", "memory");
 }
 
 static inline void raw_barrier_probe(void) {
@@ -313,6 +385,18 @@ int main(void) {
     return 1;
   }
 
+  stage("POLY_STAGE: pcall-abi");
+  pcall_aarch64_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall aarch64 SysV argument bridge mismatch\n");
+    return 1;
+  }
+  pcall_riscv_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall riscv SysV argument bridge mismatch\n");
+    return 1;
+  }
+
   stage("POLY_STAGE: fp64-args");
   write_xmm0_u64(0x3ff8000000000000ULL);
   write_xmm1_u64(0x4002000000000000ULL);
@@ -326,6 +410,24 @@ int main(void) {
   raw_fp64_riscv_probe();
   if (read_xmm0_u64() != 0x400b000000000000ULL) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv FP64 bridge mismatch\n");
+    return 1;
+  }
+  write_xmm0_u64(0x3ff8000000000000ULL);
+  write_xmm1_u64(0x4002000000000000ULL);
+  pcall_fp64_aarch64_probe();
+  uint64_t pcall_aarch64_fp64 = read_xmm0_u64();
+  if (pcall_aarch64_fp64 != 0x400b000000000000ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall aarch64 FP64 bridge mismatch got=0x%llx\n",
+            (unsigned long long) pcall_aarch64_fp64);
+    return 1;
+  }
+  write_xmm0_u64(0x3ff8000000000000ULL);
+  write_xmm1_u64(0x4002000000000000ULL);
+  pcall_fp64_riscv_probe();
+  uint64_t pcall_riscv_fp64 = read_xmm0_u64();
+  if (pcall_riscv_fp64 != 0x400b000000000000ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall riscv FP64 bridge mismatch got=0x%llx\n",
+            (unsigned long long) pcall_riscv_fp64);
     return 1;
   }
 
