@@ -9,10 +9,10 @@ fi
 
 expected=""
 case "$path" in
-  */aarch64-add.elf) expected=43 ;;
+  */aarch64-add.elf) expected=132 ;;
   */aarch64-brk.elf) expected=0x4c000105 ;;
   */aarch64-svc.elf) expected=0x53000701 ;;
-  */riscv-add.elf) expected=22 ;;
+  */riscv-add.elf) expected=27 ;;
   */riscv-ebreak.elf) expected=0x4c000205 ;;
   */riscv-ecall.elf) expected=0x53000702 ;;
 esac
