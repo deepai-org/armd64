@@ -55,6 +55,7 @@ case "$path" in
   */riscv-upper.elf) expected=0x1234567c ;;
   */riscv-immops.elf) expected=42 ;;
   */riscv-wordops.elf) expected=42 ;;
+  */riscv-shiftcmp.elf) expected=31 ;;
   */riscv-shifts.elf) expected=32 ;;
   */riscv-srai.elf) expected=0xfffffffffffffffc ;;
   */riscv-regadd.elf) expected=123 ;;
