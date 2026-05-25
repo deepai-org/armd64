@@ -99,7 +99,7 @@ compile_poly_tool() {
     exit 1
   fi
 
-  local -a compiler_args=(-O2 -static -s)
+  local -a compiler_args=(-O2 -static -s -fno-stack-protector)
   if [[ "$compiler" == x86_64-linux-gnu-gcc || "$compiler" == gcc-x86-64-linux-gnu ]]; then
     compiler_args+=(--sysroot=/usr/x86_64-linux-gnu)
   fi

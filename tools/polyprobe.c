@@ -3,6 +3,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#define POLY_SYS_ARCH_PRCTL 158L
+#define POLY_ARCH_SET_FS 0x1002
+#define POLY_ARCH_GET_FS 0x1003
+
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
 static inline void poly_mode_aarch64(void) { asm volatile(".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34" ::: "memory"); }
 static inline void poly_mode_riscv(void) { asm volatile(".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56" ::: "memory"); }
@@ -111,6 +115,15 @@ static inline void poly_raw_barrier_probe(void) {
     ::: "rax", "memory");
 }
 
+static inline long raw_arch_prctl(int code, uint64_t addr) {
+  long ret;
+  asm volatile("syscall"
+    : "=a"(ret)
+    : "a"(POLY_SYS_ARCH_PRCTL), "D"((long) code), "S"(addr)
+    : "rcx", "r11", "memory");
+  return ret;
+}
+
 #define POLY_SWITCH_STRESS_STEP() \
   do { \
     poly_mode_aarch64(); \
@@ -140,6 +153,49 @@ static inline void write_rax(uint64_t value) {
 
 static inline void write_rdi(uint64_t value) {
   asm volatile("" :: "D"(value) : "memory");
+}
+
+static int poly_thread_key_probe(void) {
+  uint64_t original_fs = 0;
+  uint64_t fake_tls[64] __attribute__((aligned(64)));
+  uint64_t fake_initial_mode = 0;
+  uint64_t fake_switched_mode = 0;
+  uint64_t restored_mode = 0;
+  int failure = 0;
+
+  memset(fake_tls, 0, sizeof(fake_tls));
+  if (raw_arch_prctl(POLY_ARCH_GET_FS, (uint64_t) &original_fs) != 0)
+    return 1;
+
+  poly_mode_aarch64();
+  poly_syscall_x86();
+  if (read_rax() != 1)
+    return 2;
+
+  if (raw_arch_prctl(POLY_ARCH_SET_FS, (uint64_t) fake_tls) != 0)
+    return 3;
+
+  poly_syscall_x86();
+  fake_initial_mode = read_rax();
+  poly_mode_riscv();
+  poly_syscall_x86();
+  fake_switched_mode = read_rax();
+
+  if (raw_arch_prctl(POLY_ARCH_SET_FS, original_fs) != 0)
+    _exit(120);
+
+  poly_syscall_x86();
+  restored_mode = read_rax();
+  poly_mode_x86();
+
+  if (fake_initial_mode != 0)
+    failure = 4;
+  else if (fake_switched_mode != 2)
+    failure = 5;
+  else if (restored_mode != 1)
+    failure = 6;
+
+  return failure;
 }
 
 static void stage(const char *msg) {
@@ -273,6 +329,13 @@ int main(void) {
   poly_syscall_x86();
   if (read_rax() != 2) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv syscall status mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: thread-key");
+  int thread_key_status = poly_thread_key_probe();
+  if (thread_key_status != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: FS-keyed register state mismatch code=%d\n", thread_key_status);
     return 1;
   }
 

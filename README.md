@@ -92,9 +92,9 @@ The current register bridge aliases the overlapping caller-visible integer ABI:
 - x86_64 `RSP` maps to RISC-V `sp`; AArch64 `x31` is still decoded as zero for
   general register operands, with load/store base handling treating `x31` as
   `SP`.
-- Bochs tracks the remaining foreign integer registers in synthetic
-  CR3-scoped banks: AArch64 `x7`-`x30` plus syscall scratch `x8`, and RISC-V
-  non-aliased registers including `a7`.
+- Bochs tracks the remaining foreign integer registers in synthetic banks keyed
+  by guest `CR3` and user `FSBASE`: AArch64 `x7`-`x30` plus syscall scratch
+  `x8`, and RISC-V non-aliased registers including `a7`.
 
 `PolyCall`/`PolyRet` mode nesting is represented in guest userspace memory, not
 an emulator-only call stack.  `PolyCall` decrements shared `RSP` by 8 and stores
@@ -127,11 +127,13 @@ compatibility and uses raw mode for the direct-fetch smoke test.
 `polybench` also validates the current efficient mixed-raw path: raw AArch64
 escapes to x86_64 with `brk #0x7fff`, the next bytes immediately enter raw
 RISC-V with the `RAWRV` envelope, and the RISC-V stream escapes with custom-0.
-Synthetic AArch64/RISC-V register banks are lazily saved and restored per guest
-CR3 so a normal x86_64 Linux process switch does not share foreign registers
-with another address space. The low overlapping return/scratch values still use
-the current x86 register bridge; this is not yet a full XSAVE-backed per-thread
-foreign register ABI.
+Synthetic AArch64/RISC-V register banks and the current poly mode are lazily
+saved and restored per guest `CR3` plus user `FSBASE`.  A normal x86_64 Linux
+process switch does not share foreign registers with another address space, and
+threads in one process get separate synthetic banks when the kernel restores a
+different TLS base. The low overlapping return/scratch values still use the
+current x86 register bridge; this is not yet a full XSAVE-backed foreign
+register ABI.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
