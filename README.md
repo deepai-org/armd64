@@ -96,6 +96,8 @@ The current register bridge aliases the overlapping caller-visible integer ABI:
 - x86_64 `RSP` maps to RISC-V `sp`; AArch64 `x31` is still decoded as zero for
   general register operands, with load/store base handling treating `x31` as
   `SP`.
+- x86_64 `XMM0`-`XMM7` low 64-bit lanes map to AArch64 scalar `d0`-`d7` and
+  RISC-V `fa0`-`fa7` for the currently decoded scalar double FP subset.
 - Bochs tracks the remaining foreign integer registers in synthetic banks keyed
   by guest `CR3` and user `FSBASE`: AArch64 `x7`-`x30` plus syscall scratch
   `x8`, and RISC-V non-aliased registers including `a7`.
@@ -132,8 +134,10 @@ the tests: decoded U-type `lui` and `auipc`, decoded OP-IMM `addi`, `xori`,
 
 The raw-mode direct-fetch path covers the generated/probed subset used by
 `polyapp`, `polyexec`, and `polybench`: AArch64 `adr`, the arithmetic,
-shifted-register, branch, native return, generic RISC-V `jalr`, RV64 word arithmetic, RISC-V
-compare/register-shift and division/remainder forms, generic
+shifted-register, branch, native return, scalar double `fadd`/`fsub`/`fmul`
+and register `fmov`, generic RISC-V `jalr`, RV64 word arithmetic, RISC-V
+compare/register-shift and division/remainder forms, RISC-V scalar double
+`fadd.d`/`fsub.d`/`fmul.d` over `fa0`-`fa7`, generic
 byte/halfword/word/dword raw AArch64 and RISC-V load-store forms, syscall, and
 libcall forms listed above, plus native escapes.
 `polyprobe` still exercises the legacy instruction envelopes for low-level

@@ -115,6 +115,26 @@ static inline void poly_raw_barrier_probe(void) {
     ::: "rax", "memory");
 }
 
+static inline void poly_raw_aarch64_fp64_probe(void) {
+  asm volatile(
+    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    ".long 0x1e612800\n"
+    ".long 0x1e613800\n"
+    ".long 0x1e610800\n"
+    ".long 0xd42fffe0\n"
+    ::: "xmm0", "memory");
+}
+
+static inline void poly_raw_riscv_fp64_probe(void) {
+  asm volatile(
+    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    ".long 0x02b50553\n"
+    ".long 0x0ab50553\n"
+    ".long 0x12b50553\n"
+    ".long 0x0000000b\n"
+    ::: "xmm0", "memory");
+}
+
 static inline long raw_arch_prctl(int code, uint64_t addr) {
   long ret;
   asm volatile("syscall"
@@ -141,6 +161,12 @@ static inline uint64_t read_rax(void) {
   return value;
 }
 
+static inline uint64_t read_xmm0_u64(void) {
+  uint64_t value;
+  asm volatile("movq %%xmm0, %0" : "=r"(value));
+  return value;
+}
+
 static inline uint64_t read_rsp(void) {
   uint64_t value;
   asm volatile("movq %%rsp, %0" : "=r"(value));
@@ -153,6 +179,14 @@ static inline void write_rax(uint64_t value) {
 
 static inline void write_rdi(uint64_t value) {
   asm volatile("" :: "D"(value) : "memory");
+}
+
+static inline void write_xmm0_u64(uint64_t value) {
+  asm volatile("movq %0, %%xmm0" :: "r"(value) : "xmm0", "memory");
+}
+
+static inline void write_xmm1_u64(uint64_t value) {
+  asm volatile("movq %0, %%xmm1" :: "r"(value) : "xmm1", "memory");
 }
 
 static int poly_thread_key_probe(void) {
@@ -413,6 +447,22 @@ int main(void) {
   poly_raw_riscv_abi_args_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI argument bridge mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: fp64-args");
+  write_xmm0_u64(0x3ff8000000000000ULL);
+  write_xmm1_u64(0x4002000000000000ULL);
+  poly_raw_aarch64_fp64_probe();
+  if (read_xmm0_u64() != 0x400b000000000000ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 FP64 argument bridge mismatch\n");
+    return 1;
+  }
+  write_xmm0_u64(0x3ff8000000000000ULL);
+  write_xmm1_u64(0x4002000000000000ULL);
+  poly_raw_riscv_fp64_probe();
+  if (read_xmm0_u64() != 0x400b000000000000ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv FP64 argument bridge mismatch\n");
     return 1;
   }
 
