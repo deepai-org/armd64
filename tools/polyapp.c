@@ -22,12 +22,14 @@ struct payload {
   int arch;
   uint64_t expected;
   uint64_t syscall_expected;
+  uint64_t syscall_number_expected;
   uint64_t libcall_expected;
   char scratch_expected[SCRATCH_SIZE + 1];
   uint32_t insns[MAX_INSNS];
   size_t insn_count;
   unsigned libcall_id;
   int check_syscall;
+  int check_syscall_number;
   int check_libcall;
   int check_scratch;
   int use_elf;
@@ -37,6 +39,7 @@ static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58
 static inline void poly_mode_aarch64(void) { asm volatile(".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34" ::: "memory"); }
 static inline void poly_mode_riscv(void) { asm volatile(".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56" ::: "memory"); }
 static inline void poly_syscall_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
+static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x31" ::: "memory"); }
 static inline void poly_libcall_status(void) { asm volatile(".byte 0x3e,0x0f,0x0b,0x4c,0x49,0x42,0x43,0x30" ::: "memory"); }
 
 static inline uint64_t read_rax(void) {
@@ -216,6 +219,13 @@ static int load_payload(const char *path, struct payload *payload) {
         return -1;
       }
       payload->check_syscall = 1;
+    } else if (strncmp(line, "syscall_number_expected=", 24) == 0) {
+      if (parse_u64(line + 24, &payload->syscall_number_expected) < 0) {
+        fprintf(stderr, "POLYAPP_FAIL: bad syscall number expected value in %s\n", path);
+        fclose(file);
+        return -1;
+      }
+      payload->check_syscall_number = 1;
     } else if (strncmp(line, "libcall_expected=", 17) == 0) {
       if (parse_u64(line + 17, &payload->libcall_expected) < 0) {
         fprintf(stderr, "POLYAPP_FAIL: bad libcall expected value in %s\n", path);
@@ -265,7 +275,7 @@ static int load_payload(const char *path, struct payload *payload) {
   return 0;
 }
 
-static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *libcall_result, char scratch_result[SCRATCH_SIZE + 1]) {
+static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, char scratch_result[SCRATCH_SIZE + 1]) {
   const size_t code_size = 3 + payload->insn_count * 8 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -303,6 +313,10 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
     poly_syscall_status();
     *syscall_result = read_rax();
   }
+  if (payload->check_syscall_number) {
+    poly_syscall_number_status();
+    *syscall_number_result = read_rax();
+  }
   if (payload->check_libcall) {
     poly_libcall_status();
     *libcall_result = read_rax();
@@ -332,9 +346,10 @@ int main(int argc, char **argv) {
 
     uint64_t result = 0;
     uint64_t syscall_result = 0;
+    uint64_t syscall_number_result = 0;
     uint64_t libcall_result = 0;
     char scratch_result[SCRATCH_SIZE + 1];
-    if (emit_and_run(&payload, &result, &syscall_result, &libcall_result, scratch_result) < 0)
+    if (emit_and_run(&payload, &result, &syscall_result, &syscall_number_result, &libcall_result, scratch_result) < 0)
       return 1;
 
     printf("POLYAPP_RESULT: arch=%s value=%llu path=%s\n",
@@ -350,6 +365,15 @@ int main(int argc, char **argv) {
       if (syscall_result != payload.syscall_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s syscall expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.syscall_expected, (unsigned long long) syscall_result);
+        return 1;
+      }
+    }
+    if (payload.check_syscall_number) {
+      printf("POLYAPP_SYSCALL_NUMBER: arch=%s value=%llu path=%s\n",
+        payload.arch_name, (unsigned long long) syscall_number_result, payload.path);
+      if (syscall_number_result != payload.syscall_number_expected) {
+        fprintf(stderr, "POLYAPP_FAIL: %s syscall number expected %llu got %llu\n",
+          payload.path, (unsigned long long) payload.syscall_number_expected, (unsigned long long) syscall_number_result);
         return 1;
       }
     }
