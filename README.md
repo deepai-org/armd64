@@ -68,12 +68,12 @@ The current register bridge is deliberately small:
 
 The current AArch64 decoder supports the generated/probed subset used by the
 tests: `movz`, selected `add`/`sub` immediate and register forms, `mul`,
-unconditional branch, `cbz`/`cbnz`, `ret`, selected 64-bit `str`/`ldr`, `svc`,
-and `brk`.
+selected `eor`/`and`/`orr` register forms, unconditional branch, `cbz`/`cbnz`,
+`ret`, selected 64-bit `str`/`ldr`, `svc`, and `brk`.
 
 The current RISC-V decoder supports the generated/probed RV64 subset used by
-the tests: selected `addi`, `add`, `sub`, `mul`, `beq`/`bne`, `jalr` return,
-selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
+the tests: selected `addi`, `add`, `sub`, `mul`, `xor`, `and`, `or`,
+`beq`/`bne`, `jalr` return, selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
