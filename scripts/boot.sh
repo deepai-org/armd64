@@ -214,6 +214,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-loop.elf" 0x00300513 0xfff50513 0xfe051ee3
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ret.elf" 0x03700513 0x00008067 0x00100513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mem.elf" 0x04d00513 0x00a63023 0x00000513 0x00063503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memwidth.elf" 0xff200293 0x00560023 0x00064303 0x00060383 0x00730333 0xffe00293 0x00562223 0x00466e03 0x00462e83 0x01de0e33 0x01c30533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-strlen.elf" 0x00100893 0x00100073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memfill.elf" 0x00400513 0x05200593 0x00200893 0x00100073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memcmp.elf" 0x00400613 0x00160593 0x00300893 0x00100073
@@ -427,6 +428,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-loop.elf=0 \
     /usr/lib/polyapps/riscv-ret.elf=55 \
     /usr/lib/polyapps/riscv-mem.elf=77 \
+    /usr/lib/polyapps/riscv-memwidth.elf=0x1000000e0 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
     /usr/lib/polyapps/riscv-memfill.elf=4 \
     /usr/lib/polyapps/riscv-memcmp.elf=1 \
@@ -555,6 +557,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-loop.elf \
     /usr/lib/polyapps/riscv-ret.elf \
     /usr/lib/polyapps/riscv-mem.elf \
+    /usr/lib/polyapps/riscv-memwidth.elf \
     /usr/lib/polyapps/riscv-strlen.elf \
     /usr/lib/polyapps/riscv-memfill.elf \
     /usr/lib/polyapps/riscv-memcmp.elf \

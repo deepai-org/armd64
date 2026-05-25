@@ -65,6 +65,7 @@ case "$path" in
   */riscv-loop.elf) expected=0 ;;
   */riscv-ret.elf) expected=55 ;;
   */riscv-mem.elf) expected=77 ;;
+  */riscv-memwidth.elf) expected=0x1000000e0 ;;
   */riscv-strlen.elf) expected=5 ;;
   */riscv-memfill.elf) expected=4 ;;
   */riscv-memcmp.elf) expected=1 ;;
