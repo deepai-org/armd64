@@ -25,6 +25,8 @@ POLY_PROBE_BIN="$OUT_DIR/polyprobe"
 POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
+POLY_ELF_GEN_SRC="$ROOT_DIR/tools/mkpolyelf.c"
+POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
 POLY_ENABLED="${POLY_ENABLED:-0}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
@@ -83,6 +85,33 @@ build_poly_app() {
   compile_poly_tool "$POLY_APP_SRC" "$POLY_APP_BIN" "${POLY_APP_CC:-}"
 }
 
+build_poly_elf_generator() {
+  if [[ -x "$POLY_ELF_GEN_BIN" && "$POLY_ELF_GEN_BIN" -nt "$POLY_ELF_GEN_SRC" ]]; then
+    return
+  fi
+
+  local compiler=""
+  for candidate in "${POLY_ELF_GEN_CC:-}" cc gcc; do
+    if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
+      compiler="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$compiler" ]]; then
+    echo "No native compiler available for $POLY_ELF_GEN_SRC." >&2
+    exit 1
+  fi
+
+  "$compiler" -O2 "$POLY_ELF_GEN_SRC" -o "$POLY_ELF_GEN_BIN"
+}
+
+build_poly_elf_payloads() {
+  build_poly_elf_generator
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-add.elf" 0xd2800540 0x91000400
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-add.elf" 0x01100513 0x00550513
+}
+
 build_initramfs() {
   rm -rf "$TMP_DIR/initramfs-root"
   mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin,usr/lib/polyapps}
@@ -122,6 +151,7 @@ build_initramfs() {
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
+  build_poly_elf_payloads
 
   cat > "$TMP_DIR/initramfs-root/init" <<EOF
 #!/bin/busybox sh

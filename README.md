@@ -7,7 +7,8 @@ Current state:
 - `scripts/boot.sh` downloads a small x86_64 Linux kernel from Alpine Linux.
 - The script builds a minimal initramfs from Alpine's x86_64 BusyBox, prints boot markers to serial output, optionally runs synthetic poly opcode probes and architecture-labelled payload files inside userspace, and halts cleanly.
 - Bochs runs with the `nogui` display backend and the serial log is checked for `BOOT_OK`, `POLY_PROBE_OK`, and/or `POLYAPP_OK` depending on the requested gates.
-- `tools/polyapps/*.poly` are payload artifacts containing AArch64 or RISC-V instruction words plus expected synthetic syscall/libcall results. `tools/polyapp.c` loads them in the x86_64 guest and executes them through the current poly UD-envelope scaffold.
+- `tools/polyapps/*.poly` are payload manifests containing expected AArch64 or RISC-V results plus synthetic syscall/libcall checks. `scripts/boot.sh` generates matching minimal ELF64 payloads with `tools/mkpolyelf.c`.
+- `tools/polyapp.c` runs in the x86_64 guest, validates the foreign ELF64 machine type and executable entry segment, then executes the payload's 32-bit instruction words through the current poly UD-envelope scaffold.
 - Cross-architecture syscall and library-call handling is currently a deterministic scaffold: syscall markers report the active poly mode, and libcall markers report `0x4c000000 | (mode << 8) | id`.
 
 Run:
