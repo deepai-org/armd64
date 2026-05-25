@@ -154,6 +154,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-movwide.elf" 0xd2a24680 0xf28acf00 0xf2d35780 0x929fffe1 0xca010000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mul.elf" 0xd28000e0 0xd28000c1 0x9b017c00
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-logical.elf" 0xd2801e00 0xd2800781 0xca010000 0x8a010000 0xaa010000
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-shifted.elf" 0xd28000a0 0xd2800061 0x928000e2 0x8b010803 0xcb010464 0xaa0113e5 0xca4304a6 0x8a8204c7 0x8b060080 0x8b070000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-regmix.elf" 0xd2800140 0xd28000a1 0xd2800062 0x8b020020 0xca020000 0xaa010000 0x8a020000 0x9b017c00 0xcb020000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-branch.elf" 0xd2800520 0x14000002 0xd2800020 0x91000400
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-condbranch.elf" 0xd2800000 0xb5000040 0x91000400 0xd2800000 0xb4000040 0xd2800c60 0x91000c00 0xb4000040 0x91001400 0xb5000040 0xd2800c60 0x91014c00
@@ -376,6 +377,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-movwide.elf=0xffff6543edcb5678 \
     /usr/lib/polyapps/aarch64-mul.elf=42 \
     /usr/lib/polyapps/aarch64-logical.elf=60 \
+    /usr/lib/polyapps/aarch64-shifted.elf=123 \
     /usr/lib/polyapps/aarch64-regmix.elf=12 \
     /usr/lib/polyapps/aarch64-branch.elf=42 \
     /usr/lib/polyapps/aarch64-condbranch.elf=91 \
@@ -509,6 +511,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-movwide.elf \
     /usr/lib/polyapps/aarch64-mul.elf \
     /usr/lib/polyapps/aarch64-logical.elf \
+    /usr/lib/polyapps/aarch64-shifted.elf \
     /usr/lib/polyapps/aarch64-regmix.elf \
     /usr/lib/polyapps/aarch64-branch.elf \
     /usr/lib/polyapps/aarch64-condbranch.elf \
