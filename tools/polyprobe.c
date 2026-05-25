@@ -111,6 +111,20 @@ int main(void) {
     return 1;
   }
 
+  stage("POLY_STAGE: mixed-insn");
+  write_rax(40);
+  poly_mode_aarch64();
+  poly_aarch64_add_x0_1();
+  poly_mode_riscv();
+  poly_riscv_addi_a0_5();
+  poly_mode_aarch64();
+  poly_aarch64_add_x0_1();
+  poly_mode_x86();
+  if (read_rax() != 47) {
+    fprintf(stderr, "POLY_PROBE_FAIL: mixed instruction stream mismatch\n");
+    return 1;
+  }
+
   stage("POLY_STAGE: syscall");
   poly_mode_x86();
   poly_syscall_x86();
