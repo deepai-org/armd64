@@ -110,6 +110,32 @@ int main(void) {
     return 1;
   }
 
+  stage("POLY_STAGE: nested-call");
+  poly_call_aarch64();
+  poly_syscall_x86();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: nested call did not enter aarch64 mode\n");
+    return 1;
+  }
+  poly_call_riscv();
+  poly_syscall_x86();
+  if (read_rax() != 2) {
+    fprintf(stderr, "POLY_PROBE_FAIL: nested call did not enter riscv mode\n");
+    return 1;
+  }
+  poly_ret();
+  poly_syscall_x86();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: nested return did not restore aarch64 mode\n");
+    return 1;
+  }
+  poly_ret();
+  poly_syscall_x86();
+  if (read_rax() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: nested return did not restore x86 mode\n");
+    return 1;
+  }
+
   stage("POLY_STAGE: mode1");
   write_rax(sentinel);
   poly_mode_aarch64();

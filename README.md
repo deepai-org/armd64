@@ -22,8 +22,9 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace UD envelopes in
   `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates direct mode switching, AArch64 and RISC-V
-  instruction envelopes, mixed instruction streams, repeated mixed-mode switch
-  stress, mixed libcalls, mixed syscalls, and status markers.
+  call/return, nested cross-ISA call unwinding, instruction envelopes, mixed
+  instruction streams, repeated mixed-mode switch stress, mixed libcalls, mixed
+  syscalls, and status markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly`.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path.
@@ -45,9 +46,9 @@ All current poly operations are wrapped in fixed 8-byte envelopes:
 | Switch to x86_64 mode | `64 0f 0b 58 4d 4f 44 45` | Sets current poly mode to x86_64. |
 | Switch to AArch64 mode | `65 0f 0b 41 41 52 36 34` | Sets current poly mode to AArch64. |
 | Switch to RISC-V mode | `66 0f 0b 52 49 53 43 56` | Sets current poly mode to RISC-V. |
-| Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while preserving the caller mode for `poly ret`. |
-| Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while preserving the caller mode for `poly ret`. |
-| Poly return | `f3 0f 0b 52 45 54 52 4e` | Restores the saved caller mode. |
+| Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while pushing the caller mode for `poly ret`. |
+| Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while pushing the caller mode for `poly ret`. |
+| Poly return | `f3 0f 0b 52 45 54 52 4e` | Pops and restores the caller mode. |
 | Syscall status | `2e 0f 0b 53 59 53 43 30/31` | Returns current mode or last foreign syscall number in `RAX`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 30/31` | Returns current libcall status or last libcall number in `RAX`. |
 | Switch status | `4e 0f 0b 53 57 43 48 30/31` | Returns explicit mode-switch count or current mode in `RAX`. |
