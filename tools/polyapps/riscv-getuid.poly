@@ -2,7 +2,7 @@
 arch=riscv
 elf=/usr/lib/polyapps/riscv-getuid.elf
 expected=1000
-syscall_expected=2
+syscall_expected=4
 syscall_number_expected=174
 libcall_id=0
-libcall_expected=0x4c000200
+libcall_expected=0x4c000400

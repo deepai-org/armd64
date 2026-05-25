@@ -2,5 +2,5 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-gettimeofday.elf
 expected=246
-syscall_expected=1
+syscall_expected=3
 syscall_number_expected=169

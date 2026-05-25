@@ -3,8 +3,8 @@
 This repository boots a small x86_64 Linux userspace under a modified Bochs and
 uses that guest to exercise a prototype polyglot CPU extension.  The extension
 keeps standard x86_64 execution as the host ISA, then adds synthetic userspace
-mode-switch and foreign-instruction envelopes that let selected AArch64 and
-RISC-V instruction streams run inside the x86_64 process.
+mode-switch envelopes that let selected AArch64 and RISC-V instruction streams
+run through direct fixed-width foreign fetch inside the x86_64 process.
 
 This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
 current implementation validates the architecture shape, Linux boot path,
@@ -19,12 +19,12 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
 - The Docker image builds the local Bochs fork from
   `bochs-prepoly-src/bochs` and installs it as `bochs-poly`.
 - The guest prints `BOOT_OK` on a clean baseline boot.
-- With `POLY_ENABLED=1`, Bochs handles the polyglot userspace UD envelopes in
-  `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
-- `tools/polyprobe.c` validates direct mode switching, AArch64 and RISC-V
-  call/return, nested cross-ISA call unwinding, instruction envelopes, mixed
-  instruction streams, repeated mixed-mode switch stress, mixed libcalls, mixed
-  syscalls, and status/counter markers.
+- With `POLY_ENABLED=1`, Bochs handles the polyglot userspace mode/status
+  envelopes and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
+- `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
+  register state, native returns, mixed raw instruction streams, repeated
+  mixed-mode switch stress, mixed libcalls, mixed syscalls, and status/counter
+  markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly` by entering raw foreign mode, executing packed
   32-bit foreign instructions, and escaping back to x86_64.  The manifest path
@@ -46,34 +46,26 @@ The extension is intentionally encoded as invalid x86 byte sequences so an
 unmodified CPU still traps.  The current handler accepts these envelopes only
 from guest userspace.
 
-All current poly operations are wrapped in fixed 8-byte envelopes:
+All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 
 | Operation | Bytes | Effect |
 | --- | --- | --- |
 | Switch to x86_64 mode | `64 0f 0b 58 4d 4f 44 45` | Sets current poly mode to x86_64. |
-| Switch to AArch64 mode | `65 0f 0b 41 41 52 36 34` | Sets current poly mode to AArch64. |
-| Switch to RISC-V mode | `66 0f 0b 52 49 53 43 56` | Sets current poly mode to RISC-V. |
 | Switch to raw AArch64 mode | `65 0f 0b 52 41 57 36 34` | Sets current poly mode to raw AArch64; following bytes are fetched as fixed 32-bit AArch64 instructions. |
 | Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as fixed 32-bit RISC-V instructions. |
-| Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while pushing a caller-mode frame on the user stack for `poly ret`. |
-| Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while pushing a caller-mode frame on the user stack for `poly ret`. |
-| Poly return | `f3 0f 0b 52 45 54 52 4e` | Pops the user-stack caller-mode frame and restores that mode. |
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
-| Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign instruction envelopes`, `3=foreign syscalls`, `4=foreign libcalls`. |
-| AArch64 instruction | `67 0f 0b <u32-le-insn> 00` | Decodes one supported AArch64 instruction when current mode is AArch64. |
-| RISC-V instruction | `26 0f 0b <u32-le-insn> 00` | Decodes one supported RISC-V instruction when current mode is RISC-V. |
+| Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign raw instructions`, `3=foreign syscalls`, `4=foreign libcalls`. |
 
-Raw foreign modes are the migration path away from one `#UD` envelope per
-foreign instruction.  They still use the x86_64 switch envelope to enter from
-x86 code, but then Bochs bypasses x86 decode and fetches fixed 32-bit foreign
-instructions directly from `RIP`.  AArch64 `brk #0x7fff` and RISC-V custom-0
-instruction `0x0000000b` escape back to x86_64 at the next byte.  Raw foreign
-fetch is only active at guest CPL3; kernel, interrupt, and exception paths
-continue through normal x86_64 decode even if the current userspace poly mode is
-raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3 active at
-the raw-mode switch, so unrelated userspace tasks do not inherit raw decoding
-after a scheduler switch or a fault in the raw-mode task.
+Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
+the x86_64 switch envelope, bypasses x86 decode, and fetches fixed 32-bit
+foreign instructions directly from `RIP`.  AArch64 `brk #0x7fff` and RISC-V
+custom-0 instruction `0x0000000b` escape back to x86_64 at the next byte.  Raw
+foreign fetch is only active at guest CPL3; kernel, interrupt, and exception
+paths continue through normal x86_64 decode even if the current userspace poly
+mode is raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3
+active at the raw-mode switch, so unrelated userspace tasks do not inherit raw
+decoding after a scheduler switch or a fault in the raw-mode task.
 The current raw run loop batches up to 64 raw foreign instructions before
 returning to the outer Bochs event loop, while still checking async events and
 mode exits between individual raw instructions.
@@ -83,9 +75,9 @@ current x86-side raw loaders synthesize an explicit return landing pad by
 setting AArch64 `x30` or RISC-V `ra` to the following x86 escape instruction.
 
 The hybrid CPU currently defines foreign-mode memory ordering as x86_64 TSO.
-Raw and legacy AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and
-`fence.i` instructions are decoded as ordering-preserving no-ops instead of
-introducing weaker AArch64/RISC-V reordering inside Bochs.
+AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and `fence.i`
+instructions are decoded as ordering-preserving no-ops instead of introducing
+weaker AArch64/RISC-V reordering inside Bochs.
 
 The current register bridge aliases the overlapping caller-visible integer ABI:
 
@@ -111,37 +103,29 @@ psABI `a0`-`a7` and `ra`.  Direct register aliases are an implementation
 optimization only where they match the native ABI contract; they are not the
 external compatibility contract.
 
-`PolyCall`/`PolyRet` mode nesting is represented in guest userspace memory, not
-an emulator-only call stack.  `PolyCall` decrements shared `RSP` by 16 and
-stores a tagged transition frame with caller-mode and ABI metadata; `PolyRet`
-consumes that frame and restores the saved mode.  Balanced mode calls therefore
-unwind with the real stack frame state.
+Cross-ISA returns are expected to use native return instructions.  AArch64
+libraries return with `ret` through `x30`, and RISC-V libraries return with
+`jalr x0, 0(ra)`.  x86-side thunks provide the link-register or return-address
+landing pad that escapes raw mode and resumes x86_64.
 
 ## Supported Foreign Subset
 
-The current legacy AArch64 decoder supports the generated/probed subset used by
-the tests: move-wide immediate `movz`, `movn`, and `movk`, decoded `add`/`sub`
-immediate forms, decoded register-register `add`/`sub`/`mul`/`eor`/`and`/`orr`
-over the synthetic register file, unconditional branch, `cbz`/`cbnz`, `ret`,
-barriers, selected 64-bit `str`/`ldr`, `svc`, and `brk`.
+The direct-fetch AArch64 path covers the generated/probed subset used by
+`polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `movz`, `movn`,
+`movk`, `add`/`sub` immediate forms, shifted-register
+`add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch, `cbz`/`cbnz`, native
+`ret`, `dmb`/`dsb`/`isb`, scalar double `fadd`/`fsub`/`fmul` and register
+`fmov`, generic byte/halfword/word/dword load-store forms, `svc`, and `brk`.
 
-The current legacy RISC-V decoder supports the generated/probed RV64 subset used by
-the tests: decoded U-type `lui` and `auipc`, decoded OP-IMM `addi`, `xori`,
-`ori`, `andi`, `slli`, `srli`, and `srai`, decoded register-register `add`,
-`sub`, `mul`, `xor`, `and`, `or` over the synthetic register file,
-`beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, `jalr` return, selected 64-bit
-`sd`/`ld`, `fence`, `fence.i`, `ecall`, and `ebreak`.
-
-The raw-mode direct-fetch path covers the generated/probed subset used by
-`polyapp`, `polyexec`, and `polybench`: AArch64 `adr`, the arithmetic,
-shifted-register, branch, native return, scalar double `fadd`/`fsub`/`fmul`
-and register `fmov`, generic RISC-V `jalr`, RV64 word arithmetic, RISC-V
-compare/register-shift and division/remainder forms, RISC-V scalar double
-`fadd.d`/`fsub.d`/`fmul.d` over `fa0`-`fa7`, generic
-byte/halfword/word/dword raw AArch64 and RISC-V load-store forms, syscall, and
-libcall forms listed above, plus native escapes.
-`polyprobe` still exercises the legacy instruction envelopes for low-level
-compatibility and uses raw mode for the direct-fetch smoke test.
+The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
+`polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM
+`addi`, `xori`, `ori`, `andi`, `slli`, `srli`, and `srai`, RV64 word
+arithmetic, compare/register-shift and division/remainder forms,
+register-register `add`, `sub`, `mul`, `xor`, `and`, and `or`,
+`beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, generic `jalr`, selected
+byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
+`ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
+`fa0`-`fa7`.
 `polybench` also validates the current efficient mixed-raw path: raw AArch64
 escapes to x86_64 with `brk #0x7fff`, the next bytes immediately enter raw
 RISC-V with the `RAWRV` envelope, and the RISC-V stream escapes with custom-0.

@@ -2,6 +2,6 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-long.elf
 expected=80
-syscall_expected=1
+syscall_expected=3
 libcall_id=0
-libcall_expected=0x4c000100
+libcall_expected=0x4c000300

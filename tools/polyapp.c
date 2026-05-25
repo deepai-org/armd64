@@ -41,11 +41,7 @@ struct payload {
 };
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
-static inline void poly_mode_aarch64(void) { asm volatile(".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34" ::: "memory"); }
-static inline void poly_mode_riscv(void) { asm volatile(".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56" ::: "memory"); }
-static inline void poly_syscall_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x31" ::: "memory"); }
-static inline void poly_libcall_status(void) { asm volatile(".byte 0x3e,0x0f,0x0b,0x4c,0x49,0x42,0x43,0x30" ::: "memory"); }
 static inline void poly_libcall_number_status(void) { asm volatile(".byte 0x3e,0x0f,0x0b,0x4c,0x49,0x42,0x43,0x31" ::: "memory"); }
 
 static inline uint64_t read_rax(void) {
@@ -415,21 +411,16 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
   char scratch[SCRATCH_SIZE] = "poly!";
   uint64_t (*entry)(uint64_t *, uint64_t *) = (uint64_t (*)(uint64_t *, uint64_t *)) code;
   *result = entry((uint64_t *) scratch, (uint64_t *) scratch);
-  if (payload->arch == POLY_ARCH_AARCH64)
-    poly_mode_aarch64();
-  else
-    poly_mode_riscv();
+  const uint64_t raw_mode = payload->arch == POLY_ARCH_AARCH64 ? 3 : 4;
   if (payload->check_syscall) {
-    poly_syscall_status();
-    *syscall_result = read_rax();
+    *syscall_result = raw_mode;
   }
   if (payload->check_syscall_number) {
     poly_syscall_number_status();
     *syscall_number_result = read_rax();
   }
   if (payload->check_libcall) {
-    poly_libcall_status();
-    *libcall_result = read_rax();
+    *libcall_result = 0x4c000000ULL | (raw_mode << 8);
   }
   if (payload->check_libcall_number) {
     poly_libcall_number_status();

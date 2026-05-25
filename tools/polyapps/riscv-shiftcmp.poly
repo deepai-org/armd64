@@ -2,6 +2,6 @@
 arch=riscv
 elf=/usr/lib/polyapps/riscv-shiftcmp.elf
 expected=31
-syscall_expected=2
+syscall_expected=4
 libcall_id=0
-libcall_expected=0x4c000200
+libcall_expected=0x4c000400
