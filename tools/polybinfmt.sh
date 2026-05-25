@@ -24,6 +24,7 @@ case "$path" in
   */aarch64-read.elf) expected=4 ;;
   */aarch64-write.elf) expected=5 ;;
   */aarch64-getpid.elf) expected=4242 ;;
+  */aarch64-getcwd.elf) expected=6 ;;
   */aarch64-uname.elf) expected=0 ;;
   */aarch64-exit.elf) expected=7 ;;
   */aarch64-brk.elf) expected=0x4c000105 ;;
@@ -43,6 +44,7 @@ case "$path" in
   */riscv-read.elf) expected=4 ;;
   */riscv-write.elf) expected=5 ;;
   */riscv-getpid.elf) expected=4242 ;;
+  */riscv-getcwd.elf) expected=6 ;;
   */riscv-uname.elf) expected=0 ;;
   */riscv-exit.elf) expected=7 ;;
   */riscv-ebreak.elf) expected=0x4c000205 ;;

@@ -1,0 +1,8 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-getcwd.elf
+expected=6
+scratch_expected=/poly
+syscall_expected=1
+libcall_id=0
+libcall_expected=0x4c000100
