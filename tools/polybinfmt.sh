@@ -11,6 +11,7 @@ expected=""
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
+  */aarch64-movwide.elf) expected=0xffff6543edcb5678 ;;
   */aarch64-mul.elf) expected=42 ;;
   */aarch64-branch.elf) expected=42 ;;
   */aarch64-condbranch.elf) expected=91 ;;

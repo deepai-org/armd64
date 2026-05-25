@@ -93,10 +93,10 @@ The current register bridge is deliberately small:
 ## Supported Foreign Subset
 
 The current legacy AArch64 decoder supports the generated/probed subset used by
-the tests: `movz`, decoded `add`/`sub` immediate forms, decoded register-register
-`add`/`sub`/`mul`/`eor`/`and`/`orr` over the synthetic register file,
-unconditional branch, `cbz`/`cbnz`, `ret`, selected 64-bit `str`/`ldr`, `svc`,
-and `brk`.
+the tests: move-wide immediate `movz`, `movn`, and `movk`, decoded `add`/`sub`
+immediate forms, decoded register-register `add`/`sub`/`mul`/`eor`/`and`/`orr`
+over the synthetic register file, unconditional branch, `cbz`/`cbnz`, `ret`,
+selected 64-bit `str`/`ldr`, `svc`, and `brk`.
 
 The current legacy RISC-V decoder supports the generated/probed RV64 subset used by
 the tests: decoded OP-IMM `addi`, `xori`, `ori`, `andi`, `slli`, `srli`, and
