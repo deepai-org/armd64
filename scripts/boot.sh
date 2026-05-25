@@ -8,10 +8,13 @@ TMP_DIR="${TMP_DIR:-$ROOT_DIR/tmp}"
 ALPINE_BASE_URL="${ALPINE_BASE_URL:-https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/netboot}"
 ALPINE_X86_64_MAIN_URL="${ALPINE_X86_64_MAIN_URL:-https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64}"
 KERNEL_URL="${KERNEL_URL:-$ALPINE_BASE_URL/vmlinuz-virt}"
+MODLOOP_URL="${MODLOOP_URL:-$ALPINE_BASE_URL/modloop-virt}"
 
 mkdir -p "$CACHE_DIR" "$OUT_DIR" "$TMP_DIR"
 
+APKINDEX_ARCHIVE="$CACHE_DIR/APKINDEX-x86_64.tar.gz"
 KERNEL_IMAGE="$CACHE_DIR/vmlinuz-virt"
+MODLOOP_IMAGE="$CACHE_DIR/modloop-virt"
 INITRAMFS_IMAGE="$OUT_DIR/initramfs.cpio.gz"
 ISO_ROOT="$TMP_DIR/iso-root"
 ISO_IMAGE="$OUT_DIR/bochs-boot.iso"
@@ -26,12 +29,14 @@ POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
+POLY_BINFMT_SRC="$ROOT_DIR/tools/polybinfmt.sh"
 POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
 POLY_ELF_GEN_SRC="$ROOT_DIR/tools/mkpolyelf.c"
 POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
 POLY_ENABLED="${POLY_ENABLED:-0}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
+RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
@@ -45,6 +50,23 @@ download() {
   if [[ ! -s "$dest" ]]; then
     curl -fsSL "$url" -o "$dest"
   fi
+}
+
+prepare_alpine_index() {
+  download "$ALPINE_X86_64_MAIN_URL/APKINDEX.tar.gz" "$APKINDEX_ARCHIVE"
+}
+
+apk_package_version() {
+  local package="$1"
+  tar -xzOf "$APKINDEX_ARCHIVE" APKINDEX | awk -v package="$package" '
+    $0 == "P:" package {found=1; next}
+    found && /^V:/ {sub(/^V:/, "", $0); print; exit}
+    /^$/ {found=0}
+  '
+}
+
+download_kernel() {
+  download "$KERNEL_URL" "$KERNEL_IMAGE"
 }
 
 compile_poly_tool() {
@@ -120,6 +142,41 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-add.elf" 0x01100513 0x00550513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ecall.elf" 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ebreak.elf" 0x00100073
+  chmod +x "$TMP_DIR/initramfs-root/usr/lib/polyapps"/*.elf
+}
+
+build_binfmt_module() {
+  if [[ "$RUN_POLY_BINFMT" != "1" ]]; then
+    return
+  fi
+
+  if ! command -v unsquashfs >/dev/null 2>&1; then
+    echo "unsquashfs is required to extract binfmt_misc from Alpine modloop." >&2
+    exit 1
+  fi
+
+  local modloop_extract="$TMP_DIR/modloop-extract"
+  local module_path
+  download "$MODLOOP_URL" "$MODLOOP_IMAGE"
+  rm -rf "$modloop_extract"
+  mkdir -p "$modloop_extract"
+  unsquashfs -q -d "$modloop_extract" "$MODLOOP_IMAGE" 'modules/*/kernel/fs/binfmt_misc.ko*'
+  module_path="$(find "$modloop_extract" -path '*/binfmt_misc.ko*' | head -n 1)"
+  if [[ -z "$module_path" ]]; then
+    echo "Unable to extract binfmt_misc module from $MODLOOP_IMAGE." >&2
+    exit 1
+  fi
+
+  mkdir -p "$TMP_DIR/initramfs-root/lib/modules/poly"
+  case "$module_path" in
+    *.gz) gzip -dc "$module_path" > "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko" ;;
+    *.xz) xz -dc "$module_path" > "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko" ;;
+    *.ko) cp "$module_path" "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko" ;;
+    *)
+      echo "Unsupported binfmt_misc module compression: $module_path" >&2
+      exit 1
+      ;;
+  esac
 }
 
 build_initramfs() {
@@ -131,13 +188,9 @@ build_initramfs() {
   local busybox_version
   local busybox_apk
   local busybox_extract
-  local apkindex_archive="$CACHE_DIR/APKINDEX-x86_64.tar.gz"
-  download "$ALPINE_X86_64_MAIN_URL/APKINDEX.tar.gz" "$apkindex_archive"
+  prepare_alpine_index
   busybox_version="$({
-    tar -xzOf "$apkindex_archive" APKINDEX | awk '
-      /^P:busybox-static$/ {found=1; next}
-      found && /^V:/ {sub(/^V:/, "", $0); print; exit}
-    '
+    apk_package_version busybox-static
   } || true)"
   if [[ -z "$busybox_version" ]]; then
     echo "Unable to determine Alpine busybox-static version." >&2
@@ -154,7 +207,9 @@ build_initramfs() {
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/sbin/poweroff"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/sbin/halt"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/mount"
+  ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/mkdir"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/mknod"
+  ln -sf /bin/busybox "$TMP_DIR/initramfs-root/sbin/insmod"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/sleep"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/echo"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/cat"
@@ -162,14 +217,18 @@ build_initramfs() {
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
+  cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
+  chmod +x "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
   build_poly_elf_payloads
+  build_binfmt_module
 
   cat > "$TMP_DIR/initramfs-root/init" <<EOF
 #!/bin/busybox sh
 set -eu
 RUN_POLY_PROBE="$RUN_POLY_PROBE"
 RUN_POLY_APPS="$RUN_POLY_APPS"
+RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -199,6 +258,42 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-add.elf=22 \
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000200 \
     /usr/lib/polyapps/riscv-ecall.elf=0x53000002 >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_BINFMT" = "1" ]; then
+  echo "POLYBINFMT_START" >/dev/ttyS0
+  if [ -f /lib/modules/poly/binfmt_misc.ko ]; then
+    insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
+  fi
+  mkdir -p /proc/sys/fs/binfmt_misc || {
+    echo "POLYBINFMT_FAIL: mkdir binfmt_misc" >/dev/ttyS0
+    exit 1
+  }
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
+    echo "POLYBINFMT_FAIL: binfmt_misc unavailable" >/dev/ttyS0
+    exit 1
+  fi
+  echo ':poly-elf:E::elf::/usr/bin/polybinfmt:' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLYBINFMT_FAIL: register elf" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLYBINFMT_REGISTERED" >/dev/ttyS0
+  for foreign in \
+    /usr/lib/polyapps/aarch64-add.elf \
+    /usr/lib/polyapps/aarch64-brk.elf \
+    /usr/lib/polyapps/aarch64-svc.elf \
+    /usr/lib/polyapps/riscv-add.elf \
+    /usr/lib/polyapps/riscv-ebreak.elf \
+    /usr/lib/polyapps/riscv-ecall.elf
+  do
+    echo "POLYBINFMT_STEP: \$foreign" >/dev/ttyS0
+    "\$foreign" >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: exec \$foreign" >/dev/ttyS0
+      exit 1
+    }
+  done
+  echo "POLYBINFMT_OK" >/dev/ttyS0
 fi
 
 sleep 1
@@ -288,7 +383,7 @@ EOF
 }
 
 main() {
-  download "$KERNEL_URL" "$KERNEL_IMAGE"
+  download_kernel
   build_initramfs
   build_iso
   : > "$SERIAL_LOG"
@@ -334,6 +429,12 @@ EOF
           continue
         fi
         if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_BINFMT" == "1" ]]; then
+        if ! grep -q "POLYBINFMT_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
