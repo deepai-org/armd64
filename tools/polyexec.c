@@ -10,14 +10,14 @@
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
-  MAX_INSNS = 32
+  MAX_PROGRAM_BYTES = 1024 * 1024
 };
 
 struct poly_program {
   const char *path;
   const char *arch_name;
   int arch;
-  uint32_t insns[MAX_INSNS];
+  uint32_t *insns;
   size_t insn_count;
 };
 
@@ -160,16 +160,25 @@ static int load_elf_program(const char *path, struct poly_program *program) {
       continue;
     if (ehdr->e_entry < phdr->p_vaddr || ehdr->e_entry >= phdr->p_vaddr + phdr->p_filesz)
       continue;
-    if (phdr->p_filesz == 0 || (phdr->p_filesz % 4) != 0 || phdr->p_filesz / 4 > MAX_INSNS ||
+    const uint64_t entry_offset = ehdr->e_entry - phdr->p_vaddr;
+    const uint64_t entry_filesz = phdr->p_filesz - entry_offset;
+    if (entry_filesz == 0 || (entry_filesz % 4) != 0 || entry_filesz > MAX_PROGRAM_BYTES ||
         phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset) {
       fprintf(stderr, "POLYEXEC_FAIL: bad ELF executable segment: %s\n", path);
       free(data);
       return -1;
     }
 
-    program->insn_count = (size_t) (phdr->p_filesz / 4);
+    program->insn_count = (size_t) (entry_filesz / 4);
+    program->insns = calloc(program->insn_count, sizeof(program->insns[0]));
+    if (!program->insns) {
+      fprintf(stderr, "POLYEXEC_FAIL: out of memory loading %s\n", path);
+      free(data);
+      return -1;
+    }
+    const unsigned char *entry_bytes = data + phdr->p_offset + entry_offset;
     for (size_t insn = 0; insn < program->insn_count; insn++)
-      program->insns[insn] = read_le32(data + phdr->p_offset + insn * 4);
+      program->insns[insn] = read_le32(entry_bytes + insn * 4);
     free(data);
     return 0;
   }
@@ -222,6 +231,12 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   return 0;
 }
 
+static void free_program(struct poly_program *program) {
+  free(program->insns);
+  program->insns = NULL;
+  program->insn_count = 0;
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) {
     fprintf(stderr, "usage: %s foreign.elf[=expected]...\n", argv[0]);
@@ -242,8 +257,10 @@ int main(int argc, char **argv) {
       program.arch_name, program.insn_count, program.path);
 
     uint64_t result = 0;
-    if (emit_and_run(&program, &result) < 0)
+    if (emit_and_run(&program, &result) < 0) {
+      free_program(&program);
       return 1;
+    }
 
     printf("POLYEXEC_RESULT: arch=%s value=%llu path=%s\n",
       program.arch_name, (unsigned long long) result, program.path);
@@ -253,9 +270,11 @@ int main(int argc, char **argv) {
       if (result != request.expected) {
         fprintf(stderr, "POLYEXEC_FAIL: %s expected %llu got %llu\n",
           program.path, (unsigned long long) request.expected, (unsigned long long) result);
+        free_program(&program);
         return 1;
       }
     }
+    free_program(&program);
   }
 
   puts("POLYEXEC_OK");
