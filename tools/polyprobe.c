@@ -39,12 +39,22 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: polycall clobbered RAX\n");
     return 1;
   }
+  poly_syscall_x86();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: polycall did not enter aarch64 mode\n");
+    return 1;
+  }
 
   stage("POLY_STAGE: ret");
   write_rax(sentinel);
   poly_ret();
   if (read_rax() != sentinel) {
     fprintf(stderr, "POLY_PROBE_FAIL: polyret lost caller state\n");
+    return 1;
+  }
+  poly_syscall_x86();
+  if (read_rax() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: polyret did not restore x86 mode\n");
     return 1;
   }
 
@@ -64,6 +74,20 @@ int main(void) {
   poly_mode_x86();
   if (read_rax() != sentinel) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv round-trip lost RAX\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: status");
+  poly_mode_aarch64();
+  poly_syscall_x86();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 syscall status mismatch\n");
+    return 1;
+  }
+  poly_mode_riscv();
+  poly_syscall_x86();
+  if (read_rax() != 2) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv syscall status mismatch\n");
     return 1;
   }
 
