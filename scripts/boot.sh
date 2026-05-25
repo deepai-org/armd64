@@ -30,6 +30,8 @@ POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
 POLY_BINFMT_SRC="$ROOT_DIR/tools/polybinfmt.sh"
+NATIVE_CHECK_SRC="$ROOT_DIR/tools/nativecheck.c"
+NATIVE_CHECK_BIN="$OUT_DIR/nativecheck"
 POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
 POLY_ELF_GEN_SRC="$ROOT_DIR/tools/mkpolyelf.c"
 POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
@@ -113,6 +115,10 @@ build_poly_exec() {
   compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}"
 }
 
+build_native_check() {
+  compile_poly_tool "$NATIVE_CHECK_SRC" "$NATIVE_CHECK_BIN" "${NATIVE_CHECK_CC:-}"
+}
+
 build_poly_elf_generator() {
   if [[ -x "$POLY_ELF_GEN_BIN" && "$POLY_ELF_GEN_BIN" -nt "$POLY_ELF_GEN_SRC" ]]; then
     return
@@ -185,6 +191,7 @@ build_initramfs() {
   build_poly_probe
   build_poly_app
   build_poly_exec
+  build_native_check
   local busybox_version
   local busybox_apk
   local busybox_extract
@@ -218,6 +225,7 @@ build_initramfs() {
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
   cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
+  cp "$NATIVE_CHECK_BIN" "$TMP_DIR/initramfs-root/usr/bin/nativecheck.elf"
   chmod +x "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
   build_poly_elf_payloads
@@ -283,6 +291,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     exit 1
   }
   echo "POLYBINFMT_REGISTERED" >/dev/ttyS0
+  /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1 || {
+    echo "POLYBINFMT_FAIL: native x86 elf" >/dev/ttyS0
+    exit 1
+  }
   for foreign in \
     /usr/lib/polyapps/aarch64-add.elf \
     /usr/lib/polyapps/aarch64-brk.elf \
