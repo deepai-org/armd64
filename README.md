@@ -116,6 +116,11 @@ compatibility and uses raw mode for the direct-fetch smoke test.
 `polybench` also validates the current efficient mixed-raw path: raw AArch64
 escapes to x86_64 with `brk #0x7fff`, the next bytes immediately enter raw
 RISC-V with the `RAWRV` envelope, and the RISC-V stream escapes with custom-0.
+Synthetic AArch64/RISC-V register banks are lazily saved and restored per guest
+CR3 so a normal x86_64 Linux process switch does not share foreign registers
+with another address space. The low overlapping return/scratch values still use
+the current x86 register bridge; this is not yet a full XSAVE-backed per-thread
+foreign register ABI.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
