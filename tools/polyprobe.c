@@ -6,7 +6,9 @@
 enum {
   POLY_MODE_X86 = 0,
   POLY_MODE_RAW_AARCH64 = 3,
-  POLY_MODE_RAW_RISCV = 4
+  POLY_MODE_RAW_RISCV = 4,
+  POLY_TRAP_SYSCALL = 1,
+  POLY_TRAP_BREAK = 2
 };
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
@@ -19,6 +21,10 @@ static inline void poly_switch_count_status(void) { asm volatile(".byte 0x4e,0x0
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x32" ::: "memory"); }
 static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x33" ::: "memory"); }
 static inline void poly_foreign_libcall_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x34" ::: "memory"); }
+static inline void poly_trap_reason_status(void) { asm volatile(".byte 0x36,0x0f,0x0b,0x54,0x52,0x41,0x50,0x30" ::: "memory"); }
+static inline void poly_trap_mode_status(void) { asm volatile(".byte 0x36,0x0f,0x0b,0x54,0x52,0x41,0x50,0x31" ::: "memory"); }
+static inline void poly_trap_number_status(void) { asm volatile(".byte 0x36,0x0f,0x0b,0x54,0x52,0x41,0x50,0x32" ::: "memory"); }
+static inline void poly_trap_arg0_status(void) { asm volatile(".byte 0x36,0x0f,0x0b,0x54,0x52,0x41,0x50,0x33" ::: "memory"); }
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -388,6 +394,26 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv libcall mode mismatch\n");
     return 1;
   }
+  poly_trap_reason_status();
+  if (read_rax() != POLY_TRAP_BREAK) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap reason mismatch\n");
+    return 1;
+  }
+  poly_trap_mode_status();
+  if (read_rax() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap mode mismatch\n");
+    return 1;
+  }
+  poly_trap_number_status();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap number mismatch\n");
+    return 1;
+  }
+  poly_trap_arg0_status();
+  if (read_rax() != (uint64_t) libcall_string) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap arg0 mismatch\n");
+    return 1;
+  }
 
   stage("POLY_STAGE: raw-syscall");
   raw_aarch64_getpid_probe();
@@ -418,6 +444,21 @@ int main(void) {
   poly_syscall_mode_status();
   if (read_rax() != POLY_MODE_RAW_RISCV) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall mode mismatch\n");
+    return 1;
+  }
+  poly_trap_reason_status();
+  if (read_rax() != POLY_TRAP_SYSCALL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw syscall trap reason mismatch\n");
+    return 1;
+  }
+  poly_trap_mode_status();
+  if (read_rax() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw syscall trap mode mismatch\n");
+    return 1;
+  }
+  poly_trap_number_status();
+  if (read_rax() != 172) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw syscall trap number mismatch\n");
     return 1;
   }
 

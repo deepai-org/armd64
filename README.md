@@ -8,9 +8,10 @@ run through direct fixed-width foreign fetch inside the x86_64 process.
 
 This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
 current implementation validates the architecture shape, Linux boot path,
-foreign ELF launch path, mixed-ISA transitions, deterministic syscalls, and
-deterministic libcalls.  It does not yet implement full AArch64 or RISC-V ISA
-coverage, real foreign Linux ABI passthrough, or equal-speed execution.
+foreign ELF launch path, mixed-ISA transitions, explicit foreign trap records,
+and a deterministic compatibility runtime for scaffolded syscall/libcall tests.
+It does not yet implement full AArch64 or RISC-V ISA coverage, real foreign
+Linux ABI passthrough, or equal-speed execution.
 
 ## Current State
 
@@ -37,6 +38,9 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
   fetch/decode bursts, and checks one mixed raw AArch64-to-RISC-V code blob.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
+- `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
+  frontend-switch opcodes, XSAVE-visible foreign state, explicit trap exits,
+  and native-ABI thunking for precompiled cross-ISA libraries.
 
 ## ISA Changes From Standard x86_64
 
@@ -56,6 +60,7 @@ All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign raw instructions`, `3=foreign syscalls`, `4=foreign libcalls`. |
+| Trap status | `36 0f 0b 54 52 41 50 <id>` | Returns last foreign trap state in `RAX`: `0=reason`, `1=source mode`, `2=number`, `3`-`8=arg0`-`arg5`, other ids return trap PC. |
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 switch envelope, bypasses x86 decode, and fetches fixed 32-bit
@@ -108,6 +113,13 @@ libraries return with `ret` through `x30`, and RISC-V libraries return with
 `jalr x0, 0(ra)`.  x86-side thunks provide the link-register or return-address
 landing pad that escapes raw mode and resumes x86_64.
 
+Foreign traps are now recorded as explicit architectural exits before any
+compatibility behavior runs.  AArch64 `svc` and RISC-V `ecall` record reason
+`1`; AArch64 `brk` and RISC-V `ebreak` record reason `2`.  The record includes
+source mode, trap number, six ABI arguments, and the foreign PC.  The current
+Bochs dispatcher may still return deterministic scaffold values after recording
+the trap, but the trap record is the intended ISA boundary.
+
 ## Supported Foreign Subset
 
 The direct-fetch AArch64 path covers the generated/probed subset used by
@@ -137,8 +149,9 @@ different TLS base. The low overlapping return/scratch values still use the
 current x86 register bridge; this is not yet a full XSAVE-backed foreign
 register ABI.
 
-Foreign Linux syscall handling is deterministic and shared between AArch64
-`svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
+The Bochs compatibility runtime handles selected foreign Linux syscall traps
+deterministically after recording the architectural trap.  Supported syscall
+numbers currently include:
 
 - Scalar/process syscalls: `getpid`, `getppid`, `getuid`, `geteuid`, `getgid`,
   `getegid`, `gettid`, `getpgid(0)`, `getsid(0)`, and `exit`.
@@ -151,8 +164,10 @@ The shared syscall dispatcher carries six foreign Linux ABI arguments for both
 foreign architectures; current `mmap6` payloads verify argument registers beyond
 `arg2` reach the dispatcher.
 
-Foreign library calls are deterministic traps rather than real dynamic libc
-calls:
+The Bochs compatibility runtime also handles selected breakpoint traps as
+deterministic scaffold library calls.  This is not the hardware ISA contract;
+real precompiled-code interop should use software thunks or OS/runtime trap
+routing.
 
 - AArch64 uses `brk #id`.
 - RISC-V uses `a7=id; ebreak`.
@@ -200,10 +215,12 @@ Expected success markers include:
 ## Known Gaps
 
 - Foreign execution is a Bochs UD-envelope prototype, not full native hardware
-  decode.
+  decode.  The silicon contract in `docs/poly-isa.md` replaces these envelopes
+  with CPUID-gated frontend-switch opcodes.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
-- Syscalls and libcalls return deterministic scaffold results, not complete host
-  or guest Linux ABI behavior.
+- Syscall and breakpoint traps are recorded explicitly, but the current
+  compatibility runtime still returns deterministic scaffold results rather
+  than complete host or guest Linux ABI behavior.
 - Equal-speed or minimal-slowdown execution is a design target.  The current
   implementation demonstrates raw direct-fetch execution and multi-burst raw
   loops, but not full equal-speed execution across complete ISAs.
