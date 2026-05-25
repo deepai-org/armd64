@@ -128,6 +128,12 @@ static inline uint64_t read_rax(void) {
   return value;
 }
 
+static inline uint64_t read_rsp(void) {
+  uint64_t value;
+  asm volatile("movq %%rsp, %0" : "=r"(value));
+  return value;
+}
+
 static inline void write_rax(uint64_t value) {
   asm volatile("" :: "a"(value) : "memory");
 }
@@ -150,9 +156,16 @@ int main(void) {
 
   stage("POLY_STAGE: call");
   write_rax(sentinel);
+  uint64_t rsp_before_call = read_rsp();
   poly_call_aarch64();
-  if (read_rax() != sentinel) {
+  uint64_t rax_after_call = read_rax();
+  uint64_t rsp_after_call = read_rsp();
+  if (rax_after_call != sentinel) {
     fprintf(stderr, "POLY_PROBE_FAIL: polycall clobbered RAX\n");
+    return 1;
+  }
+  if (rsp_after_call != rsp_before_call - 8) {
+    fprintf(stderr, "POLY_PROBE_FAIL: polycall did not push mode frame on user stack\n");
     return 1;
   }
   poly_syscall_x86();
@@ -164,8 +177,14 @@ int main(void) {
   stage("POLY_STAGE: ret");
   write_rax(sentinel);
   poly_ret();
-  if (read_rax() != sentinel) {
+  uint64_t rax_after_ret = read_rax();
+  uint64_t rsp_after_ret = read_rsp();
+  if (rax_after_ret != sentinel) {
     fprintf(stderr, "POLY_PROBE_FAIL: polyret lost caller state\n");
+    return 1;
+  }
+  if (rsp_after_ret != rsp_before_call) {
+    fprintf(stderr, "POLY_PROBE_FAIL: polyret did not pop mode frame from user stack\n");
     return 1;
   }
   poly_syscall_x86();

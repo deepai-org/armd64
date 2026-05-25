@@ -55,9 +55,9 @@ All current poly operations are wrapped in fixed 8-byte envelopes:
 | Switch to RISC-V mode | `66 0f 0b 52 49 53 43 56` | Sets current poly mode to RISC-V. |
 | Switch to raw AArch64 mode | `65 0f 0b 52 41 57 36 34` | Sets current poly mode to raw AArch64; following bytes are fetched as fixed 32-bit AArch64 instructions. |
 | Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as fixed 32-bit RISC-V instructions. |
-| Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while pushing the caller mode for `poly ret`. |
-| Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while pushing the caller mode for `poly ret`. |
-| Poly return | `f3 0f 0b 52 45 54 52 4e` | Pops and restores the caller mode. |
+| Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while pushing a caller-mode frame on the user stack for `poly ret`. |
+| Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while pushing a caller-mode frame on the user stack for `poly ret`. |
+| Poly return | `f3 0f 0b 52 45 54 52 4e` | Pops the user-stack caller-mode frame and restores that mode. |
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign instruction envelopes`, `3=foreign syscalls`, `4=foreign libcalls`. |
@@ -95,6 +95,11 @@ The current register bridge aliases the overlapping caller-visible integer ABI:
 - Bochs tracks the remaining foreign integer registers in synthetic
   CR3-scoped banks: AArch64 `x7`-`x30` plus syscall scratch `x8`, and RISC-V
   non-aliased registers including `a7`.
+
+`PolyCall`/`PolyRet` mode nesting is represented in guest userspace memory, not
+an emulator-only call stack.  `PolyCall` decrements shared `RSP` by 8 and stores
+a tagged caller-mode frame; `PolyRet` consumes that frame and restores the saved
+mode.  Balanced mode calls therefore unwind with the real stack frame state.
 
 ## Supported Foreign Subset
 
