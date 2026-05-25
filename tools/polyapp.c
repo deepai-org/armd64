@@ -11,7 +11,7 @@ enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   POLY_LIBCALL_STATUS = 0,
-  MAX_INSNS = 32,
+  MAX_PROGRAM_BYTES = 1024 * 1024,
   SCRATCH_SIZE = 16
 };
 
@@ -27,8 +27,9 @@ struct payload {
   uint64_t libcall_number_expected;
   char scratch_expected[SCRATCH_SIZE + 1];
   char scratch_hex_expected[SCRATCH_SIZE * 2 + 1];
-  uint32_t insns[MAX_INSNS];
+  uint32_t *insns;
   size_t insn_count;
+  size_t insn_capacity;
   unsigned libcall_id;
   int check_syscall;
   int check_syscall_number;
@@ -133,6 +134,27 @@ static uint32_t read_le32(const unsigned char *bytes) {
     ((uint32_t) bytes[3] << 24);
 }
 
+static int append_insn(struct payload *payload, uint32_t insn) {
+  if (payload->insn_count == payload->insn_capacity) {
+    size_t new_capacity = payload->insn_capacity ? payload->insn_capacity * 2 : 16;
+    if (new_capacity > MAX_PROGRAM_BYTES / 4)
+      new_capacity = MAX_PROGRAM_BYTES / 4;
+    if (new_capacity <= payload->insn_capacity) {
+      fprintf(stderr, "POLYAPP_FAIL: too many instructions in %s\n", payload->path);
+      return -1;
+    }
+    uint32_t *new_insns = realloc(payload->insns, new_capacity * sizeof(payload->insns[0]));
+    if (!new_insns) {
+      fprintf(stderr, "POLYAPP_FAIL: out of memory loading %s\n", payload->path);
+      return -1;
+    }
+    payload->insns = new_insns;
+    payload->insn_capacity = new_capacity;
+  }
+  payload->insns[payload->insn_count++] = insn;
+  return 0;
+}
+
 static int load_elf_instructions(struct payload *payload) {
   unsigned char *data = NULL;
   size_t size = 0;
@@ -171,16 +193,28 @@ static int load_elf_instructions(struct payload *payload) {
       continue;
     if (ehdr->e_entry < phdr->p_vaddr || ehdr->e_entry >= phdr->p_vaddr + phdr->p_filesz)
       continue;
-    if (phdr->p_filesz == 0 || (phdr->p_filesz % 4) != 0 || phdr->p_filesz / 4 > MAX_INSNS ||
+    const uint64_t entry_offset = ehdr->e_entry - phdr->p_vaddr;
+    const uint64_t entry_filesz = phdr->p_filesz - entry_offset;
+    if (entry_filesz == 0 || (entry_filesz % 4) != 0 || entry_filesz > MAX_PROGRAM_BYTES ||
         phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset) {
       fprintf(stderr, "POLYAPP_FAIL: bad ELF executable segment: %s\n", payload->elf_path);
       free(data);
       return -1;
     }
 
-    payload->insn_count = (size_t) (phdr->p_filesz / 4);
-    for (size_t insn = 0; insn < payload->insn_count; insn++)
-      payload->insns[insn] = read_le32(data + phdr->p_offset + insn * 4);
+    free(payload->insns);
+    payload->insns = NULL;
+    payload->insn_count = 0;
+    payload->insn_capacity = 0;
+
+    const unsigned char *entry_bytes = data + phdr->p_offset + entry_offset;
+    const size_t insn_count = (size_t) (entry_filesz / 4);
+    for (size_t insn = 0; insn < insn_count; insn++) {
+      if (append_insn(payload, read_le32(entry_bytes + insn * 4)) < 0) {
+        free(data);
+        return -1;
+      }
+    }
     free(data);
     return 0;
   }
@@ -287,12 +321,15 @@ static int load_payload(const char *path, struct payload *payload) {
       payload->libcall_id = (unsigned) libcall_id;
     } else if (strncmp(line, "insn=", 5) == 0) {
       uint64_t insn = 0;
-      if (payload->insn_count >= MAX_INSNS || parse_u64(line + 5, &insn) < 0 || insn > UINT32_MAX) {
+      if (parse_u64(line + 5, &insn) < 0 || insn > UINT32_MAX) {
         fprintf(stderr, "POLYAPP_FAIL: bad instruction in %s\n", path);
         fclose(file);
         return -1;
       }
-      payload->insns[payload->insn_count++] = (uint32_t) insn;
+      if (append_insn(payload, (uint32_t) insn) < 0) {
+        fclose(file);
+        return -1;
+      }
     } else {
       fprintf(stderr, "POLYAPP_FAIL: unknown directive in %s: %s\n", path, line);
       fclose(file);
@@ -309,6 +346,13 @@ static int load_payload(const char *path, struct payload *payload) {
     return -1;
   }
   return 0;
+}
+
+static void free_payload(struct payload *payload) {
+  free(payload->insns);
+  payload->insns = NULL;
+  payload->insn_count = 0;
+  payload->insn_capacity = 0;
 }
 
 static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_SIZE + 1], char scratch_hex_result[SCRATCH_SIZE * 2 + 1]) {
@@ -404,14 +448,17 @@ int main(int argc, char **argv) {
     uint64_t libcall_number_result = 0;
     char scratch_result[SCRATCH_SIZE + 1];
     char scratch_hex_result[SCRATCH_SIZE * 2 + 1];
-    if (emit_and_run(&payload, &result, &syscall_result, &syscall_number_result, &libcall_result, &libcall_number_result, scratch_result, scratch_hex_result) < 0)
+    if (emit_and_run(&payload, &result, &syscall_result, &syscall_number_result, &libcall_result, &libcall_number_result, scratch_result, scratch_hex_result) < 0) {
+      free_payload(&payload);
       return 1;
+    }
 
     printf("POLYAPP_RESULT: arch=%s value=%llu path=%s\n",
       payload.arch_name, (unsigned long long) result, payload.path);
     if (result != payload.expected) {
       fprintf(stderr, "POLYAPP_FAIL: %s expected %llu got %llu\n",
         payload.path, (unsigned long long) payload.expected, (unsigned long long) result);
+      free_payload(&payload);
       return 1;
     }
     if (payload.check_syscall) {
@@ -420,6 +467,7 @@ int main(int argc, char **argv) {
       if (syscall_result != payload.syscall_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s syscall expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.syscall_expected, (unsigned long long) syscall_result);
+        free_payload(&payload);
         return 1;
       }
     }
@@ -429,6 +477,7 @@ int main(int argc, char **argv) {
       if (syscall_number_result != payload.syscall_number_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s syscall number expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.syscall_number_expected, (unsigned long long) syscall_number_result);
+        free_payload(&payload);
         return 1;
       }
     }
@@ -438,6 +487,7 @@ int main(int argc, char **argv) {
       if (libcall_result != payload.libcall_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s libcall expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.libcall_expected, (unsigned long long) libcall_result);
+        free_payload(&payload);
         return 1;
       }
     }
@@ -447,6 +497,7 @@ int main(int argc, char **argv) {
       if (libcall_number_result != payload.libcall_number_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s libcall number expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.libcall_number_expected, (unsigned long long) libcall_number_result);
+        free_payload(&payload);
         return 1;
       }
     }
@@ -456,6 +507,7 @@ int main(int argc, char **argv) {
       if (strcmp(scratch_result, payload.scratch_expected) != 0) {
         fprintf(stderr, "POLYAPP_FAIL: %s scratch expected %s got %s\n",
           payload.path, payload.scratch_expected, scratch_result);
+        free_payload(&payload);
         return 1;
       }
     }
@@ -465,9 +517,11 @@ int main(int argc, char **argv) {
       if (strcmp(scratch_hex_result, payload.scratch_hex_expected) != 0) {
         fprintf(stderr, "POLYAPP_FAIL: %s scratch hex expected %s got %s\n",
           payload.path, payload.scratch_hex_expected, scratch_hex_result);
+        free_payload(&payload);
         return 1;
       }
     }
+    free_payload(&payload);
   }
 
   puts("POLYAPP_OK");

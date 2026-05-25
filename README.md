@@ -27,7 +27,8 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
   syscalls, and status/counter markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly` by entering raw foreign mode, executing packed
-  32-bit foreign instructions, and escaping back to x86_64.
+  32-bit foreign instructions, and escaping back to x86_64.  The manifest path
+  accepts variable-size executable segments up to 1 MiB.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
   using the same raw-mode execution path, including executable segments larger
   than one raw burst.
@@ -179,5 +180,5 @@ Expected success markers include:
   implementation demonstrates raw direct-fetch execution and multi-burst raw
   loops, but not full equal-speed execution across complete ISAs.
 - Foreign ELF support is limited to the generated static payload shape used by
-  `tools/mkpolyelf.c`, `tools/polyapp.c`, and `tools/polyexec.c`, but
-  `polyexec` now loads variable-size executable segments up to 1 MiB.
+  `tools/mkpolyelf.c`, `tools/polyapp.c`, and `tools/polyexec.c`, but both
+  `polyapp` and `polyexec` load variable-size executable segments up to 1 MiB.
