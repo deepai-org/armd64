@@ -19,6 +19,7 @@ case "$path" in
   */aarch64-strlen.elf) expected=5 ;;
   */aarch64-memfill.elf) expected=4 ;;
   */aarch64-write.elf) expected=5 ;;
+  */aarch64-exit.elf) expected=7 ;;
   */aarch64-brk.elf) expected=0x4c000105 ;;
   */aarch64-svc.elf) expected=0x53000701 ;;
   */riscv-add.elf) expected=27 ;;
@@ -31,6 +32,7 @@ case "$path" in
   */riscv-strlen.elf) expected=5 ;;
   */riscv-memfill.elf) expected=4 ;;
   */riscv-write.elf) expected=5 ;;
+  */riscv-exit.elf) expected=7 ;;
   */riscv-ebreak.elf) expected=0x4c000205 ;;
   */riscv-ecall.elf) expected=0x53000702 ;;
 esac
