@@ -21,6 +21,7 @@ case "$path" in
   */aarch64-memfill.elf) expected=4 ;;
   */aarch64-memcmp.elf) expected=1 ;;
   */aarch64-memcpy.elf) expected=4 ;;
+  */aarch64-read.elf) expected=4 ;;
   */aarch64-write.elf) expected=5 ;;
   */aarch64-getpid.elf) expected=4242 ;;
   */aarch64-exit.elf) expected=7 ;;
@@ -38,6 +39,7 @@ case "$path" in
   */riscv-memfill.elf) expected=4 ;;
   */riscv-memcmp.elf) expected=1 ;;
   */riscv-memcpy.elf) expected=4 ;;
+  */riscv-read.elf) expected=4 ;;
   */riscv-write.elf) expected=5 ;;
   */riscv-getpid.elf) expected=4242 ;;
   */riscv-exit.elf) expected=7 ;;
