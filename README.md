@@ -66,7 +66,9 @@ instructions directly from `RIP`.  AArch64 `brk #0x7fff` and RISC-V custom-0
 instruction `0x0000000b` escape back to x86_64 at the next byte.  Raw foreign
 fetch is only active at guest CPL3; kernel, interrupt, and exception paths
 continue through normal x86_64 decode even if the current userspace poly mode is
-raw AArch64 or raw RISC-V.
+raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3 active at
+the raw-mode switch, so unrelated userspace tasks do not inherit raw decoding
+after a scheduler switch or a fault in the raw-mode task.
 
 The current register bridge is deliberately small:
 
