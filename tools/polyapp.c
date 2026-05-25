@@ -11,7 +11,8 @@ enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   POLY_LIBCALL_STATUS = 0,
-  MAX_INSNS = 32
+  MAX_INSNS = 32,
+  SCRATCH_SIZE = 16
 };
 
 struct payload {
@@ -22,11 +23,13 @@ struct payload {
   uint64_t expected;
   uint64_t syscall_expected;
   uint64_t libcall_expected;
+  char scratch_expected[SCRATCH_SIZE + 1];
   uint32_t insns[MAX_INSNS];
   size_t insn_count;
   unsigned libcall_id;
   int check_syscall;
   int check_libcall;
+  int check_scratch;
   int use_elf;
 };
 
@@ -220,6 +223,14 @@ static int load_payload(const char *path, struct payload *payload) {
         return -1;
       }
       payload->check_libcall = 1;
+    } else if (strncmp(line, "scratch_expected=", 17) == 0) {
+      if (strlen(line + 17) > SCRATCH_SIZE) {
+        fprintf(stderr, "POLYAPP_FAIL: scratch expected value too long in %s\n", path);
+        fclose(file);
+        return -1;
+      }
+      strcpy(payload->scratch_expected, line + 17);
+      payload->check_scratch = 1;
     } else if (strncmp(line, "libcall_id=", 11) == 0) {
       uint64_t libcall_id = 0;
       if (parse_u64(line + 11, &libcall_id) < 0 || libcall_id != POLY_LIBCALL_STATUS) {
@@ -254,7 +265,7 @@ static int load_payload(const char *path, struct payload *payload) {
   return 0;
 }
 
-static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *libcall_result) {
+static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *libcall_result, char scratch_result[SCRATCH_SIZE + 1]) {
   const size_t code_size = 3 + payload->insn_count * 8 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -285,7 +296,7 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
   else
     poly_mode_riscv();
 
-  char scratch[16] = "poly!";
+  char scratch[SCRATCH_SIZE] = "poly!";
   uint64_t (*entry)(uint64_t *) = (uint64_t (*)(uint64_t *)) code;
   *result = entry((uint64_t *) scratch);
   if (payload->check_syscall) {
@@ -296,6 +307,8 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
     poly_libcall_status();
     *libcall_result = read_rax();
   }
+  memcpy(scratch_result, scratch, SCRATCH_SIZE);
+  scratch_result[SCRATCH_SIZE] = '\0';
   poly_mode_x86();
   munmap(code, code_size);
   return 0;
@@ -320,7 +333,8 @@ int main(int argc, char **argv) {
     uint64_t result = 0;
     uint64_t syscall_result = 0;
     uint64_t libcall_result = 0;
-    if (emit_and_run(&payload, &result, &syscall_result, &libcall_result) < 0)
+    char scratch_result[SCRATCH_SIZE + 1];
+    if (emit_and_run(&payload, &result, &syscall_result, &libcall_result, scratch_result) < 0)
       return 1;
 
     printf("POLYAPP_RESULT: arch=%s value=%llu path=%s\n",
@@ -345,6 +359,15 @@ int main(int argc, char **argv) {
       if (libcall_result != payload.libcall_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s libcall expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.libcall_expected, (unsigned long long) libcall_result);
+        return 1;
+      }
+    }
+    if (payload.check_scratch) {
+      printf("POLYAPP_SCRATCH: arch=%s value=%s path=%s\n",
+        payload.arch_name, scratch_result, payload.path);
+      if (strcmp(scratch_result, payload.scratch_expected) != 0) {
+        fprintf(stderr, "POLYAPP_FAIL: %s scratch expected %s got %s\n",
+          payload.path, payload.scratch_expected, scratch_result);
         return 1;
       }
     }
