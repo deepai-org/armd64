@@ -1,0 +1,6 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-geteuid.elf
+expected=1000
+syscall_expected=1
+syscall_number_expected=175

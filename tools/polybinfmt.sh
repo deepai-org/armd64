@@ -32,7 +32,9 @@ case "$path" in
   */aarch64-mmap-store.elf) expected=77 ;;
   */aarch64-getpid.elf) expected=4242 ;;
   */aarch64-getuid.elf) expected=1000 ;;
+  */aarch64-geteuid.elf) expected=1000 ;;
   */aarch64-getgid.elf) expected=1000 ;;
+  */aarch64-getegid.elf) expected=1000 ;;
   */aarch64-getcwd.elf) expected=6 ;;
   */aarch64-uname.elf) expected=0 ;;
   */aarch64-exit.elf) expected=7 ;;
@@ -61,7 +63,9 @@ case "$path" in
   */riscv-mmap-store.elf) expected=77 ;;
   */riscv-getpid.elf) expected=4242 ;;
   */riscv-getuid.elf) expected=1000 ;;
+  */riscv-geteuid.elf) expected=1000 ;;
   */riscv-getgid.elf) expected=1000 ;;
+  */riscv-getegid.elf) expected=1000 ;;
   */riscv-getcwd.elf) expected=6 ;;
   */riscv-uname.elf) expected=0 ;;
   */riscv-exit.elf) expected=7 ;;
