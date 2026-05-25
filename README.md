@@ -78,6 +78,11 @@ The current raw run loop batches up to 64 raw foreign instructions before
 returning to the outer Bochs event loop, while still checking async events and
 mode exits between individual raw instructions.
 
+The hybrid CPU currently defines foreign-mode memory ordering as x86_64 TSO.
+Raw and legacy AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and
+`fence.i` instructions are decoded as ordering-preserving no-ops instead of
+introducing weaker AArch64/RISC-V reordering inside Bochs.
+
 The current register bridge aliases the overlapping caller-visible integer ABI:
 
 - x86_64 `RAX` carries the foreign return value and maps to AArch64 `x0` or
@@ -97,14 +102,14 @@ The current legacy AArch64 decoder supports the generated/probed subset used by
 the tests: move-wide immediate `movz`, `movn`, and `movk`, decoded `add`/`sub`
 immediate forms, decoded register-register `add`/`sub`/`mul`/`eor`/`and`/`orr`
 over the synthetic register file, unconditional branch, `cbz`/`cbnz`, `ret`,
-selected 64-bit `str`/`ldr`, `svc`, and `brk`.
+barriers, selected 64-bit `str`/`ldr`, `svc`, and `brk`.
 
 The current legacy RISC-V decoder supports the generated/probed RV64 subset used by
 the tests: decoded U-type `lui` and `auipc`, decoded OP-IMM `addi`, `xori`,
 `ori`, `andi`, `slli`, `srli`, and `srai`, decoded register-register `add`,
 `sub`, `mul`, `xor`, `and`, `or` over the synthetic register file,
 `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, `jalr` return, selected 64-bit
-`sd`/`ld`, `ecall`, and `ebreak`.
+`sd`/`ld`, `fence`, `fence.i`, `ecall`, and `ebreak`.
 
 The raw-mode direct-fetch path covers the generated/probed subset used by
 `polyapp`, `polyexec`, and `polybench`: the arithmetic, shifted-register,

@@ -93,6 +93,23 @@ static inline void poly_raw_riscv_abi_args_probe(void) {
     ".long 0x0000000b\n"
     ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "memory");
 }
+static inline void poly_raw_barrier_probe(void) {
+  asm volatile(
+    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    ".long 0xd2800120\n"
+    ".long 0xd5033fbf\n"
+    ".long 0xd5033f9f\n"
+    ".long 0xd5033fdf\n"
+    ".long 0x91002000\n"
+    ".long 0xd42fffe0\n"
+    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    ".long 0x01400513\n"
+    ".long 0x0ff0000f\n"
+    ".long 0x0000100f\n"
+    ".long 0x00250513\n"
+    ".long 0x0000000b\n"
+    ::: "rax", "memory");
+}
 
 #define POLY_SWITCH_STRESS_STEP() \
   do { \
@@ -314,6 +331,13 @@ int main(void) {
   poly_raw_riscv_abi_args_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI argument bridge mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: raw-barrier");
+  poly_raw_barrier_probe();
+  if (read_rax() != 22) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw barrier stream mismatch\n");
     return 1;
   }
 
