@@ -205,6 +205,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-logical.elf" 0x0f000513 0x03c00593 0x00b54533 0x00b57533 0x00b56533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-regmix.elf" 0x00a00513 0x00500593 0x00300613 0x00c58533 0x00c54533 0x00b56533 0x00c57533 0x02b50533 0x40c50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-branch.elf" 0x02900513 0x00000463 0x00100513 0x00150513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-branchcmp.elf" 0x00000513 0x00500593 0x00900613 0x00c5c463 0x06450513 0x00150513 0x00b65463 0x06450513 0x00250513 0xfff00593 0x00100613 0x00c5c463 0x06450513 0x00450513 0x00c5d463 0x00850513 0x00b65463 0x06450513 0x01050513 0x00b66463 0x06450513 0x02050513 0x00c5f463 0x06450513 0x04050513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-condbranch.elf" 0x00000513 0x00051463 0x00150513 0x00000513 0x00050463 0x06300513 0x00350513 0x00050463 0x00550513 0x00051463 0x06300513 0x05350513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-loop.elf" 0x00300513 0xfff50513 0xfe051ee3
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ret.elf" 0x03700513 0x00008067 0x00100513
@@ -413,6 +414,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-logical.elf=60 \
     /usr/lib/polyapps/riscv-regmix.elf=12 \
     /usr/lib/polyapps/riscv-branch.elf=42 \
+    /usr/lib/polyapps/riscv-branchcmp.elf=127 \
     /usr/lib/polyapps/riscv-condbranch.elf=91 \
     /usr/lib/polyapps/riscv-loop.elf=0 \
     /usr/lib/polyapps/riscv-ret.elf=55 \
@@ -536,6 +538,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-logical.elf \
     /usr/lib/polyapps/riscv-regmix.elf \
     /usr/lib/polyapps/riscv-branch.elf \
+    /usr/lib/polyapps/riscv-branchcmp.elf \
     /usr/lib/polyapps/riscv-condbranch.elf \
     /usr/lib/polyapps/riscv-loop.elf \
     /usr/lib/polyapps/riscv-ret.elf \

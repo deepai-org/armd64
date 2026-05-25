@@ -101,8 +101,8 @@ and `brk`.
 The current legacy RISC-V decoder supports the generated/probed RV64 subset used by
 the tests: decoded OP-IMM `addi`, `xori`, `ori`, `andi`, `slli`, `srli`, and
 `srai`, decoded register-register `add`, `sub`, `mul`, `xor`, `and`, `or` over
-the synthetic register file, `beq`/`bne`, `jalr` return, selected 64-bit
-`sd`/`ld`, `ecall`, and `ebreak`.
+the synthetic register file, `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jalr`
+return, selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
 
 The raw-mode direct-fetch path covers the generated/probed subset used by
 `polyapp`, `polyexec`, and `polybench`: the arithmetic, branch, return,
