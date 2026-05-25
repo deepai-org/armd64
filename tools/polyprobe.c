@@ -11,8 +11,11 @@ static inline void poly_ret(void) { asm volatile(".byte 0xf3,0x0f,0x0b,0x52,0x45
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
 static inline void poly_aarch64_movz_x0_42(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x40,0x05,0x80,0xd2,0x00" ::: "memory"); }
 static inline void poly_aarch64_add_x0_1(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x00,0x04,0x00,0x91,0x00" ::: "memory"); }
+static inline void poly_aarch64_brk_strlen(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x20,0x00,0x20,0xd4,0x00" ::: "memory"); }
 static inline void poly_riscv_addi_a0_17(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x13,0x05,0x10,0x01,0x00" ::: "memory"); }
 static inline void poly_riscv_addi_a0_5(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x13,0x05,0x55,0x00,0x00" ::: "memory"); }
+static inline void poly_riscv_addi_a7_1(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x93,0x08,0x10,0x00,0x00" ::: "memory"); }
+static inline void poly_riscv_ebreak(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x73,0x00,0x10,0x00,0x00" ::: "memory"); }
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -22,6 +25,10 @@ static inline uint64_t read_rax(void) {
 
 static inline void write_rax(uint64_t value) {
   asm volatile("" :: "a"(value) : "memory");
+}
+
+static inline void write_rdi(uint64_t value) {
+  asm volatile("" :: "D"(value) : "memory");
 }
 
 static void stage(const char *msg) {
@@ -122,6 +129,25 @@ int main(void) {
   poly_mode_x86();
   if (read_rax() != 47) {
     fprintf(stderr, "POLY_PROBE_FAIL: mixed instruction stream mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: mixed-libcall");
+  const char mixed_libcall_string[] = "polyglot";
+  write_rdi((uint64_t) mixed_libcall_string);
+  poly_mode_aarch64();
+  poly_aarch64_brk_strlen();
+  if (read_rax() != 8) {
+    fprintf(stderr, "POLY_PROBE_FAIL: mixed aarch64 libcall mismatch\n");
+    return 1;
+  }
+  write_rdi((uint64_t) mixed_libcall_string);
+  poly_mode_riscv();
+  poly_riscv_addi_a7_1();
+  poly_riscv_ebreak();
+  poly_mode_x86();
+  if (read_rax() != 8) {
+    fprintf(stderr, "POLY_PROBE_FAIL: mixed riscv libcall mismatch\n");
     return 1;
   }
 
