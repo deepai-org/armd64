@@ -29,6 +29,8 @@ POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
+POLY_BENCH_SRC="$ROOT_DIR/tools/polybench.c"
+POLY_BENCH_BIN="$OUT_DIR/polybench"
 POLY_BINFMT_SRC="$ROOT_DIR/tools/polybinfmt.sh"
 NATIVE_CHECK_SRC="$ROOT_DIR/tools/nativecheck.c"
 NATIVE_CHECK_BIN="$OUT_DIR/nativecheck"
@@ -38,6 +40,7 @@ POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
 POLY_ENABLED="${POLY_ENABLED:-0}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
+RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
@@ -113,6 +116,10 @@ build_poly_app() {
 
 build_poly_exec() {
   compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}"
+}
+
+build_poly_bench() {
+  compile_poly_tool "$POLY_BENCH_SRC" "$POLY_BENCH_BIN" "${POLY_BENCH_CC:-}"
 }
 
 build_native_check() {
@@ -269,6 +276,7 @@ build_initramfs() {
   build_poly_probe
   build_poly_app
   build_poly_exec
+  build_poly_bench
   build_native_check
   local busybox_version
   local busybox_apk
@@ -302,6 +310,7 @@ build_initramfs() {
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
+  cp "$POLY_BENCH_BIN" "$TMP_DIR/initramfs-root/usr/bin/polybench"
   cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   cp "$NATIVE_CHECK_BIN" "$TMP_DIR/initramfs-root/usr/bin/nativecheck.elf"
   chmod +x "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
@@ -314,6 +323,7 @@ build_initramfs() {
 set -eu
 RUN_POLY_PROBE="$RUN_POLY_PROBE"
 RUN_POLY_APPS="$RUN_POLY_APPS"
+RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 
 mount -t proc proc /proc
@@ -422,6 +432,10 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-exit.elf=7 \
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
     /usr/lib/polyapps/riscv-ecall.elf=0x53000704 >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_BENCH" = "1" ]; then
+  /usr/bin/polybench >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_BINFMT" = "1" ]; then
@@ -679,6 +693,12 @@ EOF
           continue
         fi
         if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_BENCH" == "1" ]]; then
+        if ! grep -q "POLYBENCH_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

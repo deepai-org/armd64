@@ -30,6 +30,9 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
   32-bit foreign instructions, and escaping back to x86_64.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
   using the same raw-mode execution path.
+- `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
+  guest and verifies that raw instruction counters advance across multiple
+  fetch/decode bursts.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 
@@ -69,6 +72,9 @@ continue through normal x86_64 decode even if the current userspace poly mode is
 raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3 active at
 the raw-mode switch, so unrelated userspace tasks do not inherit raw decoding
 after a scheduler switch or a fault in the raw-mode task.
+The current raw run loop batches up to 64 raw foreign instructions before
+returning to the outer Bochs event loop, while still checking async events and
+mode exits between individual raw instructions.
 
 The current register bridge is deliberately small:
 
@@ -96,10 +102,10 @@ the tests: decoded `addi`, decoded register-register `add`, `sub`, `mul`,
 return, selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
 
 The raw-mode direct-fetch path covers the generated/probed subset used by
-`polyapp` and `polyexec`: the arithmetic, branch, return, selected memory,
-syscall, and libcall forms listed above, plus native escapes.  `polyprobe`
-still exercises the legacy instruction envelopes for low-level compatibility
-and uses raw mode for the direct-fetch smoke test.
+`polyapp`, `polyexec`, and `polybench`: the arithmetic, branch, return,
+selected memory, syscall, and libcall forms listed above, plus native escapes.
+`polyprobe` still exercises the legacy instruction envelopes for low-level
+compatibility and uses raw mode for the direct-fetch smoke test.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
@@ -155,6 +161,7 @@ Expected success markers include:
 - `POLY_PROBE_OK`
 - `POLYAPP_OK`
 - `POLYEXEC_OK`
+- `POLYBENCH_OK`
 - `POLYBINFMT_OK`
 
 ## Known Gaps
@@ -164,7 +171,8 @@ Expected success markers include:
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
 - Syscalls and libcalls return deterministic scaffold results, not complete host
   or guest Linux ABI behavior.
-- Equal-speed or minimal-slowdown execution is a design target, not something
-  demonstrated by the current implementation.
+- Equal-speed or minimal-slowdown execution is a design target.  The current
+  implementation demonstrates raw direct-fetch execution and multi-burst raw
+  loops, but not full equal-speed execution across complete ISAs.
 - Foreign ELF support is limited to the generated static payload shape used by
   `tools/mkpolyelf.c`, `tools/polyapp.c`, and `tools/polyexec.c`.

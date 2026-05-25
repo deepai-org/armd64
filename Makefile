@@ -29,6 +29,7 @@ boot-poly-full:
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
+		-e RUN_POLY_BENCH=1 \
 		-e RUN_POLY_BINFMT=1 \
 		$(IMAGE) \
 		./scripts/boot.sh
