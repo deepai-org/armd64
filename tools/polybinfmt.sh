@@ -28,6 +28,8 @@ case "$path" in
   */aarch64-openat-read.elf) expected=4 ;;
   */aarch64-openat-read-close.elf) expected=0 ;;
   */aarch64-clock-gettime.elf) expected=0 ;;
+  */aarch64-getpgid.elf) expected=4242 ;;
+  */aarch64-getsid.elf) expected=4242 ;;
   */aarch64-mmap.elf) expected=0 ;;
   */aarch64-mmap-store.elf) expected=77 ;;
   */aarch64-getpid.elf) expected=4242 ;;
@@ -61,6 +63,8 @@ case "$path" in
   */riscv-openat-read.elf) expected=4 ;;
   */riscv-openat-read-close.elf) expected=0 ;;
   */riscv-clock-gettime.elf) expected=0 ;;
+  */riscv-getpgid.elf) expected=4242 ;;
+  */riscv-getsid.elf) expected=4242 ;;
   */riscv-mmap.elf) expected=0 ;;
   */riscv-mmap-store.elf) expected=77 ;;
   */riscv-getpid.elf) expected=4242 ;;

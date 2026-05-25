@@ -161,6 +161,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-read.elf" 0xd2800000 0x91000041 0xd2800002 0xd2800708 0xd4000001 0x91002041 0xd2800082 0xd28007e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-read-close.elf" 0xd2800000 0x91000041 0xd2800002 0xd2800708 0xd4000001 0xf9000040 0x91002041 0xd2800082 0xd28007e8 0xd4000001 0xf9400040 0xd2800728 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clock-gettime.elf" 0xd2800000 0x91000041 0xd2800e28 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getpgid.elf" 0xd2800000 0xd2801368 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getsid.elf" 0xd2800000 0xd2801388 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap.elf" 0xd2800000 0xd2801bc8 0xd4000001 0xcb020000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap-store.elf" 0xd2800000 0xd2801bc8 0xd4000001 0xd28009a1 0xf9000001 0xf9400000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getpid.elf" 0xd2801588 0xd4000001
@@ -194,6 +196,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-read.elf" 0x00000513 0x00060593 0x00000613 0x03800893 0x00000073 0x00860593 0x00400613 0x03f00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-read-close.elf" 0x00000513 0x00060593 0x00000613 0x03800893 0x00000073 0x00a63023 0x00860593 0x00400613 0x03f00893 0x00000073 0x00063503 0x03900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clock-gettime.elf" 0x00000513 0x00060593 0x07100893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getpgid.elf" 0x00000513 0x09b00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getsid.elf" 0x00000513 0x09c00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap.elf" 0x00000513 0x0de00893 0x00000073 0x40c50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap-store.elf" 0x00000513 0x0de00893 0x00000073 0x04d00593 0x00b53023 0x00053503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getpid.elf" 0x0ac00893 0x00000073
@@ -339,6 +343,8 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-openat-read.elf=4 \
     /usr/lib/polyapps/aarch64-openat-read-close.elf=0 \
     /usr/lib/polyapps/aarch64-clock-gettime.elf=0 \
+    /usr/lib/polyapps/aarch64-getpgid.elf=4242 \
+    /usr/lib/polyapps/aarch64-getsid.elf=4242 \
     /usr/lib/polyapps/aarch64-mmap.elf=0 \
     /usr/lib/polyapps/aarch64-mmap-store.elf=77 \
     /usr/lib/polyapps/aarch64-getpid.elf=4242 \
@@ -372,6 +378,8 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-openat-read.elf=4 \
     /usr/lib/polyapps/riscv-openat-read-close.elf=0 \
     /usr/lib/polyapps/riscv-clock-gettime.elf=0 \
+    /usr/lib/polyapps/riscv-getpgid.elf=4242 \
+    /usr/lib/polyapps/riscv-getsid.elf=4242 \
     /usr/lib/polyapps/riscv-mmap.elf=0 \
     /usr/lib/polyapps/riscv-mmap-store.elf=77 \
     /usr/lib/polyapps/riscv-getpid.elf=4242 \
@@ -435,6 +443,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-openat-read.elf \
     /usr/lib/polyapps/aarch64-openat-read-close.elf \
     /usr/lib/polyapps/aarch64-clock-gettime.elf \
+    /usr/lib/polyapps/aarch64-getpgid.elf \
+    /usr/lib/polyapps/aarch64-getsid.elf \
     /usr/lib/polyapps/aarch64-mmap.elf \
     /usr/lib/polyapps/aarch64-mmap-store.elf \
     /usr/lib/polyapps/aarch64-getpid.elf \
@@ -468,6 +478,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-openat-read.elf \
     /usr/lib/polyapps/riscv-openat-read-close.elf \
     /usr/lib/polyapps/riscv-clock-gettime.elf \
+    /usr/lib/polyapps/riscv-getpgid.elf \
+    /usr/lib/polyapps/riscv-getsid.elf \
     /usr/lib/polyapps/riscv-mmap.elf \
     /usr/lib/polyapps/riscv-mmap-store.elf \
     /usr/lib/polyapps/riscv-getpid.elf \
