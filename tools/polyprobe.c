@@ -220,8 +220,8 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: polycall clobbered RAX\n");
     return 1;
   }
-  if (rsp_after_call != rsp_before_call - 8) {
-    fprintf(stderr, "POLY_PROBE_FAIL: polycall did not push mode frame on user stack\n");
+  if (rsp_after_call != rsp_before_call - 16) {
+    fprintf(stderr, "POLY_PROBE_FAIL: polycall did not push 16-byte mode frame on user stack\n");
     return 1;
   }
   poly_syscall_x86();

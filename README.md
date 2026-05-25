@@ -96,10 +96,19 @@ The current register bridge aliases the overlapping caller-visible integer ABI:
   by guest `CR3` and user `FSBASE`: AArch64 `x7`-`x30` plus syscall scratch
   `x8`, and RISC-V non-aliased registers including `a7`.
 
+Precompiled cross-ISA linking is expected to use native-ABI boundary thunks, not
+a custom compiler ABI.  For example, an x86_64 SysV caller entering a
+precompiled AArch64 library needs a thunk that maps SysV arguments into
+AAPCS64 `x0`-`x7`, switches mode, and routes the AArch64 return back through
+the thunk.  The same applies to RISC-V psABI `a0`-`a7`.  Direct register aliases
+are an implementation optimization only where they match the native ABI
+contract; they are not the external compatibility contract.
+
 `PolyCall`/`PolyRet` mode nesting is represented in guest userspace memory, not
-an emulator-only call stack.  `PolyCall` decrements shared `RSP` by 8 and stores
-a tagged caller-mode frame; `PolyRet` consumes that frame and restores the saved
-mode.  Balanced mode calls therefore unwind with the real stack frame state.
+an emulator-only call stack.  `PolyCall` decrements shared `RSP` by 16 and
+stores a tagged transition frame with caller-mode and ABI metadata; `PolyRet`
+consumes that frame and restores the saved mode.  Balanced mode calls therefore
+unwind with the real stack frame state.
 
 ## Supported Foreign Subset
 
