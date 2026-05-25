@@ -59,6 +59,40 @@ static inline void poly_raw_riscv_probe(void) {
     ".long 0x0000000b\n"
     ::: "memory");
 }
+static inline void poly_raw_aarch64_abi_args_probe(void) {
+  asm volatile(
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    ".long 0x8b020020\n"
+    ".long 0x8b030000\n"
+    ".long 0x8b040000\n"
+    ".long 0x8b050000\n"
+    ".long 0x8b060000\n"
+    ".long 0xd42fffe0\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "memory");
+}
+static inline void poly_raw_riscv_abi_args_probe(void) {
+  asm volatile(
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    ".long 0x00c58533\n"
+    ".long 0x00d50533\n"
+    ".long 0x00e50533\n"
+    ".long 0x00f50533\n"
+    ".long 0x01050533\n"
+    ".long 0x0000000b\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "memory");
+}
 
 #define POLY_SWITCH_STRESS_STEP() \
   do { \
@@ -268,6 +302,18 @@ int main(void) {
   poly_raw_riscv_probe();
   if (read_rax() != 42) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv stream mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: abi-args");
+  poly_raw_aarch64_abi_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 ABI argument bridge mismatch\n");
+    return 1;
+  }
+  poly_raw_riscv_abi_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI argument bridge mismatch\n");
     return 1;
   }
 

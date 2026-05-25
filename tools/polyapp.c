@@ -391,8 +391,8 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
   code[offset++] = 0xc3;
 
   char scratch[SCRATCH_SIZE] = "poly!";
-  uint64_t (*entry)(uint64_t *) = (uint64_t (*)(uint64_t *)) code;
-  *result = entry((uint64_t *) scratch);
+  uint64_t (*entry)(uint64_t *, uint64_t *) = (uint64_t (*)(uint64_t *, uint64_t *)) code;
+  *result = entry((uint64_t *) scratch, (uint64_t *) scratch);
   if (payload->arch == POLY_ARCH_AARCH64)
     poly_mode_aarch64();
   else

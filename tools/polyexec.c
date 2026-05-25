@@ -224,8 +224,8 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   code[offset++] = 0xc3;
 
   char scratch[16] = "poly!";
-  uint64_t (*entry)(uint64_t *) = (uint64_t (*)(uint64_t *)) code;
-  *result = entry((uint64_t *) scratch);
+  uint64_t (*entry)(uint64_t *, uint64_t *) = (uint64_t (*)(uint64_t *, uint64_t *)) code;
+  *result = entry((uint64_t *) scratch, (uint64_t *) scratch);
   poly_mode_x86();
   munmap(code, code_size);
   return 0;

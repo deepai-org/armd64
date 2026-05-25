@@ -78,17 +78,18 @@ The current raw run loop batches up to 64 raw foreign instructions before
 returning to the outer Bochs event loop, while still checking async events and
 mode exits between individual raw instructions.
 
-The current register bridge is deliberately small:
+The current register bridge aliases the overlapping caller-visible integer ABI:
 
 - x86_64 `RAX` carries the foreign return value and maps to AArch64 `x0` or
-  RISC-V `a0` for supported operations.
-- x86_64 `RDI` is used as the shared scratch/base pointer and default AArch64
-  `x2` / RISC-V `a2` value until a payload explicitly writes that foreign
-  register.
-- Bochs tracks array-backed synthetic foreign integer registers internally:
-  AArch64 `x1`-`x30` with `x31` as zero, and RISC-V `x1`-`x31` with `x0` as
-  zero.  The current syscall ABI uses AArch64 `x1`-`x5`, `x8` and RISC-V
-  `a1`-`a5`, `a7`.
+  RISC-V `a0`.
+- x86_64 `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` map to AArch64 `x1`-`x6`
+  and RISC-V `a1`-`a6`.
+- x86_64 `RSP` maps to RISC-V `sp`; AArch64 `x31` is still decoded as zero for
+  general register operands, with load/store base handling treating `x31` as
+  `SP`.
+- Bochs tracks the remaining foreign integer registers in synthetic
+  CR3-scoped banks: AArch64 `x7`-`x30` plus syscall scratch `x8`, and RISC-V
+  non-aliased registers including `a7`.
 
 ## Supported Foreign Subset
 
@@ -142,6 +143,9 @@ calls:
 - AArch64 uses `brk #id`.
 - RISC-V uses `a7=id; ebreak`.
 - Supported ids are `1=strlen`, `2=memfill`, `3=memcmp`, and `4=memcpy`.
+- `RDI`/AArch64 `x1`/RISC-V `a1` is the implicit left/destination pointer;
+  explicit libcall operands use `RSI,RDX` via AArch64 `x2,x3` or RISC-V
+  `a2,a3`.
 
 ## Validation Gates
 
