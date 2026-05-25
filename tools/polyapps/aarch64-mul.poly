@@ -1,0 +1,7 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-mul.elf
+expected=42
+syscall_expected=1
+libcall_id=0
+libcall_expected=0x4c000100
