@@ -203,6 +203,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-immops.elf" 0x00500513 0x00351513 0x00356513 0x00154513 0x03f57513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-wordops.elf" 0xfff00293 0x0022831b 0x01f3139b 0x01e3d41b 0x41e3d49b 0x0094053b 0x00700593 0x02b5863b 0x00c5053b 0x40b5053b
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-shiftcmp.elf" 0xfff00293 0x0002a313 0x0012b393 0x00300413 0x008414b3 0x0084d533 0x4082d5b3 0x0082a633 0x0082b6b3 0x0084173b 0x008757bb 0x4082d83b 0x00650533 0x00c50533 0x00e50533 0x00f50533 0x01050533
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-divrem.elf" 0x06400293 0x00700313 0xf9c00893 0x0262c3b3 0x0262e433 0x0262d4b3 0x0262f533 0x0268c5b3 0x0268e633 0x0268c6bb 0x0268e73b 0x0262d7bb 0x0262f83b 0x00750533 0x00850533 0x00950533 0x00b50533 0x00c50533 0x00d50533 0x00e50533 0x00f50533 0x01050533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-shifts.elf" 0x04000513 0x00255513 0x00151513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-srai.elf" 0xff800513 0x40155513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-regadd.elf" 0x06400513 0x01700593 0x00b50533
@@ -420,6 +421,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-immops.elf=42 \
     /usr/lib/polyapps/riscv-wordops.elf=42 \
     /usr/lib/polyapps/riscv-shiftcmp.elf=31 \
+    /usr/lib/polyapps/riscv-divrem.elf=16 \
     /usr/lib/polyapps/riscv-shifts.elf=32 \
     /usr/lib/polyapps/riscv-srai.elf=0xfffffffffffffffc \
     /usr/lib/polyapps/riscv-regadd.elf=123 \
@@ -552,6 +554,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-immops.elf \
     /usr/lib/polyapps/riscv-wordops.elf \
     /usr/lib/polyapps/riscv-shiftcmp.elf \
+    /usr/lib/polyapps/riscv-divrem.elf \
     /usr/lib/polyapps/riscv-shifts.elf \
     /usr/lib/polyapps/riscv-srai.elf \
     /usr/lib/polyapps/riscv-regadd.elf \

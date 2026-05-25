@@ -107,9 +107,10 @@ the tests: decoded U-type `lui` and `auipc`, decoded OP-IMM `addi`, `xori`,
 
 The raw-mode direct-fetch path covers the generated/probed subset used by
 `polyapp`, `polyexec`, and `polybench`: the arithmetic, branch, return,
-generic `jalr`, RV64 word arithmetic, RISC-V compare/register-shift forms,
-generic byte/halfword/word/dword raw AArch64 and RISC-V load-store forms,
-syscall, and libcall forms listed above, plus native escapes.
+generic `jalr`, RV64 word arithmetic, RISC-V compare/register-shift and
+division/remainder forms, generic byte/halfword/word/dword raw AArch64 and
+RISC-V load-store forms, syscall, and libcall forms listed above, plus native
+escapes.
 `polyprobe` still exercises the legacy instruction envelopes for low-level
 compatibility and uses raw mode for the direct-fetch smoke test.
 `polybench` also validates the current efficient mixed-raw path: raw AArch64
