@@ -11,6 +11,7 @@ expected=""
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
+  */aarch64-branch.elf) expected=42 ;;
   */aarch64-mem.elf) expected=77 ;;
   */aarch64-strlen.elf) expected=5 ;;
   */aarch64-write.elf) expected=5 ;;
@@ -18,6 +19,7 @@ case "$path" in
   */aarch64-svc.elf) expected=0x53000701 ;;
   */riscv-add.elf) expected=27 ;;
   */riscv-regadd.elf) expected=123 ;;
+  */riscv-branch.elf) expected=42 ;;
   */riscv-mem.elf) expected=77 ;;
   */riscv-strlen.elf) expected=5 ;;
   */riscv-write.elf) expected=5 ;;

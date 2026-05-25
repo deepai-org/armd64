@@ -144,6 +144,7 @@ build_poly_elf_payloads() {
   build_poly_elf_generator
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-add.elf" 0xd2800f60 0x91002400
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-regadd.elf" 0xd2800c80 0xd28002e1 0x8b010000
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-branch.elf" 0xd2800520 0x14000002 0xd2800020 0x91000400
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mem.elf" 0xd28009a0 0xf9000040 0xd2800000 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-strlen.elf" 0xd4200020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-write.elf" 0xd2800020 0x91000041 0xd28000a2 0xd2800808 0xd4000001
@@ -151,6 +152,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-brk.elf" 0xd42000a0
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-add.elf" 0x01f00513 0xffc50513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-regadd.elf" 0x06400513 0x01700593 0x00b50533
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-branch.elf" 0x02900513 0x00000463 0x00100513 0x00150513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mem.elf" 0x04d00513 0x00a63023 0x00000513 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-strlen.elf" 0x00100893 0x00100073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-write.elf" 0x00100513 0x00060593 0x00500613 0x04000893 0x00000073
@@ -270,6 +272,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-add.elf=132 \
     /usr/lib/polyapps/aarch64-regadd.elf=123 \
+    /usr/lib/polyapps/aarch64-branch.elf=42 \
     /usr/lib/polyapps/aarch64-mem.elf=77 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
     /usr/lib/polyapps/aarch64-write.elf=5 \
@@ -277,6 +280,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-svc.elf=0x53000701 \
     /usr/lib/polyapps/riscv-add.elf=27 \
     /usr/lib/polyapps/riscv-regadd.elf=123 \
+    /usr/lib/polyapps/riscv-branch.elf=42 \
     /usr/lib/polyapps/riscv-mem.elf=77 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
     /usr/lib/polyapps/riscv-write.elf=5 \
@@ -314,6 +318,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
   for foreign in \
     /usr/lib/polyapps/aarch64-add.elf \
     /usr/lib/polyapps/aarch64-regadd.elf \
+    /usr/lib/polyapps/aarch64-branch.elf \
     /usr/lib/polyapps/aarch64-mem.elf \
     /usr/lib/polyapps/aarch64-strlen.elf \
     /usr/lib/polyapps/aarch64-write.elf \
@@ -321,6 +326,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-svc.elf \
     /usr/lib/polyapps/riscv-add.elf \
     /usr/lib/polyapps/riscv-regadd.elf \
+    /usr/lib/polyapps/riscv-branch.elf \
     /usr/lib/polyapps/riscv-mem.elf \
     /usr/lib/polyapps/riscv-strlen.elf \
     /usr/lib/polyapps/riscv-write.elf \
