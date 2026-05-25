@@ -22,8 +22,12 @@ BOCHS_RC="$TMP_DIR/bochs.rc"
 CONSOLE_LOG="$OUT_DIR/bochs-console.log"
 POLY_PROBE_SRC="$ROOT_DIR/tools/polyprobe.c"
 POLY_PROBE_BIN="$OUT_DIR/polyprobe"
+POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
+POLY_APP_BIN="$OUT_DIR/polyapp"
+POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
 POLY_ENABLED="${POLY_ENABLED:-0}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
+RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
@@ -39,13 +43,17 @@ download() {
   fi
 }
 
-build_poly_probe() {
-  if [[ -x "$POLY_PROBE_BIN" && "$POLY_PROBE_BIN" -nt "$POLY_PROBE_SRC" ]]; then
+compile_poly_tool() {
+  local src="$1"
+  local bin="$2"
+  local requested_compiler="$3"
+
+  if [[ -x "$bin" && "$bin" -nt "$src" ]]; then
     return
   fi
 
   local compiler=""
-  for candidate in "${POLY_PROBE_CC:-}" x86_64-linux-gnu-gcc gcc-x86-64-linux-gnu cc gcc; do
+  for candidate in "$requested_compiler" x86_64-linux-gnu-gcc gcc-x86-64-linux-gnu cc gcc; do
     if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
       compiler="$candidate"
       break
@@ -53,10 +61,10 @@ build_poly_probe() {
   done
 
   if [[ -z "$compiler" ]]; then
-    if [[ -x "$POLY_PROBE_BIN" ]]; then
+    if [[ -x "$bin" ]]; then
       return
     fi
-    echo "No compiler available for $POLY_PROBE_SRC and no prebuilt $POLY_PROBE_BIN found." >&2
+    echo "No compiler available for $src and no prebuilt $bin found." >&2
     exit 1
   fi
 
@@ -64,13 +72,22 @@ build_poly_probe() {
   if [[ "$compiler" == x86_64-linux-gnu-gcc || "$compiler" == gcc-x86-64-linux-gnu ]]; then
     compiler_args+=(--sysroot=/usr/x86_64-linux-gnu)
   fi
-  "$compiler" "${compiler_args[@]}" "$POLY_PROBE_SRC" -o "$POLY_PROBE_BIN"
+  "$compiler" "${compiler_args[@]}" "$src" -o "$bin"
+}
+
+build_poly_probe() {
+  compile_poly_tool "$POLY_PROBE_SRC" "$POLY_PROBE_BIN" "${POLY_PROBE_CC:-}"
+}
+
+build_poly_app() {
+  compile_poly_tool "$POLY_APP_SRC" "$POLY_APP_BIN" "${POLY_APP_CC:-}"
 }
 
 build_initramfs() {
   rm -rf "$TMP_DIR/initramfs-root"
-  mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin}
+  mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin,usr/lib/polyapps}
   build_poly_probe
+  build_poly_app
   local busybox_version
   local busybox_apk
   local busybox_extract
@@ -103,11 +120,14 @@ build_initramfs() {
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/cat"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/ls"
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
+  cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
+  cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
 
   cat > "$TMP_DIR/initramfs-root/init" <<EOF
 #!/bin/busybox sh
 set -eu
 RUN_POLY_PROBE="$RUN_POLY_PROBE"
+RUN_POLY_APPS="$RUN_POLY_APPS"
 
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -126,6 +146,10 @@ echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
 
 if [ "$RUN_POLY_PROBE" = "1" ]; then
   /usr/bin/polyprobe >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_APPS" = "1" ]; then
+  /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
 fi
 
 sleep 1
@@ -250,14 +274,19 @@ EOF
   while (( SECONDS < deadline )); do
     if grep -q "BOOT_OK: initramfs reached userspace" "$SERIAL_LOG"; then
       if [[ "$RUN_POLY_PROBE" == "1" ]]; then
-        if grep -q "POLY_PROBE_OK" "$SERIAL_LOG"; then
-          success=1
-          break
+        if ! grep -q "POLY_PROBE_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
         fi
-      else
-        success=1
-        break
       fi
+      if [[ "$RUN_POLY_APPS" == "1" ]]; then
+        if ! grep -q "POLYAPP_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      success=1
+      break
     fi
 
     if ! kill -0 "$bochs_pid" 2>/dev/null; then

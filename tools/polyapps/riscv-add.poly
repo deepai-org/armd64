@@ -1,0 +1,5 @@
+# poly payload v1
+arch=riscv
+expected=22
+insn=0x01100513
+insn=0x00550513
