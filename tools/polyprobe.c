@@ -11,6 +11,9 @@ static inline void poly_call_riscv(void) { asm volatile(".byte 0xf2,0x0f,0x0b,0x
 static inline void poly_ret(void) { asm volatile(".byte 0xf3,0x0f,0x0b,0x52,0x45,0x54,0x52,0x4e" ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x30" ::: "memory"); }
+static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x32" ::: "memory"); }
+static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x33" ::: "memory"); }
+static inline void poly_foreign_libcall_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x34" ::: "memory"); }
 static inline void poly_aarch64_movz_x0_42(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x40,0x05,0x80,0xd2,0x00" ::: "memory"); }
 static inline void poly_aarch64_add_x0_1(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x00,0x04,0x00,0x91,0x00" ::: "memory"); }
 static inline void poly_aarch64_movz_x8_getpid(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x88,0x15,0x80,0xd2,0x00" ::: "memory"); }
@@ -264,6 +267,40 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: syscall return value mismatch\n");
     return 1;
   }
+
+  stage("POLY_STAGE: counters");
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_mode_aarch64();
+  poly_aarch64_movz_x0_42();
+  poly_aarch64_add_x0_1();
+  poly_foreign_insn_count_status();
+  if (read_rax() != insns_before + 2) {
+    fprintf(stderr, "POLY_PROBE_FAIL: foreign instruction count mismatch\n");
+    return 1;
+  }
+
+  poly_foreign_syscall_count_status();
+  uint64_t syscalls_before = read_rax();
+  poly_aarch64_movz_x8_getpid();
+  poly_aarch64_svc();
+  poly_foreign_syscall_count_status();
+  if (read_rax() != syscalls_before + 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: foreign syscall count mismatch\n");
+    return 1;
+  }
+
+  const char counter_libcall_string[] = "count";
+  write_rdi((uint64_t) counter_libcall_string);
+  poly_foreign_libcall_count_status();
+  uint64_t libcalls_before = read_rax();
+  poly_aarch64_brk_strlen();
+  poly_foreign_libcall_count_status();
+  if (read_rax() != libcalls_before + 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: foreign libcall count mismatch\n");
+    return 1;
+  }
+  poly_mode_x86();
 
   puts("POLY_PROBE_OK");
   return 0;

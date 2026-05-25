@@ -24,7 +24,7 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
 - `tools/polyprobe.c` validates direct mode switching, AArch64 and RISC-V
   call/return, nested cross-ISA call unwinding, instruction envelopes, mixed
   instruction streams, repeated mixed-mode switch stress, mixed libcalls, mixed
-  syscalls, and status markers.
+  syscalls, and status/counter markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly`.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path.
@@ -51,7 +51,7 @@ All current poly operations are wrapped in fixed 8-byte envelopes:
 | Poly return | `f3 0f 0b 52 45 54 52 4e` | Pops and restores the caller mode. |
 | Syscall status | `2e 0f 0b 53 59 53 43 30/31` | Returns current mode or last foreign syscall number in `RAX`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 30/31` | Returns current libcall status or last libcall number in `RAX`. |
-| Switch status | `4e 0f 0b 53 57 43 48 30/31` | Returns explicit mode-switch count or current mode in `RAX`. |
+| Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign instruction envelopes`, `3=foreign syscalls`, `4=foreign libcalls`. |
 | AArch64 instruction | `67 0f 0b <u32-le-insn> 00` | Decodes one supported AArch64 instruction when current mode is AArch64. |
 | RISC-V instruction | `26 0f 0b <u32-le-insn> 00` | Decodes one supported RISC-V instruction when current mode is RISC-V. |
 
