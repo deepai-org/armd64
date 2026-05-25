@@ -1,0 +1,9 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-clock-gettime.elf
+expected=0
+scratch_hex_expected=7b0000000000000055f8060000000000
+syscall_expected=1
+syscall_number_expected=113
+libcall_id=0
+libcall_expected=0x4c000100

@@ -26,6 +26,7 @@ struct payload {
   uint64_t libcall_expected;
   uint64_t libcall_number_expected;
   char scratch_expected[SCRATCH_SIZE + 1];
+  char scratch_hex_expected[SCRATCH_SIZE * 2 + 1];
   uint32_t insns[MAX_INSNS];
   size_t insn_count;
   unsigned libcall_id;
@@ -34,6 +35,7 @@ struct payload {
   int check_libcall;
   int check_libcall_number;
   int check_scratch;
+  int check_scratch_hex;
   int use_elf;
 };
 
@@ -70,6 +72,21 @@ static int parse_u64(const char *text, uint64_t *value) {
     return -1;
   *value = (uint64_t) parsed;
   return 0;
+}
+
+static int is_hex_string(const char *text) {
+  for (size_t n = 0; text[n] != '\0'; n++) {
+    if (!((text[n] >= '0' && text[n] <= '9') ||
+          (text[n] >= 'a' && text[n] <= 'f') ||
+          (text[n] >= 'A' && text[n] <= 'F')))
+      return 0;
+  }
+  return 1;
+}
+
+static char hex_digit(unsigned value) {
+  static const char digits[] = "0123456789abcdef";
+  return digits[value & 0xf];
 }
 
 static int read_file(const char *path, unsigned char **data, size_t *size) {
@@ -251,6 +268,15 @@ static int load_payload(const char *path, struct payload *payload) {
       }
       strcpy(payload->scratch_expected, line + 17);
       payload->check_scratch = 1;
+    } else if (strncmp(line, "scratch_hex_expected=", 21) == 0) {
+      size_t hex_len = strlen(line + 21);
+      if (hex_len != SCRATCH_SIZE * 2 || !is_hex_string(line + 21)) {
+        fprintf(stderr, "POLYAPP_FAIL: bad scratch hex expected value in %s\n", path);
+        fclose(file);
+        return -1;
+      }
+      strcpy(payload->scratch_hex_expected, line + 21);
+      payload->check_scratch_hex = 1;
     } else if (strncmp(line, "libcall_id=", 11) == 0) {
       uint64_t libcall_id = 0;
       if (parse_u64(line + 11, &libcall_id) < 0 || libcall_id != POLY_LIBCALL_STATUS) {
@@ -285,7 +311,7 @@ static int load_payload(const char *path, struct payload *payload) {
   return 0;
 }
 
-static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_SIZE + 1]) {
+static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_SIZE + 1], char scratch_hex_result[SCRATCH_SIZE * 2 + 1]) {
   const size_t code_size = 3 + payload->insn_count * 8 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -337,6 +363,11 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
   }
   memcpy(scratch_result, scratch, SCRATCH_SIZE);
   scratch_result[SCRATCH_SIZE] = '\0';
+  for (size_t n = 0; n < SCRATCH_SIZE; n++) {
+    scratch_hex_result[n * 2] = hex_digit((unsigned char) scratch[n] >> 4);
+    scratch_hex_result[n * 2 + 1] = hex_digit((unsigned char) scratch[n]);
+  }
+  scratch_hex_result[SCRATCH_SIZE * 2] = '\0';
   poly_mode_x86();
   munmap(code, code_size);
   return 0;
@@ -364,7 +395,8 @@ int main(int argc, char **argv) {
     uint64_t libcall_result = 0;
     uint64_t libcall_number_result = 0;
     char scratch_result[SCRATCH_SIZE + 1];
-    if (emit_and_run(&payload, &result, &syscall_result, &syscall_number_result, &libcall_result, &libcall_number_result, scratch_result) < 0)
+    char scratch_hex_result[SCRATCH_SIZE * 2 + 1];
+    if (emit_and_run(&payload, &result, &syscall_result, &syscall_number_result, &libcall_result, &libcall_number_result, scratch_result, scratch_hex_result) < 0)
       return 1;
 
     printf("POLYAPP_RESULT: arch=%s value=%llu path=%s\n",
@@ -416,6 +448,15 @@ int main(int argc, char **argv) {
       if (strcmp(scratch_result, payload.scratch_expected) != 0) {
         fprintf(stderr, "POLYAPP_FAIL: %s scratch expected %s got %s\n",
           payload.path, payload.scratch_expected, scratch_result);
+        return 1;
+      }
+    }
+    if (payload.check_scratch_hex) {
+      printf("POLYAPP_SCRATCH_HEX: arch=%s value=%s path=%s\n",
+        payload.arch_name, scratch_hex_result, payload.path);
+      if (strcmp(scratch_hex_result, payload.scratch_hex_expected) != 0) {
+        fprintf(stderr, "POLYAPP_FAIL: %s scratch hex expected %s got %s\n",
+          payload.path, payload.scratch_hex_expected, scratch_hex_result);
         return 1;
       }
     }
