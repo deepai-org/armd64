@@ -143,9 +143,11 @@ build_poly_elf_generator() {
 build_poly_elf_payloads() {
   build_poly_elf_generator
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-add.elf" 0xd2800f60 0x91002400
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-regadd.elf" 0xd2800c80 0xd28002e1 0x8b010000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-svc.elf" 0xd40000e1
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-brk.elf" 0xd42000a0
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-add.elf" 0x01f00513 0xffc50513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-regadd.elf" 0x06400513 0x01700593 0x00b50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ecall.elf" 0x00700893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ebreak.elf" 0x00500893 0x00100073
   chmod +x "$TMP_DIR/initramfs-root/usr/lib/polyapps"/*.elf
@@ -261,9 +263,11 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
   /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-add.elf=132 \
+    /usr/lib/polyapps/aarch64-regadd.elf=123 \
     /usr/lib/polyapps/aarch64-brk.elf=0x4c000105 \
     /usr/lib/polyapps/aarch64-svc.elf=0x53000701 \
     /usr/lib/polyapps/riscv-add.elf=27 \
+    /usr/lib/polyapps/riscv-regadd.elf=123 \
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000205 \
     /usr/lib/polyapps/riscv-ecall.elf=0x53000702 >/dev/ttyS0 2>&1
 fi
@@ -297,9 +301,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
   }
   for foreign in \
     /usr/lib/polyapps/aarch64-add.elf \
+    /usr/lib/polyapps/aarch64-regadd.elf \
     /usr/lib/polyapps/aarch64-brk.elf \
     /usr/lib/polyapps/aarch64-svc.elf \
     /usr/lib/polyapps/riscv-add.elf \
+    /usr/lib/polyapps/riscv-regadd.elf \
     /usr/lib/polyapps/riscv-ebreak.elf \
     /usr/lib/polyapps/riscv-ecall.elf
   do
