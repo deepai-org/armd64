@@ -22,8 +22,8 @@ coverage, real foreign Linux ABI passthrough, or equal-speed execution.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace UD envelopes in
   `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates direct mode switching, AArch64 and RISC-V
-  instruction envelopes, mixed instruction streams, mixed libcalls, mixed
-  syscalls, and status markers.
+  instruction envelopes, mixed instruction streams, repeated mixed-mode switch
+  stress, mixed libcalls, mixed syscalls, and status markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly`.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path.
@@ -113,13 +113,7 @@ Run the fuller gate, including direct foreign ELF execution and guest
 `binfmt_misc` registration:
 
 ```bash
-docker run --rm --platform=linux/arm64 \
-  -v "$PWD":/work -w /work \
-  -e POLY_ENABLED=1 \
-  -e RUN_POLY_PROBE=1 \
-  -e RUN_POLY_APPS=1 \
-  -e RUN_POLY_BINFMT=1 \
-  armd64-bochs ./scripts/boot.sh
+make boot-poly-full
 ```
 
 Expected success markers include:

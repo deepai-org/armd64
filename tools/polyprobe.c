@@ -21,6 +21,17 @@ static inline void poly_riscv_addi_a7_getpid(void) { asm volatile(".byte 0x26,0x
 static inline void poly_riscv_ecall(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x73,0x00,0x00,0x00,0x00" ::: "memory"); }
 static inline void poly_riscv_ebreak(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x73,0x00,0x10,0x00,0x00" ::: "memory"); }
 
+#define POLY_SWITCH_STRESS_STEP() \
+  do { \
+    poly_mode_aarch64(); \
+    poly_aarch64_add_x0_1(); \
+    poly_mode_riscv(); \
+    poly_riscv_addi_a0_5(); \
+    poly_mode_aarch64(); \
+    poly_aarch64_add_x0_1(); \
+    poly_mode_x86(); \
+  } while (0)
+
 static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
@@ -133,6 +144,21 @@ int main(void) {
   poly_mode_x86();
   if (read_rax() != 47) {
     fprintf(stderr, "POLY_PROBE_FAIL: mixed instruction stream mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: switch-stress");
+  write_rax(0);
+  POLY_SWITCH_STRESS_STEP();
+  POLY_SWITCH_STRESS_STEP();
+  POLY_SWITCH_STRESS_STEP();
+  POLY_SWITCH_STRESS_STEP();
+  POLY_SWITCH_STRESS_STEP();
+  POLY_SWITCH_STRESS_STEP();
+  POLY_SWITCH_STRESS_STEP();
+  POLY_SWITCH_STRESS_STEP();
+  if (read_rax() != 56) {
+    fprintf(stderr, "POLY_PROBE_FAIL: mode switch stress mismatch\n");
     return 1;
   }
 
