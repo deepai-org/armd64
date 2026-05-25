@@ -20,11 +20,19 @@ static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte
 static inline void poly_foreign_libcall_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x34" ::: "memory"); }
 static inline void poly_aarch64_movz_x0_42(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x40,0x05,0x80,0xd2,0x00" ::: "memory"); }
 static inline void poly_aarch64_add_x0_1(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x00,0x04,0x00,0x91,0x00" ::: "memory"); }
+static inline void poly_aarch64_movz_x10_7(void) { asm volatile(".byte 0x67,0x0f,0x0b,0xea,0x00,0x80,0xd2,0x00" ::: "memory"); }
+static inline void poly_aarch64_movz_x11_35(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x6b,0x04,0x80,0xd2,0x00" ::: "memory"); }
+static inline void poly_aarch64_add_x12_x10_x11(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x4c,0x01,0x0b,0x8b,0x00" ::: "memory"); }
+static inline void poly_aarch64_add_x0_x12_x10(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x80,0x01,0x0a,0x8b,0x00" ::: "memory"); }
 static inline void poly_aarch64_movz_x8_getpid(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x88,0x15,0x80,0xd2,0x00" ::: "memory"); }
 static inline void poly_aarch64_svc(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x01,0x00,0x00,0xd4,0x00" ::: "memory"); }
 static inline void poly_aarch64_brk_strlen(void) { asm volatile(".byte 0x67,0x0f,0x0b,0x20,0x00,0x20,0xd4,0x00" ::: "memory"); }
 static inline void poly_riscv_addi_a0_17(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x13,0x05,0x10,0x01,0x00" ::: "memory"); }
 static inline void poly_riscv_addi_a0_5(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x13,0x05,0x55,0x00,0x00" ::: "memory"); }
+static inline void poly_riscv_addi_x16_9(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x13,0x08,0x90,0x00,0x00" ::: "memory"); }
+static inline void poly_riscv_addi_x18_33(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x13,0x09,0x10,0x02,0x00" ::: "memory"); }
+static inline void poly_riscv_add_x19_x16_x18(void) { asm volatile(".byte 0x26,0x0f,0x0b,0xb3,0x09,0x28,0x01,0x00" ::: "memory"); }
+static inline void poly_riscv_add_a0_x19_x16(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x33,0x85,0x09,0x01,0x00" ::: "memory"); }
 static inline void poly_riscv_addi_a7_1(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x93,0x08,0x10,0x00,0x00" ::: "memory"); }
 static inline void poly_riscv_addi_a7_getpid(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x93,0x08,0xc0,0x0a,0x00" ::: "memory"); }
 static inline void poly_riscv_ecall(void) { asm volatile(".byte 0x26,0x0f,0x0b,0x73,0x00,0x00,0x00,0x00" ::: "memory"); }
@@ -189,6 +197,26 @@ int main(void) {
   poly_riscv_addi_a0_5();
   if (read_rax() != 22) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv instruction stream mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: wide-regs");
+  poly_mode_aarch64();
+  poly_aarch64_movz_x10_7();
+  poly_aarch64_movz_x11_35();
+  poly_aarch64_add_x12_x10_x11();
+  poly_aarch64_add_x0_x12_x10();
+  if (read_rax() != 49) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 wide register stream mismatch\n");
+    return 1;
+  }
+  poly_mode_riscv();
+  poly_riscv_addi_x16_9();
+  poly_riscv_addi_x18_33();
+  poly_riscv_add_x19_x16_x18();
+  poly_riscv_add_a0_x19_x16();
+  if (read_rax() != 51) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv wide register stream mismatch\n");
     return 1;
   }
 

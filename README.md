@@ -62,8 +62,10 @@ The current register bridge is deliberately small:
 - x86_64 `RDI` is used as the shared scratch/base pointer and default AArch64
   `x2` / RISC-V `a2` value until a payload explicitly writes that foreign
   register.
-- Bochs tracks additional synthetic foreign argument registers internally:
-  AArch64 `x1`-`x5`, `x8`; RISC-V `a1`-`a5`, `a7`.
+- Bochs tracks array-backed synthetic foreign integer registers internally:
+  AArch64 `x1`-`x30` with `x31` as zero, and RISC-V `x1`-`x31` with `x0` as
+  zero.  The current syscall ABI uses AArch64 `x1`-`x5`, `x8` and RISC-V
+  `a1`-`a5`, `a7`.
 
 ## Supported Foreign Subset
 
