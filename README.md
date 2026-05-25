@@ -1,28 +1,143 @@
-# Bochs Boot Harness
+# Bochs Polyglot CPU Boot Harness
 
-This repository is being bootstrapped toward a Bochs-based x86_64 Linux bring-up.
+This repository boots a small x86_64 Linux userspace under a modified Bochs and
+uses that guest to exercise a prototype polyglot CPU extension.  The extension
+keeps standard x86_64 execution as the host ISA, then adds synthetic userspace
+mode-switch and foreign-instruction envelopes that let selected AArch64 and
+RISC-V instruction streams run inside the x86_64 process.
 
-Current state:
-- A Docker image installs Bochs, ISOLINUX, Xvfb, and BusyBox.
-- `scripts/boot.sh` downloads a small x86_64 Linux kernel from Alpine Linux.
-- The script builds a minimal initramfs from Alpine's x86_64 BusyBox, prints boot markers to serial output, optionally runs synthetic poly opcode probes and architecture-labelled payload files inside userspace, and halts cleanly.
-- Bochs runs with the `nogui` display backend and the serial log is checked for `BOOT_OK`, `POLY_PROBE_OK`, and/or `POLYAPP_OK` depending on the requested gates.
-- `tools/polyapps/*.poly` are payload manifests containing expected AArch64 or RISC-V results plus synthetic syscall/libcall checks. `scripts/boot.sh` generates matching minimal ELF64 payloads with `tools/mkpolyelf.c`.
-- `tools/polyapp.c` runs in the x86_64 guest, validates the foreign ELF64 machine type and executable entry segment, then executes the payload's 32-bit instruction words through the current poly UD-envelope scaffold.
-- `tools/polyexec.c` is a direct x86_64 guest launcher for generated AArch64 and RISC-V ELF64 payload paths, without a `.poly` manifest; the boot gate runs it with expected result assertions.
-- `RUN_POLY_BINFMT=1` additionally registers `tools/polybinfmt.sh` with guest `binfmt_misc` and executes generated foreign ELF paths directly.
-- Current generated foreign ELF payloads cover tiny arithmetic programs, syscall-instruction programs using AArch64 `svc #0` and RISC-V `ecall`, and libcall-instruction programs using AArch64 `brk #0` and RISC-V `ebreak`.
-- Cross-architecture syscall and library-call handling is currently a deterministic scaffold: syscall markers report the active poly mode, and libcall markers report `0x4c000000 | (mode << 8) | id`.
+This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
+current implementation validates the architecture shape, Linux boot path,
+foreign ELF launch path, mixed-ISA transitions, deterministic syscalls, and
+deterministic libcalls.  It does not yet implement full AArch64 or RISC-V ISA
+coverage, real foreign Linux ABI passthrough, or equal-speed execution.
 
-Run:
+## Current State
+
+- `scripts/boot.sh` downloads an Alpine Linux x86_64 kernel and BusyBox package,
+  builds a minimal initramfs, creates a bootable ISO, and boots it in Bochs.
+- The Docker image builds the local Bochs fork from
+  `bochs-prepoly-src/bochs` and installs it as `bochs-poly`.
+- The guest prints `BOOT_OK` on a clean baseline boot.
+- With `POLY_ENABLED=1`, Bochs handles the polyglot userspace UD envelopes in
+  `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
+- `tools/polyprobe.c` validates direct mode switching, AArch64 and RISC-V
+  instruction envelopes, mixed instruction streams, mixed libcalls, mixed
+  syscalls, and status markers.
+- `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
+  `tools/polyapps/*.poly`.
+- `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path.
+- `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
+  AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
+
+## ISA Changes From Standard x86_64
+
+The Bochs fork treats selected userspace `#UD` byte sequences as polyglot CPU
+operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are unchanged.
+The extension is intentionally encoded as invalid x86 byte sequences so an
+unmodified CPU still traps.  The current handler accepts these envelopes only
+from guest userspace.
+
+All current poly operations are wrapped in fixed 8-byte envelopes:
+
+| Operation | Bytes | Effect |
+| --- | --- | --- |
+| Switch to x86_64 mode | `64 0f 0b 58 4d 4f 44 45` | Sets current poly mode to x86_64. |
+| Switch to AArch64 mode | `65 0f 0b 41 41 52 36 34` | Sets current poly mode to AArch64. |
+| Switch to RISC-V mode | `66 0f 0b 52 49 53 43 56` | Sets current poly mode to RISC-V. |
+| Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while preserving the caller mode for `poly ret`. |
+| Poly return | `f3 0f 0b 52 45 54 52 4e` | Restores the saved caller mode. |
+| Syscall status | `2e 0f 0b 53 59 53 43 30/31` | Returns current mode or last foreign syscall number in `RAX`. |
+| Libcall status | `3e 0f 0b 4c 49 42 43 30/31` | Returns current libcall status or last libcall number in `RAX`. |
+| AArch64 instruction | `67 0f 0b <u32-le-insn> 00` | Decodes one supported AArch64 instruction when current mode is AArch64. |
+| RISC-V instruction | `26 0f 0b <u32-le-insn> 00` | Decodes one supported RISC-V instruction when current mode is RISC-V. |
+
+The current register bridge is deliberately small:
+
+- x86_64 `RAX` carries the foreign return value and maps to AArch64 `x0` or
+  RISC-V `a0` for supported operations.
+- x86_64 `RDI` is used as the shared scratch/base pointer and maps to the small
+  supported subset of AArch64 `x2` or RISC-V `a2` addressing patterns.
+- Bochs tracks additional synthetic foreign argument registers internally:
+  AArch64 `x1`, `x2`, `x8`; RISC-V `a1`, `a2`, `a7`.
+
+## Supported Foreign Subset
+
+The current AArch64 decoder supports the generated/probed subset used by the
+tests: `movz`, selected `add`/`sub` immediate and register forms, `mul`,
+unconditional branch, `cbz`/`cbnz`, `ret`, selected 64-bit `str`/`ldr`, `svc`,
+and `brk`.
+
+The current RISC-V decoder supports the generated/probed RV64 subset used by
+the tests: selected `addi`, `add`, `sub`, `mul`, `beq`/`bne`, `jalr` return,
+selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
+
+Foreign Linux syscall handling is deterministic and shared between AArch64
+`svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
+
+- Scalar/process syscalls: `getpid`, `getppid`, `getuid`, `geteuid`, `getgid`,
+  `getegid`, `gettid`, `getpgid(0)`, `getsid(0)`, and `exit`.
+- File-style syscalls: `getcwd`, `read`, `write`, `openat`, `close`, `lseek`,
+  and `uname`.
+- Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
+  `gettimeofday`, `sysinfo`, and `mmap`.
+
+Foreign library calls are deterministic traps rather than real dynamic libc
+calls:
+
+- AArch64 uses `brk #id`.
+- RISC-V uses `a7=id; ebreak`.
+- Supported ids are `1=strlen`, `2=memfill`, `3=memcmp`, and `4=memcpy`.
+
+## Validation Gates
+
+Build the Docker image:
 
 ```bash
 make image
+```
+
+Run the baseline x86_64 Linux boot:
+
+```bash
 make boot
 ```
 
-Run the current gated poly scaffold and guest payload launcher:
+Run the poly probe and manifest-backed generated foreign payloads:
 
 ```bash
 make boot-poly
 ```
+
+Run the fuller gate, including direct foreign ELF execution and guest
+`binfmt_misc` registration:
+
+```bash
+docker run --rm --platform=linux/arm64 \
+  -v "$PWD":/work -w /work \
+  -e POLY_ENABLED=1 \
+  -e RUN_POLY_PROBE=1 \
+  -e RUN_POLY_APPS=1 \
+  -e RUN_POLY_BINFMT=1 \
+  armd64-bochs ./scripts/boot.sh
+```
+
+Expected success markers include:
+
+- `BOOT_OK`
+- `POLY_PROBE_OK`
+- `POLYAPP_OK`
+- `POLYEXEC_OK`
+- `POLYBINFMT_OK`
+
+## Known Gaps
+
+- Foreign execution is a Bochs UD-envelope prototype, not full native hardware
+  decode.
+- AArch64 and RISC-V ISA support is limited to the tested generated subset.
+- Syscalls and libcalls return deterministic scaffold results, not complete host
+  or guest Linux ABI behavior.
+- Equal-speed or minimal-slowdown execution is a design target, not something
+  demonstrated by the current implementation.
+- Foreign ELF support is limited to the generated static payload shape used by
+  `tools/mkpolyelf.c`, `tools/polyapp.c`, and `tools/polyexec.c`.
