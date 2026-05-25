@@ -274,8 +274,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     echo "POLYBINFMT_FAIL: binfmt_misc unavailable" >/dev/ttyS0
     exit 1
   fi
-  echo ':poly-elf:E::elf::/usr/bin/polybinfmt:' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
-    echo "POLYBINFMT_FAIL: register elf" >/dev/ttyS0
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt:' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLYBINFMT_FAIL: register aarch64" >/dev/ttyS0
+    exit 1
+  }
+  echo ':poly-riscv:M:18:\xf3::/usr/bin/polybinfmt:' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLYBINFMT_FAIL: register riscv" >/dev/ttyS0
     exit 1
   }
   echo "POLYBINFMT_REGISTERED" >/dev/ttyS0
