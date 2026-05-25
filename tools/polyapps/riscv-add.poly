@@ -1,5 +1,8 @@
 # poly payload v1
 arch=riscv
 expected=22
+syscall_expected=2
+libcall_id=0
+libcall_expected=0x4c000200
 insn=0x01100513
 insn=0x00550513
