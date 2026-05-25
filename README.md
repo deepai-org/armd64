@@ -46,6 +46,8 @@ All current poly operations are wrapped in fixed 8-byte envelopes:
 | Switch to x86_64 mode | `64 0f 0b 58 4d 4f 44 45` | Sets current poly mode to x86_64. |
 | Switch to AArch64 mode | `65 0f 0b 41 41 52 36 34` | Sets current poly mode to AArch64. |
 | Switch to RISC-V mode | `66 0f 0b 52 49 53 43 56` | Sets current poly mode to RISC-V. |
+| Switch to raw AArch64 mode | `65 0f 0b 52 41 57 36 34` | Sets current poly mode to raw AArch64; following bytes are fetched as fixed 32-bit AArch64 instructions. |
+| Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as fixed 32-bit RISC-V instructions. |
 | Poly call AArch64 | `f2 0f 0b 43 41 4c 4c 41` | Enters AArch64 mode while pushing the caller mode for `poly ret`. |
 | Poly call RISC-V | `f2 0f 0b 43 41 4c 4c 52` | Enters RISC-V mode while pushing the caller mode for `poly ret`. |
 | Poly return | `f3 0f 0b 52 45 54 52 4e` | Pops and restores the caller mode. |
@@ -54,6 +56,12 @@ All current poly operations are wrapped in fixed 8-byte envelopes:
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign instruction envelopes`, `3=foreign syscalls`, `4=foreign libcalls`. |
 | AArch64 instruction | `67 0f 0b <u32-le-insn> 00` | Decodes one supported AArch64 instruction when current mode is AArch64. |
 | RISC-V instruction | `26 0f 0b <u32-le-insn> 00` | Decodes one supported RISC-V instruction when current mode is RISC-V. |
+
+Raw foreign modes are the migration path away from one `#UD` envelope per
+foreign instruction.  They still use the x86_64 switch envelope to enter from
+x86 code, but then Bochs bypasses x86 decode and fetches fixed 32-bit foreign
+instructions directly from `RIP`.  AArch64 `brk #0x7fff` and RISC-V custom-0
+instruction `0x0000000b` escape back to x86_64 at the next byte.
 
 The current register bridge is deliberately small:
 
@@ -69,16 +77,20 @@ The current register bridge is deliberately small:
 
 ## Supported Foreign Subset
 
-The current AArch64 decoder supports the generated/probed subset used by the
-tests: `movz`, selected `add`/`sub` immediate forms, decoded register-register
-`add`/`sub`/`mul`/`eor`/`and`/`orr` over the scaffold ABI registers,
+The current legacy AArch64 decoder supports the generated/probed subset used by
+the tests: `movz`, decoded `add`/`sub` immediate forms, decoded register-register
+`add`/`sub`/`mul`/`eor`/`and`/`orr` over the synthetic register file,
 unconditional branch, `cbz`/`cbnz`, `ret`, selected 64-bit `str`/`ldr`, `svc`,
 and `brk`.
 
-The current RISC-V decoder supports the generated/probed RV64 subset used by
-the tests: selected `addi`, decoded register-register `add`, `sub`, `mul`,
-`xor`, `and`, `or` over the scaffold ABI registers, `beq`/`bne`, `jalr`
+The current legacy RISC-V decoder supports the generated/probed RV64 subset used by
+the tests: decoded `addi`, decoded register-register `add`, `sub`, `mul`,
+`xor`, `and`, `or` over the synthetic register file, `beq`/`bne`, `jalr`
 return, selected 64-bit `sd`/`ld`, `ecall`, and `ebreak`.
+
+The raw-mode prototype currently covers a smaller direct-fetch subset:
+AArch64 `movz`, `add`/`sub` immediate, and `brk #0x7fff` escape; RISC-V
+`addi` and custom-0 `0x0000000b` escape.
 
 Foreign Linux syscall handling is deterministic and shared between AArch64
 `svc` and RISC-V `ecall`.  Supported syscall numbers currently include:
