@@ -1331,6 +1331,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-readlinkat.elf" 0xd2800000 0xaa0103e2 0xd2800203 0xd28009c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-newfstatat.elf" 0xd2800000 0xaa0103e2 0xd2800003 0xd28009e8 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fstat.elf" 0xd2800060 0xd2800a08 0xd4000001 0xf9400020
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-statx.elf" 0xd2800000 0xaa0103e4 0xd2800002 0xd2800003 0xd2802468 0xd4000001 0xf9400080
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getdents64.elf" 0xd2800060 0xaa0103e1 0xd2800802 0xd28007a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-lseek.elf" 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001 0xd28000e1 0xd2800002 0xd28007c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-read.elf" 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001 0x91002021 0xd2800082 0xd28007e8 0xd4000001
@@ -1444,6 +1445,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-readlinkat.elf" 0x00000513 0x00058613 0x01000693 0x04e00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-newfstatat.elf" 0x00000513 0x00058613 0x00000693 0x04f00893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fstat.elf" 0x00300513 0x05000893 0x00000073 0x0005b503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-statx.elf" 0x00000513 0x00058713 0x00000613 0x00000693 0x12300893 0x00000073 0x00073503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getdents64.elf" 0x00300513 0x00058593 0x04000613 0x03d00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-lseek.elf" 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073 0x00700593 0x00000613 0x03e00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-read.elf" 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073 0x00858593 0x00400613 0x03f00893 0x00000073
@@ -1650,6 +1652,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-readlinkat.elf=5 \
     /usr/lib/polyapps/aarch64-newfstatat.elf=0x21215441545350 \
     /usr/lib/polyapps/aarch64-fstat.elf=0x21215441545350 \
+    /usr/lib/polyapps/aarch64-statx.elf=0x21215441545350 \
     /usr/lib/polyapps/aarch64-getdents64.elf=24 \
     /usr/lib/polyapps/aarch64-openat-lseek.elf=7 \
     /usr/lib/polyapps/aarch64-openat-read.elf=4 \
@@ -1736,6 +1739,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-readlinkat.elf=5 \
     /usr/lib/polyapps/riscv-newfstatat.elf=0x21215441545350 \
     /usr/lib/polyapps/riscv-fstat.elf=0x21215441545350 \
+    /usr/lib/polyapps/riscv-statx.elf=0x21215441545350 \
     /usr/lib/polyapps/riscv-getdents64.elf=24 \
     /usr/lib/polyapps/riscv-openat-lseek.elf=7 \
     /usr/lib/polyapps/riscv-openat-read.elf=4 \
@@ -2091,6 +2095,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-readlinkat.elf \
     /usr/lib/polyapps/aarch64-newfstatat.elf \
     /usr/lib/polyapps/aarch64-fstat.elf \
+    /usr/lib/polyapps/aarch64-statx.elf \
     /usr/lib/polyapps/aarch64-getdents64.elf \
     /usr/lib/polyapps/aarch64-openat-lseek.elf \
     /usr/lib/polyapps/aarch64-openat-read.elf \
@@ -2177,6 +2182,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-readlinkat.elf \
     /usr/lib/polyapps/riscv-newfstatat.elf \
     /usr/lib/polyapps/riscv-fstat.elf \
+    /usr/lib/polyapps/riscv-statx.elf \
     /usr/lib/polyapps/riscv-getdents64.elf \
     /usr/lib/polyapps/riscv-openat-lseek.elf \
     /usr/lib/polyapps/riscv-openat-read.elf \
