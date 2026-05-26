@@ -179,7 +179,7 @@ static void write_u32_le(unsigned char *bytes, uint32_t value) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
