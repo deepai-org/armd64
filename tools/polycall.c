@@ -133,7 +133,10 @@ enum {
   POLY_IMPORT_FUNC_AARCH64_LDSET2_ACQ_REL = 60,
   POLY_IMPORT_FUNC_AARCH64_LDSET1_ACQ_REL = 61,
   POLY_IMPORT_FUNC_AARCH64_CAS2_ACQ_REL = 62,
-  POLY_IMPORT_FUNC_AARCH64_CAS1_ACQ_REL = 63
+  POLY_IMPORT_FUNC_AARCH64_CAS1_ACQ_REL = 63,
+  POLY_IMPORT_FUNC_AARCH64_ATOMIC_COMPARE_EXCHANGE_16 = 64,
+  POLY_IMPORT_FUNC_AARCH64_ATOMIC_LOAD_16 = 65,
+  POLY_IMPORT_FUNC_AARCH64_ATOMIC_STORE_16 = 66
 };
 
 struct poly_dynamic_reloc {
@@ -719,6 +722,21 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__tls_get_addr") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__atomic_compare_exchange_16") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_ATOMIC_COMPARE_EXCHANGE_16 *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__atomic_load_16") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_ATOMIC_LOAD_16 *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__atomic_store_16") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_ATOMIC_STORE_16 *
       POLY_IMPORT_CALL_STRIDE;
     return 0;
   }

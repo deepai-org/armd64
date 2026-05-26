@@ -289,7 +289,8 @@ objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
 compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
 `riscv-pcall-int-ccmp-real.so#poly_entry`), AArch64 post-index memory object
 (`aarch64-pcall-postindex-mem.so#poly_entry`), AArch64 atomic objects covering
-exclusive LL/SC, default GCC outline helpers, and LSE instructions
+exclusive LL/SC, default GCC outline helpers, LSE instructions, and 16-byte
+libatomic helper imports
 (`aarch64-pcall-atomic.so#poly_entry`,
 `aarch64-pcall-atomic-outline.so#poly_entry`, and
 `aarch64-pcall-atomic-lse.so#poly_entry`), RISC-V atomic object
