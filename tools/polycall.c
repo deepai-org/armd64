@@ -114,7 +114,8 @@ enum {
   POLY_IMPORT_FUNC_STRNCASECMP = 41,
   POLY_IMPORT_FUNC_STRCASESTR = 42,
   POLY_IMPORT_FUNC_AARCH64_CAS4_ACQ_REL = 43,
-  POLY_IMPORT_FUNC_AARCH64_LDADD4_ACQ_REL = 44
+  POLY_IMPORT_FUNC_AARCH64_LDADD4_ACQ_REL = 44,
+  POLY_IMPORT_FUNC_AARCH64_SWP4_ACQ_REL = 45
 };
 
 struct poly_dynamic_reloc {
@@ -662,6 +663,11 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__aarch64_ldadd4_acq_rel") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDADD4_ACQ_REL *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__aarch64_swp4_acq_rel") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_SWP4_ACQ_REL *
       POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
