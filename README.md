@@ -62,12 +62,12 @@ Linux ABI passthrough, or equal-speed execution.
 
 ## ISA Changes From Standard x86_64
 
-The Bochs fork treats selected userspace invalid x86 byte sequences as
-polyglot CPU operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are
-unchanged.  The preferred prototype hot path uses a fixed `0f 24 <op> POLY!`
-opcode-family placeholder; legacy `UD2` envelopes remain available for
-compatibility, debug status, and runtime probes.  The current handler accepts
-these operations only from guest userspace.
+The Bochs fork treats selected userspace x86 byte sequences as polyglot CPU
+operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are unchanged.
+The preferred prototype hot path decodes a fixed `0f 24 <op> POLY!`
+opcode-family placeholder through the `BX_IA_POLYMODE` handler; legacy `UD2`
+envelopes remain available for compatibility, debug status, and runtime probes.
+The current handler accepts these operations only from guest userspace.
 
 Preferred 8-byte x86 poly opcode-family operations:
 
@@ -560,10 +560,10 @@ Expected success markers include:
 
 ## Known Gaps
 
-- Foreign execution is still a Bochs invalid-opcode prototype, not full native
-  hardware decode.  The current hot path has a CPUID-gated `0f 24 ... POLY!`
-  opcode-family placeholder, while status/debug operations still use legacy
-  `UD2` envelopes.
+- Foreign execution is still a Bochs prototype, not full native hardware
+  decode.  The current hot path has a CPUID-gated `0f 24 ... POLY!`
+  opcode-family placeholder decoded through `BX_IA_POLYMODE`, while
+  status/debug operations still use legacy `UD2` envelopes.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
 - Syscall and breakpoint traps are recorded explicitly, but the current
   compatibility runtime still returns deterministic scaffold results rather

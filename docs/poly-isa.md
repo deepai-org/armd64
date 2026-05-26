@@ -64,9 +64,10 @@ and call operations:
 - `0f 24 12 50 4f 4c 59 21`: prototype `PCALL.A64.SYSV.SRET`.
 - `0f 24 13 50 4f 4c 59 21`: prototype `PCALL.RV64.SYSV.SRET`.
 
-This still routes through Bochs' invalid-opcode handler internally because
-`0f 24` is unused by this decoder, but it is no longer a `UD2` envelope.  It is
-the emulator placeholder for the dedicated opcodes that hardware should expose.
+Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
+handler and validates the trailing `POLY!` magic before changing frontend
+state.  It is still a prototype allocation, but it no longer depends on the
+generic invalid-opcode dispatch path or a `UD2` envelope.
 
 Legacy fixed 8-byte `UD2` envelopes remain as compatibility/debug encodings:
 
