@@ -60,6 +60,10 @@ invasive way to prototype the frontend switch:
 - `64 0f 0b 58 4d 4f 44 45`: return to x86_64 mode.
 - `40 0f 0b 50 43 41 36 34`: prototype `PCALL.A64.SYSV`.
 - `40 0f 0b 50 43 52 56 36`: prototype `PCALL.RV64.SYSV`.
+- `42 0f 0b 50 53 41 36 34`: prototype `PCALL.A64.SYSV.SRET`, mapping
+  the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`.
+- `42 0f 0b 50 53 52 56 36`: prototype `PCALL.RV64.SYSV.SRET`, mapping
+  the x86_64 hidden result pointer in `RDI` to RISC-V `a0`.
 - `41 0f 0b 50 49 52 45 54`: prototype `PIRET`, used by
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
@@ -112,7 +116,13 @@ foreign stack-passed argument is at `[sp]`;
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
 saved x86 continuation, maps AArch64 `x0` or RISC-V `a0` back to x86 `RAX`,
 maps AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word
-integer aggregate returns, and restores the x86 stack pointer.  The AArch64 raw
+integer aggregate returns, and restores the x86 stack pointer.
+The `SRET` variants cover larger memory-return aggregates: AArch64 receives
+the hidden result pointer in `x8` while user arguments remain in `x0`-`x7`;
+RISC-V receives the hidden result pointer in `a0` and user arguments shift to
+`a1`-`a7`, with the remaining arguments copied into the foreign stack window.
+On return, the bridge restores x86 `RSP` and returns the hidden result pointer
+in `RAX`, matching the x86_64 SysV memory-return convention.  The AArch64 raw
 decoder treats register 31 as `SP` for add/sub-immediate instructions, matching
 ordinary compiler stack-frame setup and teardown.
 The AArch64 raw decoder also supports `adrp` page-relative PC materialization,
@@ -153,7 +163,9 @@ import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced two-word aggregate
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
-`riscv-pcall-pair-real.so#poly_entry`), compiler-produced constructor
+`riscv-pcall-pair-real.so#poly_entry`), compiler-produced hidden-sret
+aggregate return objects (`aarch64-pcall-sret-real.so#poly_entry` and
+`riscv-pcall-sret-real.so#poly_entry`), compiler-produced constructor
 objects (`aarch64-pcall-ctor-real.so#poly_entry` and
 `riscv-pcall-ctor-real.so#poly_entry`), compiler-produced conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and

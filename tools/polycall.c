@@ -33,6 +33,7 @@ enum {
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
   POLY_CALL_PAIR_U64 = 3,
+  POLY_CALL_SRET_U64 = 4,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   RELOC_BASE_ABSOLUTE = 0,
@@ -119,6 +120,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   }
   else if (strncmp(arg, "pair:", 5) == 0) {
     request->call_kind = POLY_CALL_PAIR_U64;
+    arg += 5;
+  }
+  else if (strncmp(arg, "sret:", 5) == 0) {
+    request->call_kind = POLY_CALL_SRET_U64;
     arg += 5;
   }
   const char *expected = strchr(arg, '=');
@@ -1109,6 +1114,12 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     uint64_t lo;
     uint64_t hi;
   };
+  struct sret_u64 {
+    uint64_t a;
+    uint64_t b;
+    uint64_t c;
+    uint64_t d;
+  };
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -1137,6 +1148,17 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     struct pair_u64 pair_result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
     return ((pair_result.hi & 0xffffffffULL) << 32) |
       (pair_result.lo & 0xffffffffULL);
+  }
+  if (call_kind == POLY_CALL_SRET_U64) {
+    struct sret_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+      uint64_t, uint64_t, uint64_t) =
+      (struct sret_u64 (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+        uint64_t, uint64_t, uint64_t)) code;
+    struct sret_u64 sret_result = entry(1, 2, 3, 4, 5, 6, 7, 8);
+    return ((sret_result.a & 0xffffULL) << 48) |
+      ((sret_result.b & 0xffffULL) << 32) |
+      ((sret_result.c & 0xffffULL) << 16) |
+      (sret_result.d & 0xffffULL);
   }
 
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
@@ -1193,6 +1215,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (needs_x86_import) {
     emit_movabs_r12(code, &offset, import_x86_target);
   }
+  const size_t pcall_opcode_offset = offset;
   if (program->arch == POLY_ARCH_AARCH64) {
     const uint8_t pcall[] = { 0x40, 0x0f, 0x0b, 0x50, 0x43, 0x41, 0x36, 0x34 };
     memcpy(code + offset, pcall, sizeof(pcall));
@@ -1310,6 +1333,22 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t lo;
     uint64_t hi;
   };
+  struct sret_u64 {
+    uint64_t a;
+    uint64_t b;
+    uint64_t c;
+    uint64_t d;
+  };
+  if (call_kind == POLY_CALL_SRET_U64) {
+    if (program->arch == POLY_ARCH_AARCH64) {
+      const uint8_t pcall[] = { 0x42, 0x0f, 0x0b, 0x50, 0x53, 0x41, 0x36, 0x34 };
+      memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
+    }
+    else {
+      const uint8_t pcall[] = { 0x42, 0x0f, 0x0b, 0x50, 0x53, 0x52, 0x56, 0x36 };
+      memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
+    }
+  }
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -1338,6 +1377,17 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     struct pair_u64 pair_result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
     *result = ((pair_result.hi & 0xffffffffULL) << 32) |
       (pair_result.lo & 0xffffffffULL);
+  }
+  else if (call_kind == POLY_CALL_SRET_U64) {
+    struct sret_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+      uint64_t, uint64_t, uint64_t) =
+      (struct sret_u64 (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+        uint64_t, uint64_t, uint64_t)) code;
+    struct sret_u64 sret_result = entry(1, 2, 3, 4, 5, 6, 7, 8);
+    *result = ((sret_result.a & 0xffffULL) << 48) |
+      ((sret_result.b & 0xffffULL) << 32) |
+      ((sret_result.c & 0xffffULL) << 16) |
+      (sret_result.d & 0xffffULL);
   }
   else {
     uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =

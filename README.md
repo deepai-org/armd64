@@ -72,6 +72,8 @@ All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 | Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as mixed 16/32-bit RISC-V instructions. |
 | x86 SysV call to AArch64 | `40 0f 0b 50 43 41 36 34` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
 | x86 SysV call to RISC-V | `40 0f 0b 50 43 52 56 36` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
+| x86 SysV sret call to AArch64 | `42 0f 0b 50 53 41 36 34` | Prototype `PCALL.A64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`, shifts user args back to `x0`-`x7`, and enters raw AArch64. |
+| x86 SysV sret call to RISC-V | `42 0f 0b 50 53 52 56 36` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
 | x86 import return | `41 0f 0b 50 49 52 45 54` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
@@ -153,7 +155,10 @@ foreign `SP` window below the x86 frame, and copies stack arguments from
 bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30`
 or `ra` to a return cookie, enters raw fetch at the `R10` target, maps
 AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps AArch64 `x1` or RISC-V
-`a1` back to x86 `RDX` for ordinary two-word integer aggregate returns.  `polycall`
+`a1` back to x86 `RDX` for ordinary two-word integer aggregate returns.  The
+prototype `SRET` variants cover larger memory-return aggregates by mapping the
+x86 hidden result pointer to AArch64 `x8` or RISC-V `a0` and shifting the
+remaining user arguments according to the target ABI.  `polycall`
 verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`,
@@ -172,7 +177,9 @@ import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-built two-word aggregate
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
-`riscv-pcall-pair-real.so#poly_entry`), compiler-built constructor objects
+`riscv-pcall-pair-real.so#poly_entry`), compiler-built hidden-sret aggregate
+return objects (`aarch64-pcall-sret-real.so#poly_entry` and
+`riscv-pcall-sret-real.so#poly_entry`), compiler-built constructor objects
 (`aarch64-pcall-ctor-real.so#poly_entry` and
 `riscv-pcall-ctor-real.so#poly_entry`), compiler-built conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
@@ -312,8 +319,8 @@ atomic helper imports used by default compiler output:
 `__aarch64_ldadd8_acq_rel`, `__aarch64_swp8_acq_rel`,
 `__aarch64_ldset4_relax`, and `__aarch64_cas8_acq_rel`.
 More complex ABI cases such as arbitrary external import target descriptors,
-larger or heterogeneous aggregate returns, variadic calls, TLS, unwind, and exceptions still need
-full descriptor-driven or software thunk support.  Direct register
+heterogeneous register aggregates, variadic calls, TLS, unwind, and exceptions
+still need full descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
 contract; they are not the external compatibility contract.
 
