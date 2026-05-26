@@ -65,6 +65,7 @@ POLYCALL_INT_BITOPS_REAL_SRC="$ROOT_DIR/tools/polycall_int_bitops_real.c"
 POLYCALL_INT_ROTATE_REAL_SRC="$ROOT_DIR/tools/polycall_int_rotate_real.c"
 POLYCALL_INT_CCMP_REAL_SRC="$ROOT_DIR/tools/polycall_int_ccmp_real.c"
 POLYCALL_POSTINDEX_MEM_AARCH64_SRC="$ROOT_DIR/tools/polycall_postindex_mem_aarch64.c"
+POLYCALL_ATOMIC_RISCV_SRC="$ROOT_DIR/tools/polycall_atomic_riscv.c"
 POLYCALL_UNSCALED_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_unscaled_mem_real.c"
 POLYCALL_INDEXED_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_indexed_mem_real.c"
 POLYCALL_CALLEE_REAL_SRC="$ROOT_DIR/tools/polycall_callee_real.c"
@@ -600,6 +601,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT_CCMP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-int-ccmp-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ATOMIC_RISCV_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-atomic.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1227,6 +1233,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-int-bitops-real.so#poly_entry=0xe5caa38822572301 \
     /usr/lib/polyapps/riscv-pcall-int-rotate-real.so#poly_entry=0xbc1e4a9e37a5682e \
     /usr/lib/polyapps/riscv-pcall-int-ccmp-real.so#poly_entry=5 \
+    /usr/lib/polyapps/riscv-pcall-atomic.so#poly_entry=350 \
     /usr/lib/polyapps/riscv-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/riscv-pcall-indexed-mem-real.so#poly_entry=41 \
     /usr/lib/polyapps/riscv-pcall-callee-real.so#poly_entry=420 \

@@ -171,7 +171,8 @@ objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
 `riscv-pcall-int-rotate-real.so#poly_entry`), compiler-produced integer conditional
 compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
 `riscv-pcall-int-ccmp-real.so#poly_entry`), AArch64 post-index memory object
-(`aarch64-pcall-postindex-mem.so#poly_entry`), compiler-produced unscaled-memory
+(`aarch64-pcall-postindex-mem.so#poly_entry`), RISC-V atomic object
+(`riscv-pcall-atomic.so#poly_entry`), compiler-produced unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-produced indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -281,7 +282,9 @@ probes exercise compiler-emitted AArch64 `extr`/`ror` aliases and logical
 `ror` operands plus RISC-V shift/or fallback sequences. The integer conditional
 compare probes exercise compiler-emitted AArch64 `ccmp` for chained conditions
 plus RISC-V branch fallback sequences. The AArch64 post-index memory probe
-exercises single-register `ldr`/`str` post-index writeback forms. The integer indexed-memory probes
+exercises single-register `ldr`/`str` post-index writeback forms. The RISC-V
+atomic probe exercises compiler-emitted `amoadd.d`, `amoswap.d`, `amoor.w`,
+`lr.d`, and `sc.d` forms from C `__atomic` builtins. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V

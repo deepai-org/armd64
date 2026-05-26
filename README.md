@@ -193,7 +193,8 @@ objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
 `riscv-pcall-int-rotate-real.so#poly_entry`), compiler-built integer conditional
 compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
 `riscv-pcall-int-ccmp-real.so#poly_entry`), AArch64 post-index memory
-object (`aarch64-pcall-postindex-mem.so#poly_entry`), compiler-built unscaled-memory
+object (`aarch64-pcall-postindex-mem.so#poly_entry`), RISC-V atomic object
+(`riscv-pcall-atomic.so#poly_entry`), compiler-built unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -348,7 +349,8 @@ The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 arithmetic, compare/register-shift and division/remainder forms,
 register-register `add`, `sub`, `mul`, `mulh`, `mulhsu`, `mulhu`, `xor`, `and`, and `or`,
 `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, generic `jalr`, selected
-byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
+byte/halfword/word/dword load-store forms, A-extension `lr`/`sc` and AMO
+word/dword forms, `fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
 `fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` and scalar FP
 division, square root, and fused multiply-add
