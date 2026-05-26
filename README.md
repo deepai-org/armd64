@@ -431,8 +431,12 @@ neutral call into the opposite frontend.  Pair-return probes verify `x0`/`x1`
 and `a0`/`a1` both map back to the caller so ordinary two-word integer returns
 survive a neutral cross-call.  Syscall probes verify a callee can execute a
 native `svc` or `ecall`, return through the neutral hardware cookie, and leave
-the syscall result mapped into the caller's result register.  The gate also
-covers a nested AArch64 -> RISC-V -> AArch64 call chain.
+the syscall result mapped into the caller's result register.  Libcall probes
+verify a callee can execute a native AArch64 `brk #1` or RISC-V `ebreak`
+strlen trap inside a neutral cross-call while preserving the x86_64 first
+argument pointer and returning the result through the caller's native result
+register.  The gate also covers a nested AArch64 -> RISC-V -> AArch64 call
+chain.
 Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
 hardware-style continuation state for `PCALL`, x86 import returns, and neutral
 foreign cross-calls are lazily saved and restored per guest `CR3`, user

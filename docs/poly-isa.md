@@ -101,7 +101,9 @@ across a neutral call into the opposite frontend.  The pair-return probes
 verify the second integer result lane maps across `x1`/`a1`.  The syscall
 probes execute native AArch64 `svc` or RISC-V `ecall` inside the neutral
 callee and return the deterministic syscall result through the caller's native
-result register.  The
+result register.  The libcall probes execute native AArch64 `brk #1` or
+RISC-V `ebreak` strlen traps inside the neutral callee and return through the
+same hardware cookie path.  The
 prototype saves that stack, the `PCALL` return cookie, and x86-import return
 state with the same synthetic bank as the non-aliased foreign registers.  The
 bank key is guest `CR3`, user `FSBASE`, and an 8 MiB-aligned user stack-region
