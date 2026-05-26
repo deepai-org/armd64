@@ -211,17 +211,25 @@ static int load_elf_program(const char *path, struct poly_program *program) {
 static int emit_and_call(const struct poly_program *program, uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
   const size_t stub_size = 10 + 10 + 8 + 1;
-  const size_t code_size = stub_size + (program->insn_count + 1) * 4;
+  const size_t code_size = stub_size;
+  const size_t foreign_size = (program->insn_count + 1) * 4;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYCALL_FAIL: mmap failed: %s\n", strerror(errno));
+    fprintf(stderr, "POLYCALL_FAIL: x86 stub mmap failed: %s\n", strerror(errno));
+    return -1;
+  }
+  uint8_t *foreign = mmap(NULL, foreign_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (foreign == MAP_FAILED) {
+    fprintf(stderr, "POLYCALL_FAIL: foreign mmap failed: %s\n", strerror(errno));
+    munmap(code, code_size);
     return -1;
   }
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + 28);
-  const uint64_t foreign_target = (uint64_t) (uintptr_t) (code + stub_size);
+  const uint64_t foreign_target = (uint64_t) (uintptr_t) foreign;
   emit_movabs_r10(code, &offset, foreign_target);
   emit_movabs_r11(code, &offset, return_rip);
   if (program->arch == POLY_ARCH_AARCH64) {
@@ -235,13 +243,15 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
     offset += sizeof(pcall);
   }
   code[offset++] = 0xc3;
+  offset = 0;
   for (size_t n = 0; n < program->insn_count; n++)
-    emit_u32(code, &offset, program->insns[n]);
-  emit_u32(code, &offset, fallback_ret);
+    emit_u32(foreign, &offset, program->insns[n]);
+  emit_u32(foreign, &offset, fallback_ret);
 
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
     (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
   *result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+  munmap(foreign, foreign_size);
   munmap(code, code_size);
   return 0;
 }

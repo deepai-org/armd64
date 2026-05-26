@@ -125,9 +125,10 @@ verifies this against loaded foreign ELF64 function payloads
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`, and
 `riscv-pcall-sum9.elf`) plus compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
-`aarch64-pcall-bl.elf`, and `riscv-pcall-frame.elf`) that use native `SP`
-adjustment, stack load/store, pair frame save/restore, local AArch64 `bl`
-calls where applicable, and teardown before returning.  More complex ABI
+`aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, and
+`riscv-pcall-frame.elf`) that use native `SP` adjustment, stack load/store,
+pair frame save/restore, local AArch64 `bl` calls, AArch64 `adrp` page-relative
+data addressing where applicable, and teardown before returning.  More complex ABI
 cases such as aggregate returns, variadic calls, TLS, unwind, and exceptions
 still need descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
@@ -149,7 +150,7 @@ the trap, but the trap record is the intended ISA boundary.
 ## Supported Foreign Subset
 
 The direct-fetch AArch64 path covers the generated/probed subset used by
-`polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `movz`, `movn`,
+`polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `adrp`, `movz`, `movn`,
 `movk`, `add`/`sub` immediate forms including `SP`, shifted-register
 `add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch and call `b`/`bl`,
 register branch and call `br`/`blr`, `cbz`/`cbnz`, native `ret`,
