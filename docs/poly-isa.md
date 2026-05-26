@@ -587,9 +587,10 @@ probe exercises RISC-V `c.fld`/`c.fsd` and `c.fldsp`/`c.fsdsp` double-FP
 memory forms. The FP integer-result probes exercise RISC-V `fmv.x.w`,
 `fmv.x.d`, `fclass.s`, `fclass.d`, and `fcvt.w.s`. It also
 includes sectionless `dyntab` probes that exercise only
-`PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
-`DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and
-`R_RISCV_JUMP_SLOT` entries for defined symbols.
+`PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted
+through `DT_JMPREL`/`DT_PLTRELSZ`, with either `DT_PLTREL=RELA` or
+`DT_PLTREL=REL`, including `R_AARCH64_JUMP_SLOT` and `R_RISCV_JUMP_SLOT`
+entries for defined symbols.
 Packed relative relocation tables are accepted through
 `DT_RELR`/`DT_RELRSZ`/`DT_RELRENT`, including direct entries and bitmap entries.
 Traditional addend-in-place relative relocation tables are accepted through

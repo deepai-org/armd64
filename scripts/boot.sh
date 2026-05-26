@@ -1218,6 +1218,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-dyntab.elf" --dyn-symbol64 0x7b 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-dyntab-entry.elf" --dyn-symbol64 0x7b --export-dyntab-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-jumprel.elf" --dyn-jump-slot64 0x7b 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf" --dyn-rel-jump-slot64 0x7b 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import.elf" --dyn-import64 poly_import_value 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-func.elf" --dyn-import-func64 poly_import_add 0xa9bf7bfd 0xd0000008 0x91000108 0xf9400108 0xd63f0100 0xa8c17bfd 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-mul.elf" --dyn-import-func64 poly_import_mul 0xa9bf7bfd 0xd0000008 0x91000108 0xf9400108 0xd63f0100 0xa8c17bfd 0xd65f03c0
@@ -1328,6 +1329,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-dyntab.elf" --dyn-symbol64 0x7b 0x00002517 0x00053503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-dyntab-entry.elf" --dyn-symbol64 0x7b --export-dyntab-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-jumprel.elf" --dyn-jump-slot64 0x7b 0x00002517 0x00053503 0x00053503 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-rel-jumprel.elf" --dyn-rel-jump-slot64 0x7b 0x00002517 0x00053503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import.elf" --dyn-import64 poly_import_value 0x00002517 0x00053503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-func.elf" --dyn-import-func64 poly_import_add 0xff010113 0x00113423 0x00002297 0xff82b283 0x000280e7 0x00813083 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-cjalr.elf" --dyn-import-func64 poly_import_add 0xff010113 0x00113423 0x00002297 0xff82b283 0x00019282 0x00813083 0x01010113 0x00008067
@@ -1899,6 +1901,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-dyntab.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-dyntab-entry.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-jumprel.elf=123 \
+    /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-import.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-import-func.elf=103 \
     /usr/lib/polyapps/aarch64-pcall-import-mul.elf=102 \
@@ -1916,6 +1919,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-dyntab.elf=123 \
     /usr/lib/polyapps/riscv-pcall-dyntab-entry.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
+    /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-import.elf=123 \
     /usr/lib/polyapps/riscv-pcall-import-func.elf=103 \
     /usr/lib/polyapps/riscv-pcall-import-cjalr.elf=103 \

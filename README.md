@@ -450,7 +450,8 @@ relocations through both `RELA` addends and `REL` in-place addends, packed
 symbolic 64-bit dynamic relocations and exported entrypoints through both
 section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH` and
 GNU `DT_GNU_HASH` symbol counts plus `DT_JMPREL`/`JUMP_SLOT` PLT relocations
-for sectionless dynamic objects, scalar double FP arguments and returns through
+using both `DT_PLTREL=RELA` and `DT_PLTREL=REL` tables for sectionless dynamic
+objects, scalar double FP arguments and returns through
 the native FP register ABI, scalar double FP function imports through PLT/GOT call
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,
