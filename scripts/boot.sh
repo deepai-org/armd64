@@ -63,6 +63,7 @@ POLYCALL_INT_VARSHIFT_REAL_SRC="$ROOT_DIR/tools/polycall_int_varshift_real.c"
 POLYCALL_INT_LOGIC_REAL_SRC="$ROOT_DIR/tools/polycall_int_logic_real.c"
 POLYCALL_INT_BITOPS_REAL_SRC="$ROOT_DIR/tools/polycall_int_bitops_real.c"
 POLYCALL_INT_ROTATE_REAL_SRC="$ROOT_DIR/tools/polycall_int_rotate_real.c"
+POLYCALL_INT_CCMP_REAL_SRC="$ROOT_DIR/tools/polycall_int_ccmp_real.c"
 POLYCALL_UNSCALED_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_unscaled_mem_real.c"
 POLYCALL_INDEXED_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_indexed_mem_real.c"
 POLYCALL_CALLEE_REAL_SRC="$ROOT_DIR/tools/polycall_callee_real.c"
@@ -336,6 +337,10 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-int-rotate-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_INT_CCMP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-int-ccmp-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_UNSCALED_MEM_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-unscaled-mem-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -585,6 +590,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT_ROTATE_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-int-rotate-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_INT_CCMP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-int-ccmp-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1155,6 +1165,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-int-logic-real.so#poly_entry=0x21d9737d81792d5e \
     /usr/lib/polyapps/aarch64-pcall-int-bitops-real.so#poly_entry=0xe5caa38822572301 \
     /usr/lib/polyapps/aarch64-pcall-int-rotate-real.so#poly_entry=0xbc1e4a9e37a5682e \
+    /usr/lib/polyapps/aarch64-pcall-int-ccmp-real.so#poly_entry=5 \
     /usr/lib/polyapps/aarch64-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/aarch64-pcall-indexed-mem-real.so#poly_entry=41 \
     /usr/lib/polyapps/aarch64-pcall-callee-real.so#poly_entry=420 \
@@ -1209,6 +1220,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-int-logic-real.so#poly_entry=0x21d9737d81792d5e \
     /usr/lib/polyapps/riscv-pcall-int-bitops-real.so#poly_entry=0xe5caa38822572301 \
     /usr/lib/polyapps/riscv-pcall-int-rotate-real.so#poly_entry=0xbc1e4a9e37a5682e \
+    /usr/lib/polyapps/riscv-pcall-int-ccmp-real.so#poly_entry=5 \
     /usr/lib/polyapps/riscv-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/riscv-pcall-indexed-mem-real.so#poly_entry=41 \
     /usr/lib/polyapps/riscv-pcall-callee-real.so#poly_entry=420 \

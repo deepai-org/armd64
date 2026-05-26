@@ -190,7 +190,9 @@ objects (`aarch64-pcall-int-logic-real.so#poly_entry` and
 objects (`aarch64-pcall-int-bitops-real.so#poly_entry` and
 `riscv-pcall-int-bitops-real.so#poly_entry`), compiler-built integer rotate/extract
 objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
-`riscv-pcall-int-rotate-real.so#poly_entry`), compiler-built unscaled-memory
+`riscv-pcall-int-rotate-real.so#poly_entry`), compiler-built integer conditional
+compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
+`riscv-pcall-int-ccmp-real.so#poly_entry`), compiler-built unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -320,6 +322,7 @@ extract/rotate `extr` and logical shifted-register `ror` operands,
 unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, bit-test branch `tbz`/`tbnz`,
+conditional compare `ccmp`/`ccmn`,
 conditional select `csel`/`csinc`/`csinv`/`csneg`,
 logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
