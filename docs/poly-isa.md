@@ -311,9 +311,11 @@ objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
 argument objects (`aarch64-pcall-fpair32-arg-real.so#poly_entry` and
 `riscv-pcall-fpair32-arg-real.so#poly_entry`), mixed integer/FP argument objects
 (`aarch64-pcall-mixed-args-real.so#poly_entry` and
-`riscv-pcall-mixed-args-real.so#poly_entry`), and scalar double FP
-import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
-`riscv-pcall-fp64-import-real.so#poly_entry`), compiler-produced scalar double
+`riscv-pcall-mixed-args-real.so#poly_entry`), and scalar double/float FP
+import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
+`riscv-pcall-fp64-import-real.so#poly_entry`,
+`aarch64-pcall-fp32-import-real.so#poly_entry`, and
+`riscv-pcall-fp32-import-real.so#poly_entry`), compiler-produced scalar double
 FP callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and
 `riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-produced scalar double
 FP conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
@@ -379,8 +381,9 @@ The integer-to-FP conversion probes exercise compiler-emitted AArch64
 `fcvt.s.w`, `fcvt.d.l`, and `fcvt.d.lu`.
 The FP import probes exercise real
 PLT/GOT calls to
-`poly_import_fp64_add` and verify descriptor-dispatched FP arguments and return
-values. The imported-object probes exercise real compiler-emitted GOT loads of
+`poly_import_fp64_add` and `poly_import_fp32_add` and verify
+descriptor-dispatched FP arguments and return values. The imported-object
+probes exercise real compiler-emitted GOT loads of
 undefined `poly_import_value`. The function-pointer probes exercise compiler
 emitted same-image data relocations to local function symbols plus native
 indirect calls through `blr` or `jalr`. The constructor probes execute

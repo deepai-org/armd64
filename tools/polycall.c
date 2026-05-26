@@ -83,7 +83,8 @@ enum {
   POLY_IMPORT_FUNC_MEMSET = 10,
   POLY_IMPORT_FUNC_MEMCMP = 11,
   POLY_IMPORT_FUNC_AARCH64_TLSDESC = 12,
-  POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR = 13
+  POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR = 13,
+  POLY_IMPORT_FUNC_FP32_ADD = 14
 };
 
 struct poly_dynamic_reloc {
@@ -463,6 +464,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_fp64_add") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FP64_ADD * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_fp32_add") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FP32_ADD * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "strlen") == 0) {

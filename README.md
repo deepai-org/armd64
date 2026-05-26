@@ -280,9 +280,11 @@ aggregate argument objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
 aggregate argument objects (`aarch64-pcall-fpair32-arg-real.so#poly_entry` and
 `riscv-pcall-fpair32-arg-real.so#poly_entry`), compiler-built mixed integer/FP
 argument objects (`aarch64-pcall-mixed-args-real.so#poly_entry` and
-`riscv-pcall-mixed-args-real.so#poly_entry`), compiler-built scalar double FP
-import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
-`riscv-pcall-fp64-import-real.so#poly_entry`), compiler-built scalar double FP
+`riscv-pcall-mixed-args-real.so#poly_entry`), compiler-built scalar double and
+float FP import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
+`riscv-pcall-fp64-import-real.so#poly_entry`,
+`aarch64-pcall-fp32-import-real.so#poly_entry`, and
+`riscv-pcall-fp32-import-real.so#poly_entry`), compiler-built scalar double FP
 callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and
 `riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-built scalar double FP
 conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
