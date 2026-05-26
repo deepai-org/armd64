@@ -77,6 +77,11 @@ and call operations:
   `PCALL.RV64.SYSV.FPAIR32ARG`, unpacking x86_64 SysV `XMM0[63:0]` into
   RISC-V `fa0`/`fa1` and shifting following FP argument lanes up by one
   foreign FP register.
+- `0f 24 18 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.HETERO_U64_F64`, mapping an x86_64 SysV
+  `{ u64, double }` aggregate argument from `RDI`/`XMM0` to AAPCS64
+  `x0`/`x1`, shifting the following integer argument to `x2`, and mapping the
+  returned `x0`/`x1` aggregate back to x86_64 `RAX`/`XMM0`.
 - `0f 24 20 50 4f 4c 59 21`: prototype `PIRET`, used by
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
@@ -108,12 +113,13 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`14` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`15` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, and deterministic compatibility
   syscall/libcall traps, the prototype x86 poly opcode family, and two-float
-  aggregate return packing and argument unpacking for native ABI `PCALL`.
+  aggregate return packing, two-float aggregate argument unpacking, and
+  `{u64,double}` heterogeneous aggregate bridging for native ABI `PCALL`.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
@@ -195,8 +201,10 @@ covering scalar FP arguments/returns and two-register homogeneous double
 aggregate arguments and returns through `XMM0`/`XMM1`, plus two-`float`
 homogeneous aggregate returns packed into `XMM0[63:0]` and two-`float`
 homogeneous aggregate arguments unpacked from `XMM0[63:0]`, including mixed
-integer/FP signatures where GPR and XMM lanes are consumed in one native call;
-and
+integer/FP signatures where GPR and XMM lanes are consumed in one native call.
+AArch64 additionally has a focused bridge for `{u64,double}` heterogeneous
+aggregates whose x86 lanes arrive in `RDI`/`XMM0` but whose AAPCS64 lanes live
+in `x0`/`x1`; and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
 saved x86 continuation, maps AArch64 `x0` or RISC-V `a0` back to x86 `RAX`,
 maps AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word
@@ -335,7 +343,9 @@ objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
 argument objects (`aarch64-pcall-fpair32-arg-real.so#poly_entry` and
 `riscv-pcall-fpair32-arg-real.so#poly_entry`), mixed integer/FP argument objects
 (`aarch64-pcall-mixed-args-real.so#poly_entry` and
-`riscv-pcall-mixed-args-real.so#poly_entry`), and scalar double/float FP
+`riscv-pcall-mixed-args-real.so#poly_entry`), heterogeneous aggregate objects
+(`aarch64-pcall-hetero-real.so#poly_entry` and
+`riscv-pcall-hetero-real.so#poly_entry`), and scalar double/float FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
 `riscv-pcall-fp64-import-real.so#poly_entry`,
 `aarch64-pcall-fp32-import-real.so#poly_entry`, and

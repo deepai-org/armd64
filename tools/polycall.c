@@ -55,6 +55,7 @@ enum {
   POLY_CALL_FINI_RESULT = 8,
   POLY_CALL_FPAIR32 = 9,
   POLY_CALL_FPAIR32_ARG = 10,
+  POLY_CALL_HETERO_U64_F64 = 11,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -275,6 +276,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "mixedargs:", 10) == 0) {
     request->call_kind = POLY_CALL_MIXED_ARGS;
     arg += 10;
+  }
+  else if (strncmp(arg, "hetero:", 7) == 0) {
+    request->call_kind = POLY_CALL_HETERO_U64_F64;
+    arg += 7;
   }
   else if (strncmp(arg, "fini:", 5) == 0) {
     request->call_kind = POLY_CALL_FINI_RESULT;
@@ -1810,6 +1815,10 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     float lo;
     float hi;
   };
+  struct hetero_u64_f64 {
+    uint64_t i;
+    double d;
+  };
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -1910,6 +1919,21 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     fp_result.d = entry(1, 1.5, 2, 2.25, 3, 3.0);
     return fp_result.u;
   }
+  if (call_kind == POLY_CALL_HETERO_U64_F64) {
+    union {
+      double d;
+      uint64_t u;
+    } fp_bits;
+    struct hetero_u64_f64 (*entry)(struct hetero_u64_f64, uint64_t) =
+      (struct hetero_u64_f64 (*)(struct hetero_u64_f64, uint64_t)) code;
+    struct hetero_u64_f64 arg;
+    arg.i = 3;
+    arg.d = 2.25;
+    struct hetero_u64_f64 result = entry(arg, 5);
+    fp_bits.d = result.d;
+    return ((result.i & 0xffffULL) << 48) |
+      ((fp_bits.u >> 16) & 0x0000ffffffffffffULL);
+  }
 
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
     (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
@@ -1992,7 +2016,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint8_t pcall[] = {
       0x0f, 0x24,
       call_kind == POLY_CALL_FPAIR32 ? 0x14 :
-        (call_kind == POLY_CALL_FPAIR32_ARG ? 0x16 : 0x10),
+        (call_kind == POLY_CALL_FPAIR32_ARG ? 0x16 :
+          (call_kind == POLY_CALL_HETERO_U64_F64 ? 0x18 : 0x10)),
       0x50, 0x4f, 0x4c, 0x59, 0x21
     };
     memcpy(code + offset, pcall, sizeof(pcall));
@@ -2275,6 +2300,10 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_MIXED_ARGS) {
       printf("POLYCALL_RESULT_MIXED_ARGS: arch=%s bits=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_HETERO_U64_F64) {
+      printf("POLYCALL_RESULT_HETERO_U64_F64: arch=%s packed=0x%016llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.check_expected) {

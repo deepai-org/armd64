@@ -86,6 +86,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV call to RISC-V with two-float return | `0f 24 15 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FPAIR32RET`: same scalar argument mapping as `PCALL.RV64.SYSV`, but packs RISC-V `fa0`/`fa1` into x86_64 SysV `XMM0[63:0]` on return. |
 | x86 SysV call to AArch64 with two-float argument | `0f 24 16 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.FPAIR32ARG`: unpacks x86_64 SysV `XMM0[63:0]` into AAPCS64 `s0`/`s1` and shifts following FP argument lanes up by one foreign FP register. |
 | x86 SysV call to RISC-V with two-float argument | `0f 24 17 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FPAIR32ARG`: unpacks x86_64 SysV `XMM0[63:0]` into RISC-V `fa0`/`fa1` and shifts following FP argument lanes up by one foreign FP register. |
+| x86 SysV call to AArch64 with `{u64,double}` aggregate | `0f 24 18 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.HETERO_U64_F64`: maps x86_64 SysV `RDI`/`XMM0` aggregate argument lanes to AAPCS64 `x0`/`x1`, shifts the following integer argument to `x2`, and maps the returned `x0`/`x1` lanes back to x86_64 `RAX`/`XMM0`. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
@@ -110,7 +111,8 @@ foreign ordering, per-thread synthetic banks, and deterministic compatibility
 syscall/libcall traps.  Bit `12` additionally advertises the prototype x86
 poly opcode family. Bit `13` advertises the two-float aggregate return packing
 variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
-argument unpacking.
+argument unpacking; bit `15` advertises the `{u64,double}` heterogeneous
+aggregate bridge for AArch64 `PCALL`.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
@@ -191,7 +193,9 @@ two-register homogeneous double aggregate arguments and returns through
 `XMM0`/`XMM1`, two-`float` homogeneous aggregate returns packed into
 `XMM0[63:0]`, two-`float` homogeneous aggregate arguments unpacked from
 `XMM0[63:0]` into two foreign FP argument registers, including mixed integer/FP signatures where GPR and XMM lanes
-are consumed in one native call, sets `x30` or `ra` to a return cookie, enters raw fetch at the
+are consumed in one native call.  AArch64 also has a focused bridge for the
+common heterogeneous `{u64,double}` aggregate shape, moving the double lane
+between x86 `XMM0` and AAPCS64 `x1`.  The bridge sets `x30` or `ra` to a return cookie, enters raw fetch at the
 `R10` target, carries an optional foreign TLS block base in x86 `R13`, maps
 AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps
 AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word integer
@@ -310,7 +314,9 @@ aggregate argument objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
 aggregate argument objects (`aarch64-pcall-fpair32-arg-real.so#poly_entry` and
 `riscv-pcall-fpair32-arg-real.so#poly_entry`), compiler-built mixed integer/FP
 argument objects (`aarch64-pcall-mixed-args-real.so#poly_entry` and
-`riscv-pcall-mixed-args-real.so#poly_entry`), compiler-built scalar double and
+`riscv-pcall-mixed-args-real.so#poly_entry`), compiler-built heterogeneous
+aggregate objects (`aarch64-pcall-hetero-real.so#poly_entry` and
+`riscv-pcall-hetero-real.so#poly_entry`), compiler-built scalar double and
 float FP import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
 `riscv-pcall-fp64-import-real.so#poly_entry`,
 `aarch64-pcall-fp32-import-real.so#poly_entry`, and
@@ -426,7 +432,7 @@ aliases these suffixes to the same operation descriptor because the prototype
 defines foreign atomic memory ordering in terms of the x86-TSO execution
 model.
 More complex ABI cases such as arbitrary external import target descriptors,
-heterogeneous register aggregates, variadic calls, dynamic-loader TLS module
+additional heterogeneous register aggregates, variadic calls, dynamic-loader TLS module
 allocation across multiple DSOs, unwind, and exceptions still need full
 descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
