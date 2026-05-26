@@ -352,6 +352,10 @@ build_poly_elf_payloads() {
     "$POLYCALL_ATOMIC_AARCH64_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-atomic.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ATOMIC_AARCH64_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-atomic-outline.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=armv8.1-a+lse \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_ATOMIC_AARCH64_SRC" \
@@ -1190,6 +1194,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-int-ccmp-real.so#poly_entry=5 \
     /usr/lib/polyapps/aarch64-pcall-postindex-mem.so#poly_entry=68 \
     /usr/lib/polyapps/aarch64-pcall-atomic.so#poly_entry=350 \
+    /usr/lib/polyapps/aarch64-pcall-atomic-outline.so#poly_entry=350 \
     /usr/lib/polyapps/aarch64-pcall-atomic-lse.so#poly_entry=350 \
     /usr/lib/polyapps/aarch64-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/aarch64-pcall-indexed-mem-real.so#poly_entry=41 \

@@ -32,7 +32,11 @@ enum {
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
   POLY_IMPORT_FUNC_X86_ADD = 2,
-  POLY_IMPORT_FUNC_FP64_ADD = 3
+  POLY_IMPORT_FUNC_FP64_ADD = 3,
+  POLY_IMPORT_FUNC_AARCH64_LDADD8_ACQ_REL = 4,
+  POLY_IMPORT_FUNC_AARCH64_SWP8_ACQ_REL = 5,
+  POLY_IMPORT_FUNC_AARCH64_LDSET4_RELAX = 6,
+  POLY_IMPORT_FUNC_AARCH64_CAS8_ACQ_REL = 7
 };
 
 struct poly_dynamic_reloc {
@@ -341,6 +345,26 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_fp64_add") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FP64_ADD * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__aarch64_ldadd8_acq_rel") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDADD8_ACQ_REL *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__aarch64_swp8_acq_rel") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_SWP8_ACQ_REL *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__aarch64_ldset4_relax") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDSET4_RELAX *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__aarch64_cas8_acq_rel") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_CAS8_ACQ_REL *
+      POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   return -1;
