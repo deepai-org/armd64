@@ -458,9 +458,9 @@ forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, unscaled `ldur`/`stur` integer and scalar FP
 forms plus single-register pre/post-indexed load-store writeback forms,
 exclusive atomics `ldxr`/`ldaxr`/`stxr`/`stlxr` and `clrex`, LSE atomic
-read-modify-write forms `swp`, `ldadd`, `ldclr`, `ldeor`, `ldset`, and `cas`
-for decoded 8-, 16-, 32-, and 64-bit compiler-emitted encodings, `svc`, and
-`brk`.
+read-modify-write forms `swp`, `ldadd`, `ldclr`, `ldeor`, `ldset`,
+`ldsmin`, `ldsmax`, `ldumin`, `ldumax`, and `cas` for decoded 8-, 16-, 32-,
+and 64-bit compiler-emitted encodings, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM

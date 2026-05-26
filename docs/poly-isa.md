@@ -427,8 +427,8 @@ plus RISC-V branch fallback sequences. The AArch64 post-index memory probe
 exercises single-register `ldr`/`str` post-index writeback forms. The AArch64
 atomic probes exercise compiler-emitted exclusive `ldxr`/`ldaxr` plus
 `stxr`/`stlxr`, `clrex`, compiler-emitted NAND LL/SC loops, 8-, 16-, 32-, and
-64-bit LSE `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`, and GCC
-outline atomic helper imports for default compiler output. The RISC-V atomic
+64-bit LSE `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, signed/unsigned min/max,
+and `cas`, and GCC outline atomic helper imports for default compiler output. The RISC-V atomic
 probe exercises
 compiler-emitted `amoadd`, `amoswap`, `amoand`, `amoxor`, and `amoor` word and
 dword forms, inline signed/unsigned `amomin`/`amomax` word and dword forms,
@@ -497,7 +497,8 @@ AArch64 outline atomic helpers: 8-, 16-, 32-, and 64-bit `ldadd`, `swp`,
 suffixes.  The suffixes alias to the same operation descriptors because the
 prototype defines foreign atomic memory ordering in terms of the x86-TSO
 execution model.  These are compatibility descriptors for observed compiler
-output, not a general libgcc or libc implementation.
+output, not a general libgcc or libc implementation.  Raw LSE additionally
+covers signed/unsigned min/max RMW opcodes.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:
