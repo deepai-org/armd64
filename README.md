@@ -678,7 +678,9 @@ numbers currently include:
   `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`,
   `newfstatat`, `fstat`, `statx`, `close`, `getdents64`, `lseek`, and
   `uname`.
-- Network-style syscalls: `socket`, `connect`, `sendto`, `recvfrom`, `setsockopt`, and `getsockopt`.
+- Network-style syscalls: `socket`, `bind`, `listen`, `accept`, `connect`,
+  `getsockname`, `getpeername`, `sendto`, `recvfrom`, `setsockopt`,
+  `getsockopt`, `shutdown`, and `accept4`.
 - Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
   `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`, `munmap`,
   `mprotect`, `madvise`, and `mmap`.
