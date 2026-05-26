@@ -40,6 +40,11 @@ x86_64, and transfers control to an OS/runtime-defined trap path.  The OS or
 userspace runtime decides whether to translate a syscall, deliver a signal,
 invoke a thunk, or reject the operation.
 
+Foreign memory ordering is currently specified as x86_64 TSO for the prototype
+compatibility target.  AArch64 and RISC-V barriers are legal decode points, and
+foreign atomic read-modify-write instructions operate through the same coherent
+virtual-memory path as ordinary x86_64 memory operations.
+
 Interrupts, faults, and debug exceptions taken during foreign fetch must record
 the interrupted foreign mode and PC before entering the x86_64 kernel path.
 `IRET`, `SYSRET`, `SYSEXIT`, and signal return must restore the foreign
@@ -171,7 +176,11 @@ objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
 `riscv-pcall-int-rotate-real.so#poly_entry`), compiler-produced integer conditional
 compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
 `riscv-pcall-int-ccmp-real.so#poly_entry`), AArch64 post-index memory object
-(`aarch64-pcall-postindex-mem.so#poly_entry`), RISC-V atomic object
+(`aarch64-pcall-postindex-mem.so#poly_entry`), AArch64 atomic objects covering
+exclusive LL/SC, default GCC outline helpers, and LSE instructions
+(`aarch64-pcall-atomic.so#poly_entry`,
+`aarch64-pcall-atomic-outline.so#poly_entry`, and
+`aarch64-pcall-atomic-lse.so#poly_entry`), RISC-V atomic object
 (`riscv-pcall-atomic.so#poly_entry`), compiler-produced unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-produced indexed-memory
@@ -282,9 +291,12 @@ probes exercise compiler-emitted AArch64 `extr`/`ror` aliases and logical
 `ror` operands plus RISC-V shift/or fallback sequences. The integer conditional
 compare probes exercise compiler-emitted AArch64 `ccmp` for chained conditions
 plus RISC-V branch fallback sequences. The AArch64 post-index memory probe
-exercises single-register `ldr`/`str` post-index writeback forms. The RISC-V
-atomic probe exercises compiler-emitted `amoadd.d`, `amoswap.d`, `amoor.w`,
-`lr.d`, and `sc.d` forms from C `__atomic` builtins. The integer indexed-memory probes
+exercises single-register `ldr`/`str` post-index writeback forms. The AArch64
+atomic probes exercise compiler-emitted exclusive `ldxr`/`ldaxr` plus
+`stxr`/`stlxr`, `clrex`, LSE `ldadd`, `swp`, `ldset`, and `cas`, and GCC
+outline atomic helper imports for default compiler output. The RISC-V atomic
+probe exercises compiler-emitted `amoadd.d`, `amoswap.d`, `amoor.w`, `lr.d`,
+and `sc.d` forms from C `__atomic` builtins. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V
@@ -320,6 +332,11 @@ result mapped back to the native foreign return register.
 A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
+The same descriptor path currently provides prototype imports for common GCC
+AArch64 outline atomic helpers: `__aarch64_ldadd8_acq_rel`,
+`__aarch64_swp8_acq_rel`, `__aarch64_ldset4_relax`, and
+`__aarch64_cas8_acq_rel`.  These are compatibility descriptors for observed
+compiler output, not a general libgcc or libc implementation.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:

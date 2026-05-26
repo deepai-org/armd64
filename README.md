@@ -119,6 +119,10 @@ The hybrid CPU currently defines foreign-mode memory ordering as x86_64 TSO.
 AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and `fence.i`
 instructions are decoded as ordering-preserving no-ops instead of introducing
 weaker AArch64/RISC-V reordering inside Bochs.
+Foreign atomic operations use the same Bochs virtual-memory path as ordinary
+foreign loads and stores.  The current prototype covers the compiler-emitted
+AArch64 exclusive and LSE atomic subset used by the test payloads plus the
+RISC-V A-extension subset.
 
 The current register bridge aliases the overlapping caller-visible integer ABI:
 
@@ -193,7 +197,11 @@ objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
 `riscv-pcall-int-rotate-real.so#poly_entry`), compiler-built integer conditional
 compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
 `riscv-pcall-int-ccmp-real.so#poly_entry`), AArch64 post-index memory
-object (`aarch64-pcall-postindex-mem.so#poly_entry`), RISC-V atomic object
+object (`aarch64-pcall-postindex-mem.so#poly_entry`), AArch64 atomic objects
+covering exclusive LL/SC, default GCC outline helpers, and LSE instructions
+(`aarch64-pcall-atomic.so#poly_entry`,
+`aarch64-pcall-atomic-outline.so#poly_entry`, and
+`aarch64-pcall-atomic-lse.so#poly_entry`), RISC-V atomic object
 (`riscv-pcall-atomic.so#poly_entry`), compiler-built unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
@@ -287,6 +295,10 @@ function call gates (`aarch64-pcall-import-func.elf`,
 The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
 an x86 return address to `PIRET`, accepts the helper's ordinary `ret`, and maps
 the x86 `RAX` result back to AArch64 `x0` or RISC-V `a0`.
+The same descriptor mechanism currently resolves common GCC AArch64 outline
+atomic helper imports used by default compiler output:
+`__aarch64_ldadd8_acq_rel`, `__aarch64_swp8_acq_rel`,
+`__aarch64_ldset4_relax`, and `__aarch64_cas8_acq_rel`.
 More complex ABI cases such as arbitrary external import target descriptors,
 aggregate returns, variadic calls, TLS, unwind, and exceptions still need
 full descriptor-driven or software thunk support.  Direct register
@@ -340,8 +352,10 @@ sources, scalar FP/GPR bit moves, scalar FP pair loads/stores and scalar FP `ldr
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, unscaled `ldur`/`stur` integer and scalar FP
-forms plus single-register pre/post-indexed load-store writeback forms, `svc`,
-and `brk`.
+forms plus single-register pre/post-indexed load-store writeback forms,
+exclusive atomics `ldxr`/`ldaxr`/`stxr`/`stlxr` and `clrex`, LSE atomic
+read-modify-write forms `swp`, `ldadd`, `ldset`, and `cas` for the decoded
+32-bit and 64-bit compiler-emitted encodings, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM
