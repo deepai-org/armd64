@@ -126,9 +126,10 @@ verifies this against loaded foreign ELF64 function payloads
 `riscv-pcall-sum9.elf`) plus compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, and
-`riscv-pcall-frame.elf`) that use native `SP` adjustment, stack load/store,
-pair frame save/restore, local AArch64 `bl` calls, AArch64 `adrp` page-relative
-data addressing where applicable, and teardown before returning.  More complex ABI
+`aarch64-pcall-cond.elf`, and `riscv-pcall-frame.elf`) that use native `SP`
+adjustment, stack load/store, pair frame save/restore, local AArch64 `bl`
+calls, AArch64 `adrp` page-relative data addressing, NZCV-backed AArch64
+conditional branches where applicable, and teardown before returning.  More complex ABI
 cases such as aggregate returns, variadic calls, TLS, unwind, and exceptions
 still need descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
@@ -151,12 +152,13 @@ the trap, but the trap record is the intended ISA boundary.
 
 The direct-fetch AArch64 path covers the generated/probed subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `adrp`, `movz`, `movn`,
-`movk`, `add`/`sub` immediate forms including `SP`, shifted-register
+`movk`, `add`/`sub` immediate forms including `SP`, flag-setting `adds`/`subs`
+immediate and shifted-register forms, shifted-register
 `add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch and call `b`/`bl`,
-register branch and call `br`/`blr`, `cbz`/`cbnz`, native `ret`,
-`dmb`/`dsb`/`isb`, scalar double `fadd`/`fsub`/`fmul` and register
-`fmov`, generic byte/halfword/word/dword load-store forms, 64-bit
-`stp`/`ldp` pair load-store forms, `svc`, and `brk`.
+condition-code branch `b.cond`, register branch and call `br`/`blr`,
+`cbz`/`cbnz`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
+`fadd`/`fsub`/`fmul` and register `fmov`, generic byte/halfword/word/dword
+load-store forms, 64-bit `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM

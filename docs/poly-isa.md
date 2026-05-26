@@ -68,6 +68,7 @@ saved x86 continuation and restores the x86 stack pointer.  The AArch64 raw
 decoder treats register 31 as `SP` for add/sub-immediate instructions, matching
 ordinary compiler stack-frame setup and teardown.
 The AArch64 raw decoder also supports `adrp` page-relative PC materialization,
+NZCV-backed `adds`/`subs` plus `b.cond` for ordinary condition-code branches,
 64-bit `stp`/`ldp` pair load-store forms for normal frame save/restore, and
 native `bl`/`blr` link-register calls for local helper calls inside foreign
 code.  The RISC-V raw decoder aliases `x2/sp` to the shared stack pointer, so
