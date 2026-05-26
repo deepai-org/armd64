@@ -53,6 +53,7 @@ enum {
   POLY_CALL_FPAIR64_ARG = 6,
   POLY_CALL_MIXED_ARGS = 7,
   POLY_CALL_FINI_RESULT = 8,
+  POLY_CALL_FPAIR32 = 9,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -165,6 +166,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "fpair:", 6) == 0) {
     request->call_kind = POLY_CALL_FPAIR64;
     arg += 6;
+  }
+  else if (strncmp(arg, "fpair32:", 8) == 0) {
+    request->call_kind = POLY_CALL_FPAIR32;
+    arg += 8;
   }
   else if (strncmp(arg, "fpairarg:", 9) == 0) {
     request->call_kind = POLY_CALL_FPAIR64_ARG;
@@ -1365,6 +1370,10 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     double lo;
     double hi;
   };
+  struct pair_fp32 {
+    float lo;
+    float hi;
+  };
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -1416,6 +1425,18 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     lo_bits.d = pair_result.lo;
     hi_bits.d = pair_result.hi;
     return (lo_bits.u & 0xffffffff00000000ULL) | (hi_bits.u >> 32);
+  }
+  if (call_kind == POLY_CALL_FPAIR32) {
+    union {
+      float f;
+      uint32_t u;
+    } lo_bits, hi_bits;
+    struct pair_fp32 (*entry)(float, float, float) =
+      (struct pair_fp32 (*)(float, float, float)) code;
+    struct pair_fp32 pair_result = entry(1.5f, 2.25f, 3.0f);
+    lo_bits.f = pair_result.lo;
+    hi_bits.f = pair_result.hi;
+    return ((uint64_t) hi_bits.u << 32) | lo_bits.u;
   }
   if (call_kind == POLY_CALL_FPAIR64_ARG) {
     union {
@@ -1519,12 +1540,20 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   const size_t pcall_opcode_offset = offset;
   if (program->arch == POLY_ARCH_AARCH64) {
-    const uint8_t pcall[] = { 0x0f, 0x24, 0x10, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+    const uint8_t pcall[] = {
+      0x0f, 0x24,
+      call_kind == POLY_CALL_FPAIR32 ? 0x14 : 0x10,
+      0x50, 0x4f, 0x4c, 0x59, 0x21
+    };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
   else {
-    const uint8_t pcall[] = { 0x0f, 0x24, 0x11, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+    const uint8_t pcall[] = {
+      0x0f, 0x24,
+      call_kind == POLY_CALL_FPAIR32 ? 0x15 : 0x11,
+      0x50, 0x4f, 0x4c, 0x59, 0x21
+    };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
@@ -1779,6 +1808,10 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_FPAIR64) {
       printf("POLYCALL_RESULT_FPAIR64: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_FPAIR32) {
+      printf("POLYCALL_RESULT_FPAIR32: arch=%s packed=0x%016llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.call_kind == POLY_CALL_FPAIR64_ARG) {
