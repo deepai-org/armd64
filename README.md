@@ -48,7 +48,8 @@ Linux ABI passthrough, or equal-speed execution.
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
   RISC-V-to-AArch64 code blobs that switch, call, nest calls, and carry scalar
-  double plus mixed integer/FP values directly without returning to x86.
+  double, mixed integer/FP, and shared-stack values directly without returning
+  to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
@@ -420,8 +421,11 @@ where the caller enters the other foreign frontend and the callee returns with
 ordinary native `ret`/`jalr` through a hardware cookie without routing through
 x86.  The gate also covers scalar double FP cross-calls in both directions and
 mixed integer/FP cross-calls where an integer argument is converted and folded
-into the FP return value across the opposite foreign frontend, plus a nested
-AArch64 -> RISC-V -> AArch64 call chain.
+into the FP return value across the opposite foreign frontend.  Shared-stack
+neutral cross-call probes verify an AArch64 or RISC-V caller can allocate an
+aligned stack slot, the opposite frontend can load it through its native `sp`,
+and the caller can restore the same user stack before returning to x86.  The
+gate also covers a nested AArch64 -> RISC-V -> AArch64 call chain.
 Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
 hardware-style continuation state for `PCALL`, x86 import returns, and neutral
 foreign cross-calls are lazily saved and restored per guest `CR3`, user
