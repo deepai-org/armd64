@@ -34,7 +34,8 @@ enum {
   POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
   POLY_CPUID_FEATURE_FPAIR32_RET = (1U << 13),
   POLY_CPUID_FEATURE_FPAIR32_ARG = (1U << 14),
-  POLY_CPUID_FEATURE_HETERO_U64_F64 = (1U << 15)
+  POLY_CPUID_FEATURE_HETERO_U64_F64 = (1U << 15),
+  POLY_CPUID_FEATURE_HETERO_F64_U64 = (1U << 16)
 };
 
 struct poly_cpuid_regs {
@@ -76,7 +77,8 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_X86_POLY_OPCODES |
     POLY_CPUID_FEATURE_FPAIR32_RET |
     POLY_CPUID_FEATURE_FPAIR32_ARG |
-    POLY_CPUID_FEATURE_HETERO_U64_F64;
+    POLY_CPUID_FEATURE_HETERO_U64_F64 |
+    POLY_CPUID_FEATURE_HETERO_F64_U64;
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
