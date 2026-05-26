@@ -188,7 +188,7 @@ static void write_u32_le(unsigned char *bytes, uint32_t value) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-import64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -204,15 +204,18 @@ int main(int argc, char **argv) {
   int dyn_symbolic = 0;
   int dyn_jump_slot = 0;
   int dyn_import = 0;
+  int dyn_import_func = 0;
   uint64_t data_value = 0;
   if (strcmp(argv[3], "--split-data64") == 0 ||
       strcmp(argv[3], "--dyn-relative64") == 0 ||
       strcmp(argv[3], "--dyn-symbol64") == 0 ||
       strcmp(argv[3], "--dyn-jump-slot64") == 0 ||
-      strcmp(argv[3], "--dyn-import64") == 0) {
+      strcmp(argv[3], "--dyn-import64") == 0 ||
+      strcmp(argv[3], "--dyn-import-func64") == 0) {
     dyn_import = strcmp(argv[3], "--dyn-import64") == 0;
+    dyn_import_func = strcmp(argv[3], "--dyn-import-func64") == 0;
     if (argc < 7 || parse_u64(argv[4], &data_value) < 0) {
-      if (!dyn_import || argc < 6) {
+      if ((!dyn_import && !dyn_import_func) || argc < 6) {
         fprintf(stderr, "mkpolyelf: bad data option usage\n");
         return 2;
       }
@@ -220,8 +223,10 @@ int main(int argc, char **argv) {
     split_data = 1;
     dyn_relative = strcmp(argv[3], "--dyn-relative64") == 0;
     dyn_symbolic = strcmp(argv[3], "--dyn-symbol64") == 0 ||
-      strcmp(argv[3], "--dyn-jump-slot64") == 0 || dyn_import;
-    dyn_jump_slot = strcmp(argv[3], "--dyn-jump-slot64") == 0;
+      strcmp(argv[3], "--dyn-jump-slot64") == 0 || dyn_import ||
+      dyn_import_func;
+    dyn_jump_slot = strcmp(argv[3], "--dyn-jump-slot64") == 0 ||
+      dyn_import_func;
     first_insn_arg = 5;
   }
   const char *export_name = NULL;
@@ -288,13 +293,14 @@ int main(int argc, char **argv) {
   const int has_dynsym = export_name || dyn_symbolic;
   const int has_sections = export_name != NULL && export_sections;
   const char data_symbol_name[] = "poly_value";
-  const char *import_symbol_name = dyn_import ? argv[4] : NULL;
-  if (dyn_import && import_symbol_name[0] == '\0') {
+  const char *import_symbol_name = (dyn_import || dyn_import_func) ?
+    argv[4] : NULL;
+  if ((dyn_import || dyn_import_func) && import_symbol_name[0] == '\0') {
     fprintf(stderr, "mkpolyelf: bad import symbol name\n");
     return 2;
   }
-  const char *reloc_symbol_name = dyn_import ? import_symbol_name :
-    data_symbol_name;
+  const char *reloc_symbol_name = (dyn_import || dyn_import_func) ?
+    import_symbol_name : data_symbol_name;
   const uint64_t export_name_offset = export_name ? 1 : 0;
   const uint64_t data_name_offset = dyn_symbolic ?
     1 + (export_name ? strlen(export_name) + 1 : 0) : 0;
@@ -534,12 +540,15 @@ int main(int argc, char **argv) {
     }
     if (dyn_symbolic) {
       symbols[data_symbol_index].st_name = (uint32_t) data_name_offset;
-      symbols[data_symbol_index].st_info = symbol_info(STB_GLOBAL, STT_OBJECT);
+      symbols[data_symbol_index].st_info = symbol_info(STB_GLOBAL,
+        dyn_import_func ? STT_FUNC : STT_OBJECT);
       symbols[data_symbol_index].st_other = 0;
-      symbols[data_symbol_index].st_shndx = dyn_import ? SHN_UNDEF :
-        data_shndx;
-      symbols[data_symbol_index].st_value = dyn_import ? 0 : data_vaddr + 8;
-      symbols[data_symbol_index].st_size = dyn_import ? 0 : 8;
+      symbols[data_symbol_index].st_shndx =
+        (dyn_import || dyn_import_func) ? SHN_UNDEF : data_shndx;
+      symbols[data_symbol_index].st_value =
+        (dyn_import || dyn_import_func) ? 0 : data_vaddr + 8;
+      symbols[data_symbol_index].st_size =
+        (dyn_import || dyn_import_func) ? 0 : 8;
     }
     if (fwrite(symbols, sizeof(struct elf64_sym), dynsym_count, out) != dynsym_count) {
       fprintf(stderr, "mkpolyelf: dynsym write failed\n");

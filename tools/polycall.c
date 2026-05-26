@@ -14,8 +14,11 @@ enum {
   MAX_DYNAMIC_RELOCS = 4096,
   RELOC_BASE_ABSOLUTE = 0,
   RELOC_BASE_LOAD_BIAS = 1,
-  RELOC_BASE_IMPORT_PAGE = 2
+  RELOC_BASE_IMPORT_PAGE = 2,
+  RELOC_BASE_IMPORT_CALL = 3
 };
+
+static const uint64_t POLY_IMPORT_CALL_COOKIE = 0xffffffffffffe000ULL;
 
 struct poly_dynamic_reloc {
   size_t offset;
@@ -435,6 +438,11 @@ static int resolve_external_reloc_symbol(const struct poly_program *program,
     *base_kind = RELOC_BASE_IMPORT_PAGE;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_add") == 0) {
+    *symbol_value = 0;
+    *base_kind = RELOC_BASE_IMPORT_CALL;
+    return 0;
+  }
 
   fprintf(stderr, "POLYCALL_FAIL: unresolved external relocation symbol=%s path=%s\n",
     symbol_name, program->path);
@@ -851,6 +859,8 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
       reloc_base = load_bias;
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_PAGE)
       reloc_base = (uint64_t) (uintptr_t) import_page;
+    else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_CALL)
+      reloc_base = POLY_IMPORT_CALL_COOKIE;
     const uint64_t reloc_value = program->relocs[n].value + reloc_base;
     write_le64(foreign + program->relocs[n].offset, reloc_value);
   }
