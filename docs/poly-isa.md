@@ -199,7 +199,8 @@ The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
 The Bochs prototype backs this with a small bounded cross-return stack and
-`polybench` covers scalar double FP cross-calls, mixed integer/FP cross-calls,
+`polybench` covers scalar double FP cross-calls, eight-register double FP
+argument pressure across `d0`-`d7`/`fa0`-`fa7`, mixed integer/FP cross-calls,
 two-register integer returns, compact `{u32,float}`/`{float,u32}` native ABI
 cross-call bridging, shared-stack cross-calls, caller callee-saved register
 preservation, syscall trap routing inside neutral callees, and a nested

@@ -591,7 +591,8 @@ memory forms `c.fld`/`c.fsd` plus `c.fldsp`/`c.fsdsp`.
 AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
 where the caller enters the other foreign frontend and the callee returns with
 ordinary native `ret`/`jalr` through a hardware cookie without routing through
-x86.  The gate also covers scalar double FP cross-calls in both directions and
+x86.  The gate also covers scalar double FP cross-calls in both directions,
+eight-register double FP argument pressure across `d0`-`d7`/`fa0`-`fa7`, and
 mixed integer/FP cross-calls where an integer argument is converted and folded
 into the FP return value across the opposite foreign frontend.  Shared-stack
 neutral cross-call probes verify an AArch64 or RISC-V caller can allocate an
