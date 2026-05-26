@@ -63,6 +63,7 @@ POLYCALL_FP64_SIGNED_CONVERT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_signed_conv
 POLYCALL_FP64_I32_CONVERT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_i32_convert_real.c"
 POLYCALL_FP64_U32_CONVERT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_u32_convert_real.c"
 POLYCALL_FP_MIXED_CONVERT_REAL_SRC="$ROOT_DIR/tools/polycall_fp_mixed_convert_real.c"
+POLYCALL_INT_FP_CONVERT_REAL_SRC="$ROOT_DIR/tools/polycall_int_fp_convert_real.c"
 POLYCALL_FP32_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_real.c"
 POLYCALL_FP32_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_mem_real.c"
 POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
@@ -318,6 +319,11 @@ build_poly_elf_payloads() {
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_INT_FP_CONVERT_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-int-fp-convert-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -ffp-contract=off \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP32_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fp32-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -440,6 +446,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP_MIXED_CONVERT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-fp-mixed-convert-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d -ffp-contract=off \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_INT_FP_CONVERT_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-int-fp-convert-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -852,6 +863,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-fp64-i32-convert-real.so#poly_entry=4 \
     /usr/lib/polyapps/aarch64-pcall-fp64-u32-convert-real.so#poly_entry=4 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp-mixed-convert-real.so#poly_entry=0x4025000000000000 \
+    fp64:/usr/lib/polyapps/aarch64-pcall-int-fp-convert-real.so#poly_entry=0x4004000000000000 \
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-real.so#poly_entry=0x41340000 \
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-mem-real.so#poly_entry=0x3f400000 \
     /usr/lib/polyapps/riscv-pcall-sum9.elf=45 \
@@ -878,6 +890,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-fp64-i32-convert-real.so#poly_entry=4 \
     /usr/lib/polyapps/riscv-pcall-fp64-u32-convert-real.so#poly_entry=4 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp-mixed-convert-real.so#poly_entry=0x4025000000000000 \
+    fp64:/usr/lib/polyapps/riscv-pcall-int-fp-convert-real.so#poly_entry=0x4004000000000000 \
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-real.so#poly_entry=0x41340000 \
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-mem-real.so#poly_entry=0x3f400000 \
     /usr/lib/polyapps/aarch64-pcall-frame.elf=45 \

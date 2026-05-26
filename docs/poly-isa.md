@@ -198,6 +198,9 @@ finite double-to-unsigned-integer conversion plus AArch64 `fcvtzs` and RISC-V
 conversion probes exercise AArch64 `fcvtzs`/`fcvtzu` `w` destinations and
 RISC-V `fcvt.w.d`/`fcvt.wu.d`. The scalar float/double conversion probes
 exercise AArch64 `fcvt s,d`/`fcvt d,s` and RISC-V `fcvt.s.d`/`fcvt.d.s`.
+The integer-to-FP conversion probes exercise compiler-emitted AArch64
+`scvtf`/`ucvtf` from GPR and scalar FP/SIMD integer sources plus RISC-V
+`fcvt.s.w`, `fcvt.d.l`, and `fcvt.d.lu`.
 The FP import probes exercise real
 PLT/GOT calls to
 `poly_import_fp64_add` and verify descriptor-dispatched FP arguments and return

@@ -270,7 +270,9 @@ and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, unary `fneg`,
 `fcmp`/`fcmpe` including zero-immediate compare, 32-bit and 64-bit signed and
 unsigned FP-to-integer conversion for finite scalar double values,
-scalar float/double `fcvt` narrowing and widening, scalar FP `ldr`/`str`,
+scalar float/double `fcvt` narrowing and widening, signed and unsigned
+integer-to-FP `scvtf`/`ucvtf` conversions from GPR and scalar FP/SIMD integer
+sources, scalar FP `ldr`/`str`,
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
@@ -287,7 +289,8 @@ byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 division `fdiv.s`/`fdiv.d` on the same mapped
 FP argument registers, FP compare `feq`/`flt`/`fle`, FP sign-injection
 `fsgnj`/`fsgnjn`/`fsgnjx` including `fneg`/`fmv`, integer-to-FP bit moves
-`fmv.w.x`/`fmv.d.x`, scalar float/double `fcvt.s.d`/`fcvt.d.s`, and FP
+`fmv.w.x`/`fmv.d.x`, signed and unsigned integer-to-FP
+`fcvt.s/d.{w,wu,l,lu}`, scalar float/double `fcvt.s.d`/`fcvt.d.s`, and FP
 `flw`/`fld`/`fsw`/`fsd` memory forms.  It also
 decodes a first RV64C compatibility subset for common
 compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
