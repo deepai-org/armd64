@@ -154,9 +154,10 @@ AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and `fence.i`
 instructions are decoded as ordering-preserving no-ops instead of introducing
 weaker AArch64/RISC-V reordering inside Bochs.
 Foreign atomic operations use the same Bochs virtual-memory path as ordinary
-foreign loads and stores.  The current prototype covers the compiler-emitted
-AArch64 exclusive and LSE atomic subset used by the test payloads plus the
-RISC-V A-extension subset.
+foreign loads and stores.  The current prototype covers compiler-emitted
+AArch64 exclusive and LSE atomics, GCC AArch64 outline atomic helper imports,
+RISC-V A-extension word/dword AMOs, and the LR.W/SC.W loops GCC emits for
+RISC-V byte and halfword atomics.
 
 The current register bridge aliases the overlapping caller-visible integer ABI:
 
@@ -466,8 +467,9 @@ The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 arithmetic, compare/register-shift and division/remainder forms,
 register-register `add`, `sub`, `mul`, `mulh`, `mulhsu`, `mulhu`, `xor`, `and`, and `or`,
 `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, generic `jalr`, selected
-byte/halfword/word/dword load-store forms, A-extension `lr`/`sc` and AMO
-word/dword forms, `fence`, `fence.i`, `ecall`,
+byte/halfword/word/dword load-store forms, A-extension `lr`/`sc`, AMO
+word/dword forms, and compiler-emitted byte/halfword LR.W/SC.W atomic loops,
+`fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
 `fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` and scalar FP
 division, square root, and fused multiply-add
