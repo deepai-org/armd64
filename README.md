@@ -88,6 +88,8 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV call to RISC-V with two-float argument | `0f 24 17 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FPAIR32ARG`: unpacks x86_64 SysV `XMM0[63:0]` into RISC-V `fa0`/`fa1` and shifts following FP argument lanes up by one foreign FP register. |
 | x86 SysV call to AArch64 with `{u64,double}` aggregate | `0f 24 18 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.HETERO_U64_F64`: maps x86_64 SysV `RDI`/`XMM0` aggregate argument lanes to AAPCS64 `x0`/`x1`, shifts the following integer argument to `x2`, and maps the returned `x0`/`x1` lanes back to x86_64 `RAX`/`XMM0`. |
 | x86 SysV call to AArch64 with `{double,u64}` aggregate | `0f 24 19 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.HETERO_F64_U64`: maps x86_64 SysV `XMM0`/`RDI` aggregate argument lanes to AAPCS64 `x0`/`x1`, shifts the following integer argument to `x2`, and maps the returned `x0`/`x1` lanes back to x86_64 `XMM0`/`RAX`. |
+| x86 SysV call to AArch64 with `{u64,float}` aggregate | `0f 24 1a 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.HETERO_U64_F32`: maps x86_64 SysV `RDI`/`XMM0[31:0]` aggregate argument lanes to AAPCS64 `x0`/`x1`, shifts the following integer argument to `x2`, and maps the returned `x0`/`x1` lanes back to x86_64 `RAX`/`XMM0[31:0]`. |
+| x86 SysV call to AArch64 with `{float,u64}` aggregate | `0f 24 1b 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.HETERO_F32_U64`: maps x86_64 SysV `XMM0[31:0]`/`RDI` aggregate argument lanes to AAPCS64 `x0`/`x1`, shifts the following integer argument to `x2`, and maps the returned `x0`/`x1` lanes back to x86_64 `XMM0[31:0]`/`RAX`. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
@@ -112,8 +114,9 @@ foreign ordering, per-thread synthetic banks, and deterministic compatibility
 syscall/libcall traps.  Bit `12` additionally advertises the prototype x86
 poly opcode family. Bit `13` advertises the two-float aggregate return packing
 variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
-argument unpacking; bits `15` and `16` advertise the `{u64,double}` and
-`{double,u64}` heterogeneous aggregate bridges for AArch64 `PCALL`.
+argument unpacking; bits `15`-`18` advertise the `{u64,double}`,
+`{double,u64}`, `{u64,float}`, and `{float,u64}` heterogeneous aggregate
+bridges for AArch64 `PCALL`.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
@@ -195,8 +198,9 @@ two-register homogeneous double aggregate arguments and returns through
 `XMM0[63:0]`, two-`float` homogeneous aggregate arguments unpacked from
 `XMM0[63:0]` into two foreign FP argument registers, including mixed integer/FP signatures where GPR and XMM lanes
 are consumed in one native call.  AArch64 also has focused bridges for common
-heterogeneous `{u64,double}` and `{double,u64}` aggregate shapes, moving double
-lanes between x86 `XMM0` and AAPCS64 integer-register bit lanes.  The bridge sets `x30` or `ra` to a return cookie, enters raw fetch at the
+heterogeneous `{u64,double}`, `{double,u64}`, `{u64,float}`, and
+`{float,u64}` aggregate shapes, moving FP lanes between x86 `XMM0` and
+AAPCS64 integer-register bit lanes.  The bridge sets `x30` or `ra` to a return cookie, enters raw fetch at the
 `R10` target, carries an optional foreign TLS block base in x86 `R13`, maps
 AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps
 AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word integer
@@ -319,7 +323,11 @@ argument objects (`aarch64-pcall-mixed-args-real.so#poly_entry` and
 aggregate objects (`aarch64-pcall-hetero-real.so#poly_entry` and
 `riscv-pcall-hetero-real.so#poly_entry`,
 `aarch64-pcall-hetero-rev-real.so#poly_entry`, and
-`riscv-pcall-hetero-rev-real.so#poly_entry`), compiler-built scalar double and
+`riscv-pcall-hetero-rev-real.so#poly_entry`,
+`aarch64-pcall-hetero32-real.so#poly_entry`,
+`riscv-pcall-hetero32-real.so#poly_entry`,
+`aarch64-pcall-hetero32-rev-real.so#poly_entry`, and
+`riscv-pcall-hetero32-rev-real.so#poly_entry`), compiler-built scalar double and
 float FP import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
 `riscv-pcall-fp64-import-real.so#poly_entry`,
 `aarch64-pcall-fp32-import-real.so#poly_entry`, and
