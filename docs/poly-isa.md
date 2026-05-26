@@ -11,7 +11,8 @@ Bochs envelopes are prototype encodings only.  A silicon or FPGA
 implementation should expose CPUID-gated x86 instructions for:
 
 - `PENTER.A64`: enter fixed-width AArch64 fetch at the next byte.
-- `PENTER.RV64`: enter fixed-width RISC-V fetch at the next byte.
+- `PENTER.RV64`: enter RISC-V fetch at the next byte, decoding both 16-bit
+  compressed and 32-bit base instructions.
 - `PEXIT`: return to x86_64 fetch without taking an exception.
 - `PCALL.A64.SYSV`: call an AArch64 AAPCS64 target from an x86_64 SysV caller.
 - `PCALL.RV64.SYSV`: call a RISC-V psABI target from an x86_64 SysV caller.

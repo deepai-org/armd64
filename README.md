@@ -4,7 +4,7 @@ This repository boots a small x86_64 Linux userspace under a modified Bochs and
 uses that guest to exercise a prototype polyglot CPU extension.  The extension
 keeps standard x86_64 execution as the host ISA, then adds synthetic userspace
 mode-switch envelopes that let selected AArch64 and RISC-V instruction streams
-run through direct fixed-width foreign fetch inside the x86_64 process.
+run through direct foreign fetch inside the x86_64 process.
 
 This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
 current implementation validates the architecture shape, Linux boot path,
@@ -60,7 +60,7 @@ All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 | --- | --- | --- |
 | Switch to x86_64 mode | `64 0f 0b 58 4d 4f 44 45` | Sets current poly mode to x86_64. |
 | Switch to raw AArch64 mode | `65 0f 0b 52 41 57 36 34` | Sets current poly mode to raw AArch64; following bytes are fetched as fixed 32-bit AArch64 instructions. |
-| Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as fixed 32-bit RISC-V instructions. |
+| Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as mixed 16/32-bit RISC-V instructions. |
 | x86 SysV call to AArch64 | `40 0f 0b 50 43 41 36 34` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
 | x86 SysV call to RISC-V | `40 0f 0b 50 43 52 56 36` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
@@ -69,8 +69,9 @@ All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 | Trap status | `36 0f 0b 54 52 41 50 <id>` | Returns last foreign trap state in `RAX`: `0=reason`, `1=source mode`, `2=number`, `3`-`8=arg0`-`arg5`, other ids return trap PC. |
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
-the x86_64 switch envelope, bypasses x86 decode, and fetches fixed 32-bit
-foreign instructions directly from `RIP`.  AArch64 `brk #0x7fff` and RISC-V
+the x86_64 switch envelope, bypasses x86 decode, and fetches foreign
+instructions directly from `RIP`: fixed 32-bit instructions for AArch64 and
+mixed 16/32-bit instructions for RISC-V.  AArch64 `brk #0x7fff` and RISC-V
 custom-0 instruction `0x0000000b` escape back to x86_64 at the next byte.  Raw
 foreign fetch is only active at guest CPL3; kernel, interrupt, and exception
 paths continue through normal x86_64 decode even if the current userspace poly
@@ -160,7 +161,10 @@ register-register `add`, `sub`, `mul`, `xor`, `and`, and `or`,
 `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, generic `jalr`, selected
 byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
-`fa0`-`fa7`.
+`fa0`-`fa7`.  It also decodes a first RV64C compatibility subset for common
+compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
+`c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.ldsp`, `c.mv`,
+`c.jr`/`c.ret`, `c.ebreak`, `c.jalr`, `c.add`, and `c.sdsp`.
 `polybench` also validates the current efficient mixed-raw path: raw AArch64
 escapes to x86_64 with `brk #0x7fff`, the next bytes immediately enter raw
 RISC-V with the `RAWRV` envelope, and the RISC-V stream escapes with custom-0.
