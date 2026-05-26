@@ -143,7 +143,9 @@ uses compiler-produced AArch64 and RISC-V shared objects
 objects (`aarch64-pcall-import-real.so#poly_entry` and
 `riscv-pcall-import-real.so#poly_entry`), compiler-produced imported-object
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
-`riscv-pcall-import-value-real.so#poly_entry`), compiler-produced relocated
+`riscv-pcall-import-value-real.so#poly_entry`), compiler-produced weak undefined
+import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
+`riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced constructor
 objects (`aarch64-pcall-ctor-real.so#poly_entry` and
@@ -313,6 +315,9 @@ includes sectionless `dyntab` probes that exercise only
 `R_RISCV_JUMP_SLOT` entries for defined symbols.
 Undefined object-symbol relocations can bind to process-provided imports; the
 gate covers `poly_import_value` through an undefined dynamic symbol relocation.
+Undefined weak object/function relocations resolve to zero, matching ordinary
+ELF optional-symbol semantics; the weak-import probes cover AArch64 weak
+`GLOB_DAT`/`JUMP_SLOT` and RISC-V weak symbolic relocations.
 Imported function symbols can bind to prototype hardware call-descriptor
 slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
 foreign argument registers through an x86/runtime import target, writes the

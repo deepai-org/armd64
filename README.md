@@ -164,7 +164,9 @@ verifies this against loaded foreign ELF64 function payloads
 objects (`aarch64-pcall-import-real.so#poly_entry` and
 `riscv-pcall-import-real.so#poly_entry`), compiler-built imported-object
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
-`riscv-pcall-import-value-real.so#poly_entry`), compiler-built relocated
+`riscv-pcall-import-value-real.so#poly_entry`), compiler-built weak undefined
+import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
+`riscv-pcall-weak-import-real.so#poly_entry`), compiler-built relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-built constructor objects
 (`aarch64-pcall-ctor-real.so#poly_entry` and
@@ -281,8 +283,9 @@ GNU `DT_GNU_HASH` symbol counts plus `DT_JMPREL`/`JUMP_SLOT` PLT relocations
 for sectionless dynamic objects, scalar double FP arguments and returns through
 the native FP register ABI, scalar double FP function imports through PLT/GOT call
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
-imports, compiler-emitted same-image function-pointer relocations and indirect
-native calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
+imports, weak undefined function/object relocations resolving to zero,
+compiler-emitted same-image function-pointer relocations and indirect native
+calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
 compiler-emitted conditional select variants and branch patterns
 (`aarch64-pcall-select-variants-real.so`,
 `riscv-pcall-select-variants-real.so`, `aarch64-pcall-import.elf`,
