@@ -594,7 +594,10 @@ shared `XMM0-XMM7`/`v0-v7`/`fa0-fa7` FP register aliases for scalar FP
 arguments and returns, synthesize an x86 return address to a nearby dedicated
 `0f 24` `PIRET` landing pad, let the helper use an ordinary `ret`, and then
 resume the saved AArch64/RISC-V return PC with the x86 `RAX` result mapped back
-to the native foreign integer return register.
+to the native foreign integer return register.  The `polycall` descriptor table
+currently targets `noinline` x86_64 C helpers compiled into the x86 guest
+binary, which verifies the call gate against compiler-generated x86 function
+bodies instead of trampoline-local handwritten byte helpers.
 A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.

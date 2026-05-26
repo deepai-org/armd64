@@ -465,7 +465,10 @@ arguments to x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, reuse the
 shared `XMM0-XMM7`/`v0-v7`/`fa0-fa7` FP register aliases for scalar FP
 arguments and returns, synthesize an x86 return address to the dedicated
 `0f 24` `PIRET`, accept each helper's ordinary `ret`, and map the x86 `RAX`
-result back to AArch64 `x0` or RISC-V `a0` for integer returns.
+result back to AArch64 `x0` or RISC-V `a0` for integer returns.  The current
+`polycall` harness points these descriptors at `noinline` x86_64 C functions
+compiled into the x86 guest binary, so the path exercises compiler-generated
+x86 function prologues/epilogues rather than handwritten helper bytecode.
 The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
 common GCC AArch64 outline

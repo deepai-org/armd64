@@ -78,6 +78,12 @@ static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
 static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 16;
 
+#if defined(__GNUC__)
+#define POLY_HOST_HELPER __attribute__((noinline, noclone, used))
+#else
+#define POLY_HOST_HELPER
+#endif
+
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
@@ -240,6 +246,27 @@ struct poly_request {
   int check_expected;
   int call_kind;
 };
+
+static POLY_HOST_HELPER uint64_t poly_host_x86_add(uint64_t a, uint64_t b) {
+  return a + b + 200;
+}
+
+static POLY_HOST_HELPER uint64_t poly_host_x86_mul(uint64_t a, uint64_t b) {
+  return a * b + 200;
+}
+
+static POLY_HOST_HELPER uint64_t poly_host_x86_sum6(uint64_t a, uint64_t b,
+    uint64_t c, uint64_t d, uint64_t e, uint64_t f) {
+  return a + b + c + d + e + f + 200;
+}
+
+static POLY_HOST_HELPER double poly_host_x86_fp64_add(double a, double b) {
+  return a + b + 200.5;
+}
+
+static POLY_HOST_HELPER float poly_host_x86_fp32_add(float a, float b) {
+  return a + b + 200.5f;
+}
 
 static int parse_u64(const char *text, uint64_t *value) {
   char *end = NULL;
@@ -2140,23 +2167,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t save_tls_size = 5;
   const size_t restore_tls_size = 5;
   const size_t tls_setup_size = 10;
-  const size_t host_add_size = 13;
-  const size_t host_mul_size = 14;
-  const size_t host_sum6_size = 25;
-  const size_t host_fp64_add_size = 21;
-  const size_t host_fp32_add_size = 17;
   const size_t pcall_return_offset = save_regs_size + save_tls_size +
     10 + 10 + tls_setup_size + import_setup_size + 8;
   const size_t main_stub_size = pcall_return_offset + restore_regs_size +
     restore_tls_size + 1;
-  const size_t host_helper_size = needs_x86_import ?
-    host_add_size + host_mul_size + host_sum6_size + host_fp64_add_size +
-    host_fp32_add_size : 0;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
   const size_t import_descriptor_size = needs_x86_import ?
     5 * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
-  const size_t stub_size = main_stub_size + host_helper_size +
-    import_return_size + import_descriptor_size;
+  const size_t stub_size = main_stub_size + import_return_size +
+    import_descriptor_size;
   const size_t code_size = stub_size;
   const size_t foreign_size = program->image_size;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -2198,15 +2217,17 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + pcall_return_offset);
-  const uint64_t import_x86_add_target = (uint64_t) (uintptr_t) (code + main_stub_size);
-  const uint64_t import_x86_mul_target = import_x86_add_target + host_add_size;
-  const uint64_t import_x86_sum6_target = import_x86_mul_target + host_mul_size;
+  const uint64_t import_x86_add_target =
+    (uint64_t) (uintptr_t) poly_host_x86_add;
+  const uint64_t import_x86_mul_target =
+    (uint64_t) (uintptr_t) poly_host_x86_mul;
+  const uint64_t import_x86_sum6_target =
+    (uint64_t) (uintptr_t) poly_host_x86_sum6;
   const uint64_t import_x86_fp64_add_target =
-    import_x86_sum6_target + host_sum6_size;
+    (uint64_t) (uintptr_t) poly_host_x86_fp64_add;
   const uint64_t import_x86_fp32_add_target =
-    import_x86_fp64_add_target + host_fp64_add_size;
-  const uint64_t import_x86_return =
-    import_x86_fp32_add_target + host_fp32_add_size;
+    (uint64_t) (uintptr_t) poly_host_x86_fp32_add;
+  const uint64_t import_x86_return = (uint64_t) (uintptr_t) (code + main_stub_size);
   const uint64_t import_x86_table = import_x86_return + import_return_size;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   if (needs_x86_import)
@@ -2266,51 +2287,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   emit_restore_tls_reg(code, &offset);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
-    const uint8_t host_add[] = {
-      0x48, 0x89, 0xf8,             // mov rax,rdi
-      0x48, 0x01, 0xf0,             // add rax,rsi
-      0x48, 0x05, 0xc8, 0x00, 0x00, 0x00, // add rax,200
-      0xc3                          // ret
-    };
-    const uint8_t host_mul[] = {
-      0x48, 0x89, 0xf8,             // mov rax,rdi
-      0x48, 0x0f, 0xaf, 0xc6,       // imul rax,rsi
-      0x48, 0x05, 0xc8, 0x00, 0x00, 0x00, // add rax,200
-      0xc3                          // ret
-    };
-    const uint8_t host_sum6[] = {
-      0x48, 0x89, 0xf8,             // mov rax,rdi
-      0x48, 0x01, 0xf0,             // add rax,rsi
-      0x48, 0x01, 0xd0,             // add rax,rdx
-      0x48, 0x01, 0xc8,             // add rax,rcx
-      0x4c, 0x01, 0xc0,             // add rax,r8
-      0x4c, 0x01, 0xc8,             // add rax,r9
-      0x48, 0x05, 0xc8, 0x00, 0x00, 0x00, // add rax,200
-      0xc3                          // ret
-    };
-    const uint8_t host_fp64_add[] = {
-      0xf2, 0x0f, 0x58, 0xc1,       // addsd xmm0,xmm1
-      0xf2, 0x0f, 0x58, 0x05, 0x01, 0x00, 0x00, 0x00, // addsd xmm0,[rip+1]
-      0xc3,                         // ret
-      0x00, 0x00, 0x00, 0x00,       // double 200.5
-      0x00, 0x10, 0x69, 0x40
-    };
-    const uint8_t host_fp32_add[] = {
-      0xf3, 0x0f, 0x58, 0xc1,       // addss xmm0,xmm1
-      0xf3, 0x0f, 0x58, 0x05, 0x01, 0x00, 0x00, 0x00, // addss xmm0,[rip+1]
-      0xc3,                         // ret
-      0x00, 0x80, 0x48, 0x43        // float 200.5
-    };
-    memcpy(code + offset, host_add, sizeof(host_add));
-    offset += sizeof(host_add);
-    memcpy(code + offset, host_mul, sizeof(host_mul));
-    offset += sizeof(host_mul);
-    memcpy(code + offset, host_sum6, sizeof(host_sum6));
-    offset += sizeof(host_sum6);
-    memcpy(code + offset, host_fp64_add, sizeof(host_fp64_add));
-    offset += sizeof(host_fp64_add);
-    memcpy(code + offset, host_fp32_add, sizeof(host_fp32_add));
-    offset += sizeof(host_fp32_add);
     const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, import_return, sizeof(import_return));
     offset += sizeof(import_return);
