@@ -270,11 +270,9 @@ static inline void raw_mixed_probe(void) {
   asm volatile(
     ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
     ".long 0x91000400\n"
-    ".long 0xd42fffe0\n"
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    ".long 0xd42fffc0\n"
     ".long 0x00550513\n"
-    ".long 0x0000000b\n"
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    ".long 0x0000002b\n"
     ".long 0x91000400\n"
     ".long 0xd42fffe0\n"
     ::: "rax", "memory");
@@ -284,10 +282,11 @@ static inline void raw_switch_stress_step(void) {
   asm volatile(
     ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
     ".long 0x91000400\n"
-    ".long 0xd42fffe0\n"
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    ".long 0xd42fffc0\n"
     ".long 0x00550513\n"
-    ".long 0x0000000b\n"
+    ".long 0x0000002b\n"
+    ".long 0x91000400\n"
+    ".long 0xd42fffe0\n"
     ::: "rax", "memory");
 }
 
@@ -452,12 +451,12 @@ int main(void) {
   write_rax(0);
   for (unsigned n = 0; n < 8; n++)
     raw_switch_stress_step();
-  if (read_rax() != 48) {
+  if (read_rax() != 56) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw switch stress result mismatch\n");
     return 1;
   }
   poly_switch_count_status();
-  if (read_rax() != switches_before + 16) {
+  if (read_rax() != switches_before + 32) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw switch count mismatch\n");
     return 1;
   }

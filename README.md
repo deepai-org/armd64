@@ -40,7 +40,8 @@ Linux ABI passthrough, or equal-speed execution.
   function imports to hardware call-descriptor slots.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
-  fetch/decode bursts, and checks one mixed raw AArch64-to-RISC-V code blob.
+  fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
+  RISC-V-to-AArch64 code blobs that switch directly without returning to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
@@ -74,7 +75,11 @@ Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 switch envelope, bypasses x86 decode, and fetches foreign
 instructions directly from `RIP`: fixed 32-bit instructions for AArch64 and
 mixed 16/32-bit instructions for RISC-V.  AArch64 `brk #0x7fff` and RISC-V
-custom-0 instruction `0x0000000b` escape back to x86_64 at the next byte.  Raw
+custom-0 instruction `0x0000000b` escape back to x86_64 at the next byte.
+AArch64 `brk #0x7ffe` switches directly to raw RISC-V, and RISC-V custom-1
+instruction `0x0000002b` switches directly to raw AArch64, preserving the
+shared low integer result/argument register state instead of routing through
+x86.  Raw
 foreign fetch is only active at guest CPL3; kernel, interrupt, and exception
 paths continue through normal x86_64 decode even if the current userspace poly
 mode is raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3

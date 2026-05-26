@@ -80,7 +80,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
 }
 
 static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 3 + 8 + 3 * 4 + 8 + 2 * 4 + 1;
+  const size_t code_size = 3 + 8 + 3 * 4 + 2 * 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -97,12 +97,48 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
   emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
-  emit_u32(code, &offset, 0xd42fffe0U); // brk #0x7fff
+  emit_u32(code, &offset, 0xd42fffc0U); // brk #0x7ffe, switch directly to RISC-V
+
+  emit_u32(code, &offset, 0x01b50513U); // addi a0,a0,27
+  emit_u32(code, &offset, 0x0000000bU); // custom-0 x86 escape
+  code[offset++] = 0xc3;
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
+  *result = entry();
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 3 + 8 + 2 * 4 + 2 * 4 + 1;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: reverse mixed mmap failed: %s\n", strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
 
   const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
-  emit_u32(code, &offset, 0x01b50513U); // addi a0,a0,27
-  emit_u32(code, &offset, 0x0000000bU); // custom-0 x86 escape
+  emit_u32(code, &offset, 0x00700513U); // addi a0,zero,7
+  emit_u32(code, &offset, 0x0000002bU); // custom-1, switch directly to AArch64
+  emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
+  emit_u32(code, &offset, 0xd42fffe0U); // brk #0x7fff, x86 escape
   code[offset++] = 0xc3;
 
   poly_foreign_insn_count_status();
@@ -144,32 +180,41 @@ static int check_loop(const char *name, int arch) {
   return 0;
 }
 
-static int check_mixed(void) {
+static int check_mixed_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
   uint64_t insn_delta = 0;
   uint64_t switch_delta = 0;
-  if (run_mixed_program(&result, &insn_delta, &switch_delta) < 0)
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
     return -1;
 
-  printf("POLYBENCH_MIXED_RESULT: result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
-    (unsigned long long) result, (unsigned long long) insn_delta,
+  printf("POLYBENCH_MIXED_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
     (unsigned long long) switch_delta);
 
   if (result != 42) {
-    fprintf(stderr, "POLYBENCH_FAIL: mixed raw result expected 42 got %llu\n",
-      (unsigned long long) result);
+    fprintf(stderr, "POLYBENCH_FAIL: mixed %s result expected 42 got %llu\n",
+      name, (unsigned long long) result);
     return -1;
   }
-  if (insn_delta < 5) {
-    fprintf(stderr, "POLYBENCH_FAIL: mixed raw instruction delta expected at least 5 got %llu\n",
-      (unsigned long long) insn_delta);
+  if (insn_delta < 4) {
+    fprintf(stderr, "POLYBENCH_FAIL: mixed %s raw instruction delta expected at least 4 got %llu\n",
+      name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 2) {
-    fprintf(stderr, "POLYBENCH_FAIL: mixed switch delta expected at least 2 got %llu\n",
-      (unsigned long long) switch_delta);
+  if (switch_delta < 3) {
+    fprintf(stderr, "POLYBENCH_FAIL: mixed %s switch delta expected at least 3 got %llu\n",
+      name, (unsigned long long) switch_delta);
     return -1;
   }
+  return 0;
+}
+
+static int check_mixed(void) {
+  if (check_mixed_direction("aarch64-to-riscv", run_mixed_program) < 0)
+    return -1;
+  if (check_mixed_direction("riscv-to-aarch64", run_reverse_mixed_program) < 0)
+    return -1;
   return 0;
 }
 

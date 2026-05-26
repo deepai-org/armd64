@@ -59,6 +59,20 @@ invasive way to prototype the frontend switch:
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
 
+Raw foreign modes also have native frontend-switch encodings so x86 is not the
+only routing hub:
+
+- AArch64 `brk #0x7fff`: exit raw AArch64 and resume x86_64 decode.
+- AArch64 `brk #0x7ffe`: switch directly from raw AArch64 to raw RISC-V at
+  the next byte.
+- RISC-V custom-0 `0x0000000b`: exit raw RISC-V and resume x86_64 decode.
+- RISC-V custom-1 `0x0000002b`: switch directly from raw RISC-V to raw
+  AArch64 at the next byte.
+
+These native switches preserve the shared low integer register aliases, so
+`x0`/`a0`/`RAX` can carry a value through AArch64-to-RISC-V or
+RISC-V-to-AArch64 code without an x86 trampoline.
+
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register
 fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` plus stack
