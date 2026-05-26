@@ -171,7 +171,9 @@ double FP conversion objects (`aarch64-pcall-fp64-convert-real.so#poly_entry` an
 objects (`aarch64-pcall-fp64-i32-convert-real.so#poly_entry`,
 `riscv-pcall-fp64-i32-convert-real.so#poly_entry`,
 `aarch64-pcall-fp64-u32-convert-real.so#poly_entry`, and
-`riscv-pcall-fp64-u32-convert-real.so#poly_entry`), and compiler-produced scalar
+`riscv-pcall-fp64-u32-convert-real.so#poly_entry`) plus scalar float/double
+conversion objects (`aarch64-pcall-fp-mixed-convert-real.so#poly_entry` and
+`riscv-pcall-fp-mixed-convert-real.so#poly_entry`), and compiler-produced scalar
 float FP objects (`aarch64-pcall-fp32-real.so#poly_entry` and
 `riscv-pcall-fp32-real.so#poly_entry`) plus compiler-produced scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
@@ -194,7 +196,9 @@ exercise compiler-emitted AArch64 `fcvtzu` and RISC-V `fcvt.lu.d` for positive
 finite double-to-unsigned-integer conversion plus AArch64 `fcvtzs` and RISC-V
 `fcvt.l.d` for finite double-to-signed-integer conversion. The 32-bit FP
 conversion probes exercise AArch64 `fcvtzs`/`fcvtzu` `w` destinations and
-RISC-V `fcvt.w.d`/`fcvt.wu.d`. The FP import probes exercise real
+RISC-V `fcvt.w.d`/`fcvt.wu.d`. The scalar float/double conversion probes
+exercise AArch64 `fcvt s,d`/`fcvt d,s` and RISC-V `fcvt.s.d`/`fcvt.d.s`.
+The FP import probes exercise real
 PLT/GOT calls to
 `poly_import_fp64_add` and verify descriptor-dispatched FP arguments and return
 values. The imported-object probes exercise real compiler-emitted GOT loads of

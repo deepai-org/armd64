@@ -194,7 +194,9 @@ FP conversion objects (`aarch64-pcall-fp64-convert-real.so#poly_entry` and
 objects (`aarch64-pcall-fp64-i32-convert-real.so#poly_entry`,
 `riscv-pcall-fp64-i32-convert-real.so#poly_entry`,
 `aarch64-pcall-fp64-u32-convert-real.so#poly_entry`, and
-`riscv-pcall-fp64-u32-convert-real.so#poly_entry`), compiler-built scalar float FP
+`riscv-pcall-fp64-u32-convert-real.so#poly_entry`) plus scalar float/double
+conversion objects (`aarch64-pcall-fp-mixed-convert-real.so#poly_entry` and
+`riscv-pcall-fp-mixed-convert-real.so#poly_entry`), compiler-built scalar float FP
 objects (`aarch64-pcall-fp32-real.so#poly_entry` and
 `riscv-pcall-fp32-real.so#poly_entry`), compiler-built scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
@@ -267,7 +269,8 @@ condition-code branch `b.cond`, register branch and call `br`/`blr`,
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, unary `fneg`,
 `fcmp`/`fcmpe` including zero-immediate compare, 32-bit and 64-bit signed and
-unsigned FP-to-integer conversion for finite scalar double values, scalar FP `ldr`/`str`,
+unsigned FP-to-integer conversion for finite scalar double values,
+scalar float/double `fcvt` narrowing and widening, scalar FP `ldr`/`str`,
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
@@ -284,7 +287,8 @@ byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 division `fdiv.s`/`fdiv.d` on the same mapped
 FP argument registers, FP compare `feq`/`flt`/`fle`, FP sign-injection
 `fsgnj`/`fsgnjn`/`fsgnjx` including `fneg`/`fmv`, integer-to-FP bit moves
-`fmv.w.x`/`fmv.d.x`, and FP `flw`/`fld`/`fsw`/`fsd` memory forms.  It also
+`fmv.w.x`/`fmv.d.x`, scalar float/double `fcvt.s.d`/`fcvt.d.s`, and FP
+`flw`/`fld`/`fsw`/`fsd` memory forms.  It also
 decodes a first RV64C compatibility subset for common
 compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
 `c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.ldsp`, `c.mv`,
