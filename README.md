@@ -394,7 +394,8 @@ The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 common GCC AArch64 outline
 atomic helper imports used by default compiler output:
 `__aarch64_ldadd8_acq_rel`, `__aarch64_swp8_acq_rel`,
-`__aarch64_ldset4_relax`, and `__aarch64_cas8_acq_rel`.
+`__aarch64_ldset4_relax`, `__aarch64_cas8_acq_rel`, and
+`__aarch64_cas4_acq_rel`.
 More complex ABI cases such as arbitrary external import target descriptors,
 heterogeneous register aggregates, variadic calls, dynamic-loader TLS module
 allocation across multiple DSOs, unwind, and exceptions still need full

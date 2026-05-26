@@ -1,6 +1,7 @@
 static unsigned long counter = 41;
 static unsigned int word_counter = 9;
 static unsigned long cas_value = 99;
+static unsigned int cas_word_value = 19;
 
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
@@ -13,7 +14,11 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
   unsigned long expected = 99;
   int ok = __atomic_compare_exchange_n(&cas_value, &expected, c + 100, 0,
       __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+  unsigned int word_expected = 19;
+  int word_ok = __atomic_compare_exchange_n(&cas_word_value, &word_expected,
+      (unsigned int) c + 20, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
 
   return old + prev + counter + word_counter + wold + cas_value +
-    (unsigned long) ok + expected;
+    (unsigned long) ok + expected + (unsigned long) word_ok +
+    word_expected + cas_word_value;
 }
