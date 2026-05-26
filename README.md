@@ -204,6 +204,7 @@ verifies this against loaded foreign ELF64 function payloads
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`,
 `riscv-pcall-sum9.elf`, and compiler-produced AArch64/RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
+`riscv-pcall-real-rv64gc.so#poly_entry`,
 `aarch64-pcall-gnu-hash-real.so#poly_entry`,
 `riscv-pcall-gnu-hash-real.so#poly_entry`,
 `aarch64-pcall-state.so#poly_entry`, and

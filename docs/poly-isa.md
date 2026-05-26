@@ -236,6 +236,7 @@ lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
+`riscv-pcall-real-rv64gc.so#poly_entry`,
 `aarch64-pcall-gnu-hash-real.so#poly_entry`,
 `riscv-pcall-gnu-hash-real.so#poly_entry`,
 `aarch64-pcall-state.so#poly_entry`, and
