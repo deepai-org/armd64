@@ -16,6 +16,7 @@ enum {
   POLY_ARCH_RISCV = 2,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
+  POLY_CALL_FP32 = 2,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   RELOC_BASE_ABSOLUTE = 0,
@@ -89,6 +90,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   request->call_kind = POLY_CALL_U64;
   if (strncmp(arg, "fp64:", 5) == 0) {
     request->call_kind = POLY_CALL_FP64;
+    arg += 5;
+  }
+  else if (strncmp(arg, "fp32:", 5) == 0) {
+    request->call_kind = POLY_CALL_FP32;
     arg += 5;
   }
   const char *expected = strchr(arg, '=');
@@ -976,6 +981,16 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     fp_result.d = entry(1.5, 2.25, 3.0);
     return fp_result.u;
   }
+  if (call_kind == POLY_CALL_FP32) {
+    union {
+      float f;
+      uint32_t u;
+    } fp_result;
+    float (*entry)(float, float, float) =
+      (float (*)(float, float, float)) code;
+    fp_result.f = entry(1.5f, 2.25f, 3.0f);
+    return fp_result.u;
+  }
 
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
     (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
@@ -1124,6 +1139,16 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     fp_result.d = entry(1.5, 2.25, 3.0);
     *result = fp_result.u;
   }
+  else if (call_kind == POLY_CALL_FP32) {
+    union {
+      float f;
+      uint32_t u;
+    } fp_result;
+    float (*entry)(float, float, float) =
+      (float (*)(float, float, float)) code;
+    fp_result.f = entry(1.5f, 2.25f, 3.0f);
+    *result = fp_result.u;
+  }
   else {
     uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
       (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
@@ -1179,6 +1204,10 @@ int main(int argc, char **argv) {
       program.arch_name, (unsigned long long) result, program.path);
     if (request.call_kind == POLY_CALL_FP64) {
       printf("POLYCALL_RESULT_FP64: arch=%s bits=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_FP32) {
+      printf("POLYCALL_RESULT_FP32: arch=%s bits=0x%08llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.check_expected) {

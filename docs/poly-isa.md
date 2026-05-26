@@ -148,7 +148,9 @@ stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`) plus compiler-produced scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
-`riscv-pcall-fp64-import-real.so#poly_entry`). Nonzero `poly_entry` symbol
+`riscv-pcall-fp64-import-real.so#poly_entry`) and compiler-produced scalar
+float FP objects (`aarch64-pcall-fp32-real.so#poly_entry` and
+`riscv-pcall-fp32-real.so#poly_entry`). Nonzero `poly_entry` symbol
 offsets for the dynamic-relocation probes ensure symbol resolution, not the ELF
 entrypoint, selects the target. The stateful `.so` probes exercise
 compiler-emitted access to writable static data in a separate RW `PT_LOAD`. The
