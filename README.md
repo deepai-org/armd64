@@ -106,7 +106,7 @@ runtime dispatch:
 | `0x40000000` | `EAX=0x40000002`, `EBX:EDX:ECX="PolyglotCPU!"` | Advertises the maximum poly CPUID leaf and the 12-byte poly vendor string. |
 | `0x40000001` | `EAX=1`, `EBX=mode mask`, `ECX=feature mask`, `EDX=0` | Reports poly CPUID ABI version 1, supported frontend modes, implemented prototype features, and no architectural XSAVE component yet. |
 | `0x40000002, subleaf 0` | `EAX[15:0]=0x7fff`, `EAX[31:16]=0x7ffe`, `EBX=0x7ffd`, `ECX=0x0000000b`, `EDX=0x0000002b` | Reports native raw-mode escape/cross-switch encodings: AArch64-to-x86, AArch64-to-RISC-V switch, AArch64-to-RISC-V call, RISC-V-to-x86, and RISC-V-to-AArch64 switch. |
-| `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=ECX=EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding. |
+| `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=0x0000107b`, `ECX=0x0000207b`, `EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding and compact `{u32,float}`/`{float,u32}` native ABI cross-call variants. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -119,7 +119,9 @@ variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
 argument unpacking; bits `15`-`18` advertise the `{u64,double}`,
 `{double,u64}`, `{u64,float}`, and `{float,u64}` heterogeneous aggregate
 bridges for AArch64 `PCALL`; bits `19`-`20` advertise the RISC-V
-`{u32,float}` and `{float,u32}` compact aggregate bridges.  The same
+`{u32,float}` and `{float,u32}` compact aggregate bridges; bit `21` advertises
+the corresponding neutral AArch64<->RISC-V compact aggregate cross-call
+bridges.  The same
 double-lane bridge forms also cover the ABI-compatible `{u32,double}` and
 `{double,u32}` shapes.
 
@@ -134,7 +136,9 @@ shared low integer result/argument register state instead of routing through
 x86.  AArch64 `brk #0x7ffd` is a prototype neutral call gate to a RISC-V target
 address in `x16` with an AArch64 return PC in `x17`; RISC-V custom-2
 `0x0000005b` is the reverse call gate to an AArch64 target in `x5` with a
-RISC-V return PC in `x6`.  The callee returns with its ordinary native return
+RISC-V return PC in `x6`.  AArch64 `brk #0x7ffc`/`brk #0x7ffb` and RISC-V
+custom opcodes `0x0000107b`/`0x0000207b` are compact `{u32,float}` and
+`{float,u32}` native ABI variants for direct AArch64<->RISC-V calls.  The callee returns with its ordinary native return
 instruction to a hardware cookie, which restores the caller frontend mode and
 maps the shared integer and scalar FP argument/result registers back.  Raw
 cross-call returns use a small bounded hardware-style return stack in the
@@ -211,7 +215,9 @@ native ABI layouts because x86 SysV, AAPCS64, and RISC-V psABI keep the
 integer lane in the same logical argument/result position with narrower
 low-bit payloads.  RISC-V also has focused compact aggregate bridges for
 `{u32,float}` and `{float,u32}`, where x86 SysV and AAPCS64 use one packed GPR
-but RISC-V psABI splits the same value across `a0` and `fa0`.  The bridge sets `x30` or `ra` to a return cookie, enters raw fetch at the
+but RISC-V psABI splits the same value across `a0` and `fa0`.  The neutral
+AArch64<->RISC-V cross-call opcodes have matching compact aggregate variants,
+so those packed/split mappings do not need an x86 rendezvous.  The bridge sets `x30` or `ra` to a return cookie, enters raw fetch at the
 `R10` target, carries an optional foreign TLS block base in x86 `R13`, maps
 AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps
 AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word integer

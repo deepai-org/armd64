@@ -138,7 +138,7 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`20` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`21` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, and deterministic compatibility
@@ -146,8 +146,9 @@ discover the experimental hardware contract before emitting poly operations:
   aggregate return packing, two-float aggregate argument unpacking, and
   `{u64,double}`/`{double,u64}`/`{u64,float}`/`{float,u64}` heterogeneous
   aggregate bridging for native ABI `PCALL`, plus RISC-V `{u32,float}` and
-  `{float,u32}` compact aggregate bridges.  The double-lane bridge forms also
-  cover ABI-compatible `{u32,double}` and `{double,u32}` shapes.
+  `{float,u32}` compact aggregate bridges and matching neutral
+  AArch64<->RISC-V compact aggregate cross-calls.  The double-lane bridge
+  forms also cover ABI-compatible `{u32,double}` and `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
@@ -158,7 +159,10 @@ discover the experimental hardware contract before emitting poly operations:
   `ECX=0x0000000b` means RISC-V custom-0 exits to x86_64; and
   `EDX=0x0000002b` means RISC-V custom-1 switches to AArch64.
 - `CPUID.EAX=0x40000002, ECX=1`: `EAX=0x0000005b` reports the RISC-V
-  custom-2 AArch64 cross-call encoding.  Other registers are reserved zero.
+  custom-2 AArch64 cross-call encoding, `EBX=0x0000107b` reports the RISC-V
+  compact `{u32,float}` AArch64 cross-call encoding, and `ECX=0x0000207b`
+  reports the compact `{float,u32}` variant.  Other registers are reserved
+  zero.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:
@@ -168,11 +172,19 @@ only routing hub:
   the next byte.
 - AArch64 `brk #0x7ffd`: call a raw RISC-V target held in `x16`, saving an
   AArch64 continuation from `x17`.
+- AArch64 `brk #0x7ffc`: call a raw RISC-V target with a compact
+  `{u32,float}` native ABI bridge between packed `x0` and split `a0`/`fa0`.
+- AArch64 `brk #0x7ffb`: call a raw RISC-V target with a compact
+  `{float,u32}` native ABI bridge between packed `x0` and split `fa0`/`a0`.
 - RISC-V custom-0 `0x0000000b`: exit raw RISC-V and resume x86_64 decode.
 - RISC-V custom-1 `0x0000002b`: switch directly from raw RISC-V to raw
   AArch64 at the next byte.
 - RISC-V custom-2 `0x0000005b`: call a raw AArch64 target held in `x5`,
   saving a RISC-V continuation from `x6`.
+- RISC-V custom `0x0000107b`: call a raw AArch64 target with a compact
+  `{u32,float}` native ABI bridge between split `a0`/`fa0` and packed `x0`.
+- RISC-V custom `0x0000207b`: call a raw AArch64 target with a compact
+  `{float,u32}` native ABI bridge between split `fa0`/`a0` and packed `x0`.
 
 These native switches preserve the shared low integer register aliases, so
 `x0`/`a0`/`RAX` can carry a value through AArch64-to-RISC-V or
@@ -183,9 +195,10 @@ to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
 The Bochs prototype backs this with a small bounded cross-return stack and
 `polybench` covers scalar double FP cross-calls, mixed integer/FP cross-calls,
-two-register integer returns, shared-stack cross-calls, caller callee-saved
-register preservation, syscall trap routing inside neutral callees, and a
-nested AArch64 -> RISC-V -> AArch64 call chain.  The stack probes use the
+two-register integer returns, compact `{u32,float}`/`{float,u32}` native ABI
+cross-call bridging, shared-stack cross-calls, caller callee-saved register
+preservation, syscall trap routing inside neutral callees, and a nested
+AArch64 -> RISC-V -> AArch64 call chain.  The stack probes use the
 caller's real user `sp`: the caller allocates and restores an aligned slot,
 while the opposite foreign frontend reads it through ordinary native stack
 addressing.  The callee-saved probes keep AArch64 `x19` or RISC-V `s0` live
@@ -238,7 +251,9 @@ integer-register bit lanes; the double-lane bridge forms also cover
 integer payloads stay in the same argument/result lanes.  RISC-V additionally
 has focused compact aggregate bridges for `{u32,float}` and `{float,u32}`,
 where x86 SysV and AAPCS64 keep the aggregate packed in one GPR but RISC-V
-psABI splits it across `a0` and `fa0`;
+psABI splits it across `a0` and `fa0`; the native AArch64<->RISC-V cross-call
+opcodes include the same compact bridge so neutral calls do not have to route
+through x86;
 and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
 saved x86 continuation, maps AArch64 `x0` or RISC-V `a0` back to x86 `RAX`,

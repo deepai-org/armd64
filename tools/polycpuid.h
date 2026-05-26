@@ -16,9 +16,13 @@ enum {
   POLY_AARCH64_BRK_X86_ESCAPE = 0x7fff,
   POLY_AARCH64_BRK_RISCV_SWITCH = 0x7ffe,
   POLY_AARCH64_BRK_RISCV_CALL = 0x7ffd,
+  POLY_AARCH64_BRK_RISCV_CALL_COMPACT_U32_F32 = 0x7ffc,
+  POLY_AARCH64_BRK_RISCV_CALL_COMPACT_F32_U32 = 0x7ffb,
   POLY_RISCV_X86_ESCAPE = 0x0000000b,
   POLY_RISCV_AARCH64_SWITCH = 0x0000002b,
   POLY_RISCV_AARCH64_CALL = 0x0000005b,
+  POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32 = 0x0000107b,
+  POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32 = 0x0000207b,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
   POLY_CPUID_FEATURE_NEUTRAL_SWITCH = (1U << 2),
@@ -39,7 +43,8 @@ enum {
   POLY_CPUID_FEATURE_HETERO_U64_F32 = (1U << 17),
   POLY_CPUID_FEATURE_HETERO_F32_U64 = (1U << 18),
   POLY_CPUID_FEATURE_COMPACT_U32_F32 = (1U << 19),
-  POLY_CPUID_FEATURE_COMPACT_F32_U32 = (1U << 20)
+  POLY_CPUID_FEATURE_COMPACT_F32_U32 = (1U << 20),
+  POLY_CPUID_FEATURE_NEUTRAL_COMPACT = (1U << 21)
 };
 
 struct poly_cpuid_regs {
@@ -86,7 +91,8 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_HETERO_U64_F32 |
     POLY_CPUID_FEATURE_HETERO_F32_U64 |
     POLY_CPUID_FEATURE_COMPACT_U32_F32 |
-    POLY_CPUID_FEATURE_COMPACT_F32_U32;
+    POLY_CPUID_FEATURE_COMPACT_F32_U32 |
+    POLY_CPUID_FEATURE_NEUTRAL_COMPACT;
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
@@ -102,8 +108,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf1(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_RISCV_AARCH64_CALL;
-  regs.ebx = 0;
-  regs.ecx = 0;
+  regs.ebx = POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32;
+  regs.ecx = POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32;
   regs.edx = 0;
   return regs;
 }
