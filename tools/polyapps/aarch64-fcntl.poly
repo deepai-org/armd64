@@ -1,0 +1,8 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-fcntl.elf
+expected=0
+syscall_expected=3
+syscall_number_expected=25
+libcall_id=0
+libcall_expected=0x4c000300

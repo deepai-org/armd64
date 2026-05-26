@@ -499,13 +499,13 @@ The Bochs compatibility runtime handles selected foreign Linux syscall traps
 deterministically after recording the architectural trap.  Supported syscall
 numbers currently include:
 
-- Scalar/process syscalls: `faccessat`, `set_tid_address`, `futex`,
-  `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `getpid`, `getppid`,
-  `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`, `getpgid(0)`,
-  `getsid(0)`, and `exit`.
+- Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
+  `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `getpid`,
+  `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
+  `getpgid(0)`, `getsid(0)`, and `exit`.
 - File-style syscalls: `getcwd`, `read`, `readv`, `write`, `writev`,
-  `openat`, `readlinkat`, `newfstatat`, `fstat`, `close`, `lseek`, and
-  `uname`.
+  `openat`, `readlinkat`, `newfstatat`, `fstat`, `close`, `getdents64`,
+  `lseek`, and `uname`.
 - Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
   `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`, `munmap`,
   `mprotect`, `madvise`, and `mmap`.

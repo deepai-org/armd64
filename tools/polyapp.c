@@ -12,7 +12,8 @@ enum {
   POLY_ARCH_RISCV = 2,
   POLY_LIBCALL_STATUS = 0,
   MAX_PROGRAM_BYTES = 1024 * 1024,
-  SCRATCH_SIZE = 16
+  SCRATCH_SIZE = 64,
+  SCRATCH_CHECK_SIZE = 16
 };
 
 struct payload {
@@ -25,8 +26,8 @@ struct payload {
   uint64_t syscall_number_expected;
   uint64_t libcall_expected;
   uint64_t libcall_number_expected;
-  char scratch_expected[SCRATCH_SIZE + 1];
-  char scratch_hex_expected[SCRATCH_SIZE * 2 + 1];
+  char scratch_expected[SCRATCH_CHECK_SIZE + 1];
+  char scratch_hex_expected[SCRATCH_CHECK_SIZE * 2 + 1];
   uint32_t *insns;
   size_t insn_count;
   size_t insn_capacity;
@@ -315,7 +316,7 @@ static int load_payload(const char *path, struct payload *payload) {
       }
       payload->check_libcall_number = 1;
     } else if (strncmp(line, "scratch_expected=", 17) == 0) {
-      if (strlen(line + 17) > SCRATCH_SIZE) {
+      if (strlen(line + 17) > SCRATCH_CHECK_SIZE) {
         fprintf(stderr, "POLYAPP_FAIL: scratch expected value too long in %s\n", path);
         fclose(file);
         return -1;
@@ -324,7 +325,7 @@ static int load_payload(const char *path, struct payload *payload) {
       payload->check_scratch = 1;
     } else if (strncmp(line, "scratch_hex_expected=", 21) == 0) {
       size_t hex_len = strlen(line + 21);
-      if (hex_len != SCRATCH_SIZE * 2 || !is_hex_string(line + 21)) {
+      if (hex_len != SCRATCH_CHECK_SIZE * 2 || !is_hex_string(line + 21)) {
         fprintf(stderr, "POLYAPP_FAIL: bad scratch hex expected value in %s\n", path);
         fclose(file);
         return -1;
@@ -375,7 +376,7 @@ static void free_payload(struct payload *payload) {
   payload->insn_capacity = 0;
 }
 
-static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_SIZE + 1], char scratch_hex_result[SCRATCH_SIZE * 2 + 1]) {
+static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_CHECK_SIZE + 1], char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
   const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 1 : 2;
   const size_t code_size = 3 + 8 + (return_setup_insns + payload->insn_count) * 4 + 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -426,13 +427,13 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
     poly_libcall_number_status();
     *libcall_number_result = read_rax();
   }
-  memcpy(scratch_result, scratch, SCRATCH_SIZE);
-  scratch_result[SCRATCH_SIZE] = '\0';
-  for (size_t n = 0; n < SCRATCH_SIZE; n++) {
+  memcpy(scratch_result, scratch, SCRATCH_CHECK_SIZE);
+  scratch_result[SCRATCH_CHECK_SIZE] = '\0';
+  for (size_t n = 0; n < SCRATCH_CHECK_SIZE; n++) {
     scratch_hex_result[n * 2] = hex_digit((unsigned char) scratch[n] >> 4);
     scratch_hex_result[n * 2 + 1] = hex_digit((unsigned char) scratch[n]);
   }
-  scratch_hex_result[SCRATCH_SIZE * 2] = '\0';
+  scratch_hex_result[SCRATCH_CHECK_SIZE * 2] = '\0';
   poly_mode_x86();
   munmap(code, code_size);
   return 0;
@@ -459,8 +460,8 @@ int main(int argc, char **argv) {
     uint64_t syscall_number_result = 0;
     uint64_t libcall_result = 0;
     uint64_t libcall_number_result = 0;
-    char scratch_result[SCRATCH_SIZE + 1];
-    char scratch_hex_result[SCRATCH_SIZE * 2 + 1];
+    char scratch_result[SCRATCH_CHECK_SIZE + 1];
+    char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1];
     if (emit_and_run(&payload, &result, &syscall_result, &syscall_number_result, &libcall_result, &libcall_number_result, scratch_result, scratch_hex_result) < 0) {
       free_payload(&payload);
       return 1;
