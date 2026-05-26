@@ -429,8 +429,9 @@ atomic probes exercise compiler-emitted exclusive `ldxr`/`ldaxr` plus
 `stxr`/`stlxr`, `clrex`, 8-, 16-, 32-, and 64-bit LSE `ldadd`, `swp`,
 `ldclr`, `ldeor`, `ldset`, and `cas`, and GCC outline atomic helper imports
 for default compiler output. The RISC-V atomic probe exercises
-compiler-emitted `amoadd.d`, `amoswap.d`, `amoor.w`, `lr.d`, and `sc.d` forms
-from C `__atomic` builtins. The integer indexed-memory probes
+compiler-emitted `amoadd`, `amoswap`, `amoand`, `amoxor`, and `amoor` word and
+dword forms plus `lr.d`/`sc.d` from C `__atomic` builtins. The integer
+indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later, scalar float
