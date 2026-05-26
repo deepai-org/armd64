@@ -289,7 +289,7 @@ The direct-fetch AArch64 path covers the generated/probed subset used by
 immediate and shifted-register forms, shifted-register
 `add`/`sub`/`mul`/`eor`/`and`/`orr`, extended-register `add`/`sub` forms,
 unsigned bitfield aliases `uxtb`/`uxth`/`lsl`/`lsr`/`ubfx`,
-bitfield signed-extension aliases `sxtb`/`sxth`/`sxtw`,
+signed bitfield aliases `sxtb`/`sxth`/`sxtw`/`asr`/`sbfx`,
 unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, conditional select `csel`/`csinc`/`csinv`/`csneg`,

@@ -230,8 +230,8 @@ compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
 non-`x0` registers and RISC-V ordinary branch forms. The unsigned-bitfield
 probes exercise compiler-emitted AArch64 `lsl`/`ubfx` aliases and RISC-V
 shift/mask sequences. The signed-extension probes exercise compiler-emitted
-AArch64 `sxth` plus `add ... sxtb/sxtw` and
-RISC-V signed byte/halfword/word loads. The integer indexed-memory probes
+AArch64 `sxth`, `sbfx`, plus `add ... asr/sxtb/sxth/sxtw` and
+RISC-V signed byte/halfword/word arithmetic. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. It also
 includes sectionless `dyntab` probes that exercise only
