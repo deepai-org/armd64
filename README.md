@@ -465,7 +465,8 @@ binding of undefined function and object-symbol relocations to dependency
 text/data, weak undefined relocations binding to dependency exports when
 present, direct-dependency symbol interposition ahead of transitive dependencies
 when symbols collide, recursive loading of dependency libraries' own `DT_NEEDED`
-entries,
+entries, and dependency sets larger than the original four-library prototype
+limit,
 plus dependency library dynamic relocations before those dependency calls
 execute,
 dependency `DT_INIT_ARRAY` constructor execution before entering dependent
