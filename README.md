@@ -178,7 +178,9 @@ objects (`aarch64-pcall-signed-load-real.so#poly_entry` and
 objects (`aarch64-pcall-int-div-real.so#poly_entry` and
 `riscv-pcall-int-div-real.so#poly_entry`), compiler-built integer multiply-add
 objects (`aarch64-pcall-int-madd-real.so#poly_entry` and
-`riscv-pcall-int-madd-real.so#poly_entry`), compiler-built unscaled-memory
+`riscv-pcall-int-madd-real.so#poly_entry`), compiler-built integer high-multiply
+objects (`aarch64-pcall-int-highmul-real.so#poly_entry` and
+`riscv-pcall-int-highmul-real.so#poly_entry`), compiler-built unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -299,7 +301,7 @@ The direct-fetch AArch64 path covers the generated/probed subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `adrp`, `movz`, `movn`,
 `movk`, `add`/`sub` immediate forms including `SP`, flag-setting `adds`/`subs`
 immediate and shifted-register forms, shifted-register
-`add`/`sub`/`mul`/`madd`/`msub`/`udiv`/`sdiv`/`eor`/`and`/`orr`, extended-register `add`/`sub` forms,
+`add`/`sub`/`mul`/`madd`/`msub`/`umulh`/`smulh`/`udiv`/`sdiv`/`eor`/`and`/`orr`, extended-register `add`/`sub` forms,
 unsigned bitfield aliases `uxtb`/`uxth`/`lsl`/`lsr`/`ubfx`,
 signed bitfield aliases `sxtb`/`sxth`/`sxtw`/`asr`/`sbfx`,
 unconditional branch and call `b`/`bl`,
@@ -326,7 +328,7 @@ The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM
 `addi`, `xori`, `ori`, `andi`, `slli`, `srli`, and `srai`, RV64 word
 arithmetic, compare/register-shift and division/remainder forms,
-register-register `add`, `sub`, `mul`, `xor`, `and`, and `or`,
+register-register `add`, `sub`, `mul`, `mulh`, `mulhsu`, `mulhu`, `xor`, `and`, and `or`,
 `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, generic `jalr`, selected
 byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
