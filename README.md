@@ -26,9 +26,9 @@ Linux ABI passthrough, or equal-speed execution.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace mode/status
   envelopes and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
-  register state, native returns, mixed raw instruction streams, repeated
-  mixed-mode switch stress, mixed libcalls, mixed syscalls, and status/counter
-  markers.
+  register state, shared foreign stack-pointer frame handling, native returns,
+  mixed raw instruction streams, repeated mixed-mode switch stress, mixed
+  libcalls, mixed syscalls, and status/counter markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly` by entering raw foreign mode, executing packed
   32-bit foreign instructions, and escaping back to x86_64.  The manifest path

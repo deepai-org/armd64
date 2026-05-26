@@ -111,6 +111,22 @@ static inline void raw_aarch64_sp_probe(void) {
     ::: "rax", "rdx", "rsi", "rdi", "memory");
 }
 
+static inline void raw_riscv_sp_probe(void) {
+  asm volatile(
+    "movq $17, %%rax\n"
+    "movq $25, %%rdi\n"
+    ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".long 0xff010113\n" // addi sp,sp,-16
+    ".long 0x00a13023\n" // sd a0,0(sp)
+    ".long 0x00b13423\n" // sd a1,8(sp)
+    ".long 0x00013603\n" // ld a2,0(sp)
+    ".long 0x00813683\n" // ld a3,8(sp)
+    ".long 0x00d60533\n" // add a0,a2,a3
+    ".long 0x01010113\n" // addi sp,sp,16
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rdx", "rsi", "rdi", "memory");
+}
+
 static inline void raw_aarch64_wide_regs_probe(void) {
   asm volatile(
     ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
@@ -479,12 +495,21 @@ int main(void) {
     return 1;
   }
 
-  stage("POLY_STAGE: aarch64-sp");
+  stage("POLY_STAGE: foreign-sp");
   uint64_t rsp_before = read_rsp();
   raw_aarch64_sp_probe();
   uint64_t rsp_after = read_rsp();
   if (read_rax() != 42 || rsp_after != rsp_before) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 SP frame mismatch result=%llu rsp_before=0x%llx rsp_after=0x%llx\n",
+      (unsigned long long) read_rax(), (unsigned long long) rsp_before,
+      (unsigned long long) rsp_after);
+    return 1;
+  }
+  rsp_before = read_rsp();
+  raw_riscv_sp_probe();
+  rsp_after = read_rsp();
+  if (read_rax() != 42 || rsp_after != rsp_before) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv SP frame mismatch result=%llu rsp_before=0x%llx rsp_after=0x%llx\n",
       (unsigned long long) read_rax(), (unsigned long long) rsp_before,
       (unsigned long long) rsp_after);
     return 1;
