@@ -13,6 +13,7 @@ extern char *strrchr(const char *, int);
 extern char *strstr(const char *, const char *);
 extern char *strcpy(char *, const char *);
 extern char *strncpy(char *, const char *, size_t);
+extern size_t strnlen(const char *, size_t);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -67,6 +68,12 @@ static char *call_strncpy(char *dest, const char *src, size_t count)
   return strncpy(dest, src, count);
 }
 
+__attribute__((noinline))
+static size_t call_strnlen(const char *base, size_t maxlen)
+{
+  return strnlen(base, maxlen);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -111,6 +118,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char *substring_not_found = call_strstr(buffer, "z");
   char *copy_result = call_strcpy(copied, buffer);
   char *ncopy_result = call_strncpy(ncopy, "xy", 5);
+  size_t bounded_len = call_strnlen(buffer, 4);
+  size_t full_bounded_len = call_strnlen(buffer, 16);
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
@@ -138,5 +147,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (ncopy_result == ncopy ? 1900 : 19000) +
     (ncopy_prefix_same == 0 ? 2000 : 20000) +
     (ncopy[5] == 0x55 ? 2100 : 21000) +
+    (bounded_len == 4 ? 2200 : 22000) +
+    (full_bounded_len == len ? 2300 : 23000) +
     (unsigned char) buffer[0];
 }
