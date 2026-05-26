@@ -186,7 +186,9 @@ division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and
 unary/zero-compare objects (`aarch64-pcall-fp64-unary-real.so#poly_entry` and
 `riscv-pcall-fp64-unary-real.so#poly_entry`), compiler-built scalar double FP
 indexed-memory objects (`aarch64-pcall-fp64-indexed-mem-real.so#poly_entry` and
-`riscv-pcall-fp64-indexed-mem-real.so#poly_entry`), compiler-built scalar float FP
+`riscv-pcall-fp64-indexed-mem-real.so#poly_entry`), compiler-built scalar double
+FP conversion objects (`aarch64-pcall-fp64-convert-real.so#poly_entry` and
+`riscv-pcall-fp64-convert-real.so#poly_entry`), compiler-built scalar float FP
 objects (`aarch64-pcall-fp32-real.so#poly_entry` and
 `riscv-pcall-fp32-real.so#poly_entry`), compiler-built scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
@@ -258,7 +260,8 @@ condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, unary `fneg`,
-`fcmp`/`fcmpe` including zero-immediate compare, scalar FP `ldr`/`str`,
+`fcmp`/`fcmpe` including zero-immediate compare, unsigned FP-to-integer
+conversion for positive finite scalar double values, scalar FP `ldr`/`str`,
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
