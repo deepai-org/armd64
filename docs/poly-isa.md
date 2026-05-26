@@ -633,6 +633,9 @@ before those dependency calls execute.
 The harness builds direct plus transitive dependency sets with five loaded
 foreign libraries, covering dependency trees beyond the original four-library
 prototype cap.
+`DT_RUNPATH` is preferred over `DT_RPATH` when present, and `$ORIGIN/...`
+entries are used to resolve same-package dependency subdirectories before a
+missing needed library fails to load.
 Dependency `DT_INIT_ARRAY` constructors run before entering dependent foreign
 code, and dependency `DT_FINI_ARRAY` destructors run during teardown. The
 `depfini:` harness mode verifies dependency finalizers by calling an exported

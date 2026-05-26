@@ -345,6 +345,7 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_WEAK_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-weak-import-real.so"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyneeded-leaf-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -371,11 +372,13 @@ build_poly_elf_payloads() {
     -Wl,-soname,libpolyneeded-extra-b-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_NEEDED_EXTRA_REAL_SRC" \
-    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyneeded-extra-b-aarch64.so"
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps/libpolyneeded-extra-b-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/polydeps' \
     "$POLYCALL_NEEDED_MAIN_REAL_SRC" \
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps" \
     -Wl,--no-as-needed -l:libpolyneeded-aarch64.so \
     -Wl,--no-as-needed -l:libpolyneeded-override-aarch64.so \
     -Wl,--no-as-needed -l:libpolyneeded-extra-a-aarch64.so \
@@ -805,6 +808,7 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_WEAK_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-weak-import-real.so"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolyneeded-leaf-riscv.so -Wl,--hash-style=sysv \
@@ -836,12 +840,14 @@ build_poly_elf_payloads() {
     -Wl,-soname,libpolyneeded-extra-b-riscv.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_NEEDED_EXTRA_REAL_SRC" \
-    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyneeded-extra-b-riscv.so"
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps/libpolyneeded-extra-b-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/polydeps' \
     "$POLYCALL_NEEDED_MAIN_REAL_SRC" \
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps" \
     -Wl,--no-as-needed -l:libpolyneeded-riscv.so \
     -Wl,--no-as-needed -l:libpolyneeded-override-riscv.so \
     -Wl,--no-as-needed -l:libpolyneeded-extra-a-riscv.so \

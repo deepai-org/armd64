@@ -1314,6 +1314,70 @@ static int build_needed_path(const char *owner_path, const char *needed,
   return 0;
 }
 
+static int build_origin_path(const char *owner_path, const char *suffix,
+    size_t suffix_len, const char *needed, char *out, size_t out_size) {
+  const char *slash = strrchr(owner_path, '/');
+  const size_t dir_len = slash ? (size_t) (slash - owner_path) : 0;
+  const size_t needed_len = strlen(needed);
+  const int suffix_has_slash = suffix_len != 0 && suffix[suffix_len - 1] == '/';
+  const size_t sep_len = suffix_len == 0 || suffix_has_slash ? 0 : 1;
+  if (dir_len + suffix_len + sep_len + needed_len + 1 > out_size)
+    return -1;
+  if (dir_len != 0)
+    memcpy(out, owner_path, dir_len);
+  if (suffix_len != 0)
+    memcpy(out + dir_len, suffix, suffix_len);
+  if (sep_len != 0)
+    out[dir_len + suffix_len] = '/';
+  memcpy(out + dir_len + suffix_len + sep_len, needed, needed_len + 1);
+  return 0;
+}
+
+static int build_runpath_needed_path(const char *owner_path,
+    const char *runpath, size_t runpath_len, const char *needed,
+    char *out, size_t out_size) {
+  if (!runpath || runpath_len == 0 || needed[0] == '/')
+    return -1;
+
+  size_t start = 0;
+  while (start < runpath_len) {
+    size_t end = start;
+    while (end < runpath_len && runpath[end] != ':')
+      end++;
+    const char *entry = runpath + start;
+    const size_t entry_len = end - start;
+    start = end + 1;
+    if (entry_len == 0)
+      continue;
+
+    int built = -1;
+    if (entry_len >= 7 && memcmp(entry, "$ORIGIN", 7) == 0) {
+      built = build_origin_path(owner_path, entry + 7, entry_len - 7,
+        needed, out, out_size);
+    }
+    else if (entry_len >= 9 && memcmp(entry, "${ORIGIN}", 9) == 0) {
+      built = build_origin_path(owner_path, entry + 9, entry_len - 9,
+        needed, out, out_size);
+    }
+    else if (entry[0] == '/') {
+      const size_t needed_len = strlen(needed);
+      const int entry_has_slash = entry[entry_len - 1] == '/';
+      const size_t sep_len = entry_has_slash ? 0 : 1;
+      if (entry_len + sep_len + needed_len + 1 <= out_size) {
+        memcpy(out, entry, entry_len);
+        if (sep_len != 0)
+          out[entry_len] = '/';
+        memcpy(out + entry_len + sep_len, needed, needed_len + 1);
+        built = 0;
+      }
+    }
+
+    if (built == 0 && access(out, R_OK) == 0)
+      return 0;
+  }
+  return -1;
+}
+
 static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     const char *origin_path, const uint8_t *image, size_t image_size,
     uint64_t base_vaddr, const Elf64_Dyn *dyn, size_t dyn_count,
@@ -1532,6 +1596,8 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     size_t needed_depth) {
   uint64_t strtab_vaddr = 0;
   uint64_t strsz = 0;
+  uint64_t rpath_offset = 0;
+  uint64_t runpath_offset = 0;
   for (size_t n = 0; n < dyn_count; n++) {
     switch (dyn[n].d_tag) {
       case DT_NULL:
@@ -1542,6 +1608,12 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
         break;
       case DT_STRSZ:
         strsz = dyn[n].d_un.d_val;
+        break;
+      case DT_RPATH:
+        rpath_offset = dyn[n].d_un.d_val;
+        break;
+      case DT_RUNPATH:
+        runpath_offset = dyn[n].d_un.d_val;
         break;
       default:
         break;
@@ -1555,6 +1627,21 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
         &strtab_offset) < 0)
     return 0;
   const char *strings = (const char *) (image + strtab_offset);
+  const uint64_t search_path_offset = runpath_offset ? runpath_offset :
+    rpath_offset;
+  const char *search_path = NULL;
+  size_t search_path_len = 0;
+  if (search_path_offset != 0 && search_path_offset < strsz) {
+    const void *end = memchr(strings + search_path_offset, '\0',
+      (size_t) (strsz - search_path_offset));
+    if (!end) {
+      fprintf(stderr, "POLYCALL_FAIL: bad DT_RUNPATH/DT_RPATH string: %s\n",
+        origin_path);
+      return -1;
+    }
+    search_path = strings + search_path_offset;
+    search_path_len = (size_t) ((const char *) end - search_path);
+  }
 
   for (size_t n = 0; n < dyn_count; n++) {
     if (dyn[n].d_tag == DT_NULL)
@@ -1572,7 +1659,10 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
 
     char needed_path[MAX_DEP_PATH];
     if (build_needed_path(origin_path, strings + needed_offset,
-          needed_path, sizeof(needed_path)) < 0) {
+          needed_path, sizeof(needed_path)) < 0 ||
+        (access(needed_path, R_OK) != 0 &&
+         build_runpath_needed_path(origin_path, search_path, search_path_len,
+           strings + needed_offset, needed_path, sizeof(needed_path)) < 0)) {
       fprintf(stderr, "POLYCALL_FAIL: bad DT_NEEDED path: %s\n",
         origin_path);
       return -1;
