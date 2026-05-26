@@ -11,12 +11,19 @@ enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   MAX_PROGRAM_BYTES = 1024 * 1024,
-  MAX_RELATIVE_RELOCS = 4096
+  MAX_DYNAMIC_RELOCS = 4096
 };
 
-struct poly_relative_reloc {
+struct poly_dynamic_reloc {
   size_t offset;
-  uint64_t addend;
+  uint64_t value;
+};
+
+struct poly_symbol_table {
+  const Elf64_Sym *symbols;
+  size_t symbol_count;
+  const char *strings;
+  size_t strings_size;
 };
 
 struct poly_program {
@@ -29,7 +36,7 @@ struct poly_program {
   size_t entry_offset;
   uint64_t base_vaddr;
   size_t loaded_bytes;
-  struct poly_relative_reloc *relocs;
+  struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
 };
 
@@ -248,15 +255,24 @@ static uint32_t relative_reloc_type_for_arch(int arch) {
   return UINT32_MAX;
 }
 
-static int append_relative_reloc(struct poly_program *program, size_t offset,
-    uint64_t addend) {
-  if (program->reloc_count >= MAX_RELATIVE_RELOCS) {
-    fprintf(stderr, "POLYCALL_FAIL: too many relative relocations: %s\n",
+static int symbolic_64_reloc_type_for_arch(int arch, uint32_t type) {
+  if (arch == POLY_ARCH_AARCH64)
+    return type == R_AARCH64_ABS64 || type == R_AARCH64_GLOB_DAT ||
+      type == R_AARCH64_JUMP_SLOT;
+  if (arch == POLY_ARCH_RISCV)
+    return type == R_RISCV_64 || type == R_RISCV_JUMP_SLOT;
+  return 0;
+}
+
+static int append_dynamic_reloc(struct poly_program *program, size_t offset,
+    uint64_t value) {
+  if (program->reloc_count >= MAX_DYNAMIC_RELOCS) {
+    fprintf(stderr, "POLYCALL_FAIL: too many dynamic relocations: %s\n",
       program->path);
     return -1;
   }
 
-  struct poly_relative_reloc *relocs = realloc(program->relocs,
+  struct poly_dynamic_reloc *relocs = realloc(program->relocs,
     (program->reloc_count + 1) * sizeof(*program->relocs));
   if (!relocs) {
     fprintf(stderr, "POLYCALL_FAIL: out of memory reading relocations: %s\n",
@@ -265,12 +281,73 @@ static int append_relative_reloc(struct poly_program *program, size_t offset,
   }
   program->relocs = relocs;
   program->relocs[program->reloc_count].offset = offset;
-  program->relocs[program->reloc_count].addend = addend;
+  program->relocs[program->reloc_count].value = value;
   program->reloc_count++;
   return 0;
 }
 
-static int load_dynamic_relative_relocs(struct poly_program *program,
+static int load_dynsym_from_sections(const unsigned char *data, size_t size,
+    const Elf64_Ehdr *ehdr, struct poly_symbol_table *table) {
+  memset(table, 0, sizeof(*table));
+  if (ehdr->e_shentsize < sizeof(Elf64_Shdr) ||
+      check_elf_table(ehdr->e_shoff, ehdr->e_shnum, ehdr->e_shentsize, size) < 0)
+    return -1;
+
+  const Elf64_Shdr *sections = (const Elf64_Shdr *) (data + ehdr->e_shoff);
+  for (uint16_t n = 0; n < ehdr->e_shnum; n++) {
+    const Elf64_Shdr *symtab = &sections[n];
+    if (symtab->sh_type != SHT_DYNSYM)
+      continue;
+    if (symtab->sh_entsize < sizeof(Elf64_Sym) ||
+        symtab->sh_link >= ehdr->e_shnum ||
+        symtab->sh_offset > size ||
+        symtab->sh_size > size - symtab->sh_offset ||
+        symtab->sh_size % symtab->sh_entsize != 0)
+      return -1;
+
+    const Elf64_Shdr *strtab = &sections[symtab->sh_link];
+    if (strtab->sh_type != SHT_STRTAB ||
+        strtab->sh_offset > size ||
+        strtab->sh_size > size - strtab->sh_offset)
+      return -1;
+
+    table->symbols = (const Elf64_Sym *) (data + symtab->sh_offset);
+    table->symbol_count = (size_t) (symtab->sh_size / symtab->sh_entsize);
+    table->strings = (const char *) (data + strtab->sh_offset);
+    table->strings_size = (size_t) strtab->sh_size;
+    return 0;
+  }
+  return -1;
+}
+
+static int resolve_defined_reloc_symbol(const struct poly_program *program,
+    const struct poly_symbol_table *table, uint64_t symbol_index,
+    uint64_t *symbol_value) {
+  if (!table->symbols || symbol_index >= table->symbol_count) {
+    fprintf(stderr, "POLYCALL_FAIL: relocation symbol table missing: %s\n",
+      program->path);
+    return -1;
+  }
+
+  const Elf64_Sym *sym = &table->symbols[symbol_index];
+  if (sym->st_shndx == SHN_UNDEF || sym->st_name >= table->strings_size) {
+    fprintf(stderr, "POLYCALL_FAIL: unsupported external relocation symbol=%llu path=%s\n",
+      (unsigned long long) symbol_index, program->path);
+    return -1;
+  }
+  size_t symbol_offset = 0;
+  if (elf_vaddr_to_image_offset(program, sym->st_value, 1, &symbol_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: relocation symbol escaped image: %s\n",
+      program->path);
+    return -1;
+  }
+
+  *symbol_value = sym->st_value;
+  return 0;
+}
+
+static int load_dynamic_relocs(struct poly_program *program,
+    const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
     const Elf64_Dyn *dyn, size_t dyn_count) {
   uint64_t rela_vaddr = 0;
   uint64_t rela_size = 0;
@@ -327,12 +404,33 @@ static int load_dynamic_relative_relocs(struct poly_program *program,
   const Elf64_Rela *rela = (const Elf64_Rela *) (program->image + rela_offset);
   const size_t rela_count = (size_t) (rela_size / sizeof(Elf64_Rela));
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
+  struct poly_symbol_table dynsym;
+  memset(&dynsym, 0, sizeof(dynsym));
   for (size_t n = 0; n < rela_count; n++) {
-    if (ELF64_R_SYM(rela[n].r_info) != 0 ||
-        ELF64_R_TYPE(rela[n].r_info) != relative_type) {
+    const uint64_t symbol_index = ELF64_R_SYM(rela[n].r_info);
+    const uint32_t reloc_type = ELF64_R_TYPE(rela[n].r_info);
+    uint64_t reloc_value = 0;
+    if (symbol_index == 0 && reloc_type == relative_type) {
+      reloc_value = (uint64_t) rela[n].r_addend;
+    }
+    else if (symbol_index != 0 &&
+        symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
+      if (!dynsym.symbols &&
+          load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: symbolic relocations require .dynsym: %s\n",
+          program->path);
+        return -1;
+      }
+      uint64_t symbol_value = 0;
+      if (resolve_defined_reloc_symbol(program, &dynsym, symbol_index,
+            &symbol_value) < 0)
+        return -1;
+      reloc_value = symbol_value + (uint64_t) rela[n].r_addend;
+    }
+    else {
       fprintf(stderr, "POLYCALL_FAIL: unsupported dynamic relocation type=%llu sym=%llu path=%s\n",
-        (unsigned long long) ELF64_R_TYPE(rela[n].r_info),
-        (unsigned long long) ELF64_R_SYM(rela[n].r_info),
+        (unsigned long long) reloc_type,
+        (unsigned long long) symbol_index,
         program->path);
       return -1;
     }
@@ -343,8 +441,7 @@ static int load_dynamic_relative_relocs(struct poly_program *program,
         program->path);
       return -1;
     }
-    if (append_relative_reloc(program, relocation_offset,
-          (uint64_t) rela[n].r_addend) < 0)
+    if (append_dynamic_reloc(program, relocation_offset, reloc_value) < 0)
       return -1;
   }
   return 0;
@@ -480,7 +577,7 @@ static int load_elf_program(const char *path, const char *symbol_name,
       free(data);
       return -1;
     }
-    if (load_dynamic_relative_relocs(program,
+    if (load_dynamic_relocs(program, data, size, ehdr,
           (const Elf64_Dyn *) (program->image + dynamic_offset),
           (size_t) (dynamic_size / sizeof(Elf64_Dyn))) < 0) {
       free(program->relocs);
@@ -544,7 +641,7 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
       return -1;
     }
     write_le64(foreign + program->relocs[n].offset,
-      load_bias + program->relocs[n].addend);
+      load_bias + program->relocs[n].value);
   }
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);

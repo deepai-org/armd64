@@ -19,7 +19,9 @@ enum {
   PF_R = 4,
   PT_DYNAMIC = 2,
   PT_LOAD = 1,
+  R_AARCH64_ABS64 = 257,
   R_AARCH64_RELATIVE = 1027,
+  R_RISCV_64 = 2,
   R_RISCV_RELATIVE = 3,
   SHF_ALLOC = 2,
   SHF_EXECINSTR = 4,
@@ -30,7 +32,10 @@ enum {
   SHT_PROGBITS = 1,
   SHT_RELA = 4,
   SHT_STRTAB = 3,
+  STB_LOCAL = 0,
   STB_GLOBAL = 1,
+  STT_NOTYPE = 0,
+  STT_OBJECT = 1,
   STT_FUNC = 2
 };
 
@@ -131,6 +136,14 @@ static uint32_t relative_reloc_type_for_machine(int machine) {
   return 0;
 }
 
+static uint32_t symbolic_reloc_type_for_machine(int machine) {
+  if (machine == EM_AARCH64)
+    return R_AARCH64_ABS64;
+  if (machine == EM_RISCV)
+    return R_RISCV_64;
+  return 0;
+}
+
 static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
@@ -141,7 +154,7 @@ static unsigned char symbol_info(unsigned bind, unsigned type) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE] [--export NAME|--export-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE] [--export NAME|--export-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -154,15 +167,18 @@ int main(int argc, char **argv) {
   int first_insn_arg = 3;
   int split_data = 0;
   int dyn_relative = 0;
+  int dyn_symbolic = 0;
   uint64_t data_value = 0;
   if (strcmp(argv[3], "--split-data64") == 0 ||
-      strcmp(argv[3], "--dyn-relative64") == 0) {
+      strcmp(argv[3], "--dyn-relative64") == 0 ||
+      strcmp(argv[3], "--dyn-symbol64") == 0) {
     if (argc < 7 || parse_u64(argv[4], &data_value) < 0) {
       fprintf(stderr, "mkpolyelf: bad data option usage\n");
       return 2;
     }
     split_data = 1;
     dyn_relative = strcmp(argv[3], "--dyn-relative64") == 0;
+    dyn_symbolic = strcmp(argv[3], "--dyn-symbol64") == 0;
     first_insn_arg = 5;
   }
   const char *export_name = NULL;
@@ -190,10 +206,11 @@ int main(int argc, char **argv) {
     return 2;
   }
 
+  const int dyn_image = dyn_relative || dyn_symbolic;
   const uint64_t text_offset = 0x1000;
-  const uint64_t text_vaddr = dyn_relative ? 0 : 0x400000;
+  const uint64_t text_vaddr = dyn_image ? 0 : 0x400000;
   const uint64_t data_offset = 0x3000;
-  const uint64_t data_vaddr = dyn_relative ? 0x2000 : 0x402000;
+  const uint64_t data_vaddr = dyn_image ? 0x2000 : 0x402000;
   const uint64_t dynamic_offset = data_offset + 0x100;
   const uint64_t dynamic_vaddr = data_vaddr + 0x100;
   const uint64_t rela_offset = data_offset + 0x200;
@@ -203,12 +220,22 @@ int main(int argc, char **argv) {
     fprintf(stderr, "mkpolyelf: export offset is outside aligned text\n");
     return 2;
   }
-  const uint64_t data_size = dyn_relative ? 0x200 + sizeof(struct elf64_rela) :
+  const uint64_t data_size = dyn_image ? 0x200 + sizeof(struct elf64_rela) :
     (split_data ? 8 : 0);
+  const int has_sections = export_name || dyn_symbolic;
+  const char data_symbol_name[] = "poly_value";
+  const uint64_t export_name_offset = export_name ? 1 : 0;
+  const uint64_t data_name_offset = dyn_symbolic ?
+    1 + (export_name ? strlen(export_name) + 1 : 0) : 0;
+  const uint64_t dynsym_count = 1 + (export_name ? 1 : 0) +
+    (dyn_symbolic ? 1 : 0);
+  const uint64_t data_symbol_index = 1 + (export_name ? 1 : 0);
   const uint64_t dynsym_offset = 0x5000;
-  const uint64_t dynsym_size = 2 * sizeof(struct elf64_sym);
+  const uint64_t dynsym_size = dynsym_count * sizeof(struct elf64_sym);
   const uint64_t dynstr_offset = dynsym_offset + dynsym_size;
-  const uint64_t dynstr_size = export_name ? strlen(export_name) + 2 : 0;
+  const uint64_t dynstr_size = has_sections ?
+    1 + (export_name ? strlen(export_name) + 1 : 0) +
+    (dyn_symbolic ? sizeof(data_symbol_name) : 0) : 0;
   const uint64_t shstr_offset = align_up_u64(dynstr_offset + dynstr_size, 8);
   const char shstrtab[] = "\0.text\0.data\0.dynamic\0.rela.dyn\0.dynsym\0.dynstr\0.shstrtab\0";
   const uint64_t shstr_size = sizeof(shstrtab);
@@ -220,7 +247,7 @@ int main(int argc, char **argv) {
   const uint16_t dynsym_shndx = 5;
   const uint16_t dynstr_shndx = 6;
   const uint16_t shstr_shndx = 7;
-  const uint16_t shnum = export_name ? 8 : 0;
+  const uint16_t shnum = has_sections ? 8 : 0;
 
   FILE *out = fopen(argv[2], "wb");
   if (!out) {
@@ -237,18 +264,18 @@ int main(int argc, char **argv) {
   ehdr.e_ident[4] = 2;
   ehdr.e_ident[5] = 1;
   ehdr.e_ident[6] = EV_CURRENT;
-  ehdr.e_type = dyn_relative ? ET_DYN : ET_EXEC;
+  ehdr.e_type = dyn_image ? ET_DYN : ET_EXEC;
   ehdr.e_machine = (uint16_t) machine;
   ehdr.e_version = EV_CURRENT;
   ehdr.e_entry = text_vaddr;
   ehdr.e_phoff = sizeof(ehdr);
-  ehdr.e_shoff = export_name ? shoff : 0;
+  ehdr.e_shoff = has_sections ? shoff : 0;
   ehdr.e_ehsize = sizeof(ehdr);
   ehdr.e_phentsize = sizeof(struct elf64_phdr);
-  ehdr.e_phnum = dyn_relative ? 3 : (split_data ? 2 : 1);
-  ehdr.e_shentsize = export_name ? sizeof(struct elf64_shdr) : 0;
+  ehdr.e_phnum = dyn_image ? 3 : (split_data ? 2 : 1);
+  ehdr.e_shentsize = has_sections ? sizeof(struct elf64_shdr) : 0;
   ehdr.e_shnum = shnum;
-  ehdr.e_shstrndx = export_name ? shstr_shndx : 0;
+  ehdr.e_shstrndx = has_sections ? shstr_shndx : 0;
 
   struct elf64_phdr phdrs[3];
   memset(phdrs, 0, sizeof(phdrs));
@@ -270,7 +297,7 @@ int main(int argc, char **argv) {
     phdrs[1].p_memsz = data_size;
     phdrs[1].p_align = 0x1000;
   }
-  if (dyn_relative) {
+  if (dyn_image) {
     phdrs[2].p_type = PT_DYNAMIC;
     phdrs[2].p_flags = PF_R | PF_W;
     phdrs[2].p_offset = dynamic_offset;
@@ -322,13 +349,13 @@ int main(int argc, char **argv) {
     }
     unsigned char bytes[8];
     for (unsigned n = 0; n < sizeof(bytes); n++)
-      bytes[n] = dyn_relative ? 0 : (unsigned char) ((data_value >> (n * 8)) & 0xff);
+      bytes[n] = dyn_image ? 0 : (unsigned char) ((data_value >> (n * 8)) & 0xff);
     if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
       fprintf(stderr, "mkpolyelf: data write failed\n");
       fclose(out);
       return 1;
     }
-    if (dyn_relative) {
+    if (dyn_image) {
       for (unsigned n = 0; n < sizeof(bytes); n++)
         bytes[n] = (unsigned char) ((data_value >> (n * 8)) & 0xff);
       if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
@@ -366,8 +393,15 @@ int main(int argc, char **argv) {
       struct elf64_rela rela;
       memset(&rela, 0, sizeof(rela));
       rela.r_offset = data_vaddr;
-      rela.r_info = (uint64_t) relative_reloc_type_for_machine(machine);
-      rela.r_addend = (int64_t) (data_vaddr + 8);
+      if (dyn_symbolic) {
+        rela.r_info = (data_symbol_index << 32) |
+          symbolic_reloc_type_for_machine(machine);
+        rela.r_addend = 0;
+      }
+      else {
+        rela.r_info = (uint64_t) relative_reloc_type_for_machine(machine);
+        rela.r_addend = (int64_t) (data_vaddr + 8);
+      }
       if (fwrite(&rela, sizeof(rela), 1, out) != 1) {
         fprintf(stderr, "mkpolyelf: rela write failed\n");
         fclose(out);
@@ -376,21 +410,32 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (export_name) {
+  if (has_sections) {
     if (fseek(out, (long) dynsym_offset, SEEK_SET) != 0) {
       fprintf(stderr, "mkpolyelf: dynsym seek failed\n");
       fclose(out);
       return 1;
     }
-    struct elf64_sym symbols[2];
+    struct elf64_sym symbols[3];
     memset(symbols, 0, sizeof(symbols));
-    symbols[1].st_name = 1;
-    symbols[1].st_info = symbol_info(STB_GLOBAL, STT_FUNC);
-    symbols[1].st_other = 0;
-    symbols[1].st_shndx = text_shndx;
-    symbols[1].st_value = text_vaddr + export_offset;
-    symbols[1].st_size = text_size - export_offset;
-    if (fwrite(symbols, sizeof(symbols), 1, out) != 1) {
+    symbols[0].st_info = symbol_info(STB_LOCAL, STT_NOTYPE);
+    if (export_name) {
+      symbols[1].st_name = (uint32_t) export_name_offset;
+      symbols[1].st_info = symbol_info(STB_GLOBAL, STT_FUNC);
+      symbols[1].st_other = 0;
+      symbols[1].st_shndx = text_shndx;
+      symbols[1].st_value = text_vaddr + export_offset;
+      symbols[1].st_size = text_size - export_offset;
+    }
+    if (dyn_symbolic) {
+      symbols[data_symbol_index].st_name = (uint32_t) data_name_offset;
+      symbols[data_symbol_index].st_info = symbol_info(STB_GLOBAL, STT_OBJECT);
+      symbols[data_symbol_index].st_other = 0;
+      symbols[data_symbol_index].st_shndx = data_shndx;
+      symbols[data_symbol_index].st_value = data_vaddr + 8;
+      symbols[data_symbol_index].st_size = 8;
+    }
+    if (fwrite(symbols, sizeof(struct elf64_sym), dynsym_count, out) != dynsym_count) {
       fprintf(stderr, "mkpolyelf: dynsym write failed\n");
       fclose(out);
       return 1;
@@ -401,8 +446,19 @@ int main(int argc, char **argv) {
       fclose(out);
       return 1;
     }
-    if (fputc('\0', out) == EOF ||
+    if (fputc('\0', out) == EOF) {
+      fprintf(stderr, "mkpolyelf: dynstr write failed\n");
+      fclose(out);
+      return 1;
+    }
+    if (export_name &&
         fwrite(export_name, strlen(export_name) + 1, 1, out) != 1) {
+      fprintf(stderr, "mkpolyelf: dynstr write failed\n");
+      fclose(out);
+      return 1;
+    }
+    if (dyn_symbolic &&
+        fwrite(data_symbol_name, sizeof(data_symbol_name), 1, out) != 1) {
       fprintf(stderr, "mkpolyelf: dynstr write failed\n");
       fclose(out);
       return 1;

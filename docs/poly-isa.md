@@ -78,14 +78,16 @@ The `polycall` guest tool maps foreign ELF64 `PT_LOAD` segments into a single
 in-memory image before entering raw mode, so page-relative code can address
 separate text/data load segments rather than only inline instruction blobs. The
 gate covers both AArch64 `adrp`/`ldr` and RISC-V `auipc`/`ld` split-load
-payloads. `polycall` also accepts simple `ET_DYN` images with `R_AARCH64_RELATIVE`
-or `R_RISCV_RELATIVE` relocations and applies those relocations with the actual
-runtime load bias before `PCALL`; symbolic dynamic relocations remain out of
-scope for this prototype. A `path#symbol` `polycall` request resolves exported
-function symbols from ELF symbol tables before issuing `PCALL`, matching how a
-real cross-ISA linker would identify a library function entrypoint. The gate
-uses nonzero `poly_entry` symbol offsets for the dynamic-relocation probes so
-symbol resolution, not the ELF entrypoint, selects the target.
+payloads. `polycall` also accepts simple `ET_DYN` images with
+`R_AARCH64_RELATIVE` or `R_RISCV_RELATIVE` relocations and same-image symbolic
+64-bit dynamic relocations (`R_AARCH64_ABS64` or `R_RISCV_64`), applying them
+with the actual runtime load bias before `PCALL`; external imported symbol
+binding remains out of scope for this prototype. A `path#symbol` `polycall`
+request resolves exported function symbols from ELF symbol tables before
+issuing `PCALL`, matching how a real cross-ISA linker would identify a library
+function entrypoint. The gate uses nonzero `poly_entry` symbol offsets for the
+dynamic-relocation probes so symbol resolution, not the ELF entrypoint, selects
+the target.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:
