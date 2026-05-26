@@ -393,13 +393,11 @@ The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
 common GCC AArch64 outline
 atomic helper imports used by default compiler output:
-`__aarch64_ldadd8_acq_rel`, `__aarch64_ldadd4_acq_rel`, `__aarch64_swp8_acq_rel`,
-`__aarch64_swp4_acq_rel`,
-`__aarch64_ldclr8_acq_rel`, `__aarch64_ldclr4_acq_rel`,
-`__aarch64_ldeor8_acq_rel`, `__aarch64_ldeor4_acq_rel`,
-`__aarch64_ldset8_acq_rel`, `__aarch64_ldset4_acq_rel`,
-`__aarch64_ldset4_relax`, `__aarch64_cas8_acq_rel`, and
-`__aarch64_cas4_acq_rel`.
+32-bit and 64-bit `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`
+helpers with `relax`, `acq`, `rel`, and `acq_rel` suffixes.  The loader
+aliases these suffixes to the same operation descriptor because the prototype
+defines foreign atomic memory ordering in terms of the x86-TSO execution
+model.
 More complex ABI cases such as arbitrary external import target descriptors,
 heterogeneous register aggregates, variadic calls, dynamic-loader TLS module
 allocation across multiple DSOs, unwind, and exceptions still need full

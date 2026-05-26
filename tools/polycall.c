@@ -485,6 +485,62 @@ static uint32_t irelative_reloc_type_for_arch(int arch) {
 
 static const uint64_t poly_import_value = 123;
 
+static int aarch64_outline_atomic_name_matches(const char *symbol_name,
+    const char *op_name, unsigned width) {
+  static const char *const order_suffixes[] = {
+    "relax", "acq", "rel", "acq_rel"
+  };
+  char prefix[32];
+  int written = snprintf(prefix, sizeof(prefix), "__aarch64_%s%u_",
+    op_name, width);
+
+  if (written < 0 || (size_t) written >= sizeof(prefix))
+    return 0;
+  if (strncmp(symbol_name, prefix, (size_t) written) != 0)
+    return 0;
+
+  const char *order = symbol_name + written;
+  for (size_t i = 0; i < sizeof(order_suffixes) / sizeof(order_suffixes[0]);
+       i++) {
+    if (strcmp(order, order_suffixes[i]) == 0)
+      return 1;
+  }
+
+  return 0;
+}
+
+static int resolve_aarch64_outline_atomic_import(const char *symbol_name,
+    uint64_t *symbol_value) {
+  static const struct {
+    const char *op_name;
+    unsigned width;
+    uint64_t import_id;
+  } imports[] = {
+    { "ldadd", 8, POLY_IMPORT_FUNC_AARCH64_LDADD8_ACQ_REL },
+    { "ldadd", 4, POLY_IMPORT_FUNC_AARCH64_LDADD4_ACQ_REL },
+    { "swp", 8, POLY_IMPORT_FUNC_AARCH64_SWP8_ACQ_REL },
+    { "swp", 4, POLY_IMPORT_FUNC_AARCH64_SWP4_ACQ_REL },
+    { "ldclr", 8, POLY_IMPORT_FUNC_AARCH64_LDCLR8_ACQ_REL },
+    { "ldclr", 4, POLY_IMPORT_FUNC_AARCH64_LDCLR4_ACQ_REL },
+    { "ldeor", 8, POLY_IMPORT_FUNC_AARCH64_LDEOR8_ACQ_REL },
+    { "ldeor", 4, POLY_IMPORT_FUNC_AARCH64_LDEOR4_ACQ_REL },
+    { "ldset", 8, POLY_IMPORT_FUNC_AARCH64_LDSET8_ACQ_REL },
+    { "ldset", 4, POLY_IMPORT_FUNC_AARCH64_LDSET4_ACQ_REL },
+    { "cas", 8, POLY_IMPORT_FUNC_AARCH64_CAS8_ACQ_REL },
+    { "cas", 4, POLY_IMPORT_FUNC_AARCH64_CAS4_ACQ_REL }
+  };
+
+  for (size_t i = 0; i < sizeof(imports) / sizeof(imports[0]); i++) {
+    if (aarch64_outline_atomic_name_matches(symbol_name, imports[i].op_name,
+          imports[i].width)) {
+      *symbol_value = imports[i].import_id * POLY_IMPORT_CALL_STRIDE;
+      return 0;
+    }
+  }
+
+  return -1;
+}
+
 static int resolve_import_function(const char *symbol_name,
     uint64_t *symbol_value) {
   if (strcmp(symbol_name, "poly_import_add") == 0) {
@@ -642,71 +698,8 @@ static int resolve_import_function(const char *symbol_name,
       POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
-  if (strcmp(symbol_name, "__aarch64_ldadd8_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDADD8_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
+  if (resolve_aarch64_outline_atomic_import(symbol_name, symbol_value) == 0)
     return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_swp8_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_SWP8_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldset4_relax") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDSET4_RELAX *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_cas8_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_CAS8_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_cas4_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_CAS4_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldadd4_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDADD4_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_swp4_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_SWP4_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldclr8_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDCLR8_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldeor8_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDEOR8_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldclr4_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDCLR4_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldeor4_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDEOR4_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldset8_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDSET8_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
-  if (strcmp(symbol_name, "__aarch64_ldset4_acq_rel") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDSET4_ACQ_REL *
-      POLY_IMPORT_CALL_STRIDE;
-    return 0;
-  }
   return -1;
 }
 

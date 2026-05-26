@@ -16,31 +16,31 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
 {
   unsigned long old = __atomic_fetch_add(&counter, a + 1, __ATOMIC_ACQ_REL);
   unsigned long prev = __atomic_exchange_n(&counter, old ^ b,
-      __ATOMIC_SEQ_CST);
+      __ATOMIC_RELEASE);
   unsigned int wold = __atomic_fetch_or(&word_counter, (unsigned int) c,
       __ATOMIC_RELAXED);
   unsigned int add_wold = __atomic_fetch_add(&add_word_counter,
-      (unsigned int) c + 4, __ATOMIC_ACQ_REL);
+      (unsigned int) c + 4, __ATOMIC_ACQUIRE);
   unsigned int swap_wold = __atomic_exchange_n(&swap_word_counter,
-      (unsigned int) c + 30, __ATOMIC_SEQ_CST);
+      (unsigned int) c + 30, __ATOMIC_RELAXED);
   unsigned long and_old = __atomic_fetch_and(&and_counter, a + 0x0f,
-      __ATOMIC_ACQ_REL);
+      __ATOMIC_ACQUIRE);
   unsigned long xor_old = __atomic_fetch_xor(&xor_counter, b + 0x10,
-      __ATOMIC_ACQ_REL);
+      __ATOMIC_RELEASE);
   unsigned long or_old = __atomic_fetch_or(&or_counter, a + 0x80,
-      __ATOMIC_ACQ_REL);
+      __ATOMIC_RELAXED);
   unsigned int and_wold = __atomic_fetch_and(&and_word_counter,
-      (unsigned int) c + 0x10, __ATOMIC_ACQ_REL);
+      (unsigned int) c + 0x10, __ATOMIC_ACQUIRE);
   unsigned int xor_wold = __atomic_fetch_xor(&xor_word_counter,
-      (unsigned int) c + 0x20, __ATOMIC_ACQ_REL);
+      (unsigned int) c + 0x20, __ATOMIC_RELEASE);
   unsigned int or_wold = __atomic_fetch_or(&or_word_counter,
-      (unsigned int) c + 0x40, __ATOMIC_ACQ_REL);
+      (unsigned int) c + 0x40, __ATOMIC_RELAXED);
   unsigned long expected = 99;
   int ok = __atomic_compare_exchange_n(&cas_value, &expected, c + 100, 0,
-      __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+      __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
   unsigned int word_expected = 19;
   int word_ok = __atomic_compare_exchange_n(&cas_word_value, &word_expected,
-      (unsigned int) c + 20, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+      (unsigned int) c + 20, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
 
   return old + prev + counter + word_counter + wold + cas_value +
     (unsigned long) ok + expected + (unsigned long) word_ok +
