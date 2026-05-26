@@ -676,17 +676,18 @@ numbers currently include:
 - File-style syscalls: `getcwd`, `eventfd2`, `inotify_init1`,
   `inotify_add_watch`, `inotify_rm_watch`, `dup3`, `pipe2`,
   `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
-  `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `pselect6`,
-  `ppoll`, `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`,
-  `readlinkat`, `newfstatat`, `fstat`, `statx`, `close`, `getdents64`,
-  `lseek`, and `uname`.
+  `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `fsync`,
+  `fdatasync`, `sync_file_range`, `fadvise64`, `pselect6`, `ppoll`,
+  `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`,
+  `newfstatat`, `fstat`, `statx`, `close`, `getdents64`, `lseek`, and
+  `uname`.
 - Network-style syscalls: `socket`, `socketpair`, `bind`, `listen`,
   `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.
 - Memory/time-style syscalls: `nanosleep`, `clock_gettime`,
   `clock_nanosleep`, `sched_getaffinity`, `sched_yield`, `getrusage`,
   `getcpu`, `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`,
-  `munmap`, `mprotect`, `madvise`, and `mmap`.
+  `munmap`, `mremap`, `mprotect`, `madvise`, `membarrier`, and `mmap`.
 
 The shared syscall dispatcher carries six foreign Linux ABI arguments for both
 foreign architectures; current `mmap6` payloads verify argument registers beyond
