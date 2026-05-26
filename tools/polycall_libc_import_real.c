@@ -5,6 +5,7 @@ extern int strcmp(const char *, const char *);
 extern int strncmp(const char *, const char *, size_t);
 extern int strcasecmp(const char *, const char *);
 extern int strncasecmp(const char *, const char *, size_t);
+extern char *strcasestr(const char *, const char *);
 extern void *memcpy(void *, const void *, size_t);
 extern void *memmove(void *, const void *, size_t);
 extern void *memset(void *, int, size_t);
@@ -61,6 +62,12 @@ __attribute__((noinline))
 static int call_strncasecmp(const char *left, const char *right, size_t count)
 {
   return strncasecmp(left, right, count);
+}
+
+__attribute__((noinline))
+static char *call_strcasestr(const char *base, const char *needle)
+{
+  return strcasestr(base, needle);
 }
 
 __attribute__((noinline))
@@ -257,6 +264,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   int prefix_same = call_strncmp(buffer, "poly-z", 4);
   int case_same = call_strcasecmp(buffer, "POLY-LIBC");
   int case_prefix_same = call_strncasecmp(buffer, "POLY-Z", 4);
+  char *case_substring_found = call_strcasestr(buffer, "LY-L");
+  char *case_substring_not_found = call_strcasestr(buffer, "LIBZ");
   void *found = call_memchr(buffer, 'y', len);
   void *not_found = call_memchr(buffer, 'z', len);
   char *letter_found = call_strchr(buffer, 'l');
@@ -364,5 +373,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (empty_memory_found == buffer ? 5400 : 54000) +
     (case_same == 0 ? 5500 : 55000) +
     (case_prefix_same == 0 ? 5600 : 56000) +
+    (case_substring_found == buffer + 2 ? 5700 : 57000) +
+    (case_substring_not_found == 0 ? 5800 : 58000) +
     (unsigned char) buffer[0];
 }

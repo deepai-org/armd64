@@ -471,7 +471,7 @@ symbol names `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`,
-`strcasecmp`, `strncasecmp`, `bcmp`, `bcopy`, `bzero`, `index`, and `rindex`, so
+`strcasecmp`, `strncasecmp`, `strcasestr`, `bcmp`, `bcopy`, `bzero`, `index`, and `rindex`, so
 compiler-produced foreign objects can call those routines through ordinary
 PLT/GOT entries without using synthetic breakpoint libcalls. The neutral
 cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,

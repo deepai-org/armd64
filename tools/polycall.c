@@ -111,7 +111,8 @@ enum {
   POLY_IMPORT_FUNC_MEMRCHR = 38,
   POLY_IMPORT_FUNC_MEMMEM = 39,
   POLY_IMPORT_FUNC_STRCASECMP = 40,
-  POLY_IMPORT_FUNC_STRNCASECMP = 41
+  POLY_IMPORT_FUNC_STRNCASECMP = 41,
+  POLY_IMPORT_FUNC_STRCASESTR = 42
 };
 
 struct poly_dynamic_reloc {
@@ -515,6 +516,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "strncasecmp") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STRNCASECMP * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strcasestr") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRCASESTR * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "memcpy") == 0) {
