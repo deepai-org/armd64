@@ -311,7 +311,8 @@ in-memory image before entering raw mode, so page-relative code can address
 separate text/data load segments rather than only inline instruction blobs. The
 gate covers both AArch64 `adrp`/`ldr` and RISC-V `auipc`/`ld` split-load
 payloads. `polycall` also accepts simple `ET_DYN` images with
-`R_AARCH64_RELATIVE` or `R_RISCV_RELATIVE` relocations, packed `DT_RELR`
+`R_AARCH64_RELATIVE` or `R_RISCV_RELATIVE` relocations from `RELA` tables,
+`REL` tables with in-place addends, packed `DT_RELR`
 direct and bitmap relative relocation tables,
 `R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolver relocations, and same-image symbolic 64-bit dynamic relocations
 (`R_AARCH64_ABS64` or `R_RISCV_64`), applying them with the actual runtime load
@@ -591,6 +592,8 @@ includes sectionless `dyntab` probes that exercise only
 `R_RISCV_JUMP_SLOT` entries for defined symbols.
 Packed relative relocation tables are accepted through
 `DT_RELR`/`DT_RELRSZ`/`DT_RELRENT`, including direct entries and bitmap entries.
+Traditional addend-in-place relative relocation tables are accepted through
+`DT_REL`/`DT_RELSZ`/`DT_RELENT`.
 IFUNC-style resolver relocations are accepted through
 `R_AARCH64_IRELATIVE` and `R_RISCV_IRELATIVE`; the resolver runs in the
 foreign frontend after ordinary relocations are applied, and its return value is

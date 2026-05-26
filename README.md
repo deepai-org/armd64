@@ -428,12 +428,14 @@ memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
 `aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
-`aarch64-pcall-relr.elf`, `aarch64-pcall-relr-bitmap.elf`,
+`aarch64-pcall-rel.elf`, `aarch64-pcall-relr.elf`,
+`aarch64-pcall-relr-bitmap.elf`,
 `aarch64-pcall-irelative.elf`, `aarch64-pcall-dynsym.elf`,
 `aarch64-pcall-dyntab.elf`,
 `aarch64-pcall-dyntab-entry.elf`, `riscv-pcall-frame.elf`,
 `riscv-pcall-split-load.elf`, `riscv-pcall-dynrel.elf`,
-`riscv-pcall-relr.elf`, `riscv-pcall-relr-bitmap.elf`,
+`riscv-pcall-rel.elf`, `riscv-pcall-relr.elf`,
+`riscv-pcall-relr-bitmap.elf`,
 `riscv-pcall-irelative.elf`, `riscv-pcall-dynsym.elf`,
 `riscv-pcall-dyntab.elf`, and
 `riscv-pcall-dyntab-entry.elf`) that use native
@@ -442,7 +444,8 @@ calls, AArch64 `adrp` page-relative data addressing, NZCV-backed AArch64
 conditional branches, RISC-V `auipc` page-relative data addressing, real
 AArch64 and RISC-V `ET_DYN` `.so` objects with dynamic symbol lookup, writable
 static data, split ELF `PT_LOAD` text/data layout, simple `ET_DYN` relative
-relocations, packed `DT_RELR` direct and bitmap relative relocation tables,
+relocations through both `RELA` addends and `REL` in-place addends, packed
+`DT_RELR` direct and bitmap relative relocation tables,
 `R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolver relocations, same-image
 symbolic 64-bit dynamic relocations and exported entrypoints through both
 section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH` and

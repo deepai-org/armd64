@@ -1498,6 +1498,73 @@ static int process_rela_table(struct poly_program *program,
   return 0;
 }
 
+static int process_rel_table(struct poly_program *program,
+    const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
+    const Elf64_Dyn *dyn, size_t dyn_count, uint64_t rel_vaddr,
+    uint64_t rel_size, const char *label) {
+  size_t rel_offset = 0;
+  if (elf_vaddr_to_image_offset(program, rel_vaddr, rel_size, &rel_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: %s table out of loaded image: %s\n",
+      label, program->path);
+    return -1;
+  }
+
+  const Elf64_Rel *rel = (const Elf64_Rel *) (program->image + rel_offset);
+  const size_t rel_count = (size_t) (rel_size / sizeof(Elf64_Rel));
+  const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
+  const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
+  struct poly_symbol_table dynsym;
+  memset(&dynsym, 0, sizeof(dynsym));
+  for (size_t n = 0; n < rel_count; n++) {
+    const uint64_t symbol_index = ELF64_R_SYM(rel[n].r_info);
+    const uint32_t reloc_type = ELF64_R_TYPE(rel[n].r_info);
+    size_t relocation_offset = 0;
+    if (elf_vaddr_to_image_offset(program, rel[n].r_offset, 8,
+          &relocation_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: relocation target out of image: %s\n",
+        program->path);
+      return -1;
+    }
+
+    uint64_t reloc_value = read_le64(program->image + relocation_offset);
+    int base_kind = RELOC_BASE_LOAD_BIAS;
+    if (symbol_index == 0 && reloc_type == relative_type) {
+      // REL stores the addend in-place at the relocation target.
+    }
+    else if (symbol_index == 0 && reloc_type == irelative_type) {
+      base_kind = RELOC_BASE_IRELATIVE;
+    }
+    else if (symbol_index != 0 &&
+        symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
+      if (!dynsym.symbols &&
+          load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
+          load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: symbolic relocations require dynsym metadata: %s\n",
+          program->path);
+        return -1;
+      }
+      uint64_t symbol_value = 0;
+      uint64_t addend = reloc_value;
+      base_kind = RELOC_BASE_LOAD_BIAS;
+      if (resolve_reloc_symbol(program, &dynsym, symbol_index,
+            &symbol_value, &base_kind) < 0)
+        return -1;
+      reloc_value = symbol_value + addend;
+    }
+    else {
+      fprintf(stderr, "POLYCALL_FAIL: unsupported dynamic relocation type=%llu sym=%llu path=%s\n",
+        (unsigned long long) reloc_type,
+        (unsigned long long) symbol_index,
+        program->path);
+      return -1;
+    }
+    if (append_dynamic_reloc(program, relocation_offset, reloc_value,
+          base_kind) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static int append_relr_relocation(struct poly_program *program,
     uint64_t reloc_vaddr) {
   size_t relocation_offset = 0;
@@ -1560,6 +1627,9 @@ static int load_dynamic_relocs(struct poly_program *program,
   uint64_t rela_vaddr = 0;
   uint64_t rela_size = 0;
   uint64_t rela_ent = sizeof(Elf64_Rela);
+  uint64_t rel_vaddr = 0;
+  uint64_t rel_size = 0;
+  uint64_t rel_ent = sizeof(Elf64_Rel);
   uint64_t relr_vaddr = 0;
   uint64_t relr_size = 0;
   uint64_t relr_ent = sizeof(uint64_t);
@@ -1583,6 +1653,16 @@ static int load_dynamic_relocs(struct poly_program *program,
         break;
       case DT_RELAENT:
         rela_ent = dyn[n].d_un.d_val;
+        break;
+      case DT_REL:
+        rel_vaddr = dyn[n].d_un.d_ptr;
+        saw_rel = 1;
+        break;
+      case DT_RELSZ:
+        rel_size = dyn[n].d_un.d_val;
+        break;
+      case DT_RELENT:
+        rel_ent = dyn[n].d_un.d_val;
         break;
       case DT_RELR:
         relr_vaddr = dyn[n].d_un.d_ptr;
@@ -1622,18 +1702,14 @@ static int load_dynamic_relocs(struct poly_program *program,
       case DT_FINI_ARRAYSZ:
         program->fini_array_size = dyn[n].d_un.d_val;
         break;
-      case DT_REL:
-      case DT_RELSZ:
-      case DT_RELENT:
-        saw_rel = 1;
-        break;
       default:
         break;
     }
   }
 
-  if (saw_rel || pltrel_type == DT_REL) {
-    fprintf(stderr, "POLYCALL_FAIL: REL relocations are not supported yet: %s\n",
+  if (rel_ent != sizeof(Elf64_Rel) ||
+      (rel_size != 0 && (!saw_rel || rel_size % sizeof(Elf64_Rel) != 0))) {
+    fprintf(stderr, "POLYCALL_FAIL: bad REL dynamic table: %s\n",
       program->path);
     return -1;
   }
@@ -1644,8 +1720,10 @@ static int load_dynamic_relocs(struct poly_program *program,
     return -1;
   }
   if (pltrel_size != 0 &&
-      (jmprel_vaddr == 0 || pltrel_type != DT_RELA ||
-       pltrel_size % sizeof(Elf64_Rela) != 0)) {
+      (jmprel_vaddr == 0 ||
+       (pltrel_type != DT_RELA && pltrel_type != DT_REL) ||
+       (pltrel_type == DT_RELA && pltrel_size % sizeof(Elf64_Rela) != 0) ||
+       (pltrel_type == DT_REL && pltrel_size % sizeof(Elf64_Rel) != 0))) {
     fprintf(stderr, "POLYCALL_FAIL: bad JMPREL dynamic table: %s\n",
       program->path);
     return -1;
@@ -1671,13 +1749,21 @@ static int load_dynamic_relocs(struct poly_program *program,
       process_rela_table(program, data, size, ehdr, dyn, dyn_count,
         rela_vaddr, rela_size, "RELA") < 0)
     return -1;
+  if (rel_size != 0 &&
+      process_rel_table(program, data, size, ehdr, dyn, dyn_count,
+        rel_vaddr, rel_size, "REL") < 0)
+    return -1;
   if (relr_size != 0 &&
       process_relr_table(program, relr_vaddr, relr_size, relr_ent) < 0)
     return -1;
   if (pltrel_size != 0 &&
-      process_rela_table(program, data, size, ehdr, dyn, dyn_count,
-        jmprel_vaddr, pltrel_size, "JMPREL") < 0)
-    return -1;
+      ((pltrel_type == DT_RELA &&
+        process_rela_table(program, data, size, ehdr, dyn, dyn_count,
+          jmprel_vaddr, pltrel_size, "JMPREL") < 0) ||
+       (pltrel_type == DT_REL &&
+        process_rel_table(program, data, size, ehdr, dyn, dyn_count,
+          jmprel_vaddr, pltrel_size, "JMPREL") < 0)))
+      return -1;
   return 0;
 }
 
