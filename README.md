@@ -172,7 +172,9 @@ objects (`aarch64-pcall-cbz-real.so#poly_entry` and
 objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
 `riscv-pcall-signed-ext-real.so#poly_entry`), compiler-built signed-load
 objects (`aarch64-pcall-signed-load-real.so#poly_entry` and
-`riscv-pcall-signed-load-real.so#poly_entry`), compiler-built indexed-memory
+`riscv-pcall-signed-load-real.so#poly_entry`), compiler-built unscaled-memory
+objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
+`riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
 `riscv-pcall-indexed-mem-real.so#poly_entry`), compiler-built callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
@@ -308,7 +310,8 @@ integer-to-FP `scvtf`/`ucvtf` conversions from GPR and scalar FP/SIMD integer
 sources, scalar FP `ldr`/`str`,
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
-`stp`/`ldp` pair load-store forms, `svc`, and `brk`.
+`stp`/`ldp` pair load-store forms, unscaled `ldur`/`stur` integer and scalar FP
+forms, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM

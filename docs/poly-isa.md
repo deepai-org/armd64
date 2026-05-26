@@ -149,7 +149,9 @@ objects (`aarch64-pcall-cbz-real.so#poly_entry` and
 objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
 `riscv-pcall-signed-ext-real.so#poly_entry`), compiler-produced signed-load
 objects (`aarch64-pcall-signed-load-real.so#poly_entry` and
-`riscv-pcall-signed-load-real.so#poly_entry`), compiler-produced indexed-memory
+`riscv-pcall-signed-load-real.so#poly_entry`), compiler-produced unscaled-memory
+objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
+`riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-produced indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
 `riscv-pcall-indexed-mem-real.so#poly_entry`), compiler-produced callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
