@@ -8,8 +8,12 @@
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
-  LOOP_ITERS = 200
+  LOOP_ITERS = 200,
+  POLY_IMPORT_FUNC_STRLEN = 8
 };
+
+#define POLY_IMPORT_CALL_BASE 0xffffffffffffe000ULL
+#define POLY_IMPORT_CALL_STRIDE 0x10ULL
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x30" ::: "memory"); }
@@ -65,6 +69,15 @@ static uint64_t fp64_to_bits(double value) {
 static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
+}
+
+static uint64_t call_code_with_rax_arg(const uint8_t *code, const char *payload) {
+  register uint64_t rax asm("rax") = (uint64_t) (uintptr_t) payload;
+  asm volatile("call *%1"
+    : "+a"(rax)
+    : "r"(code)
+    : "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+  return rax;
 }
 
 static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
@@ -1180,6 +1193,143 @@ static int run_cross_call_libcall_riscv_to_aarch64(uint64_t *result,
   return 0;
 }
 
+static int run_cross_call_descriptor_aarch64_to_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 512;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv descriptor call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+
+  const size_t aarch64_body_offset = offset;
+  const size_t aarch64_return_offset = aarch64_body_offset + 16 + 16 + 4;
+  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+
+  emit_aarch64_movabs(code, &offset, 16,
+    (uint64_t) (uintptr_t) (code + riscv_target_offset));
+  emit_aarch64_movabs(code, &offset, 17,
+    (uint64_t) (uintptr_t) (code + aarch64_return_offset));
+  emit_u32(code, &offset, 0xd42fffa0U); // brk #0x7ffd, call RISC-V
+  emit_u32(code, &offset, 0xd42fffe0U); // brk #0x7fff, x86 escape
+  code[offset++] = 0xc3;
+
+  while (offset < riscv_target_offset)
+    code[offset++] = 0x90;
+  emit_u32(code, &offset, 0x00008413U); // addi s0,ra,0; save cross-return cookie
+  const size_t auipc_descriptor_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_descriptor_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor strlen
+  emit_u32(code, &offset, 0x00040093U); // addi ra,s0,0; restore cross-return cookie
+  emit_u32(code, &offset, 0x00008067U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t descriptor_data_offset = offset;
+  emit_u64(code, &offset,
+    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRLEN * POLY_IMPORT_CALL_STRIDE);
+
+  store_u32(code, ld_descriptor_offset, riscv_ld(5, 5,
+    (int32_t) descriptor_data_offset - (int32_t) auipc_descriptor_pc));
+
+  static const char payload[] = "polyglot";
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_with_rax_arg(code, payload);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 512;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 descriptor call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0x0000005bU); // custom-2, call AArch64
+  const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, 0x0000000bU); // custom-0, x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  emit_u32(code, &offset, 0xaa1e03f3U); // mov x19,x30; save cross-return cookie
+  emit_aarch64_movabs(code, &offset, 17,
+    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRLEN * POLY_IMPORT_CALL_STRIDE);
+  emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor strlen
+  emit_u32(code, &offset, 0xaa1303feU); // mov x30,x19; restore cross-return cookie
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
+
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+
+  static const char payload[] = "polyglot";
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_with_rax_arg(code, payload);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_nested_cross_call(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 384;
@@ -1615,6 +1765,12 @@ static int check_cross_calls(void) {
     return -1;
   if (check_cross_call_libcall_direction("riscv-calls-aarch64-libcall",
         run_cross_call_libcall_riscv_to_aarch64) < 0)
+    return -1;
+  if (check_cross_call_libcall_direction("aarch64-calls-riscv-descriptor",
+        run_cross_call_descriptor_aarch64_to_riscv) < 0)
+    return -1;
+  if (check_cross_call_libcall_direction("riscv-calls-aarch64-descriptor",
+        run_cross_call_descriptor_riscv_to_aarch64) < 0)
     return -1;
   return 0;
 }
