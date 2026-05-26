@@ -38,9 +38,9 @@ Linux ABI passthrough, or equal-speed execution.
   the return path uses ordinary AArch64/RISC-V return instructions rather than
   raw escape instructions. It also resolves prototype foreign `JUMP_SLOT`
   function imports to hardware call-descriptor slots.
-- `tools/polythread.c` runs real x86_64 pthreads that repeatedly enter short
-  AArch64 and RISC-V `PCALL` loops, exercising guest thread-bank isolation
-  across many foreign call/return transitions.
+- `tools/polythread.c` runs real x86_64 pthreads that repeatedly enter long
+  AArch64 and RISC-V `PCALL` loops, exercising guest thread-bank isolation and
+  interrupt/`IRET64` raw-mode restoration across many foreign transitions.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
@@ -94,9 +94,13 @@ prototype, so nested AArch64-to-RISC-V-to-AArch64 calls can unwind through
 ordinary native returns without an x86 trampoline.  Raw
 foreign fetch is only active at guest CPL3; kernel, interrupt, and exception
 paths continue through normal x86_64 decode even if the current userspace poly
-mode is raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3
-active at the raw-mode switch, so unrelated userspace tasks do not inherit raw
-decoding after a scheduler switch or a fault in the raw-mode task.
+mode is raw AArch64 or raw RISC-V.  When a long-mode interrupt hits raw
+foreign fetch, the prototype records the interrupted foreign frontend mode and
+RIP in the synthetic bank, lets the x86_64 kernel run as x86, and restores raw
+mode after `IRET64` returns to the recorded user RIP.  Raw fetch is bound to
+the guest `CR3`, user `FSBASE`, and stack-region bank key, so unrelated
+userspace tasks and common pthread stacks do not inherit raw decoding after a
+scheduler switch or a fault in the raw-mode task.
 The current raw run loop batches up to 64 raw foreign instructions before
 returning to the outer Bochs event loop, while still checking async events and
 mode exits between individual raw instructions.
@@ -256,8 +260,10 @@ continuation cookies with another address space, and common pthread stacks get
 separate synthetic banks even when static TLS does not give each guest thread a
 distinct `FSBASE`. The low overlapping return/scratch values still use the
 current x86 register bridge; this is not yet a full XSAVE-backed foreign
-register ABI. Preemption inside a long raw foreign loop still needs the planned
-hardware-style interrupt/`IRET` foreign-mode state.
+register ABI. The current interrupt prototype covers ordinary long-mode
+`IRET64` returns into raw userspace; the final ISA still needs an explicit,
+architectural XSAVE-visible foreign state component and precise `SYSRET` and
+signal-return contracts.
 
 The Bochs compatibility runtime handles selected foreign Linux syscall traps
 deterministically after recording the architectural trap.  Supported syscall

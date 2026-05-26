@@ -6,7 +6,7 @@
 enum {
   POLYTHREAD_THREADS = 2,
   POLYTHREAD_ROUNDS = 12,
-  POLYTHREAD_BUSY = 4
+  POLYTHREAD_BUSY = 20000
 };
 
 static uint64_t pcall_aarch64_busy(uint64_t seed) {
@@ -17,7 +17,7 @@ static uint64_t pcall_aarch64_busy(uint64_t seed) {
     "leaq 2f(%%rip), %%r11\n"
     ".byte 0x40,0x0f,0x0b,0x50,0x43,0x41,0x36,0x34\n"
     "1:\n"
-    ".long 0xd2800089\n" // movz x9,#4
+    ".long 0xd289c409\n" // movz x9,#20000
     ".long 0xf1000529\n" // subs x9,x9,#1
     ".long 0x54ffffe1\n" // b.ne -4
     ".long 0x91000400\n" // add x0,x0,#1
