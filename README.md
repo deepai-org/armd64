@@ -674,9 +674,10 @@ numbers currently include:
   `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
   `getpgid(0)`, `getsid(0)`, `rseq`, `exit`, and `exit_group`.
 - File-style syscalls: `getcwd`, `read`, `readv`, `write`, `writev`,
-  `pread64`, `pwrite64`, `pselect6`, `ppoll`, `epoll_create1`,
-  `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`, `newfstatat`, `fstat`,
-  `statx`, `close`, `getdents64`, `lseek`, and `uname`.
+  `pread64`, `pwrite64`, `preadv`, `pwritev`, `pselect6`, `ppoll`,
+  `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`,
+  `newfstatat`, `fstat`, `statx`, `close`, `getdents64`, `lseek`, and
+  `uname`.
 - Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
   `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`, `munmap`,
   `mprotect`, `madvise`, and `mmap`.
