@@ -78,12 +78,6 @@ static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
 static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 16;
 
-#if defined(__GNUC__)
-#define POLY_HOST_HELPER __attribute__((noinline, noclone, used))
-#else
-#define POLY_HOST_HELPER
-#endif
-
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
@@ -247,26 +241,12 @@ struct poly_request {
   int call_kind;
 };
 
-static POLY_HOST_HELPER uint64_t poly_host_x86_add(uint64_t a, uint64_t b) {
-  return a + b + 200;
-}
-
-static POLY_HOST_HELPER uint64_t poly_host_x86_mul(uint64_t a, uint64_t b) {
-  return a * b + 200;
-}
-
-static POLY_HOST_HELPER uint64_t poly_host_x86_sum6(uint64_t a, uint64_t b,
-    uint64_t c, uint64_t d, uint64_t e, uint64_t f) {
-  return a + b + c + d + e + f + 200;
-}
-
-static POLY_HOST_HELPER double poly_host_x86_fp64_add(double a, double b) {
-  return a + b + 200.5;
-}
-
-static POLY_HOST_HELPER float poly_host_x86_fp32_add(float a, float b) {
-  return a + b + 200.5f;
-}
+extern uint64_t poly_host_x86_add(uint64_t a, uint64_t b);
+extern uint64_t poly_host_x86_mul(uint64_t a, uint64_t b);
+extern uint64_t poly_host_x86_sum6(uint64_t a, uint64_t b, uint64_t c,
+    uint64_t d, uint64_t e, uint64_t f);
+extern double poly_host_x86_fp64_add(double a, double b);
+extern float poly_host_x86_fp32_add(float a, float b);
 
 static int parse_u64(const char *text, uint64_t *value) {
   char *end = NULL;

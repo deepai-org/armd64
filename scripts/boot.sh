@@ -30,6 +30,7 @@ POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
 POLY_CALL_SRC="$ROOT_DIR/tools/polycall.c"
+POLY_CALL_X86_HELPERS_SRC="$ROOT_DIR/tools/polycall_x86_helpers.c"
 POLY_CALL_BIN="$OUT_DIR/polycall"
 POLY_THREAD_SRC="$ROOT_DIR/tools/polythread.c"
 POLY_THREAD_BIN="$OUT_DIR/polythread"
@@ -220,7 +221,33 @@ build_poly_exec() {
 }
 
 build_poly_call() {
-  compile_poly_tool "$POLY_CALL_SRC" "$POLY_CALL_BIN" "${POLY_CALL_CC:-}"
+  if [[ -x "$POLY_CALL_BIN" && "$POLY_CALL_BIN" -nt "$POLY_CALL_SRC" &&
+      "$POLY_CALL_BIN" -nt "$POLY_CALL_X86_HELPERS_SRC" ]]; then
+    return
+  fi
+
+  local compiler=""
+  for candidate in "${POLY_CALL_CC:-}" x86_64-linux-gnu-gcc gcc-x86-64-linux-gnu cc gcc; do
+    if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
+      compiler="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$compiler" ]]; then
+    if [[ -x "$POLY_CALL_BIN" ]]; then
+      return
+    fi
+    echo "No compiler available for $POLY_CALL_SRC and no prebuilt $POLY_CALL_BIN found." >&2
+    exit 1
+  fi
+
+  local -a compiler_args=(-O2 -static -s -fno-stack-protector)
+  if [[ "$compiler" == x86_64-linux-gnu-gcc || "$compiler" == gcc-x86-64-linux-gnu ]]; then
+    compiler_args+=(--sysroot=/usr/x86_64-linux-gnu)
+  fi
+  "$compiler" "${compiler_args[@]}" "$POLY_CALL_SRC" \
+    "$POLY_CALL_X86_HELPERS_SRC" -o "$POLY_CALL_BIN"
 }
 
 build_poly_thread() {

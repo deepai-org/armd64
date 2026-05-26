@@ -40,7 +40,9 @@ Linux ABI passthrough, or equal-speed execution.
   their entrypoints through the prototype hardware ABI bridge (`PCALL`), so
   the return path uses ordinary AArch64/RISC-V return instructions rather than
   raw escape instructions. It also resolves prototype foreign `JUMP_SLOT`
-  function imports to hardware call-descriptor slots.
+  function imports to hardware call-descriptor slots; `tools/polycall_x86_helpers.c`
+  supplies separately compiled x86_64 helper targets for the foreign-to-x86
+  descriptor tests.
 - `tools/polythread.c` runs real x86_64 pthreads that repeatedly enter long
   AArch64 and RISC-V `PCALL` loops, exercising guest thread-bank isolation and
   interrupt/`IRET64` raw-mode restoration across many foreign transitions.
@@ -467,8 +469,9 @@ arguments and returns, synthesize an x86 return address to the dedicated
 `0f 24` `PIRET`, accept each helper's ordinary `ret`, and map the x86 `RAX`
 result back to AArch64 `x0` or RISC-V `a0` for integer returns.  The current
 `polycall` harness points these descriptors at `noinline` x86_64 C functions
-compiled into the x86 guest binary, so the path exercises compiler-generated
-x86 function prologues/epilogues rather than handwritten helper bytecode.
+linked from `tools/polycall_x86_helpers.c`, so the path exercises a separately
+compiled x86 helper object with compiler-generated function bodies rather than
+handwritten helper bytecode in the call trampoline.
 The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
 common GCC AArch64 outline
