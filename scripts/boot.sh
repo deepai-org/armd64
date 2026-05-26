@@ -727,6 +727,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed.elf" 0x05194555 0x00018082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-word.elf" 0x0020717d 0xc008456d 0xc02a4008 0x61414502 0x00008082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-alu.elf" 0x25794531 0x05068105 0x858955c1 0x462989bd 0x8e15468d 0x8e558e35 0x9e298e75 0x85329e15 0x00008082
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-fp.elf" 0x4541717d 0xe02a050a 0x00202502 0x200ca008 0x6502a02e 0x00016141 0x00008082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-upper.elf" 0x12345537 0x67850513 0x00000597 0x00000617 0x40b60633 0x00c50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-immops.elf" 0x00500513 0x00351513 0x00356513 0x00154513 0x03f57513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-wordops.elf" 0xfff00293 0x0022831b 0x01f3139b 0x01e3d41b 0x41e3d49b 0x0094053b 0x00700593 0x02b5863b 0x00c5053b 0x40b5053b
@@ -976,6 +977,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-compressed.elf=27 \
     /usr/lib/polyapps/riscv-compressed-word.elf=27 \
     /usr/lib/polyapps/riscv-compressed-alu.elf=42 \
+    /usr/lib/polyapps/riscv-compressed-fp.elf=64 \
     /usr/lib/polyapps/riscv-upper.elf=0x1234567c \
     /usr/lib/polyapps/riscv-immops.elf=42 \
     /usr/lib/polyapps/riscv-wordops.elf=42 \
@@ -1247,6 +1249,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-compressed.elf \
     /usr/lib/polyapps/riscv-compressed-word.elf \
     /usr/lib/polyapps/riscv-compressed-alu.elf \
+    /usr/lib/polyapps/riscv-compressed-fp.elf \
     /usr/lib/polyapps/riscv-upper.elf \
     /usr/lib/polyapps/riscv-immops.elf \
     /usr/lib/polyapps/riscv-wordops.elf \

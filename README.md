@@ -342,7 +342,8 @@ compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
 `c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.lw`/`c.sw`,
 `c.ldsp`/`c.lwsp`, `c.addiw`, `c.srli`/`c.srai`, `c.andi`,
 `c.sub`/`c.xor`/`c.or`/`c.and`, `c.subw`/`c.addw`, `c.mv`, `c.jr`/`c.ret`,
-`c.ebreak`, `c.jalr`, `c.add`, and `c.sdsp`/`c.swsp`.
+`c.ebreak`, `c.jalr`, `c.add`, `c.sdsp`/`c.swsp`, and compressed double-FP
+memory forms `c.fld`/`c.fsd` plus `c.fldsp`/`c.fsdsp`.
 `polybench` also validates efficient neutral mixed-raw paths: direct
 AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
 where the caller enters the other foreign frontend and the callee returns with
