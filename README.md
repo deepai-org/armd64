@@ -84,6 +84,8 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV sret call to RISC-V | `0f 24 13 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
 | x86 SysV call to AArch64 with two-float return | `0f 24 14 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.FPAIR32RET`: same scalar argument mapping as `PCALL.A64.SYSV`, but packs AAPCS64 `s0`/`s1` into x86_64 SysV `XMM0[63:0]` on return. |
 | x86 SysV call to RISC-V with two-float return | `0f 24 15 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FPAIR32RET`: same scalar argument mapping as `PCALL.RV64.SYSV`, but packs RISC-V `fa0`/`fa1` into x86_64 SysV `XMM0[63:0]` on return. |
+| x86 SysV call to AArch64 with two-float argument | `0f 24 16 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.FPAIR32ARG`: unpacks x86_64 SysV `XMM0[63:0]` into AAPCS64 `s0`/`s1` and shifts following FP argument lanes up by one foreign FP register. |
+| x86 SysV call to RISC-V with two-float argument | `0f 24 17 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FPAIR32ARG`: unpacks x86_64 SysV `XMM0[63:0]` into RISC-V `fa0`/`fa1` and shifts following FP argument lanes up by one foreign FP register. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
@@ -107,7 +109,8 @@ RISC-V, neutral direct switches, native return cookies, x86 SysV `PCALL`,
 foreign ordering, per-thread synthetic banks, and deterministic compatibility
 syscall/libcall traps.  Bit `12` additionally advertises the prototype x86
 poly opcode family. Bit `13` advertises the two-float aggregate return packing
-variants for native ABI `PCALL`.
+variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
+argument unpacking.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
@@ -184,7 +187,8 @@ foreign `SP` window below the x86 frame, and copies stack arguments from
 bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, including
 two-register homogeneous double aggregate arguments and returns through
 `XMM0`/`XMM1`, two-`float` homogeneous aggregate returns packed into
-`XMM0[63:0]`, including mixed integer/FP signatures where GPR and XMM lanes
+`XMM0[63:0]`, two-`float` homogeneous aggregate arguments unpacked from
+`XMM0[63:0]` into two foreign FP argument registers, including mixed integer/FP signatures where GPR and XMM lanes
 are consumed in one native call, sets `x30` or `ra` to a return cookie, enters raw fetch at the
 `R10` target, carries an optional foreign TLS block base in x86 `R13`, maps
 AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps
@@ -272,7 +276,9 @@ aggregate return objects (`aarch64-pcall-fpair-real.so#poly_entry` and
 aggregate return objects (`aarch64-pcall-fpair32-real.so#poly_entry` and
 `riscv-pcall-fpair32-real.so#poly_entry`), compiler-built homogeneous double
 aggregate argument objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
-`riscv-pcall-fpair-arg-real.so#poly_entry`), compiler-built mixed integer/FP
+`riscv-pcall-fpair-arg-real.so#poly_entry`), compiler-built homogeneous float
+aggregate argument objects (`aarch64-pcall-fpair32-arg-real.so#poly_entry` and
+`riscv-pcall-fpair32-arg-real.so#poly_entry`), compiler-built mixed integer/FP
 argument objects (`aarch64-pcall-mixed-args-real.so#poly_entry` and
 `riscv-pcall-mixed-args-real.so#poly_entry`), compiler-built scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
@@ -413,6 +419,7 @@ signed bitfield aliases `sxtb`/`sxth`/`sxtw`/`asr`/`sbfx`,
 bitfield move aliases `bfxil`/`bfi`,
 one-source bit operations `rbit`/`rev16`/`rev32`/`rev`/`clz`/`cls`,
 extract/rotate `extr` and logical shifted-register `ror` operands,
+scalar AdvSIMD `ushr d`,
 unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, bit-test branch `tbz`/`tbnz`,

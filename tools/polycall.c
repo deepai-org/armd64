@@ -54,6 +54,7 @@ enum {
   POLY_CALL_MIXED_ARGS = 7,
   POLY_CALL_FINI_RESULT = 8,
   POLY_CALL_FPAIR32 = 9,
+  POLY_CALL_FPAIR32_ARG = 10,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -170,6 +171,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "fpair32:", 8) == 0) {
     request->call_kind = POLY_CALL_FPAIR32;
     arg += 8;
+  }
+  else if (strncmp(arg, "fpair32arg:", 11) == 0) {
+    request->call_kind = POLY_CALL_FPAIR32_ARG;
+    arg += 11;
   }
   else if (strncmp(arg, "fpairarg:", 9) == 0) {
     request->call_kind = POLY_CALL_FPAIR64_ARG;
@@ -1438,6 +1443,19 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     hi_bits.f = pair_result.hi;
     return ((uint64_t) hi_bits.u << 32) | lo_bits.u;
   }
+  if (call_kind == POLY_CALL_FPAIR32_ARG) {
+    union {
+      float f;
+      uint32_t u;
+    } fp_result;
+    struct pair_fp32 pair_arg;
+    pair_arg.lo = 1.5f;
+    pair_arg.hi = 2.25f;
+    float (*entry)(struct pair_fp32, float) =
+      (float (*)(struct pair_fp32, float)) code;
+    fp_result.f = entry(pair_arg, 3.0f);
+    return fp_result.u;
+  }
   if (call_kind == POLY_CALL_FPAIR64_ARG) {
     union {
       double d;
@@ -1542,7 +1560,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (program->arch == POLY_ARCH_AARCH64) {
     const uint8_t pcall[] = {
       0x0f, 0x24,
-      call_kind == POLY_CALL_FPAIR32 ? 0x14 : 0x10,
+      call_kind == POLY_CALL_FPAIR32 ? 0x14 :
+        (call_kind == POLY_CALL_FPAIR32_ARG ? 0x16 : 0x10),
       0x50, 0x4f, 0x4c, 0x59, 0x21
     };
     memcpy(code + offset, pcall, sizeof(pcall));
@@ -1551,7 +1570,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   else {
     const uint8_t pcall[] = {
       0x0f, 0x24,
-      call_kind == POLY_CALL_FPAIR32 ? 0x15 : 0x11,
+      call_kind == POLY_CALL_FPAIR32 ? 0x15 :
+        (call_kind == POLY_CALL_FPAIR32_ARG ? 0x17 : 0x11),
       0x50, 0x4f, 0x4c, 0x59, 0x21
     };
     memcpy(code + offset, pcall, sizeof(pcall));
@@ -1812,6 +1832,10 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_FPAIR32) {
       printf("POLYCALL_RESULT_FPAIR32: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_FPAIR32_ARG) {
+      printf("POLYCALL_RESULT_FPAIR32_ARG: arch=%s bits=0x%08llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.call_kind == POLY_CALL_FPAIR64_ARG) {

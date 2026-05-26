@@ -69,6 +69,14 @@ and call operations:
 - `0f 24 15 50 4f 4c 59 21`: prototype
   `PCALL.RV64.SYSV.FPAIR32RET`, packing RISC-V `fa0`/`fa1` into x86_64
   SysV `XMM0[63:0]` on return.
+- `0f 24 16 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.FPAIR32ARG`, unpacking x86_64 SysV `XMM0[63:0]` into
+  AArch64 `s0`/`s1` and shifting following FP argument lanes up by one
+  foreign FP register.
+- `0f 24 17 50 4f 4c 59 21`: prototype
+  `PCALL.RV64.SYSV.FPAIR32ARG`, unpacking x86_64 SysV `XMM0[63:0]` into
+  RISC-V `fa0`/`fa1` and shifting following FP argument lanes up by one
+  foreign FP register.
 - `0f 24 20 50 4f 4c 59 21`: prototype `PIRET`, used by
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
@@ -100,12 +108,12 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`13` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`14` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, and deterministic compatibility
   syscall/libcall traps, the prototype x86 poly opcode family, and two-float
-  aggregate return packing for native ABI `PCALL`.
+  aggregate return packing and argument unpacking for native ABI `PCALL`.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
@@ -185,7 +193,8 @@ foreign stack-passed argument is at `[sp]`;
 `XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`,
 covering scalar FP arguments/returns and two-register homogeneous double
 aggregate arguments and returns through `XMM0`/`XMM1`, plus two-`float`
-homogeneous aggregate returns packed into `XMM0[63:0]`, including mixed
+homogeneous aggregate returns packed into `XMM0[63:0]` and two-`float`
+homogeneous aggregate arguments unpacked from `XMM0[63:0]`, including mixed
 integer/FP signatures where GPR and XMM lanes are consumed in one native call;
 and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
@@ -206,7 +215,7 @@ NZCV-backed `adds`/`subs` plus `b.cond` for ordinary condition-code branches,
 register-offset plus pre/post-indexed `ldr`/`str` forms for compiler-emitted
 indexed and pointer-walking memory access. It also covers bitfield move aliases
 such as `bfxil` and `bfi`, which common compilers use when repacking small
-aggregate return lanes.
+aggregate lanes, plus scalar AdvSIMD `ushr d` for packed-lane extraction.
 Native `bl`/`blr` link-register calls handle local helper calls inside foreign
 code.  The RISC-V raw decoder aliases `x2/sp` to the shared stack pointer, so
 `addi sp, sp, imm` plus `ld`/`sd` stack accesses covers the same ordinary psABI
@@ -298,7 +307,9 @@ double aggregate return objects (`aarch64-pcall-fpair-real.so#poly_entry` and
 objects (`aarch64-pcall-fpair32-real.so#poly_entry` and
 `riscv-pcall-fpair32-real.so#poly_entry`), homogeneous double aggregate argument
 objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
-`riscv-pcall-fpair-arg-real.so#poly_entry`), mixed integer/FP argument objects
+`riscv-pcall-fpair-arg-real.so#poly_entry`), homogeneous float aggregate
+argument objects (`aarch64-pcall-fpair32-arg-real.so#poly_entry` and
+`riscv-pcall-fpair32-arg-real.so#poly_entry`), mixed integer/FP argument objects
 (`aarch64-pcall-mixed-args-real.so#poly_entry` and
 `riscv-pcall-mixed-args-real.so#poly_entry`), and scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
