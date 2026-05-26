@@ -12,7 +12,8 @@ enum {
   POLY_IMPORT_FUNC_STRLEN = 8,
   POLY_IMPORT_FUNC_MEMCPY = 9,
   POLY_IMPORT_FUNC_MEMSET = 10,
-  POLY_IMPORT_FUNC_MEMCMP = 11
+  POLY_IMPORT_FUNC_MEMCMP = 11,
+  POLY_IMPORT_FUNC_STRNLEN = 24
 };
 
 #define POLY_IMPORT_CALL_BASE 0xffffffffffffe000ULL
@@ -1546,6 +1547,14 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   const size_t ld_memcpy_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor memcpy
+  emit_u32(code, &offset, riscv_addi(10, 9, 0)); // a0=s1
+  emit_u32(code, &offset, riscv_addi(11, 0, 4)); // a1=4
+  const size_t auipc_strnlen_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_strnlen_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor strnlen
+  emit_u32(code, &offset, riscv_addi(10, 10, 38)); // a0=42
   emit_u32(code, &offset, riscv_addi(1, 8, 0)); // ra=s0
   emit_u32(code, &offset, 0x00008067U); // ret
 
@@ -1557,11 +1566,16 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   const size_t memcpy_data_offset = offset;
   emit_u64(code, &offset,
     POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMCPY * POLY_IMPORT_CALL_STRIDE);
+  const size_t strnlen_data_offset = offset;
+  emit_u64(code, &offset,
+    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRNLEN * POLY_IMPORT_CALL_STRIDE);
 
   store_u32(code, ld_memset_offset, riscv_ld(5, 5,
     (int32_t) memset_data_offset - (int32_t) auipc_memset_pc));
   store_u32(code, ld_memcpy_offset, riscv_ld(5, 5,
     (int32_t) memcpy_data_offset - (int32_t) auipc_memcpy_pc));
+  store_u32(code, ld_strnlen_offset, riscv_ld(5, 5,
+    (int32_t) strnlen_data_offset - (int32_t) auipc_strnlen_pc));
 
   static const char source[] = "polyglot";
   char dest[sizeof(source)];
@@ -1576,7 +1590,7 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   *insn_delta = read_rax() - insns_before;
   poly_switch_count_status();
   *switch_delta = read_rax() - switches_before;
-  *result = (raw_result == (uint64_t) (uintptr_t) dest &&
+  *result = (raw_result == 42 &&
       memcmp(dest, source, sizeof(source)) == 0) ? 42 : 0;
 
   munmap(code, code_size);
@@ -1632,6 +1646,12 @@ static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 17,
     POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMCPY * POLY_IMPORT_CALL_STRIDE);
   emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor memcpy
+  emit_u32(code, &offset, aarch64_mov_reg(0, 20));
+  emit_u32(code, &offset, 0xd2800081U); // movz x1,#4
+  emit_aarch64_movabs(code, &offset, 17,
+    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRNLEN * POLY_IMPORT_CALL_STRIDE);
+  emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor strnlen
+  emit_u32(code, &offset, 0x91009800U); // add x0,x0,#38
   emit_u32(code, &offset, aarch64_mov_reg(30, 19)); // restore cross-return cookie
   emit_u32(code, &offset, 0xd65f03c0U); // ret
 
@@ -1660,7 +1680,7 @@ static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
   *insn_delta = read_rax() - insns_before;
   poly_switch_count_status();
   *switch_delta = read_rax() - switches_before;
-  *result = (raw_result == (uint64_t) (uintptr_t) dest &&
+  *result = (raw_result == 42 &&
       memcmp(dest, source, sizeof(source)) == 0) ? 42 : 0;
 
   munmap(code, code_size);
@@ -2098,8 +2118,8 @@ static int check_cross_call_descriptor_memops_direction(const char *name,
       name, (unsigned long long) result);
     return -1;
   }
-  if (insn_delta < 15) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memops %s raw instruction delta expected at least 15 got %llu\n",
+  if (insn_delta < 20) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memops %s raw instruction delta expected at least 20 got %llu\n",
       name, (unsigned long long) insn_delta);
     return -1;
   }

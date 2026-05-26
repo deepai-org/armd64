@@ -500,10 +500,10 @@ verify a callee can execute a native AArch64 `brk #1` or RISC-V `ebreak`
 strlen trap inside a neutral cross-call while preserving the x86_64 first
 argument pointer and returning the result through the caller's native result
 register.  Descriptor-import probes also verify a neutral callee can call
-hardware-style `strlen`, `memset`, `memcpy`, and three-argument `memcmp` import
-descriptors with ordinary AArch64 `blr` or RISC-V `jalr`, restore its native
-link register, mutate a shared x86 buffer through the foreign memory path, and
-return through the same cross-frontend hardware cookie.  The gate also covers
+hardware-style `strlen`, `strnlen`, `memset`, `memcpy`, and three-argument
+`memcmp` import descriptors with ordinary AArch64 `blr` or RISC-V `jalr`,
+restore its native link register, mutate a shared x86 buffer through the
+foreign memory path, and return through the same cross-frontend hardware cookie.  The gate also covers
 a nested AArch64 -> RISC-V -> AArch64 call chain.
 Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
 hardware-style continuation state for `PCALL`, x86 import returns, and neutral
