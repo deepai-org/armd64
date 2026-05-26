@@ -129,8 +129,9 @@ The current register bridge aliases the overlapping caller-visible integer ABI:
 - x86_64 `RSP` maps to RISC-V `sp`; AArch64 `x31` is still decoded as zero for
   general register operands, with load/store base handling treating `x31` as
   `SP`.
-- x86_64 `XMM0`-`XMM7` low 64-bit lanes map to AArch64 scalar `d0`-`d7` and
-  RISC-V `fa0`-`fa7` for the currently decoded scalar double FP subset.
+- x86_64 `XMM0`-`XMM7` low lanes map to AArch64 scalar `s0`/`d0`-`s7`/`d7`
+  and RISC-V `fa0`-`fa7` for the currently decoded scalar float/double FP
+  subset.
 - Bochs tracks the remaining foreign integer registers in synthetic banks keyed
   by guest `CR3` and user `FSBASE`: AArch64 `x7`-`x30` plus syscall scratch
   `x8`, and RISC-V non-aliased registers including `a7`.
@@ -173,7 +174,9 @@ objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`), compiler-built scalar float FP
 objects (`aarch64-pcall-fp32-real.so#poly_entry` and
-`riscv-pcall-fp32-real.so#poly_entry`), and compiler-shaped stack-frame payloads
+`riscv-pcall-fp32-real.so#poly_entry`), compiler-built scalar float FP
+memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
+`riscv-pcall-fp32-mem-real.so#poly_entry`), and compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
 `aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
@@ -238,8 +241,9 @@ immediate and shifted-register forms, shifted-register
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
-and float `fadd`/`fsub`/`fmul` and register `fmov`, generic byte/halfword/word/dword
-load-store forms, 64-bit `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
+and float `fadd`/`fsub`/`fmul` and register `fmov`, scalar FP `ldr`/`str`,
+generic byte/halfword/word/dword load-store forms, 64-bit `stp`/`ldp` pair
+load-store forms, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM
@@ -250,7 +254,8 @@ register-register `add`, `sub`, `mul`, `xor`, `and`, and `or`,
 byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
 `fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` on the same mapped
-FP argument registers.  It also decodes a first RV64C compatibility subset for common
+FP argument registers and FP `flw`/`fld`/`fsw`/`fsd` memory forms.  It also
+decodes a first RV64C compatibility subset for common
 compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
 `c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.ldsp`, `c.mv`,
 `c.jr`/`c.ret`, `c.ebreak`, `c.jalr`, `c.add`, and `c.sdsp`.
