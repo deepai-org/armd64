@@ -886,6 +886,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-write.elf" 0xd2800020 0x91000021 0xd28000a2 0xd2800808 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-writev.elf" 0xaa0103e3 0xf9000023 0xd28000a4 0xf9000424 0xd2800020 0xd2800022 0xd2800848 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat.elf" 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-faccessat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2800003 0xd2800608 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-readlinkat.elf" 0xd2800000 0xaa0103e2 0xd2800203 0xd28009c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-newfstatat.elf" 0xd2800000 0xaa0103e2 0xd2800003 0xd28009e8 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fstat.elf" 0xd2800060 0xd2800a08 0xd4000001 0xf9400020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-lseek.elf" 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001 0xd28000e1 0xd2800002 0xd28007c8 0xd4000001
@@ -898,6 +900,10 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getcpu.elf" 0x91000020 0x91002021 0xd2801508 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-gettimeofday.elf" 0x91000020 0xd2800001 0xd2801528 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sysinfo.elf" 0x91000020 0xd2801668 0xd4000001 0xf9400040
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigaction.elf" 0xd2800040 0xd2800001 0xd2800002 0xd2801003 0xd28010c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigprocmask.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801003 0xd28010e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-futex.elf" 0xaa0103e0 0xd2800001 0xd2800002 0xd2800003 0xd2800c48 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-madvise.elf" 0xaa0103e0 0xd2820001 0xd2800002 0xd2801d28 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-tid-address.elf" 0xaa0103e0 0xd2800c08 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-robust-list.elf" 0xaa0103e0 0xd2800301 0xd2800c68 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prlimit64.elf" 0xaa0103e3 0xd2800000 0xd2800061 0xd2800002 0xd28020a8 0xd4000001 0xf9400060
@@ -982,6 +988,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-write.elf" 0x00100513 0x00058593 0x00500613 0x04000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-writev.elf" 0x00058293 0x0055b023 0x00500313 0x0065b423 0x00100513 0x00100613 0x04200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat.elf" 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-faccessat.elf" 0x00000513 0x00058613 0x00000693 0x03000893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-readlinkat.elf" 0x00000513 0x00058613 0x01000693 0x04e00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-newfstatat.elf" 0x00000513 0x00058613 0x00000693 0x04f00893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fstat.elf" 0x00300513 0x05000893 0x00000073 0x0005b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-lseek.elf" 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073 0x00700593 0x00000613 0x03e00893 0x00000073
@@ -994,6 +1002,10 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getcpu.elf" 0x00058513 0x00858593 0x0a800893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-gettimeofday.elf" 0x00058513 0x00000593 0x0a900893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sysinfo.elf" 0x00058513 0x0b300893 0x00000073 0x00063503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rt-sigaction.elf" 0x00200513 0x00000593 0x00000613 0x00800693 0x08600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rt-sigprocmask.elf" 0x00000513 0x00000593 0x00000613 0x00800693 0x08700893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-futex.elf" 0x00058513 0x00000593 0x00000613 0x00000693 0x06200893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-madvise.elf" 0x00058513 0x000015b7 0x00000613 0x0e900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-tid-address.elf" 0x00058513 0x06000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-robust-list.elf" 0x00058513 0x01800593 0x06300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-prlimit64.elf" 0x00058693 0x00000513 0x00300593 0x00000613 0x10500893 0x00000073 0x0006b503
@@ -1177,6 +1189,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-write.elf=5 \
     /usr/lib/polyapps/aarch64-writev.elf=5 \
     /usr/lib/polyapps/aarch64-openat.elf=3 \
+    /usr/lib/polyapps/aarch64-faccessat.elf=0 \
+    /usr/lib/polyapps/aarch64-readlinkat.elf=5 \
     /usr/lib/polyapps/aarch64-newfstatat.elf=0x21215441545350 \
     /usr/lib/polyapps/aarch64-fstat.elf=0x21215441545350 \
     /usr/lib/polyapps/aarch64-openat-lseek.elf=7 \
@@ -1189,6 +1203,10 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-getcpu.elf=12 \
     /usr/lib/polyapps/aarch64-gettimeofday.elf=246 \
     /usr/lib/polyapps/aarch64-sysinfo.elf=98765 \
+    /usr/lib/polyapps/aarch64-rt-sigaction.elf=0 \
+    /usr/lib/polyapps/aarch64-rt-sigprocmask.elf=0 \
+    /usr/lib/polyapps/aarch64-futex.elf=0 \
+    /usr/lib/polyapps/aarch64-madvise.elf=0 \
     /usr/lib/polyapps/aarch64-set-tid-address.elf=4243 \
     /usr/lib/polyapps/aarch64-set-robust-list.elf=0 \
     /usr/lib/polyapps/aarch64-prlimit64.elf=8388608 \
@@ -1252,6 +1270,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-write.elf=5 \
     /usr/lib/polyapps/riscv-writev.elf=5 \
     /usr/lib/polyapps/riscv-openat.elf=3 \
+    /usr/lib/polyapps/riscv-faccessat.elf=0 \
+    /usr/lib/polyapps/riscv-readlinkat.elf=5 \
     /usr/lib/polyapps/riscv-newfstatat.elf=0x21215441545350 \
     /usr/lib/polyapps/riscv-fstat.elf=0x21215441545350 \
     /usr/lib/polyapps/riscv-openat-lseek.elf=7 \
@@ -1264,6 +1284,10 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-getcpu.elf=12 \
     /usr/lib/polyapps/riscv-gettimeofday.elf=246 \
     /usr/lib/polyapps/riscv-sysinfo.elf=98765 \
+    /usr/lib/polyapps/riscv-rt-sigaction.elf=0 \
+    /usr/lib/polyapps/riscv-rt-sigprocmask.elf=0 \
+    /usr/lib/polyapps/riscv-futex.elf=0 \
+    /usr/lib/polyapps/riscv-madvise.elf=0 \
     /usr/lib/polyapps/riscv-set-tid-address.elf=4243 \
     /usr/lib/polyapps/riscv-set-robust-list.elf=0 \
     /usr/lib/polyapps/riscv-prlimit64.elf=8388608 \
@@ -1520,6 +1544,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-write.elf \
     /usr/lib/polyapps/aarch64-writev.elf \
     /usr/lib/polyapps/aarch64-openat.elf \
+    /usr/lib/polyapps/aarch64-faccessat.elf \
+    /usr/lib/polyapps/aarch64-readlinkat.elf \
     /usr/lib/polyapps/aarch64-newfstatat.elf \
     /usr/lib/polyapps/aarch64-fstat.elf \
     /usr/lib/polyapps/aarch64-openat-lseek.elf \
@@ -1532,6 +1558,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-getcpu.elf \
     /usr/lib/polyapps/aarch64-gettimeofday.elf \
     /usr/lib/polyapps/aarch64-sysinfo.elf \
+    /usr/lib/polyapps/aarch64-rt-sigaction.elf \
+    /usr/lib/polyapps/aarch64-rt-sigprocmask.elf \
+    /usr/lib/polyapps/aarch64-futex.elf \
+    /usr/lib/polyapps/aarch64-madvise.elf \
     /usr/lib/polyapps/aarch64-set-tid-address.elf \
     /usr/lib/polyapps/aarch64-set-robust-list.elf \
     /usr/lib/polyapps/aarch64-prlimit64.elf \
@@ -1595,6 +1625,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-write.elf \
     /usr/lib/polyapps/riscv-writev.elf \
     /usr/lib/polyapps/riscv-openat.elf \
+    /usr/lib/polyapps/riscv-faccessat.elf \
+    /usr/lib/polyapps/riscv-readlinkat.elf \
     /usr/lib/polyapps/riscv-newfstatat.elf \
     /usr/lib/polyapps/riscv-fstat.elf \
     /usr/lib/polyapps/riscv-openat-lseek.elf \
@@ -1607,6 +1639,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-getcpu.elf \
     /usr/lib/polyapps/riscv-gettimeofday.elf \
     /usr/lib/polyapps/riscv-sysinfo.elf \
+    /usr/lib/polyapps/riscv-rt-sigaction.elf \
+    /usr/lib/polyapps/riscv-rt-sigprocmask.elf \
+    /usr/lib/polyapps/riscv-futex.elf \
+    /usr/lib/polyapps/riscv-madvise.elf \
     /usr/lib/polyapps/riscv-set-tid-address.elf \
     /usr/lib/polyapps/riscv-set-robust-list.elf \
     /usr/lib/polyapps/riscv-prlimit64.elf \

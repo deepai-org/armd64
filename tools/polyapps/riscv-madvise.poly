@@ -1,0 +1,8 @@
+# poly payload v1
+arch=riscv
+elf=/usr/lib/polyapps/riscv-madvise.elf
+expected=0
+syscall_expected=4
+syscall_number_expected=233
+libcall_id=0
+libcall_expected=0x4c000400
