@@ -157,7 +157,8 @@ discover the experimental hardware contract before emitting poly operations:
   `{float,u32}` compact aggregate bridges and matching neutral
   AArch64<->RISC-V compact aggregate cross-calls, and runtime-supplied
   foreign-to-x86 import descriptor slots, and FP64 overflow stack-argument
-  `PCALL` variants.  The double-lane bridge forms also cover ABI-compatible
+  `PCALL` variants, and neutral AArch64<->RISC-V FP64 overflow stack-argument
+  cross-call variants.  The double-lane bridge forms also cover ABI-compatible
   `{u32,double}` and `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
@@ -177,6 +178,10 @@ discover the experimental hardware contract before emitting poly operations:
   foreign-to-x86 import descriptor slot id, `EBX=8` reports the current slot
   count, `ECX=16` reports the descriptor byte size, and `EDX=16` reports the
   import-call stride.
+- `CPUID.EAX=0x40000002, ECX=3`: `EAX=0x7ffa` reports the AArch64
+  FP64 overflow stack-argument RISC-V cross-call encoding, and `EBX=0x0000307b`
+  reports the matching RISC-V AArch64 cross-call encoding.  Other registers
+  are reserved zero.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:
@@ -190,6 +195,9 @@ only routing hub:
   `{u32,float}` native ABI bridge between packed `x0` and split `a0`/`fa0`.
 - AArch64 `brk #0x7ffb`: call a raw RISC-V target with a compact
   `{float,u32}` native ABI bridge between packed `x0` and split `fa0`/`a0`.
+- AArch64 `brk #0x7ffa`: call a raw RISC-V target with an FP64 overflow
+  stack-argument bridge, mapping eight AArch64 stack double slots into RISC-V
+  `a0`-`a7` after the shared `d0`-`d7`/`fa0`-`fa7` lanes are consumed.
 - RISC-V custom-0 `0x0000000b`: exit raw RISC-V and resume x86_64 decode.
 - RISC-V custom-1 `0x0000002b`: switch directly from raw RISC-V to raw
   AArch64 at the next byte.
@@ -199,6 +207,9 @@ only routing hub:
   `{u32,float}` native ABI bridge between split `a0`/`fa0` and packed `x0`.
 - RISC-V custom `0x0000207b`: call a raw AArch64 target with a compact
   `{float,u32}` native ABI bridge between split `fa0`/`a0` and packed `x0`.
+- RISC-V custom `0x0000307b`: call a raw AArch64 target with an FP64 overflow
+  stack-argument bridge, mapping RISC-V `a0`-`a7` into eight AArch64 stack
+  double slots after the shared `fa0`-`fa7`/`d0`-`d7` lanes are consumed.
 
 These native switches preserve the shared low integer register aliases, so
 `x0`/`a0`/`RAX` can carry a value through AArch64-to-RISC-V or
@@ -209,9 +220,11 @@ to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
 The Bochs prototype backs this with a small bounded cross-return stack and
 `polybench` covers scalar double FP cross-calls, eight-register double FP
-argument pressure across `d0`-`d7`/`fa0`-`fa7`, mixed integer/FP cross-calls,
-two-register integer returns, compact `{u32,float}`/`{float,u32}` native ABI
-cross-call bridging, shared-stack cross-calls, caller callee-saved register
+argument pressure across `d0`-`d7`/`fa0`-`fa7`, FP64 overflow stack-argument
+cross-calls that sum sixteen double arguments in both directions, mixed
+integer/FP cross-calls, two-register integer returns, compact
+`{u32,float}`/`{float,u32}` native ABI cross-call bridging, shared-stack
+cross-calls, caller callee-saved register
 preservation, syscall trap routing inside neutral callees, and a nested
 AArch64 -> RISC-V -> AArch64 call chain.  The stack probes use the
 caller's real user `sp`: the caller allocates and restores an aligned slot,

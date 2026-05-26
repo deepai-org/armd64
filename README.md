@@ -112,6 +112,7 @@ runtime dispatch:
 | `0x40000002, subleaf 0` | `EAX[15:0]=0x7fff`, `EAX[31:16]=0x7ffe`, `EBX=0x7ffd`, `ECX=0x0000000b`, `EDX=0x0000002b` | Reports native raw-mode escape/cross-switch encodings: AArch64-to-x86, AArch64-to-RISC-V switch, AArch64-to-RISC-V call, RISC-V-to-x86, and RISC-V-to-AArch64 switch. |
 | `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=0x0000107b`, `ECX=0x0000207b`, `EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding and compact `{u32,float}`/`{float,u32}` native ABI cross-call variants. |
 | `0x40000002, subleaf 2` | `EAX=106`, `EBX=8`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
+| `0x40000002, subleaf 3` | `EAX=0x7ffa`, `EBX=0x0000307b`, `ECX=0`, `EDX=0` | Reports the neutral FP64 overflow stack-argument cross-call encodings: AArch64 `brk #0x7ffa` to RISC-V and RISC-V custom `0x0000307b` to AArch64. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -127,7 +128,9 @@ bridges for AArch64 `PCALL`; bits `19`-`20` advertise the RISC-V
 `{u32,float}` and `{float,u32}` compact aggregate bridges; bit `21` advertises
 the corresponding neutral AArch64<->RISC-V compact aggregate cross-call
 bridges; bit `22` advertises runtime-supplied foreign-to-x86 import descriptor
-slots; bit `23` advertises FP64 overflow stack-argument `PCALL` variants.  The same
+slots; bit `23` advertises FP64 overflow stack-argument `PCALL` variants; bit
+`24` advertises neutral AArch64<->RISC-V FP64 overflow stack-argument
+cross-call variants.  The same
 double-lane bridge forms also cover the ABI-compatible `{u32,double}` and
 `{double,u32}` shapes.
 
@@ -144,7 +147,11 @@ address in `x16` with an AArch64 return PC in `x17`; RISC-V custom-2
 `0x0000005b` is the reverse call gate to an AArch64 target in `x5` with a
 RISC-V return PC in `x6`.  AArch64 `brk #0x7ffc`/`brk #0x7ffb` and RISC-V
 custom opcodes `0x0000107b`/`0x0000207b` are compact `{u32,float}` and
-`{float,u32}` native ABI variants for direct AArch64<->RISC-V calls.  The callee returns with its ordinary native return
+`{float,u32}` native ABI variants for direct AArch64<->RISC-V calls.  AArch64
+`brk #0x7ffa` and RISC-V custom opcode `0x0000307b` are FP64 overflow
+stack-argument variants; they preserve the shared `d0`-`d7`/`fa0`-`fa7`
+aliases while mapping the eight extra double lanes between AArch64 stack slots
+and RISC-V `a0`-`a7`.  The callee returns with its ordinary native return
 instruction to a hardware cookie, which restores the caller frontend mode and
 maps the shared integer and scalar FP argument/result registers back.  Raw
 cross-call returns use a small bounded hardware-style return stack in the
@@ -600,9 +607,10 @@ AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
 where the caller enters the other foreign frontend and the callee returns with
 ordinary native `ret`/`jalr` through a hardware cookie without routing through
 x86.  The gate also covers scalar double FP cross-calls in both directions,
-eight-register double FP argument pressure across `d0`-`d7`/`fa0`-`fa7`, and
-mixed integer/FP cross-calls where an integer argument is converted and folded
-into the FP return value across the opposite foreign frontend.  Shared-stack
+eight-register double FP argument pressure across `d0`-`d7`/`fa0`-`fa7`,
+FP64 overflow stack-argument cross-calls that sum sixteen double arguments in
+both directions, and mixed integer/FP cross-calls where an integer argument is
+converted and folded into the FP return value across the opposite foreign frontend.  Shared-stack
 neutral cross-call probes verify an AArch64 or RISC-V caller can allocate an
 aligned stack slot, the opposite frontend can load it through its native `sp`,
 and the caller can restore the same user stack before returning to x86.
