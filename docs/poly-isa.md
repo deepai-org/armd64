@@ -61,6 +61,8 @@ fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` are mapped to
 AArch64 `x0`-`x5` or RISC-V `a0`-`a5`; `XMM0`-`XMM7` remain aliased to
 AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`; and AArch64 `ret x30` or RISC-V
 `jalr x0, 0(ra)` returns through a cookie to the saved x86 continuation.
+The `polycall` guest tool exercises this path against loaded foreign ELF64
+function payloads rather than inline x86-hosted instruction blobs.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:

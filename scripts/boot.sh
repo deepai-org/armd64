@@ -29,6 +29,8 @@ POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
+POLY_CALL_SRC="$ROOT_DIR/tools/polycall.c"
+POLY_CALL_BIN="$OUT_DIR/polycall"
 POLY_BENCH_SRC="$ROOT_DIR/tools/polybench.c"
 POLY_BENCH_BIN="$OUT_DIR/polybench"
 POLY_BINFMT_SRC="$ROOT_DIR/tools/polybinfmt.sh"
@@ -118,6 +120,10 @@ build_poly_exec() {
   compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}"
 }
 
+build_poly_call() {
+  compile_poly_tool "$POLY_CALL_SRC" "$POLY_CALL_BIN" "${POLY_CALL_CC:-}"
+}
+
 build_poly_bench() {
   compile_poly_tool "$POLY_BENCH_SRC" "$POLY_BENCH_BIN" "${POLY_BENCH_CC:-}"
 }
@@ -160,6 +166,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-condbranch.elf" 0xd2800000 0xb5000040 0x91000400 0xd2800000 0xb4000040 0xd2800c60 0x91000c00 0xb4000040 0x91001400 0xb5000040 0xd2800c60 0x91014c00
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-loop.elf" 0xd2800060 0xd1000400 0xb5ffffe0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ret.elf" 0xd28006e0 0xd65f03c0 0xd2800020
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sum.elf" 0x8b010000 0x8b020000 0x8b030000 0x8b040000 0x8b050000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mem.elf" 0xd28009a0 0xf9000020 0xd2800000 0xf9400020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memwidth.elf" 0x928001a5 0x39000025 0x39400026 0x92800025 0xb9000425 0xb9400427 0xd2824685 0x79001025 0x79401028 0x8b0700c0 0x8b080000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-strlen.elf" 0xd4200020
@@ -218,6 +225,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-condbranch.elf" 0x00000513 0x00051463 0x00150513 0x00000513 0x00050463 0x06300513 0x00350513 0x00050463 0x00550513 0x00051463 0x06300513 0x05350513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-loop.elf" 0x00300513 0xfff50513 0xfe051ee3
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ret.elf" 0x03700513 0x00008067 0x00100513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-sum.elf" 0x00b50533 0x00c50533 0x00d50533 0x00e50533 0x00f50533 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mem.elf" 0x04d00513 0x00a5b023 0x00000513 0x0005b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memwidth.elf" 0xff200293 0x00558023 0x0005c303 0x00058383 0x00730333 0xffe00293 0x0055a223 0x0045ee03 0x0045ae83 0x01de0e33 0x01c30533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-strlen.elf" 0x00100893 0x00100073
@@ -300,6 +308,7 @@ build_initramfs() {
   build_poly_probe
   build_poly_app
   build_poly_exec
+  build_poly_call
   build_poly_bench
   build_native_check
   local busybox_version
@@ -334,6 +343,7 @@ build_initramfs() {
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
+  cp "$POLY_CALL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polycall"
   cp "$POLY_BENCH_BIN" "$TMP_DIR/initramfs-root/usr/bin/polybench"
   cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   cp "$NATIVE_CHECK_BIN" "$TMP_DIR/initramfs-root/usr/bin/nativecheck.elf"
@@ -472,6 +482,9 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
     /usr/lib/polyapps/riscv-ecall.elf=0x53000704 \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
+    /usr/bin/polycall \
+    /usr/lib/polyapps/aarch64-pcall-sum.elf=21 \
+    /usr/lib/polyapps/riscv-pcall-sum.elf=21 >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_BENCH" = "1" ]; then

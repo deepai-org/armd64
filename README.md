@@ -33,6 +33,10 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
   using the same raw-mode execution path, including executable segments larger
   than one raw burst.
+- `tools/polycall.c` loads generated foreign ELF64 function payloads and calls
+  their entrypoints through the prototype hardware ABI bridge (`PCALL`), so
+  the return path uses ordinary AArch64/RISC-V return instructions rather than
+  raw escape instructions.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks one mixed raw AArch64-to-RISC-V code blob.
@@ -109,11 +113,13 @@ custom compiler ABI.  The prototype `PCALL.A64.SYSV` and `PCALL.RV64.SYSV`
 forms move the common thunk work into the emulated ISA: they map x86_64 SysV
 integer arguments into AAPCS64 `x0`-`x5` or RISC-V psABI `a0`-`a5`, preserve
 the shared `XMM0`-`XMM7` FP argument/return aliases, set `x30` or `ra` to a
-return cookie, and enter raw fetch at the `R10` target.  More complex ABI cases
-such as stack arguments, aggregate returns, variadic calls, TLS, unwind, and
-exceptions still need descriptor-driven or software thunk support.  Direct
-register aliases are an implementation optimization only where they match the
-native ABI contract; they are not the external compatibility contract.
+return cookie, and enter raw fetch at the `R10` target.  `polycall` verifies
+this against loaded foreign ELF64 function payloads (`aarch64-pcall-sum.elf`
+and `riscv-pcall-sum.elf`).  More complex ABI cases such as stack arguments,
+aggregate returns, variadic calls, TLS, unwind, and exceptions still need
+descriptor-driven or software thunk support.  Direct register aliases are an
+implementation optimization only where they match the native ABI contract; they
+are not the external compatibility contract.
 
 Cross-ISA returns are expected to use native return instructions.  AArch64
 libraries return with `ret` through `x30`, and RISC-V libraries return with
@@ -217,6 +223,7 @@ Expected success markers include:
 - `POLY_PROBE_OK`
 - `POLYAPP_OK`
 - `POLYEXEC_OK`
+- `POLYCALL_OK`
 - `POLYBENCH_OK`
 - `POLYBINFMT_OK`
 
