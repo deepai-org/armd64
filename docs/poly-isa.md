@@ -150,7 +150,9 @@ objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`), compiler-produced scalar double
 FP conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
-`riscv-pcall-fp64-cond-real.so#poly_entry`), and compiler-produced scalar
+`riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-produced scalar double
+FP division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and
+`riscv-pcall-fp64-div-real.so#poly_entry`), and compiler-produced scalar
 float FP objects (`aarch64-pcall-fp32-real.so#poly_entry` and
 `riscv-pcall-fp32-real.so#poly_entry`) plus compiler-produced scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
@@ -163,8 +165,9 @@ in `s0`/`d0`-`s2`/`d2` or `fa0`-`fa2` and verify the FP return through
 `s0`/`d0`/`fa0` aliased to x86 `XMM0`. The FP memory probes exercise compiler
 emitted global FP loads and stack FP spill/reload forms. The FP conditional
 probes exercise compiler-emitted AArch64 `fcmpe` plus condition branches and
-RISC-V `flt.d` plus `fmv.d` select paths. The FP import probes exercise real
-PLT/GOT calls to
+RISC-V `flt.d` plus `fmv.d` select paths. The FP division probes exercise
+compiler-emitted AArch64 `fdiv` and RISC-V `fdiv.d` paths. The FP import
+probes exercise real PLT/GOT calls to
 `poly_import_fp64_add` and verify descriptor-dispatched FP arguments and return
 values. The imported-object probes exercise real compiler-emitted GOT loads of
 undefined `poly_import_value`. The function-pointer probes exercise compiler

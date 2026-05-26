@@ -174,7 +174,9 @@ objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`), compiler-built scalar double FP
 conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
-`riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-built scalar float FP
+`riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-built scalar double FP
+division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and
+`riscv-pcall-fp64-div-real.so#poly_entry`), compiler-built scalar float FP
 objects (`aarch64-pcall-fp32-real.so#poly_entry` and
 `riscv-pcall-fp32-real.so#poly_entry`), compiler-built scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
@@ -243,8 +245,8 @@ immediate and shifted-register forms, shifted-register
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
-and float `fadd`/`fsub`/`fmul`, register `fmov`, `fcmp`/`fcmpe`, scalar FP
-`ldr`/`str`, generic byte/halfword/word/dword load-store forms, 64-bit
+and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, `fcmp`/`fcmpe`,
+scalar FP `ldr`/`str`, generic byte/halfword/word/dword load-store forms, 64-bit
 `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
@@ -255,7 +257,8 @@ register-register `add`, `sub`, `mul`, `xor`, `and`, and `or`,
 `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, generic `jalr`, selected
 byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
-`fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` on the same mapped
+`fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` and scalar FP
+division `fdiv.s`/`fdiv.d` on the same mapped
 FP argument registers, FP compare `feq`/`flt`/`fle`, FP sign-injection
 `fsgnj`/`fsgnjn`/`fsgnjx` including `fmv`, and FP `flw`/`fld`/`fsw`/`fsd`
 memory forms.  It also decodes a first RV64C compatibility subset for common
