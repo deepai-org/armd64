@@ -158,7 +158,7 @@ static unsigned char symbol_info(unsigned bind, unsigned type) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE] [--export NAME|--export-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -187,12 +187,14 @@ int main(int argc, char **argv) {
   }
   const char *export_name = NULL;
   uint64_t export_offset = 0;
+  int export_sections = 0;
   if (first_insn_arg + 2 <= argc && strcmp(argv[first_insn_arg], "--export") == 0) {
     export_name = argv[first_insn_arg + 1];
     if (export_name[0] == '\0') {
       fprintf(stderr, "mkpolyelf: bad export name\n");
       return 2;
     }
+    export_sections = 1;
     first_insn_arg += 2;
   }
   else if (first_insn_arg + 3 <= argc &&
@@ -201,6 +203,26 @@ int main(int argc, char **argv) {
     if (export_name[0] == '\0' ||
         parse_u64(argv[first_insn_arg + 2], &export_offset) < 0) {
       fprintf(stderr, "mkpolyelf: bad export-at usage\n");
+      return 2;
+    }
+    export_sections = 1;
+    first_insn_arg += 3;
+  }
+  else if (first_insn_arg + 2 <= argc &&
+      strcmp(argv[first_insn_arg], "--export-dyntab") == 0) {
+    export_name = argv[first_insn_arg + 1];
+    if (export_name[0] == '\0') {
+      fprintf(stderr, "mkpolyelf: bad export name\n");
+      return 2;
+    }
+    first_insn_arg += 2;
+  }
+  else if (first_insn_arg + 3 <= argc &&
+      strcmp(argv[first_insn_arg], "--export-dyntab-at") == 0) {
+    export_name = argv[first_insn_arg + 1];
+    if (export_name[0] == '\0' ||
+        parse_u64(argv[first_insn_arg + 2], &export_offset) < 0) {
+      fprintf(stderr, "mkpolyelf: bad export-dyntab-at usage\n");
       return 2;
     }
     first_insn_arg += 3;
@@ -225,7 +247,7 @@ int main(int argc, char **argv) {
     return 2;
   }
   const int has_dynsym = export_name || dyn_symbolic;
-  const int has_sections = export_name != NULL;
+  const int has_sections = export_name != NULL && export_sections;
   const char data_symbol_name[] = "poly_value";
   const uint64_t export_name_offset = export_name ? 1 : 0;
   const uint64_t data_name_offset = dyn_symbolic ?

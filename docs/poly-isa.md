@@ -82,15 +82,13 @@ payloads. `polycall` also accepts simple `ET_DYN` images with
 `R_AARCH64_RELATIVE` or `R_RISCV_RELATIVE` relocations and same-image symbolic
 64-bit dynamic relocations (`R_AARCH64_ABS64` or `R_RISCV_64`), applying them
 with the actual runtime load bias before `PCALL`. Symbolic relocation metadata
-is read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image, with section
-tables kept only as a fallback for exported-entry lookup in the current test
-tool; external imported symbol binding remains out of scope for this prototype.
-A `path#symbol` `polycall` request resolves exported function symbols from ELF
-symbol tables before issuing `PCALL`, matching how a real cross-ISA linker would
-identify a library function entrypoint. The gate uses nonzero `poly_entry`
-symbol offsets for the dynamic-relocation probes so symbol resolution, not the
-ELF entrypoint, selects the target, and also includes sectionless `dyntab`
-probes that exercise only `PT_DYNAMIC` symbol metadata.
+and `path#symbol` entrypoint lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the
+loaded dynamic image, with section tables kept as a fallback for synthetic
+test payloads; external imported symbol binding remains out of scope for this
+prototype. The gate uses nonzero `poly_entry` symbol offsets for the
+dynamic-relocation probes so symbol resolution, not the ELF entrypoint, selects
+the target, and also includes sectionless `dyntab` probes that exercise only
+`PT_DYNAMIC` symbol metadata.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:

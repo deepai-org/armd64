@@ -184,18 +184,12 @@ static int check_elf_table(uint64_t offset, uint64_t count, uint64_t entsize,
   return 0;
 }
 
-static int resolve_elf_symbol(const unsigned char *data, size_t size,
-    const Elf64_Ehdr *ehdr, const char *symbol_name, uint64_t *symbol_vaddr) {
-  if (!symbol_name || symbol_name[0] == '\0') {
-    *symbol_vaddr = ehdr->e_entry;
-    return 0;
-  }
-
+static int resolve_elf_symbol_from_sections(const unsigned char *data,
+    size_t size, const Elf64_Ehdr *ehdr, const char *symbol_name,
+    uint64_t *symbol_vaddr) {
   if (ehdr->e_shentsize < sizeof(Elf64_Shdr) ||
-      check_elf_table(ehdr->e_shoff, ehdr->e_shnum, ehdr->e_shentsize, size) < 0) {
-    fprintf(stderr, "POLYCALL_FAIL: symbol lookup requires a valid section table\n");
+      check_elf_table(ehdr->e_shoff, ehdr->e_shnum, ehdr->e_shentsize, size) < 0)
     return -1;
-  }
 
   const Elf64_Shdr *sections = (const Elf64_Shdr *) (data + ehdr->e_shoff);
   for (uint16_t n = 0; n < ehdr->e_shnum; n++) {
@@ -232,7 +226,6 @@ static int resolve_elf_symbol(const unsigned char *data, size_t size,
     }
   }
 
-  fprintf(stderr, "POLYCALL_FAIL: symbol not found: %s\n", symbol_name);
   return -1;
 }
 
@@ -361,13 +354,45 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
       elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
         &strtab_offset) < 0)
     return -1;
+  if (strtab_offset <= symtab_offset ||
+      (strtab_offset - symtab_offset) % sizeof(Elf64_Sym) != 0)
+    return -1;
 
   table->symbols = (const Elf64_Sym *) (program->image + symtab_offset);
-  table->symbol_count = (program->image_size - symtab_offset) /
+  table->symbol_count = (strtab_offset - symtab_offset) /
     sizeof(Elf64_Sym);
   table->strings = (const char *) (program->image + strtab_offset);
   table->strings_size = (size_t) strsz;
   return 0;
+}
+
+static int resolve_symbol_from_table(const struct poly_symbol_table *table,
+    const char *symbol_name, uint64_t *symbol_vaddr) {
+  if (!table->symbols || !table->strings || !symbol_name)
+    return -1;
+
+  for (size_t s = 0; s < table->symbol_count; s++) {
+    const Elf64_Sym *sym = &table->symbols[s];
+    const unsigned type = ELF64_ST_TYPE(sym->st_info);
+    if (sym->st_name >= table->strings_size ||
+        sym->st_shndx == SHN_UNDEF ||
+        (type != STT_FUNC && type != STT_NOTYPE))
+      continue;
+    if (strcmp(table->strings + sym->st_name, symbol_name) == 0) {
+      *symbol_vaddr = sym->st_value;
+      return 0;
+    }
+  }
+  return -1;
+}
+
+static int resolve_dynamic_symbol(const struct poly_program *program,
+    const Elf64_Dyn *dyn, size_t dyn_count, const char *symbol_name,
+    uint64_t *symbol_vaddr) {
+  struct poly_symbol_table table;
+  if (load_dynsym_from_dynamic(program, dyn, dyn_count, &table) < 0)
+    return -1;
+  return resolve_symbol_from_table(&table, symbol_name, symbol_vaddr);
 }
 
 static int resolve_defined_reloc_symbol(const struct poly_program *program,
@@ -534,16 +559,9 @@ static int load_elf_program(const char *path, const char *symbol_name,
   }
   program->elf_type = ehdr->e_type;
 
-  uint64_t entry_vaddr = 0;
-  if (resolve_elf_symbol(data, size, ehdr, symbol_name, &entry_vaddr) < 0) {
-    free(data);
-    return -1;
-  }
-
   uint64_t base_vaddr = UINT64_MAX;
   uint64_t limit_vaddr = 0;
   int found_load = 0;
-  int entry_in_exec = 0;
   uint64_t dynamic_vaddr = 0;
   uint64_t dynamic_size = 0;
 
@@ -569,22 +587,17 @@ static int load_elf_program(const char *path, const char *symbol_name,
       base_vaddr = segment_base;
     if (segment_limit > limit_vaddr)
       limit_vaddr = segment_limit;
-    if ((phdr->p_flags & PF_X) && entry_vaddr >= phdr->p_vaddr &&
-        entry_vaddr < phdr->p_vaddr + phdr->p_filesz)
-      entry_in_exec = 1;
     found_load = 1;
   }
 
-  if (!found_load || !entry_in_exec || limit_vaddr <= base_vaddr ||
-      limit_vaddr - base_vaddr > MAX_PROGRAM_BYTES - 4 ||
-      entry_vaddr < base_vaddr || entry_vaddr >= limit_vaddr) {
+  if (!found_load || limit_vaddr <= base_vaddr ||
+      limit_vaddr - base_vaddr > MAX_PROGRAM_BYTES - 4) {
     fprintf(stderr, "POLYCALL_FAIL: unsupported ELF load image: %s\n", path);
     free(data);
     return -1;
   }
 
   program->base_vaddr = base_vaddr;
-  program->entry_offset = (size_t) (entry_vaddr - base_vaddr);
   program->image_size = (size_t) (limit_vaddr - base_vaddr + 4);
   program->image = calloc(1, program->image_size);
   if (!program->image) {
@@ -609,6 +622,50 @@ static int load_elf_program(const char *path, const char *symbol_name,
     memcpy(program->image + load_offset, data + phdr->p_offset, (size_t) phdr->p_filesz);
     program->loaded_bytes += (size_t) phdr->p_filesz;
   }
+
+  uint64_t entry_vaddr = ehdr->e_entry;
+  if (symbol_name && symbol_name[0] != '\0') {
+    int resolved = -1;
+    if (dynamic_size != 0 && dynamic_size % sizeof(Elf64_Dyn) == 0) {
+      size_t dynamic_offset = 0;
+      if (elf_vaddr_to_image_offset(program, dynamic_vaddr, dynamic_size,
+            &dynamic_offset) == 0) {
+        resolved = resolve_dynamic_symbol(program,
+          (const Elf64_Dyn *) (program->image + dynamic_offset),
+          (size_t) (dynamic_size / sizeof(Elf64_Dyn)), symbol_name,
+          &entry_vaddr);
+      }
+    }
+    if (resolved < 0)
+      resolved = resolve_elf_symbol_from_sections(data, size, ehdr,
+        symbol_name, &entry_vaddr);
+    if (resolved < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: symbol not found: %s\n", symbol_name);
+      free(program->image);
+      program->image = NULL;
+      free(data);
+      return -1;
+    }
+  }
+
+  int entry_in_exec = 0;
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type == PT_LOAD && (phdr->p_flags & PF_X) &&
+        entry_vaddr >= phdr->p_vaddr &&
+        entry_vaddr < phdr->p_vaddr + phdr->p_filesz) {
+      entry_in_exec = 1;
+      break;
+    }
+  }
+  if (!entry_in_exec || entry_vaddr < base_vaddr || entry_vaddr >= limit_vaddr) {
+    fprintf(stderr, "POLYCALL_FAIL: unsupported ELF entry image: %s\n", path);
+    free(program->image);
+    program->image = NULL;
+    free(data);
+    return -1;
+  }
+  program->entry_offset = (size_t) (entry_vaddr - base_vaddr);
 
   if (dynamic_size != 0) {
     if (dynamic_size % sizeof(Elf64_Dyn) != 0) {
