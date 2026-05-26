@@ -239,9 +239,9 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
     emit_u32(code, &offset, program->insns[n]);
   emit_u32(code, &offset, fallback_ret);
 
-  uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
-    (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
-  *result = entry(1, 2, 3, 4, 5, 6);
+  uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
+    (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
+  *result = entry(1, 2, 3, 4, 5, 6, 7, 8);
   munmap(code, code_size);
   return 0;
 }

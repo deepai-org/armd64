@@ -57,10 +57,11 @@ invasive way to prototype the frontend switch:
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register
-fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` are mapped to
-AArch64 `x0`-`x5` or RISC-V `a0`-`a5`; `XMM0`-`XMM7` remain aliased to
-AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`; and AArch64 `ret x30` or RISC-V
-`jalr x0, 0(ra)` returns through a cookie to the saved x86 continuation.
+fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` plus stack
+slots `[RSP+8]` and `[RSP+16]` are mapped to AArch64 `x0`-`x7` or RISC-V
+`a0`-`a7`; `XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V
+`fa0`-`fa7`; and AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through
+a cookie to the saved x86 continuation.
 The `polycall` guest tool exercises this path against loaded foreign ELF64
 function payloads rather than inline x86-hosted instruction blobs.
 
