@@ -1,5 +1,6 @@
 static unsigned long counter = 41;
 static unsigned int word_counter = 9;
+static unsigned int add_word_counter = 31;
 static unsigned long cas_value = 99;
 static unsigned int cas_word_value = 19;
 
@@ -11,6 +12,8 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
       __ATOMIC_SEQ_CST);
   unsigned int wold = __atomic_fetch_or(&word_counter, (unsigned int) c,
       __ATOMIC_RELAXED);
+  unsigned int add_wold = __atomic_fetch_add(&add_word_counter,
+      (unsigned int) c + 4, __ATOMIC_ACQ_REL);
   unsigned long expected = 99;
   int ok = __atomic_compare_exchange_n(&cas_value, &expected, c + 100, 0,
       __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
@@ -20,5 +23,5 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
 
   return old + prev + counter + word_counter + wold + cas_value +
     (unsigned long) ok + expected + (unsigned long) word_ok +
-    word_expected + cas_word_value;
+    word_expected + cas_word_value + add_wold + add_word_counter;
 }
