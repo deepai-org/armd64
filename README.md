@@ -192,7 +192,8 @@ objects (`aarch64-pcall-int-bitops-real.so#poly_entry` and
 objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
 `riscv-pcall-int-rotate-real.so#poly_entry`), compiler-built integer conditional
 compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
-`riscv-pcall-int-ccmp-real.so#poly_entry`), compiler-built unscaled-memory
+`riscv-pcall-int-ccmp-real.so#poly_entry`), AArch64 post-index memory
+object (`aarch64-pcall-postindex-mem.so#poly_entry`), compiler-built unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -338,7 +339,8 @@ sources, scalar FP/GPR bit moves, scalar FP pair loads/stores and scalar FP `ldr
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, unscaled `ldur`/`stur` integer and scalar FP
-forms, `svc`, and `brk`.
+forms plus single-register pre/post-indexed load-store writeback forms, `svc`,
+and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM

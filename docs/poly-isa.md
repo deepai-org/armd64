@@ -111,7 +111,8 @@ ordinary compiler stack-frame setup and teardown.
 The AArch64 raw decoder also supports `adrp` page-relative PC materialization,
 NZCV-backed `adds`/`subs` plus `b.cond` for ordinary condition-code branches,
 64-bit `stp`/`ldp` pair load-store forms for normal frame save/restore, and
-register-offset `ldr`/`str` forms for compiler-emitted indexed memory access.
+register-offset plus pre/post-indexed `ldr`/`str` forms for compiler-emitted
+indexed and pointer-walking memory access.
 Native `bl`/`blr` link-register calls handle local helper calls inside foreign
 code.  The RISC-V raw decoder aliases `x2/sp` to the shared stack pointer, so
 `addi sp, sp, imm` plus `ld`/`sd` stack accesses covers the same ordinary psABI
@@ -169,7 +170,8 @@ objects (`aarch64-pcall-int-bitops-real.so#poly_entry` and
 objects (`aarch64-pcall-int-rotate-real.so#poly_entry` and
 `riscv-pcall-int-rotate-real.so#poly_entry`), compiler-produced integer conditional
 compare objects (`aarch64-pcall-int-ccmp-real.so#poly_entry` and
-`riscv-pcall-int-ccmp-real.so#poly_entry`), compiler-produced unscaled-memory
+`riscv-pcall-int-ccmp-real.so#poly_entry`), AArch64 post-index memory object
+(`aarch64-pcall-postindex-mem.so#poly_entry`), compiler-produced unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-produced indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -278,7 +280,8 @@ builtins plus RISC-V shift/branch fallback sequences. The integer rotate/extract
 probes exercise compiler-emitted AArch64 `extr`/`ror` aliases and logical
 `ror` operands plus RISC-V shift/or fallback sequences. The integer conditional
 compare probes exercise compiler-emitted AArch64 `ccmp` for chained conditions
-plus RISC-V branch fallback sequences. The integer indexed-memory probes
+plus RISC-V branch fallback sequences. The AArch64 post-index memory probe
+exercises single-register `ldr`/`str` post-index writeback forms. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V
