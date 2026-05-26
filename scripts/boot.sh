@@ -53,6 +53,7 @@ POLYCALL_SRET_REAL_SRC="$ROOT_DIR/tools/polycall_sret_real.c"
 POLYCALL_CTOR_REAL_SRC="$ROOT_DIR/tools/polycall_ctor_real.c"
 POLYCALL_FINI_REAL_SRC="$ROOT_DIR/tools/polycall_fini_real.c"
 POLYCALL_TLS_REAL_SRC="$ROOT_DIR/tools/polycall_tls_real.c"
+POLYCALL_TLS_INITIAL_EXEC_REAL_SRC="$ROOT_DIR/tools/polycall_tls_initial_exec_real.c"
 POLYCALL_COND_REAL_SRC="$ROOT_DIR/tools/polycall_cond_real.c"
 POLYCALL_SELECT_VARIANTS_REAL_SRC="$ROOT_DIR/tools/polycall_select_variants_real.c"
 POLYCALL_CBZ_REAL_SRC="$ROOT_DIR/tools/polycall_cbz_real.c"
@@ -309,6 +310,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_TLS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-tls-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_TLS_INITIAL_EXEC_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-tls-ie-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_COND_REAL_SRC" \
@@ -608,6 +613,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_TLS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-tls-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_TLS_INITIAL_EXEC_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-tls-ie-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1365,6 +1375,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-ctor-real.so#poly_entry=245 \
     fini:/usr/lib/polyapps/aarch64-pcall-fini-real.so#poly_entry=1145 \
     /usr/lib/polyapps/aarch64-pcall-tls-real.so#poly_entry=55 \
+    /usr/lib/polyapps/aarch64-pcall-tls-ie-real.so#poly_entry=55 \
     /usr/lib/polyapps/aarch64-pcall-cond-real.so#poly_entry=115 \
     /usr/lib/polyapps/aarch64-pcall-select-variants-real.so#poly_entry=266 \
     /usr/lib/polyapps/aarch64-pcall-cbz-real.so#poly_entry=183 \
@@ -1433,6 +1444,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-ctor-real.so#poly_entry=245 \
     fini:/usr/lib/polyapps/riscv-pcall-fini-real.so#poly_entry=1145 \
     /usr/lib/polyapps/riscv-pcall-tls-real.so#poly_entry=55 \
+    /usr/lib/polyapps/riscv-pcall-tls-ie-real.so#poly_entry=55 \
     /usr/lib/polyapps/riscv-pcall-cond-real.so#poly_entry=115 \
     /usr/lib/polyapps/riscv-pcall-select-variants-real.so#poly_entry=266 \
     /usr/lib/polyapps/riscv-pcall-cbz-real.so#poly_entry=183 \

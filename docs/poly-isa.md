@@ -233,7 +233,9 @@ return objects (`aarch64-pcall-pair-real.so#poly_entry` and
 aggregate return objects (`aarch64-pcall-sret-real.so#poly_entry` and
 `riscv-pcall-sret-real.so#poly_entry`), compiler-produced TLS objects
 (`aarch64-pcall-tls-real.so#poly_entry` and
-`riscv-pcall-tls-real.so#poly_entry`), compiler-produced
+`riscv-pcall-tls-real.so#poly_entry`) plus initial-exec TLS objects
+(`aarch64-pcall-tls-ie-real.so#poly_entry` and
+`riscv-pcall-tls-ie-real.so#poly_entry`), compiler-produced
 constructor/destructor objects (`aarch64-pcall-ctor-real.so#poly_entry`,
 `riscv-pcall-ctor-real.so#poly_entry`,
 `aarch64-pcall-fini-real.so#poly_entry`, and
@@ -363,7 +365,9 @@ entrypoint. The destructor probes execute compiler-emitted `DT_FINI_ARRAY`
 entries during foreign-object teardown and verify their effect on foreign
 static state. The TLS probes exercise compiler-emitted AArch64 TLSDESC with
 `mrs tpidr_el0` and RISC-V `__tls_get_addr` against a copied `PT_TLS` initial
-image supplied through the `PCALL` TLS-base register. The conditional probes exercise compiler-emitted AArch64
+image supplied through the `PCALL` TLS-base register, plus initial-exec
+`R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses against the same
+TLS base. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst`, `csel`, and conditional-select variants
 `csinc`/`csinv`/`csneg`, plus RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
@@ -448,7 +452,8 @@ A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
 The same descriptor path currently provides prototype imports for common GCC
-TLS accessors (`R_AARCH64_TLSDESC` and RISC-V `__tls_get_addr`) and common GCC
+TLS accessors (`R_AARCH64_TLSDESC`, RISC-V `__tls_get_addr`, and initial-exec
+`R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64`) and common GCC
 AArch64 outline atomic helpers: `__aarch64_ldadd8_acq_rel`,
 `__aarch64_swp8_acq_rel`, `__aarch64_ldset4_relax`, and
 `__aarch64_cas8_acq_rel`.  These are compatibility descriptors for observed

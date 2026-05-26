@@ -230,7 +230,9 @@ objects (`aarch64-pcall-ctor-real.so#poly_entry`,
 `aarch64-pcall-fini-real.so#poly_entry`, and
 `riscv-pcall-fini-real.so#poly_entry`), compiler-built TLS objects
 (`aarch64-pcall-tls-real.so#poly_entry` and
-`riscv-pcall-tls-real.so#poly_entry`), compiler-built conditional objects
+`riscv-pcall-tls-real.so#poly_entry`) plus initial-exec TLS objects
+(`aarch64-pcall-tls-ie-real.so#poly_entry` and
+`riscv-pcall-tls-ie-real.so#poly_entry`), compiler-built conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-built compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
@@ -359,7 +361,8 @@ compiler-emitted same-image function-pointer relocations and indirect native
 calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
 `DT_FINI_ARRAY` destructor execution during teardown,
 compiler-emitted AArch64 TLSDESC and RISC-V `__tls_get_addr` access to
-`PT_TLS` initial images through the `PCALL` TLS-base register,
+`PT_TLS` initial images through the `PCALL` TLS-base register, plus
+initial-exec `R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses,
 compiler-emitted conditional select variants and branch patterns
 (`aarch64-pcall-select-variants-real.so`,
 `riscv-pcall-select-variants-real.so`, `aarch64-pcall-import.elf`,
