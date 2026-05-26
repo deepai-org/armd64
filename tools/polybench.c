@@ -18,7 +18,7 @@ enum {
 #define POLY_IMPORT_CALL_BASE 0xffffffffffffe000ULL
 #define POLY_IMPORT_CALL_STRIDE 0x10ULL
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
+static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x30" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x4e,0x0f,0x0b,0x53,0x57,0x43,0x48,0x32" ::: "memory"); }
 
@@ -119,7 +119,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
 
   size_t offset = 3;
   if (arch == POLY_ARCH_AARCH64) {
-    const uint8_t raw_switch[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, 0xd2800000U | ((uint32_t) LOOP_ITERS << 5)); // movz x0,#LOOP_ITERS
@@ -127,7 +127,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
     emit_u32(code, &offset, 0xb5ffffe0U); // cbnz x0, previous instruction
     emit_u32(code, &offset, 0xd42fffe0U); // brk #0x7fff
   } else {
-    const uint8_t raw_switch[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
@@ -164,7 +164,7 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
   emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
@@ -204,7 +204,7 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, 0x00700513U); // addi a0,zero,7
   emit_u32(code, &offset, 0x0000002bU); // custom-1, switch directly to AArch64
@@ -244,7 +244,7 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -298,7 +298,7 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x01400513U); // addi a0,zero,20
@@ -366,7 +366,7 @@ static int run_cross_call_fp_aarch64_to_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -420,7 +420,7 @@ static int run_cross_call_fp_riscv_to_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
@@ -488,7 +488,7 @@ static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -544,7 +544,7 @@ static int run_cross_call_mixed_riscv_to_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x00700513U); // addi a0,zero,7
@@ -614,7 +614,7 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -673,7 +673,7 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0xff010113U); // addi sp,sp,-16
@@ -746,7 +746,7 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -801,7 +801,7 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x00500413U); // addi s0,zero,5
@@ -870,7 +870,7 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -924,7 +924,7 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -992,7 +992,7 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -1045,7 +1045,7 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -1112,7 +1112,7 @@ static int run_cross_call_libcall_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -1166,7 +1166,7 @@ static int run_cross_call_libcall_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -1233,7 +1233,7 @@ static int run_cross_call_descriptor_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -1300,7 +1300,7 @@ static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -1370,7 +1370,7 @@ static int run_cross_call_descriptor_memcmp_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -1439,7 +1439,7 @@ static int run_cross_call_descriptor_memcmp_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -1511,7 +1511,7 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -1599,7 +1599,7 @@ static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -1683,7 +1683,7 @@ static int run_nested_cross_call(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_outer_offset = offset;
