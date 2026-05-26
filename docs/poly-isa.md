@@ -193,6 +193,8 @@ RISC-V `fmv.d.x` plus `fneg.d` paths. The FP absolute-value probes exercise
 compiler-emitted AArch64 `fabs.s`/`fabs.d` and RISC-V `fabs.s`/`fabs.d`
 pseudo-instructions through `fsgnjx`. The FP square-root probes exercise
 compiler-emitted AArch64 `fsqrt.s`/`fsqrt.d` and RISC-V `fsqrt.s`/`fsqrt.d`.
+The FP fused multiply-add probes exercise compiler-emitted AArch64
+`fmadd.s`/`fmadd.d` and RISC-V `fmadd.s`/`fmadd.d`.
 The FP indexed-memory probes exercise
 compiler-emitted AArch64 scalar FP register-offset `ldr`/`str` forms and
 RISC-V shift/add plus `fld`/`fsd` indexed sequences. The FP conversion probes

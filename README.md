@@ -189,6 +189,8 @@ absolute-value objects (`aarch64-pcall-fp64-abs-real.so#poly_entry` and
 `riscv-pcall-fp64-abs-real.so#poly_entry`), compiler-built scalar double FP
 square-root objects (`aarch64-pcall-fp64-sqrt-real.so#poly_entry` and
 `riscv-pcall-fp64-sqrt-real.so#poly_entry`), compiler-built scalar double FP
+fused multiply-add objects (`aarch64-pcall-fp64-fma-real.so#poly_entry` and
+`riscv-pcall-fp64-fma-real.so#poly_entry`), compiler-built scalar double FP
 indexed-memory objects (`aarch64-pcall-fp64-indexed-mem-real.so#poly_entry` and
 `riscv-pcall-fp64-indexed-mem-real.so#poly_entry`), compiler-built scalar double
 FP conversion objects (`aarch64-pcall-fp64-convert-real.so#poly_entry` and
@@ -207,6 +209,8 @@ absolute-value objects (`aarch64-pcall-fp32-abs-real.so#poly_entry` and
 `riscv-pcall-fp32-abs-real.so#poly_entry`), compiler-built scalar float FP
 square-root objects (`aarch64-pcall-fp32-sqrt-real.so#poly_entry` and
 `riscv-pcall-fp32-sqrt-real.so#poly_entry`), compiler-built scalar float FP
+fused multiply-add objects (`aarch64-pcall-fp32-fma-real.so#poly_entry` and
+`riscv-pcall-fp32-fma-real.so#poly_entry`), compiler-built scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
 `riscv-pcall-fp32-mem-real.so#poly_entry`), and compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
@@ -275,7 +279,8 @@ unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
-and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, unary
+and float `fadd`/`fsub`/`fmul`/`fdiv`, fused multiply-add `fmadd`,
+register `fmov`, unary
 `fneg`/`fabs`/`fsqrt`,
 `fcmp`/`fcmpe` including zero-immediate compare, 32-bit and 64-bit signed and
 unsigned FP-to-integer conversion for finite scalar double values,
@@ -295,7 +300,8 @@ register-register `add`, `sub`, `mul`, `xor`, `and`, and `or`,
 byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
 `fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` and scalar FP
-division and square root `fdiv.s`/`fdiv.d`/`fsqrt.s`/`fsqrt.d` on the same mapped
+division, square root, and fused multiply-add
+`fdiv.s`/`fdiv.d`/`fsqrt.s`/`fsqrt.d`/`fmadd.s`/`fmadd.d` on the same mapped
 FP argument registers, FP compare `feq`/`flt`/`fle`, FP sign-injection
 `fsgnj`/`fsgnjn`/`fsgnjx` including `fneg`/`fabs`/`fmv`, integer-to-FP bit moves
 `fmv.w.x`/`fmv.d.x`, signed and unsigned integer-to-FP
