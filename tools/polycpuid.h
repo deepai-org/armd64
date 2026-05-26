@@ -28,6 +28,7 @@ enum {
   POLY_IMPORT_FUNC_X86_SLOT2 = 108,
   POLY_IMPORT_FUNC_X86_SLOT3 = 109,
   POLY_IMPORT_FUNC_X86_SLOT4 = 110,
+  POLY_IMPORT_FUNC_X86_SLOT5 = 111,
   POLY_IMPORT_X86_DESCRIPTOR_SIZE = 16,
   POLY_IMPORT_CALL_STRIDE = 16,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
@@ -126,7 +127,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf1(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf2(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_IMPORT_FUNC_X86_SLOT0;
-  regs.ebx = POLY_IMPORT_FUNC_X86_SLOT4 - POLY_IMPORT_FUNC_X86_SLOT0 + 1;
+  regs.ebx = POLY_IMPORT_FUNC_X86_SLOT5 - POLY_IMPORT_FUNC_X86_SLOT0 + 1;
   regs.ecx = POLY_IMPORT_X86_DESCRIPTOR_SIZE;
   regs.edx = POLY_IMPORT_CALL_STRIDE;
   return regs;

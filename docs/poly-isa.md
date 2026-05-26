@@ -165,7 +165,7 @@ discover the experimental hardware contract before emitting poly operations:
   reports the compact `{float,u32}` variant.  Other registers are reserved
   zero.
 - `CPUID.EAX=0x40000002, ECX=2`: `EAX=106` reports the first
-  foreign-to-x86 import descriptor slot id, `EBX=5` reports the current slot
+  foreign-to-x86 import descriptor slot id, `EBX=6` reports the current slot
   count, `ECX=16` reports the descriptor byte size, and `EDX=16` reports the
   import-call stride.
 
@@ -487,7 +487,10 @@ The integer-to-FP conversion probes exercise compiler-emitted AArch64
 The FP import probes exercise real
 PLT/GOT calls to
 `poly_import_fp64_add` and `poly_import_fp32_add` and verify
-descriptor-dispatched FP arguments and return values. The imported-object
+descriptor-dispatched FP arguments and return values. The x86 import probes
+exercise real PLT/GOT calls to `poly_import_x86_sum8` and verify that
+AArch64/RISC-V seventh and eighth integer arguments land in standard x86 SysV
+stack-argument slots. The imported-object
 probes exercise real compiler-emitted GOT loads of
 undefined `poly_import_value`. The function-pointer probes exercise compiler
 emitted same-image data relocations to local function symbols plus native
@@ -586,16 +589,18 @@ cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,
 `memcpy`, and three-argument `memcmp` calls inside foreign callees, proving
 descriptor imports are not limited to x86-entered `PCALL` payloads. The gate
 also covers `poly_import_x86_add`, `poly_import_x86_mul`,
-`poly_import_x86_sum6`, `poly_import_x86_fp64_add`, and
-`poly_import_x86_fp32_add`, where descriptor slots select real x86_64 helper
-targets from a runtime-supplied table, map up to six native foreign integer
-arguments to x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, reuse the
-shared `XMM0-XMM7`/`v0-v7`/`fa0-fa7` FP register aliases for scalar FP
-arguments and returns, synthesize an x86 return address to a nearby dedicated
-`0f 24` `PIRET` landing pad, let the helper use an ordinary `ret`, and then
-resume the saved AArch64/RISC-V return PC with the x86 `RAX` result mapped back
-to the native foreign integer return register.  The `polycall` descriptor table
-currently targets `noinline` x86_64 C helpers linked from
+`poly_import_x86_sum6`, `poly_import_x86_sum8`,
+`poly_import_x86_fp64_add`, and `poly_import_x86_fp32_add`, where descriptor
+slots select real x86_64 helper targets from a runtime-supplied table, map the
+first six native foreign integer arguments to x86_64 SysV `RDI`, `RSI`, `RDX`,
+`RCX`, `R8`, and `R9`, place seventh and eighth integer arguments in the
+standard x86 stack-argument slots when needed, reuse the shared
+`XMM0-XMM7`/`v0-v7`/`fa0-fa7` FP register aliases for scalar FP arguments and
+returns, synthesize an x86 return address to a nearby dedicated `0f 24` `PIRET`
+landing pad, let the helper use an ordinary `ret`, and then resume the saved
+AArch64/RISC-V return PC with the x86 `RAX` result mapped back to the native
+foreign integer return register.  The `polycall` descriptor table currently
+targets `noinline` x86_64 C helpers linked from
 `tools/polycall_x86_helpers.c`, which verifies the call gate against a
 separately compiled x86 helper object instead of trampoline-local handwritten
 byte helpers.
