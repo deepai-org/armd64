@@ -53,6 +53,10 @@ struct poly_program {
   size_t entry_offset;
   uint64_t base_vaddr;
   size_t loaded_bytes;
+  uint64_t init_vaddr;
+  uint64_t init_array_vaddr;
+  uint64_t init_array_size;
+  size_t init_count;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
   int needs_x86_import;
@@ -172,6 +176,13 @@ static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
 static void write_le64(uint8_t *bytes, uint64_t value) {
   for (unsigned n = 0; n < 8; n++)
     bytes[n] = (uint8_t) ((value >> (n * 8)) & 0xff);
+}
+
+static uint64_t read_le64(const uint8_t *bytes) {
+  uint64_t value = 0;
+  for (unsigned n = 0; n < 8; n++)
+    value |= (uint64_t) bytes[n] << (n * 8);
+  return value;
 }
 
 static void emit_movabs_r10(uint8_t *code, size_t *offset, uint64_t value) {
@@ -640,6 +651,16 @@ static int load_dynamic_relocs(struct poly_program *program,
       case DT_PLTREL:
         pltrel_type = dyn[n].d_un.d_val;
         break;
+      case DT_INIT:
+        program->init_vaddr = dyn[n].d_un.d_ptr;
+        program->init_count = 1;
+        break;
+      case DT_INIT_ARRAY:
+        program->init_array_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_INIT_ARRAYSZ:
+        program->init_array_size = dyn[n].d_un.d_val;
+        break;
       case DT_REL:
       case DT_RELSZ:
       case DT_RELENT:
@@ -668,6 +689,14 @@ static int load_dynamic_relocs(struct poly_program *program,
       program->path);
     return -1;
   }
+  if (program->init_array_size != 0 &&
+      (program->init_array_vaddr == 0 ||
+       program->init_array_size % sizeof(uint64_t) != 0)) {
+    fprintf(stderr, "POLYCALL_FAIL: bad INIT_ARRAY dynamic table: %s\n",
+      program->path);
+    return -1;
+  }
+  program->init_count += (size_t) (program->init_array_size / sizeof(uint64_t));
 
   if (rela_size != 0 &&
       process_rela_table(program, data, size, ehdr, dyn, dyn_count,
@@ -859,6 +888,25 @@ static int load_elf_program(const char *path, const char *symbol_name,
   return 0;
 }
 
+static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
+    uint64_t target, int call_kind) {
+  write_le64(code + target_imm_offset, target);
+  if (call_kind == POLY_CALL_FP64) {
+    union {
+      double d;
+      uint64_t u;
+    } fp_result;
+    double (*entry)(double, double, double) =
+      (double (*)(double, double, double)) code;
+    fp_result.d = entry(1.5, 2.25, 3.0);
+    return fp_result.u;
+  }
+
+  uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
+    (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
+  return entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+}
+
 static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
@@ -902,7 +950,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   if (needs_x86_import)
     emit_save_import_regs(code, &offset);
-  emit_movabs_r10(code, &offset, foreign_target);
+  const size_t target_imm_offset = offset + 2;
+  emit_movabs_r10(code, &offset, 0);
   emit_movabs_r11(code, &offset, return_rip);
   if (needs_x86_import) {
     emit_movabs_r12(code, &offset, import_x86_target);
@@ -965,6 +1014,31 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
 
+  if (program->init_vaddr != 0) {
+    const uint64_t init_target = load_bias + program->init_vaddr;
+    (void) call_poly_stub(code, target_imm_offset, init_target, POLY_CALL_U64);
+  }
+  if (program->init_array_size != 0) {
+    size_t init_array_offset = 0;
+    if (elf_vaddr_to_image_offset(program, program->init_array_vaddr,
+          program->init_array_size, &init_array_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: INIT_ARRAY escaped image: %s\n",
+        program->path);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    const size_t init_array_count =
+      (size_t) (program->init_array_size / sizeof(uint64_t));
+    for (size_t n = 0; n < init_array_count; n++) {
+      uint64_t init_target = read_le64(foreign + init_array_offset + n * 8);
+      if (init_target != 0)
+        (void) call_poly_stub(code, target_imm_offset, init_target,
+          POLY_CALL_U64);
+    }
+  }
+  write_le64(code + target_imm_offset, foreign_target);
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -1014,9 +1088,10 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, symbol_name, &program) < 0)
       return 1;
 
-    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu symbol=%s path=%s\n",
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu inits=%zu symbol=%s path=%s\n",
       program.arch_name, (unsigned) program.elf_type, program.image_size,
       program.loaded_bytes, program.entry_offset, program.reloc_count,
+      program.init_count,
       symbol_name ? symbol_name : "-", program.path);
 
     uint64_t result = 0;

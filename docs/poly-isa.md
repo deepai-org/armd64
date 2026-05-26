@@ -112,8 +112,10 @@ objects (`aarch64-pcall-import-real.so#poly_entry` and
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
-`riscv-pcall-funcptr-real.so#poly_entry`), and compiler-produced scalar double
-FP objects (`aarch64-pcall-fp64-real.so#poly_entry` and
+`riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced constructor
+objects (`aarch64-pcall-ctor-real.so#poly_entry` and
+`riscv-pcall-ctor-real.so#poly_entry`), and compiler-produced scalar double FP
+objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`) plus compiler-produced scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`). Nonzero `poly_entry` symbol
@@ -127,9 +129,10 @@ to x86 `XMM0`. The FP import probes exercise real PLT/GOT calls to
 values. The imported-object probes exercise real compiler-emitted GOT loads of
 undefined `poly_import_value`. The function-pointer probes exercise compiler
 emitted same-image data relocations to local function symbols plus native
-indirect calls through `blr` or `jalr`. It also includes sectionless `dyntab`
-probes that exercise only `PT_DYNAMIC` symbol metadata. PLT-style dynamic
-relocation tables are also accepted through
+indirect calls through `blr` or `jalr`. The constructor probes execute
+compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
+entrypoint. It also includes sectionless `dyntab` probes that exercise only
+`PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and
 `R_RISCV_JUMP_SLOT` entries for defined symbols.
 Undefined object-symbol relocations can bind to process-provided imports; the

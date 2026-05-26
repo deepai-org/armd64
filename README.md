@@ -140,7 +140,9 @@ objects (`aarch64-pcall-import-real.so#poly_entry` and
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-built relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
-`riscv-pcall-funcptr-real.so#poly_entry`), compiler-built scalar double FP
+`riscv-pcall-funcptr-real.so#poly_entry`), compiler-built constructor objects
+(`aarch64-pcall-ctor-real.so#poly_entry` and
+`riscv-pcall-ctor-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`), compiler-built scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
@@ -166,7 +168,7 @@ dynamic objects, scalar double FP arguments and returns through the native FP
 register ABI, scalar double FP function imports through PLT/GOT call
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, compiler-emitted same-image function-pointer relocations and indirect
-native calls
+native calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints
 (`aarch64-pcall-import.elf`, `riscv-pcall-import.elf`), prototype imported
 function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
