@@ -142,7 +142,9 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 objects (`aarch64-pcall-ctor-real.so#poly_entry` and
 `riscv-pcall-ctor-real.so#poly_entry`), compiler-produced conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
-`riscv-pcall-cond-real.so#poly_entry`), compiler-produced callee-saved
+`riscv-pcall-cond-real.so#poly_entry`), compiler-produced compare-and-branch
+objects (`aarch64-pcall-cbz-real.so#poly_entry` and
+`riscv-pcall-cbz-real.so#poly_entry`), compiler-produced callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), and compiler-produced scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
@@ -179,7 +181,9 @@ emitted same-image data relocations to local function symbols plus native
 indirect calls through `blr` or `jalr`. The constructor probes execute
 compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
 entrypoint. The conditional probes exercise compiler-emitted AArch64
-logical-immediate `tst` plus `csel`, and RISC-V branch/select patterns. It also
+logical-immediate `tst` plus `csel`, and RISC-V branch/select patterns. The
+compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
+non-`x0` registers and RISC-V ordinary branch forms. It also
 includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and
