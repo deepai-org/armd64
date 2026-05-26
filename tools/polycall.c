@@ -161,7 +161,18 @@ enum {
   POLY_IMPORT_FUNC_FIXUNSTFDI = 88,
   POLY_IMPORT_FUNC_FLOATDITF = 89,
   POLY_IMPORT_FUNC_FLOATSITF = 90,
-  POLY_IMPORT_FUNC_FIXTFDI = 91
+  POLY_IMPORT_FUNC_FIXTFDI = 91,
+  POLY_IMPORT_FUNC_EQTF2 = 92,
+  POLY_IMPORT_FUNC_LTTF2 = 93,
+  POLY_IMPORT_FUNC_LETF2 = 94,
+  POLY_IMPORT_FUNC_GTTF2 = 95,
+  POLY_IMPORT_FUNC_GETF2 = 96,
+  POLY_IMPORT_FUNC_EXTENDSFTF2 = 97,
+  POLY_IMPORT_FUNC_EXTENDDFTF2 = 98,
+  POLY_IMPORT_FUNC_TRUNCTFSF2 = 99,
+  POLY_IMPORT_FUNC_TRUNCTFDF2 = 100,
+  POLY_IMPORT_FUNC_NETF2 = 101,
+  POLY_IMPORT_FUNC_UNORDTF2 = 102
 };
 
 struct poly_dynamic_reloc {
@@ -863,6 +874,50 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__fixtfdi") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FIXTFDI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__eqtf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_EQTF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__lttf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_LTTF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__letf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_LETF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__gttf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GTTF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__getf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__extendsftf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_EXTENDSFTF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__extenddftf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_EXTENDDFTF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__trunctfsf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_TRUNCTFSF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__trunctfdf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_TRUNCTFDF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__netf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_NETF2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__unordtf2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_UNORDTF2 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (resolve_aarch64_outline_atomic_import(symbol_name, symbol_value) == 0)

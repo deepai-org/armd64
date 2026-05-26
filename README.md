@@ -264,7 +264,10 @@ bit helper objects (`aarch64-pcall-bit-helpers-real.so#poly_entry` and
 `long double` helper objects (`aarch64-pcall-longdouble-helpers-real.so#poly_entry`,
 `riscv-pcall-longdouble-helpers-real.so#poly_entry`,
 `aarch64-pcall-longdouble-signed-helpers-real.so#poly_entry`, and
-`riscv-pcall-longdouble-signed-helpers-real.so#poly_entry`), compiler-built integer carry-chain
+`riscv-pcall-longdouble-signed-helpers-real.so#poly_entry`), compiler-built
+quad-precision comparison/conversion helper objects
+(`aarch64-pcall-longdouble-compare-helpers-real.so#poly_entry` and
+`riscv-pcall-longdouble-compare-helpers-real.so#poly_entry`), compiler-built integer carry-chain
 objects (`aarch64-pcall-int-carry-real.so#poly_entry` and
 `riscv-pcall-int-carry-real.so#poly_entry`), compiler-built integer variable-shift
 objects (`aarch64-pcall-int-varshift-real.so#poly_entry` and
