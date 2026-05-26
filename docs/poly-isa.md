@@ -135,7 +135,8 @@ discover the experimental hardware contract before emitting poly operations:
   syscall/libcall traps, the prototype x86 poly opcode family, and two-float
   aggregate return packing, two-float aggregate argument unpacking, and
   `{u64,double}`/`{double,u64}`/`{u64,float}`/`{float,u64}` heterogeneous
-  aggregate bridging for native ABI `PCALL`.
+  aggregate bridging for native ABI `PCALL`.  The double-lane bridge forms
+  also cover ABI-compatible `{u32,double}` and `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
@@ -221,7 +222,9 @@ integer/FP signatures where GPR and XMM lanes are consumed in one native call.
 AArch64 additionally has focused bridges for `{u64,double}`, `{double,u64}`,
 `{u64,float}`, and `{float,u64}` heterogeneous aggregates whose x86 lanes are
 split across GPR and XMM registers but whose AAPCS64 lanes live in
-integer-register bit lanes;
+integer-register bit lanes; the double-lane bridge forms also cover
+`{u32,double}` and `{double,u32}` native ABI layouts because the narrower
+integer payloads stay in the same argument/result lanes;
 and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
 saved x86 continuation, maps AArch64 `x0` or RISC-V `a0` back to x86 `RAX`,
@@ -369,7 +372,11 @@ argument objects (`aarch64-pcall-fpair32-arg-real.so#poly_entry` and
 `aarch64-pcall-hetero32-real.so#poly_entry`,
 `riscv-pcall-hetero32-real.so#poly_entry`,
 `aarch64-pcall-hetero32-rev-real.so#poly_entry`, and
-`riscv-pcall-hetero32-rev-real.so#poly_entry`), and scalar double/float FP
+`riscv-pcall-hetero32-rev-real.so#poly_entry`,
+`aarch64-pcall-hetero-u32-real.so#poly_entry`,
+`riscv-pcall-hetero-u32-real.so#poly_entry`,
+`aarch64-pcall-hetero-u32-rev-real.so#poly_entry`, and
+`riscv-pcall-hetero-u32-rev-real.so#poly_entry`), and scalar double/float FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
 `riscv-pcall-fp64-import-real.so#poly_entry`,
 `aarch64-pcall-fp32-import-real.so#poly_entry`, and

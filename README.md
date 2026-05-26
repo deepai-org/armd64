@@ -116,7 +116,8 @@ poly opcode family. Bit `13` advertises the two-float aggregate return packing
 variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
 argument unpacking; bits `15`-`18` advertise the `{u64,double}`,
 `{double,u64}`, `{u64,float}`, and `{float,u64}` heterogeneous aggregate
-bridges for AArch64 `PCALL`.
+bridges for AArch64 `PCALL`.  The same double-lane bridge forms also cover
+the ABI-compatible `{u32,double}` and `{double,u32}` shapes.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
@@ -200,7 +201,11 @@ two-register homogeneous double aggregate arguments and returns through
 are consumed in one native call.  AArch64 also has focused bridges for common
 heterogeneous `{u64,double}`, `{double,u64}`, `{u64,float}`, and
 `{float,u64}` aggregate shapes, moving FP lanes between x86 `XMM0` and
-AAPCS64 integer-register bit lanes.  The bridge sets `x30` or `ra` to a return cookie, enters raw fetch at the
+AAPCS64 integer-register bit lanes.  The `{u64,double}` and `{double,u64}`
+bridge forms also cover the corresponding `{u32,double}` and `{double,u32}`
+native ABI layouts because x86 SysV, AAPCS64, and RISC-V psABI keep the
+integer lane in the same logical argument/result position with narrower
+low-bit payloads.  The bridge sets `x30` or `ra` to a return cookie, enters raw fetch at the
 `R10` target, carries an optional foreign TLS block base in x86 `R13`, maps
 AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps
 AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word integer
@@ -327,7 +332,11 @@ aggregate objects (`aarch64-pcall-hetero-real.so#poly_entry` and
 `aarch64-pcall-hetero32-real.so#poly_entry`,
 `riscv-pcall-hetero32-real.so#poly_entry`,
 `aarch64-pcall-hetero32-rev-real.so#poly_entry`, and
-`riscv-pcall-hetero32-rev-real.so#poly_entry`), compiler-built scalar double and
+`riscv-pcall-hetero32-rev-real.so#poly_entry`,
+`aarch64-pcall-hetero-u32-real.so#poly_entry`,
+`riscv-pcall-hetero-u32-real.so#poly_entry`,
+`aarch64-pcall-hetero-u32-rev-real.so#poly_entry`, and
+`riscv-pcall-hetero-u32-rev-real.so#poly_entry`), compiler-built scalar double and
 float FP import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
 `riscv-pcall-fp64-import-real.so#poly_entry`,
 `aarch64-pcall-fp32-import-real.so#poly_entry`, and
