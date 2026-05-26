@@ -68,6 +68,7 @@ POLYCALL_INT_HIGHMUL_REAL_SRC="$ROOT_DIR/tools/polycall_int_highmul_real.c"
 POLYCALL_INT128_HELPERS_REAL_SRC="$ROOT_DIR/tools/polycall_int128_helpers_real.c"
 POLYCALL_INT128_FP_HELPERS_REAL_SRC="$ROOT_DIR/tools/polycall_int128_fp_helpers_real.c"
 POLYCALL_INT128_FLOAT_HELPERS_REAL_SRC="$ROOT_DIR/tools/polycall_int128_float_helpers_real.c"
+POLYCALL_BIT_HELPERS_REAL_SRC="$ROOT_DIR/tools/polycall_bit_helpers_real.c"
 POLYCALL_INT_CARRY_REAL_SRC="$ROOT_DIR/tools/polycall_int_carry_real.c"
 POLYCALL_INT_VARSHIFT_REAL_SRC="$ROOT_DIR/tools/polycall_int_varshift_real.c"
 POLYCALL_INT_LOGIC_REAL_SRC="$ROOT_DIR/tools/polycall_int_logic_real.c"
@@ -377,6 +378,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT128_FLOAT_HELPERS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-int128-float-helpers-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_BIT_HELPERS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-bit-helpers-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT_CARRY_REAL_SRC" \
@@ -727,6 +732,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT128_FLOAT_HELPERS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-int128-float-helpers-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_BIT_HELPERS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-bit-helpers-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1472,6 +1482,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-int128-helpers-real.so#poly_entry=6148914613049023859 \
     /usr/lib/polyapps/aarch64-pcall-int128-fp-helpers-real.so#poly_entry=123358025 \
     /usr/lib/polyapps/aarch64-pcall-int128-float-helpers-real.so#poly_entry=11359 \
+    /usr/lib/polyapps/aarch64-pcall-bit-helpers-real.so#poly_entry=43 \
     /usr/lib/polyapps/aarch64-pcall-int-carry-real.so#poly_entry=0x8000000000000021 \
     /usr/lib/polyapps/aarch64-pcall-int-varshift-real.so#poly_entry=0xe5d48b633e422ba5 \
     /usr/lib/polyapps/aarch64-pcall-int-logic-real.so#poly_entry=0x21d9737d81792d5e \
@@ -1548,6 +1559,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-int128-helpers-real.so#poly_entry=6148914613049023859 \
     /usr/lib/polyapps/riscv-pcall-int128-fp-helpers-real.so#poly_entry=123358025 \
     /usr/lib/polyapps/riscv-pcall-int128-float-helpers-real.so#poly_entry=11359 \
+    /usr/lib/polyapps/riscv-pcall-bit-helpers-real.so#poly_entry=43 \
     /usr/lib/polyapps/riscv-pcall-int-carry-real.so#poly_entry=0x8000000000000021 \
     /usr/lib/polyapps/riscv-pcall-int-varshift-real.so#poly_entry=0xe5d48b633e422ba5 \
     /usr/lib/polyapps/riscv-pcall-int-logic-real.so#poly_entry=0x21d9737d81792d5e \

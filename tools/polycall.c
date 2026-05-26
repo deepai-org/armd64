@@ -148,7 +148,11 @@ enum {
   POLY_IMPORT_FUNC_FIXSFTI = 75,
   POLY_IMPORT_FUNC_FIXUNSSFTI = 76,
   POLY_IMPORT_FUNC_FLOATTISF = 77,
-  POLY_IMPORT_FUNC_FLOATUNTISF = 78
+  POLY_IMPORT_FUNC_FLOATUNTISF = 78,
+  POLY_IMPORT_FUNC_CLZDI2 = 79,
+  POLY_IMPORT_FUNC_CTZDI2 = 80,
+  POLY_IMPORT_FUNC_PARITYDI2 = 81,
+  POLY_IMPORT_FUNC_POPCOUNTDI2 = 82
 };
 
 struct poly_dynamic_reloc {
@@ -798,6 +802,22 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__floatuntisf") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FLOATUNTISF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__clzdi2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CLZDI2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__ctzdi2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CTZDI2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__paritydi2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_PARITYDI2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__popcountdi2") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_POPCOUNTDI2 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (resolve_aarch64_outline_atomic_import(symbol_name, symbol_value) == 0)
