@@ -27,6 +27,8 @@ extern char *strchrnul(const char *, int);
 extern int bcmp(const void *, const void *, size_t);
 extern void bcopy(const void *, void *, size_t);
 extern void bzero(void *, size_t);
+extern char *index(const char *, int);
+extern char *rindex(const char *, int);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -165,6 +167,18 @@ static void call_bzero(void *dest, size_t count)
   bzero(dest, count);
 }
 
+__attribute__((noinline))
+static char *call_index(const char *base, int needle)
+{
+  return index(base, needle);
+}
+
+__attribute__((noinline))
+static char *call_rindex(const char *base, int needle)
+{
+  return rindex(base, needle);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -243,6 +257,9 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   int bcmp_different = call_bcmp(buffer, "poly-z", 6);
   call_bcopy(buffer, bcopied, sizeof(expected));
   call_bzero(bzeroed + 2, 4);
+  char *index_found = call_index(buffer, 'l');
+  char *rindex_found = call_rindex(buffer, 'l');
+  char *rindex_not_found = call_rindex(buffer, 'z');
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
@@ -303,5 +320,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (bzeroed[1] == 0x33 ? 4500 : 45000) +
     (bzeroed_same == 0 ? 4600 : 46000) +
     (bzeroed[6] == 0x33 ? 4700 : 47000) +
+    (index_found == buffer + 2 ? 4800 : 48000) +
+    (rindex_found == buffer + 5 ? 4900 : 49000) +
+    (rindex_not_found == 0 ? 5000 : 50000) +
     (unsigned char) buffer[0];
 }

@@ -525,11 +525,13 @@ static int resolve_import_function(const char *symbol_name,
     *symbol_value = POLY_IMPORT_FUNC_MEMCHR * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
-  if (strcmp(symbol_name, "strchr") == 0) {
+  if (strcmp(symbol_name, "strchr") == 0 ||
+      strcmp(symbol_name, "index") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STRCHR * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
-  if (strcmp(symbol_name, "strrchr") == 0) {
+  if (strcmp(symbol_name, "strrchr") == 0 ||
+      strcmp(symbol_name, "rindex") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STRRCHR * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
