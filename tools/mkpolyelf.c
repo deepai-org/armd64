@@ -6,6 +6,7 @@
 
 enum {
   DT_NULL = 0,
+  DT_PLTRELSZ = 2,
   DT_HASH = 4,
   DT_STRTAB = 5,
   DT_SYMTAB = 6,
@@ -14,6 +15,8 @@ enum {
   DT_RELAENT = 9,
   DT_STRSZ = 10,
   DT_SYMENT = 11,
+  DT_PLTREL = 20,
+  DT_JMPREL = 23,
   EM_AARCH64 = 183,
   EM_RISCV = 243,
   ET_DYN = 3,
@@ -25,8 +28,10 @@ enum {
   PT_DYNAMIC = 2,
   PT_LOAD = 1,
   R_AARCH64_ABS64 = 257,
+  R_AARCH64_JUMP_SLOT = 1026,
   R_AARCH64_RELATIVE = 1027,
   R_RISCV_64 = 2,
+  R_RISCV_JUMP_SLOT = 5,
   R_RISCV_RELATIVE = 3,
   SHF_ALLOC = 2,
   SHF_EXECINSTR = 4,
@@ -149,6 +154,14 @@ static uint32_t symbolic_reloc_type_for_machine(int machine) {
   return 0;
 }
 
+static uint32_t jump_slot_reloc_type_for_machine(int machine) {
+  if (machine == EM_AARCH64)
+    return R_AARCH64_JUMP_SLOT;
+  if (machine == EM_RISCV)
+    return R_RISCV_JUMP_SLOT;
+  return 0;
+}
+
 static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
@@ -180,17 +193,21 @@ int main(int argc, char **argv) {
   int split_data = 0;
   int dyn_relative = 0;
   int dyn_symbolic = 0;
+  int dyn_jump_slot = 0;
   uint64_t data_value = 0;
   if (strcmp(argv[3], "--split-data64") == 0 ||
       strcmp(argv[3], "--dyn-relative64") == 0 ||
-      strcmp(argv[3], "--dyn-symbol64") == 0) {
+      strcmp(argv[3], "--dyn-symbol64") == 0 ||
+      strcmp(argv[3], "--dyn-jump-slot64") == 0) {
     if (argc < 7 || parse_u64(argv[4], &data_value) < 0) {
       fprintf(stderr, "mkpolyelf: bad data option usage\n");
       return 2;
     }
     split_data = 1;
     dyn_relative = strcmp(argv[3], "--dyn-relative64") == 0;
-    dyn_symbolic = strcmp(argv[3], "--dyn-symbol64") == 0;
+    dyn_symbolic = strcmp(argv[3], "--dyn-symbol64") == 0 ||
+      strcmp(argv[3], "--dyn-jump-slot64") == 0;
+    dyn_jump_slot = strcmp(argv[3], "--dyn-jump-slot64") == 0;
     first_insn_arg = 5;
   }
   const char *export_name = NULL;
@@ -422,12 +439,12 @@ int main(int argc, char **argv) {
       }
       struct elf64_dyn dyn[9];
       memset(dyn, 0, sizeof(dyn));
-      dyn[0].d_tag = DT_RELA;
+      dyn[0].d_tag = dyn_jump_slot ? DT_JMPREL : DT_RELA;
       dyn[0].d_val = rela_vaddr;
-      dyn[1].d_tag = DT_RELASZ;
+      dyn[1].d_tag = dyn_jump_slot ? DT_PLTRELSZ : DT_RELASZ;
       dyn[1].d_val = sizeof(struct elf64_rela);
-      dyn[2].d_tag = DT_RELAENT;
-      dyn[2].d_val = sizeof(struct elf64_rela);
+      dyn[2].d_tag = dyn_jump_slot ? DT_PLTREL : DT_RELAENT;
+      dyn[2].d_val = dyn_jump_slot ? DT_RELA : sizeof(struct elf64_rela);
       if (has_dynsym) {
         dyn[3].d_tag = DT_SYMTAB;
         dyn[3].d_val = dynsym_vaddr;
@@ -460,7 +477,8 @@ int main(int argc, char **argv) {
       rela.r_offset = data_vaddr;
       if (dyn_symbolic) {
         rela.r_info = (data_symbol_index << 32) |
-          symbolic_reloc_type_for_machine(machine);
+          (dyn_jump_slot ? jump_slot_reloc_type_for_machine(machine) :
+            symbolic_reloc_type_for_machine(machine));
         rela.r_addend = 0;
       }
       else {

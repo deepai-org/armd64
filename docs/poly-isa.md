@@ -89,7 +89,9 @@ external imported symbol binding remains out of scope for this prototype. The
 gate uses nonzero `poly_entry` symbol offsets for the
 dynamic-relocation probes so symbol resolution, not the ELF entrypoint, selects
 the target, and also includes sectionless `dyntab` probes that exercise only
-`PT_DYNAMIC` symbol metadata.
+`PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are also
+accepted through `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including
+`R_AARCH64_JUMP_SLOT` and `R_RISCV_JUMP_SLOT` entries for defined symbols.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:

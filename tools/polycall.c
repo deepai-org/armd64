@@ -447,58 +447,14 @@ static int resolve_defined_reloc_symbol(const struct poly_program *program,
   return 0;
 }
 
-static int load_dynamic_relocs(struct poly_program *program,
+static int process_rela_table(struct poly_program *program,
     const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
-    const Elf64_Dyn *dyn, size_t dyn_count) {
-  uint64_t rela_vaddr = 0;
-  uint64_t rela_size = 0;
-  uint64_t rela_ent = sizeof(Elf64_Rela);
-  int saw_rel = 0;
-  int saw_rela = 0;
-
-  for (size_t n = 0; n < dyn_count; n++) {
-    switch (dyn[n].d_tag) {
-      case DT_NULL:
-        n = dyn_count;
-        break;
-      case DT_RELA:
-        rela_vaddr = dyn[n].d_un.d_ptr;
-        saw_rela = 1;
-        break;
-      case DT_RELASZ:
-        rela_size = dyn[n].d_un.d_val;
-        break;
-      case DT_RELAENT:
-        rela_ent = dyn[n].d_un.d_val;
-        break;
-      case DT_REL:
-      case DT_RELSZ:
-      case DT_RELENT:
-        saw_rel = 1;
-        break;
-      default:
-        break;
-    }
-  }
-
-  if (saw_rel) {
-    fprintf(stderr, "POLYCALL_FAIL: REL relocations are not supported yet: %s\n",
-      program->path);
-    return -1;
-  }
-  if (!saw_rela && rela_size == 0)
-    return 0;
-  if (!saw_rela || rela_size == 0 || rela_ent != sizeof(Elf64_Rela) ||
-      rela_size % sizeof(Elf64_Rela) != 0) {
-    fprintf(stderr, "POLYCALL_FAIL: bad RELA dynamic table: %s\n",
-      program->path);
-    return -1;
-  }
-
+    const Elf64_Dyn *dyn, size_t dyn_count, uint64_t rela_vaddr,
+    uint64_t rela_size, const char *label) {
   size_t rela_offset = 0;
   if (elf_vaddr_to_image_offset(program, rela_vaddr, rela_size, &rela_offset) < 0) {
-    fprintf(stderr, "POLYCALL_FAIL: RELA table out of loaded image: %s\n",
-      program->path);
+    fprintf(stderr, "POLYCALL_FAIL: %s table out of loaded image: %s\n",
+      label, program->path);
     return -1;
   }
 
@@ -546,6 +502,82 @@ static int load_dynamic_relocs(struct poly_program *program,
     if (append_dynamic_reloc(program, relocation_offset, reloc_value) < 0)
       return -1;
   }
+  return 0;
+}
+
+static int load_dynamic_relocs(struct poly_program *program,
+    const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
+    const Elf64_Dyn *dyn, size_t dyn_count) {
+  uint64_t rela_vaddr = 0;
+  uint64_t rela_size = 0;
+  uint64_t rela_ent = sizeof(Elf64_Rela);
+  uint64_t jmprel_vaddr = 0;
+  uint64_t pltrel_size = 0;
+  uint64_t pltrel_type = 0;
+  int saw_rel = 0;
+  int saw_rela = 0;
+
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_NULL:
+        n = dyn_count;
+        break;
+      case DT_RELA:
+        rela_vaddr = dyn[n].d_un.d_ptr;
+        saw_rela = 1;
+        break;
+      case DT_RELASZ:
+        rela_size = dyn[n].d_un.d_val;
+        break;
+      case DT_RELAENT:
+        rela_ent = dyn[n].d_un.d_val;
+        break;
+      case DT_JMPREL:
+        jmprel_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_PLTRELSZ:
+        pltrel_size = dyn[n].d_un.d_val;
+        break;
+      case DT_PLTREL:
+        pltrel_type = dyn[n].d_un.d_val;
+        break;
+      case DT_REL:
+      case DT_RELSZ:
+      case DT_RELENT:
+        saw_rel = 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (saw_rel || pltrel_type == DT_REL) {
+    fprintf(stderr, "POLYCALL_FAIL: REL relocations are not supported yet: %s\n",
+      program->path);
+    return -1;
+  }
+  if (rela_ent != sizeof(Elf64_Rela) ||
+      (rela_size != 0 && (!saw_rela || rela_size % sizeof(Elf64_Rela) != 0))) {
+    fprintf(stderr, "POLYCALL_FAIL: bad RELA dynamic table: %s\n",
+      program->path);
+    return -1;
+  }
+  if (pltrel_size != 0 &&
+      (jmprel_vaddr == 0 || pltrel_type != DT_RELA ||
+       pltrel_size % sizeof(Elf64_Rela) != 0)) {
+    fprintf(stderr, "POLYCALL_FAIL: bad JMPREL dynamic table: %s\n",
+      program->path);
+    return -1;
+  }
+
+  if (rela_size != 0 &&
+      process_rela_table(program, data, size, ehdr, dyn, dyn_count,
+        rela_vaddr, rela_size, "RELA") < 0)
+    return -1;
+  if (pltrel_size != 0 &&
+      process_rela_table(program, data, size, ehdr, dyn, dyn_count,
+        jmprel_vaddr, pltrel_size, "JMPREL") < 0)
+    return -1;
   return 0;
 }
 
