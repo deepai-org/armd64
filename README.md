@@ -499,12 +499,14 @@ The Bochs compatibility runtime handles selected foreign Linux syscall traps
 deterministically after recording the architectural trap.  Supported syscall
 numbers currently include:
 
-- Scalar/process syscalls: `getpid`, `getppid`, `getuid`, `geteuid`, `getgid`,
-  `getegid`, `gettid`, `getpgid(0)`, `getsid(0)`, and `exit`.
+- Scalar/process syscalls: `set_tid_address`, `set_robust_list`, `getpid`,
+  `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
+  `getpgid(0)`, `getsid(0)`, and `exit`.
 - File-style syscalls: `getcwd`, `read`, `readv`, `write`, `writev`,
   `openat`, `newfstatat`, `fstat`, `close`, `lseek`, and `uname`.
 - Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
-  `gettimeofday`, `sysinfo`, `brk`, `munmap`, `mprotect`, and `mmap`.
+  `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`, `munmap`,
+  `mprotect`, and `mmap`.
 
 The shared syscall dispatcher carries six foreign Linux ABI arguments for both
 foreign architectures; current `mmap6` payloads verify argument registers beyond

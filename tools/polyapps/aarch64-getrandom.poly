@@ -1,0 +1,9 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-getrandom.elf
+expected=4
+syscall_expected=3
+syscall_number_expected=278
+libcall_id=0
+libcall_expected=0x4c000300
+scratch_expected=PRND!
