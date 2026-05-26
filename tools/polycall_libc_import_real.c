@@ -16,6 +16,9 @@ extern char *strncpy(char *, const char *, size_t);
 extern size_t strnlen(const char *, size_t);
 extern char *strcat(char *, const char *);
 extern char *strncat(char *, const char *, size_t);
+extern size_t strspn(const char *, const char *);
+extern size_t strcspn(const char *, const char *);
+extern char *strpbrk(const char *, const char *);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -88,6 +91,24 @@ static char *call_strncat(char *dest, const char *src, size_t count)
   return strncat(dest, src, count);
 }
 
+__attribute__((noinline))
+static size_t call_strspn(const char *base, const char *accept)
+{
+  return strspn(base, accept);
+}
+
+__attribute__((noinline))
+static size_t call_strcspn(const char *base, const char *reject)
+{
+  return strcspn(base, reject);
+}
+
+__attribute__((noinline))
+static char *call_strpbrk(const char *base, const char *accept)
+{
+  return strpbrk(base, accept);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -142,6 +163,10 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   size_t full_bounded_len = call_strnlen(buffer, 16);
   char *append_result = call_strcat(appended, "-cat");
   char *nappend_result = call_strncat(nappended, "there", 2);
+  size_t span = call_strspn(buffer, "poly-");
+  size_t cspan = call_strcspn(buffer, "-");
+  char *break_found = call_strpbrk(buffer, "-x");
+  char *break_not_found = call_strpbrk(buffer, "z");
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
@@ -177,5 +202,9 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (appended_same == 0 ? 2500 : 25000) +
     (nappend_result == nappended ? 2600 : 26000) +
     (nappended_same == 0 ? 2700 : 27000) +
+    (span == 6 ? 2800 : 28000) +
+    (cspan == 4 ? 2900 : 29000) +
+    (break_found == buffer + 4 ? 3000 : 30000) +
+    (break_not_found == 0 ? 3100 : 31000) +
     (unsigned char) buffer[0];
 }
