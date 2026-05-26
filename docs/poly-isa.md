@@ -467,7 +467,7 @@ PLT/GOT-backed `JUMP_SLOT` calls to `poly_import_add`: AArch64 PLT code may
 branch with `br` after the caller's `bl` saved the continuation in `x30`, and
 RISC-V PLT code may use `jalr` with a scratch link register while preserving
 the caller continuation in `ra`. The descriptor path also accepts common libc
-symbol names `strlen`, `strcmp`, `memcpy`, `memmove`, `memset`, and `memcmp`, so
+symbol names `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`, and `memcmp`, so
 compiler-produced foreign objects can call those routines through ordinary
 PLT/GOT entries without using synthetic breakpoint libcalls. The neutral
 cross-call gate also covers direct descriptor `strlen`, `memset`, `memcpy`, and
