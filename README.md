@@ -64,6 +64,7 @@ All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 | Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as mixed 16/32-bit RISC-V instructions. |
 | x86 SysV call to AArch64 | `40 0f 0b 50 43 41 36 34` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
 | x86 SysV call to RISC-V | `40 0f 0b 50 43 52 56 36` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
+| x86 import return | `41 0f 0b 50 49 52 45 54` | Prototype `PIRET`: resumes the saved foreign return PC after a descriptor-driven foreign-to-x86 import call. |
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign raw instructions`, `3=foreign syscalls`, `4=foreign libcalls`. |
@@ -143,8 +144,9 @@ symbol counts and `DT_JMPREL`/`JUMP_SLOT` PLT relocations for sectionless
 dynamic objects, undefined object-symbol imports
 (`aarch64-pcall-import.elf`, `riscv-pcall-import.elf`), prototype imported
 function call gates (`aarch64-pcall-import-func.elf`,
-`aarch64-pcall-import-mul.elf`, `riscv-pcall-import-func.elf`,
-`riscv-pcall-import-mul.elf`), and teardown before returning.
+`aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
+`riscv-pcall-import-func.elf`, `riscv-pcall-import-mul.elf`,
+`riscv-pcall-import-x86.elf`), and teardown before returning.
 More complex ABI cases such as arbitrary external import target descriptors,
 aggregate returns, variadic calls, TLS, unwind, and exceptions still need
 full descriptor-driven or software thunk support.  Direct register

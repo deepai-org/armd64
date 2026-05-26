@@ -55,6 +55,9 @@ invasive way to prototype the frontend switch:
 - `64 0f 0b 58 4d 4f 44 45`: return to x86_64 mode.
 - `40 0f 0b 50 43 41 36 34`: prototype `PCALL.A64.SYSV`.
 - `40 0f 0b 50 43 52 56 36`: prototype `PCALL.RV64.SYSV`.
+- `41 0f 0b 50 49 52 45 54`: prototype `PIRET`, used by
+  descriptor-driven foreign-to-x86 import calls to resume the saved foreign
+  return PC after the x86 helper finishes.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register
@@ -97,12 +100,15 @@ Imported function symbols can bind to prototype hardware call-descriptor
 slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
 foreign argument registers through an x86/runtime import target, writes the
 native foreign return register, and resumes at the foreign link address. The
-gate currently covers deterministic `poly_import_add` and `poly_import_mul`
-descriptors, proving that distinct undefined function symbols can dispatch
-through separate descriptor slots. A raw x86 function address is still not
-itself a valid AArch64 or RISC-V branch target; production hardware needs
-either this kind of architectural call gate or an OS/runtime descriptor that
-names the x86 callable target and ABI metadata.
+gate covers deterministic `poly_import_add` and `poly_import_mul` descriptors,
+proving that distinct undefined function symbols can dispatch through separate
+descriptor slots. It also covers `poly_import_x86_add`, where the descriptor
+enters a real x86_64 helper target supplied by the runtime, lets that helper
+fall through to `PIRET`, and then resumes the saved AArch64/RISC-V return PC
+with the x86 `RAX` result mapped back to the native foreign return register.
+A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
+target; production hardware needs either this kind of architectural call gate
+or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:

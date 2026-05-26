@@ -23,7 +23,8 @@ static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
 
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
-  POLY_IMPORT_FUNC_MUL = 1
+  POLY_IMPORT_FUNC_MUL = 1,
+  POLY_IMPORT_FUNC_X86_ADD = 2
 };
 
 struct poly_dynamic_reloc {
@@ -175,6 +176,28 @@ static void emit_movabs_r11(uint8_t *code, size_t *offset, uint64_t value) {
   emit_u64(code, offset, value);
 }
 
+static void emit_movabs_r12(uint8_t *code, size_t *offset, uint64_t value) {
+  code[(*offset)++] = 0x49;
+  code[(*offset)++] = 0xbc;
+  emit_u64(code, offset, value);
+}
+
+static void emit_save_import_regs(uint8_t *code, size_t *offset) {
+  const uint8_t save[] = {
+    0x4c, 0x89, 0x64, 0x24, 0xf8 // mov [rsp-8],r12
+  };
+  memcpy(code + *offset, save, sizeof(save));
+  *offset += sizeof(save);
+}
+
+static void emit_restore_import_regs(uint8_t *code, size_t *offset) {
+  const uint8_t restore[] = {
+    0x4c, 0x8b, 0x64, 0x24, 0xf8 // mov r12,[rsp-8]
+  };
+  memcpy(code + *offset, restore, sizeof(restore));
+  *offset += sizeof(restore);
+}
+
 static int detect_arch(uint16_t machine, struct poly_program *program) {
   if (machine == EM_AARCH64) {
     program->arch = POLY_ARCH_AARCH64;
@@ -280,6 +303,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_mul") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_MUL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_X86_ADD * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   return -1;
@@ -818,7 +845,13 @@ static int load_elf_program(const char *path, const char *symbol_name,
 
 static int emit_and_call(const struct poly_program *program, uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
-  const size_t stub_size = 10 + 10 + 8 + 1;
+  const size_t save_regs_size = 5;
+  const size_t restore_regs_size = 5;
+  const size_t pcall_return_offset = save_regs_size + 10 + 10 + 10 + 8;
+  const size_t main_stub_size = pcall_return_offset + restore_regs_size + 1;
+  const size_t host_helper_size = 12;
+  const size_t import_return_size = 8;
+  const size_t stub_size = main_stub_size + host_helper_size + import_return_size;
   const size_t code_size = stub_size;
   const size_t foreign_size = program->image_size;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -845,10 +878,13 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
   write_le64(import_page, poly_import_value);
 
   size_t offset = 0;
-  const uint64_t return_rip = (uint64_t) (uintptr_t) (code + 28);
+  const uint64_t return_rip = (uint64_t) (uintptr_t) (code + pcall_return_offset);
+  const uint64_t import_x86_target = (uint64_t) (uintptr_t) (code + main_stub_size);
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
+  emit_save_import_regs(code, &offset);
   emit_movabs_r10(code, &offset, foreign_target);
   emit_movabs_r11(code, &offset, return_rip);
+  emit_movabs_r12(code, &offset, import_x86_target);
   if (program->arch == POLY_ARCH_AARCH64) {
     const uint8_t pcall[] = { 0x40, 0x0f, 0x0b, 0x50, 0x43, 0x41, 0x36, 0x34 };
     memcpy(code + offset, pcall, sizeof(pcall));
@@ -859,7 +895,25 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
+  emit_restore_import_regs(code, &offset);
   code[offset++] = 0xc3;
+  const uint8_t host_helper[] = {
+    0x48, 0x89, 0xf8,             // mov rax,rdi
+    0x48, 0x01, 0xf0,             // add rax,rsi
+    0x48, 0x05, 0xc8, 0x00, 0x00, 0x00 // add rax,200
+  };
+  memcpy(code + offset, host_helper, sizeof(host_helper));
+  offset += sizeof(host_helper);
+  const uint8_t import_return[] = { 0x41, 0x0f, 0x0b, 0x50, 0x49, 0x52, 0x45, 0x54 };
+  memcpy(code + offset, import_return, sizeof(import_return));
+  offset += sizeof(import_return);
+  if (offset != code_size) {
+    fprintf(stderr, "POLYCALL_FAIL: internal x86 stub size mismatch\n");
+    munmap(import_page, 4096);
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
+  }
   memcpy(foreign, program->image, program->image_size);
   const uint64_t load_bias = (uint64_t) (uintptr_t) foreign - program->base_vaddr;
   for (size_t n = 0; n < program->reloc_count; n++) {

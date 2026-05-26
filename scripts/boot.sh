@@ -42,6 +42,8 @@ POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
 POLY_ENABLED="${POLY_ENABLED:-0}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
+RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
+RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
 RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 BOCHS_BIOS_DIR=""
@@ -183,6 +185,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import.elf" --dyn-import64 poly_import_value 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-func.elf" --dyn-import-func64 poly_import_add 0xa9bf7bfd 0xd0000008 0x91000108 0xf9400108 0xd63f0100 0xa8c17bfd 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-mul.elf" --dyn-import-func64 poly_import_mul 0xa9bf7bfd 0xd0000008 0x91000108 0xf9400108 0xd63f0100 0xa8c17bfd 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-x86.elf" --dyn-import-func64 poly_import_x86_add 0xa9bf7bfd 0xd0000008 0x91000108 0xf9400108 0xd63f0100 0xa8c17bfd 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mem.elf" 0xd28009a0 0xf9000020 0xd2800000 0xf9400020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memwidth.elf" 0x928001a5 0x39000025 0x39400026 0x92800025 0xb9000425 0xb9400427 0xd2824685 0x79001025 0x79401028 0x8b0700c0 0x8b080000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-strlen.elf" 0xd4200020
@@ -255,6 +258,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import.elf" --dyn-import64 poly_import_value 0x00002517 0x00053503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-func.elf" --dyn-import-func64 poly_import_add 0xff010113 0x00113423 0x00002297 0xff82b283 0x000280e7 0x00813083 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-mul.elf" --dyn-import-func64 poly_import_mul 0xff010113 0x00113423 0x00002297 0xff82b283 0x000280e7 0x00813083 0x01010113 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-x86.elf" --dyn-import-func64 poly_import_x86_add 0xff010113 0x00113423 0x00002297 0xff82b283 0x000280e7 0x00813083 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mem.elf" 0x04d00513 0x00a5b023 0x00000513 0x0005b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memwidth.elf" 0xff200293 0x00558023 0x0005c303 0x00058383 0x00730333 0xffe00293 0x0055a223 0x0045ee03 0x0045ae83 0x01de0e33 0x01c30533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-strlen.elf" 0x00100893 0x00100073
@@ -386,6 +390,8 @@ build_initramfs() {
 set -eu
 RUN_POLY_PROBE="$RUN_POLY_PROBE"
 RUN_POLY_APPS="$RUN_POLY_APPS"
+RUN_POLY_EXEC="$RUN_POLY_EXEC"
+RUN_POLY_CALL="$RUN_POLY_CALL"
 RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 
@@ -410,6 +416,9 @@ fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then
   /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-add.elf=132 \
     /usr/lib/polyapps/aarch64-regadd.elf=123 \
@@ -512,6 +521,9 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
     /usr/lib/polyapps/riscv-ecall.elf=0x53000704 \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/bin/polycall \
     /usr/lib/polyapps/aarch64-pcall-sum.elf=21 \
     /usr/lib/polyapps/riscv-pcall-sum.elf=21 \
@@ -533,6 +545,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-import.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-import-func.elf=103 \
     /usr/lib/polyapps/aarch64-pcall-import-mul.elf=102 \
+    /usr/lib/polyapps/aarch64-pcall-import-x86.elf=203 \
     /usr/lib/polyapps/riscv-pcall-frame.elf=45 \
     /usr/lib/polyapps/riscv-pcall-split-load.elf=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
@@ -542,7 +555,8 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-import.elf=123 \
     /usr/lib/polyapps/riscv-pcall-import-func.elf=103 \
-    /usr/lib/polyapps/riscv-pcall-import-mul.elf=102 >/dev/ttyS0 2>&1
+    /usr/lib/polyapps/riscv-pcall-import-mul.elf=102 \
+    /usr/lib/polyapps/riscv-pcall-import-x86.elf=203 >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_BENCH" = "1" ]; then
@@ -826,7 +840,15 @@ EOF
           sleep 1
           continue
         fi
+      fi
+      if [[ "$RUN_POLY_EXEC" == "1" ]]; then
         if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_CALL" == "1" ]]; then
+        if ! grep -q "POLYCALL_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
