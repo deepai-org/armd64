@@ -48,8 +48,8 @@ Linux ABI passthrough, or equal-speed execution.
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
   RISC-V-to-AArch64 code blobs that switch, call, nest calls, and carry scalar
-  double, mixed integer/FP, shared-stack values, and caller callee-saved
-  registers directly without returning to x86.
+  double, mixed integer/FP, two-register integer returns, shared-stack values,
+  and caller callee-saved registers directly without returning to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
@@ -426,8 +426,10 @@ neutral cross-call probes verify an AArch64 or RISC-V caller can allocate an
 aligned stack slot, the opposite frontend can load it through its native `sp`,
 and the caller can restore the same user stack before returning to x86.
 Callee-saved probes verify AArch64 `x19` and RISC-V `s0` remain live across a
-neutral call into the opposite frontend.  The gate also covers a nested
-AArch64 -> RISC-V -> AArch64 call chain.
+neutral call into the opposite frontend.  Pair-return probes verify `x0`/`x1`
+and `a0`/`a1` both map back to the caller so ordinary two-word integer returns
+survive a neutral cross-call.  The gate also covers a nested AArch64 -> RISC-V
+-> AArch64 call chain.
 Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
 hardware-style continuation state for `PCALL`, x86 import returns, and neutral
 foreign cross-calls are lazily saved and restored per guest `CR3`, user
