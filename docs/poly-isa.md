@@ -66,13 +66,27 @@ and call operations:
 - `0f 24 20 50 4f 4c 59 21`: prototype `PIRET`, used by
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
+- `0f 24 30+id 50 4f 4c 59 21`: syscall status read.  `id=0` returns the
+  current mode, `id=1` returns the last foreign syscall number, and `id=2`
+  returns the last foreign syscall mode.
+- `0f 24 38+id 50 4f 4c 59 21`: libcall status read.  `id=1` returns the last
+  libcall number and `id=2` returns the last libcall mode.
+- `0f 24 40+id 50 4f 4c 59 21`: mode/counter status read.  `id=0` returns
+  frontend switches, `id=1` returns the current mode, `id=2` returns raw foreign
+  instructions, `id=3` returns foreign syscalls, and `id=4` returns foreign
+  libcalls.
+- `0f 24 50+id 50 4f 4c 59 21`: trap status read.  `id=0` returns the reason,
+  `id=1` returns the source mode, `id=2` returns the trap number, `id=3`-`8`
+  return trap arguments, and `id=9` returns the trap PC.
 
 Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
 handler and validates the trailing `POLY!` magic before changing frontend
 state.  It is still a prototype allocation, but it no longer depends on the
 generic invalid-opcode dispatch path or a `UD2` envelope.
 
-Legacy fixed 8-byte `UD2` envelopes remain as compatibility/debug encodings:
+Legacy fixed 8-byte `UD2` envelopes remain as compatibility encodings for
+older probes, but the current runtime tools use the `0f 24` family for hot
+frontend operations and status reads:
 
 - `65 0f 0b 52 41 57 36 34`: enter raw AArch64 fetch.
 - `66 0f 0b 52 41 57 52 56`: enter raw RISC-V fetch.

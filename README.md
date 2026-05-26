@@ -66,8 +66,9 @@ The Bochs fork treats selected userspace x86 byte sequences as polyglot CPU
 operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are unchanged.
 The preferred prototype hot path decodes a fixed `0f 24 <op> POLY!`
 opcode-family placeholder through the `BX_IA_POLYMODE` handler; the runtime
-tools use this opcode family for hot frontend switches and `PCALL`.  Legacy
-`UD2` envelopes remain available for compatibility plus debug/status probes.
+tools use this opcode family for hot frontend switches, `PCALL`, and status
+reads.  Legacy `UD2` envelopes remain available as compatibility fallbacks, but
+the current runtime tools no longer use them for the hot or status paths.
 The current handler accepts these operations only from guest userspace.
 
 Preferred 8-byte x86 poly opcode-family operations:
@@ -82,8 +83,12 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV sret call to AArch64 | `0f 24 12 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`, shifts user args back to `x0`-`x7`, and enters raw AArch64. |
 | x86 SysV sret call to RISC-V | `0f 24 13 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
+| Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
+| Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
+| Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign libcalls. |
+| Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC. |
 
-Legacy fixed 8-byte `UD2` envelopes:
+Legacy fixed 8-byte `UD2` compatibility envelopes:
 
 | Operation | Bytes | Effect |
 | --- | --- | --- |
@@ -119,7 +124,7 @@ syscall/libcall traps.  Bit `12` additionally advertises the prototype x86
 poly opcode family.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
-the x86_64 poly opcode or legacy switch envelope, bypasses x86 decode, and fetches foreign
+the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
 instructions directly from `RIP`: fixed 32-bit instructions for AArch64 and
 mixed 16/32-bit instructions for RISC-V.  AArch64 `brk #0x7fff` and RISC-V
 custom-0 instruction `0x0000000b` escape back to x86_64 at the next byte.
@@ -583,8 +588,8 @@ Expected success markers include:
 
 - Foreign execution is still a Bochs prototype, not full native hardware
   decode.  The current hot path has a CPUID-gated `0f 24 ... POLY!`
-  opcode-family placeholder decoded through `BX_IA_POLYMODE`, while
-  status/debug operations still use legacy `UD2` envelopes.
+  opcode-family placeholder decoded through `BX_IA_POLYMODE`; legacy `UD2`
+  compatibility fallbacks still exist in Bochs for older probes.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
 - Syscall and breakpoint traps are recorded explicitly, but the current
   compatibility runtime still returns deterministic scaffold results rather
