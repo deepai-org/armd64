@@ -87,7 +87,8 @@ enum {
   POLY_IMPORT_FUNC_FP32_ADD = 14,
   POLY_IMPORT_FUNC_MEMMOVE = 15,
   POLY_IMPORT_FUNC_STRCMP = 16,
-  POLY_IMPORT_FUNC_STRNCMP = 17
+  POLY_IMPORT_FUNC_STRNCMP = 17,
+  POLY_IMPORT_FUNC_MEMCHR = 18
 };
 
 struct poly_dynamic_reloc {
@@ -499,6 +500,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "memcmp") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_MEMCMP * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "memchr") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMCHR * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "__tls_get_addr") == 0) {

@@ -7,6 +7,7 @@ extern void *memcpy(void *, const void *, size_t);
 extern void *memmove(void *, const void *, size_t);
 extern void *memset(void *, int, size_t);
 extern int memcmp(const void *, const void *, size_t);
+extern void *memchr(const void *, int, size_t);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -23,6 +24,12 @@ __attribute__((noinline))
 static int call_strncmp(const char *left, const char *right, size_t count)
 {
   return strncmp(left, right, count);
+}
+
+__attribute__((noinline))
+static void *call_memchr(const void *base, int needle, size_t count)
+{
+  return memchr(base, needle, count);
 }
 
 __attribute__((visibility("default")))
@@ -52,6 +59,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   size_t len = strlen(buffer);
   int string_same = call_strcmp(buffer, expected);
   int prefix_same = call_strncmp(buffer, "poly-z", 4);
+  void *found = call_memchr(buffer, 'y', len);
+  void *not_found = call_memchr(buffer, 'z', len);
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   buffer[4] = 'X';
@@ -61,5 +70,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (different > 0 ? 200 : 2000) + (moved == 0 ? 300 : 3000) +
     (string_same == 0 ? 400 : 4000) +
     (prefix_same == 0 ? 500 : 5000) +
+    (found == buffer + 3 ? 600 : 6000) +
+    (not_found == 0 ? 700 : 7000) +
     (unsigned char) buffer[0];
 }
