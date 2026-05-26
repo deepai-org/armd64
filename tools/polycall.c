@@ -172,7 +172,10 @@ enum {
   POLY_IMPORT_FUNC_TRUNCTFSF2 = 99,
   POLY_IMPORT_FUNC_TRUNCTFDF2 = 100,
   POLY_IMPORT_FUNC_NETF2 = 101,
-  POLY_IMPORT_FUNC_UNORDTF2 = 102
+  POLY_IMPORT_FUNC_UNORDTF2 = 102,
+  POLY_IMPORT_FUNC_FLOATUNSITF = 103,
+  POLY_IMPORT_FUNC_FIXTFSI = 104,
+  POLY_IMPORT_FUNC_FIXUNSTFSI = 105
 };
 
 struct poly_dynamic_reloc {
@@ -872,8 +875,20 @@ static int resolve_import_function(const char *symbol_name,
     *symbol_value = POLY_IMPORT_FUNC_FLOATSITF * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
+  if (strcmp(symbol_name, "__floatunsitf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOATUNSITF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
   if (strcmp(symbol_name, "__fixtfdi") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FIXTFDI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__fixtfsi") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FIXTFSI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__fixunstfsi") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FIXUNSTFSI * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "__eqtf2") == 0) {
