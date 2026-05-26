@@ -111,7 +111,8 @@ ordinary compiler stack-frame setup and teardown.
 The AArch64 raw decoder also supports `adrp` page-relative PC materialization,
 NZCV-backed `adds`/`subs` plus `b.cond` for ordinary condition-code branches,
 64-bit `stp`/`ldp` pair load-store forms for normal frame save/restore, and
-native `bl`/`blr` link-register calls for local helper calls inside foreign
+register-offset `ldr`/`str` forms for compiler-emitted indexed memory access.
+Native `bl`/`blr` link-register calls handle local helper calls inside foreign
 code.  The RISC-V raw decoder aliases `x2/sp` to the shared stack pointer, so
 `addi sp, sp, imm` plus `ld`/`sd` stack accesses covers the same ordinary psABI
 stack-frame pattern.
@@ -146,7 +147,9 @@ objects (`aarch64-pcall-ctor-real.so#poly_entry` and
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
 `riscv-pcall-cbz-real.so#poly_entry`), compiler-produced signed-extension
 objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
-`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-produced callee-saved
+`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-produced indexed-memory
+objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
+`riscv-pcall-indexed-mem-real.so#poly_entry`), compiler-produced callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), and compiler-produced scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
@@ -187,7 +190,9 @@ logical-immediate `tst` plus `csel`, and RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
 non-`x0` registers and RISC-V ordinary branch forms. The signed-extension
 probes exercise compiler-emitted AArch64 `sxth` plus `add ... sxtb/sxtw` and
-RISC-V signed byte/halfword/word loads. It also
+RISC-V signed byte/halfword/word loads. The indexed-memory probes exercise
+compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
+shift/add indexed load-store sequences. It also
 includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and

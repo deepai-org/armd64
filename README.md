@@ -170,7 +170,9 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
 `riscv-pcall-cbz-real.so#poly_entry`), compiler-built signed-extension
 objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
-`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-built callee-saved
+`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-built indexed-memory
+objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
+`riscv-pcall-indexed-mem-real.so#poly_entry`), compiler-built callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
@@ -255,7 +257,8 @@ condition-code branch `b.cond`, register branch and call `br`/`blr`,
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, unary `fneg`,
 `fcmp`/`fcmpe` including zero-immediate compare, scalar FP `ldr`/`str`,
-generic byte/halfword/word/dword load-store forms, 64-bit
+generic byte/halfword/word/dword load-store forms including register-offset
+indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
