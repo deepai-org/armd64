@@ -1,6 +1,7 @@
 typedef unsigned long size_t;
 
 extern size_t strlen(const char *);
+extern int strcmp(const char *, const char *);
 extern void *memcpy(void *, const void *, size_t);
 extern void *memmove(void *, const void *, size_t);
 extern void *memset(void *, int, size_t);
@@ -10,6 +11,12 @@ static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
 static const char overlap_source[] = "abcdef";
 static const char overlap_expected[] = "ababcde";
+
+__attribute__((noinline))
+static int call_strcmp(const char *left, const char *right)
+{
+  return strcmp(left, right);
+}
 
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
@@ -36,6 +43,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   memcpy(overlap, overlap_source, sizeof(overlap_source));
   memmove(overlap + 2, overlap, 5);
   size_t len = strlen(buffer);
+  int string_same = call_strcmp(buffer, expected);
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   buffer[4] = 'X';
@@ -43,5 +51,6 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
 
   return len + (same == 0 ? 100 : 1000) +
     (different > 0 ? 200 : 2000) + (moved == 0 ? 300 : 3000) +
+    (string_same == 0 ? 400 : 4000) +
     (unsigned char) buffer[0];
 }
