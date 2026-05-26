@@ -455,7 +455,10 @@ function call gates (`aarch64-pcall-import-func.elf`,
 `riscv-pcall-import-x86-mul.elf`) plus real compiler-emitted PLT/GOT calls to
 foreign-to-x86 helper descriptors including eight-argument x86 SysV
 stack-argument calls (`aarch64-pcall-x86-sum8-import-real.so#poly_entry` and
-`riscv-pcall-x86-sum8-import-real.so#poly_entry`), and
+`riscv-pcall-x86-sum8-import-real.so#poly_entry`) plus non-tail
+post-import continuations that fold in a ninth foreign stack argument
+(`aarch64-pcall-x86-sum8-post-import-real.so#poly_entry` and
+`riscv-pcall-x86-sum8-post-import-real.so#poly_entry`), and
 `poly_import_add`, `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,

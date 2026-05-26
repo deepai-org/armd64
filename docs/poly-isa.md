@@ -490,7 +490,9 @@ PLT/GOT calls to
 descriptor-dispatched FP arguments and return values. The x86 import probes
 exercise real PLT/GOT calls to `poly_import_x86_sum8` and verify that
 AArch64/RISC-V seventh and eighth integer arguments land in standard x86 SysV
-stack-argument slots. The imported-object
+stack-argument slots.  The companion post-import probes return from the x86
+helper back into foreign code and fold in a ninth foreign stack argument before
+the outer `PCALL` returns. The imported-object
 probes exercise real compiler-emitted GOT loads of
 undefined `poly_import_value`. The function-pointer probes exercise compiler
 emitted same-image data relocations to local function symbols plus native
