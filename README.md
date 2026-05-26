@@ -186,7 +186,9 @@ objects (`aarch64-pcall-int-carry-real.so#poly_entry` and
 objects (`aarch64-pcall-int-varshift-real.so#poly_entry` and
 `riscv-pcall-int-varshift-real.so#poly_entry`), compiler-built integer logical
 objects (`aarch64-pcall-int-logic-real.so#poly_entry` and
-`riscv-pcall-int-logic-real.so#poly_entry`), compiler-built unscaled-memory
+`riscv-pcall-int-logic-real.so#poly_entry`), compiler-built integer bit-operation
+objects (`aarch64-pcall-int-bitops-real.so#poly_entry` and
+`riscv-pcall-int-bitops-real.so#poly_entry`), compiler-built unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -311,6 +313,7 @@ immediate and shifted-register forms, shifted-register
 `lsl`/`lsr`/`asr`/`ror`, extended-register `add`/`sub` forms,
 unsigned bitfield aliases `uxtb`/`uxth`/`lsl`/`lsr`/`ubfx`,
 signed bitfield aliases `sxtb`/`sxth`/`sxtw`/`asr`/`sbfx`,
+one-source bit operations `rbit`/`rev16`/`rev32`/`rev`/`clz`/`cls`,
 unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, bit-test branch `tbz`/`tbnz`,

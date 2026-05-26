@@ -163,7 +163,9 @@ objects (`aarch64-pcall-int-carry-real.so#poly_entry` and
 objects (`aarch64-pcall-int-varshift-real.so#poly_entry` and
 `riscv-pcall-int-varshift-real.so#poly_entry`), compiler-produced integer logical
 objects (`aarch64-pcall-int-logic-real.so#poly_entry` and
-`riscv-pcall-int-logic-real.so#poly_entry`), compiler-produced unscaled-memory
+`riscv-pcall-int-logic-real.so#poly_entry`), compiler-produced integer bit-operation
+objects (`aarch64-pcall-int-bitops-real.so#poly_entry` and
+`riscv-pcall-int-bitops-real.so#poly_entry`), compiler-produced unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-produced indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -266,7 +268,9 @@ RISC-V `add`/`sltu` sequences. The integer variable-shift probes exercise
 compiler-emitted AArch64 `lsl`/`lsr`/`asr` register forms plus RISC-V
 `sll`/`srl`/`sra` sequences. The integer logical probes exercise
 compiler-emitted AArch64 `orn`/`bic`/`eon` and shifted-register `tst` plus
-RISC-V logical and branch sequences. The integer indexed-memory probes
+RISC-V logical and branch sequences. The integer bit-operation probes exercise
+compiler-emitted AArch64 `rbit`/`rev16`/`rev`/`clz`/`cls` for ordinary bit
+builtins plus RISC-V shift/branch fallback sequences. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V
