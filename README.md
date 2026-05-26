@@ -182,7 +182,9 @@ objects (`aarch64-pcall-int-madd-real.so#poly_entry` and
 objects (`aarch64-pcall-int-highmul-real.so#poly_entry` and
 `riscv-pcall-int-highmul-real.so#poly_entry`), compiler-built integer carry-chain
 objects (`aarch64-pcall-int-carry-real.so#poly_entry` and
-`riscv-pcall-int-carry-real.so#poly_entry`), compiler-built unscaled-memory
+`riscv-pcall-int-carry-real.so#poly_entry`), compiler-built integer variable-shift
+objects (`aarch64-pcall-int-varshift-real.so#poly_entry` and
+`riscv-pcall-int-varshift-real.so#poly_entry`), compiler-built unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -303,7 +305,8 @@ The direct-fetch AArch64 path covers the generated/probed subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `adrp`, `movz`, `movn`,
 `movk`, `add`/`sub` immediate forms including `SP`, flag-setting `adds`/`subs`
 immediate and shifted-register forms, shifted-register
-`add`/`sub`/`adc`/`sbc`/`mul`/`madd`/`msub`/`umulh`/`smulh`/`udiv`/`sdiv`/`eor`/`and`/`orr`, extended-register `add`/`sub` forms,
+`add`/`sub`/`adc`/`sbc`/`mul`/`madd`/`msub`/`umulh`/`smulh`/`udiv`/`sdiv`/`eor`/`and`/`orr`, variable register shifts
+`lsl`/`lsr`/`asr`/`ror`, extended-register `add`/`sub` forms,
 unsigned bitfield aliases `uxtb`/`uxth`/`lsl`/`lsr`/`ubfx`,
 signed bitfield aliases `sxtb`/`sxth`/`sxtw`/`asr`/`sbfx`,
 unconditional branch and call `b`/`bl`,
