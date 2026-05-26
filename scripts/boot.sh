@@ -55,6 +55,7 @@ POLYCALL_UBFM_REAL_SRC="$ROOT_DIR/tools/polycall_ubfm_real.c"
 POLYCALL_SBFM_REAL_SRC="$ROOT_DIR/tools/polycall_sbfm_real.c"
 POLYCALL_SIGNED_EXT_REAL_SRC="$ROOT_DIR/tools/polycall_signed_ext_real.c"
 POLYCALL_SIGNED_LOAD_REAL_SRC="$ROOT_DIR/tools/polycall_signed_load_real.c"
+POLYCALL_INT_DIV_REAL_SRC="$ROOT_DIR/tools/polycall_int_div_real.c"
 POLYCALL_UNSCALED_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_unscaled_mem_real.c"
 POLYCALL_INDEXED_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_indexed_mem_real.c"
 POLYCALL_CALLEE_REAL_SRC="$ROOT_DIR/tools/polycall_callee_real.c"
@@ -296,6 +297,10 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-signed-load-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_INT_DIV_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-int-div-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_UNSCALED_MEM_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-unscaled-mem-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -505,6 +510,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_SIGNED_LOAD_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-signed-load-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_INT_DIV_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-int-div-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1067,6 +1077,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-sbfm-real.so#poly_entry=4 \
     /usr/lib/polyapps/aarch64-pcall-signed-ext-real.so#poly_entry=29 \
     /usr/lib/polyapps/aarch64-pcall-signed-load-real.so#poly_entry=0xfffffffffffea228 \
+    /usr/lib/polyapps/aarch64-pcall-int-div-real.so#poly_entry=65 \
     /usr/lib/polyapps/aarch64-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/aarch64-pcall-indexed-mem-real.so#poly_entry=41 \
     /usr/lib/polyapps/aarch64-pcall-callee-real.so#poly_entry=420 \
@@ -1113,6 +1124,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-sbfm-real.so#poly_entry=4 \
     /usr/lib/polyapps/riscv-pcall-signed-ext-real.so#poly_entry=29 \
     /usr/lib/polyapps/riscv-pcall-signed-load-real.so#poly_entry=0xfffffffffffea228 \
+    /usr/lib/polyapps/riscv-pcall-int-div-real.so#poly_entry=65 \
     /usr/lib/polyapps/riscv-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/riscv-pcall-indexed-mem-real.so#poly_entry=41 \
     /usr/lib/polyapps/riscv-pcall-callee-real.so#poly_entry=420 \
