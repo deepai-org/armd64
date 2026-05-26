@@ -37,6 +37,7 @@ enum {
   POLY_CALL_FPAIR64 = 5,
   POLY_CALL_FPAIR64_ARG = 6,
   POLY_CALL_MIXED_ARGS = 7,
+  POLY_CALL_FINI_RESULT = 8,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   RELOC_BASE_ABSOLUTE = 0,
@@ -91,6 +92,11 @@ struct poly_program {
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
   size_t init_count;
+  uint64_t fini_vaddr;
+  uint64_t fini_array_vaddr;
+  uint64_t fini_array_size;
+  uint64_t fini_result_vaddr;
+  size_t fini_count;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
   int needs_x86_import;
@@ -144,6 +150,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "mixedargs:", 10) == 0) {
     request->call_kind = POLY_CALL_MIXED_ARGS;
     arg += 10;
+  }
+  else if (strncmp(arg, "fini:", 5) == 0) {
+    request->call_kind = POLY_CALL_FINI_RESULT;
+    arg += 5;
   }
   const char *expected = strchr(arg, '=');
   size_t path_len = expected ? (size_t) (expected - arg) : strlen(arg);
@@ -912,6 +922,16 @@ static int load_dynamic_relocs(struct poly_program *program,
       case DT_INIT_ARRAYSZ:
         program->init_array_size = dyn[n].d_un.d_val;
         break;
+      case DT_FINI:
+        program->fini_vaddr = dyn[n].d_un.d_ptr;
+        program->fini_count = 1;
+        break;
+      case DT_FINI_ARRAY:
+        program->fini_array_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_FINI_ARRAYSZ:
+        program->fini_array_size = dyn[n].d_un.d_val;
+        break;
       case DT_REL:
       case DT_RELSZ:
       case DT_RELENT:
@@ -948,6 +968,14 @@ static int load_dynamic_relocs(struct poly_program *program,
     return -1;
   }
   program->init_count += (size_t) (program->init_array_size / sizeof(uint64_t));
+  if (program->fini_array_size != 0 &&
+      (program->fini_array_vaddr == 0 ||
+       program->fini_array_size % sizeof(uint64_t) != 0)) {
+    fprintf(stderr, "POLYCALL_FAIL: bad FINI_ARRAY dynamic table: %s\n",
+      program->path);
+    return -1;
+  }
+  program->fini_count += (size_t) (program->fini_array_size / sizeof(uint64_t));
 
   if (rela_size != 0 &&
       process_rela_table(program, data, size, ehdr, dyn, dyn_count,
@@ -1087,6 +1115,23 @@ static int load_elf_program(const char *path, const char *symbol_name,
       return -1;
     }
   }
+  uint64_t fini_result_vaddr = 0;
+  int fini_result_resolved = -1;
+  if (dynamic_size != 0 && dynamic_size % sizeof(Elf64_Dyn) == 0) {
+    size_t dynamic_offset = 0;
+    if (elf_vaddr_to_image_offset(program, dynamic_vaddr, dynamic_size,
+          &dynamic_offset) == 0) {
+      fini_result_resolved = resolve_dynamic_symbol(program,
+        (const Elf64_Dyn *) (program->image + dynamic_offset),
+        (size_t) (dynamic_size / sizeof(Elf64_Dyn)), "poly_fini_result",
+        &fini_result_vaddr);
+    }
+  }
+  if (fini_result_resolved < 0)
+    fini_result_resolved = resolve_elf_symbol_from_sections(data, size, ehdr,
+      "poly_fini_result", &fini_result_vaddr);
+  if (fini_result_resolved == 0)
+    program->fini_result_vaddr = fini_result_vaddr;
 
   int entry_in_exec = 0;
   for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
@@ -1402,21 +1447,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           POLY_CALL_U64);
     }
   }
-  write_le64(code + target_imm_offset, foreign_target);
-  struct pair_u64 {
-    uint64_t lo;
-    uint64_t hi;
-  };
-  struct sret_u64 {
-    uint64_t a;
-    uint64_t b;
-    uint64_t c;
-    uint64_t d;
-  };
-  struct pair_fp64 {
-    double lo;
-    double hi;
-  };
   if (call_kind == POLY_CALL_SRET_U64) {
     if (program->arch == POLY_ARCH_AARCH64) {
       const uint8_t pcall[] = { 0x0f, 0x24, 0x12, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
@@ -1427,85 +1457,48 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
     }
   }
-  if (call_kind == POLY_CALL_FP64) {
-    union {
-      double d;
-      uint64_t u;
-    } fp_result;
-    double (*entry)(double, double, double) =
-      (double (*)(double, double, double)) code;
-    fp_result.d = entry(1.5, 2.25, 3.0);
-    *result = fp_result.u;
+  const int entry_call_kind = call_kind == POLY_CALL_FINI_RESULT ?
+    POLY_CALL_U64 : call_kind;
+  *result = call_poly_stub(code, target_imm_offset, foreign_target,
+    entry_call_kind);
+
+  if (program->fini_array_size != 0) {
+    size_t fini_array_offset = 0;
+    if (elf_vaddr_to_image_offset(program, program->fini_array_vaddr,
+          program->fini_array_size, &fini_array_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: FINI_ARRAY escaped image: %s\n",
+        program->path);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    const size_t fini_array_count =
+      (size_t) (program->fini_array_size / sizeof(uint64_t));
+    for (size_t n = fini_array_count; n > 0; n--) {
+      uint64_t fini_target = read_le64(foreign + fini_array_offset +
+        (n - 1) * 8);
+      if (fini_target != 0)
+        (void) call_poly_stub(code, target_imm_offset, fini_target,
+          POLY_CALL_U64);
+    }
   }
-  else if (call_kind == POLY_CALL_FP32) {
-    union {
-      float f;
-      uint32_t u;
-    } fp_result;
-    float (*entry)(float, float, float) =
-      (float (*)(float, float, float)) code;
-    fp_result.f = entry(1.5f, 2.25f, 3.0f);
-    *result = fp_result.u;
+  if (program->fini_vaddr != 0) {
+    const uint64_t fini_target = load_bias + program->fini_vaddr;
+    (void) call_poly_stub(code, target_imm_offset, fini_target, POLY_CALL_U64);
   }
-  else if (call_kind == POLY_CALL_PAIR_U64) {
-    struct pair_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-      uint64_t, uint64_t, uint64_t, uint64_t) =
-      (struct pair_u64 (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-        uint64_t, uint64_t, uint64_t, uint64_t)) code;
-    struct pair_u64 pair_result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
-    *result = ((pair_result.hi & 0xffffffffULL) << 32) |
-      (pair_result.lo & 0xffffffffULL);
-  }
-  else if (call_kind == POLY_CALL_SRET_U64) {
-    struct sret_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-      uint64_t, uint64_t, uint64_t) =
-      (struct sret_u64 (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-        uint64_t, uint64_t, uint64_t)) code;
-    struct sret_u64 sret_result = entry(1, 2, 3, 4, 5, 6, 7, 8);
-    *result = ((sret_result.a & 0xffffULL) << 48) |
-      ((sret_result.b & 0xffffULL) << 32) |
-      ((sret_result.c & 0xffffULL) << 16) |
-      (sret_result.d & 0xffffULL);
-  }
-  else if (call_kind == POLY_CALL_FPAIR64) {
-    union {
-      double d;
-      uint64_t u;
-    } lo_bits, hi_bits;
-    struct pair_fp64 (*entry)(double, double, double) =
-      (struct pair_fp64 (*)(double, double, double)) code;
-    struct pair_fp64 pair_result = entry(1.5, 2.25, 3.0);
-    lo_bits.d = pair_result.lo;
-    hi_bits.d = pair_result.hi;
-    *result = (lo_bits.u & 0xffffffff00000000ULL) | (hi_bits.u >> 32);
-  }
-  else if (call_kind == POLY_CALL_FPAIR64_ARG) {
-    union {
-      double d;
-      uint64_t u;
-    } fp_result;
-    struct pair_fp64 pair_arg;
-    pair_arg.lo = 1.5;
-    pair_arg.hi = 2.25;
-    double (*entry)(struct pair_fp64, double) =
-      (double (*)(struct pair_fp64, double)) code;
-    fp_result.d = entry(pair_arg, 3.0);
-    *result = fp_result.u;
-  }
-  else if (call_kind == POLY_CALL_MIXED_ARGS) {
-    union {
-      double d;
-      uint64_t u;
-    } fp_result;
-    double (*entry)(uint64_t, double, uint64_t, double, uint64_t, double) =
-      (double (*)(uint64_t, double, uint64_t, double, uint64_t, double)) code;
-    fp_result.d = entry(1, 1.5, 2, 2.25, 3, 3.0);
-    *result = fp_result.u;
-  }
-  else {
-    uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
-      (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
-    *result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+  if (call_kind == POLY_CALL_FINI_RESULT) {
+    if (program->fini_result_vaddr == 0) {
+      fprintf(stderr, "POLYCALL_FAIL: fini result symbol missing: %s\n",
+        program->path);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    const uint64_t fini_result_target = load_bias + program->fini_result_vaddr;
+    *result = call_poly_stub(code, target_imm_offset, fini_result_target,
+      POLY_CALL_U64);
   }
   munmap(import_page, 4096);
   munmap(foreign, foreign_size);
@@ -1541,10 +1534,10 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, symbol_name, &program) < 0)
       return 1;
 
-    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu inits=%zu symbol=%s path=%s\n",
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu inits=%zu finis=%zu symbol=%s path=%s\n",
       program.arch_name, (unsigned) program.elf_type, program.image_size,
       program.loaded_bytes, program.entry_offset, program.reloc_count,
-      program.init_count,
+      program.init_count, program.fini_count,
       symbol_name ? symbol_name : "-", program.path);
 
     uint64_t result = 0;

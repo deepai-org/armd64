@@ -229,9 +229,11 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
 `riscv-pcall-pair-real.so#poly_entry`), compiler-produced hidden-sret
 aggregate return objects (`aarch64-pcall-sret-real.so#poly_entry` and
-`riscv-pcall-sret-real.so#poly_entry`), compiler-produced constructor
-objects (`aarch64-pcall-ctor-real.so#poly_entry` and
-`riscv-pcall-ctor-real.so#poly_entry`), compiler-produced conditional objects
+`riscv-pcall-sret-real.so#poly_entry`), compiler-produced
+constructor/destructor objects (`aarch64-pcall-ctor-real.so#poly_entry`,
+`riscv-pcall-ctor-real.so#poly_entry`,
+`aarch64-pcall-fini-real.so#poly_entry`, and
+`riscv-pcall-fini-real.so#poly_entry`), compiler-produced conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-produced compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
@@ -353,7 +355,9 @@ undefined `poly_import_value`. The function-pointer probes exercise compiler
 emitted same-image data relocations to local function symbols plus native
 indirect calls through `blr` or `jalr`. The constructor probes execute
 compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
-entrypoint. The conditional probes exercise compiler-emitted AArch64
+entrypoint. The destructor probes execute compiler-emitted `DT_FINI_ARRAY`
+entries during foreign-object teardown and verify their effect on foreign
+static state. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst`, `csel`, and conditional-select variants
 `csinc`/`csinv`/`csneg`, plus RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on

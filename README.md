@@ -223,9 +223,11 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
 `riscv-pcall-pair-real.so#poly_entry`), compiler-built hidden-sret aggregate
 return objects (`aarch64-pcall-sret-real.so#poly_entry` and
-`riscv-pcall-sret-real.so#poly_entry`), compiler-built constructor objects
-(`aarch64-pcall-ctor-real.so#poly_entry` and
-`riscv-pcall-ctor-real.so#poly_entry`), compiler-built conditional objects
+`riscv-pcall-sret-real.so#poly_entry`), compiler-built constructor/destructor
+objects (`aarch64-pcall-ctor-real.so#poly_entry`,
+`riscv-pcall-ctor-real.so#poly_entry`,
+`aarch64-pcall-fini-real.so#poly_entry`, and
+`riscv-pcall-fini-real.so#poly_entry`), compiler-built conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-built compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
@@ -352,6 +354,7 @@ descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,
 compiler-emitted same-image function-pointer relocations and indirect native
 calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
+`DT_FINI_ARRAY` destructor execution during teardown,
 compiler-emitted conditional select variants and branch patterns
 (`aarch64-pcall-select-variants-real.so`,
 `riscv-pcall-select-variants-real.so`, `aarch64-pcall-import.elf`,
