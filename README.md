@@ -250,7 +250,9 @@ objects (`aarch64-pcall-int-div-real.so#poly_entry` and
 objects (`aarch64-pcall-int-madd-real.so#poly_entry` and
 `riscv-pcall-int-madd-real.so#poly_entry`), compiler-built integer high-multiply
 objects (`aarch64-pcall-int-highmul-real.so#poly_entry` and
-`riscv-pcall-int-highmul-real.so#poly_entry`), compiler-built integer carry-chain
+`riscv-pcall-int-highmul-real.so#poly_entry`), compiler-built 128-bit
+division/modulo helper objects (`aarch64-pcall-int128-helpers-real.so#poly_entry`
+and `riscv-pcall-int128-helpers-real.so#poly_entry`), compiler-built integer carry-chain
 objects (`aarch64-pcall-int-carry-real.so#poly_entry` and
 `riscv-pcall-int-carry-real.so#poly_entry`), compiler-built integer variable-shift
 objects (`aarch64-pcall-int-varshift-real.so#poly_entry` and

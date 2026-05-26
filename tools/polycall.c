@@ -136,7 +136,11 @@ enum {
   POLY_IMPORT_FUNC_AARCH64_CAS1_ACQ_REL = 63,
   POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16 = 64,
   POLY_IMPORT_FUNC_ATOMIC_LOAD_16 = 65,
-  POLY_IMPORT_FUNC_ATOMIC_STORE_16 = 66
+  POLY_IMPORT_FUNC_ATOMIC_STORE_16 = 66,
+  POLY_IMPORT_FUNC_UDIVTI3 = 67,
+  POLY_IMPORT_FUNC_UMODTI3 = 68,
+  POLY_IMPORT_FUNC_DIVTI3 = 69,
+  POLY_IMPORT_FUNC_MODTI3 = 70
 };
 
 struct poly_dynamic_reloc {
@@ -738,6 +742,22 @@ static int resolve_import_function(const char *symbol_name,
   if (strcmp(symbol_name, "__atomic_store_16") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_ATOMIC_STORE_16 *
       POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__udivti3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_UDIVTI3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__umodti3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_UMODTI3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__divti3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_DIVTI3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__modti3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MODTI3 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (resolve_aarch64_outline_atomic_import(symbol_name, symbol_value) == 0)
