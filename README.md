@@ -2,9 +2,9 @@
 
 This repository boots a small x86_64 Linux userspace under a modified Bochs and
 uses that guest to exercise a prototype polyglot CPU extension.  The extension
-keeps standard x86_64 execution as the host ISA, then adds synthetic userspace
-mode-switch envelopes that let selected AArch64 and RISC-V instruction streams
-run through direct foreign fetch inside the x86_64 process.
+keeps standard x86_64 execution as the host ISA, then adds CPUID-gated
+prototype opcode-family operations that let selected AArch64 and RISC-V
+instruction streams run through direct foreign fetch inside the x86_64 process.
 
 This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
 current implementation validates the architecture shape, Linux boot path,
@@ -23,8 +23,8 @@ Linux ABI passthrough, or equal-speed execution.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when
   `POLY_ENABLED=0`.
-- With `POLY_ENABLED=1`, Bochs handles the polyglot userspace mode/status
-  envelopes and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
+- With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
+  operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
   register state, shared foreign stack-pointer frame handling, native returns,
   mixed raw instruction streams, repeated mixed-mode switch stress, mixed
