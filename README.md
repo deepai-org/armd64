@@ -77,8 +77,8 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Switch to x86_64 mode | `0f 24 00 50 4f 4c 59 21` | Prototype `PEXIT`: sets current poly mode to x86_64. |
 | Switch to raw AArch64 mode | `0f 24 01 50 4f 4c 59 21` | Prototype `PENTER.A64`: enters raw AArch64 direct fetch at the next byte. |
 | Switch to raw RISC-V mode | `0f 24 02 50 4f 4c 59 21` | Prototype `PENTER.RV64`: enters raw RISC-V direct fetch at the next byte. |
-| x86 SysV call to AArch64 | `0f 24 10 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
-| x86 SysV call to RISC-V | `0f 24 11 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
+| x86 SysV call to AArch64 | `0f 24 10 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`, optional `R13=foreign TLS base`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
+| x86 SysV call to RISC-V | `0f 24 11 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`, optional `R13=foreign TLS base`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
 | x86 SysV sret call to AArch64 | `0f 24 12 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`, shifts user args back to `x0`-`x7`, and enters raw AArch64. |
 | x86 SysV sret call to RISC-V | `0f 24 13 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
@@ -194,7 +194,8 @@ bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, including
 two-register homogeneous double aggregate arguments and returns through
 `XMM0`/`XMM1`, including mixed integer/FP signatures where GPR and XMM lanes
 are consumed in one native call, sets `x30` or `ra` to a return cookie, enters raw fetch at the
-`R10` target, maps AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps
+`R10` target, carries an optional foreign TLS block base in x86 `R13`, maps
+AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps
 AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word integer
 aggregate returns.  The
 prototype `SRET` variants cover larger memory-return aggregates by mapping the
@@ -227,7 +228,9 @@ return objects (`aarch64-pcall-sret-real.so#poly_entry` and
 objects (`aarch64-pcall-ctor-real.so#poly_entry`,
 `riscv-pcall-ctor-real.so#poly_entry`,
 `aarch64-pcall-fini-real.so#poly_entry`, and
-`riscv-pcall-fini-real.so#poly_entry`), compiler-built conditional objects
+`riscv-pcall-fini-real.so#poly_entry`), compiler-built TLS objects
+(`aarch64-pcall-tls-real.so#poly_entry` and
+`riscv-pcall-tls-real.so#poly_entry`), compiler-built conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-built compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
@@ -355,6 +358,8 @@ imports, weak undefined function/object relocations resolving to zero,
 compiler-emitted same-image function-pointer relocations and indirect native
 calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
 `DT_FINI_ARRAY` destructor execution during teardown,
+compiler-emitted AArch64 TLSDESC and RISC-V `__tls_get_addr` access to
+`PT_TLS` initial images through the `PCALL` TLS-base register,
 compiler-emitted conditional select variants and branch patterns
 (`aarch64-pcall-select-variants-real.so`,
 `riscv-pcall-select-variants-real.so`, `aarch64-pcall-import.elf`,
@@ -369,13 +374,16 @@ The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
 an x86 return address to the dedicated `0f 24` `PIRET`, accepts the helper's
 ordinary `ret`, and maps the x86 `RAX` result back to AArch64 `x0` or RISC-V
 `a0`.
-The same descriptor mechanism currently resolves common GCC AArch64 outline
+The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
+`__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
+common GCC AArch64 outline
 atomic helper imports used by default compiler output:
 `__aarch64_ldadd8_acq_rel`, `__aarch64_swp8_acq_rel`,
 `__aarch64_ldset4_relax`, and `__aarch64_cas8_acq_rel`.
 More complex ABI cases such as arbitrary external import target descriptors,
-heterogeneous register aggregates, variadic calls, TLS, unwind, and exceptions
-still need full descriptor-driven or software thunk support.  Direct register
+heterogeneous register aggregates, variadic calls, dynamic-loader TLS module
+allocation across multiple DSOs, unwind, and exceptions still need full
+descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
 contract; they are not the external compatibility contract.
 

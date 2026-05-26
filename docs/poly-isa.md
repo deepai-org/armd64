@@ -166,7 +166,9 @@ interrupted user RIP.  Final hardware still needs this state exposed as an
 architectural, XSAVE-visible component.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
-as the x86_64 return continuation.  They currently cover the common register
+as the x86_64 return continuation; `R13` optionally carries the foreign TLS
+block base used by AArch64 `TPIDR_EL0` and RISC-V TLS descriptors.  They
+currently cover the common register
 fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` plus stack
 slots `[RSP+8]` and `[RSP+16]` are mapped to AArch64 `x0`-`x7` or RISC-V
 `a0`-`a7`; the foreign stack pointer is a separate 16-byte-aligned window below
@@ -229,7 +231,9 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
 `riscv-pcall-pair-real.so#poly_entry`), compiler-produced hidden-sret
 aggregate return objects (`aarch64-pcall-sret-real.so#poly_entry` and
-`riscv-pcall-sret-real.so#poly_entry`), compiler-produced
+`riscv-pcall-sret-real.so#poly_entry`), compiler-produced TLS objects
+(`aarch64-pcall-tls-real.so#poly_entry` and
+`riscv-pcall-tls-real.so#poly_entry`), compiler-produced
 constructor/destructor objects (`aarch64-pcall-ctor-real.so#poly_entry`,
 `riscv-pcall-ctor-real.so#poly_entry`,
 `aarch64-pcall-fini-real.so#poly_entry`, and
@@ -357,7 +361,9 @@ indirect calls through `blr` or `jalr`. The constructor probes execute
 compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
 entrypoint. The destructor probes execute compiler-emitted `DT_FINI_ARRAY`
 entries during foreign-object teardown and verify their effect on foreign
-static state. The conditional probes exercise compiler-emitted AArch64
+static state. The TLS probes exercise compiler-emitted AArch64 TLSDESC with
+`mrs tpidr_el0` and RISC-V `__tls_get_addr` against a copied `PT_TLS` initial
+image supplied through the `PCALL` TLS-base register. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst`, `csel`, and conditional-select variants
 `csinc`/`csinv`/`csneg`, plus RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
@@ -442,6 +448,7 @@ A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
 The same descriptor path currently provides prototype imports for common GCC
+TLS accessors (`R_AARCH64_TLSDESC` and RISC-V `__tls_get_addr`) and common GCC
 AArch64 outline atomic helpers: `__aarch64_ldadd8_acq_rel`,
 `__aarch64_swp8_acq_rel`, `__aarch64_ldset4_relax`, and
 `__aarch64_cas8_acq_rel`.  These are compatibility descriptors for observed

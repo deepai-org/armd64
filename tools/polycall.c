@@ -22,8 +22,17 @@
 #ifndef R_AARCH64_IRELATIVE
 #define R_AARCH64_IRELATIVE 1032
 #endif
+#ifndef R_AARCH64_TLSDESC
+#define R_AARCH64_TLSDESC 1031
+#endif
 #ifndef R_RISCV_IRELATIVE
 #define R_RISCV_IRELATIVE 58
+#endif
+#ifndef R_RISCV_TLS_DTPMOD64
+#define R_RISCV_TLS_DTPMOD64 7
+#endif
+#ifndef R_RISCV_TLS_DTPREL64
+#define R_RISCV_TLS_DTPREL64 9
 #endif
 
 enum {
@@ -40,11 +49,13 @@ enum {
   POLY_CALL_FINI_RESULT = 8,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
+  MAX_TLS_BYTES = 4096,
   RELOC_BASE_ABSOLUTE = 0,
   RELOC_BASE_LOAD_BIAS = 1,
   RELOC_BASE_IMPORT_PAGE = 2,
   RELOC_BASE_IMPORT_CALL = 3,
-  RELOC_BASE_IRELATIVE = 4
+  RELOC_BASE_IRELATIVE = 4,
+  RELOC_BASE_TLS_OFFSET = 5
 };
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
@@ -62,7 +73,9 @@ enum {
   POLY_IMPORT_FUNC_STRLEN = 8,
   POLY_IMPORT_FUNC_MEMCPY = 9,
   POLY_IMPORT_FUNC_MEMSET = 10,
-  POLY_IMPORT_FUNC_MEMCMP = 11
+  POLY_IMPORT_FUNC_MEMCMP = 11,
+  POLY_IMPORT_FUNC_AARCH64_TLSDESC = 12,
+  POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR = 13
 };
 
 struct poly_dynamic_reloc {
@@ -88,6 +101,10 @@ struct poly_program {
   size_t entry_offset;
   uint64_t base_vaddr;
   size_t loaded_bytes;
+  uint64_t tls_vaddr;
+  uint64_t tls_filesz;
+  uint64_t tls_memsz;
+  uint64_t tls_align;
   uint64_t init_vaddr;
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
@@ -271,6 +288,12 @@ static void emit_movabs_r12(uint8_t *code, size_t *offset, uint64_t value) {
   emit_u64(code, offset, value);
 }
 
+static void emit_movabs_r13(uint8_t *code, size_t *offset, uint64_t value) {
+  code[(*offset)++] = 0x49;
+  code[(*offset)++] = 0xbd;
+  emit_u64(code, offset, value);
+}
+
 static void emit_save_import_regs(uint8_t *code, size_t *offset) {
   const uint8_t save[] = {
     0x4c, 0x89, 0x64, 0x24, 0xf8 // mov [rsp-8],r12
@@ -282,6 +305,22 @@ static void emit_save_import_regs(uint8_t *code, size_t *offset) {
 static void emit_restore_import_regs(uint8_t *code, size_t *offset) {
   const uint8_t restore[] = {
     0x4c, 0x8b, 0x64, 0x24, 0xf8 // mov r12,[rsp-8]
+  };
+  memcpy(code + *offset, restore, sizeof(restore));
+  *offset += sizeof(restore);
+}
+
+static void emit_save_tls_reg(uint8_t *code, size_t *offset) {
+  const uint8_t save[] = {
+    0x4c, 0x89, 0x6c, 0x24, 0xf0 // mov [rsp-16],r13
+  };
+  memcpy(code + *offset, save, sizeof(save));
+  *offset += sizeof(save);
+}
+
+static void emit_restore_tls_reg(uint8_t *code, size_t *offset) {
+  const uint8_t restore[] = {
+    0x4c, 0x8b, 0x6c, 0x24, 0xf0 // mov r13,[rsp-16]
   };
   memcpy(code + *offset, restore, sizeof(restore));
   *offset += sizeof(restore);
@@ -424,6 +463,11 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "memcmp") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_MEMCMP * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__tls_get_addr") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR *
+      POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "__aarch64_ldadd8_acq_rel") == 0) {
@@ -742,6 +786,35 @@ static int resolve_reloc_symbol(struct poly_program *program,
   return 0;
 }
 
+static int resolve_tls_reloc_symbol(struct poly_program *program,
+    const struct poly_symbol_table *table, uint64_t symbol_index,
+    uint64_t *tls_offset) {
+  if (!table->symbols || symbol_index >= table->symbol_count) {
+    fprintf(stderr, "POLYCALL_FAIL: TLS relocation symbol table missing: %s\n",
+      program->path);
+    return -1;
+  }
+
+  const Elf64_Sym *sym = &table->symbols[symbol_index];
+  if (sym->st_shndx == SHN_UNDEF) {
+    if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
+      *tls_offset = 0;
+      return 0;
+    }
+    fprintf(stderr, "POLYCALL_FAIL: unresolved external TLS relocation path=%s\n",
+      program->path);
+    return -1;
+  }
+  if (ELF64_ST_TYPE(sym->st_info) != STT_TLS) {
+    fprintf(stderr, "POLYCALL_FAIL: non-TLS symbol used by TLS relocation path=%s\n",
+      program->path);
+    return -1;
+  }
+
+  *tls_offset = sym->st_value;
+  return 0;
+}
+
 static int process_rela_table(struct poly_program *program,
     const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
     const Elf64_Dyn *dyn, size_t dyn_count, uint64_t rela_vaddr,
@@ -764,7 +837,59 @@ static int process_rela_table(struct poly_program *program,
     const uint32_t reloc_type = ELF64_R_TYPE(rela[n].r_info);
     uint64_t reloc_value = 0;
     int base_kind = RELOC_BASE_LOAD_BIAS;
-    if (symbol_index == 0 && reloc_type == relative_type) {
+    if (program->arch == POLY_ARCH_AARCH64 && reloc_type == R_AARCH64_TLSDESC) {
+      if (!dynsym.symbols &&
+          load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
+          load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: TLS relocations require dynsym metadata: %s\n",
+          program->path);
+        return -1;
+      }
+      uint64_t tls_offset = 0;
+      if (resolve_tls_reloc_symbol(program, &dynsym, symbol_index,
+            &tls_offset) < 0)
+        return -1;
+
+      size_t relocation_offset = 0;
+      if (elf_vaddr_to_image_offset(program, rela[n].r_offset, 16,
+            &relocation_offset) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: TLSDESC target out of image: %s\n",
+          program->path);
+        return -1;
+      }
+      if (append_dynamic_reloc(program, relocation_offset,
+            POLY_IMPORT_FUNC_AARCH64_TLSDESC * POLY_IMPORT_CALL_STRIDE,
+            RELOC_BASE_IMPORT_CALL) < 0 ||
+          append_dynamic_reloc(program, relocation_offset + 8,
+            tls_offset + (uint64_t) rela[n].r_addend,
+            RELOC_BASE_TLS_OFFSET) < 0)
+        return -1;
+      continue;
+    }
+    if (program->arch == POLY_ARCH_RISCV &&
+        (reloc_type == R_RISCV_TLS_DTPMOD64 ||
+         reloc_type == R_RISCV_TLS_DTPREL64)) {
+      if (!dynsym.symbols &&
+          load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
+          load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: TLS relocations require dynsym metadata: %s\n",
+          program->path);
+        return -1;
+      }
+
+      if (reloc_type == R_RISCV_TLS_DTPMOD64) {
+        reloc_value = 1;
+        base_kind = RELOC_BASE_ABSOLUTE;
+      }
+      else {
+        if (resolve_tls_reloc_symbol(program, &dynsym, symbol_index,
+              &reloc_value) < 0)
+          return -1;
+        reloc_value += (uint64_t) rela[n].r_addend;
+        base_kind = RELOC_BASE_TLS_OFFSET;
+      }
+    }
+    else if (symbol_index == 0 && reloc_type == relative_type) {
       reloc_value = (uint64_t) rela[n].r_addend;
     }
     else if (symbol_index == 0 && reloc_type == irelative_type) {
@@ -1040,6 +1165,20 @@ static int load_elf_program(const char *path, const char *symbol_name,
       dynamic_size = phdr->p_filesz;
       continue;
     }
+    if (phdr->p_type == PT_TLS) {
+      if (phdr->p_filesz > phdr->p_memsz ||
+          phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+          phdr->p_memsz > MAX_TLS_BYTES) {
+        fprintf(stderr, "POLYCALL_FAIL: bad ELF TLS segment: %s\n", path);
+        free(data);
+        return -1;
+      }
+      program->tls_vaddr = phdr->p_vaddr;
+      program->tls_filesz = phdr->p_filesz;
+      program->tls_memsz = phdr->p_memsz;
+      program->tls_align = phdr->p_align;
+      continue;
+    }
     if (phdr->p_type != PT_LOAD)
       continue;
     if (phdr->p_filesz > phdr->p_memsz ||
@@ -1292,8 +1431,13 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t save_regs_size = needs_x86_import ? 5 : 0;
   const size_t restore_regs_size = needs_x86_import ? 5 : 0;
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
-  const size_t pcall_return_offset = save_regs_size + 10 + 10 + import_setup_size + 8;
-  const size_t main_stub_size = pcall_return_offset + restore_regs_size + 1;
+  const size_t save_tls_size = 5;
+  const size_t restore_tls_size = 5;
+  const size_t tls_setup_size = 10;
+  const size_t pcall_return_offset = save_regs_size + save_tls_size +
+    10 + 10 + tls_setup_size + import_setup_size + 8;
+  const size_t main_stub_size = pcall_return_offset + restore_regs_size +
+    restore_tls_size + 1;
   const size_t host_helper_size = needs_x86_import ? 13 : 0;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
   const size_t stub_size = main_stub_size + host_helper_size + import_return_size;
@@ -1320,6 +1464,20 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     munmap(code, code_size);
     return -1;
   }
+  uint8_t *tls = NULL;
+  size_t tls_size = 0;
+  if (program->tls_memsz != 0) {
+    tls_size = (size_t) program->tls_memsz;
+    tls = mmap(NULL, tls_size, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (tls == MAP_FAILED) {
+      fprintf(stderr, "POLYCALL_FAIL: TLS mmap failed: %s\n", strerror(errno));
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+  }
   write_le64(import_page, poly_import_value);
 
   size_t offset = 0;
@@ -1328,9 +1486,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   if (needs_x86_import)
     emit_save_import_regs(code, &offset);
+  emit_save_tls_reg(code, &offset);
   const size_t target_imm_offset = offset + 2;
   emit_movabs_r10(code, &offset, 0);
   emit_movabs_r11(code, &offset, return_rip);
+  const size_t tls_imm_offset = offset + 2;
+  emit_movabs_r13(code, &offset, 0);
   if (needs_x86_import) {
     emit_movabs_r12(code, &offset, import_x86_target);
   }
@@ -1347,6 +1508,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   if (needs_x86_import)
     emit_restore_import_regs(code, &offset);
+  emit_restore_tls_reg(code, &offset);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
     const uint8_t host_helper[] = {
@@ -1363,12 +1525,32 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   if (offset != code_size) {
     fprintf(stderr, "POLYCALL_FAIL: internal x86 stub size mismatch\n");
+    if (tls)
+      munmap(tls, tls_size);
     munmap(import_page, 4096);
     munmap(foreign, foreign_size);
     munmap(code, code_size);
     return -1;
   }
   memcpy(foreign, program->image, program->image_size);
+  if (tls) {
+    size_t tls_image_offset = 0;
+    if (elf_vaddr_to_image_offset(program, program->tls_vaddr,
+          program->tls_filesz, &tls_image_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: TLS image escaped loaded image: %s\n",
+        program->path);
+      munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    memcpy(tls, foreign + tls_image_offset, (size_t) program->tls_filesz);
+    write_le64(code + tls_imm_offset, (uint64_t) (uintptr_t) tls);
+  }
+  else {
+    write_le64(code + tls_imm_offset, 0);
+  }
   const uint64_t load_bias = (uint64_t) (uintptr_t) foreign - program->base_vaddr;
   for (size_t n = 0; n < program->reloc_count; n++) {
     if (program->relocs[n].base_kind == RELOC_BASE_IRELATIVE)
@@ -1377,6 +1559,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         foreign_size - program->relocs[n].offset < 8) {
       fprintf(stderr, "POLYCALL_FAIL: relocation target escaped image: %s\n",
         program->path);
+      if (tls)
+        munmap(tls, tls_size);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
@@ -1389,6 +1573,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       reloc_base = (uint64_t) (uintptr_t) import_page;
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_CALL)
       reloc_base = POLY_IMPORT_CALL_BASE;
+    else if (program->relocs[n].base_kind == RELOC_BASE_TLS_OFFSET)
+      reloc_base = 0;
     const uint64_t reloc_value = program->relocs[n].value + reloc_base;
     write_le64(foreign + program->relocs[n].offset, reloc_value);
   }
@@ -1402,6 +1588,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         foreign_size - program->relocs[n].offset < 8) {
       fprintf(stderr, "POLYCALL_FAIL: IRELATIVE target escaped image: %s\n",
         program->path);
+      if (tls)
+        munmap(tls, tls_size);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
@@ -1412,6 +1600,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           &resolver_offset) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: IRELATIVE resolver escaped image: %s\n",
         program->path);
+      if (tls)
+        munmap(tls, tls_size);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
@@ -1433,6 +1623,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           program->init_array_size, &init_array_offset) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: INIT_ARRAY escaped image: %s\n",
         program->path);
+      if (tls)
+        munmap(tls, tls_size);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
@@ -1468,6 +1660,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           program->fini_array_size, &fini_array_offset) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: FINI_ARRAY escaped image: %s\n",
         program->path);
+      if (tls)
+        munmap(tls, tls_size);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
@@ -1491,6 +1685,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (program->fini_result_vaddr == 0) {
       fprintf(stderr, "POLYCALL_FAIL: fini result symbol missing: %s\n",
         program->path);
+      if (tls)
+        munmap(tls, tls_size);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
@@ -1500,6 +1696,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     *result = call_poly_stub(code, target_imm_offset, fini_result_target,
       POLY_CALL_U64);
   }
+  if (tls)
+    munmap(tls, tls_size);
   munmap(import_page, 4096);
   munmap(foreign, foreign_size);
   munmap(code, code_size);
@@ -1534,10 +1732,11 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, symbol_name, &program) < 0)
       return 1;
 
-    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu inits=%zu finis=%zu symbol=%s path=%s\n",
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu tls=%llu inits=%zu finis=%zu symbol=%s path=%s\n",
       program.arch_name, (unsigned) program.elf_type, program.image_size,
       program.loaded_bytes, program.entry_offset, program.reloc_count,
-      program.init_count, program.fini_count,
+      (unsigned long long) program.tls_memsz, program.init_count,
+      program.fini_count,
       symbol_name ? symbol_name : "-", program.path);
 
     uint64_t result = 0;
