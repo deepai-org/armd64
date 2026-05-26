@@ -73,6 +73,24 @@ static inline void raw_riscv_arith_probe(void) {
     ::: "rax", "memory");
 }
 
+static inline void poly_opcode_aarch64_arith_probe(void) {
+  asm volatile(
+    ".byte 0x0f,0x24,0x01,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".long 0xd2800540\n" // movz x0,#42
+    ".long 0x91000400\n" // add x0,x0,#1
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "memory");
+}
+
+static inline void poly_opcode_riscv_arith_probe(void) {
+  asm volatile(
+    ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".long 0x01100513\n" // addi a0,zero,17
+    ".long 0x00550513\n" // addi a0,a0,5
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "memory");
+}
+
 static inline void raw_aarch64_wide_regs_probe(void) {
   asm volatile(
     ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
@@ -183,6 +201,50 @@ static inline void pcall_riscv_sysv_args_probe(void) {
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
     ".byte 0x40,0x0f,0x0b,0x50,0x43,0x52,0x56,0x36\n"
+    "1:\n"
+    ".long 0x00b50533\n" // add a0,a0,a1
+    ".long 0x00c50533\n" // add a0,a0,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void poly_opcode_pcall_aarch64_sysv_args_probe(void) {
+  asm volatile(
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    "1:\n"
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0x8b020000\n" // add x0,x0,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void poly_opcode_pcall_riscv_sysv_args_probe(void) {
+  asm volatile(
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
     "1:\n"
     ".long 0x00b50533\n" // add a0,a0,a1
     ".long 0x00c50533\n" // add a0,a0,a2
@@ -385,6 +447,18 @@ int main(void) {
     return 1;
   }
 
+  stage("POLY_STAGE: x86-poly-opcodes");
+  poly_opcode_aarch64_arith_probe();
+  if (read_rax() != 43) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 poly opcode aarch64 stream mismatch\n");
+    return 1;
+  }
+  poly_opcode_riscv_arith_probe();
+  if (read_rax() != 22) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 poly opcode riscv stream mismatch\n");
+    return 1;
+  }
+
   stage("POLY_STAGE: wide-regs");
   raw_aarch64_wide_regs_probe();
   if (read_rax() != 49) {
@@ -430,6 +504,16 @@ int main(void) {
   pcall_riscv_sysv_args_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: pcall riscv SysV argument bridge mismatch\n");
+    return 1;
+  }
+  poly_opcode_pcall_aarch64_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 poly opcode pcall aarch64 SysV argument bridge mismatch\n");
+    return 1;
+  }
+  poly_opcode_pcall_riscv_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 poly opcode pcall riscv SysV argument bridge mismatch\n");
     return 1;
   }
 

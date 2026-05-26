@@ -6,9 +6,8 @@ RISC-V code linked into an x86_64 process, not a new compiler-only ABI.
 
 ## Hardware Contract
 
-Production hardware should not use `#UD` envelopes for hot operations.  The
-Bochs envelopes are prototype encodings only.  A silicon or FPGA
-implementation should expose CPUID-gated x86 instructions for:
+Production hardware should not use `#UD` envelopes for hot operations.  A
+silicon or FPGA implementation should expose CPUID-gated x86 instructions for:
 
 - `PENTER.A64`: enter fixed-width AArch64 fetch at the next byte.
 - `PENTER.RV64`: enter RISC-V fetch at the next byte, decoding both 16-bit
@@ -52,8 +51,24 @@ frontend mode when the saved architectural state requires it.
 
 ## Bochs Prototype Contract
 
-Bochs still uses fixed 8-byte invalid x86 envelopes because that is the least
-invasive way to prototype the frontend switch:
+Bochs now has a fixed 8-byte x86 opcode-family placeholder for hot frontend
+and call operations:
+
+- `0f 24 00 50 4f 4c 59 21`: prototype `PEXIT`, returning to x86_64 mode.
+- `0f 24 01 50 4f 4c 59 21`: prototype `PENTER.A64`, entering raw AArch64
+  fetch at the next byte.
+- `0f 24 02 50 4f 4c 59 21`: prototype `PENTER.RV64`, entering raw RISC-V
+  fetch at the next byte.
+- `0f 24 10 50 4f 4c 59 21`: prototype `PCALL.A64.SYSV`.
+- `0f 24 11 50 4f 4c 59 21`: prototype `PCALL.RV64.SYSV`.
+- `0f 24 12 50 4f 4c 59 21`: prototype `PCALL.A64.SYSV.SRET`.
+- `0f 24 13 50 4f 4c 59 21`: prototype `PCALL.RV64.SYSV.SRET`.
+
+This still routes through Bochs' invalid-opcode handler internally because
+`0f 24` is unused by this decoder, but it is no longer a `UD2` envelope.  It is
+the emulator placeholder for the dedicated opcodes that hardware should expose.
+
+Legacy fixed 8-byte `UD2` envelopes remain as compatibility/debug encodings:
 
 - `65 0f 0b 52 41 57 36 34`: enter raw AArch64 fetch.
 - `66 0f 0b 52 41 57 52 56`: enter raw RISC-V fetch.
@@ -75,11 +90,11 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`11` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`12` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, and deterministic compatibility
-  syscall/libcall traps.
+  syscall/libcall traps, plus the prototype x86 poly opcode family.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.

@@ -30,7 +30,8 @@ enum {
   POLY_CPUID_FEATURE_USER_RETURN_RESTORE = (1U << 8),
   POLY_CPUID_FEATURE_X86_TSO = (1U << 9),
   POLY_CPUID_FEATURE_THREAD_BANKS = (1U << 10),
-  POLY_CPUID_FEATURE_COMPAT_TRAPS = (1U << 11)
+  POLY_CPUID_FEATURE_COMPAT_TRAPS = (1U << 11),
+  POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12)
 };
 
 struct poly_cpuid_regs {
@@ -68,7 +69,8 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_USER_RETURN_RESTORE |
     POLY_CPUID_FEATURE_X86_TSO |
     POLY_CPUID_FEATURE_THREAD_BANKS |
-    POLY_CPUID_FEATURE_COMPAT_TRAPS;
+    POLY_CPUID_FEATURE_COMPAT_TRAPS |
+    POLY_CPUID_FEATURE_X86_POLY_OPCODES;
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {

@@ -62,13 +62,26 @@ Linux ABI passthrough, or equal-speed execution.
 
 ## ISA Changes From Standard x86_64
 
-The Bochs fork treats selected userspace `#UD` byte sequences as polyglot CPU
-operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are unchanged.
-The extension is intentionally encoded as invalid x86 byte sequences so an
-unmodified CPU still traps.  The current handler accepts these envelopes only
-from guest userspace.
+The Bochs fork treats selected userspace invalid x86 byte sequences as
+polyglot CPU operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are
+unchanged.  The preferred prototype hot path uses a fixed `0f 24 <op> POLY!`
+opcode-family placeholder; legacy `UD2` envelopes remain available for
+compatibility, debug status, and runtime probes.  The current handler accepts
+these operations only from guest userspace.
 
-All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
+Preferred 8-byte x86 poly opcode-family operations:
+
+| Operation | Bytes | Effect |
+| --- | --- | --- |
+| Switch to x86_64 mode | `0f 24 00 50 4f 4c 59 21` | Prototype `PEXIT`: sets current poly mode to x86_64. |
+| Switch to raw AArch64 mode | `0f 24 01 50 4f 4c 59 21` | Prototype `PENTER.A64`: enters raw AArch64 direct fetch at the next byte. |
+| Switch to raw RISC-V mode | `0f 24 02 50 4f 4c 59 21` | Prototype `PENTER.RV64`: enters raw RISC-V direct fetch at the next byte. |
+| x86 SysV call to AArch64 | `0f 24 10 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
+| x86 SysV call to RISC-V | `0f 24 11 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
+| x86 SysV sret call to AArch64 | `0f 24 12 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`, shifts user args back to `x0`-`x7`, and enters raw AArch64. |
+| x86 SysV sret call to RISC-V | `0f 24 13 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
+
+Legacy fixed 8-byte `UD2` envelopes:
 
 | Operation | Bytes | Effect |
 | --- | --- | --- |
@@ -100,10 +113,11 @@ raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
 RISC-V, neutral direct switches, native return cookies, x86 SysV `PCALL`,
 `PCALL` sret, scalar FP bridging, trap records, user return restoration, x86 TSO
 foreign ordering, per-thread synthetic banks, and deterministic compatibility
-syscall/libcall traps.
+syscall/libcall traps.  Bit `12` additionally advertises the prototype x86
+poly opcode family.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
-the x86_64 switch envelope, bypasses x86 decode, and fetches foreign
+the x86_64 poly opcode or legacy switch envelope, bypasses x86 decode, and fetches foreign
 instructions directly from `RIP`: fixed 32-bit instructions for AArch64 and
 mixed 16/32-bit instructions for RISC-V.  AArch64 `brk #0x7fff` and RISC-V
 custom-0 instruction `0x0000000b` escape back to x86_64 at the next byte.
@@ -546,9 +560,10 @@ Expected success markers include:
 
 ## Known Gaps
 
-- Foreign execution is a Bochs UD-envelope prototype, not full native hardware
-  decode.  The silicon contract in `docs/poly-isa.md` replaces these envelopes
-  with CPUID-gated frontend-switch opcodes.
+- Foreign execution is still a Bochs invalid-opcode prototype, not full native
+  hardware decode.  The current hot path has a CPUID-gated `0f 24 ... POLY!`
+  opcode-family placeholder, while status/debug operations still use legacy
+  `UD2` envelopes.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
 - Syscall and breakpoint traps are recorded explicitly, but the current
   compatibility runtime still returns deterministic scaffold results rather
