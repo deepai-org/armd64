@@ -34,9 +34,11 @@ enum {
   R_AARCH64_GLOB_DAT = 1025,
   R_AARCH64_JUMP_SLOT = 1026,
   R_AARCH64_RELATIVE = 1027,
+  R_AARCH64_IRELATIVE = 1032,
   R_RISCV_64 = 2,
   R_RISCV_JUMP_SLOT = 5,
   R_RISCV_RELATIVE = 3,
+  R_RISCV_IRELATIVE = 58,
   SHF_ALLOC = 2,
   SHF_EXECINSTR = 4,
   SHN_UNDEF = 0,
@@ -166,6 +168,14 @@ static uint32_t jump_slot_reloc_type_for_machine(int machine) {
   return 0;
 }
 
+static uint32_t irelative_reloc_type_for_machine(int machine) {
+  if (machine == EM_AARCH64)
+    return R_AARCH64_IRELATIVE;
+  if (machine == EM_RISCV)
+    return R_RISCV_IRELATIVE;
+  return 0;
+}
+
 static uint32_t import_reloc_type_for_machine(int machine) {
   if (machine == EM_AARCH64)
     return R_AARCH64_GLOB_DAT;
@@ -191,7 +201,7 @@ static void write_u32_le(unsigned char *bytes, uint32_t value) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-relr64 VALUE|--dyn-relr-bitmap64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-relr64 VALUE|--dyn-relr-bitmap64 VALUE|--dyn-irelative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -206,6 +216,7 @@ int main(int argc, char **argv) {
   int dyn_relative = 0;
   int dyn_relr = 0;
   int dyn_relr_bitmap = 0;
+  int dyn_irelative = 0;
   int dyn_symbolic = 0;
   int dyn_jump_slot = 0;
   int dyn_import = 0;
@@ -215,6 +226,7 @@ int main(int argc, char **argv) {
       strcmp(argv[3], "--dyn-relative64") == 0 ||
       strcmp(argv[3], "--dyn-relr64") == 0 ||
       strcmp(argv[3], "--dyn-relr-bitmap64") == 0 ||
+      strcmp(argv[3], "--dyn-irelative64") == 0 ||
       strcmp(argv[3], "--dyn-symbol64") == 0 ||
       strcmp(argv[3], "--dyn-jump-slot64") == 0 ||
       strcmp(argv[3], "--dyn-import64") == 0 ||
@@ -231,6 +243,7 @@ int main(int argc, char **argv) {
     dyn_relative = strcmp(argv[3], "--dyn-relative64") == 0;
     dyn_relr = strcmp(argv[3], "--dyn-relr64") == 0;
     dyn_relr_bitmap = strcmp(argv[3], "--dyn-relr-bitmap64") == 0;
+    dyn_irelative = strcmp(argv[3], "--dyn-irelative64") == 0;
     dyn_symbolic = strcmp(argv[3], "--dyn-symbol64") == 0 ||
       strcmp(argv[3], "--dyn-jump-slot64") == 0 || dyn_import ||
       dyn_import_func;
@@ -286,7 +299,7 @@ int main(int argc, char **argv) {
   }
 
   const int dyn_image = dyn_relative || dyn_relr || dyn_relr_bitmap ||
-    dyn_symbolic;
+    dyn_irelative || dyn_symbolic;
   const uint64_t text_offset = 0x1000;
   const uint64_t text_vaddr = dyn_image ? 0 : 0x400000;
   const uint64_t data_offset = 0x3000;
@@ -560,6 +573,10 @@ int main(int argc, char **argv) {
             dyn_jump_slot ? jump_slot_reloc_type_for_machine(machine) :
             symbolic_reloc_type_for_machine(machine));
         rela.r_addend = 0;
+      }
+      else if (dyn_irelative) {
+        rela.r_info = (uint64_t) irelative_reloc_type_for_machine(machine);
+        rela.r_addend = (int64_t) text_vaddr;
       }
       else {
         rela.r_info = (uint64_t) relative_reloc_type_for_machine(machine);

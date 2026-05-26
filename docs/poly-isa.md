@@ -128,7 +128,8 @@ separate text/data load segments rather than only inline instruction blobs. The
 gate covers both AArch64 `adrp`/`ldr` and RISC-V `auipc`/`ld` split-load
 payloads. `polycall` also accepts simple `ET_DYN` images with
 `R_AARCH64_RELATIVE` or `R_RISCV_RELATIVE` relocations, packed `DT_RELR`
-direct and bitmap relative relocation tables, and same-image symbolic 64-bit dynamic relocations
+direct and bitmap relative relocation tables,
+`R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolver relocations, and same-image symbolic 64-bit dynamic relocations
 (`R_AARCH64_ABS64` or `R_RISCV_64`), applying them with the actual runtime load
 bias before `PCALL`. Symbolic relocation metadata and `path#symbol` entrypoint
 lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
@@ -316,6 +317,10 @@ includes sectionless `dyntab` probes that exercise only
 `R_RISCV_JUMP_SLOT` entries for defined symbols.
 Packed relative relocation tables are accepted through
 `DT_RELR`/`DT_RELRSZ`/`DT_RELRENT`, including direct entries and bitmap entries.
+IFUNC-style resolver relocations are accepted through
+`R_AARCH64_IRELATIVE` and `R_RISCV_IRELATIVE`; the resolver runs in the
+foreign frontend after ordinary relocations are applied, and its return value is
+written to the relocation target.
 Undefined object-symbol relocations can bind to process-provided imports; the
 gate covers `poly_import_value` through an undefined dynamic symbol relocation.
 Undefined weak object/function relocations resolve to zero, matching ordinary

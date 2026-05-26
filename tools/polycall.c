@@ -19,6 +19,12 @@
 #ifndef DT_RELRENT
 #define DT_RELRENT 37
 #endif
+#ifndef R_AARCH64_IRELATIVE
+#define R_AARCH64_IRELATIVE 1032
+#endif
+#ifndef R_RISCV_IRELATIVE
+#define R_RISCV_IRELATIVE 58
+#endif
 
 enum {
   POLY_ARCH_AARCH64 = 1,
@@ -31,7 +37,8 @@ enum {
   RELOC_BASE_ABSOLUTE = 0,
   RELOC_BASE_LOAD_BIAS = 1,
   RELOC_BASE_IMPORT_PAGE = 2,
-  RELOC_BASE_IMPORT_CALL = 3
+  RELOC_BASE_IMPORT_CALL = 3,
+  RELOC_BASE_IRELATIVE = 4
 };
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
@@ -334,6 +341,14 @@ static int symbolic_64_reloc_type_for_arch(int arch, uint32_t type) {
   if (arch == POLY_ARCH_RISCV)
     return type == R_RISCV_64 || type == R_RISCV_JUMP_SLOT;
   return 0;
+}
+
+static uint32_t irelative_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_IRELATIVE;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_IRELATIVE;
+  return UINT32_MAX;
 }
 
 static const uint64_t poly_import_value = 123;
@@ -686,6 +701,7 @@ static int process_rela_table(struct poly_program *program,
   const Elf64_Rela *rela = (const Elf64_Rela *) (program->image + rela_offset);
   const size_t rela_count = (size_t) (rela_size / sizeof(Elf64_Rela));
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
+  const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
   struct poly_symbol_table dynsym;
   memset(&dynsym, 0, sizeof(dynsym));
   for (size_t n = 0; n < rela_count; n++) {
@@ -695,6 +711,10 @@ static int process_rela_table(struct poly_program *program,
     int base_kind = RELOC_BASE_LOAD_BIAS;
     if (symbol_index == 0 && reloc_type == relative_type) {
       reloc_value = (uint64_t) rela[n].r_addend;
+    }
+    else if (symbol_index == 0 && reloc_type == irelative_type) {
+      reloc_value = (uint64_t) rela[n].r_addend;
+      base_kind = RELOC_BASE_IRELATIVE;
     }
     else if (symbol_index != 0 &&
         symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
@@ -1191,6 +1211,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   memcpy(foreign, program->image, program->image_size);
   const uint64_t load_bias = (uint64_t) (uintptr_t) foreign - program->base_vaddr;
   for (size_t n = 0; n < program->reloc_count; n++) {
+    if (program->relocs[n].base_kind == RELOC_BASE_IRELATIVE)
+      continue;
     if (program->relocs[n].offset > foreign_size ||
         foreign_size - program->relocs[n].offset < 8) {
       fprintf(stderr, "POLYCALL_FAIL: relocation target escaped image: %s\n",
@@ -1212,6 +1234,34 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
+
+  for (size_t n = 0; n < program->reloc_count; n++) {
+    if (program->relocs[n].base_kind != RELOC_BASE_IRELATIVE)
+      continue;
+    if (program->relocs[n].offset > foreign_size ||
+        foreign_size - program->relocs[n].offset < 8) {
+      fprintf(stderr, "POLYCALL_FAIL: IRELATIVE target escaped image: %s\n",
+        program->path);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    size_t resolver_offset = 0;
+    if (elf_vaddr_to_image_offset(program, program->relocs[n].value, 4,
+          &resolver_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: IRELATIVE resolver escaped image: %s\n",
+        program->path);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    const uint64_t resolver = load_bias + program->relocs[n].value;
+    const uint64_t resolved = call_poly_stub(code, target_imm_offset,
+      resolver, POLY_CALL_U64);
+    write_le64(foreign + program->relocs[n].offset, resolved);
+  }
 
   if (program->init_vaddr != 0) {
     const uint64_t init_target = load_bias + program->init_vaddr;
