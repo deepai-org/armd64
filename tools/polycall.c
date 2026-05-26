@@ -152,7 +152,13 @@ enum {
   POLY_IMPORT_FUNC_CLZDI2 = 79,
   POLY_IMPORT_FUNC_CTZDI2 = 80,
   POLY_IMPORT_FUNC_PARITYDI2 = 81,
-  POLY_IMPORT_FUNC_POPCOUNTDI2 = 82
+  POLY_IMPORT_FUNC_POPCOUNTDI2 = 82,
+  POLY_IMPORT_FUNC_ADDTF3 = 83,
+  POLY_IMPORT_FUNC_SUBTF3 = 84,
+  POLY_IMPORT_FUNC_MULTF3 = 85,
+  POLY_IMPORT_FUNC_DIVTF3 = 86,
+  POLY_IMPORT_FUNC_FLOATUNDITF = 87,
+  POLY_IMPORT_FUNC_FIXUNSTFDI = 88
 };
 
 struct poly_dynamic_reloc {
@@ -818,6 +824,30 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__popcountdi2") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_POPCOUNTDI2 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__addtf3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ADDTF3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__subtf3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_SUBTF3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__multf3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MULTF3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__divtf3") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_DIVTF3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__floatunditf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOATUNDITF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__fixunstfdi") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FIXUNSTFDI * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (resolve_aarch64_outline_atomic_import(symbol_name, symbol_value) == 0)
