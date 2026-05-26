@@ -500,7 +500,7 @@ numbers currently include:
 - Scalar/process syscalls: `getpid`, `getppid`, `getuid`, `geteuid`, `getgid`,
   `getegid`, `gettid`, `getpgid(0)`, `getsid(0)`, and `exit`.
 - File-style syscalls: `getcwd`, `read`, `readv`, `write`, `writev`,
-  `openat`, `close`, `lseek`, and `uname`.
+  `openat`, `newfstatat`, `fstat`, `close`, `lseek`, and `uname`.
 - Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
   `gettimeofday`, `sysinfo`, and `mmap`.
 

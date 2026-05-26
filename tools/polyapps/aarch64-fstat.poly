@@ -1,0 +1,9 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-fstat.elf
+expected=0x21215441545350
+syscall_expected=3
+syscall_number_expected=80
+libcall_id=0
+libcall_expected=0x4c000300
+scratch_hex_expected=50535441542121000000000000000000
