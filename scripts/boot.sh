@@ -31,6 +31,8 @@ POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
 POLY_CALL_SRC="$ROOT_DIR/tools/polycall.c"
 POLY_CALL_BIN="$OUT_DIR/polycall"
+POLY_THREAD_SRC="$ROOT_DIR/tools/polythread.c"
+POLY_THREAD_BIN="$OUT_DIR/polythread"
 POLY_BENCH_SRC="$ROOT_DIR/tools/polybench.c"
 POLY_BENCH_BIN="$OUT_DIR/polybench"
 POLY_BINFMT_SRC="$ROOT_DIR/tools/polybinfmt.sh"
@@ -54,6 +56,7 @@ RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
+RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
 RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 BOCHS_BIOS_DIR=""
@@ -134,6 +137,28 @@ build_poly_exec() {
 
 build_poly_call() {
   compile_poly_tool "$POLY_CALL_SRC" "$POLY_CALL_BIN" "${POLY_CALL_CC:-}"
+}
+
+build_poly_thread() {
+  if [[ -x "$POLY_THREAD_BIN" && "$POLY_THREAD_BIN" -nt "$POLY_THREAD_SRC" ]]; then
+    return
+  fi
+
+  local compiler=""
+  for candidate in "${POLY_THREAD_CC:-}" x86_64-linux-gnu-gcc gcc-x86-64-linux-gnu; do
+    if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
+      compiler="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$compiler" ]]; then
+    echo "No x86_64 compiler available for $POLY_THREAD_SRC." >&2
+    exit 1
+  fi
+
+  "$compiler" -O2 -static -s -fno-stack-protector -pthread \
+    --sysroot=/usr/x86_64-linux-gnu "$POLY_THREAD_SRC" -o "$POLY_THREAD_BIN"
 }
 
 build_poly_bench() {
@@ -442,6 +467,7 @@ build_initramfs() {
   build_poly_app
   build_poly_exec
   build_poly_call
+  build_poly_thread
   build_poly_bench
   build_native_check
   local busybox_version
@@ -477,6 +503,7 @@ build_initramfs() {
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
   cp "$POLY_CALL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polycall"
+  cp "$POLY_THREAD_BIN" "$TMP_DIR/initramfs-root/usr/bin/polythread"
   cp "$POLY_BENCH_BIN" "$TMP_DIR/initramfs-root/usr/bin/polybench"
   cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   cp "$NATIVE_CHECK_BIN" "$TMP_DIR/initramfs-root/usr/bin/nativecheck.elf"
@@ -492,6 +519,7 @@ RUN_POLY_PROBE="$RUN_POLY_PROBE"
 RUN_POLY_APPS="$RUN_POLY_APPS"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_CALL="$RUN_POLY_CALL"
+RUN_POLY_THREAD="$RUN_POLY_THREAD"
 RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 
@@ -677,6 +705,10 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-import-func.elf=103 \
     /usr/lib/polyapps/riscv-pcall-import-mul.elf=102 \
     /usr/lib/polyapps/riscv-pcall-import-x86.elf=203 >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_THREAD" = "1" ]; then
+  /usr/bin/polythread >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_BENCH" = "1" ]; then
@@ -969,6 +1001,12 @@ EOF
       fi
       if [[ "$RUN_POLY_CALL" == "1" ]]; then
         if ! grep -q "POLYCALL_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_THREAD" == "1" ]]; then
+        if ! grep -q "POLYTHREAD_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

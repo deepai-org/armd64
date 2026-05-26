@@ -82,9 +82,14 @@ restores the caller frontend mode and continuation without an x86 rendezvous.
 The Bochs prototype backs this with a small bounded cross-return stack and
 `polybench` covers a nested AArch64 -> RISC-V -> AArch64 call chain.  The
 prototype saves that stack, the `PCALL` return cookie, and x86-import return
-state with the same `CR3`/`FSBASE`-keyed synthetic bank as the non-aliased
-foreign registers, preventing unrelated guest threads from sharing hidden
-continuations.
+state with the same synthetic bank as the non-aliased foreign registers.  The
+bank key is guest `CR3`, user `FSBASE`, and an 8 MiB-aligned user stack-region
+key, which keeps common pthread stacks isolated even when static TLS does not
+give each guest thread a distinct `FSBASE`.  The `polythread` guest test
+exercises this with real x86_64 pthreads repeatedly entering AArch64 and
+RISC-V `PCALL` paths.  Preemption while a thread is inside a long raw foreign
+loop remains a separate ISA issue: final hardware needs explicit
+interrupt/`IRET` state for the interrupted foreign frontend.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register

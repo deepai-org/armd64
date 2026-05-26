@@ -38,6 +38,9 @@ Linux ABI passthrough, or equal-speed execution.
   the return path uses ordinary AArch64/RISC-V return instructions rather than
   raw escape instructions. It also resolves prototype foreign `JUMP_SLOT`
   function imports to hardware call-descriptor slots.
+- `tools/polythread.c` runs real x86_64 pthreads that repeatedly enter short
+  AArch64 and RISC-V `PCALL` loops, exercising guest thread-bank isolation
+  across many foreign call/return transitions.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
@@ -246,12 +249,15 @@ ordinary native `ret`/`jalr` through a hardware cookie without routing through
 x86.  The gate also covers a nested AArch64 -> RISC-V -> AArch64 call chain.
 Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
 hardware-style continuation state for `PCALL`, x86 import returns, and neutral
-foreign cross-calls are lazily saved and restored per guest `CR3` plus user
-`FSBASE`.  A normal x86_64 Linux process switch does not share foreign
-registers or continuation cookies with another address space, and threads in
-one process get separate synthetic banks when the kernel restores a different
-TLS base. The low overlapping return/scratch values still use the current x86
-register bridge; this is not yet a full XSAVE-backed foreign register ABI.
+foreign cross-calls are lazily saved and restored per guest `CR3`, user
+`FSBASE`, and an 8 MiB-aligned user stack-region key in the Bochs prototype.
+A normal x86_64 Linux process switch does not share foreign registers or
+continuation cookies with another address space, and common pthread stacks get
+separate synthetic banks even when static TLS does not give each guest thread a
+distinct `FSBASE`. The low overlapping return/scratch values still use the
+current x86 register bridge; this is not yet a full XSAVE-backed foreign
+register ABI. Preemption inside a long raw foreign loop still needs the planned
+hardware-style interrupt/`IRET` foreign-mode state.
 
 The Bochs compatibility runtime handles selected foreign Linux syscall traps
 deterministically after recording the architectural trap.  Supported syscall
@@ -314,6 +320,7 @@ Expected success markers include:
 - `POLYAPP_OK`
 - `POLYEXEC_OK`
 - `POLYCALL_OK`
+- `POLYTHREAD_OK`
 - `POLYBENCH_OK`
 - `POLYBINFMT_OK`
 
