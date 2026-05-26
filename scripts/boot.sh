@@ -714,6 +714,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getegid.elf" 0xd2801628 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-gettid.elf" 0xd2801648 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getcwd.elf" 0x91000020 0xd2800201 0xd2800228 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fp-int-move.elf" 0xd2a82800 0x1e270000 0x1e260000 0x9e670001 0x9e660020 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fp32-to-int.elf" 0xd2a82800 0x1e270000 0x1e380000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fp32-to-int64.elf" 0xd2a82800 0x1e270000 0x9e390000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-uname.elf" 0x91000020 0xd2801408 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-exit.elf" 0xd28000e0 0xd2800ba8 0xd4000001 0xd2800c60
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-svc.elf" 0xd40000e1
@@ -971,6 +974,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-getegid.elf=1000 \
     /usr/lib/polyapps/aarch64-gettid.elf=4243 \
     /usr/lib/polyapps/aarch64-getcwd.elf=6 \
+    /usr/lib/polyapps/aarch64-fp-int-move.elf=0x41400000 \
+    /usr/lib/polyapps/aarch64-fp32-to-int.elf=12 \
+    /usr/lib/polyapps/aarch64-fp32-to-int64.elf=12 \
     /usr/lib/polyapps/aarch64-uname.elf=0 \
     /usr/lib/polyapps/aarch64-exit.elf=7 \
     /usr/lib/polyapps/aarch64-brk.elf=0x4c000305 \
@@ -1246,6 +1252,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-getegid.elf \
     /usr/lib/polyapps/aarch64-gettid.elf \
     /usr/lib/polyapps/aarch64-getcwd.elf \
+    /usr/lib/polyapps/aarch64-fp-int-move.elf \
+    /usr/lib/polyapps/aarch64-fp32-to-int.elf \
+    /usr/lib/polyapps/aarch64-fp32-to-int64.elf \
     /usr/lib/polyapps/aarch64-uname.elf \
     /usr/lib/polyapps/aarch64-exit.elf \
     /usr/lib/polyapps/aarch64-brk.elf \

@@ -309,10 +309,10 @@ and float `fadd`/`fsub`/`fmul`/`fdiv`, fused multiply-add `fmadd`,
 `fneg`/`fabs`/`fsqrt`, normal-number min/max `fminnm`/`fmaxnm`,
 `fcmp`/`fcmpe` including zero-immediate compare, scalar FP `fcsel`,
 32-bit and 64-bit signed and
-unsigned FP-to-integer conversion for finite scalar double values,
+unsigned FP-to-integer conversion for finite scalar float and double values,
 scalar float/double `fcvt` narrowing and widening, signed and unsigned
 integer-to-FP `scvtf`/`ucvtf` conversions from GPR and scalar FP/SIMD integer
-sources, scalar FP pair loads/stores and scalar FP `ldr`/`str`,
+sources, scalar FP/GPR bit moves, scalar FP pair loads/stores and scalar FP `ldr`/`str`,
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, unscaled `ldur`/`stur` integer and scalar FP
