@@ -103,11 +103,14 @@ and `path#symbol` entrypoint lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the
 loaded dynamic image. `DT_HASH` is used to bound the sectionless dynamic symbol
 table, with section tables kept as a fallback for synthetic test payloads. The
 gate uses compiler-produced AArch64 and RISC-V shared objects
-(`aarch64-pcall-real.so#poly_entry` and `riscv-pcall-real.so#poly_entry`) and
-nonzero `poly_entry` symbol offsets for the dynamic-relocation probes so symbol
-resolution, not the ELF entrypoint, selects the target. It also includes
-sectionless `dyntab` probes that exercise only `PT_DYNAMIC` symbol metadata.
-PLT-style dynamic relocation tables are also
+(`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
+`aarch64-pcall-state.so#poly_entry`, and
+`riscv-pcall-state.so#poly_entry`) and nonzero `poly_entry` symbol offsets for
+the dynamic-relocation probes so symbol resolution, not the ELF entrypoint,
+selects the target. The stateful `.so` probes exercise compiler-emitted access
+to writable static data in a separate RW `PT_LOAD`. It also includes sectionless
+`dyntab` probes that exercise only `PT_DYNAMIC` symbol metadata. PLT-style
+dynamic relocation tables are also
 accepted through `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including
 `R_AARCH64_JUMP_SLOT` and `R_RISCV_JUMP_SLOT` entries for defined symbols.
 Undefined object-symbol relocations can bind to process-provided imports; the

@@ -131,8 +131,9 @@ verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`,
 `riscv-pcall-sum9.elf`, and compiler-produced AArch64/RISC-V shared objects
-(`aarch64-pcall-real.so#poly_entry` and
-`riscv-pcall-real.so#poly_entry`) plus compiler-shaped stack-frame payloads
+(`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
+`aarch64-pcall-state.so#poly_entry`, and
+`riscv-pcall-state.so#poly_entry`) plus compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
 `aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
@@ -144,8 +145,9 @@ verifies this against loaded foreign ELF64 function payloads
 `SP` adjustment, stack load/store, pair frame save/restore, local AArch64 `bl`
 calls, AArch64 `adrp` page-relative data addressing, NZCV-backed AArch64
 conditional branches, RISC-V `auipc` page-relative data addressing, real
-AArch64 and RISC-V `ET_DYN` `.so` objects with dynamic symbol lookup, split ELF
-`PT_LOAD` text/data layout, simple `ET_DYN` relative relocations, same-image
+AArch64 and RISC-V `ET_DYN` `.so` objects with dynamic symbol lookup, writable
+static data, split ELF `PT_LOAD` text/data layout, simple `ET_DYN` relative
+relocations, same-image
 symbolic 64-bit dynamic relocations and exported entrypoints through both
 section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH`
 symbol counts and `DT_JMPREL`/`JUMP_SLOT` PLT relocations for sectionless
