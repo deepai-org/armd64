@@ -84,14 +84,18 @@ payloads. `polycall` also accepts simple `ET_DYN` images with
 with the actual runtime load bias before `PCALL`. Symbolic relocation metadata
 and `path#symbol` entrypoint lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the
 loaded dynamic image. `DT_HASH` is used to bound the sectionless dynamic symbol
-table, with section tables kept as a fallback for synthetic test payloads;
-external imported symbol binding remains out of scope for this prototype. The
+table, with section tables kept as a fallback for synthetic test payloads. The
 gate uses nonzero `poly_entry` symbol offsets for the
 dynamic-relocation probes so symbol resolution, not the ELF entrypoint, selects
 the target, and also includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are also
 accepted through `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including
 `R_AARCH64_JUMP_SLOT` and `R_RISCV_JUMP_SLOT` entries for defined symbols.
+Undefined object-symbol relocations can bind to process-provided imports; the
+gate covers `poly_import_value` through an undefined dynamic symbol relocation.
+Imported function calls still require a foreign-callable bridge target or a
+future ISA-level call gate, because an x86 function address is not itself a
+valid AArch64 or RISC-V branch target.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:

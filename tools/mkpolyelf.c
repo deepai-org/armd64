@@ -28,6 +28,7 @@ enum {
   PT_DYNAMIC = 2,
   PT_LOAD = 1,
   R_AARCH64_ABS64 = 257,
+  R_AARCH64_GLOB_DAT = 1025,
   R_AARCH64_JUMP_SLOT = 1026,
   R_AARCH64_RELATIVE = 1027,
   R_RISCV_64 = 2,
@@ -162,6 +163,14 @@ static uint32_t jump_slot_reloc_type_for_machine(int machine) {
   return 0;
 }
 
+static uint32_t import_reloc_type_for_machine(int machine) {
+  if (machine == EM_AARCH64)
+    return R_AARCH64_GLOB_DAT;
+  if (machine == EM_RISCV)
+    return R_RISCV_64;
+  return 0;
+}
+
 static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
@@ -179,7 +188,7 @@ static void write_u32_le(unsigned char *bytes, uint32_t value) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-import64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -194,19 +203,24 @@ int main(int argc, char **argv) {
   int dyn_relative = 0;
   int dyn_symbolic = 0;
   int dyn_jump_slot = 0;
+  int dyn_import = 0;
   uint64_t data_value = 0;
   if (strcmp(argv[3], "--split-data64") == 0 ||
       strcmp(argv[3], "--dyn-relative64") == 0 ||
       strcmp(argv[3], "--dyn-symbol64") == 0 ||
-      strcmp(argv[3], "--dyn-jump-slot64") == 0) {
+      strcmp(argv[3], "--dyn-jump-slot64") == 0 ||
+      strcmp(argv[3], "--dyn-import64") == 0) {
+    dyn_import = strcmp(argv[3], "--dyn-import64") == 0;
     if (argc < 7 || parse_u64(argv[4], &data_value) < 0) {
-      fprintf(stderr, "mkpolyelf: bad data option usage\n");
-      return 2;
+      if (!dyn_import || argc < 6) {
+        fprintf(stderr, "mkpolyelf: bad data option usage\n");
+        return 2;
+      }
     }
     split_data = 1;
     dyn_relative = strcmp(argv[3], "--dyn-relative64") == 0;
     dyn_symbolic = strcmp(argv[3], "--dyn-symbol64") == 0 ||
-      strcmp(argv[3], "--dyn-jump-slot64") == 0;
+      strcmp(argv[3], "--dyn-jump-slot64") == 0 || dyn_import;
     dyn_jump_slot = strcmp(argv[3], "--dyn-jump-slot64") == 0;
     first_insn_arg = 5;
   }
@@ -274,6 +288,13 @@ int main(int argc, char **argv) {
   const int has_dynsym = export_name || dyn_symbolic;
   const int has_sections = export_name != NULL && export_sections;
   const char data_symbol_name[] = "poly_value";
+  const char *import_symbol_name = dyn_import ? argv[4] : NULL;
+  if (dyn_import && import_symbol_name[0] == '\0') {
+    fprintf(stderr, "mkpolyelf: bad import symbol name\n");
+    return 2;
+  }
+  const char *reloc_symbol_name = dyn_import ? import_symbol_name :
+    data_symbol_name;
   const uint64_t export_name_offset = export_name ? 1 : 0;
   const uint64_t data_name_offset = dyn_symbolic ?
     1 + (export_name ? strlen(export_name) + 1 : 0) : 0;
@@ -289,7 +310,7 @@ int main(int argc, char **argv) {
   const uint64_t dynstr_vaddr = dynsym_vaddr ? dynsym_vaddr + dynsym_size : 0;
   const uint64_t dynstr_size = has_dynsym ?
     1 + (export_name ? strlen(export_name) + 1 : 0) +
-    (dyn_symbolic ? sizeof(data_symbol_name) : 0) : 0;
+    (dyn_symbolic ? strlen(reloc_symbol_name) + 1 : 0) : 0;
   const uint64_t dynhash_offset = has_dynsym ?
     align_up_u64(dynstr_offset + dynstr_size, 4) : 0;
   const uint64_t dynhash_vaddr = has_dynsym ?
@@ -477,7 +498,8 @@ int main(int argc, char **argv) {
       rela.r_offset = data_vaddr;
       if (dyn_symbolic) {
         rela.r_info = (data_symbol_index << 32) |
-          (dyn_jump_slot ? jump_slot_reloc_type_for_machine(machine) :
+          (dyn_import ? import_reloc_type_for_machine(machine) :
+            dyn_jump_slot ? jump_slot_reloc_type_for_machine(machine) :
             symbolic_reloc_type_for_machine(machine));
         rela.r_addend = 0;
       }
@@ -514,9 +536,10 @@ int main(int argc, char **argv) {
       symbols[data_symbol_index].st_name = (uint32_t) data_name_offset;
       symbols[data_symbol_index].st_info = symbol_info(STB_GLOBAL, STT_OBJECT);
       symbols[data_symbol_index].st_other = 0;
-      symbols[data_symbol_index].st_shndx = data_shndx;
-      symbols[data_symbol_index].st_value = data_vaddr + 8;
-      symbols[data_symbol_index].st_size = 8;
+      symbols[data_symbol_index].st_shndx = dyn_import ? SHN_UNDEF :
+        data_shndx;
+      symbols[data_symbol_index].st_value = dyn_import ? 0 : data_vaddr + 8;
+      symbols[data_symbol_index].st_size = dyn_import ? 0 : 8;
     }
     if (fwrite(symbols, sizeof(struct elf64_sym), dynsym_count, out) != dynsym_count) {
       fprintf(stderr, "mkpolyelf: dynsym write failed\n");
@@ -541,7 +564,7 @@ int main(int argc, char **argv) {
       return 1;
     }
     if (dyn_symbolic &&
-        fwrite(data_symbol_name, sizeof(data_symbol_name), 1, out) != 1) {
+        fwrite(reloc_symbol_name, strlen(reloc_symbol_name) + 1, 1, out) != 1) {
       fprintf(stderr, "mkpolyelf: dynstr write failed\n");
       fclose(out);
       return 1;

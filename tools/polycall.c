@@ -11,12 +11,16 @@ enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   MAX_PROGRAM_BYTES = 1024 * 1024,
-  MAX_DYNAMIC_RELOCS = 4096
+  MAX_DYNAMIC_RELOCS = 4096,
+  RELOC_BASE_ABSOLUTE = 0,
+  RELOC_BASE_LOAD_BIAS = 1,
+  RELOC_BASE_IMPORT_PAGE = 2
 };
 
 struct poly_dynamic_reloc {
   size_t offset;
   uint64_t value;
+  int base_kind;
 };
 
 struct poly_symbol_table {
@@ -257,8 +261,10 @@ static int symbolic_64_reloc_type_for_arch(int arch, uint32_t type) {
   return 0;
 }
 
+static const uint64_t poly_import_value = 123;
+
 static int append_dynamic_reloc(struct poly_program *program, size_t offset,
-    uint64_t value) {
+    uint64_t value, int base_kind) {
   if (program->reloc_count >= MAX_DYNAMIC_RELOCS) {
     fprintf(stderr, "POLYCALL_FAIL: too many dynamic relocations: %s\n",
       program->path);
@@ -275,6 +281,7 @@ static int append_dynamic_reloc(struct poly_program *program, size_t offset,
   program->relocs = relocs;
   program->relocs[program->reloc_count].offset = offset;
   program->relocs[program->reloc_count].value = value;
+  program->relocs[program->reloc_count].base_kind = base_kind;
   program->reloc_count++;
   return 0;
 }
@@ -421,9 +428,22 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
   return resolve_symbol_from_table(&table, symbol_name, symbol_vaddr);
 }
 
-static int resolve_defined_reloc_symbol(const struct poly_program *program,
+static int resolve_external_reloc_symbol(const struct poly_program *program,
+    const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
+  if (strcmp(symbol_name, "poly_import_value") == 0) {
+    *symbol_value = 0;
+    *base_kind = RELOC_BASE_IMPORT_PAGE;
+    return 0;
+  }
+
+  fprintf(stderr, "POLYCALL_FAIL: unresolved external relocation symbol=%s path=%s\n",
+    symbol_name, program->path);
+  return -1;
+}
+
+static int resolve_reloc_symbol(const struct poly_program *program,
     const struct poly_symbol_table *table, uint64_t symbol_index,
-    uint64_t *symbol_value) {
+    uint64_t *symbol_value, int *base_kind) {
   if (!table->symbols || symbol_index >= table->symbol_count) {
     fprintf(stderr, "POLYCALL_FAIL: relocation symbol table missing: %s\n",
       program->path);
@@ -431,10 +451,16 @@ static int resolve_defined_reloc_symbol(const struct poly_program *program,
   }
 
   const Elf64_Sym *sym = &table->symbols[symbol_index];
-  if (sym->st_shndx == SHN_UNDEF || sym->st_name >= table->strings_size) {
-    fprintf(stderr, "POLYCALL_FAIL: unsupported external relocation symbol=%llu path=%s\n",
+  if (sym->st_name >= table->strings_size) {
+    fprintf(stderr, "POLYCALL_FAIL: bad relocation symbol name index=%llu path=%s\n",
       (unsigned long long) symbol_index, program->path);
     return -1;
+  }
+  const char *symbol_name = table->strings + sym->st_name;
+  if (sym->st_shndx == SHN_UNDEF) {
+    *base_kind = RELOC_BASE_ABSOLUTE;
+    return resolve_external_reloc_symbol(program, symbol_name, symbol_value,
+      base_kind);
   }
   size_t symbol_offset = 0;
   if (elf_vaddr_to_image_offset(program, sym->st_value, 1, &symbol_offset) < 0) {
@@ -444,6 +470,7 @@ static int resolve_defined_reloc_symbol(const struct poly_program *program,
   }
 
   *symbol_value = sym->st_value;
+  *base_kind = RELOC_BASE_LOAD_BIAS;
   return 0;
 }
 
@@ -467,6 +494,7 @@ static int process_rela_table(struct poly_program *program,
     const uint64_t symbol_index = ELF64_R_SYM(rela[n].r_info);
     const uint32_t reloc_type = ELF64_R_TYPE(rela[n].r_info);
     uint64_t reloc_value = 0;
+    int base_kind = RELOC_BASE_LOAD_BIAS;
     if (symbol_index == 0 && reloc_type == relative_type) {
       reloc_value = (uint64_t) rela[n].r_addend;
     }
@@ -480,8 +508,9 @@ static int process_rela_table(struct poly_program *program,
         return -1;
       }
       uint64_t symbol_value = 0;
-      if (resolve_defined_reloc_symbol(program, &dynsym, symbol_index,
-            &symbol_value) < 0)
+      base_kind = RELOC_BASE_LOAD_BIAS;
+      if (resolve_reloc_symbol(program, &dynsym, symbol_index,
+            &symbol_value, &base_kind) < 0)
         return -1;
       reloc_value = symbol_value + (uint64_t) rela[n].r_addend;
     }
@@ -499,7 +528,8 @@ static int process_rela_table(struct poly_program *program,
         program->path);
       return -1;
     }
-    if (append_dynamic_reloc(program, relocation_offset, reloc_value) < 0)
+    if (append_dynamic_reloc(program, relocation_offset, reloc_value,
+          base_kind) < 0)
       return -1;
   }
   return 0;
@@ -778,6 +808,15 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
     munmap(code, code_size);
     return -1;
   }
+  uint8_t *import_page = mmap(NULL, 4096, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (import_page == MAP_FAILED) {
+    fprintf(stderr, "POLYCALL_FAIL: import mmap failed: %s\n", strerror(errno));
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
+  }
+  write_le64(import_page, poly_import_value);
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + 28);
@@ -802,12 +841,18 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
         foreign_size - program->relocs[n].offset < 8) {
       fprintf(stderr, "POLYCALL_FAIL: relocation target escaped image: %s\n",
         program->path);
+      munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
       return -1;
     }
-    write_le64(foreign + program->relocs[n].offset,
-      load_bias + program->relocs[n].value);
+    uint64_t reloc_base = 0;
+    if (program->relocs[n].base_kind == RELOC_BASE_LOAD_BIAS)
+      reloc_base = load_bias;
+    else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_PAGE)
+      reloc_base = (uint64_t) (uintptr_t) import_page;
+    const uint64_t reloc_value = program->relocs[n].value + reloc_base;
+    write_le64(foreign + program->relocs[n].offset, reloc_value);
   }
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
@@ -815,6 +860,7 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
     (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
   *result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+  munmap(import_page, 4096);
   munmap(foreign, foreign_size);
   munmap(code, code_size);
   return 0;

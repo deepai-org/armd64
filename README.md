@@ -139,8 +139,10 @@ conditional branches, RISC-V `auipc` page-relative data addressing, split ELF
 symbolic 64-bit dynamic relocations and exported entrypoints through both
 section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH`
 symbol counts and `DT_JMPREL`/`JUMP_SLOT` PLT relocations for sectionless
-dynamic objects, and teardown before returning.
-More complex ABI cases such as external imported symbol binding,
+dynamic objects, undefined object-symbol imports
+(`aarch64-pcall-import.elf`, `riscv-pcall-import.elf`), and teardown before
+returning.
+More complex ABI cases such as imported function calls,
 aggregate returns, variadic calls, TLS, unwind, and exceptions still need
 descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
