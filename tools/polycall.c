@@ -1291,12 +1291,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   const size_t pcall_opcode_offset = offset;
   if (program->arch == POLY_ARCH_AARCH64) {
-    const uint8_t pcall[] = { 0x40, 0x0f, 0x0b, 0x50, 0x43, 0x41, 0x36, 0x34 };
+    const uint8_t pcall[] = { 0x0f, 0x24, 0x10, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
   else {
-    const uint8_t pcall[] = { 0x40, 0x0f, 0x0b, 0x50, 0x43, 0x52, 0x56, 0x36 };
+    const uint8_t pcall[] = { 0x0f, 0x24, 0x11, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
@@ -1419,11 +1419,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   };
   if (call_kind == POLY_CALL_SRET_U64) {
     if (program->arch == POLY_ARCH_AARCH64) {
-      const uint8_t pcall[] = { 0x42, 0x0f, 0x0b, 0x50, 0x53, 0x41, 0x36, 0x34 };
+      const uint8_t pcall[] = { 0x0f, 0x24, 0x12, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
       memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
     }
     else {
-      const uint8_t pcall[] = { 0x42, 0x0f, 0x0b, 0x50, 0x53, 0x52, 0x56, 0x36 };
+      const uint8_t pcall[] = { 0x0f, 0x24, 0x13, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
       memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
     }
   }
