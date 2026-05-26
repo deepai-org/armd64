@@ -192,7 +192,9 @@ square-root objects (`aarch64-pcall-fp64-sqrt-real.so#poly_entry` and
 fused multiply-add objects (`aarch64-pcall-fp64-fma-real.so#poly_entry` and
 `riscv-pcall-fp64-fma-real.so#poly_entry`) plus fused multiply-add variant
 objects (`aarch64-pcall-fp64-fma-variants-real.so#poly_entry` and
-`riscv-pcall-fp64-fma-variants-real.so#poly_entry`), compiler-built scalar double FP
+`riscv-pcall-fp64-fma-variants-real.so#poly_entry`), compiler-built scalar double
+FP min/max objects (`aarch64-pcall-fp64-minmax-real.so#poly_entry` and
+`riscv-pcall-fp64-minmax-real.so#poly_entry`), compiler-built scalar double FP
 indexed-memory objects (`aarch64-pcall-fp64-indexed-mem-real.so#poly_entry` and
 `riscv-pcall-fp64-indexed-mem-real.so#poly_entry`), compiler-built scalar double
 FP conversion objects (`aarch64-pcall-fp64-convert-real.so#poly_entry` and
@@ -214,7 +216,9 @@ square-root objects (`aarch64-pcall-fp32-sqrt-real.so#poly_entry` and
 fused multiply-add objects (`aarch64-pcall-fp32-fma-real.so#poly_entry` and
 `riscv-pcall-fp32-fma-real.so#poly_entry`) plus fused multiply-add variant
 objects (`aarch64-pcall-fp32-fma-variants-real.so#poly_entry` and
-`riscv-pcall-fp32-fma-variants-real.so#poly_entry`), compiler-built scalar float FP
+`riscv-pcall-fp32-fma-variants-real.so#poly_entry`), compiler-built scalar float
+FP min/max objects (`aarch64-pcall-fp32-minmax-real.so#poly_entry` and
+`riscv-pcall-fp32-minmax-real.so#poly_entry`), compiler-built scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
 `riscv-pcall-fp32-mem-real.so#poly_entry`), and compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
@@ -285,7 +289,7 @@ condition-code branch `b.cond`, register branch and call `br`/`blr`,
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, fused multiply-add `fmadd`,
 `fmsub`, `fnmadd`, and `fnmsub`, register `fmov`, unary
-`fneg`/`fabs`/`fsqrt`,
+`fneg`/`fabs`/`fsqrt`, normal-number min/max `fminnm`/`fmaxnm`,
 `fcmp`/`fcmpe` including zero-immediate compare, 32-bit and 64-bit signed and
 unsigned FP-to-integer conversion for finite scalar double values,
 scalar float/double `fcvt` narrowing and widening, signed and unsigned
@@ -308,7 +312,8 @@ division, square root, and fused multiply-add
 `fdiv.s`/`fdiv.d`/`fsqrt.s`/`fsqrt.d`/`fmadd.s`/`fmadd.d`,
 `fmsub.s`/`fmsub.d`, `fnmsub.s`/`fnmsub.d`, and
 `fnmadd.s`/`fnmadd.d` on the same mapped
-FP argument registers, FP compare `feq`/`flt`/`fle`, FP sign-injection
+FP argument registers, FP min/max `fmin.s`/`fmin.d`/`fmax.s`/`fmax.d`,
+FP compare `feq`/`flt`/`fle`, FP sign-injection
 `fsgnj`/`fsgnjn`/`fsgnjx` including `fneg`/`fabs`/`fmv`, integer-to-FP bit moves
 `fmv.w.x`/`fmv.d.x`, signed and unsigned integer-to-FP
 `fcvt.s/d.{w,wu,l,lu}`, scalar float/double `fcvt.s.d`/`fcvt.d.s`, and FP

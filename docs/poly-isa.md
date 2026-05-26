@@ -198,7 +198,9 @@ The FP fused multiply-add probes exercise compiler-emitted AArch64
 multiply-add variant probes exercise compiler-emitted AArch64
 `fmsub.s`/`fmsub.d`, `fnmadd.s`/`fnmadd.d`, and `fnmsub.s`/`fnmsub.d`, plus
 RISC-V `fmsub.s`/`fmsub.d`, `fnmsub.s`/`fnmsub.d`, and
-`fnmadd.s`/`fnmadd.d`.
+`fnmadd.s`/`fnmadd.d`. The FP min/max probes exercise compiler-emitted
+AArch64 `fminnm.s`/`fminnm.d` plus `fmaxnm.s`/`fmaxnm.d`, and RISC-V
+`fmin.s`/`fmin.d` plus `fmax.s`/`fmax.d`.
 The FP indexed-memory probes exercise
 compiler-emitted AArch64 scalar FP register-offset `ldr`/`str` forms and
 RISC-V shift/add plus `fld`/`fsd` indexed sequences. The FP conversion probes

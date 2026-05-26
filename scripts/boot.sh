@@ -61,6 +61,7 @@ POLYCALL_FP64_ABS_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_abs_real.c"
 POLYCALL_FP64_SQRT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_sqrt_real.c"
 POLYCALL_FP64_FMA_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_fma_real.c"
 POLYCALL_FP64_FMA_VARIANTS_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_fma_variants_real.c"
+POLYCALL_FP64_MINMAX_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_minmax_real.c"
 POLYCALL_FP64_INDEXED_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_indexed_mem_real.c"
 POLYCALL_FP64_CONVERT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_convert_real.c"
 POLYCALL_FP64_SIGNED_CONVERT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_signed_convert_real.c"
@@ -73,6 +74,7 @@ POLYCALL_FP32_ABS_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_abs_real.c"
 POLYCALL_FP32_SQRT_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_sqrt_real.c"
 POLYCALL_FP32_FMA_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_fma_real.c"
 POLYCALL_FP32_FMA_VARIANTS_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_fma_variants_real.c"
+POLYCALL_FP32_MINMAX_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_minmax_real.c"
 POLYCALL_FP32_MEM_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_mem_real.c"
 POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
 POLY_ELF_GEN_SRC="$ROOT_DIR/tools/mkpolyelf.c"
@@ -313,6 +315,10 @@ build_poly_elf_payloads() {
     "$POLYCALL_FP64_FMA_VARIANTS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fp64-fma-variants-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_FP64_MINMAX_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fp64-minmax-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP64_INDEXED_MEM_REAL_SRC" \
@@ -370,6 +376,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP32_FMA_VARIANTS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fp32-fma-variants-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_FP32_MINMAX_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fp32-minmax-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -481,6 +491,11 @@ build_poly_elf_payloads() {
     "$POLYCALL_FP64_FMA_VARIANTS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-fp64-fma-variants-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_FP64_MINMAX_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-fp64-minmax-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP64_INDEXED_MEM_REAL_SRC" \
@@ -540,6 +555,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP32_FMA_VARIANTS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-fp32-fma-variants-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_FP32_MINMAX_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-fp32-minmax-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -945,6 +965,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-sqrt-real.so#poly_entry=0x4016e6238502484c \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-fma-real.so#poly_entry=0x4019800000000000 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-fma-variants-real.so#poly_entry=0xc019800000000000 \
+    fp64:/usr/lib/polyapps/aarch64-pcall-fp64-minmax-real.so#poly_entry=0x4012000000000000 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-indexed-mem-real.so#poly_entry=0x401e000000000000 \
     /usr/lib/polyapps/aarch64-pcall-fp64-convert-real.so#poly_entry=4 \
     /usr/lib/polyapps/aarch64-pcall-fp64-signed-convert-real.so#poly_entry=12 \
@@ -957,6 +978,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-sqrt-real.so#poly_entry=0x40b7311c \
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-fma-real.so#poly_entry=0x40cc0000 \
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-fma-variants-real.so#poly_entry=0xc0cc0000 \
+    fp32:/usr/lib/polyapps/aarch64-pcall-fp32-minmax-real.so#poly_entry=0x40900000 \
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-mem-real.so#poly_entry=0x3f400000 \
     /usr/lib/polyapps/riscv-pcall-sum9.elf=45 \
     /usr/lib/polyapps/riscv-pcall-real.so#poly_entry=45 \
@@ -980,6 +1002,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-sqrt-real.so#poly_entry=0x4016e6238502484c \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-fma-real.so#poly_entry=0x4019800000000000 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-fma-variants-real.so#poly_entry=0xc019800000000000 \
+    fp64:/usr/lib/polyapps/riscv-pcall-fp64-minmax-real.so#poly_entry=0x4012000000000000 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-indexed-mem-real.so#poly_entry=0x401e000000000000 \
     /usr/lib/polyapps/riscv-pcall-fp64-convert-real.so#poly_entry=4 \
     /usr/lib/polyapps/riscv-pcall-fp64-signed-convert-real.so#poly_entry=12 \
@@ -992,6 +1015,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-sqrt-real.so#poly_entry=0x40b7311c \
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-fma-real.so#poly_entry=0x40cc0000 \
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-fma-variants-real.so#poly_entry=0xc0cc0000 \
+    fp32:/usr/lib/polyapps/riscv-pcall-fp32-minmax-real.so#poly_entry=0x40900000 \
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-mem-real.so#poly_entry=0x3f400000 \
     /usr/lib/polyapps/aarch64-pcall-frame.elf=45 \
     /usr/lib/polyapps/aarch64-pcall-native-frame.elf=3 \
