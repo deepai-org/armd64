@@ -127,17 +127,19 @@ verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
 `aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
-`aarch64-pcall-dynsym.elf`, `riscv-pcall-frame.elf`,
-`riscv-pcall-split-load.elf`, `riscv-pcall-dynrel.elf`, and
-`riscv-pcall-dynsym.elf`) that use native
+`aarch64-pcall-dynsym.elf`, `aarch64-pcall-dyntab.elf`,
+`riscv-pcall-frame.elf`, `riscv-pcall-split-load.elf`,
+`riscv-pcall-dynrel.elf`, `riscv-pcall-dynsym.elf`, and
+`riscv-pcall-dyntab.elf`) that use native
 `SP` adjustment, stack load/store, pair frame save/restore, local AArch64 `bl`
 calls, AArch64 `adrp` page-relative data addressing, NZCV-backed AArch64
 conditional branches, RISC-V `auipc` page-relative data addressing, split ELF
 `PT_LOAD` text/data layout, simple `ET_DYN` relative relocations, same-image
-symbolic 64-bit dynamic relocations, named exported entrypoints, and teardown
-before returning.  More complex ABI cases such as external imported symbol
-binding, aggregate returns, variadic calls, TLS, unwind, and exceptions still
-need descriptor-driven or software thunk support.  Direct register
+symbolic 64-bit dynamic relocations through both section-backed and
+`PT_DYNAMIC` symbol metadata, named exported entrypoints, and teardown before
+returning.  More complex ABI cases such as external imported symbol binding,
+aggregate returns, variadic calls, TLS, unwind, and exceptions still need
+descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
 contract; they are not the external compatibility contract.
 

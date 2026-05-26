@@ -6,9 +6,13 @@
 
 enum {
   DT_NULL = 0,
+  DT_STRTAB = 5,
+  DT_SYMTAB = 6,
   DT_RELA = 7,
   DT_RELASZ = 8,
   DT_RELAENT = 9,
+  DT_STRSZ = 10,
+  DT_SYMENT = 11,
   EM_AARCH64 = 183,
   EM_RISCV = 243,
   ET_DYN = 3,
@@ -220,9 +224,8 @@ int main(int argc, char **argv) {
     fprintf(stderr, "mkpolyelf: export offset is outside aligned text\n");
     return 2;
   }
-  const uint64_t data_size = dyn_image ? 0x200 + sizeof(struct elf64_rela) :
-    (split_data ? 8 : 0);
-  const int has_sections = export_name || dyn_symbolic;
+  const int has_dynsym = export_name || dyn_symbolic;
+  const int has_sections = export_name != NULL;
   const char data_symbol_name[] = "poly_value";
   const uint64_t export_name_offset = export_name ? 1 : 0;
   const uint64_t data_name_offset = dyn_symbolic ?
@@ -230,12 +233,21 @@ int main(int argc, char **argv) {
   const uint64_t dynsym_count = 1 + (export_name ? 1 : 0) +
     (dyn_symbolic ? 1 : 0);
   const uint64_t data_symbol_index = 1 + (export_name ? 1 : 0);
-  const uint64_t dynsym_offset = 0x5000;
   const uint64_t dynsym_size = dynsym_count * sizeof(struct elf64_sym);
+  const uint64_t dynsym_offset = dyn_image && has_dynsym ?
+    data_offset + 0x300 : 0x5000;
+  const uint64_t dynsym_vaddr = dyn_image && has_dynsym ?
+    data_vaddr + 0x300 : 0;
   const uint64_t dynstr_offset = dynsym_offset + dynsym_size;
-  const uint64_t dynstr_size = has_sections ?
+  const uint64_t dynstr_vaddr = dynsym_vaddr ? dynsym_vaddr + dynsym_size : 0;
+  const uint64_t dynstr_size = has_dynsym ?
     1 + (export_name ? strlen(export_name) + 1 : 0) +
     (dyn_symbolic ? sizeof(data_symbol_name) : 0) : 0;
+  const uint64_t data_size = dyn_image ?
+    (has_dynsym ? 0x300 + dynsym_size + dynstr_size :
+      0x200 + sizeof(struct elf64_rela)) :
+    (split_data ? 8 : 0);
+  const uint64_t dynamic_count = dyn_image ? (has_dynsym ? 8 : 4) : 0;
   const uint64_t shstr_offset = align_up_u64(dynstr_offset + dynstr_size, 8);
   const char shstrtab[] = "\0.text\0.data\0.dynamic\0.rela.dyn\0.dynsym\0.dynstr\0.shstrtab\0";
   const uint64_t shstr_size = sizeof(shstrtab);
@@ -303,8 +315,8 @@ int main(int argc, char **argv) {
     phdrs[2].p_offset = dynamic_offset;
     phdrs[2].p_vaddr = dynamic_vaddr;
     phdrs[2].p_paddr = dynamic_vaddr;
-    phdrs[2].p_filesz = 4 * sizeof(struct elf64_dyn);
-    phdrs[2].p_memsz = 4 * sizeof(struct elf64_dyn);
+    phdrs[2].p_filesz = dynamic_count * sizeof(struct elf64_dyn);
+    phdrs[2].p_memsz = dynamic_count * sizeof(struct elf64_dyn);
     phdrs[2].p_align = 8;
   }
 
@@ -369,7 +381,7 @@ int main(int argc, char **argv) {
         fclose(out);
         return 1;
       }
-      struct elf64_dyn dyn[4];
+      struct elf64_dyn dyn[8];
       memset(dyn, 0, sizeof(dyn));
       dyn[0].d_tag = DT_RELA;
       dyn[0].d_val = rela_vaddr;
@@ -377,9 +389,21 @@ int main(int argc, char **argv) {
       dyn[1].d_val = sizeof(struct elf64_rela);
       dyn[2].d_tag = DT_RELAENT;
       dyn[2].d_val = sizeof(struct elf64_rela);
-      dyn[3].d_tag = DT_NULL;
-      dyn[3].d_val = 0;
-      if (fwrite(dyn, sizeof(dyn), 1, out) != 1) {
+      if (has_dynsym) {
+        dyn[3].d_tag = DT_SYMTAB;
+        dyn[3].d_val = dynsym_vaddr;
+        dyn[4].d_tag = DT_SYMENT;
+        dyn[4].d_val = sizeof(struct elf64_sym);
+        dyn[5].d_tag = DT_STRTAB;
+        dyn[5].d_val = dynstr_vaddr;
+        dyn[6].d_tag = DT_STRSZ;
+        dyn[6].d_val = dynstr_size;
+        dyn[7].d_tag = DT_NULL;
+      }
+      else {
+        dyn[3].d_tag = DT_NULL;
+      }
+      if (fwrite(dyn, sizeof(struct elf64_dyn), dynamic_count, out) != dynamic_count) {
         fprintf(stderr, "mkpolyelf: dynamic write failed\n");
         fclose(out);
         return 1;
@@ -410,7 +434,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (has_sections) {
+  if (has_dynsym) {
     if (fseek(out, (long) dynsym_offset, SEEK_SET) != 0) {
       fprintf(stderr, "mkpolyelf: dynsym seek failed\n");
       fclose(out);
@@ -463,7 +487,9 @@ int main(int argc, char **argv) {
       fclose(out);
       return 1;
     }
+  }
 
+  if (has_sections) {
     if (fseek(out, (long) shstr_offset, SEEK_SET) != 0) {
       fprintf(stderr, "mkpolyelf: shstrtab seek failed\n");
       fclose(out);
@@ -501,7 +527,7 @@ int main(int argc, char **argv) {
     sections[dynamic_shndx].sh_flags = SHF_ALLOC;
     sections[dynamic_shndx].sh_addr = dynamic_vaddr;
     sections[dynamic_shndx].sh_offset = dynamic_offset;
-    sections[dynamic_shndx].sh_size = 4 * sizeof(struct elf64_dyn);
+    sections[dynamic_shndx].sh_size = dynamic_count * sizeof(struct elf64_dyn);
     sections[dynamic_shndx].sh_link = dynstr_shndx;
     sections[dynamic_shndx].sh_addralign = 8;
     sections[dynamic_shndx].sh_entsize = sizeof(struct elf64_dyn);
@@ -516,6 +542,8 @@ int main(int argc, char **argv) {
     sections[rela_shndx].sh_entsize = sizeof(struct elf64_rela);
     sections[dynsym_shndx].sh_name = 32;
     sections[dynsym_shndx].sh_type = SHT_DYNSYM;
+    sections[dynsym_shndx].sh_flags = dyn_image ? SHF_ALLOC : 0;
+    sections[dynsym_shndx].sh_addr = dynsym_vaddr;
     sections[dynsym_shndx].sh_offset = dynsym_offset;
     sections[dynsym_shndx].sh_size = dynsym_size;
     sections[dynsym_shndx].sh_link = dynstr_shndx;
@@ -524,6 +552,8 @@ int main(int argc, char **argv) {
     sections[dynsym_shndx].sh_entsize = sizeof(struct elf64_sym);
     sections[dynstr_shndx].sh_name = 40;
     sections[dynstr_shndx].sh_type = SHT_STRTAB;
+    sections[dynstr_shndx].sh_flags = dyn_image ? SHF_ALLOC : 0;
+    sections[dynstr_shndx].sh_addr = dynstr_vaddr;
     sections[dynstr_shndx].sh_offset = dynstr_offset;
     sections[dynstr_shndx].sh_size = dynstr_size;
     sections[dynstr_shndx].sh_addralign = 1;

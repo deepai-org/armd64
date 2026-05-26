@@ -320,6 +320,56 @@ static int load_dynsym_from_sections(const unsigned char *data, size_t size,
   return -1;
 }
 
+static int load_dynsym_from_dynamic(const struct poly_program *program,
+    const Elf64_Dyn *dyn, size_t dyn_count, struct poly_symbol_table *table) {
+  uint64_t symtab_vaddr = 0;
+  uint64_t strtab_vaddr = 0;
+  uint64_t strsz = 0;
+  uint64_t syment = sizeof(Elf64_Sym);
+
+  memset(table, 0, sizeof(*table));
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_NULL:
+        n = dyn_count;
+        break;
+      case DT_SYMTAB:
+        symtab_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_STRTAB:
+        strtab_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_STRSZ:
+        strsz = dyn[n].d_un.d_val;
+        break;
+      case DT_SYMENT:
+        syment = dyn[n].d_un.d_val;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (!symtab_vaddr || !strtab_vaddr || strsz == 0 ||
+      syment != sizeof(Elf64_Sym))
+    return -1;
+
+  size_t symtab_offset = 0;
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, sizeof(Elf64_Sym),
+        &symtab_offset) < 0 ||
+      elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+
+  table->symbols = (const Elf64_Sym *) (program->image + symtab_offset);
+  table->symbol_count = (program->image_size - symtab_offset) /
+    sizeof(Elf64_Sym);
+  table->strings = (const char *) (program->image + strtab_offset);
+  table->strings_size = (size_t) strsz;
+  return 0;
+}
+
 static int resolve_defined_reloc_symbol(const struct poly_program *program,
     const struct poly_symbol_table *table, uint64_t symbol_index,
     uint64_t *symbol_value) {
@@ -416,8 +466,9 @@ static int load_dynamic_relocs(struct poly_program *program,
     else if (symbol_index != 0 &&
         symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
       if (!dynsym.symbols &&
+          load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
           load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
-        fprintf(stderr, "POLYCALL_FAIL: symbolic relocations require .dynsym: %s\n",
+        fprintf(stderr, "POLYCALL_FAIL: symbolic relocations require dynsym metadata: %s\n",
           program->path);
         return -1;
       }
