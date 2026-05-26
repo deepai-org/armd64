@@ -117,7 +117,9 @@ objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced constructor
 objects (`aarch64-pcall-ctor-real.so#poly_entry` and
-`riscv-pcall-ctor-real.so#poly_entry`), and compiler-produced scalar double FP
+`riscv-pcall-ctor-real.so#poly_entry`), compiler-produced conditional objects
+(`aarch64-pcall-cond-real.so#poly_entry` and
+`riscv-pcall-cond-real.so#poly_entry`), and compiler-produced scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`) plus compiler-produced scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
@@ -134,7 +136,9 @@ undefined `poly_import_value`. The function-pointer probes exercise compiler
 emitted same-image data relocations to local function symbols plus native
 indirect calls through `blr` or `jalr`. The constructor probes execute
 compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
-entrypoint. It also includes sectionless `dyntab` probes that exercise only
+entrypoint. The conditional probes exercise compiler-emitted AArch64
+logical-immediate `tst` plus `csel`, and RISC-V branch/select patterns. It also
+includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and
 `R_RISCV_JUMP_SLOT` entries for defined symbols.

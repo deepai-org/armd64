@@ -144,7 +144,9 @@ objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-built constructor objects
 (`aarch64-pcall-ctor-real.so#poly_entry` and
-`riscv-pcall-ctor-real.so#poly_entry`), compiler-built scalar double FP
+`riscv-pcall-ctor-real.so#poly_entry`), compiler-built conditional objects
+(`aarch64-pcall-cond-real.so#poly_entry` and
+`riscv-pcall-cond-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`), compiler-built scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
@@ -170,7 +172,8 @@ for sectionless dynamic objects, scalar double FP arguments and returns through
 the native FP register ABI, scalar double FP function imports through PLT/GOT call
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, compiler-emitted same-image function-pointer relocations and indirect
-native calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints
+native calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
+compiler-emitted conditional select and branch patterns
 (`aarch64-pcall-import.elf`, `riscv-pcall-import.elf`), prototype imported
 function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
@@ -210,7 +213,8 @@ The direct-fetch AArch64 path covers the generated/probed subset used by
 immediate and shifted-register forms, shifted-register
 `add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
-`cbz`/`cbnz`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
+`cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
+and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 `fadd`/`fsub`/`fmul` and register `fmov`, generic byte/halfword/word/dword
 load-store forms, 64-bit `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
 
