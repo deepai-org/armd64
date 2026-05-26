@@ -9,6 +9,7 @@ enum {
   ET_EXEC = 2,
   EV_CURRENT = 1,
   PF_X = 1,
+  PF_W = 2,
   PF_R = 4,
   PT_LOAD = 1
 };
@@ -51,6 +52,16 @@ static int parse_u32(const char *text, uint32_t *value) {
   return 0;
 }
 
+static int parse_u64(const char *text, uint64_t *value) {
+  char *end = NULL;
+  errno = 0;
+  unsigned long long parsed = strtoull(text, &end, 0);
+  if (errno || end == text || *end != '\0')
+    return -1;
+  *value = (uint64_t) parsed;
+  return 0;
+}
+
 static int machine_for_arch(const char *arch) {
   if (strcmp(arch, "aarch64") == 0)
     return 183;
@@ -61,7 +72,7 @@ static int machine_for_arch(const char *arch) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -71,9 +82,24 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  int first_insn_arg = 3;
+  int split_data = 0;
+  uint64_t data_value = 0;
+  if (strcmp(argv[3], "--split-data64") == 0) {
+    if (argc < 7 || parse_u64(argv[4], &data_value) < 0) {
+      fprintf(stderr, "mkpolyelf: bad --split-data64 usage\n");
+      return 2;
+    }
+    split_data = 1;
+    first_insn_arg = 5;
+  }
+
   const uint64_t text_offset = 0x1000;
   const uint64_t text_vaddr = 0x400000;
-  const uint64_t text_size = (uint64_t) (argc - 3) * 4;
+  const uint64_t data_offset = 0x3000;
+  const uint64_t data_vaddr = 0x402000;
+  const uint64_t text_size = (uint64_t) (argc - first_insn_arg) * 4;
+  const uint64_t data_size = split_data ? 8 : 0;
 
   FILE *out = fopen(argv[2], "wb");
   if (!out) {
@@ -97,20 +123,31 @@ int main(int argc, char **argv) {
   ehdr.e_phoff = sizeof(ehdr);
   ehdr.e_ehsize = sizeof(ehdr);
   ehdr.e_phentsize = sizeof(struct elf64_phdr);
-  ehdr.e_phnum = 1;
+  ehdr.e_phnum = split_data ? 2 : 1;
 
-  struct elf64_phdr phdr;
-  memset(&phdr, 0, sizeof(phdr));
-  phdr.p_type = PT_LOAD;
-  phdr.p_flags = PF_R | PF_X;
-  phdr.p_offset = text_offset;
-  phdr.p_vaddr = text_vaddr;
-  phdr.p_paddr = text_vaddr;
-  phdr.p_filesz = text_size;
-  phdr.p_memsz = text_size;
-  phdr.p_align = 0x1000;
+  struct elf64_phdr phdrs[2];
+  memset(phdrs, 0, sizeof(phdrs));
+  phdrs[0].p_type = PT_LOAD;
+  phdrs[0].p_flags = PF_R | PF_X;
+  phdrs[0].p_offset = text_offset;
+  phdrs[0].p_vaddr = text_vaddr;
+  phdrs[0].p_paddr = text_vaddr;
+  phdrs[0].p_filesz = text_size;
+  phdrs[0].p_memsz = text_size;
+  phdrs[0].p_align = 0x1000;
+  if (split_data) {
+    phdrs[1].p_type = PT_LOAD;
+    phdrs[1].p_flags = PF_R | PF_W;
+    phdrs[1].p_offset = data_offset;
+    phdrs[1].p_vaddr = data_vaddr;
+    phdrs[1].p_paddr = data_vaddr;
+    phdrs[1].p_filesz = data_size;
+    phdrs[1].p_memsz = data_size;
+    phdrs[1].p_align = 0x1000;
+  }
 
-  if (fwrite(&ehdr, sizeof(ehdr), 1, out) != 1 || fwrite(&phdr, sizeof(phdr), 1, out) != 1) {
+  if (fwrite(&ehdr, sizeof(ehdr), 1, out) != 1 ||
+      fwrite(phdrs, sizeof(struct elf64_phdr), ehdr.e_phnum, out) != ehdr.e_phnum) {
     fprintf(stderr, "mkpolyelf: header write failed\n");
     fclose(out);
     return 1;
@@ -122,7 +159,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  for (int n = 3; n < argc; n++) {
+  for (int n = first_insn_arg; n < argc; n++) {
     uint32_t insn = 0;
     if (parse_u32(argv[n], &insn) < 0) {
       fprintf(stderr, "mkpolyelf: bad instruction: %s\n", argv[n]);
@@ -137,6 +174,22 @@ int main(int argc, char **argv) {
     };
     if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
       fprintf(stderr, "mkpolyelf: instruction write failed\n");
+      fclose(out);
+      return 1;
+    }
+  }
+
+  if (split_data) {
+    if (fseek(out, (long) data_offset, SEEK_SET) != 0) {
+      fprintf(stderr, "mkpolyelf: data seek failed\n");
+      fclose(out);
+      return 1;
+    }
+    unsigned char bytes[8];
+    for (unsigned n = 0; n < sizeof(bytes); n++)
+      bytes[n] = (unsigned char) ((data_value >> (n * 8)) & 0xff);
+    if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
+      fprintf(stderr, "mkpolyelf: data write failed\n");
       fclose(out);
       return 1;
     }

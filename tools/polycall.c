@@ -17,8 +17,11 @@ struct poly_program {
   const char *path;
   const char *arch_name;
   int arch;
-  uint32_t *insns;
-  size_t insn_count;
+  uint8_t *image;
+  size_t image_size;
+  size_t entry_offset;
+  uint64_t base_vaddr;
+  size_t loaded_bytes;
 };
 
 struct poly_request {
@@ -109,6 +112,10 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
 }
 
+static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
+  return value & ~(alignment - 1);
+}
+
 static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
   for (unsigned n = 0; n < 8; n++)
     code[(*offset)++] = (uint8_t) ((value >> (n * 8)) & 0xff);
@@ -174,45 +181,78 @@ static int load_elf_program(const char *path, struct poly_program *program) {
     return -1;
   }
 
+  uint64_t base_vaddr = UINT64_MAX;
+  uint64_t limit_vaddr = 0;
+  int found_load = 0;
+  int entry_in_exec = 0;
+
   for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
     const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
-    if (phdr->p_type != PT_LOAD || !(phdr->p_flags & PF_X))
+    if (phdr->p_type != PT_LOAD)
       continue;
-    if (ehdr->e_entry < phdr->p_vaddr || ehdr->e_entry >= phdr->p_vaddr + phdr->p_filesz)
-      continue;
-    const uint64_t entry_offset = ehdr->e_entry - phdr->p_vaddr;
-    const uint64_t entry_filesz = phdr->p_filesz - entry_offset;
-    if (entry_filesz == 0 || (entry_filesz % 4) != 0 || entry_filesz > MAX_PROGRAM_BYTES ||
-        phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset) {
-      fprintf(stderr, "POLYCALL_FAIL: bad ELF executable segment: %s\n", path);
+    if (phdr->p_filesz > phdr->p_memsz ||
+        phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+        phdr->p_vaddr > UINT64_MAX - phdr->p_memsz) {
+      fprintf(stderr, "POLYCALL_FAIL: bad ELF load segment: %s\n", path);
       free(data);
       return -1;
     }
-
-    program->insn_count = (size_t) (entry_filesz / 4);
-    program->insns = calloc(program->insn_count, sizeof(program->insns[0]));
-    if (!program->insns) {
-      fprintf(stderr, "POLYCALL_FAIL: out of memory loading %s\n", path);
-      free(data);
-      return -1;
-    }
-    const unsigned char *entry_bytes = data + phdr->p_offset + entry_offset;
-    for (size_t insn = 0; insn < program->insn_count; insn++)
-      program->insns[insn] = read_le32(entry_bytes + insn * 4);
-    free(data);
-    return 0;
+    uint64_t segment_base = align_down_u64(phdr->p_vaddr, 0x1000);
+    uint64_t segment_limit = phdr->p_vaddr + phdr->p_memsz;
+    if (segment_base < base_vaddr)
+      base_vaddr = segment_base;
+    if (segment_limit > limit_vaddr)
+      limit_vaddr = segment_limit;
+    if ((phdr->p_flags & PF_X) && ehdr->e_entry >= phdr->p_vaddr &&
+        ehdr->e_entry < phdr->p_vaddr + phdr->p_filesz)
+      entry_in_exec = 1;
+    found_load = 1;
   }
 
-  fprintf(stderr, "POLYCALL_FAIL: no executable ELF segment at entry: %s\n", path);
+  if (!found_load || !entry_in_exec || limit_vaddr <= base_vaddr ||
+      limit_vaddr - base_vaddr > MAX_PROGRAM_BYTES - 4 ||
+      ehdr->e_entry < base_vaddr || ehdr->e_entry >= limit_vaddr) {
+    fprintf(stderr, "POLYCALL_FAIL: unsupported ELF load image: %s\n", path);
+    free(data);
+    return -1;
+  }
+
+  program->base_vaddr = base_vaddr;
+  program->entry_offset = (size_t) (ehdr->e_entry - base_vaddr);
+  program->image_size = (size_t) (limit_vaddr - base_vaddr + 4);
+  program->image = calloc(1, program->image_size);
+  if (!program->image) {
+    fprintf(stderr, "POLYCALL_FAIL: out of memory loading %s\n", path);
+    free(data);
+    return -1;
+  }
+
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type != PT_LOAD)
+      continue;
+    uint64_t load_offset = phdr->p_vaddr - base_vaddr;
+    if (load_offset > program->image_size ||
+        phdr->p_filesz > program->image_size - load_offset) {
+      fprintf(stderr, "POLYCALL_FAIL: ELF load segment out of range: %s\n", path);
+      free(program->image);
+      program->image = NULL;
+      free(data);
+      return -1;
+    }
+    memcpy(program->image + load_offset, data + phdr->p_offset, (size_t) phdr->p_filesz);
+    program->loaded_bytes += (size_t) phdr->p_filesz;
+  }
+
   free(data);
-  return -1;
+  return 0;
 }
 
 static int emit_and_call(const struct poly_program *program, uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
   const size_t stub_size = 10 + 10 + 8 + 1;
   const size_t code_size = stub_size;
-  const size_t foreign_size = (program->insn_count + 1) * 4;
+  const size_t foreign_size = program->image_size;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -229,7 +269,7 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + 28);
-  const uint64_t foreign_target = (uint64_t) (uintptr_t) foreign;
+  const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   emit_movabs_r10(code, &offset, foreign_target);
   emit_movabs_r11(code, &offset, return_rip);
   if (program->arch == POLY_ARCH_AARCH64) {
@@ -243,9 +283,8 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
     offset += sizeof(pcall);
   }
   code[offset++] = 0xc3;
-  offset = 0;
-  for (size_t n = 0; n < program->insn_count; n++)
-    emit_u32(foreign, &offset, program->insns[n]);
+  memcpy(foreign, program->image, program->image_size);
+  offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
 
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
@@ -257,9 +296,11 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
 }
 
 static void free_program(struct poly_program *program) {
-  free(program->insns);
-  program->insns = NULL;
-  program->insn_count = 0;
+  free(program->image);
+  program->image = NULL;
+  program->image_size = 0;
+  program->entry_offset = 0;
+  program->loaded_bytes = 0;
 }
 
 int main(int argc, char **argv) {
@@ -278,8 +319,9 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, &program) < 0)
       return 1;
 
-    printf("POLYCALL_ELF: arch=%s insns=%zu path=%s\n",
-      program.arch_name, program.insn_count, program.path);
+    printf("POLYCALL_ELF: arch=%s image_bytes=%zu loaded_bytes=%zu entry_offset=%zu path=%s\n",
+      program.arch_name, program.image_size, program.loaded_bytes,
+      program.entry_offset, program.path);
 
     uint64_t result = 0;
     if (emit_and_call(&program, &result) < 0) {

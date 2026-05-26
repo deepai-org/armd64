@@ -74,8 +74,9 @@ native `bl`/`blr` link-register calls for local helper calls inside foreign
 code.  The RISC-V raw decoder aliases `x2/sp` to the shared stack pointer, so
 `addi sp, sp, imm` plus `ld`/`sd` stack accesses covers the same ordinary psABI
 stack-frame pattern.
-The `polycall` guest tool exercises this path against loaded foreign ELF64
-function payloads rather than inline x86-hosted instruction blobs.
+The `polycall` guest tool maps foreign ELF64 `PT_LOAD` segments into a single
+in-memory image before entering raw mode, so page-relative code can address
+separate text/data load segments rather than only inline instruction blobs.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:
