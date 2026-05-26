@@ -339,8 +339,9 @@ FP compare `feq`/`flt`/`fle`, FP sign-injection
 `flw`/`fld`/`fsw`/`fsd` memory forms.  It also
 decodes a first RV64C compatibility subset for common
 compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
-`c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.ldsp`, `c.mv`,
-`c.jr`/`c.ret`, `c.ebreak`, `c.jalr`, `c.add`, and `c.sdsp`.
+`c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.lw`/`c.sw`,
+`c.ldsp`/`c.lwsp`, `c.mv`, `c.jr`/`c.ret`, `c.ebreak`, `c.jalr`, `c.add`,
+and `c.sdsp`/`c.swsp`.
 `polybench` also validates efficient neutral mixed-raw paths: direct
 AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
 where the caller enters the other foreign frontend and the callee returns with

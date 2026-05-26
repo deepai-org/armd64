@@ -245,7 +245,8 @@ RISC-V signed byte/halfword/word arithmetic. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V
-`fsd`/`fld` of `fs0` and later across imported calls. It also
+`fsd`/`fld` of `fs0` and later across imported calls. The compressed-word
+probe exercises RISC-V `c.lw`/`c.sw` and `c.lwsp`/`c.swsp` forms. It also
 includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and
