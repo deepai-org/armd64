@@ -609,7 +609,8 @@ ELF optional-symbol semantics; the weak-import probes cover AArch64 weak
 `GLOB_DAT`/`JUMP_SLOT` and RISC-V weak symbolic relocations.
 Same-directory `DT_NEEDED` dependencies are loaded as foreign shared libraries,
 and undefined function relocations in the requesting object can bind directly
-to dependency text without routing through an x86 import descriptor.
+to dependency text without routing through an x86 import descriptor. Dependency
+library dynamic relocations are applied before those dependency calls execute.
 Imported function symbols can bind to prototype hardware call-descriptor
 slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
 foreign argument registers through an x86/runtime import target, writes the

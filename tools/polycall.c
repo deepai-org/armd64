@@ -221,6 +221,8 @@ struct poly_dependency {
   uint64_t base_vaddr;
   size_t loaded_bytes;
   struct poly_symbol_table dynsym;
+  struct poly_dynamic_reloc *relocs;
+  size_t reloc_count;
 };
 
 struct poly_program {
@@ -1258,6 +1260,10 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
   return 0;
 }
 
+static int load_dynamic_relocs(struct poly_program *program,
+    const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
+    const Elf64_Dyn *dyn, size_t dyn_count);
+
 static int build_needed_path(const char *owner_path, const char *needed,
     char *out, size_t out_size) {
   if (!needed || needed[0] == '\0')
@@ -1394,6 +1400,8 @@ static int load_dependency_object(const char *path, int expected_arch,
         path);
       free(dep->image);
       dep->image = NULL;
+      free(dep->relocs);
+      dep->relocs = NULL;
       free(data);
       return -1;
     }
@@ -1419,6 +1427,8 @@ static int load_dependency_object(const char *path, int expected_arch,
   dep_view.image = dep->image;
   dep_view.image_size = dep->image_size;
   dep_view.base_vaddr = dep->base_vaddr;
+  dep_view.relocs = dep->relocs;
+  dep_view.reloc_count = dep->reloc_count;
 
   size_t dynamic_offset = 0;
   if (elf_vaddr_to_image_offset(&dep_view, dynamic_vaddr, dynamic_size,
@@ -1430,9 +1440,25 @@ static int load_dependency_object(const char *path, int expected_arch,
       path);
     free(dep->image);
     dep->image = NULL;
+    free(dep_view.relocs);
+    dep_view.relocs = NULL;
     free(data);
     return -1;
   }
+  const Elf64_Dyn *dynamic =
+    (const Elf64_Dyn *) (dep->image + dynamic_offset);
+  const size_t dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
+  if (load_dynamic_relocs(&dep_view, data, size, ehdr, dynamic,
+        dynamic_count) < 0) {
+    free(dep->image);
+    dep->image = NULL;
+    free(dep_view.relocs);
+    dep_view.relocs = NULL;
+    free(data);
+    return -1;
+  }
+  dep->relocs = dep_view.relocs;
+  dep->reloc_count = dep_view.reloc_count;
 
   free(data);
   return 0;
@@ -2256,6 +2282,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
       for (size_t d = 0; d < program->dep_count; d++) {
         free(program->deps[d].image);
         program->deps[d].image = NULL;
+        free(program->deps[d].relocs);
+        program->deps[d].relocs = NULL;
       }
       program->dep_count = 0;
       free(program->image);
@@ -2767,6 +2795,66 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     dep_load_bias[n] = (uint64_t) (uintptr_t) dep_foreign[n] -
       program->deps[n].base_vaddr;
   }
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_dependency *dep = &program->deps[d];
+    for (size_t r = 0; r < dep->reloc_count; r++) {
+      if (dep->relocs[r].base_kind == RELOC_BASE_IRELATIVE)
+        continue;
+      if (dep->relocs[r].offset > dep_sizes[d] ||
+          dep_sizes[d] - dep->relocs[r].offset < 8) {
+        fprintf(stderr, "POLYCALL_FAIL: dependency relocation target escaped image: %s\n",
+          dep->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      uint64_t reloc_base = 0;
+      if (dep->relocs[r].base_kind == RELOC_BASE_ABSOLUTE)
+        reloc_base = 0;
+      else if (dep->relocs[r].base_kind == RELOC_BASE_LOAD_BIAS)
+        reloc_base = dep_load_bias[d];
+      else {
+        fprintf(stderr, "POLYCALL_FAIL: unsupported dependency relocation base: %s\n",
+          dep->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      write_le64(dep_foreign[d] + dep->relocs[r].offset,
+        dep->relocs[r].value + reloc_base);
+    }
+  }
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_dependency *dep = &program->deps[d];
+    for (size_t r = 0; r < dep->reloc_count; r++) {
+      if (dep->relocs[r].base_kind != RELOC_BASE_IRELATIVE)
+        continue;
+      if (dep->relocs[r].offset > dep_sizes[d] ||
+          dep_sizes[d] - dep->relocs[r].offset < 8) {
+        fprintf(stderr, "POLYCALL_FAIL: dependency IRELATIVE target escaped image: %s\n",
+          dep->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      const uint64_t resolver = dep_load_bias[d] + dep->relocs[r].value;
+      const uint64_t resolved = call_poly_stub(code, target_imm_offset,
+        resolver, POLY_CALL_U64);
+      write_le64(dep_foreign[d] + dep->relocs[r].offset, resolved);
+    }
+  }
   if (tls) {
     size_t tls_image_offset = 0;
     if (elf_vaddr_to_image_offset(program, program->tls_vaddr,
@@ -2971,6 +3059,8 @@ static void free_program(struct poly_program *program) {
   free(program->relocs);
   for (size_t n = 0; n < program->dep_count; n++)
     free(program->deps[n].image);
+  for (size_t n = 0; n < program->dep_count; n++)
+    free(program->deps[n].relocs);
   program->image = NULL;
   program->relocs = NULL;
   program->image_size = 0;
