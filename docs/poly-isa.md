@@ -468,7 +468,7 @@ branch with `br` after the caller's `bl` saved the continuation in `x30`, and
 RISC-V PLT code may use `jalr` with a scratch link register while preserving
 the caller continuation in `ra`. The descriptor path also accepts common libc
 symbol names `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
-`memcmp`, and `memchr`, so
+`memcmp`, `memchr`, and `strchr`, so
 compiler-produced foreign objects can call those routines through ordinary
 PLT/GOT entries without using synthetic breakpoint libcalls. The neutral
 cross-call gate also covers direct descriptor `strlen`, `memset`, `memcpy`, and
