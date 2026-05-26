@@ -470,8 +470,8 @@ the caller continuation in `ra`. The descriptor path also accepts common libc
 symbol names `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,
-`stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`, `bcmp`,
-`bcopy`, `bzero`, `index`, and `rindex`, so
+`stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`,
+`strcasecmp`, `strncasecmp`, `bcmp`, `bcopy`, `bzero`, `index`, and `rindex`, so
 compiler-produced foreign objects can call those routines through ordinary
 PLT/GOT entries without using synthetic breakpoint libcalls. The neutral
 cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,

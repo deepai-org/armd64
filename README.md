@@ -213,7 +213,7 @@ function objects (`aarch64-pcall-libc-import-real.so#poly_entry` and
 `memmove`, `memset`, `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`,
 `strncpy`, `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`,
 `stpcpy`, `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`,
-`strchrnul`, `bcmp`, `bcopy`, `bzero`, `index`, and `rindex` through
+`strchrnul`, `strcasecmp`, `strncasecmp`, `bcmp`, `bcopy`, `bzero`, `index`, and `rindex` through
 PLT/GOT descriptors, compiler-built imported-object
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-built weak undefined
@@ -383,7 +383,7 @@ function call gates (`aarch64-pcall-import-func.elf`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`, `bcmp`,
-`bcopy`, `bzero`, `index`, and `rindex`, and teardown
+`bcopy`, `bzero`, `strcasecmp`, `strncasecmp`, `index`, and `rindex`, and teardown
 before returning.
 The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
 an x86 return address to the dedicated `0f 24` `PIRET`, accepts the helper's
