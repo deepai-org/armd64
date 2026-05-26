@@ -170,7 +170,9 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
 `riscv-pcall-cbz-real.so#poly_entry`), compiler-built signed-extension
 objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
-`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-built indexed-memory
+`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-built signed-load
+objects (`aarch64-pcall-signed-load-real.so#poly_entry` and
+`riscv-pcall-signed-load-real.so#poly_entry`), compiler-built indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
 `riscv-pcall-indexed-mem-real.so#poly_entry`), compiler-built callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
