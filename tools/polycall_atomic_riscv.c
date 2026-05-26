@@ -31,6 +31,15 @@ static unsigned char nand_byte_counter = 0x17;
 static unsigned long cas_value = 99;
 static unsigned short cas_half_value = 123;
 static unsigned char cas_byte_value = 27;
+static __int128 wide_value __attribute__((aligned(16))) =
+  (((__int128) 2) << 64) | 1;
+
+struct pair64 {
+  unsigned long lo;
+  unsigned long hi;
+};
+
+static struct pair64 pair_value __attribute__((aligned(16))) = { 3, 4 };
 
 static unsigned long fetch_min_u64(unsigned long *ptr, long value)
 {
@@ -234,6 +243,14 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
   unsigned char byte_expected = 27;
   int byte_ok = __atomic_compare_exchange_n(&cas_byte_value, &byte_expected,
       (unsigned char) a + 40, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+  __int128 wide_expected = (((__int128) 2) << 64) | 1;
+  __int128 wide_desired = (((__int128) (b + 20)) << 64) | (a + 10);
+  int wide_ok = __atomic_compare_exchange_n(&wide_value, &wide_expected,
+      wide_desired, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+  struct pair64 pair_desired = { a + 30, b + 40 };
+  __atomic_store(&pair_value, &pair_desired, __ATOMIC_RELEASE);
+  struct pair64 pair_loaded;
+  __atomic_load(&pair_value, &pair_loaded, __ATOMIC_ACQUIRE);
 
   return old + prev + counter + word_counter + wold + cas_value +
     (unsigned long) ok + expected + add_wold + add_word_counter +
@@ -250,5 +267,8 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
     min_word_counter + max_wold + max_word_counter + minu_wold +
     minu_word_counter + maxu_wold + maxu_word_counter +
     (unsigned long) half_ok + half_expected + cas_half_value +
-    (unsigned long) byte_ok + byte_expected + cas_byte_value;
+    (unsigned long) byte_ok + byte_expected + cas_byte_value +
+    (unsigned long) wide_ok + (unsigned long) wide_expected +
+    (unsigned long) (wide_expected >> 64) + (unsigned long) wide_value +
+    (unsigned long) (wide_value >> 64) + pair_loaded.lo + pair_loaded.hi;
 }

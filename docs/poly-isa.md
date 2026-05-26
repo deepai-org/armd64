@@ -293,7 +293,8 @@ exclusive LL/SC, default GCC outline helpers, LSE instructions, and 16-byte
 libatomic helper imports
 (`aarch64-pcall-atomic.so#poly_entry`,
 `aarch64-pcall-atomic-outline.so#poly_entry`, and
-`aarch64-pcall-atomic-lse.so#poly_entry`), RISC-V atomic object
+`aarch64-pcall-atomic-lse.so#poly_entry`), RISC-V atomic object with AMO and
+16-byte libatomic helper import coverage
 (`riscv-pcall-atomic.so#poly_entry`), compiler-produced unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-produced indexed-memory
