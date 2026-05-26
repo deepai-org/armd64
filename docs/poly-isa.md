@@ -426,9 +426,10 @@ compare probes exercise compiler-emitted AArch64 `ccmp` for chained conditions
 plus RISC-V branch fallback sequences. The AArch64 post-index memory probe
 exercises single-register `ldr`/`str` post-index writeback forms. The AArch64
 atomic probes exercise compiler-emitted exclusive `ldxr`/`ldaxr` plus
-`stxr`/`stlxr`, `clrex`, 8-, 16-, 32-, and 64-bit LSE `ldadd`, `swp`,
-`ldclr`, `ldeor`, `ldset`, and `cas`, and GCC outline atomic helper imports
-for default compiler output. The RISC-V atomic probe exercises
+`stxr`/`stlxr`, `clrex`, compiler-emitted NAND LL/SC loops, 8-, 16-, 32-, and
+64-bit LSE `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`, and GCC
+outline atomic helper imports for default compiler output. The RISC-V atomic
+probe exercises
 compiler-emitted `amoadd`, `amoswap`, `amoand`, `amoxor`, and `amoor` word and
 dword forms plus `lr.d`/`sc.d` and byte/halfword LR.W/SC.W loops from C
 `__atomic` builtins. The integer indexed-memory probes
