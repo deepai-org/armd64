@@ -165,7 +165,9 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 (`aarch64-pcall-ctor-real.so#poly_entry` and
 `riscv-pcall-ctor-real.so#poly_entry`), compiler-built conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
-`riscv-pcall-cond-real.so#poly_entry`), compiler-built scalar double FP
+`riscv-pcall-cond-real.so#poly_entry`), compiler-built callee-saved
+stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
+`riscv-pcall-callee-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`), compiler-built scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
