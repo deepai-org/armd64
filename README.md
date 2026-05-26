@@ -133,7 +133,7 @@ verifies this against loaded foreign ELF64 function payloads
 calls, AArch64 `adrp` page-relative data addressing, NZCV-backed AArch64
 conditional branches, RISC-V `auipc` page-relative data addressing, split ELF
 `PT_LOAD` text/data layout, and simple `ET_DYN` relative relocations where applicable,
-and teardown before returning.  More complex ABI
+named exported entrypoints, and teardown before returning.  More complex ABI
 cases such as symbolic dynamic relocations, aggregate returns, variadic calls,
 TLS, unwind, and exceptions still need descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
@@ -144,6 +144,8 @@ libraries return with `ret` through `x30`, and RISC-V libraries return with
 `jalr x0, 0(ra)`.  For `PCALL`, the return cookie routes that native return
 back to the saved x86_64 continuation without executing a foreign breakpoint or
 custom escape instruction.
+`polycall` accepts `foreign.elf#symbol` requests so tests can target a named
+exported function instead of only the ELF entrypoint.
 
 Foreign traps are now recorded as explicit architectural exits before any
 compatibility behavior runs.  AArch64 `svc` and RISC-V `ecall` record reason

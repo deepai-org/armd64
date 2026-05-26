@@ -35,6 +35,7 @@ struct poly_program {
 
 struct poly_request {
   char path[160];
+  char symbol[96];
   uint64_t expected;
   int check_expected;
 };
@@ -53,13 +54,27 @@ static int parse_request(const char *arg, struct poly_request *request) {
   memset(request, 0, sizeof(*request));
   const char *expected = strchr(arg, '=');
   size_t path_len = expected ? (size_t) (expected - arg) : strlen(arg);
+  const char *symbol = memchr(arg, '#', path_len);
+  size_t symbol_len = 0;
+  if (symbol) {
+    symbol_len = path_len - (size_t) (symbol - arg) - 1;
+    path_len = (size_t) (symbol - arg);
+  }
   if (path_len == 0 || path_len >= sizeof(request->path)) {
     fprintf(stderr, "POLYCALL_FAIL: bad argument: %s\n", arg);
+    return -1;
+  }
+  if (symbol && (symbol_len == 0 || symbol_len >= sizeof(request->symbol))) {
+    fprintf(stderr, "POLYCALL_FAIL: bad symbol argument: %s\n", arg);
     return -1;
   }
 
   memcpy(request->path, arg, path_len);
   request->path[path_len] = '\0';
+  if (symbol) {
+    memcpy(request->symbol, symbol + 1, symbol_len);
+    request->symbol[symbol_len] = '\0';
+  }
   if (expected) {
     if (parse_u64(expected + 1, &request->expected) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: bad expected value: %s\n", arg);
@@ -151,6 +166,66 @@ static int detect_arch(uint16_t machine, struct poly_program *program) {
     program->arch_name = "riscv";
     return 0;
   }
+  return -1;
+}
+
+static int check_elf_table(uint64_t offset, uint64_t count, uint64_t entsize,
+    size_t file_size) {
+  if (offset > file_size || entsize == 0 || count > (UINT64_MAX / entsize) ||
+      count * entsize > file_size - offset)
+    return -1;
+  return 0;
+}
+
+static int resolve_elf_symbol(const unsigned char *data, size_t size,
+    const Elf64_Ehdr *ehdr, const char *symbol_name, uint64_t *symbol_vaddr) {
+  if (!symbol_name || symbol_name[0] == '\0') {
+    *symbol_vaddr = ehdr->e_entry;
+    return 0;
+  }
+
+  if (ehdr->e_shentsize < sizeof(Elf64_Shdr) ||
+      check_elf_table(ehdr->e_shoff, ehdr->e_shnum, ehdr->e_shentsize, size) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: symbol lookup requires a valid section table\n");
+    return -1;
+  }
+
+  const Elf64_Shdr *sections = (const Elf64_Shdr *) (data + ehdr->e_shoff);
+  for (uint16_t n = 0; n < ehdr->e_shnum; n++) {
+    const Elf64_Shdr *symtab = &sections[n];
+    if (symtab->sh_type != SHT_DYNSYM && symtab->sh_type != SHT_SYMTAB)
+      continue;
+    if (symtab->sh_entsize < sizeof(Elf64_Sym) ||
+        symtab->sh_link >= ehdr->e_shnum ||
+        symtab->sh_offset > size ||
+        symtab->sh_size > size - symtab->sh_offset ||
+        symtab->sh_size % symtab->sh_entsize != 0)
+      continue;
+
+    const Elf64_Shdr *strtab = &sections[symtab->sh_link];
+    if (strtab->sh_type != SHT_STRTAB ||
+        strtab->sh_offset > size ||
+        strtab->sh_size > size - strtab->sh_offset)
+      continue;
+
+    const Elf64_Sym *symbols = (const Elf64_Sym *) (data + symtab->sh_offset);
+    const char *strings = (const char *) (data + strtab->sh_offset);
+    const size_t symbol_count = (size_t) (symtab->sh_size / symtab->sh_entsize);
+    for (size_t s = 0; s < symbol_count; s++) {
+      const Elf64_Sym *sym = (const Elf64_Sym *) ((const unsigned char *) symbols + s * symtab->sh_entsize);
+      const unsigned type = ELF64_ST_TYPE(sym->st_info);
+      if (sym->st_name >= strtab->sh_size ||
+          sym->st_shndx == SHN_UNDEF ||
+          (type != STT_FUNC && type != STT_NOTYPE))
+        continue;
+      if (strcmp(strings + sym->st_name, symbol_name) == 0) {
+        *symbol_vaddr = sym->st_value;
+        return 0;
+      }
+    }
+  }
+
+  fprintf(stderr, "POLYCALL_FAIL: symbol not found: %s\n", symbol_name);
   return -1;
 }
 
@@ -275,7 +350,8 @@ static int load_dynamic_relative_relocs(struct poly_program *program,
   return 0;
 }
 
-static int load_elf_program(const char *path, struct poly_program *program) {
+static int load_elf_program(const char *path, const char *symbol_name,
+    struct poly_program *program) {
   memset(program, 0, sizeof(*program));
   program->path = path;
 
@@ -310,6 +386,12 @@ static int load_elf_program(const char *path, struct poly_program *program) {
   }
   program->elf_type = ehdr->e_type;
 
+  uint64_t entry_vaddr = 0;
+  if (resolve_elf_symbol(data, size, ehdr, symbol_name, &entry_vaddr) < 0) {
+    free(data);
+    return -1;
+  }
+
   uint64_t base_vaddr = UINT64_MAX;
   uint64_t limit_vaddr = 0;
   int found_load = 0;
@@ -339,22 +421,22 @@ static int load_elf_program(const char *path, struct poly_program *program) {
       base_vaddr = segment_base;
     if (segment_limit > limit_vaddr)
       limit_vaddr = segment_limit;
-    if ((phdr->p_flags & PF_X) && ehdr->e_entry >= phdr->p_vaddr &&
-        ehdr->e_entry < phdr->p_vaddr + phdr->p_filesz)
+    if ((phdr->p_flags & PF_X) && entry_vaddr >= phdr->p_vaddr &&
+        entry_vaddr < phdr->p_vaddr + phdr->p_filesz)
       entry_in_exec = 1;
     found_load = 1;
   }
 
   if (!found_load || !entry_in_exec || limit_vaddr <= base_vaddr ||
       limit_vaddr - base_vaddr > MAX_PROGRAM_BYTES - 4 ||
-      ehdr->e_entry < base_vaddr || ehdr->e_entry >= limit_vaddr) {
+      entry_vaddr < base_vaddr || entry_vaddr >= limit_vaddr) {
     fprintf(stderr, "POLYCALL_FAIL: unsupported ELF load image: %s\n", path);
     free(data);
     return -1;
   }
 
   program->base_vaddr = base_vaddr;
-  program->entry_offset = (size_t) (ehdr->e_entry - base_vaddr);
+  program->entry_offset = (size_t) (entry_vaddr - base_vaddr);
   program->image_size = (size_t) (limit_vaddr - base_vaddr + 4);
   program->image = calloc(1, program->image_size);
   if (!program->image) {
@@ -499,13 +581,14 @@ int main(int argc, char **argv) {
       return 1;
 
     struct poly_program program;
-    if (load_elf_program(request.path, &program) < 0)
+    const char *symbol_name = request.symbol[0] ? request.symbol : NULL;
+    if (load_elf_program(request.path, symbol_name, &program) < 0)
       return 1;
 
-    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu path=%s\n",
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu symbol=%s path=%s\n",
       program.arch_name, (unsigned) program.elf_type, program.image_size,
       program.loaded_bytes, program.entry_offset, program.reloc_count,
-      program.path);
+      symbol_name ? symbol_name : "-", program.path);
 
     uint64_t result = 0;
     if (emit_and_call(&program, &result) < 0) {

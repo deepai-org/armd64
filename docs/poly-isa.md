@@ -81,7 +81,9 @@ gate covers both AArch64 `adrp`/`ldr` and RISC-V `auipc`/`ld` split-load
 payloads. `polycall` also accepts simple `ET_DYN` images with `R_AARCH64_RELATIVE`
 or `R_RISCV_RELATIVE` relocations and applies those relocations with the actual
 runtime load bias before `PCALL`; symbolic dynamic relocations remain out of
-scope for this prototype.
+scope for this prototype. A `path#symbol` `polycall` request resolves exported
+function symbols from ELF symbol tables before issuing `PCALL`, matching how a
+real cross-ISA linker would identify a library function entrypoint.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:
