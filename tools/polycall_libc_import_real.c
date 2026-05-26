@@ -10,6 +10,7 @@ extern int memcmp(const void *, const void *, size_t);
 extern void *memchr(const void *, int, size_t);
 extern char *strchr(const char *, int);
 extern char *strrchr(const char *, int);
+extern char *strstr(const char *, const char *);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -44,6 +45,12 @@ __attribute__((noinline))
 static char *call_strrchr(const char *base, int needle)
 {
   return strrchr(base, needle);
+}
+
+__attribute__((noinline))
+static char *call_strstr(const char *base, const char *needle)
+{
+  return strstr(base, needle);
 }
 
 __attribute__((visibility("default")))
@@ -81,6 +88,9 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char *last_letter_found = call_strrchr(buffer, 'l');
   char *last_char_found = call_strrchr(buffer, 'c');
   char *last_not_found = call_strrchr(buffer, 'z');
+  char *substring_found = call_strstr(buffer, "ly-");
+  char *suffix_found = call_strstr(buffer, "libc");
+  char *substring_not_found = call_strstr(buffer, "z");
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   buffer[4] = 'X';
@@ -98,5 +108,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (last_letter_found == buffer + 5 ? 1100 : 11000) +
     (last_char_found == buffer + 8 ? 1200 : 12000) +
     (last_not_found == 0 ? 1300 : 13000) +
+    (substring_found == buffer + 2 ? 1400 : 14000) +
+    (suffix_found == buffer + 5 ? 1500 : 15000) +
+    (substring_not_found == 0 ? 1600 : 16000) +
     (unsigned char) buffer[0];
 }
