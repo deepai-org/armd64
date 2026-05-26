@@ -40,6 +40,7 @@ AARCH64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/aarch64_polycall_real.c"
 RISCV64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/riscv64_polycall_real.c"
 POLYCALL_STATE_SRC="$ROOT_DIR/tools/polycall_state.c"
 POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_import_real.c"
+POLYCALL_IMPORT_VALUE_REAL_SRC="$ROOT_DIR/tools/polycall_import_value_real.c"
 POLYCALL_FP64_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_real.c"
 POLYCALL_FP64_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_import_real.c"
 POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
@@ -177,6 +178,10 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_IMPORT_VALUE_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-value-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP64_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fp64-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -198,6 +203,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_IMPORT_VALUE_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-value-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -584,12 +594,14 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-real.so#poly_entry=45 \
     /usr/lib/polyapps/aarch64-pcall-state.so#poly_entry=83 \
     /usr/lib/polyapps/aarch64-pcall-import-real.so#poly_entry=145 \
+    /usr/lib/polyapps/aarch64-pcall-import-value-real.so#poly_entry=168 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-real.so#poly_entry=0x4026800000000000 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-import-real.so#poly_entry=0x402b800000000000 \
     /usr/lib/polyapps/riscv-pcall-sum9.elf=45 \
     /usr/lib/polyapps/riscv-pcall-real.so#poly_entry=45 \
     /usr/lib/polyapps/riscv-pcall-state.so#poly_entry=83 \
     /usr/lib/polyapps/riscv-pcall-import-real.so#poly_entry=145 \
+    /usr/lib/polyapps/riscv-pcall-import-value-real.so#poly_entry=168 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-real.so#poly_entry=0x4026800000000000 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-import-real.so#poly_entry=0x402b800000000000 \
     /usr/lib/polyapps/aarch64-pcall-frame.elf=45 \
