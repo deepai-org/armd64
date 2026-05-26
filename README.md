@@ -145,7 +145,8 @@ libraries return with `ret` through `x30`, and RISC-V libraries return with
 back to the saved x86_64 continuation without executing a foreign breakpoint or
 custom escape instruction.
 `polycall` accepts `foreign.elf#symbol` requests so tests can target a named
-exported function instead of only the ELF entrypoint.
+exported function instead of only the ELF entrypoint; the dynamic-relocation
+probes export `poly_entry` away from offset zero to exercise that path.
 
 Foreign traps are now recorded as explicit architectural exits before any
 compatibility behavior runs.  AArch64 `svc` and RISC-V `ecall` record reason

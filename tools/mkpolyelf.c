@@ -141,7 +141,7 @@ static unsigned char symbol_info(unsigned bind, unsigned type) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE] [--export NAME] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE] [--export NAME|--export-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
     first_insn_arg = 5;
   }
   const char *export_name = NULL;
+  uint64_t export_offset = 0;
   if (first_insn_arg + 2 <= argc && strcmp(argv[first_insn_arg], "--export") == 0) {
     export_name = argv[first_insn_arg + 1];
     if (export_name[0] == '\0') {
@@ -173,6 +174,16 @@ int main(int argc, char **argv) {
       return 2;
     }
     first_insn_arg += 2;
+  }
+  else if (first_insn_arg + 3 <= argc &&
+      strcmp(argv[first_insn_arg], "--export-at") == 0) {
+    export_name = argv[first_insn_arg + 1];
+    if (export_name[0] == '\0' ||
+        parse_u64(argv[first_insn_arg + 2], &export_offset) < 0) {
+      fprintf(stderr, "mkpolyelf: bad export-at usage\n");
+      return 2;
+    }
+    first_insn_arg += 3;
   }
   if (first_insn_arg >= argc) {
     fprintf(stderr, "mkpolyelf: no instructions provided\n");
@@ -188,6 +199,10 @@ int main(int argc, char **argv) {
   const uint64_t rela_offset = data_offset + 0x200;
   const uint64_t rela_vaddr = data_vaddr + 0x200;
   const uint64_t text_size = (uint64_t) (argc - first_insn_arg) * 4;
+  if (export_name && (export_offset >= text_size || (export_offset & 3) != 0)) {
+    fprintf(stderr, "mkpolyelf: export offset is outside aligned text\n");
+    return 2;
+  }
   const uint64_t data_size = dyn_relative ? 0x200 + sizeof(struct elf64_rela) :
     (split_data ? 8 : 0);
   const uint64_t dynsym_offset = 0x5000;
@@ -373,8 +388,8 @@ int main(int argc, char **argv) {
     symbols[1].st_info = symbol_info(STB_GLOBAL, STT_FUNC);
     symbols[1].st_other = 0;
     symbols[1].st_shndx = text_shndx;
-    symbols[1].st_value = text_vaddr;
-    symbols[1].st_size = text_size;
+    symbols[1].st_value = text_vaddr + export_offset;
+    symbols[1].st_size = text_size - export_offset;
     if (fwrite(symbols, sizeof(symbols), 1, out) != 1) {
       fprintf(stderr, "mkpolyelf: dynsym write failed\n");
       fclose(out);

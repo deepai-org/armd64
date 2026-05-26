@@ -83,7 +83,9 @@ or `R_RISCV_RELATIVE` relocations and applies those relocations with the actual
 runtime load bias before `PCALL`; symbolic dynamic relocations remain out of
 scope for this prototype. A `path#symbol` `polycall` request resolves exported
 function symbols from ELF symbol tables before issuing `PCALL`, matching how a
-real cross-ISA linker would identify a library function entrypoint.
+real cross-ISA linker would identify a library function entrypoint. The gate
+uses nonzero `poly_entry` symbol offsets for the dynamic-relocation probes so
+symbol resolution, not the ELF entrypoint, selects the target.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:
