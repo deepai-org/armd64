@@ -8,6 +8,8 @@ extern void *memmove(void *, const void *, size_t);
 extern void *memset(void *, int, size_t);
 extern int memcmp(const void *, const void *, size_t);
 extern void *memchr(const void *, int, size_t);
+extern void *memrchr(const void *, int, size_t);
+extern void *memmem(const void *, size_t, const void *, size_t);
 extern char *strchr(const char *, int);
 extern char *strrchr(const char *, int);
 extern char *strstr(const char *, const char *);
@@ -51,6 +53,19 @@ __attribute__((noinline))
 static void *call_memchr(const void *base, int needle, size_t count)
 {
   return memchr(base, needle, count);
+}
+
+__attribute__((noinline))
+static void *call_memrchr(const void *base, int needle, size_t count)
+{
+  return memrchr(base, needle, count);
+}
+
+__attribute__((noinline))
+static void *call_memmem(const void *haystack, size_t haystack_len,
+    const void *needle, size_t needle_len)
+{
+  return memmem(haystack, haystack_len, needle, needle_len);
 }
 
 __attribute__((noinline))
@@ -260,6 +275,10 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char *index_found = call_index(buffer, 'l');
   char *rindex_found = call_rindex(buffer, 'l');
   char *rindex_not_found = call_rindex(buffer, 'z');
+  void *last_mem_found = call_memrchr(buffer, 'l', len);
+  void *last_mem_not_found = call_memrchr(buffer, 'z', len);
+  void *memory_substring_found = call_memmem(buffer, len, "y-l", 3);
+  void *empty_memory_found = call_memmem(buffer, len, "", 0);
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
@@ -323,5 +342,9 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (index_found == buffer + 2 ? 4800 : 48000) +
     (rindex_found == buffer + 5 ? 4900 : 49000) +
     (rindex_not_found == 0 ? 5000 : 50000) +
+    (last_mem_found == buffer + 5 ? 5100 : 51000) +
+    (last_mem_not_found == 0 ? 5200 : 52000) +
+    (memory_substring_found == buffer + 3 ? 5300 : 53000) +
+    (empty_memory_found == buffer ? 5400 : 54000) +
     (unsigned char) buffer[0];
 }

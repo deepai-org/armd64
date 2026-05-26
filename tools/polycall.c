@@ -107,7 +107,9 @@ enum {
   POLY_IMPORT_FUNC_STRCHRNUL = 34,
   POLY_IMPORT_FUNC_BCMP = 35,
   POLY_IMPORT_FUNC_BCOPY = 36,
-  POLY_IMPORT_FUNC_BZERO = 37
+  POLY_IMPORT_FUNC_BZERO = 37,
+  POLY_IMPORT_FUNC_MEMRCHR = 38,
+  POLY_IMPORT_FUNC_MEMMEM = 39
 };
 
 struct poly_dynamic_reloc {
@@ -523,6 +525,14 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "memchr") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_MEMCHR * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "memrchr") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMRCHR * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "memmem") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMMEM * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "strchr") == 0 ||
