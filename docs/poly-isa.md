@@ -144,7 +144,9 @@ objects (`aarch64-pcall-ctor-real.so#poly_entry` and
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-produced compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
-`riscv-pcall-cbz-real.so#poly_entry`), compiler-produced callee-saved
+`riscv-pcall-cbz-real.so#poly_entry`), compiler-produced signed-extension
+objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
+`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-produced callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), and compiler-produced scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
@@ -183,7 +185,9 @@ compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
 entrypoint. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst` plus `csel`, and RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
-non-`x0` registers and RISC-V ordinary branch forms. It also
+non-`x0` registers and RISC-V ordinary branch forms. The signed-extension
+probes exercise compiler-emitted AArch64 `sxth` plus `add ... sxtb/sxtw` and
+RISC-V signed byte/halfword/word loads. It also
 includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and

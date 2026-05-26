@@ -168,7 +168,9 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-built compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
-`riscv-pcall-cbz-real.so#poly_entry`), compiler-built callee-saved
+`riscv-pcall-cbz-real.so#poly_entry`), compiler-built signed-extension
+objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
+`riscv-pcall-signed-ext-real.so#poly_entry`), compiler-built callee-saved
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
@@ -245,7 +247,9 @@ The direct-fetch AArch64 path covers the generated/probed subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `adrp`, `movz`, `movn`,
 `movk`, `add`/`sub` immediate forms including `SP`, flag-setting `adds`/`subs`
 immediate and shifted-register forms, shifted-register
-`add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch and call `b`/`bl`,
+`add`/`sub`/`mul`/`eor`/`and`/`orr`, extended-register `add`/`sub` forms,
+bitfield signed-extension aliases `sxtb`/`sxth`/`sxtw`,
+unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
