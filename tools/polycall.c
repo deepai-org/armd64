@@ -32,6 +32,7 @@ enum {
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
+  POLY_CALL_PAIR_U64 = 3,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   RELOC_BASE_ABSOLUTE = 0,
@@ -114,6 +115,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   }
   else if (strncmp(arg, "fp32:", 5) == 0) {
     request->call_kind = POLY_CALL_FP32;
+    arg += 5;
+  }
+  else if (strncmp(arg, "pair:", 5) == 0) {
+    request->call_kind = POLY_CALL_PAIR_U64;
     arg += 5;
   }
   const char *expected = strchr(arg, '=');
@@ -1100,6 +1105,10 @@ static int load_elf_program(const char *path, const char *symbol_name,
 static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     uint64_t target, int call_kind) {
   write_le64(code + target_imm_offset, target);
+  struct pair_u64 {
+    uint64_t lo;
+    uint64_t hi;
+  };
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -1119,6 +1128,15 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
       (float (*)(float, float, float)) code;
     fp_result.f = entry(1.5f, 2.25f, 3.0f);
     return fp_result.u;
+  }
+  if (call_kind == POLY_CALL_PAIR_U64) {
+    struct pair_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+      uint64_t, uint64_t, uint64_t, uint64_t) =
+      (struct pair_u64 (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+        uint64_t, uint64_t, uint64_t, uint64_t)) code;
+    struct pair_u64 pair_result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+    return ((pair_result.hi & 0xffffffffULL) << 32) |
+      (pair_result.lo & 0xffffffffULL);
   }
 
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
@@ -1288,6 +1306,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
   }
   write_le64(code + target_imm_offset, foreign_target);
+  struct pair_u64 {
+    uint64_t lo;
+    uint64_t hi;
+  };
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -1307,6 +1329,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       (float (*)(float, float, float)) code;
     fp_result.f = entry(1.5f, 2.25f, 3.0f);
     *result = fp_result.u;
+  }
+  else if (call_kind == POLY_CALL_PAIR_U64) {
+    struct pair_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+      uint64_t, uint64_t, uint64_t, uint64_t) =
+      (struct pair_u64 (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+        uint64_t, uint64_t, uint64_t, uint64_t)) code;
+    struct pair_u64 pair_result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+    *result = ((pair_result.hi & 0xffffffffULL) << 32) |
+      (pair_result.lo & 0xffffffffULL);
   }
   else {
     uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =

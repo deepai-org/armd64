@@ -151,7 +151,9 @@ foreign `SP` window below the x86 frame, and copies stack arguments from
 `[RSP+24]` onward so the first foreign stack argument is visible at `[sp]`; x86
 `RSP` is restored when the native foreign return hits the return cookie.  The
 bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30`
-or `ra` to a return cookie, and enters raw fetch at the `R10` target.  `polycall`
+or `ra` to a return cookie, enters raw fetch at the `R10` target, maps
+AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps AArch64 `x1` or RISC-V
+`a1` back to x86 `RDX` for ordinary two-word integer aggregate returns.  `polycall`
 verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`,
@@ -168,7 +170,9 @@ objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 `riscv-pcall-weak-import-real.so#poly_entry`), compiler-built relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
-`riscv-pcall-funcptr-real.so#poly_entry`), compiler-built constructor objects
+`riscv-pcall-funcptr-real.so#poly_entry`), compiler-built two-word aggregate
+return objects (`aarch64-pcall-pair-real.so#poly_entry` and
+`riscv-pcall-pair-real.so#poly_entry`), compiler-built constructor objects
 (`aarch64-pcall-ctor-real.so#poly_entry` and
 `riscv-pcall-ctor-real.so#poly_entry`), compiler-built conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
@@ -308,7 +312,7 @@ atomic helper imports used by default compiler output:
 `__aarch64_ldadd8_acq_rel`, `__aarch64_swp8_acq_rel`,
 `__aarch64_ldset4_relax`, and `__aarch64_cas8_acq_rel`.
 More complex ABI cases such as arbitrary external import target descriptors,
-aggregate returns, variadic calls, TLS, unwind, and exceptions still need
+larger or heterogeneous aggregate returns, variadic calls, TLS, unwind, and exceptions still need
 full descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
 contract; they are not the external compatibility contract.

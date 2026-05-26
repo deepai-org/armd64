@@ -110,7 +110,9 @@ the x86 frame with stack arguments copied from `[RSP+24]` onward so the first
 foreign stack-passed argument is at `[sp]`;
 `XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`; and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
-saved x86 continuation and restores the x86 stack pointer.  The AArch64 raw
+saved x86 continuation, maps AArch64 `x0` or RISC-V `a0` back to x86 `RAX`,
+maps AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word
+integer aggregate returns, and restores the x86 stack pointer.  The AArch64 raw
 decoder treats register 31 as `SP` for add/sub-immediate instructions, matching
 ordinary compiler stack-frame setup and teardown.
 The AArch64 raw decoder also supports `adrp` page-relative PC materialization,
@@ -149,7 +151,9 @@ objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 `riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
-`riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced constructor
+`riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced two-word aggregate
+return objects (`aarch64-pcall-pair-real.so#poly_entry` and
+`riscv-pcall-pair-real.so#poly_entry`), compiler-produced constructor
 objects (`aarch64-pcall-ctor-real.so#poly_entry` and
 `riscv-pcall-ctor-real.so#poly_entry`), compiler-produced conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
