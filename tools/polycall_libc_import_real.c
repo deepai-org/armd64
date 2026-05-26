@@ -24,6 +24,9 @@ extern char *stpncpy(char *, const char *, size_t);
 extern void *mempcpy(void *, const void *, size_t);
 extern void *rawmemchr(const void *, int);
 extern char *strchrnul(const char *, int);
+extern int bcmp(const void *, const void *, size_t);
+extern void bcopy(const void *, void *, size_t);
+extern void bzero(void *, size_t);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -144,6 +147,24 @@ static char *call_strchrnul(const char *base, int needle)
   return strchrnul(base, needle);
 }
 
+__attribute__((noinline))
+static int call_bcmp(const void *left, const void *right, size_t count)
+{
+  return bcmp(left, right, count);
+}
+
+__attribute__((noinline))
+static void call_bcopy(const void *src, void *dest, size_t count)
+{
+  bcopy(src, dest, count);
+}
+
+__attribute__((noinline))
+static void call_bzero(void *dest, size_t count)
+{
+  bzero(dest, count);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -159,6 +180,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char stpcopied[16];
   char stpncopied[16];
   char mempcopied[16];
+  char bcopied[16];
+  char bzeroed[16];
 
   (void) a0;
   (void) a1;
@@ -181,6 +204,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   memset(stpcopied, 0, sizeof(stpcopied));
   memset(stpncopied, 0x55, sizeof(stpncopied));
   memset(mempcopied, 0, sizeof(mempcopied));
+  memset(bcopied, 0, sizeof(bcopied));
+  memset(bzeroed, 0x33, sizeof(bzeroed));
   memcpy(appended, "poly", 5);
   memcpy(nappended, "hi", 3);
   memmove(overlap + 2, overlap, 5);
@@ -214,6 +239,10 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   void *raw_found = call_rawmemchr(buffer, '-');
   char *nul_found = call_strchrnul(buffer, 'c');
   char *nul_not_found = call_strchrnul(buffer, 'z');
+  int bcmp_same = call_bcmp(buffer, expected, sizeof(expected));
+  int bcmp_different = call_bcmp(buffer, "poly-z", 6);
+  call_bcopy(buffer, bcopied, sizeof(expected));
+  call_bzero(bzeroed + 2, 4);
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
@@ -223,6 +252,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   int stpcopied_same = memcmp(stpcopied, expected, sizeof(expected));
   int stpncopied_same = memcmp(stpncopied, "uv\0\0\0", 5);
   int mempcopied_same = memcmp(mempcopied, expected, sizeof(expected));
+  int bcopied_same = memcmp(bcopied, expected, sizeof(expected));
+  int bzeroed_same = memcmp(bzeroed + 2, "\0\0\0\0", 4);
   buffer[4] = 'X';
   int different = memcmp(buffer, expected, sizeof(expected));
 
@@ -266,5 +297,11 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (raw_found == buffer + 4 ? 3900 : 39000) +
     (nul_found == buffer + 8 ? 4000 : 40000) +
     (nul_not_found == buffer + len ? 4100 : 41000) +
+    (bcmp_same == 0 ? 4200 : 42000) +
+    (bcmp_different != 0 ? 4300 : 43000) +
+    (bcopied_same == 0 ? 4400 : 44000) +
+    (bzeroed[1] == 0x33 ? 4500 : 45000) +
+    (bzeroed_same == 0 ? 4600 : 46000) +
+    (bzeroed[6] == 0x33 ? 4700 : 47000) +
     (unsigned char) buffer[0];
 }
