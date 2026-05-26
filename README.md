@@ -41,7 +41,8 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
-  RISC-V-to-AArch64 code blobs that switch directly without returning to x86.
+  RISC-V-to-AArch64 code blobs that switch and call directly without returning
+  to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
@@ -79,7 +80,12 @@ custom-0 instruction `0x0000000b` escape back to x86_64 at the next byte.
 AArch64 `brk #0x7ffe` switches directly to raw RISC-V, and RISC-V custom-1
 instruction `0x0000002b` switches directly to raw AArch64, preserving the
 shared low integer result/argument register state instead of routing through
-x86.  Raw
+x86.  AArch64 `brk #0x7ffd` is a prototype neutral call gate to a RISC-V target
+address in `x16` with an AArch64 return PC in `x17`; RISC-V custom-2
+`0x0000005b` is the reverse call gate to an AArch64 target in `x5` with a
+RISC-V return PC in `x6`.  The callee returns with its ordinary native return
+instruction to a hardware cookie, which restores the caller frontend mode and
+maps the shared argument/result registers back.  Raw
 foreign fetch is only active at guest CPL3; kernel, interrupt, and exception
 paths continue through normal x86_64 decode even if the current userspace poly
 mode is raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3
@@ -230,9 +236,11 @@ byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
 `c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.ldsp`, `c.mv`,
 `c.jr`/`c.ret`, `c.ebreak`, `c.jalr`, `c.add`, and `c.sdsp`.
-`polybench` also validates the current efficient mixed-raw path: raw AArch64
-escapes to x86_64 with `brk #0x7fff`, the next bytes immediately enter raw
-RISC-V with the `RAWRV` envelope, and the RISC-V stream escapes with custom-0.
+`polybench` also validates efficient neutral mixed-raw paths: direct
+AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
+where the caller enters the other foreign frontend and the callee returns with
+ordinary native `ret`/`jalr` through a hardware cookie without routing through
+x86.
 Synthetic AArch64/RISC-V register banks and the current poly mode are lazily
 saved and restored per guest `CR3` plus user `FSBASE`.  A normal x86_64 Linux
 process switch does not share foreign registers with another address space, and

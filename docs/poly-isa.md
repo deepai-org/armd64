@@ -65,13 +65,20 @@ only routing hub:
 - AArch64 `brk #0x7fff`: exit raw AArch64 and resume x86_64 decode.
 - AArch64 `brk #0x7ffe`: switch directly from raw AArch64 to raw RISC-V at
   the next byte.
+- AArch64 `brk #0x7ffd`: call a raw RISC-V target held in `x16`, saving an
+  AArch64 continuation from `x17`.
 - RISC-V custom-0 `0x0000000b`: exit raw RISC-V and resume x86_64 decode.
 - RISC-V custom-1 `0x0000002b`: switch directly from raw RISC-V to raw
   AArch64 at the next byte.
+- RISC-V custom-2 `0x0000005b`: call a raw AArch64 target held in `x5`,
+  saving a RISC-V continuation from `x6`.
 
 These native switches preserve the shared low integer register aliases, so
 `x0`/`a0`/`RAX` can carry a value through AArch64-to-RISC-V or
 RISC-V-to-AArch64 code without an x86 trampoline.
+The native cross-call forms additionally set the callee's native link register
+to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
+restores the caller frontend mode and continuation without an x86 rendezvous.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register
