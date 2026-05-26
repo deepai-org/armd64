@@ -33,7 +33,7 @@ static uint64_t pcall_aarch64_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x41,0x36,0x34\n"
+    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
     "1:\n"
     ".long 0xf1000421\n" // subs x1,x1,#1
     ".long 0x54ffffe1\n" // b.ne -4
@@ -51,7 +51,7 @@ static uint64_t pcall_riscv_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x52,0x56,0x36\n"
+    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
     "1:\n"
     ".long 0xfff58593\n" // addi a1,a1,-1
     ".long 0xfe059ee3\n" // bnez a1,-4
