@@ -63,7 +63,9 @@ slots `[RSP+8]` and `[RSP+16]` are mapped to AArch64 `x0`-`x7` or RISC-V
 24 bytes so the first foreign stack-passed argument is at `[sp]`;
 `XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`; and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
-saved x86 continuation and restores the x86 stack pointer.
+saved x86 continuation and restores the x86 stack pointer.  The AArch64 raw
+decoder treats register 31 as `SP` for add/sub-immediate instructions, matching
+ordinary compiler stack-frame setup and teardown.
 The `polycall` guest tool exercises this path against loaded foreign ELF64
 function payloads rather than inline x86-hosted instruction blobs.
 
