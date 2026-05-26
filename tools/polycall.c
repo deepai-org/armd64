@@ -64,6 +64,7 @@ enum {
   POLY_CALL_COMPACT_U32_F32 = 17,
   POLY_CALL_COMPACT_F32_U32 = 18,
   POLY_CALL_FP64_STACK = 19,
+  POLY_CALL_DEP_FINI_RESULT = 20,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -373,6 +374,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "fini:", 5) == 0) {
     request->call_kind = POLY_CALL_FINI_RESULT;
     arg += 5;
+  }
+  else if (strncmp(arg, "depfini:", 8) == 0) {
+    request->call_kind = POLY_CALL_DEP_FINI_RESULT;
+    arg += 8;
   }
   const char *expected = strchr(arg, '=');
   size_t path_len = expected ? (size_t) (expected - arg) : strlen(arg);
@@ -3224,6 +3229,30 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           POLY_CALL_U64);
       }
     }
+  }
+  if (call_kind == POLY_CALL_DEP_FINI_RESULT) {
+    uint64_t fini_result_vaddr = 0;
+    int base_kind = RELOC_BASE_ABSOLUTE;
+    if (resolve_dependency_symbol(program, "poly_needed_fini_result",
+          &fini_result_vaddr, &base_kind) < 0 ||
+        base_kind < RELOC_BASE_DEP_LOAD_BIAS ||
+        base_kind >= RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {
+      fprintf(stderr, "POLYCALL_FAIL: dependency fini result symbol missing: %s\n",
+        program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    const size_t dep_index =
+      (size_t) (base_kind - RELOC_BASE_DEP_LOAD_BIAS);
+    const uint64_t fini_result_target =
+      dep_load_bias[dep_index] + fini_result_vaddr;
+    *result = call_poly_stub(code, target_imm_offset, fini_result_target,
+      POLY_CALL_U64);
   }
   if (tls)
     munmap(tls, tls_size);

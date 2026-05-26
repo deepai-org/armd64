@@ -536,7 +536,9 @@ indirect calls through `blr` or `jalr`. The needed-library probes exercise a
 main foreign shared object calling an intermediate `DT_NEEDED` library, which
 then calls a transitive same-ISA leaf dependency through ordinary dynamic
 relocation metadata; the intermediate constructor also calls the leaf dependency
-so the test covers dependency-before-dependent constructor ordering. The
+so the test covers dependency-before-dependent constructor ordering. The same
+needed-library probes also expose destructor-written dependency state after
+dependency teardown, including the transitive leaf destructor effect. The
 constructor probes execute
 compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
 entrypoint. The destructor probes execute compiler-emitted `DT_FINI_ARRAY`
@@ -620,7 +622,9 @@ an intermediate foreign library can call a second foreign library through its
 ordinary PLT/GOT relocations. Dependency library dynamic relocations are applied
 before those dependency calls execute.
 Dependency `DT_INIT_ARRAY` constructors run before entering dependent foreign
-code, and dependency `DT_FINI_ARRAY` destructors run during teardown.
+code, and dependency `DT_FINI_ARRAY` destructors run during teardown. The
+`depfini:` harness mode verifies dependency finalizers by calling an exported
+dependency result symbol after dependency teardown and before unmapping.
 Imported function symbols can bind to prototype hardware call-descriptor
 slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
 foreign argument registers through an x86/runtime import target, writes the
