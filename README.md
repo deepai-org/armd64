@@ -261,8 +261,10 @@ integer/float conversion helper objects
 `riscv-pcall-int128-float-helpers-real.so#poly_entry`), compiler-built libgcc
 bit helper objects (`aarch64-pcall-bit-helpers-real.so#poly_entry` and
 `riscv-pcall-bit-helpers-real.so#poly_entry`), compiler-built quad-precision
-`long double` helper objects (`aarch64-pcall-longdouble-helpers-real.so#poly_entry`
-and `riscv-pcall-longdouble-helpers-real.so#poly_entry`), compiler-built integer carry-chain
+`long double` helper objects (`aarch64-pcall-longdouble-helpers-real.so#poly_entry`,
+`riscv-pcall-longdouble-helpers-real.so#poly_entry`,
+`aarch64-pcall-longdouble-signed-helpers-real.so#poly_entry`, and
+`riscv-pcall-longdouble-signed-helpers-real.so#poly_entry`), compiler-built integer carry-chain
 objects (`aarch64-pcall-int-carry-real.so#poly_entry` and
 `riscv-pcall-int-carry-real.so#poly_entry`), compiler-built integer variable-shift
 objects (`aarch64-pcall-int-varshift-real.so#poly_entry` and

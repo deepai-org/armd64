@@ -158,7 +158,10 @@ enum {
   POLY_IMPORT_FUNC_MULTF3 = 85,
   POLY_IMPORT_FUNC_DIVTF3 = 86,
   POLY_IMPORT_FUNC_FLOATUNDITF = 87,
-  POLY_IMPORT_FUNC_FIXUNSTFDI = 88
+  POLY_IMPORT_FUNC_FIXUNSTFDI = 88,
+  POLY_IMPORT_FUNC_FLOATDITF = 89,
+  POLY_IMPORT_FUNC_FLOATSITF = 90,
+  POLY_IMPORT_FUNC_FIXTFDI = 91
 };
 
 struct poly_dynamic_reloc {
@@ -848,6 +851,18 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__fixunstfdi") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FIXUNSTFDI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__floatditf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOATDITF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__floatsitf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOATSITF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__fixtfdi") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FIXTFDI * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (resolve_aarch64_outline_atomic_import(symbol_name, symbol_value) == 0)
