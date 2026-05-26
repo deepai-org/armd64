@@ -20,6 +20,9 @@ Linux ABI passthrough, or equal-speed execution.
 - The Docker image builds the local Bochs fork from
   `bochs-prepoly-src/bochs` and installs it as `bochs-poly`.
 - The guest prints `BOOT_OK` on a clean baseline boot.
+- The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
+  userspace still runs and the private poly CPUID leaves are hidden when
+  `POLY_ENABLED=0`.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace mode/status
   envelopes and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide

@@ -9,6 +9,8 @@ boot:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		-e RUN_NATIVE_CHECK=1 \
+		-e EXPECT_POLY_CPUID=0 \
 		$(IMAGE) \
 		./scripts/boot.sh
 

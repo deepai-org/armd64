@@ -115,6 +115,8 @@ RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
 RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
 RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
+RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
+EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
@@ -1089,6 +1091,8 @@ RUN_POLY_THREAD="$RUN_POLY_THREAD"
 RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
 RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
+RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
+EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID"
 
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -1104,6 +1108,10 @@ fi
 
 echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
+
+if [ "$RUN_NATIVE_CHECK" = "1" ]; then
+  EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1
+fi
 
 if [ "$RUN_POLY_PROBE" = "1" ]; then
   /usr/bin/polyprobe >/dev/ttyS0 2>&1
@@ -1725,6 +1733,12 @@ EOF
       fi
       if [[ "$RUN_POLY_BINFMT" == "1" ]]; then
         if ! grep -q "POLYBINFMT_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
+        if ! grep -q "NATIVE_CHECK_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
