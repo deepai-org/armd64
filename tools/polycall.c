@@ -230,6 +230,7 @@ struct poly_dependency {
   uint64_t fini_array_size;
   size_t fini_count;
   size_t needed_depth;
+  size_t lookup_rank;
   struct poly_symbol_table dynsym;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
@@ -262,6 +263,7 @@ struct poly_program {
   size_t reloc_count;
   struct poly_dependency deps[MAX_NEEDED_DEPS];
   size_t dep_count;
+  size_t direct_dep_count;
   int needs_x86_import;
 };
 
@@ -1327,6 +1329,8 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   }
   strcpy(dep->path, path);
   dep->needed_depth = needed_depth;
+  dep->lookup_rank = needed_depth == 0 ? owner->direct_dep_count++ :
+    MAX_NEEDED_DEPS + dep_index;
 
   unsigned char *data = NULL;
   size_t size = 0;
@@ -1577,6 +1581,9 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     int duplicate = 0;
     for (size_t d = 0; d < owner->dep_count; d++) {
       if (strcmp(owner->deps[d].path, needed_path) == 0) {
+        if (needed_depth == 0 &&
+            owner->deps[d].lookup_rank >= MAX_NEEDED_DEPS)
+          owner->deps[d].lookup_rank = owner->direct_dep_count++;
         duplicate = 1;
         break;
       }
@@ -1640,12 +1647,24 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
 
 static int resolve_dependency_symbol(const struct poly_program *program,
     const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
+  size_t best = program->dep_count;
+  size_t best_rank = (size_t) -1;
+  uint64_t best_value = 0;
   for (size_t n = 0; n < program->dep_count; n++) {
+    uint64_t candidate_value = 0;
     if (resolve_symbol_from_table_filtered(&program->deps[n].dynsym,
-          symbol_name, symbol_value, 1) == 0) {
-      *base_kind = RELOC_BASE_DEP_LOAD_BIAS + (int) n;
-      return 0;
-    }
+          symbol_name, &candidate_value, 1) < 0)
+      continue;
+    if (program->deps[n].lookup_rank >= best_rank)
+      continue;
+    best = n;
+    best_rank = program->deps[n].lookup_rank;
+    best_value = candidate_value;
+  }
+  if (best < program->dep_count) {
+    *symbol_value = best_value;
+    *base_kind = RELOC_BASE_DEP_LOAD_BIAS + (int) best;
+    return 0;
   }
   return -1;
 }
