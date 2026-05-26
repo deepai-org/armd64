@@ -176,7 +176,9 @@ import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
 `riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-built scalar double FP
 division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and
-`riscv-pcall-fp64-div-real.so#poly_entry`), compiler-built scalar float FP
+`riscv-pcall-fp64-div-real.so#poly_entry`), compiler-built scalar double FP
+unary/zero-compare objects (`aarch64-pcall-fp64-unary-real.so#poly_entry` and
+`riscv-pcall-fp64-unary-real.so#poly_entry`), compiler-built scalar float FP
 objects (`aarch64-pcall-fp32-real.so#poly_entry` and
 `riscv-pcall-fp32-real.so#poly_entry`), compiler-built scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
@@ -245,8 +247,9 @@ immediate and shifted-register forms, shifted-register
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
 `cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
-and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, `fcmp`/`fcmpe`,
-scalar FP `ldr`/`str`, generic byte/halfword/word/dword load-store forms, 64-bit
+and float `fadd`/`fsub`/`fmul`/`fdiv`, register `fmov`, unary `fneg`,
+`fcmp`/`fcmpe` including zero-immediate compare, scalar FP `ldr`/`str`,
+generic byte/halfword/word/dword load-store forms, 64-bit
 `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
@@ -260,8 +263,9 @@ byte/halfword/word/dword load-store forms, `fence`, `fence.i`, `ecall`,
 `fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` and scalar FP
 division `fdiv.s`/`fdiv.d` on the same mapped
 FP argument registers, FP compare `feq`/`flt`/`fle`, FP sign-injection
-`fsgnj`/`fsgnjn`/`fsgnjx` including `fmv`, and FP `flw`/`fld`/`fsw`/`fsd`
-memory forms.  It also decodes a first RV64C compatibility subset for common
+`fsgnj`/`fsgnjn`/`fsgnjx` including `fneg`/`fmv`, integer-to-FP bit moves
+`fmv.w.x`/`fmv.d.x`, and FP `flw`/`fld`/`fsw`/`fsd` memory forms.  It also
+decodes a first RV64C compatibility subset for common
 compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
 `c.lui`, `c.addi16sp`, `c.j`, `c.beqz`, `c.bnez`, `c.slli`, `c.ldsp`, `c.mv`,
 `c.jr`/`c.ret`, `c.ebreak`, `c.jalr`, `c.add`, and `c.sdsp`.
