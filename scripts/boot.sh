@@ -1326,6 +1326,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-writev.elf" 0xaa0103e3 0xf9000023 0xd28000a4 0xf9000424 0xd2800020 0xd2800022 0xd2800848 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pread64.elf" 0xd2800060 0x91000021 0xd2800082 0xd28000e3 0xd2800868 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pwrite64.elf" 0xd2800020 0x91000021 0xd28000a2 0xd28000e3 0xd2800888 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pselect6.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2800003 0xd2800004 0xd2800005 0xd2800908 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ppoll.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2800003 0xd2800928 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fcntl.elf" 0xd2800060 0xd2800001 0xd2800002 0xd2800328 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ioctl.elf" 0xd2800020 0xd2800001 0xd2800002 0xd28003a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat.elf" 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001
@@ -1442,6 +1444,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-writev.elf" 0x00058293 0x0055b023 0x00500313 0x0065b423 0x00100513 0x00100613 0x04200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pread64.elf" 0x00300513 0x00058593 0x00400613 0x00700693 0x04300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pwrite64.elf" 0x00100513 0x00058593 0x00500613 0x00700693 0x04400893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pselect6.elf" 0x00000513 0x00000593 0x00000613 0x00000693 0x00000713 0x00000793 0x04800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ppoll.elf" 0x00000513 0x00000593 0x00000613 0x00000693 0x04900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fcntl.elf" 0x00300513 0x00000593 0x00000613 0x01900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ioctl.elf" 0x00100513 0x00000593 0x00000613 0x01d00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat.elf" 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073
@@ -1651,6 +1655,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-writev.elf=5 \
     /usr/lib/polyapps/aarch64-pread64.elf=4 \
     /usr/lib/polyapps/aarch64-pwrite64.elf=5 \
+    /usr/lib/polyapps/aarch64-pselect6.elf=0 \
+    /usr/lib/polyapps/aarch64-ppoll.elf=0 \
     /usr/lib/polyapps/aarch64-fcntl.elf=0 \
     /usr/lib/polyapps/aarch64-ioctl.elf=0 \
     /usr/lib/polyapps/aarch64-openat.elf=3 \
@@ -1740,6 +1746,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-writev.elf=5 \
     /usr/lib/polyapps/riscv-pread64.elf=4 \
     /usr/lib/polyapps/riscv-pwrite64.elf=5 \
+    /usr/lib/polyapps/riscv-pselect6.elf=0 \
+    /usr/lib/polyapps/riscv-ppoll.elf=0 \
     /usr/lib/polyapps/riscv-fcntl.elf=0 \
     /usr/lib/polyapps/riscv-ioctl.elf=0 \
     /usr/lib/polyapps/riscv-openat.elf=3 \
@@ -2098,6 +2106,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-writev.elf \
     /usr/lib/polyapps/aarch64-pread64.elf \
     /usr/lib/polyapps/aarch64-pwrite64.elf \
+    /usr/lib/polyapps/aarch64-pselect6.elf \
+    /usr/lib/polyapps/aarch64-ppoll.elf \
     /usr/lib/polyapps/aarch64-fcntl.elf \
     /usr/lib/polyapps/aarch64-ioctl.elf \
     /usr/lib/polyapps/aarch64-openat.elf \
@@ -2187,6 +2197,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-writev.elf \
     /usr/lib/polyapps/riscv-pread64.elf \
     /usr/lib/polyapps/riscv-pwrite64.elf \
+    /usr/lib/polyapps/riscv-pselect6.elf \
+    /usr/lib/polyapps/riscv-ppoll.elf \
     /usr/lib/polyapps/riscv-fcntl.elf \
     /usr/lib/polyapps/riscv-ioctl.elf \
     /usr/lib/polyapps/riscv-openat.elf \
