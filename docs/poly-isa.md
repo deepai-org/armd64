@@ -490,7 +490,9 @@ TLS accessors (`R_AARCH64_TLSDESC`, RISC-V `__tls_get_addr`, and initial-exec
 `R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64`) and common GCC
 AArch64 outline atomic helpers: `__aarch64_ldadd8_acq_rel`,
 `__aarch64_ldadd4_acq_rel`, `__aarch64_swp8_acq_rel`,
-`__aarch64_swp4_acq_rel`, `__aarch64_ldset4_relax`,
+`__aarch64_swp4_acq_rel`, `__aarch64_ldclr8_acq_rel`,
+`__aarch64_ldclr4_acq_rel`, `__aarch64_ldeor8_acq_rel`,
+`__aarch64_ldeor4_acq_rel`, `__aarch64_ldset4_relax`,
 `__aarch64_cas8_acq_rel`, and `__aarch64_cas4_acq_rel`.  These are compatibility descriptors for observed
 compiler output, not a general libgcc or libc implementation.
 
