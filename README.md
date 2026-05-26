@@ -266,17 +266,19 @@ memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
 `aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
-`aarch64-pcall-dynsym.elf`, `aarch64-pcall-dyntab.elf`,
+`aarch64-pcall-relr.elf`, `aarch64-pcall-dynsym.elf`,
+`aarch64-pcall-dyntab.elf`,
 `aarch64-pcall-dyntab-entry.elf`, `riscv-pcall-frame.elf`,
 `riscv-pcall-split-load.elf`, `riscv-pcall-dynrel.elf`,
-`riscv-pcall-dynsym.elf`, `riscv-pcall-dyntab.elf`, and
+`riscv-pcall-relr.elf`, `riscv-pcall-dynsym.elf`,
+`riscv-pcall-dyntab.elf`, and
 `riscv-pcall-dyntab-entry.elf`) that use native
 `SP` adjustment, stack load/store, pair frame save/restore, local AArch64 `bl`
 calls, AArch64 `adrp` page-relative data addressing, NZCV-backed AArch64
 conditional branches, RISC-V `auipc` page-relative data addressing, real
 AArch64 and RISC-V `ET_DYN` `.so` objects with dynamic symbol lookup, writable
 static data, split ELF `PT_LOAD` text/data layout, simple `ET_DYN` relative
-relocations, same-image
+relocations, packed `DT_RELR` relative relocation tables, same-image
 symbolic 64-bit dynamic relocations and exported entrypoints through both
 section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH` and
 GNU `DT_GNU_HASH` symbol counts plus `DT_JMPREL`/`JUMP_SLOT` PLT relocations

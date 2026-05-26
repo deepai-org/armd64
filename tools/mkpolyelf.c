@@ -17,6 +17,9 @@ enum {
   DT_SYMENT = 11,
   DT_PLTREL = 20,
   DT_JMPREL = 23,
+  DT_RELRSZ = 35,
+  DT_RELR = 36,
+  DT_RELRENT = 37,
   EM_AARCH64 = 183,
   EM_RISCV = 243,
   ET_DYN = 3,
@@ -188,7 +191,7 @@ static void write_u32_le(unsigned char *bytes, uint32_t value) {
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-relr64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
     return 2;
   }
 
@@ -201,6 +204,7 @@ int main(int argc, char **argv) {
   int first_insn_arg = 3;
   int split_data = 0;
   int dyn_relative = 0;
+  int dyn_relr = 0;
   int dyn_symbolic = 0;
   int dyn_jump_slot = 0;
   int dyn_import = 0;
@@ -208,6 +212,7 @@ int main(int argc, char **argv) {
   uint64_t data_value = 0;
   if (strcmp(argv[3], "--split-data64") == 0 ||
       strcmp(argv[3], "--dyn-relative64") == 0 ||
+      strcmp(argv[3], "--dyn-relr64") == 0 ||
       strcmp(argv[3], "--dyn-symbol64") == 0 ||
       strcmp(argv[3], "--dyn-jump-slot64") == 0 ||
       strcmp(argv[3], "--dyn-import64") == 0 ||
@@ -222,6 +227,7 @@ int main(int argc, char **argv) {
     }
     split_data = 1;
     dyn_relative = strcmp(argv[3], "--dyn-relative64") == 0;
+    dyn_relr = strcmp(argv[3], "--dyn-relr64") == 0;
     dyn_symbolic = strcmp(argv[3], "--dyn-symbol64") == 0 ||
       strcmp(argv[3], "--dyn-jump-slot64") == 0 || dyn_import ||
       dyn_import_func;
@@ -276,7 +282,7 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  const int dyn_image = dyn_relative || dyn_symbolic;
+  const int dyn_image = dyn_relative || dyn_relr || dyn_symbolic;
   const uint64_t text_offset = 0x1000;
   const uint64_t text_vaddr = dyn_image ? 0 : 0x400000;
   const uint64_t data_offset = 0x3000;
@@ -326,7 +332,7 @@ int main(int argc, char **argv) {
   const uint64_t data_size = dyn_image ?
     (has_dynsym ? 0x300 + dynsym_size + dynstr_size +
       (dynhash_offset - dynstr_offset - dynstr_size) + dynhash_size :
-      0x200 + sizeof(struct elf64_rela)) :
+      0x200 + (dyn_relr ? sizeof(uint64_t) : sizeof(struct elf64_rela))) :
     (split_data ? 8 : 0);
   const uint64_t dynamic_count = dyn_image ? (has_dynsym ? 9 : 4) : 0;
   const uint64_t shstr_offset = align_up_u64(
@@ -443,8 +449,10 @@ int main(int argc, char **argv) {
       return 1;
     }
     unsigned char bytes[8];
+    uint64_t first_data_value = dyn_relr ? data_vaddr + 8 :
+      (dyn_image ? 0 : data_value);
     for (unsigned n = 0; n < sizeof(bytes); n++)
-      bytes[n] = dyn_image ? 0 : (unsigned char) ((data_value >> (n * 8)) & 0xff);
+      bytes[n] = (unsigned char) ((first_data_value >> (n * 8)) & 0xff);
     if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
       fprintf(stderr, "mkpolyelf: data write failed\n");
       fclose(out);
@@ -466,12 +474,13 @@ int main(int argc, char **argv) {
       }
       struct elf64_dyn dyn[9];
       memset(dyn, 0, sizeof(dyn));
-      dyn[0].d_tag = dyn_jump_slot ? DT_JMPREL : DT_RELA;
+      dyn[0].d_tag = dyn_relr ? DT_RELR : dyn_jump_slot ? DT_JMPREL : DT_RELA;
       dyn[0].d_val = rela_vaddr;
-      dyn[1].d_tag = dyn_jump_slot ? DT_PLTRELSZ : DT_RELASZ;
-      dyn[1].d_val = sizeof(struct elf64_rela);
-      dyn[2].d_tag = dyn_jump_slot ? DT_PLTREL : DT_RELAENT;
-      dyn[2].d_val = dyn_jump_slot ? DT_RELA : sizeof(struct elf64_rela);
+      dyn[1].d_tag = dyn_relr ? DT_RELRSZ : dyn_jump_slot ? DT_PLTRELSZ : DT_RELASZ;
+      dyn[1].d_val = dyn_relr ? sizeof(uint64_t) : sizeof(struct elf64_rela);
+      dyn[2].d_tag = dyn_relr ? DT_RELRENT : dyn_jump_slot ? DT_PLTREL : DT_RELAENT;
+      dyn[2].d_val = dyn_relr ? sizeof(uint64_t) :
+        dyn_jump_slot ? DT_RELA : sizeof(struct elf64_rela);
       if (has_dynsym) {
         dyn[3].d_tag = DT_SYMTAB;
         dyn[3].d_val = dynsym_vaddr;
@@ -499,6 +508,16 @@ int main(int argc, char **argv) {
         fclose(out);
         return 1;
       }
+      if (dyn_relr) {
+        for (unsigned n = 0; n < sizeof(bytes); n++)
+          bytes[n] = (unsigned char) ((data_vaddr >> (n * 8)) & 0xff);
+        if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
+          fprintf(stderr, "mkpolyelf: relr write failed\n");
+          fclose(out);
+          return 1;
+        }
+        goto wrote_dynamic_relocs;
+      }
       struct elf64_rela rela;
       memset(&rela, 0, sizeof(rela));
       rela.r_offset = data_vaddr;
@@ -518,6 +537,8 @@ int main(int argc, char **argv) {
         fclose(out);
         return 1;
       }
+wrote_dynamic_relocs:
+      ;
     }
   }
 

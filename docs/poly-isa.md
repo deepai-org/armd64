@@ -127,12 +127,13 @@ in-memory image before entering raw mode, so page-relative code can address
 separate text/data load segments rather than only inline instruction blobs. The
 gate covers both AArch64 `adrp`/`ldr` and RISC-V `auipc`/`ld` split-load
 payloads. `polycall` also accepts simple `ET_DYN` images with
-`R_AARCH64_RELATIVE` or `R_RISCV_RELATIVE` relocations and same-image symbolic
-64-bit dynamic relocations (`R_AARCH64_ABS64` or `R_RISCV_64`), applying them
-with the actual runtime load bias before `PCALL`. Symbolic relocation metadata
-and `path#symbol` entrypoint lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the
-loaded dynamic image. `DT_HASH` is used to bound the sectionless dynamic symbol
-table, and `DT_GNU_HASH` is supported for common GNU-hash-only shared objects.
+`R_AARCH64_RELATIVE` or `R_RISCV_RELATIVE` relocations, packed `DT_RELR`
+relative relocation tables, and same-image symbolic 64-bit dynamic relocations
+(`R_AARCH64_ABS64` or `R_RISCV_64`), applying them with the actual runtime load
+bias before `PCALL`. Symbolic relocation metadata and `path#symbol` entrypoint
+lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
+`DT_HASH` is used to bound the sectionless dynamic symbol table, and
+`DT_GNU_HASH` is supported for common GNU-hash-only shared objects.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
@@ -313,6 +314,8 @@ includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and
 `R_RISCV_JUMP_SLOT` entries for defined symbols.
+Packed relative relocation tables are accepted through
+`DT_RELR`/`DT_RELRSZ`/`DT_RELRENT`.
 Undefined object-symbol relocations can bind to process-provided imports; the
 gate covers `poly_import_value` through an undefined dynamic symbol relocation.
 Undefined weak object/function relocations resolve to zero, matching ordinary

@@ -10,6 +10,15 @@
 #ifndef DT_GNU_HASH
 #define DT_GNU_HASH 0x6ffffef5
 #endif
+#ifndef DT_RELR
+#define DT_RELR 36
+#endif
+#ifndef DT_RELRSZ
+#define DT_RELRSZ 35
+#endif
+#ifndef DT_RELRENT
+#define DT_RELRENT 37
+#endif
 
 enum {
   POLY_ARCH_AARCH64 = 1,
@@ -724,12 +733,71 @@ static int process_rela_table(struct poly_program *program,
   return 0;
 }
 
+static int append_relr_relocation(struct poly_program *program,
+    uint64_t reloc_vaddr) {
+  size_t relocation_offset = 0;
+  if (elf_vaddr_to_image_offset(program, reloc_vaddr, 8,
+        &relocation_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: RELR relocation target out of image: %s\n",
+      program->path);
+    return -1;
+  }
+  return append_dynamic_reloc(program, relocation_offset,
+    read_le64(program->image + relocation_offset), RELOC_BASE_LOAD_BIAS);
+}
+
+static int process_relr_table(struct poly_program *program,
+    uint64_t relr_vaddr, uint64_t relr_size, uint64_t relr_ent) {
+  if (relr_size == 0)
+    return 0;
+  if (relr_ent != sizeof(uint64_t) || relr_size % sizeof(uint64_t) != 0) {
+    fprintf(stderr, "POLYCALL_FAIL: bad RELR dynamic table: %s\n",
+      program->path);
+    return -1;
+  }
+
+  size_t relr_offset = 0;
+  if (elf_vaddr_to_image_offset(program, relr_vaddr, relr_size,
+        &relr_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: RELR table out of loaded image: %s\n",
+      program->path);
+    return -1;
+  }
+
+  const uint64_t *relr = (const uint64_t *) (program->image + relr_offset);
+  const size_t relr_count = (size_t) (relr_size / sizeof(uint64_t));
+  uint64_t where = 0;
+  for (size_t n = 0; n < relr_count; n++) {
+    const uint64_t entry = relr[n];
+    if ((entry & 1) == 0) {
+      where = entry;
+      if (append_relr_relocation(program, where) < 0)
+        return -1;
+      where += sizeof(uint64_t);
+      continue;
+    }
+
+    uint64_t bitmap = entry >> 1;
+    for (unsigned bit = 0; bit < 63; bit++) {
+      if ((bitmap & (UINT64_C(1) << bit)) != 0 &&
+          append_relr_relocation(program,
+            where + (uint64_t) bit * sizeof(uint64_t)) < 0)
+        return -1;
+    }
+    where += 63 * sizeof(uint64_t);
+  }
+  return 0;
+}
+
 static int load_dynamic_relocs(struct poly_program *program,
     const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
     const Elf64_Dyn *dyn, size_t dyn_count) {
   uint64_t rela_vaddr = 0;
   uint64_t rela_size = 0;
   uint64_t rela_ent = sizeof(Elf64_Rela);
+  uint64_t relr_vaddr = 0;
+  uint64_t relr_size = 0;
+  uint64_t relr_ent = sizeof(uint64_t);
   uint64_t jmprel_vaddr = 0;
   uint64_t pltrel_size = 0;
   uint64_t pltrel_type = 0;
@@ -750,6 +818,15 @@ static int load_dynamic_relocs(struct poly_program *program,
         break;
       case DT_RELAENT:
         rela_ent = dyn[n].d_un.d_val;
+        break;
+      case DT_RELR:
+        relr_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_RELRSZ:
+        relr_size = dyn[n].d_un.d_val;
+        break;
+      case DT_RELRENT:
+        relr_ent = dyn[n].d_un.d_val;
         break;
       case DT_JMPREL:
         jmprel_vaddr = dyn[n].d_un.d_ptr;
@@ -810,6 +887,9 @@ static int load_dynamic_relocs(struct poly_program *program,
   if (rela_size != 0 &&
       process_rela_table(program, data, size, ehdr, dyn, dyn_count,
         rela_vaddr, rela_size, "RELA") < 0)
+    return -1;
+  if (relr_size != 0 &&
+      process_relr_table(program, relr_vaddr, relr_size, relr_ent) < 0)
     return -1;
   if (pltrel_size != 0 &&
       process_rela_table(program, data, size, ehdr, dyn, dyn_count,
