@@ -19,6 +19,8 @@ extern char *strncat(char *, const char *, size_t);
 extern size_t strspn(const char *, const char *);
 extern size_t strcspn(const char *, const char *);
 extern char *strpbrk(const char *, const char *);
+extern char *stpcpy(char *, const char *);
+extern char *stpncpy(char *, const char *, size_t);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -109,6 +111,18 @@ static char *call_strpbrk(const char *base, const char *accept)
   return strpbrk(base, accept);
 }
 
+__attribute__((noinline))
+static char *call_stpcpy(char *dest, const char *src)
+{
+  return stpcpy(dest, src);
+}
+
+__attribute__((noinline))
+static char *call_stpncpy(char *dest, const char *src, size_t count)
+{
+  return stpncpy(dest, src, count);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -121,6 +135,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char ncopy[16];
   char appended[16];
   char nappended[16];
+  char stpcopied[16];
+  char stpncopied[16];
 
   (void) a0;
   (void) a1;
@@ -140,6 +156,8 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   memset(ncopy, 0x55, sizeof(ncopy));
   memset(appended, 0, sizeof(appended));
   memset(nappended, 0, sizeof(nappended));
+  memset(stpcopied, 0, sizeof(stpcopied));
+  memset(stpncopied, 0x55, sizeof(stpncopied));
   memcpy(appended, "poly", 5);
   memcpy(nappended, "hi", 3);
   memmove(overlap + 2, overlap, 5);
@@ -167,12 +185,16 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   size_t cspan = call_strcspn(buffer, "-");
   char *break_found = call_strpbrk(buffer, "-x");
   char *break_not_found = call_strpbrk(buffer, "z");
+  char *stpcopy_result = call_stpcpy(stpcopied, buffer);
+  char *stpncopy_result = call_stpncpy(stpncopied, "uv", 5);
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
   int ncopy_prefix_same = memcmp(ncopy, "xy\0\0\0", 5);
   int appended_same = memcmp(appended, "poly-cat", 9);
   int nappended_same = memcmp(nappended, "hith\0", 5);
+  int stpcopied_same = memcmp(stpcopied, expected, sizeof(expected));
+  int stpncopied_same = memcmp(stpncopied, "uv\0\0\0", 5);
   buffer[4] = 'X';
   int different = memcmp(buffer, expected, sizeof(expected));
 
@@ -206,5 +228,10 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (cspan == 4 ? 2900 : 29000) +
     (break_found == buffer + 4 ? 3000 : 30000) +
     (break_not_found == 0 ? 3100 : 31000) +
+    (stpcopy_result == stpcopied + len ? 3200 : 32000) +
+    (stpcopied_same == 0 ? 3300 : 33000) +
+    (stpncopy_result == stpncopied + 2 ? 3400 : 34000) +
+    (stpncopied_same == 0 ? 3500 : 35000) +
+    (stpncopied[5] == 0x55 ? 3600 : 36000) +
     (unsigned char) buffer[0];
 }
