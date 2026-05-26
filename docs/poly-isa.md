@@ -84,12 +84,14 @@ only routing hub:
 
 These native switches preserve the shared low integer register aliases, so
 `x0`/`a0`/`RAX` can carry a value through AArch64-to-RISC-V or
-RISC-V-to-AArch64 code without an x86 trampoline.
+RISC-V-to-AArch64 code without an x86 trampoline.  The shared scalar FP aliases
+similarly carry `d0`-`d7`/`fa0`-`fa7` through neutral cross-calls.
 The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
 The Bochs prototype backs this with a small bounded cross-return stack and
-`polybench` covers a nested AArch64 -> RISC-V -> AArch64 call chain.  The
+`polybench` covers scalar double FP cross-calls in both directions plus a
+nested AArch64 -> RISC-V -> AArch64 call chain.  The
 prototype saves that stack, the `PCALL` return cookie, and x86-import return
 state with the same synthetic bank as the non-aliased foreign registers.  The
 bank key is guest `CR3`, user `FSBASE`, and an 8 MiB-aligned user stack-region

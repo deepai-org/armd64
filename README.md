@@ -47,8 +47,8 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
-  RISC-V-to-AArch64 code blobs that switch, call, and nest calls directly
-  without returning to x86.
+  RISC-V-to-AArch64 code blobs that switch, call, nest calls, and carry scalar
+  double FP values directly without returning to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
@@ -93,7 +93,7 @@ address in `x16` with an AArch64 return PC in `x17`; RISC-V custom-2
 `0x0000005b` is the reverse call gate to an AArch64 target in `x5` with a
 RISC-V return PC in `x6`.  The callee returns with its ordinary native return
 instruction to a hardware cookie, which restores the caller frontend mode and
-maps the shared argument/result registers back.  Raw
+maps the shared integer and scalar FP argument/result registers back.  Raw
 cross-call returns use a small bounded hardware-style return stack in the
 prototype, so nested AArch64-to-RISC-V-to-AArch64 calls can unwind through
 ordinary native returns without an x86 trampoline.  Raw
@@ -418,7 +418,8 @@ memory forms `c.fld`/`c.fsd` plus `c.fldsp`/`c.fsdsp`.
 AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
 where the caller enters the other foreign frontend and the callee returns with
 ordinary native `ret`/`jalr` through a hardware cookie without routing through
-x86.  The gate also covers a nested AArch64 -> RISC-V -> AArch64 call chain.
+x86.  The gate also covers scalar double FP cross-calls in both directions and
+a nested AArch64 -> RISC-V -> AArch64 call chain.
 Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
 hardware-style continuation state for `PCALL`, x86 import returns, and neutral
 foreign cross-calls are lazily saved and restored per guest `CR3`, user
