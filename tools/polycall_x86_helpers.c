@@ -42,6 +42,12 @@ double POLY_HOST_HELPER poly_host_x86_fp64_add(double a, double b)
   return a + b + 200.5;
 }
 
+double POLY_HOST_HELPER poly_host_x86_fp64_sum8(double a, double b, double c,
+    double d, double e, double f, double g, double h)
+{
+  return a + b + c + d + e + f + g + h + 200.5;
+}
+
 float POLY_HOST_HELPER poly_host_x86_fp32_add(float a, float b)
 {
   return a + b + 200.5f;
