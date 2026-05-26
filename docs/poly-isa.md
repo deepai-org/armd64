@@ -227,8 +227,10 @@ entrypoint. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst`, `csel`, and conditional-select variants
 `csinc`/`csinv`/`csneg`, plus RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
-non-`x0` registers and RISC-V ordinary branch forms. The signed-extension
-probes exercise compiler-emitted AArch64 `sxth` plus `add ... sxtb/sxtw` and
+non-`x0` registers and RISC-V ordinary branch forms. The unsigned-bitfield
+probes exercise compiler-emitted AArch64 `lsl`/`ubfx` aliases and RISC-V
+shift/mask sequences. The signed-extension probes exercise compiler-emitted
+AArch64 `sxth` plus `add ... sxtb/sxtw` and
 RISC-V signed byte/halfword/word loads. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. It also

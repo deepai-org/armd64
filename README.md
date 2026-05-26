@@ -288,6 +288,7 @@ The direct-fetch AArch64 path covers the generated/probed subset used by
 `movk`, `add`/`sub` immediate forms including `SP`, flag-setting `adds`/`subs`
 immediate and shifted-register forms, shifted-register
 `add`/`sub`/`mul`/`eor`/`and`/`orr`, extended-register `add`/`sub` forms,
+unsigned bitfield aliases `uxtb`/`uxth`/`lsl`/`lsr`/`ubfx`,
 bitfield signed-extension aliases `sxtb`/`sxth`/`sxtw`,
 unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
