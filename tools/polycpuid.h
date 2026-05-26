@@ -11,8 +11,14 @@ enum {
   POLY_TRAP_SYSCALL = 1,
   POLY_TRAP_BREAK = 2,
   POLY_CPUID_BASE = 0x40000000,
-  POLY_CPUID_MAX = 0x40000001,
+  POLY_CPUID_MAX = 0x40000002,
   POLY_CPUID_ABI_VERSION = 1,
+  POLY_AARCH64_BRK_X86_ESCAPE = 0x7fff,
+  POLY_AARCH64_BRK_RISCV_SWITCH = 0x7ffe,
+  POLY_AARCH64_BRK_RISCV_CALL = 0x7ffd,
+  POLY_RISCV_X86_ESCAPE = 0x0000000b,
+  POLY_RISCV_AARCH64_SWITCH = 0x0000002b,
+  POLY_RISCV_AARCH64_CALL = 0x0000005b,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
   POLY_CPUID_FEATURE_NEUTRAL_SWITCH = (1U << 2),
@@ -63,6 +69,25 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_X86_TSO |
     POLY_CPUID_FEATURE_THREAD_BANKS |
     POLY_CPUID_FEATURE_COMPAT_TRAPS;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_AARCH64_BRK_X86_ESCAPE |
+    (POLY_AARCH64_BRK_RISCV_SWITCH << 16);
+  regs.ebx = POLY_AARCH64_BRK_RISCV_CALL;
+  regs.ecx = POLY_RISCV_X86_ESCAPE;
+  regs.edx = POLY_RISCV_AARCH64_SWITCH;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf1(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_RISCV_AARCH64_CALL;
+  regs.ebx = 0;
+  regs.ecx = 0;
+  regs.edx = 0;
+  return regs;
 }
 
 static inline void poly_cpuid_vendor_string(const struct poly_cpuid_regs *regs,

@@ -342,6 +342,28 @@ int main(void) {
       poly_features.eax, poly_features.ebx, poly_features.ecx, poly_features.edx);
     return 1;
   }
+  struct poly_cpuid_regs expected_escapes =
+    poly_cpuid_expected_escape_leaf0();
+  struct poly_cpuid_regs poly_escapes =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 0);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID escape leaf0 mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf1();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 1);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID escape leaf1 mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
 
   stage("POLY_STAGE: x86-status");
   poly_mode_x86();

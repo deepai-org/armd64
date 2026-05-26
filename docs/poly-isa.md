@@ -71,7 +71,7 @@ invasive way to prototype the frontend switch:
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
 
-- `CPUID.EAX=0x40000000`: `EAX=0x40000001`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000000`: `EAX=0x40000002`, `EBX:EDX:ECX="PolyglotCPU!"`.
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
@@ -83,6 +83,14 @@ discover the experimental hardware contract before emitting poly operations:
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
+- `CPUID.EAX=0x40000002, ECX=0`: native escape encoding discovery.
+  `EAX[15:0]=0x7fff` means AArch64 `brk #0x7fff` exits to x86_64;
+  `EAX[31:16]=0x7ffe` means AArch64 `brk #0x7ffe` switches to RISC-V;
+  `EBX=0x7ffd` means AArch64 `brk #0x7ffd` calls RISC-V;
+  `ECX=0x0000000b` means RISC-V custom-0 exits to x86_64; and
+  `EDX=0x0000002b` means RISC-V custom-1 switches to AArch64.
+- `CPUID.EAX=0x40000002, ECX=1`: `EAX=0x0000005b` reports the RISC-V
+  custom-2 AArch64 cross-call encoding.  Other registers are reserved zero.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:
