@@ -63,6 +63,7 @@ enum {
   POLY_CALL_HETERO_F64_U32 = 16,
   POLY_CALL_COMPACT_U32_F32 = 17,
   POLY_CALL_COMPACT_F32_U32 = 18,
+  POLY_CALL_FP64_STACK = 19,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -277,6 +278,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "fp32:", 5) == 0) {
     request->call_kind = POLY_CALL_FP32;
     arg += 5;
+  }
+  else if (strncmp(arg, "fp64stack:", 10) == 0) {
+    request->call_kind = POLY_CALL_FP64_STACK;
+    arg += 10;
   }
   else if (strncmp(arg, "pair:", 5) == 0) {
     request->call_kind = POLY_CALL_PAIR_U64;
@@ -1959,6 +1964,19 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     fp_result.f = entry(1.5f, 2.25f, 3.0f);
     return fp_result.u;
   }
+  if (call_kind == POLY_CALL_FP64_STACK) {
+    union {
+      double d;
+      uint64_t u;
+    } fp_result;
+    double (*entry)(double, double, double, double, double, double, double,
+        double, double, double) =
+      (double (*)(double, double, double, double, double, double, double,
+        double, double, double)) code;
+    fp_result.d = entry(1.0, 2.0, 3.0, 4.0, 5.0,
+      6.0, 7.0, 8.0, 9.0, 10.0);
+    return fp_result.u;
+  }
   if (call_kind == POLY_CALL_PAIR_U64) {
     struct pair_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
       uint64_t, uint64_t, uint64_t, uint64_t) =
@@ -2268,6 +2286,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x1a;
     else if (call_kind == POLY_CALL_HETERO_F32_U64)
       pcall_op = 0x1b;
+    else if (call_kind == POLY_CALL_FP64_STACK)
+      pcall_op = 0x1e;
     const uint8_t pcall[] = {
       0x0f, 0x24, pcall_op,
       0x50, 0x4f, 0x4c, 0x59, 0x21
@@ -2285,6 +2305,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x1c;
     else if (call_kind == POLY_CALL_COMPACT_F32_U32)
       pcall_op = 0x1d;
+    else if (call_kind == POLY_CALL_FP64_STACK)
+      pcall_op = 0x1f;
     const uint8_t pcall[] = {
       0x0f, 0x24, pcall_op,
       0x50, 0x4f, 0x4c, 0x59, 0x21

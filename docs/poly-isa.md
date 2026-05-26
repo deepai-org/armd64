@@ -107,6 +107,14 @@ and call operations:
   `{ float, u32 }` aggregate from packed `RDI` into RISC-V `fa0`/`a0`,
   shifting the following integer argument to `a1`, and repacking the returned
   `fa0`/`a0` lanes into `RAX`.
+- `0f 24 1e 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.FP64STACK`, preserving scalar FP register aliases while
+  copying x86_64 SysV FP64 overflow stack arguments from `[RSP+8]` into the
+  AArch64 foreign stack window.
+- `0f 24 1f 50 4f 4c 59 21`: prototype
+  `PCALL.RV64.SYSV.FP64STACK`, preserving scalar FP register aliases while
+  mapping x86_64 SysV FP64 overflow stack arguments from `[RSP+8]` and
+  `[RSP+16]` into RISC-V `a0` and `a1` after `fa0`-`fa7` are consumed.
 - `0f 24 20 50 4f 4c 59 21`: prototype `PIRET`, used by
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
@@ -138,7 +146,7 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`22` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`23` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, and deterministic compatibility
@@ -148,8 +156,9 @@ discover the experimental hardware contract before emitting poly operations:
   aggregate bridging for native ABI `PCALL`, plus RISC-V `{u32,float}` and
   `{float,u32}` compact aggregate bridges and matching neutral
   AArch64<->RISC-V compact aggregate cross-calls, and runtime-supplied
-  foreign-to-x86 import descriptor slots.  The double-lane bridge forms also
-  cover ABI-compatible `{u32,double}` and `{double,u32}` shapes.
+  foreign-to-x86 import descriptor slots, and FP64 overflow stack-argument
+  `PCALL` variants.  The double-lane bridge forms also cover ABI-compatible
+  `{u32,double}` and `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
@@ -389,7 +398,9 @@ objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), and compiler-produced scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
-`riscv-pcall-fp64-real.so#poly_entry`) plus compiler-produced homogeneous
+`riscv-pcall-fp64-real.so#poly_entry`) plus ten-double FP stack-argument objects
+(`aarch64-pcall-fp64-stack-real.so#poly_entry` and
+`riscv-pcall-fp64-stack-real.so#poly_entry`) plus compiler-produced homogeneous
 double aggregate return objects (`aarch64-pcall-fpair-real.so#poly_entry` and
 `riscv-pcall-fpair-real.so#poly_entry`), homogeneous float aggregate return
 objects (`aarch64-pcall-fpair32-real.so#poly_entry` and
