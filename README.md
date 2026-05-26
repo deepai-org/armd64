@@ -82,6 +82,21 @@ All x86-visible poly operations are wrapped in fixed 8-byte envelopes:
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign raw instructions`, `3=foreign syscalls`, `4=foreign libcalls`. |
 | Trap status | `36 0f 0b 54 52 41 50 <id>` | Returns last foreign trap state in `RAX`: `0=reason`, `1=source mode`, `2=number`, `3`-`8=arg0`-`arg5`, other ids return trap PC. |
 
+When `POLY_ENABLED=1`, the prototype exposes a private CPUID discovery leaf for
+runtime dispatch:
+
+| Leaf | Registers | Meaning |
+| --- | --- | --- |
+| `0x40000000` | `EAX=0x40000001`, `EBX:EDX:ECX="PolyglotCPU!"` | Advertises the maximum poly CPUID leaf and the 12-byte poly vendor string. |
+| `0x40000001` | `EAX=1`, `EBX=mode mask`, `ECX=feature mask`, `EDX=0` | Reports poly CPUID ABI version 1, supported frontend modes, implemented prototype features, and no architectural XSAVE component yet. |
+
+The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
+raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
+RISC-V, neutral direct switches, native return cookies, x86 SysV `PCALL`,
+`PCALL` sret, scalar FP bridging, trap records, user return restoration, x86 TSO
+foreign ordering, per-thread synthetic banks, and deterministic compatibility
+syscall/libcall traps.
+
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 switch envelope, bypasses x86 decode, and fetches foreign
 instructions directly from `RIP`: fixed 32-bit instructions for AArch64 and

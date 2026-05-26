@@ -8,7 +8,27 @@ enum {
   POLY_MODE_RAW_AARCH64 = 3,
   POLY_MODE_RAW_RISCV = 4,
   POLY_TRAP_SYSCALL = 1,
-  POLY_TRAP_BREAK = 2
+  POLY_TRAP_BREAK = 2,
+  POLY_CPUID_BASE = 0x40000000,
+  POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
+  POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
+  POLY_CPUID_FEATURE_NEUTRAL_SWITCH = (1U << 2),
+  POLY_CPUID_FEATURE_NATIVE_RET = (1U << 3),
+  POLY_CPUID_FEATURE_PCALL_SYSV = (1U << 4),
+  POLY_CPUID_FEATURE_PCALL_SRET = (1U << 5),
+  POLY_CPUID_FEATURE_FP_BRIDGE = (1U << 6),
+  POLY_CPUID_FEATURE_TRAP_RECORDS = (1U << 7),
+  POLY_CPUID_FEATURE_USER_RETURN_RESTORE = (1U << 8),
+  POLY_CPUID_FEATURE_X86_TSO = (1U << 9),
+  POLY_CPUID_FEATURE_THREAD_BANKS = (1U << 10),
+  POLY_CPUID_FEATURE_COMPAT_TRAPS = (1U << 11)
+};
+
+struct cpuid_regs {
+  uint32_t eax;
+  uint32_t ebx;
+  uint32_t ecx;
+  uint32_t edx;
 };
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
@@ -30,6 +50,15 @@ static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
   return value;
+}
+
+static inline struct cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
+  struct cpuid_regs regs;
+  asm volatile("cpuid"
+    : "=a"(regs.eax), "=b"(regs.ebx), "=c"(regs.ecx), "=d"(regs.edx)
+    : "a"(leaf), "c"(subleaf)
+    : "memory");
+  return regs;
 }
 
 static inline uint64_t read_xmm0_u64(void) {
@@ -327,6 +356,43 @@ static inline void raw_riscv_getpid_probe(void) {
 
 int main(void) {
   stage("POLY_PROBE: start");
+
+  stage("POLY_STAGE: cpuid");
+  struct cpuid_regs poly_vendor = read_cpuid(POLY_CPUID_BASE, 0);
+  char vendor[13];
+  memcpy(vendor, &poly_vendor.ebx, 4);
+  memcpy(vendor + 4, &poly_vendor.edx, 4);
+  memcpy(vendor + 8, &poly_vendor.ecx, 4);
+  vendor[12] = '\0';
+  if (poly_vendor.eax < POLY_CPUID_BASE + 1 ||
+      strcmp(vendor, "PolyglotCPU!") != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID vendor mismatch max=0x%x vendor=%s\n",
+      poly_vendor.eax, vendor);
+    return 1;
+  }
+  struct cpuid_regs poly_features = read_cpuid(POLY_CPUID_BASE + 1, 0);
+  const uint32_t expected_modes = (1U << POLY_MODE_X86) |
+    (1U << POLY_MODE_RAW_AARCH64) |
+    (1U << POLY_MODE_RAW_RISCV);
+  const uint32_t expected_features =
+    POLY_CPUID_FEATURE_RAW_AARCH64 |
+    POLY_CPUID_FEATURE_RAW_RISCV |
+    POLY_CPUID_FEATURE_NEUTRAL_SWITCH |
+    POLY_CPUID_FEATURE_NATIVE_RET |
+    POLY_CPUID_FEATURE_PCALL_SYSV |
+    POLY_CPUID_FEATURE_PCALL_SRET |
+    POLY_CPUID_FEATURE_FP_BRIDGE |
+    POLY_CPUID_FEATURE_TRAP_RECORDS |
+    POLY_CPUID_FEATURE_USER_RETURN_RESTORE |
+    POLY_CPUID_FEATURE_X86_TSO |
+    POLY_CPUID_FEATURE_THREAD_BANKS |
+    POLY_CPUID_FEATURE_COMPAT_TRAPS;
+  if (poly_features.eax != 1 || poly_features.ebx != expected_modes ||
+      poly_features.ecx != expected_features || poly_features.edx != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID feature mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_features.eax, poly_features.ebx, poly_features.ecx, poly_features.edx);
+    return 1;
+  }
 
   stage("POLY_STAGE: x86-status");
   poly_mode_x86();

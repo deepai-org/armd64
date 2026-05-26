@@ -68,6 +68,22 @@ invasive way to prototype the frontend switch:
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
 
+The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
+discover the experimental hardware contract before emitting poly operations:
+
+- `CPUID.EAX=0x40000000`: `EAX=0x40000001`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
+- `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
+  raw AArch64, and raw RISC-V.
+- `0x40000001.ECX`: feature mask.  Bits `0`-`11` mean raw AArch64, raw RISC-V,
+  neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
+  sret, scalar FP bridging, trap records, user return restoration, x86 TSO
+  foreign ordering, per-thread synthetic banks, and deterministic compatibility
+  syscall/libcall traps.
+- `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
+  because the Bochs prototype still uses synthetic banks rather than an
+  OS-visible foreign XSAVE state component.
+
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:
 
