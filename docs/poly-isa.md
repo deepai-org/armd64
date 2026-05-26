@@ -15,8 +15,8 @@ implementation should expose CPUID-gated x86 instructions for:
 - `PEXIT`: return to x86_64 fetch without taking an exception.
 - `PCALL.A64.SYSV`: call an AArch64 AAPCS64 target from an x86_64 SysV caller.
 - `PCALL.RV64.SYSV`: call a RISC-V psABI target from an x86_64 SysV caller.
-- Descriptor-based `PCALL` forms for stack arguments, aggregates, variadics,
-  unwind metadata, and other cases that cannot be encoded by one fixed shuffle.
+- Descriptor-based `PCALL` forms for aggregates, variadics, unwind metadata,
+  and other cases that cannot be encoded by one fixed shuffle.
 
 The fixed `PCALL` fast path is an architectural ABI bridge, not a custom ABI.
 For common scalar calls, hardware maps x86_64 SysV integer arguments into the
@@ -59,9 +59,11 @@ The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register
 fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` plus stack
 slots `[RSP+8]` and `[RSP+16]` are mapped to AArch64 `x0`-`x7` or RISC-V
-`a0`-`a7`; `XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V
-`fa0`-`fa7`; and AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through
-a cookie to the saved x86 continuation.
+`a0`-`a7`; the foreign stack pointer is exposed as the x86 caller stack plus
+24 bytes so the first foreign stack-passed argument is at `[sp]`;
+`XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`; and
+AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
+saved x86 continuation and restores the x86 stack pointer.
 The `polycall` guest tool exercises this path against loaded foreign ELF64
 function payloads rather than inline x86-hosted instruction blobs.
 

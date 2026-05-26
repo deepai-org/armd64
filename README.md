@@ -113,16 +113,20 @@ custom compiler ABI.  The prototype `PCALL.A64.SYSV` and `PCALL.RV64.SYSV`
 forms move the common thunk work into the emulated ISA: they map x86_64 SysV
 integer arguments into AAPCS64 `x0`-`x7` or RISC-V psABI `a0`-`a7`; x86 args
 1-6 come from `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, while args 7-8 come
-from the SysV stack slots at `[RSP+8]` and `[RSP+16]`.  The bridge preserves the
-shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30` or `ra` to a return
-cookie, and enters raw fetch at the `R10` target.  `polycall` verifies this
-against loaded foreign ELF64 function payloads (`aarch64-pcall-sum.elf`,
-`riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`, and
-`riscv-pcall-sum8.elf`).  More complex ABI cases such as additional stack
-arguments, aggregate returns, variadic calls, TLS, unwind, and exceptions still
-need descriptor-driven or software thunk support.  Direct register aliases are
-an implementation optimization only where they match the native ABI contract;
-they are not the external compatibility contract.
+from the SysV stack slots at `[RSP+8]` and `[RSP+16]`.  During the foreign call,
+the hardware bridge saves the x86 `RSP` and exposes the foreign `SP` as
+`RSP+24`, so the first foreign stack argument is visible at `[sp]`; x86 `RSP` is
+restored when the native foreign return hits the return cookie.  The bridge
+preserves the shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30` or
+`ra` to a return cookie, and enters raw fetch at the `R10` target.  `polycall`
+verifies this against loaded foreign ELF64 function payloads
+(`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
+`riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`, and
+`riscv-pcall-sum9.elf`).  More complex ABI cases such as aggregate returns,
+variadic calls, TLS, unwind, and exceptions still need descriptor-driven or
+software thunk support.  Direct register aliases are an implementation
+optimization only where they match the native ABI contract; they are not the
+external compatibility contract.
 
 Cross-ISA returns are expected to use native return instructions.  AArch64
 libraries return with `ret` through `x30`, and RISC-V libraries return with
