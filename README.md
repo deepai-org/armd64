@@ -124,8 +124,9 @@ verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`, and
 `riscv-pcall-sum9.elf`) plus compiler-shaped stack-frame payloads
-(`aarch64-pcall-frame.elf` and `riscv-pcall-frame.elf`) that use native `SP`
-adjustment, stack load/store, and teardown before returning.  More complex ABI
+(`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`, and
+`riscv-pcall-frame.elf`) that use native `SP` adjustment, stack load/store,
+pair frame save/restore where applicable, and teardown before returning.  More complex ABI
 cases such as aggregate returns, variadic calls, TLS, unwind, and exceptions
 still need descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
@@ -151,7 +152,8 @@ The direct-fetch AArch64 path covers the generated/probed subset used by
 `movk`, `add`/`sub` immediate forms including `SP`, shifted-register
 `add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch, `cbz`/`cbnz`, native
 `ret`, `dmb`/`dsb`/`isb`, scalar double `fadd`/`fsub`/`fmul` and register
-`fmov`, generic byte/halfword/word/dword load-store forms, `svc`, and `brk`.
+`fmov`, generic byte/halfword/word/dword load-store forms, 64-bit
+`stp`/`ldp` pair load-store forms, `svc`, and `brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM
