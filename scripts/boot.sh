@@ -1323,6 +1323,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-eventfd2.elf" 0xd2800060 0xd2800001 0xd2800268 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dup3.elf" 0xd28000a0 0xd2800101 0xd2800002 0xd2800308 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pipe2.elf" 0xaa0103e2 0xaa0103e0 0xd2800001 0xd2800768 0xd4000001 0xb9400040
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-timerfd-create.elf" 0xd2800020 0xd2800001 0xd2800aa8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-timerfd-settime.elf" 0xaa0103e4 0xd28001a0 0xd2800001 0xaa0403e2 0xaa0403e3 0xd2800ac8 0xd4000001 0xf9400880
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-timerfd-gettime.elf" 0xaa0103e2 0xd28001a0 0xaa0203e1 0xd2800ae8 0xd4000001 0xf9400840
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-read.elf" 0xd2800000 0x91000021 0xd2800082 0xd28007e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-readv.elf" 0xaa0103e3 0xf9000023 0xd2800084 0xf9000424 0xd2800000 0xd2800022 0xd2800828 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-write.elf" 0xd2800020 0x91000021 0xd28000a2 0xd2800808 0xd4000001
@@ -1463,6 +1466,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-eventfd2.elf" 0x00300513 0x00000593 0x01300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-dup3.elf" 0x00500513 0x00800593 0x00000613 0x01800893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pipe2.elf" 0x00058613 0x00058513 0x00000593 0x03b00893 0x00000073 0x00062503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-timerfd-create.elf" 0x00100513 0x00000593 0x05500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-timerfd-settime.elf" 0x00058293 0x00d00513 0x00000593 0x00028613 0x00028693 0x05600893 0x00000073 0x0102b503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-timerfd-gettime.elf" 0x00058293 0x00d00513 0x00028593 0x05700893 0x00000073 0x0102b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-read.elf" 0x00000513 0x00058593 0x00400613 0x03f00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-readv.elf" 0x00058293 0x0055b023 0x00400313 0x0065b423 0x00000513 0x00100613 0x04100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-write.elf" 0x00100513 0x00058593 0x00500613 0x04000893 0x00000073
@@ -1696,6 +1702,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-eventfd2.elf=7 \
     /usr/lib/polyapps/aarch64-dup3.elf=8 \
     /usr/lib/polyapps/aarch64-pipe2.elf=9 \
+    /usr/lib/polyapps/aarch64-timerfd-create.elf=13 \
+    /usr/lib/polyapps/aarch64-timerfd-settime.elf=21 \
+    /usr/lib/polyapps/aarch64-timerfd-gettime.elf=34 \
     /usr/lib/polyapps/aarch64-read.elf=4 \
     /usr/lib/polyapps/aarch64-readv.elf=4 \
     /usr/lib/polyapps/aarch64-write.elf=5 \
@@ -1809,6 +1818,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-eventfd2.elf=7 \
     /usr/lib/polyapps/riscv-dup3.elf=8 \
     /usr/lib/polyapps/riscv-pipe2.elf=9 \
+    /usr/lib/polyapps/riscv-timerfd-create.elf=13 \
+    /usr/lib/polyapps/riscv-timerfd-settime.elf=21 \
+    /usr/lib/polyapps/riscv-timerfd-gettime.elf=34 \
     /usr/lib/polyapps/riscv-read.elf=4 \
     /usr/lib/polyapps/riscv-readv.elf=4 \
     /usr/lib/polyapps/riscv-write.elf=5 \
@@ -2191,6 +2203,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-eventfd2.elf \
     /usr/lib/polyapps/aarch64-dup3.elf \
     /usr/lib/polyapps/aarch64-pipe2.elf \
+    /usr/lib/polyapps/aarch64-timerfd-create.elf \
+    /usr/lib/polyapps/aarch64-timerfd-settime.elf \
+    /usr/lib/polyapps/aarch64-timerfd-gettime.elf \
     /usr/lib/polyapps/aarch64-read.elf \
     /usr/lib/polyapps/aarch64-readv.elf \
     /usr/lib/polyapps/aarch64-write.elf \
@@ -2304,6 +2319,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-eventfd2.elf \
     /usr/lib/polyapps/riscv-dup3.elf \
     /usr/lib/polyapps/riscv-pipe2.elf \
+    /usr/lib/polyapps/riscv-timerfd-create.elf \
+    /usr/lib/polyapps/riscv-timerfd-settime.elf \
+    /usr/lib/polyapps/riscv-timerfd-gettime.elf \
     /usr/lib/polyapps/riscv-read.elf \
     /usr/lib/polyapps/riscv-readv.elf \
     /usr/lib/polyapps/riscv-write.elf \

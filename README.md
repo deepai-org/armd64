@@ -673,11 +673,12 @@ numbers currently include:
   `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `getpid`,
   `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
   `getpgid(0)`, `getsid(0)`, `rseq`, `exit`, and `exit_group`.
-- File-style syscalls: `getcwd`, `eventfd2`, `dup3`, `pipe2`, `read`,
-  `readv`, `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`,
-  `pselect6`, `ppoll`, `epoll_create1`, `epoll_ctl`, `epoll_pwait`,
-  `openat`, `readlinkat`, `newfstatat`, `fstat`, `statx`, `close`,
-  `getdents64`, `lseek`, and `uname`.
+- File-style syscalls: `getcwd`, `eventfd2`, `dup3`, `pipe2`,
+  `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
+  `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `pselect6`,
+  `ppoll`, `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`,
+  `readlinkat`, `newfstatat`, `fstat`, `statx`, `close`, `getdents64`,
+  `lseek`, and `uname`.
 - Network-style syscalls: `socket`, `socketpair`, `bind`, `listen`,
   `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.
