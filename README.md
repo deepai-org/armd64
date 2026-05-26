@@ -168,9 +168,9 @@ The current register bridge aliases the overlapping caller-visible integer ABI:
   RISC-V `a0`.
 - x86_64 `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` map to AArch64 `x1`-`x6`
   and RISC-V `a1`-`a6`.
-- x86_64 `RSP` maps to RISC-V `sp`; AArch64 `x31` is still decoded as zero for
-  general register operands, with load/store base handling treating `x31` as
-  `SP`.
+- x86_64 `RSP` maps to RISC-V `sp` and to AArch64 `SP` where the AArch64
+  encoding defines register 31 as stack pointer.  AArch64 operands that define
+  register 31 as zero register still read as `XZR/WZR`.
 - x86_64 `XMM0`-`XMM7` low lanes map to AArch64 scalar `s0`/`d0`-`s7`/`d7`
   and RISC-V `fa0`-`fa7` for the currently decoded scalar float/double FP
   subset.

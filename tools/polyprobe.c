@@ -26,6 +26,12 @@ static inline uint64_t read_rax(void) {
   return value;
 }
 
+static inline uint64_t read_rsp(void) {
+  uint64_t value;
+  asm volatile("movq %%rsp, %0" : "=r"(value));
+  return value;
+}
+
 static inline uint64_t read_xmm0_u64(void) {
   uint64_t value;
   asm volatile("movq %%xmm0, %0" : "=r"(value));
@@ -89,6 +95,20 @@ static inline void poly_opcode_riscv_arith_probe(void) {
     ".long 0x00550513\n" // addi a0,a0,5
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "memory");
+}
+
+static inline void raw_aarch64_sp_probe(void) {
+  asm volatile(
+    "movq $19, %%rax\n"
+    "movq $23, %%rdi\n"
+    ".byte 0x0f,0x24,0x01,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".long 0xd10043ff\n" // sub sp,sp,#16
+    ".long 0xa90007e0\n" // stp x0,x1,[sp]
+    ".long 0xa9400fe2\n" // ldp x2,x3,[sp]
+    ".long 0x8b030040\n" // add x0,x2,x3
+    ".long 0x910043ff\n" // add sp,sp,#16
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rdx", "rsi", "rdi", "memory");
 }
 
 static inline void raw_aarch64_wide_regs_probe(void) {
@@ -456,6 +476,17 @@ int main(void) {
   poly_opcode_riscv_arith_probe();
   if (read_rax() != 22) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 poly opcode riscv stream mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: aarch64-sp");
+  uint64_t rsp_before = read_rsp();
+  raw_aarch64_sp_probe();
+  uint64_t rsp_after = read_rsp();
+  if (read_rax() != 42 || rsp_after != rsp_before) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 SP frame mismatch result=%llu rsp_before=0x%llx rsp_after=0x%llx\n",
+      (unsigned long long) read_rax(), (unsigned long long) rsp_before,
+      (unsigned long long) rsp_after);
     return 1;
   }
 
