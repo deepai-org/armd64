@@ -93,14 +93,16 @@ accepted through `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including
 `R_AARCH64_JUMP_SLOT` and `R_RISCV_JUMP_SLOT` entries for defined symbols.
 Undefined object-symbol relocations can bind to process-provided imports; the
 gate covers `poly_import_value` through an undefined dynamic symbol relocation.
-Imported function symbols can bind to a prototype hardware call-gate cookie;
-AArch64 `blr` or RISC-V `jalr` to that cookie maps the native foreign argument
-registers through an x86/runtime import target, writes the native foreign return
-register, and resumes at the foreign link address. The gate currently covers
-`poly_import_add` as a deterministic imported function call. A raw x86 function
-address is still not itself a valid AArch64 or RISC-V branch target; production
-hardware needs either this kind of architectural call gate or an OS/runtime
-descriptor that names the x86 callable target.
+Imported function symbols can bind to prototype hardware call-descriptor
+slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
+foreign argument registers through an x86/runtime import target, writes the
+native foreign return register, and resumes at the foreign link address. The
+gate currently covers deterministic `poly_import_add` and `poly_import_mul`
+descriptors, proving that distinct undefined function symbols can dispatch
+through separate descriptor slots. A raw x86 function address is still not
+itself a valid AArch64 or RISC-V branch target; production hardware needs
+either this kind of architectural call gate or an OS/runtime descriptor that
+names the x86 callable target and ABI metadata.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:

@@ -36,7 +36,8 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polycall.c` loads generated foreign ELF64 function payloads and calls
   their entrypoints through the prototype hardware ABI bridge (`PCALL`), so
   the return path uses ordinary AArch64/RISC-V return instructions rather than
-  raw escape instructions.
+  raw escape instructions. It also resolves prototype foreign `JUMP_SLOT`
+  function imports to hardware call-descriptor slots.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks one mixed raw AArch64-to-RISC-V code blob.
@@ -142,10 +143,11 @@ symbol counts and `DT_JMPREL`/`JUMP_SLOT` PLT relocations for sectionless
 dynamic objects, undefined object-symbol imports
 (`aarch64-pcall-import.elf`, `riscv-pcall-import.elf`), prototype imported
 function call gates (`aarch64-pcall-import-func.elf`,
-`riscv-pcall-import-func.elf`), and teardown before returning.
-More complex ABI cases such as arbitrary imported function descriptors,
+`aarch64-pcall-import-mul.elf`, `riscv-pcall-import-func.elf`,
+`riscv-pcall-import-mul.elf`), and teardown before returning.
+More complex ABI cases such as arbitrary external import target descriptors,
 aggregate returns, variadic calls, TLS, unwind, and exceptions still need
-descriptor-driven or software thunk support.  Direct register
+full descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
 contract; they are not the external compatibility contract.
 

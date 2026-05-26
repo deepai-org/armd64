@@ -18,7 +18,13 @@ enum {
   RELOC_BASE_IMPORT_CALL = 3
 };
 
-static const uint64_t POLY_IMPORT_CALL_COOKIE = 0xffffffffffffe000ULL;
+static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
+static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
+
+enum {
+  POLY_IMPORT_FUNC_ADD = 0,
+  POLY_IMPORT_FUNC_MUL = 1
+};
 
 struct poly_dynamic_reloc {
   size_t offset;
@@ -266,6 +272,19 @@ static int symbolic_64_reloc_type_for_arch(int arch, uint32_t type) {
 
 static const uint64_t poly_import_value = 123;
 
+static int resolve_import_function(const char *symbol_name,
+    uint64_t *symbol_value) {
+  if (strcmp(symbol_name, "poly_import_add") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ADD * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_mul") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MUL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  return -1;
+}
+
 static int append_dynamic_reloc(struct poly_program *program, size_t offset,
     uint64_t value, int base_kind) {
   if (program->reloc_count >= MAX_DYNAMIC_RELOCS) {
@@ -438,8 +457,7 @@ static int resolve_external_reloc_symbol(const struct poly_program *program,
     *base_kind = RELOC_BASE_IMPORT_PAGE;
     return 0;
   }
-  if (strcmp(symbol_name, "poly_import_add") == 0) {
-    *symbol_value = 0;
+  if (resolve_import_function(symbol_name, symbol_value) == 0) {
     *base_kind = RELOC_BASE_IMPORT_CALL;
     return 0;
   }
@@ -860,7 +878,7 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_PAGE)
       reloc_base = (uint64_t) (uintptr_t) import_page;
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_CALL)
-      reloc_base = POLY_IMPORT_CALL_COOKIE;
+      reloc_base = POLY_IMPORT_CALL_BASE;
     const uint64_t reloc_value = program->relocs[n].value + reloc_base;
     write_le64(foreign + program->relocs[n].offset, reloc_value);
   }
