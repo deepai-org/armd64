@@ -579,12 +579,13 @@ compiler-produced foreign objects can call those routines through ordinary
 PLT/GOT entries without using synthetic breakpoint libcalls. The neutral
 cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,
 `memcpy`, and three-argument `memcmp` calls inside foreign callees, proving
-descriptor imports are not limited to x86-entered `PCALL` payloads. The gate also covers
-`poly_import_x86_add`, where the descriptor
-enters a real x86_64 helper target supplied by the runtime, synthesizes an x86
-return address to a nearby dedicated `0f 24` `PIRET` landing pad, lets the
-helper use an ordinary `ret`, and then resumes the saved AArch64/RISC-V return
-PC with the x86 `RAX` result mapped back to the native foreign return register.
+descriptor imports are not limited to x86-entered `PCALL` payloads. The gate
+also covers `poly_import_x86_add` and `poly_import_x86_mul`, where descriptor
+slots select real x86_64 helper targets from a runtime-supplied table,
+synthesize an x86 return address to a nearby dedicated `0f 24` `PIRET` landing
+pad, let the helper use an ordinary `ret`, and then resume the saved
+AArch64/RISC-V return PC with the x86 `RAX` result mapped back to the native
+foreign return register.
 A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.

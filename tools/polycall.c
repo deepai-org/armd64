@@ -76,6 +76,7 @@ enum {
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
+static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 16;
 
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
@@ -183,7 +184,9 @@ enum {
   POLY_IMPORT_FUNC_UNORDTF2 = 102,
   POLY_IMPORT_FUNC_FLOATUNSITF = 103,
   POLY_IMPORT_FUNC_FIXTFSI = 104,
-  POLY_IMPORT_FUNC_FIXUNSTFSI = 105
+  POLY_IMPORT_FUNC_FIXUNSTFSI = 105,
+  POLY_IMPORT_FUNC_X86_SLOT0 = 106,
+  POLY_IMPORT_FUNC_X86_SLOT1 = 107
 };
 
 struct poly_dynamic_reloc {
@@ -658,7 +661,11 @@ static int resolve_import_function(const char *symbol_name,
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
-    *symbol_value = POLY_IMPORT_FUNC_X86_ADD * POLY_IMPORT_CALL_STRIDE;
+    *symbol_value = POLY_IMPORT_FUNC_X86_SLOT0 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_mul") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_X86_SLOT1 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_fp64_add") == 0) {
@@ -1224,7 +1231,8 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     return 0;
   }
   if (resolve_import_function(symbol_name, symbol_value) == 0) {
-    if (strcmp(symbol_name, "poly_import_x86_add") == 0)
+    if (strcmp(symbol_name, "poly_import_x86_add") == 0 ||
+        strcmp(symbol_name, "poly_import_x86_mul") == 0)
       program->needs_x86_import = 1;
     *base_kind = RELOC_BASE_IMPORT_CALL;
     return 0;
@@ -2114,13 +2122,19 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t save_tls_size = 5;
   const size_t restore_tls_size = 5;
   const size_t tls_setup_size = 10;
+  const size_t host_add_size = 13;
+  const size_t host_mul_size = 14;
   const size_t pcall_return_offset = save_regs_size + save_tls_size +
     10 + 10 + tls_setup_size + import_setup_size + 8;
   const size_t main_stub_size = pcall_return_offset + restore_regs_size +
     restore_tls_size + 1;
-  const size_t host_helper_size = needs_x86_import ? 13 : 0;
+  const size_t host_helper_size = needs_x86_import ?
+    host_add_size + host_mul_size : 0;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
-  const size_t stub_size = main_stub_size + host_helper_size + import_return_size;
+  const size_t import_descriptor_size = needs_x86_import ?
+    2 * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
+  const size_t stub_size = main_stub_size + host_helper_size +
+    import_return_size + import_descriptor_size;
   const size_t code_size = stub_size;
   const size_t foreign_size = program->image_size;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -2162,7 +2176,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + pcall_return_offset);
-  const uint64_t import_x86_target = (uint64_t) (uintptr_t) (code + main_stub_size);
+  const uint64_t import_x86_add_target = (uint64_t) (uintptr_t) (code + main_stub_size);
+  const uint64_t import_x86_mul_target = import_x86_add_target + host_add_size;
+  const uint64_t import_x86_return = import_x86_mul_target + host_mul_size;
+  const uint64_t import_x86_table = import_x86_return + import_return_size;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   if (needs_x86_import)
     emit_save_import_regs(code, &offset);
@@ -2173,7 +2190,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t tls_imm_offset = offset + 2;
   emit_movabs_r13(code, &offset, 0);
   if (needs_x86_import) {
-    emit_movabs_r12(code, &offset, import_x86_target);
+    emit_movabs_r12(code, &offset, import_x86_table);
   }
   const size_t pcall_opcode_offset = offset;
   if (program->arch == POLY_ARCH_AARCH64) {
@@ -2221,17 +2238,29 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   emit_restore_tls_reg(code, &offset);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
-    const uint8_t host_helper[] = {
+    const uint8_t host_add[] = {
       0x48, 0x89, 0xf8,             // mov rax,rdi
       0x48, 0x01, 0xf0,             // add rax,rsi
       0x48, 0x05, 0xc8, 0x00, 0x00, 0x00, // add rax,200
       0xc3                          // ret
     };
-    memcpy(code + offset, host_helper, sizeof(host_helper));
-    offset += sizeof(host_helper);
+    const uint8_t host_mul[] = {
+      0x48, 0x89, 0xf8,             // mov rax,rdi
+      0x48, 0x0f, 0xaf, 0xc6,       // imul rax,rsi
+      0x48, 0x05, 0xc8, 0x00, 0x00, 0x00, // add rax,200
+      0xc3                          // ret
+    };
+    memcpy(code + offset, host_add, sizeof(host_add));
+    offset += sizeof(host_add);
+    memcpy(code + offset, host_mul, sizeof(host_mul));
+    offset += sizeof(host_mul);
     const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, import_return, sizeof(import_return));
     offset += sizeof(import_return);
+    emit_u64(code, &offset, import_x86_add_target);
+    emit_u64(code, &offset, import_x86_return);
+    emit_u64(code, &offset, import_x86_mul_target);
+    emit_u64(code, &offset, import_x86_return);
   }
   if (offset != code_size) {
     fprintf(stderr, "POLYCALL_FAIL: internal x86 stub size mismatch\n");

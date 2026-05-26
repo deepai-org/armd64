@@ -447,17 +447,18 @@ function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
 `riscv-pcall-import-func.elf`, `riscv-pcall-import-cjalr.elf`,
 `riscv-pcall-import-cjr.elf`, `riscv-pcall-import-mul.elf`,
-`riscv-pcall-import-x86.elf`) plus real compiler-emitted PLT/GOT calls to
+`riscv-pcall-import-x86.elf`, `aarch64-pcall-import-x86-mul.elf`, and
+`riscv-pcall-import-x86-mul.elf`) plus real compiler-emitted PLT/GOT calls to
 `poly_import_add`, `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`, `bcmp`,
 `bcopy`, `bzero`, `strcasecmp`, `strncasecmp`, `strcasestr`, `index`, and `rindex`, and teardown
 before returning.
-The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
-an x86 return address to the dedicated `0f 24` `PIRET`, accepts the helper's
-ordinary `ret`, and maps the x86 `RAX` result back to AArch64 `x0` or RISC-V
-`a0`.
+The `poly_import_x86_add` and `poly_import_x86_mul` descriptors enter real
+x86_64 helpers through a runtime-supplied descriptor table, synthesize an x86
+return address to the dedicated `0f 24` `PIRET`, accept each helper's ordinary
+`ret`, and map the x86 `RAX` result back to AArch64 `x0` or RISC-V `a0`.
 The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
 common GCC AArch64 outline
