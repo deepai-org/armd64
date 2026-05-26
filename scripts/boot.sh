@@ -1320,6 +1320,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memfill.elf" 0xd2800080 0xd2800822 0xd4200040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcmp.elf" 0xd2800083 0x91000422 0xd4200060
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcpy.elf" 0xd2800080 0x91000422 0xd4200080
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-eventfd2.elf" 0xd2800060 0xd2800001 0xd2800268 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dup3.elf" 0xd28000a0 0xd2800101 0xd2800002 0xd2800308 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pipe2.elf" 0xaa0103e2 0xaa0103e0 0xd2800001 0xd2800768 0xd4000001 0xb9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-read.elf" 0xd2800000 0x91000021 0xd2800082 0xd28007e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-readv.elf" 0xaa0103e3 0xf9000023 0xd2800084 0xf9000424 0xd2800000 0xd2800022 0xd2800828 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-write.elf" 0xd2800020 0x91000021 0xd28000a2 0xd2800808 0xd4000001
@@ -1334,6 +1337,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-epoll-ctl.elf" 0xd2800080 0xd2800041 0xd2800062 0xd2800003 0xd28002a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-epoll-pwait.elf" 0xd2800080 0xd2800001 0xd2800002 0xd2800003 0xd2800004 0xd2800005 0xd28002c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-socket.elf" 0xd2800040 0xd2800021 0xd2800002 0xd28018c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-socketpair.elf" 0xaa0103e3 0xd2800040 0xd2800021 0xd2800002 0xd28018e8 0xd4000001 0xb9400060
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-bind.elf" 0xd28000a0 0xd2800001 0xd2800002 0xd2801908 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-listen.elf" 0xd28000a0 0xd2800021 0xd2801928 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-accept.elf" 0xd28000a0 0xd2800001 0xd2800002 0xd2801948 0xd4000001
@@ -1456,6 +1460,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memfill.elf" 0x00400513 0x05200613 0x00200893 0x00100073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memcmp.elf" 0x00400693 0x00158613 0x00300893 0x00100073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memcpy.elf" 0x00400513 0x00158613 0x00400893 0x00100073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-eventfd2.elf" 0x00300513 0x00000593 0x01300893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-dup3.elf" 0x00500513 0x00800593 0x00000613 0x01800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pipe2.elf" 0x00058613 0x00058513 0x00000593 0x03b00893 0x00000073 0x00062503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-read.elf" 0x00000513 0x00058593 0x00400613 0x03f00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-readv.elf" 0x00058293 0x0055b023 0x00400313 0x0065b423 0x00000513 0x00100613 0x04100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-write.elf" 0x00100513 0x00058593 0x00500613 0x04000893 0x00000073
@@ -1470,6 +1477,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-epoll-ctl.elf" 0x00400513 0x00200593 0x00300613 0x00000693 0x01500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-epoll-pwait.elf" 0x00400513 0x00000593 0x00000613 0x00000693 0x00000713 0x00000793 0x01600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-socket.elf" 0x00200513 0x00100593 0x00000613 0x0c600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-socketpair.elf" 0x00058693 0x00200513 0x00100593 0x00000613 0x0c700893 0x00000073 0x0006a503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-bind.elf" 0x00500513 0x00000593 0x00000613 0x0c800893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-listen.elf" 0x00500513 0x00100593 0x0c900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-accept.elf" 0x00500513 0x00000593 0x00000613 0x0ca00893 0x00000073
@@ -1685,6 +1693,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-memfill.elf=4 \
     /usr/lib/polyapps/aarch64-memcmp.elf=1 \
     /usr/lib/polyapps/aarch64-memcpy.elf=4 \
+    /usr/lib/polyapps/aarch64-eventfd2.elf=7 \
+    /usr/lib/polyapps/aarch64-dup3.elf=8 \
+    /usr/lib/polyapps/aarch64-pipe2.elf=9 \
     /usr/lib/polyapps/aarch64-read.elf=4 \
     /usr/lib/polyapps/aarch64-readv.elf=4 \
     /usr/lib/polyapps/aarch64-write.elf=5 \
@@ -1699,6 +1710,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-epoll-ctl.elf=0 \
     /usr/lib/polyapps/aarch64-epoll-pwait.elf=0 \
     /usr/lib/polyapps/aarch64-socket.elf=5 \
+    /usr/lib/polyapps/aarch64-socketpair.elf=11 \
     /usr/lib/polyapps/aarch64-bind.elf=0 \
     /usr/lib/polyapps/aarch64-listen.elf=0 \
     /usr/lib/polyapps/aarch64-accept.elf=6 \
@@ -1794,6 +1806,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-memfill.elf=4 \
     /usr/lib/polyapps/riscv-memcmp.elf=1 \
     /usr/lib/polyapps/riscv-memcpy.elf=4 \
+    /usr/lib/polyapps/riscv-eventfd2.elf=7 \
+    /usr/lib/polyapps/riscv-dup3.elf=8 \
+    /usr/lib/polyapps/riscv-pipe2.elf=9 \
     /usr/lib/polyapps/riscv-read.elf=4 \
     /usr/lib/polyapps/riscv-readv.elf=4 \
     /usr/lib/polyapps/riscv-write.elf=5 \
@@ -1808,6 +1823,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-epoll-ctl.elf=0 \
     /usr/lib/polyapps/riscv-epoll-pwait.elf=0 \
     /usr/lib/polyapps/riscv-socket.elf=5 \
+    /usr/lib/polyapps/riscv-socketpair.elf=11 \
     /usr/lib/polyapps/riscv-bind.elf=0 \
     /usr/lib/polyapps/riscv-listen.elf=0 \
     /usr/lib/polyapps/riscv-accept.elf=6 \
@@ -2172,6 +2188,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-memfill.elf \
     /usr/lib/polyapps/aarch64-memcmp.elf \
     /usr/lib/polyapps/aarch64-memcpy.elf \
+    /usr/lib/polyapps/aarch64-eventfd2.elf \
+    /usr/lib/polyapps/aarch64-dup3.elf \
+    /usr/lib/polyapps/aarch64-pipe2.elf \
     /usr/lib/polyapps/aarch64-read.elf \
     /usr/lib/polyapps/aarch64-readv.elf \
     /usr/lib/polyapps/aarch64-write.elf \
@@ -2186,6 +2205,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-epoll-ctl.elf \
     /usr/lib/polyapps/aarch64-epoll-pwait.elf \
     /usr/lib/polyapps/aarch64-socket.elf \
+    /usr/lib/polyapps/aarch64-socketpair.elf \
     /usr/lib/polyapps/aarch64-bind.elf \
     /usr/lib/polyapps/aarch64-listen.elf \
     /usr/lib/polyapps/aarch64-accept.elf \
@@ -2281,6 +2301,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-memfill.elf \
     /usr/lib/polyapps/riscv-memcmp.elf \
     /usr/lib/polyapps/riscv-memcpy.elf \
+    /usr/lib/polyapps/riscv-eventfd2.elf \
+    /usr/lib/polyapps/riscv-dup3.elf \
+    /usr/lib/polyapps/riscv-pipe2.elf \
     /usr/lib/polyapps/riscv-read.elf \
     /usr/lib/polyapps/riscv-readv.elf \
     /usr/lib/polyapps/riscv-write.elf \
@@ -2295,6 +2318,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-epoll-ctl.elf \
     /usr/lib/polyapps/riscv-epoll-pwait.elf \
     /usr/lib/polyapps/riscv-socket.elf \
+    /usr/lib/polyapps/riscv-socketpair.elf \
     /usr/lib/polyapps/riscv-bind.elf \
     /usr/lib/polyapps/riscv-listen.elf \
     /usr/lib/polyapps/riscv-accept.elf \
