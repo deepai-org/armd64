@@ -168,7 +168,9 @@ function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-built compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
-`riscv-pcall-cbz-real.so#poly_entry`), compiler-built signed-extension
+`riscv-pcall-cbz-real.so#poly_entry`), compiler-built bit-test branch
+objects (`aarch64-pcall-bitbranch-real.so#poly_entry` and
+`riscv-pcall-bitbranch-real.so#poly_entry`), compiler-built signed-extension
 objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
 `riscv-pcall-signed-ext-real.so#poly_entry`), compiler-built signed-load
 objects (`aarch64-pcall-signed-load-real.so#poly_entry` and
@@ -296,7 +298,8 @@ unsigned bitfield aliases `uxtb`/`uxth`/`lsl`/`lsr`/`ubfx`,
 signed bitfield aliases `sxtb`/`sxth`/`sxtw`/`asr`/`sbfx`,
 unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
-`cbz`/`cbnz`, conditional select `csel`/`csinc`/`csinv`/`csneg`,
+`cbz`/`cbnz`, bit-test branch `tbz`/`tbnz`,
+conditional select `csel`/`csinc`/`csinv`/`csneg`,
 logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, fused multiply-add `fmadd`,

@@ -145,7 +145,9 @@ objects (`aarch64-pcall-ctor-real.so#poly_entry` and
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-produced compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
-`riscv-pcall-cbz-real.so#poly_entry`), compiler-produced signed-extension
+`riscv-pcall-cbz-real.so#poly_entry`), compiler-produced bit-test branch
+objects (`aarch64-pcall-bitbranch-real.so#poly_entry` and
+`riscv-pcall-bitbranch-real.so#poly_entry`), compiler-produced signed-extension
 objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
 `riscv-pcall-signed-ext-real.so#poly_entry`), compiler-produced signed-load
 objects (`aarch64-pcall-signed-load-real.so#poly_entry` and
@@ -231,7 +233,9 @@ entrypoint. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst`, `csel`, and conditional-select variants
 `csinc`/`csinv`/`csneg`, plus RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
-non-`x0` registers and RISC-V ordinary branch forms. The unsigned-bitfield
+non-`x0` registers and RISC-V ordinary branch forms. The bit-test branch probes
+exercise compiler-emitted AArch64 `tbz`/`tbnz` plus matching RISC-V branch
+sequences. The unsigned-bitfield
 probes exercise compiler-emitted AArch64 `lsl`/`ubfx` aliases and RISC-V
 shift/mask sequences. The signed-extension probes exercise compiler-emitted
 AArch64 `sxth`, `sbfx`, plus `add ... asr/sxtb/sxth/sxtw` and
