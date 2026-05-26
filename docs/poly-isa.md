@@ -167,7 +167,11 @@ indexed-memory objects (`aarch64-pcall-fp64-indexed-mem-real.so#poly_entry` and
 double FP conversion objects (`aarch64-pcall-fp64-convert-real.so#poly_entry` and
 `riscv-pcall-fp64-convert-real.so#poly_entry`) plus signed conversion objects
 (`aarch64-pcall-fp64-signed-convert-real.so#poly_entry` and
-`riscv-pcall-fp64-signed-convert-real.so#poly_entry`), and compiler-produced scalar
+`riscv-pcall-fp64-signed-convert-real.so#poly_entry`) and 32-bit conversion
+objects (`aarch64-pcall-fp64-i32-convert-real.so#poly_entry`,
+`riscv-pcall-fp64-i32-convert-real.so#poly_entry`,
+`aarch64-pcall-fp64-u32-convert-real.so#poly_entry`, and
+`riscv-pcall-fp64-u32-convert-real.so#poly_entry`), and compiler-produced scalar
 float FP objects (`aarch64-pcall-fp32-real.so#poly_entry` and
 `riscv-pcall-fp32-real.so#poly_entry`) plus compiler-produced scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
@@ -188,7 +192,9 @@ compiler-emitted AArch64 scalar FP register-offset `ldr`/`str` forms and
 RISC-V shift/add plus `fld`/`fsd` indexed sequences. The FP conversion probes
 exercise compiler-emitted AArch64 `fcvtzu` and RISC-V `fcvt.lu.d` for positive
 finite double-to-unsigned-integer conversion plus AArch64 `fcvtzs` and RISC-V
-`fcvt.l.d` for finite double-to-signed-integer conversion. The FP import probes exercise real
+`fcvt.l.d` for finite double-to-signed-integer conversion. The 32-bit FP
+conversion probes exercise AArch64 `fcvtzs`/`fcvtzu` `w` destinations and
+RISC-V `fcvt.w.d`/`fcvt.wu.d`. The FP import probes exercise real
 PLT/GOT calls to
 `poly_import_fp64_add` and verify descriptor-dispatched FP arguments and return
 values. The imported-object probes exercise real compiler-emitted GOT loads of
