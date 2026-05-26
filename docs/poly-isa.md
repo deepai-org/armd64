@@ -114,7 +114,9 @@ the x86 frame with stack arguments copied from `[RSP+24]` onward so the first
 foreign stack-passed argument is at `[sp]`;
 `XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`,
 covering scalar FP arguments/returns and two-register homogeneous double
-aggregate arguments and returns through `XMM0`/`XMM1`; and
+aggregate arguments and returns through `XMM0`/`XMM1`, including mixed
+integer/FP signatures where GPR and XMM lanes are consumed in one native call;
+and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
 saved x86 continuation, maps AArch64 `x0` or RISC-V `a0` back to x86 `RAX`,
 maps AArch64 `x1` or RISC-V `a1` back to x86 `RDX` for ordinary two-word
@@ -215,7 +217,9 @@ objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 double aggregate return objects (`aarch64-pcall-fpair-real.so#poly_entry` and
 `riscv-pcall-fpair-real.so#poly_entry`), homogeneous double aggregate argument
 objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
-`riscv-pcall-fpair-arg-real.so#poly_entry`), and scalar double FP
+`riscv-pcall-fpair-arg-real.so#poly_entry`), mixed integer/FP argument objects
+(`aarch64-pcall-mixed-args-real.so#poly_entry` and
+`riscv-pcall-mixed-args-real.so#poly_entry`), and scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`), compiler-produced scalar double
 FP callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and

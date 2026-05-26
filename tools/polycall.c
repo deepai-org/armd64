@@ -36,6 +36,7 @@ enum {
   POLY_CALL_SRET_U64 = 4,
   POLY_CALL_FPAIR64 = 5,
   POLY_CALL_FPAIR64_ARG = 6,
+  POLY_CALL_MIXED_ARGS = 7,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   RELOC_BASE_ABSOLUTE = 0,
@@ -135,6 +136,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "fpairarg:", 9) == 0) {
     request->call_kind = POLY_CALL_FPAIR64_ARG;
     arg += 9;
+  }
+  else if (strncmp(arg, "mixedargs:", 10) == 0) {
+    request->call_kind = POLY_CALL_MIXED_ARGS;
+    arg += 10;
   }
   const char *expected = strchr(arg, '=');
   size_t path_len = expected ? (size_t) (expected - arg) : strlen(arg);
@@ -1199,6 +1204,16 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     fp_result.d = entry(pair_arg, 3.0);
     return fp_result.u;
   }
+  if (call_kind == POLY_CALL_MIXED_ARGS) {
+    union {
+      double d;
+      uint64_t u;
+    } fp_result;
+    double (*entry)(uint64_t, double, uint64_t, double, uint64_t, double) =
+      (double (*)(uint64_t, double, uint64_t, double, uint64_t, double)) code;
+    fp_result.d = entry(1, 1.5, 2, 2.25, 3, 3.0);
+    return fp_result.u;
+  }
 
   uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
     (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
@@ -1457,6 +1472,16 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     fp_result.d = entry(pair_arg, 3.0);
     *result = fp_result.u;
   }
+  else if (call_kind == POLY_CALL_MIXED_ARGS) {
+    union {
+      double d;
+      uint64_t u;
+    } fp_result;
+    double (*entry)(uint64_t, double, uint64_t, double, uint64_t, double) =
+      (double (*)(uint64_t, double, uint64_t, double, uint64_t, double)) code;
+    fp_result.d = entry(1, 1.5, 2, 2.25, 3, 3.0);
+    *result = fp_result.u;
+  }
   else {
     uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
       (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
@@ -1524,6 +1549,10 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_FPAIR64_ARG) {
       printf("POLYCALL_RESULT_FPAIR64_ARG: arch=%s bits=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_MIXED_ARGS) {
+      printf("POLYCALL_RESULT_MIXED_ARGS: arch=%s bits=0x%016llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.check_expected) {
