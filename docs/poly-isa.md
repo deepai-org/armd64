@@ -77,8 +77,9 @@ The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register
 fast path: x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9` plus stack
 slots `[RSP+8]` and `[RSP+16]` are mapped to AArch64 `x0`-`x7` or RISC-V
-`a0`-`a7`; the foreign stack pointer is exposed as the x86 caller stack plus
-24 bytes so the first foreign stack-passed argument is at `[sp]`;
+`a0`-`a7`; the foreign stack pointer is a separate 16-byte-aligned window below
+the x86 frame with stack arguments copied from `[RSP+24]` onward so the first
+foreign stack-passed argument is at `[sp]`;
 `XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`; and
 AArch64 `ret x30` or RISC-V `jalr x0, 0(ra)` returns through a cookie to the
 saved x86 continuation and restores the x86 stack pointer.  The AArch64 raw
@@ -105,12 +106,14 @@ table, with section tables kept as a fallback for synthetic test payloads. The
 gate uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
 `aarch64-pcall-state.so#poly_entry`, and
-`riscv-pcall-state.so#poly_entry`) and nonzero `poly_entry` symbol offsets for
-the dynamic-relocation probes so symbol resolution, not the ELF entrypoint,
-selects the target. The stateful `.so` probes exercise compiler-emitted access
-to writable static data in a separate RW `PT_LOAD`. It also includes sectionless
-`dyntab` probes that exercise only `PT_DYNAMIC` symbol metadata. PLT-style
-dynamic relocation tables are also
+`riscv-pcall-state.so#poly_entry`) plus compiler-produced imported-function
+objects (`aarch64-pcall-import-real.so#poly_entry` and
+`riscv-pcall-import-real.so#poly_entry`). Nonzero `poly_entry` symbol offsets
+for the dynamic-relocation probes ensure symbol resolution, not the ELF
+entrypoint, selects the target. The stateful `.so` probes exercise
+compiler-emitted access to writable static data in a separate RW `PT_LOAD`. It
+also includes sectionless `dyntab` probes that exercise only `PT_DYNAMIC` symbol
+metadata. PLT-style dynamic relocation tables are also
 accepted through `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including
 `R_AARCH64_JUMP_SLOT` and `R_RISCV_JUMP_SLOT` entries for defined symbols.
 Undefined object-symbol relocations can bind to process-provided imports; the
@@ -121,7 +124,12 @@ foreign argument registers through an x86/runtime import target, writes the
 native foreign return register, and resumes at the foreign link address. The
 gate covers deterministic `poly_import_add` and `poly_import_mul` descriptors,
 proving that distinct undefined function symbols can dispatch through separate
-descriptor slots. It also covers `poly_import_x86_add`, where the descriptor
+descriptor slots. The compiler-produced import objects exercise real
+PLT/GOT-backed `JUMP_SLOT` calls to `poly_import_add`: AArch64 PLT code may
+branch with `br` after the caller's `bl` saved the continuation in `x30`, and
+RISC-V PLT code may use `jalr` with a scratch link register while preserving
+the caller continuation in `ra`. The gate also covers `poly_import_x86_add`,
+where the descriptor
 enters a real x86_64 helper target supplied by the runtime, synthesizes an x86
 return address to a nearby `PIRET` landing pad, lets the helper use an ordinary
 `ret`, and then resumes the saved AArch64/RISC-V return PC with the x86 `RAX`

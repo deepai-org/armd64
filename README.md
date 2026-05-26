@@ -122,18 +122,21 @@ forms move the common thunk work into the emulated ISA: they map x86_64 SysV
 integer arguments into AAPCS64 `x0`-`x7` or RISC-V psABI `a0`-`a7`; x86 args
 1-6 come from `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, while args 7-8 come
 from the SysV stack slots at `[RSP+8]` and `[RSP+16]`.  During the foreign call,
-the hardware bridge saves the x86 `RSP` and exposes the foreign `SP` as
-`RSP+24`, so the first foreign stack argument is visible at `[sp]`; x86 `RSP` is
-restored when the native foreign return hits the return cookie.  The bridge
-preserves the shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30` or
-`ra` to a return cookie, and enters raw fetch at the `R10` target.  `polycall`
+the hardware bridge saves the x86 `RSP`, exposes a separate 16-byte-aligned
+foreign `SP` window below the x86 frame, and copies stack arguments from
+`[RSP+24]` onward so the first foreign stack argument is visible at `[sp]`; x86
+`RSP` is restored when the native foreign return hits the return cookie.  The
+bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30`
+or `ra` to a return cookie, and enters raw fetch at the `R10` target.  `polycall`
 verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`,
 `riscv-pcall-sum9.elf`, and compiler-produced AArch64/RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
 `aarch64-pcall-state.so#poly_entry`, and
-`riscv-pcall-state.so#poly_entry`) plus compiler-shaped stack-frame payloads
+`riscv-pcall-state.so#poly_entry`) plus compiler-built imported-function
+objects (`aarch64-pcall-import-real.so#poly_entry` and
+`riscv-pcall-import-real.so#poly_entry`) and compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
 `aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
@@ -156,7 +159,8 @@ dynamic objects, undefined object-symbol imports
 function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
 `riscv-pcall-import-func.elf`, `riscv-pcall-import-mul.elf`,
-`riscv-pcall-import-x86.elf`), and teardown before returning.
+`riscv-pcall-import-x86.elf`) plus real compiler-emitted PLT/GOT calls to
+`poly_import_add`, and teardown before returning.
 The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
 an x86 return address to `PIRET`, accepts the helper's ordinary `ret`, and maps
 the x86 `RAX` result back to AArch64 `x0` or RISC-V `a0`.
