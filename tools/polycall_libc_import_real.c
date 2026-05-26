@@ -21,6 +21,9 @@ extern size_t strcspn(const char *, const char *);
 extern char *strpbrk(const char *, const char *);
 extern char *stpcpy(char *, const char *);
 extern char *stpncpy(char *, const char *, size_t);
+extern void *mempcpy(void *, const void *, size_t);
+extern void *rawmemchr(const void *, int);
+extern char *strchrnul(const char *, int);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -123,6 +126,24 @@ static char *call_stpncpy(char *dest, const char *src, size_t count)
   return stpncpy(dest, src, count);
 }
 
+__attribute__((noinline))
+static void *call_mempcpy(void *dest, const void *src, size_t count)
+{
+  return mempcpy(dest, src, count);
+}
+
+__attribute__((noinline))
+static void *call_rawmemchr(const void *base, int needle)
+{
+  return rawmemchr(base, needle);
+}
+
+__attribute__((noinline))
+static char *call_strchrnul(const char *base, int needle)
+{
+  return strchrnul(base, needle);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -137,6 +158,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char nappended[16];
   char stpcopied[16];
   char stpncopied[16];
+  char mempcopied[16];
 
   (void) a0;
   (void) a1;
@@ -158,6 +180,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   memset(nappended, 0, sizeof(nappended));
   memset(stpcopied, 0, sizeof(stpcopied));
   memset(stpncopied, 0x55, sizeof(stpncopied));
+  memset(mempcopied, 0, sizeof(mempcopied));
   memcpy(appended, "poly", 5);
   memcpy(nappended, "hi", 3);
   memmove(overlap + 2, overlap, 5);
@@ -187,6 +210,10 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char *break_not_found = call_strpbrk(buffer, "z");
   char *stpcopy_result = call_stpcpy(stpcopied, buffer);
   char *stpncopy_result = call_stpncpy(stpncopied, "uv", 5);
+  void *mempcopy_result = call_mempcpy(mempcopied, buffer, sizeof(expected));
+  void *raw_found = call_rawmemchr(buffer, '-');
+  char *nul_found = call_strchrnul(buffer, 'c');
+  char *nul_not_found = call_strchrnul(buffer, 'z');
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
@@ -195,6 +222,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   int nappended_same = memcmp(nappended, "hith\0", 5);
   int stpcopied_same = memcmp(stpcopied, expected, sizeof(expected));
   int stpncopied_same = memcmp(stpncopied, "uv\0\0\0", 5);
+  int mempcopied_same = memcmp(mempcopied, expected, sizeof(expected));
   buffer[4] = 'X';
   int different = memcmp(buffer, expected, sizeof(expected));
 
@@ -233,5 +261,10 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (stpncopy_result == stpncopied + 2 ? 3400 : 34000) +
     (stpncopied_same == 0 ? 3500 : 35000) +
     (stpncopied[5] == 0x55 ? 3600 : 36000) +
+    (mempcopy_result == mempcopied + sizeof(expected) ? 3700 : 37000) +
+    (mempcopied_same == 0 ? 3800 : 38000) +
+    (raw_found == buffer + 4 ? 3900 : 39000) +
+    (nul_found == buffer + 8 ? 4000 : 40000) +
+    (nul_not_found == buffer + len ? 4100 : 41000) +
     (unsigned char) buffer[0];
 }

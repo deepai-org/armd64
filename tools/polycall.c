@@ -101,7 +101,10 @@ enum {
   POLY_IMPORT_FUNC_STRCSPN = 28,
   POLY_IMPORT_FUNC_STRPBRK = 29,
   POLY_IMPORT_FUNC_STPCPY = 30,
-  POLY_IMPORT_FUNC_STPNCPY = 31
+  POLY_IMPORT_FUNC_STPNCPY = 31,
+  POLY_IMPORT_FUNC_MEMPCPY = 32,
+  POLY_IMPORT_FUNC_RAWMEMCHR = 33,
+  POLY_IMPORT_FUNC_STRCHRNUL = 34
 };
 
 struct poly_dynamic_reloc {
@@ -569,6 +572,18 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "stpncpy") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STPNCPY * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "mempcpy") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMPCPY * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "rawmemchr") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_RAWMEMCHR * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strchrnul") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRCHRNUL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "__tls_get_addr") == 0) {
