@@ -210,7 +210,8 @@ verifies this against loaded foreign ELF64 function payloads
 `aarch64-pcall-state.so#poly_entry`, and
 `riscv-pcall-state.so#poly_entry`) plus compiler-built imported-function
 objects (`aarch64-pcall-import-real.so#poly_entry` and
-`riscv-pcall-import-real.so#poly_entry`), compiler-built libc-style imported
+`riscv-pcall-import-real.so#poly_entry`,
+`riscv-pcall-import-real-rv64gc.so#poly_entry`), compiler-built libc-style imported
 function objects (`aarch64-pcall-libc-import-real.so#poly_entry` and
 `riscv-pcall-libc-import-real.so#poly_entry`) that call `strlen`, `strcmp`, `strncmp`, `memcpy`,
 `memmove`, `memset`, `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`,

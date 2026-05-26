@@ -242,7 +242,8 @@ uses compiler-produced AArch64 and RISC-V shared objects
 `aarch64-pcall-state.so#poly_entry`, and
 `riscv-pcall-state.so#poly_entry`) plus compiler-produced imported-function
 objects (`aarch64-pcall-import-real.so#poly_entry` and
-`riscv-pcall-import-real.so#poly_entry`), compiler-produced imported-object
+`riscv-pcall-import-real.so#poly_entry`,
+`riscv-pcall-import-real-rv64gc.so#poly_entry`), compiler-produced imported-object
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-produced weak undefined
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
