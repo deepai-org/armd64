@@ -108,11 +108,15 @@ gate uses compiler-produced AArch64 and RISC-V shared objects
 `aarch64-pcall-state.so#poly_entry`, and
 `riscv-pcall-state.so#poly_entry`) plus compiler-produced imported-function
 objects (`aarch64-pcall-import-real.so#poly_entry` and
-`riscv-pcall-import-real.so#poly_entry`). Nonzero `poly_entry` symbol offsets
-for the dynamic-relocation probes ensure symbol resolution, not the ELF
-entrypoint, selects the target. The stateful `.so` probes exercise
-compiler-emitted access to writable static data in a separate RW `PT_LOAD`. It
-also includes sectionless `dyntab` probes that exercise only `PT_DYNAMIC` symbol
+`riscv-pcall-import-real.so#poly_entry`) and compiler-produced scalar double
+FP objects (`aarch64-pcall-fp64-real.so#poly_entry` and
+`riscv-pcall-fp64-real.so#poly_entry`). Nonzero `poly_entry` symbol offsets for
+the dynamic-relocation probes ensure symbol resolution, not the ELF entrypoint,
+selects the target. The stateful `.so` probes exercise compiler-emitted access
+to writable static data in a separate RW `PT_LOAD`. The FP `.so` probes call
+ordinary native ABI functions with double arguments in `d0`-`d2` or `fa0`-`fa2`
+and verify the double return through `d0`/`fa0` aliased to x86 `XMM0`. It also
+includes sectionless `dyntab` probes that exercise only `PT_DYNAMIC` symbol
 metadata. PLT-style dynamic relocation tables are also
 accepted through `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including
 `R_AARCH64_JUMP_SLOT` and `R_RISCV_JUMP_SLOT` entries for defined symbols.

@@ -10,6 +10,8 @@
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
+  POLY_CALL_U64 = 0,
+  POLY_CALL_FP64 = 1,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   RELOC_BASE_ABSOLUTE = 0,
@@ -60,6 +62,7 @@ struct poly_request {
   char symbol[96];
   uint64_t expected;
   int check_expected;
+  int call_kind;
 };
 
 static int parse_u64(const char *text, uint64_t *value) {
@@ -74,6 +77,11 @@ static int parse_u64(const char *text, uint64_t *value) {
 
 static int parse_request(const char *arg, struct poly_request *request) {
   memset(request, 0, sizeof(*request));
+  request->call_kind = POLY_CALL_U64;
+  if (strncmp(arg, "fp64:", 5) == 0) {
+    request->call_kind = POLY_CALL_FP64;
+    arg += 5;
+  }
   const char *expected = strchr(arg, '=');
   size_t path_len = expected ? (size_t) (expected - arg) : strlen(arg);
   const char *symbol = memchr(arg, '#', path_len);
@@ -846,7 +854,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
   return 0;
 }
 
-static int emit_and_call(const struct poly_program *program, uint64_t *result) {
+static int emit_and_call(const struct poly_program *program, int call_kind,
+    uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
   const int needs_x86_import = program->needs_x86_import;
   const size_t save_regs_size = needs_x86_import ? 5 : 0;
@@ -951,9 +960,21 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
 
-  uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
-    (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
-  *result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+  if (call_kind == POLY_CALL_FP64) {
+    union {
+      double d;
+      uint64_t u;
+    } fp_result;
+    double (*entry)(double, double, double) =
+      (double (*)(double, double, double)) code;
+    fp_result.d = entry(1.5, 2.25, 3.0);
+    *result = fp_result.u;
+  }
+  else {
+    uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
+      (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
+    *result = entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+  }
   munmap(import_page, 4096);
   munmap(foreign, foreign_size);
   munmap(code, code_size);
@@ -994,13 +1015,17 @@ int main(int argc, char **argv) {
       symbol_name ? symbol_name : "-", program.path);
 
     uint64_t result = 0;
-    if (emit_and_call(&program, &result) < 0) {
+    if (emit_and_call(&program, request.call_kind, &result) < 0) {
       free_program(&program);
       return 1;
     }
 
     printf("POLYCALL_RESULT: arch=%s value=%llu path=%s\n",
       program.arch_name, (unsigned long long) result, program.path);
+    if (request.call_kind == POLY_CALL_FP64) {
+      printf("POLYCALL_RESULT_FP64: arch=%s bits=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
     if (request.check_expected) {
       printf("POLYCALL_EXPECT: arch=%s expected=%llu path=%s\n",
         program.arch_name, (unsigned long long) request.expected, program.path);
