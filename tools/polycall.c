@@ -10,18 +10,27 @@
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
-  MAX_PROGRAM_BYTES = 1024 * 1024
+  MAX_PROGRAM_BYTES = 1024 * 1024,
+  MAX_RELATIVE_RELOCS = 4096
+};
+
+struct poly_relative_reloc {
+  size_t offset;
+  uint64_t addend;
 };
 
 struct poly_program {
   const char *path;
   const char *arch_name;
   int arch;
+  int elf_type;
   uint8_t *image;
   size_t image_size;
   size_t entry_offset;
   uint64_t base_vaddr;
   size_t loaded_bytes;
+  struct poly_relative_reloc *relocs;
+  size_t reloc_count;
 };
 
 struct poly_request {
@@ -98,13 +107,6 @@ static int read_file(const char *path, unsigned char **data, size_t *size) {
   return 0;
 }
 
-static uint32_t read_le32(const unsigned char *bytes) {
-  return (uint32_t) bytes[0] |
-    ((uint32_t) bytes[1] << 8) |
-    ((uint32_t) bytes[2] << 16) |
-    ((uint32_t) bytes[3] << 24);
-}
-
 static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) (value & 0xff);
   code[(*offset)++] = (uint8_t) ((value >> 8) & 0xff);
@@ -119,6 +121,11 @@ static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
 static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
   for (unsigned n = 0; n < 8; n++)
     code[(*offset)++] = (uint8_t) ((value >> (n * 8)) & 0xff);
+}
+
+static void write_le64(uint8_t *bytes, uint64_t value) {
+  for (unsigned n = 0; n < 8; n++)
+    bytes[n] = (uint8_t) ((value >> (n * 8)) & 0xff);
 }
 
 static void emit_movabs_r10(uint8_t *code, size_t *offset, uint64_t value) {
@@ -147,6 +154,127 @@ static int detect_arch(uint16_t machine, struct poly_program *program) {
   return -1;
 }
 
+static int elf_vaddr_to_image_offset(const struct poly_program *program,
+    uint64_t vaddr, uint64_t size, size_t *offset) {
+  if (vaddr < program->base_vaddr || size > program->image_size)
+    return -1;
+  const uint64_t image_offset = vaddr - program->base_vaddr;
+  if (image_offset > program->image_size - size)
+    return -1;
+  *offset = (size_t) image_offset;
+  return 0;
+}
+
+static uint32_t relative_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_RELATIVE;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_RELATIVE;
+  return UINT32_MAX;
+}
+
+static int append_relative_reloc(struct poly_program *program, size_t offset,
+    uint64_t addend) {
+  if (program->reloc_count >= MAX_RELATIVE_RELOCS) {
+    fprintf(stderr, "POLYCALL_FAIL: too many relative relocations: %s\n",
+      program->path);
+    return -1;
+  }
+
+  struct poly_relative_reloc *relocs = realloc(program->relocs,
+    (program->reloc_count + 1) * sizeof(*program->relocs));
+  if (!relocs) {
+    fprintf(stderr, "POLYCALL_FAIL: out of memory reading relocations: %s\n",
+      program->path);
+    return -1;
+  }
+  program->relocs = relocs;
+  program->relocs[program->reloc_count].offset = offset;
+  program->relocs[program->reloc_count].addend = addend;
+  program->reloc_count++;
+  return 0;
+}
+
+static int load_dynamic_relative_relocs(struct poly_program *program,
+    const Elf64_Dyn *dyn, size_t dyn_count) {
+  uint64_t rela_vaddr = 0;
+  uint64_t rela_size = 0;
+  uint64_t rela_ent = sizeof(Elf64_Rela);
+  int saw_rel = 0;
+  int saw_rela = 0;
+
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_NULL:
+        n = dyn_count;
+        break;
+      case DT_RELA:
+        rela_vaddr = dyn[n].d_un.d_ptr;
+        saw_rela = 1;
+        break;
+      case DT_RELASZ:
+        rela_size = dyn[n].d_un.d_val;
+        break;
+      case DT_RELAENT:
+        rela_ent = dyn[n].d_un.d_val;
+        break;
+      case DT_REL:
+      case DT_RELSZ:
+      case DT_RELENT:
+        saw_rel = 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (saw_rel) {
+    fprintf(stderr, "POLYCALL_FAIL: REL relocations are not supported yet: %s\n",
+      program->path);
+    return -1;
+  }
+  if (!saw_rela && rela_size == 0)
+    return 0;
+  if (!saw_rela || rela_size == 0 || rela_ent != sizeof(Elf64_Rela) ||
+      rela_size % sizeof(Elf64_Rela) != 0) {
+    fprintf(stderr, "POLYCALL_FAIL: bad RELA dynamic table: %s\n",
+      program->path);
+    return -1;
+  }
+
+  size_t rela_offset = 0;
+  if (elf_vaddr_to_image_offset(program, rela_vaddr, rela_size, &rela_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: RELA table out of loaded image: %s\n",
+      program->path);
+    return -1;
+  }
+
+  const Elf64_Rela *rela = (const Elf64_Rela *) (program->image + rela_offset);
+  const size_t rela_count = (size_t) (rela_size / sizeof(Elf64_Rela));
+  const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
+  for (size_t n = 0; n < rela_count; n++) {
+    if (ELF64_R_SYM(rela[n].r_info) != 0 ||
+        ELF64_R_TYPE(rela[n].r_info) != relative_type) {
+      fprintf(stderr, "POLYCALL_FAIL: unsupported dynamic relocation type=%llu sym=%llu path=%s\n",
+        (unsigned long long) ELF64_R_TYPE(rela[n].r_info),
+        (unsigned long long) ELF64_R_SYM(rela[n].r_info),
+        program->path);
+      return -1;
+    }
+    size_t relocation_offset = 0;
+    if (elf_vaddr_to_image_offset(program, rela[n].r_offset, 8,
+          &relocation_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: relocation target out of image: %s\n",
+        program->path);
+      return -1;
+    }
+    if (append_relative_reloc(program, relocation_offset,
+          (uint64_t) rela[n].r_addend) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static int load_elf_program(const char *path, struct poly_program *program) {
   memset(program, 0, sizeof(*program));
   program->path = path;
@@ -166,7 +294,7 @@ static int load_elf_program(const char *path, struct poly_program *program) {
   if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG) != 0 ||
       ehdr->e_ident[EI_CLASS] != ELFCLASS64 ||
       ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
-      ehdr->e_type != ET_EXEC ||
+      (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) ||
       detect_arch(ehdr->e_machine, program) < 0) {
     fprintf(stderr, "POLYCALL_FAIL: unsupported ELF header: %s\n", path);
     free(data);
@@ -180,14 +308,22 @@ static int load_elf_program(const char *path, struct poly_program *program) {
     free(data);
     return -1;
   }
+  program->elf_type = ehdr->e_type;
 
   uint64_t base_vaddr = UINT64_MAX;
   uint64_t limit_vaddr = 0;
   int found_load = 0;
   int entry_in_exec = 0;
+  uint64_t dynamic_vaddr = 0;
+  uint64_t dynamic_size = 0;
 
   for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
     const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type == PT_DYNAMIC) {
+      dynamic_vaddr = phdr->p_vaddr;
+      dynamic_size = phdr->p_filesz;
+      continue;
+    }
     if (phdr->p_type != PT_LOAD)
       continue;
     if (phdr->p_filesz > phdr->p_memsz ||
@@ -244,6 +380,37 @@ static int load_elf_program(const char *path, struct poly_program *program) {
     program->loaded_bytes += (size_t) phdr->p_filesz;
   }
 
+  if (dynamic_size != 0) {
+    if (dynamic_size % sizeof(Elf64_Dyn) != 0) {
+      fprintf(stderr, "POLYCALL_FAIL: bad dynamic segment size: %s\n", path);
+      free(program->image);
+      program->image = NULL;
+      free(data);
+      return -1;
+    }
+    size_t dynamic_offset = 0;
+    if (elf_vaddr_to_image_offset(program, dynamic_vaddr, dynamic_size,
+          &dynamic_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: dynamic segment out of loaded image: %s\n",
+        path);
+      free(program->image);
+      program->image = NULL;
+      free(data);
+      return -1;
+    }
+    if (load_dynamic_relative_relocs(program,
+          (const Elf64_Dyn *) (program->image + dynamic_offset),
+          (size_t) (dynamic_size / sizeof(Elf64_Dyn))) < 0) {
+      free(program->relocs);
+      program->relocs = NULL;
+      program->reloc_count = 0;
+      free(program->image);
+      program->image = NULL;
+      free(data);
+      return -1;
+    }
+  }
+
   free(data);
   return 0;
 }
@@ -284,6 +451,19 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
   }
   code[offset++] = 0xc3;
   memcpy(foreign, program->image, program->image_size);
+  const uint64_t load_bias = (uint64_t) (uintptr_t) foreign - program->base_vaddr;
+  for (size_t n = 0; n < program->reloc_count; n++) {
+    if (program->relocs[n].offset > foreign_size ||
+        foreign_size - program->relocs[n].offset < 8) {
+      fprintf(stderr, "POLYCALL_FAIL: relocation target escaped image: %s\n",
+        program->path);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    write_le64(foreign + program->relocs[n].offset,
+      load_bias + program->relocs[n].addend);
+  }
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
 
@@ -297,10 +477,13 @@ static int emit_and_call(const struct poly_program *program, uint64_t *result) {
 
 static void free_program(struct poly_program *program) {
   free(program->image);
+  free(program->relocs);
   program->image = NULL;
+  program->relocs = NULL;
   program->image_size = 0;
   program->entry_offset = 0;
   program->loaded_bytes = 0;
+  program->reloc_count = 0;
 }
 
 int main(int argc, char **argv) {
@@ -319,9 +502,10 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, &program) < 0)
       return 1;
 
-    printf("POLYCALL_ELF: arch=%s image_bytes=%zu loaded_bytes=%zu entry_offset=%zu path=%s\n",
-      program.arch_name, program.image_size, program.loaded_bytes,
-      program.entry_offset, program.path);
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu path=%s\n",
+      program.arch_name, (unsigned) program.elf_type, program.image_size,
+      program.loaded_bytes, program.entry_offset, program.reloc_count,
+      program.path);
 
     uint64_t result = 0;
     if (emit_and_call(&program, &result) < 0) {

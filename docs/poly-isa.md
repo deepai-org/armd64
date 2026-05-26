@@ -78,7 +78,10 @@ The `polycall` guest tool maps foreign ELF64 `PT_LOAD` segments into a single
 in-memory image before entering raw mode, so page-relative code can address
 separate text/data load segments rather than only inline instruction blobs. The
 gate covers both AArch64 `adrp`/`ldr` and RISC-V `auipc`/`ld` split-load
-payloads.
+payloads. `polycall` also accepts simple `ET_DYN` images with `R_AARCH64_RELATIVE`
+or `R_RISCV_RELATIVE` relocations and applies those relocations with the actual
+runtime load bias before `PCALL`; symbolic dynamic relocations remain out of
+scope for this prototype.
 
 The prototype now records a unified `POLYTRAP` state before running any
 compatibility dispatcher:
