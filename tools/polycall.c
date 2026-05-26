@@ -1717,6 +1717,9 @@ static int resolve_reloc_symbol(struct poly_program *program,
   const char *symbol_name = table->strings + sym->st_name;
   if (sym->st_shndx == SHN_UNDEF) {
     if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
+      if (resolve_dependency_symbol(program, symbol_name, symbol_value,
+            base_kind) == 0)
+        return 0;
       *symbol_value = 0;
       *base_kind = RELOC_BASE_ABSOLUTE;
       return 0;

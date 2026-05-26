@@ -620,6 +620,8 @@ Same-directory `DT_NEEDED` dependencies are loaded as foreign shared libraries,
 and undefined function or object-symbol relocations in the requesting object can
 bind directly to dependency text/data without routing through an x86 import
 descriptor.
+Weak undefined foreign relocations first try the loaded dependency scope and
+only resolve to zero when no dependency exports the requested symbol.
 When multiple dependency libraries export the same function/object symbol, the
 foreign loader ranks direct `DT_NEEDED` dependencies ahead of transitive
 dependencies so a later direct library can interpose over an earlier indirect

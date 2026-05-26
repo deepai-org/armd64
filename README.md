@@ -462,9 +462,10 @@ descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,
 same-directory `DT_NEEDED` foreign shared-library dependencies with direct
 binding of undefined function and object-symbol relocations to dependency
-text/data, direct-dependency symbol interposition ahead of transitive
-dependencies when symbols collide, recursive loading of dependency libraries'
-own `DT_NEEDED` entries,
+text/data, weak undefined relocations binding to dependency exports when
+present, direct-dependency symbol interposition ahead of transitive dependencies
+when symbols collide, recursive loading of dependency libraries' own `DT_NEEDED`
+entries,
 plus dependency library dynamic relocations before those dependency calls
 execute,
 dependency `DT_INIT_ARRAY` constructor execution before entering dependent
