@@ -228,6 +228,7 @@ struct poly_dependency {
   uint64_t fini_array_vaddr;
   uint64_t fini_array_size;
   size_t fini_count;
+  size_t needed_depth;
   struct poly_symbol_table dynsym;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
@@ -594,15 +595,21 @@ static int resolve_elf_symbol_from_sections(const unsigned char *data,
   return -1;
 }
 
-static int elf_vaddr_to_image_offset(const struct poly_program *program,
+static int image_vaddr_to_offset(uint64_t base_vaddr, size_t image_size,
     uint64_t vaddr, uint64_t size, size_t *offset) {
-  if (vaddr < program->base_vaddr || size > program->image_size)
+  if (vaddr < base_vaddr || size > image_size)
     return -1;
-  const uint64_t image_offset = vaddr - program->base_vaddr;
-  if (image_offset > program->image_size - size)
+  const uint64_t image_offset = vaddr - base_vaddr;
+  if (image_offset > image_size - size)
     return -1;
   *offset = (size_t) image_offset;
   return 0;
+}
+
+static int elf_vaddr_to_image_offset(const struct poly_program *program,
+    uint64_t vaddr, uint64_t size, size_t *offset) {
+  return image_vaddr_to_offset(program->base_vaddr, program->image_size,
+    vaddr, size, offset);
 }
 
 static uint32_t relative_reloc_type_for_arch(int arch) {
@@ -1300,14 +1307,21 @@ static int build_needed_path(const char *owner_path, const char *needed,
   return 0;
 }
 
-static int load_dependency_object(const char *path, int expected_arch,
-    struct poly_dependency *dep) {
+static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
+    const char *origin_path, const uint8_t *image, size_t image_size,
+    uint64_t base_vaddr, const Elf64_Dyn *dyn, size_t dyn_count,
+    size_t needed_depth);
+
+static int load_dependency_object(struct poly_program *owner, size_t dep_index,
+    const char *path, int expected_arch, size_t needed_depth) {
+  struct poly_dependency *dep = &owner->deps[dep_index];
   memset(dep, 0, sizeof(*dep));
   if (strlen(path) >= sizeof(dep->path)) {
     fprintf(stderr, "POLYCALL_FAIL: dependency path too long: %s\n", path);
     return -1;
   }
   strcpy(dep->path, path);
+  dep->needed_depth = needed_depth;
 
   unsigned char *data = NULL;
   size_t size = 0;
@@ -1464,6 +1478,20 @@ static int load_dependency_object(const char *path, int expected_arch,
   const Elf64_Dyn *dynamic =
     (const Elf64_Dyn *) (dep->image + dynamic_offset);
   const size_t dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
+  if (load_needed_dependencies_from_dynamic(owner, dep->path, dep->image,
+        dep->image_size, dep->base_vaddr, dynamic, dynamic_count,
+        dep->needed_depth + 1) < 0) {
+    free(dep->image);
+    dep->image = NULL;
+    free(dep_view.relocs);
+    dep_view.relocs = NULL;
+    free(data);
+    return -1;
+  }
+
+  memcpy(dep_view.deps, owner->deps, sizeof(dep_view.deps));
+  dep_view.dep_count = owner->dep_count;
+  dep_view.needs_x86_import = owner->needs_x86_import;
   if (load_dynamic_relocs(&dep_view, data, size, ehdr, dynamic,
         dynamic_count) < 0) {
     free(dep->image);
@@ -1483,13 +1511,16 @@ static int load_dependency_object(const char *path, int expected_arch,
   dep->fini_array_vaddr = dep_view.fini_array_vaddr;
   dep->fini_array_size = dep_view.fini_array_size;
   dep->fini_count = dep_view.fini_count;
+  owner->needs_x86_import = dep_view.needs_x86_import;
 
   free(data);
   return 0;
 }
 
-static int load_needed_dependencies(struct poly_program *program,
-    const Elf64_Dyn *dyn, size_t dyn_count) {
+static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
+    const char *origin_path, const uint8_t *image, size_t image_size,
+    uint64_t base_vaddr, const Elf64_Dyn *dyn, size_t dyn_count,
+    size_t needed_depth) {
   uint64_t strtab_vaddr = 0;
   uint64_t strsz = 0;
   for (size_t n = 0; n < dyn_count; n++) {
@@ -1511,10 +1542,10 @@ static int load_needed_dependencies(struct poly_program *program,
     return 0;
 
   size_t strtab_offset = 0;
-  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+  if (image_vaddr_to_offset(base_vaddr, image_size, strtab_vaddr, strsz,
         &strtab_offset) < 0)
     return 0;
-  const char *strings = (const char *) (program->image + strtab_offset);
+  const char *strings = (const char *) (image + strtab_offset);
 
   for (size_t n = 0; n < dyn_count; n++) {
     if (dyn[n].d_tag == DT_NULL)
@@ -1526,38 +1557,45 @@ static int load_needed_dependencies(struct poly_program *program,
         memchr(strings + needed_offset, '\0',
           (size_t) (strsz - needed_offset)) == NULL) {
       fprintf(stderr, "POLYCALL_FAIL: bad DT_NEEDED string: %s\n",
-        program->path);
+        origin_path);
       return -1;
     }
 
     char needed_path[MAX_DEP_PATH];
-    if (build_needed_path(program->path, strings + needed_offset,
+    if (build_needed_path(origin_path, strings + needed_offset,
           needed_path, sizeof(needed_path)) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: bad DT_NEEDED path: %s\n",
-        program->path);
+        origin_path);
       return -1;
     }
 
     int duplicate = 0;
-    for (size_t d = 0; d < program->dep_count; d++) {
-      if (strcmp(program->deps[d].path, needed_path) == 0) {
+    for (size_t d = 0; d < owner->dep_count; d++) {
+      if (strcmp(owner->deps[d].path, needed_path) == 0) {
         duplicate = 1;
         break;
       }
     }
     if (duplicate)
       continue;
-    if (program->dep_count >= MAX_NEEDED_DEPS) {
+    if (owner->dep_count >= MAX_NEEDED_DEPS) {
       fprintf(stderr, "POLYCALL_FAIL: too many DT_NEEDED dependencies: %s\n",
-        program->path);
+        origin_path);
       return -1;
     }
-    if (load_dependency_object(needed_path, program->arch,
-          &program->deps[program->dep_count]) < 0)
+    const size_t dep_index = owner->dep_count++;
+    if (load_dependency_object(owner, dep_index, needed_path, owner->arch,
+          needed_depth) < 0)
       return -1;
-    program->dep_count++;
   }
   return 0;
+}
+
+static int load_needed_dependencies(struct poly_program *program,
+    const Elf64_Dyn *dyn, size_t dyn_count) {
+  return load_needed_dependencies_from_dynamic(program, program->path,
+    program->image, program->image_size, program->base_vaddr, dyn, dyn_count,
+    0);
 }
 
 static int resolve_symbol_from_table(const struct poly_symbol_table *table,
@@ -2819,6 +2857,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     dep_load_bias[n] = (uint64_t) (uintptr_t) dep_foreign[n] -
       program->deps[n].base_vaddr;
   }
+  size_t max_dep_depth = 0;
+  for (size_t d = 0; d < program->dep_count; d++) {
+    if (program->deps[d].needed_depth > max_dep_depth)
+      max_dep_depth = program->deps[d].needed_depth;
+  }
   for (size_t d = 0; d < program->dep_count; d++) {
     const struct poly_dependency *dep = &program->deps[d];
     for (size_t r = 0; r < dep->reloc_count; r++) {
@@ -2841,6 +2884,17 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = 0;
       else if (dep->relocs[r].base_kind == RELOC_BASE_LOAD_BIAS)
         reloc_base = dep_load_bias[d];
+      else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_PAGE)
+        reloc_base = (uint64_t) (uintptr_t) import_page;
+      else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_CALL)
+        reloc_base = POLY_IMPORT_CALL_BASE;
+      else if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
+          dep->relocs[r].base_kind <
+            RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {
+        const size_t dep_index =
+          (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_LOAD_BIAS);
+        reloc_base = dep_load_bias[dep_index];
+      }
       else {
         fprintf(stderr, "POLYCALL_FAIL: unsupported dependency relocation base: %s\n",
           dep->path);
@@ -2949,48 +3003,53 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
 
-  for (size_t d = 0; d < program->dep_count; d++) {
-    const struct poly_dependency *dep = &program->deps[d];
-    if (dep->init_vaddr != 0) {
-      const uint64_t init_target = dep_load_bias[d] + dep->init_vaddr;
-      (void) call_poly_stub(code, target_imm_offset, init_target,
-        POLY_CALL_U64);
-    }
-    if (dep->init_array_size != 0) {
-      if (dep->init_array_vaddr < dep->base_vaddr ||
-          dep->init_array_size > dep_sizes[d]) {
-        fprintf(stderr, "POLYCALL_FAIL: dependency INIT_ARRAY escaped image: %s\n",
-          dep->path);
-        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
-        if (tls)
-          munmap(tls, tls_size);
-        munmap(import_page, 4096);
-        munmap(foreign, foreign_size);
-        munmap(code, code_size);
-        return -1;
+  for (size_t depth = max_dep_depth + 1; depth > 0; depth--) {
+    const size_t init_depth = depth - 1;
+    for (size_t d = 0; d < program->dep_count; d++) {
+      const struct poly_dependency *dep = &program->deps[d];
+      if (dep->needed_depth != init_depth)
+        continue;
+      if (dep->init_vaddr != 0) {
+        const uint64_t init_target = dep_load_bias[d] + dep->init_vaddr;
+        (void) call_poly_stub(code, target_imm_offset, init_target,
+          POLY_CALL_U64);
       }
-      const uint64_t init_array_offset =
-        dep->init_array_vaddr - dep->base_vaddr;
-      if (init_array_offset > dep_sizes[d] ||
-          dep->init_array_size > dep_sizes[d] - init_array_offset) {
-        fprintf(stderr, "POLYCALL_FAIL: dependency INIT_ARRAY escaped image: %s\n",
-          dep->path);
-        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
-        if (tls)
-          munmap(tls, tls_size);
-        munmap(import_page, 4096);
-        munmap(foreign, foreign_size);
-        munmap(code, code_size);
-        return -1;
-      }
-      const size_t init_array_count =
-        (size_t) (dep->init_array_size / sizeof(uint64_t));
-      for (size_t n = 0; n < init_array_count; n++) {
-        uint64_t init_target = read_le64(dep_foreign[d] +
-          init_array_offset + n * 8);
-        if (init_target != 0)
-          (void) call_poly_stub(code, target_imm_offset, init_target,
-            POLY_CALL_U64);
+      if (dep->init_array_size != 0) {
+        if (dep->init_array_vaddr < dep->base_vaddr ||
+            dep->init_array_size > dep_sizes[d]) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency INIT_ARRAY escaped image: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        const uint64_t init_array_offset =
+          dep->init_array_vaddr - dep->base_vaddr;
+        if (init_array_offset > dep_sizes[d] ||
+            dep->init_array_size > dep_sizes[d] - init_array_offset) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency INIT_ARRAY escaped image: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        const size_t init_array_count =
+          (size_t) (dep->init_array_size / sizeof(uint64_t));
+        for (size_t n = 0; n < init_array_count; n++) {
+          uint64_t init_target = read_le64(dep_foreign[d] +
+            init_array_offset + n * 8);
+          if (init_target != 0)
+            (void) call_poly_stub(code, target_imm_offset, init_target,
+              POLY_CALL_U64);
+        }
       }
     }
   }
@@ -3115,50 +3174,55 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     *result = call_poly_stub(code, target_imm_offset, fini_result_target,
       POLY_CALL_U64);
   }
-  for (size_t d = program->dep_count; d > 0; d--) {
-    const size_t dep_index = d - 1;
-    const struct poly_dependency *dep = &program->deps[dep_index];
-    if (dep->fini_array_size != 0) {
-      if (dep->fini_array_vaddr < dep->base_vaddr ||
-          dep->fini_array_size > dep_sizes[dep_index]) {
-        fprintf(stderr, "POLYCALL_FAIL: dependency FINI_ARRAY escaped image: %s\n",
-          dep->path);
-        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
-        if (tls)
-          munmap(tls, tls_size);
-        munmap(import_page, 4096);
-        munmap(foreign, foreign_size);
-        munmap(code, code_size);
-        return -1;
+  for (size_t fini_depth = 0; fini_depth <= max_dep_depth; fini_depth++) {
+    for (size_t d = program->dep_count; d > 0; d--) {
+      const size_t dep_index = d - 1;
+      const struct poly_dependency *dep = &program->deps[dep_index];
+      if (dep->needed_depth != fini_depth)
+        continue;
+      if (dep->fini_array_size != 0) {
+        if (dep->fini_array_vaddr < dep->base_vaddr ||
+            dep->fini_array_size > dep_sizes[dep_index]) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency FINI_ARRAY escaped image: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        const uint64_t fini_array_offset =
+          dep->fini_array_vaddr - dep->base_vaddr;
+        if (fini_array_offset > dep_sizes[dep_index] ||
+            dep->fini_array_size > dep_sizes[dep_index] - fini_array_offset) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency FINI_ARRAY escaped image: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        const size_t fini_array_count =
+          (size_t) (dep->fini_array_size / sizeof(uint64_t));
+        for (size_t n = fini_array_count; n > 0; n--) {
+          uint64_t fini_target = read_le64(dep_foreign[dep_index] +
+            fini_array_offset + (n - 1) * 8);
+          if (fini_target != 0)
+            (void) call_poly_stub(code, target_imm_offset, fini_target,
+              POLY_CALL_U64);
+        }
       }
-      const uint64_t fini_array_offset =
-        dep->fini_array_vaddr - dep->base_vaddr;
-      if (fini_array_offset > dep_sizes[dep_index] ||
-          dep->fini_array_size > dep_sizes[dep_index] - fini_array_offset) {
-        fprintf(stderr, "POLYCALL_FAIL: dependency FINI_ARRAY escaped image: %s\n",
-          dep->path);
-        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
-        if (tls)
-          munmap(tls, tls_size);
-        munmap(import_page, 4096);
-        munmap(foreign, foreign_size);
-        munmap(code, code_size);
-        return -1;
+      if (dep->fini_vaddr != 0) {
+        const uint64_t fini_target =
+          dep_load_bias[dep_index] + dep->fini_vaddr;
+        (void) call_poly_stub(code, target_imm_offset, fini_target,
+          POLY_CALL_U64);
       }
-      const size_t fini_array_count =
-        (size_t) (dep->fini_array_size / sizeof(uint64_t));
-      for (size_t n = fini_array_count; n > 0; n--) {
-        uint64_t fini_target = read_le64(dep_foreign[dep_index] +
-          fini_array_offset + (n - 1) * 8);
-        if (fini_target != 0)
-          (void) call_poly_stub(code, target_imm_offset, fini_target,
-            POLY_CALL_U64);
-      }
-    }
-    if (dep->fini_vaddr != 0) {
-      const uint64_t fini_target = dep_load_bias[dep_index] + dep->fini_vaddr;
-      (void) call_poly_stub(code, target_imm_offset, fini_target,
-        POLY_CALL_U64);
     }
   }
   if (tls)
