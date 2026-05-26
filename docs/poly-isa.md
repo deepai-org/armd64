@@ -42,8 +42,8 @@ invoke a thunk, or reject the operation.
 
 Interrupts, faults, and debug exceptions taken during foreign fetch must record
 the interrupted foreign mode and PC before entering the x86_64 kernel path.
-`IRET`/`SYSRET`/signal return must restore the foreign frontend mode when the
-saved architectural state requires it.
+`IRET`, `SYSRET`, `SYSEXIT`, and signal return must restore the foreign
+frontend mode when the saved architectural state requires it.
 
 ## Bochs Prototype Contract
 
@@ -89,9 +89,9 @@ give each guest thread a distinct `FSBASE`.  The `polythread` guest test
 exercises this with real x86_64 pthreads repeatedly entering AArch64 and
 RISC-V `PCALL` paths.  The Bochs prototype now records raw-mode interrupt
 state before x86_64 long-mode interrupt delivery and restores the recorded
-foreign frontend after `IRET64` returns to the interrupted user RIP.  Final
-hardware still needs this state exposed as an architectural, XSAVE-visible
-component, plus precise `SYSRET` and signal-return rules.
+foreign frontend after `IRET64`, `SYSRET`, or `SYSEXIT` returns to the
+interrupted user RIP.  Final hardware still needs this state exposed as an
+architectural, XSAVE-visible component, plus precise signal-return rules.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register

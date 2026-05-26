@@ -261,9 +261,9 @@ separate synthetic banks even when static TLS does not give each guest thread a
 distinct `FSBASE`. The low overlapping return/scratch values still use the
 current x86 register bridge; this is not yet a full XSAVE-backed foreign
 register ABI. The current interrupt prototype covers ordinary long-mode
-`IRET64` returns into raw userspace; the final ISA still needs an explicit,
-architectural XSAVE-visible foreign state component and precise `SYSRET` and
-signal-return contracts.
+`IRET64`, `SYSRET`, and `SYSEXIT` returns into raw userspace; the final ISA
+still needs an explicit, architectural XSAVE-visible foreign state component
+and precise signal-return contracts.
 
 The Bochs compatibility runtime handles selected foreign Linux syscall traps
 deterministically after recording the architectural trap.  Supported syscall
