@@ -538,7 +538,9 @@ then calls a transitive same-ISA leaf dependency through ordinary dynamic
 relocation metadata; the intermediate constructor also calls the leaf dependency
 so the test covers dependency-before-dependent constructor ordering. The same
 needed-library probes also expose destructor-written dependency state after
-dependency teardown, including the transitive leaf destructor effect. The
+dependency teardown, including the transitive leaf destructor effect. The leaf
+dependency also exports a data object consumed by the intermediate dependency,
+covering cross-library object-symbol relocation. The
 constructor probes execute
 compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
 entrypoint. The destructor probes execute compiler-emitted `DT_FINI_ARRAY`
@@ -615,8 +617,9 @@ Undefined weak object/function relocations resolve to zero, matching ordinary
 ELF optional-symbol semantics; the weak-import probes cover AArch64 weak
 `GLOB_DAT`/`JUMP_SLOT` and RISC-V weak symbolic relocations.
 Same-directory `DT_NEEDED` dependencies are loaded as foreign shared libraries,
-and undefined function relocations in the requesting object can bind directly
-to dependency text without routing through an x86 import descriptor.
+and undefined function or object-symbol relocations in the requesting object can
+bind directly to dependency text/data without routing through an x86 import
+descriptor.
 Dependencies recursively load their own same-directory `DT_NEEDED` entries, so
 an intermediate foreign library can call a second foreign library through its
 ordinary PLT/GOT relocations. Dependency library dynamic relocations are applied

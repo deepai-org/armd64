@@ -1,5 +1,8 @@
 static unsigned long poly_needed_leaf_bias;
 
+__attribute__((visibility("default")))
+unsigned long poly_needed_leaf_bonus = 3;
+
 __attribute__((constructor))
 static void poly_needed_leaf_ctor(void) {
   poly_needed_leaf_bias = 10;

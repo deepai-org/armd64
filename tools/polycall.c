@@ -1603,8 +1603,8 @@ static int load_needed_dependencies(struct poly_program *program,
     0);
 }
 
-static int resolve_symbol_from_table(const struct poly_symbol_table *table,
-    const char *symbol_name, uint64_t *symbol_vaddr) {
+static int resolve_symbol_from_table_filtered(const struct poly_symbol_table *table,
+    const char *symbol_name, uint64_t *symbol_vaddr, int allow_object) {
   if (!table->symbols || !table->strings || !symbol_name)
     return -1;
 
@@ -1613,7 +1613,8 @@ static int resolve_symbol_from_table(const struct poly_symbol_table *table,
     const unsigned type = ELF64_ST_TYPE(sym->st_info);
     if (sym->st_name >= table->strings_size ||
         sym->st_shndx == SHN_UNDEF ||
-        (type != STT_FUNC && type != STT_NOTYPE))
+        (type != STT_FUNC && type != STT_NOTYPE &&
+         (!allow_object || type != STT_OBJECT)))
       continue;
     if (strcmp(table->strings + sym->st_name, symbol_name) == 0) {
       *symbol_vaddr = sym->st_value;
@@ -1621,6 +1622,11 @@ static int resolve_symbol_from_table(const struct poly_symbol_table *table,
     }
   }
   return -1;
+}
+
+static int resolve_symbol_from_table(const struct poly_symbol_table *table,
+    const char *symbol_name, uint64_t *symbol_vaddr) {
+  return resolve_symbol_from_table_filtered(table, symbol_name, symbol_vaddr, 0);
 }
 
 static int resolve_dynamic_symbol(const struct poly_program *program,
@@ -1635,8 +1641,8 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
 static int resolve_dependency_symbol(const struct poly_program *program,
     const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
   for (size_t n = 0; n < program->dep_count; n++) {
-    if (resolve_symbol_from_table(&program->deps[n].dynsym, symbol_name,
-          symbol_value) == 0) {
+    if (resolve_symbol_from_table_filtered(&program->deps[n].dynsym,
+          symbol_name, symbol_value, 1) == 0) {
       *base_kind = RELOC_BASE_DEP_LOAD_BIAS + (int) n;
       return 0;
     }

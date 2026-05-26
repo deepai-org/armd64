@@ -1,4 +1,5 @@
 extern unsigned long poly_needed_leaf(unsigned long, unsigned long);
+extern unsigned long poly_needed_leaf_bonus;
 
 static unsigned long poly_needed_bias = 99;
 static unsigned long poly_needed_fini_state = 7;
@@ -6,7 +7,7 @@ static unsigned long *volatile poly_needed_bias_ptr = &poly_needed_bias;
 
 __attribute__((constructor))
 static void poly_needed_ctor(void) {
-  poly_needed_bias = poly_needed_leaf(40, 50);
+  poly_needed_bias = poly_needed_leaf(40, 50) + poly_needed_leaf_bonus;
 }
 
 __attribute__((destructor))
@@ -21,5 +22,6 @@ unsigned long poly_needed_add(unsigned long a, unsigned long b) {
 
 __attribute__((visibility("default")))
 unsigned long poly_needed_fini_result(void) {
-  return poly_needed_fini_state + poly_needed_leaf(1, 2);
+  return poly_needed_fini_state + poly_needed_leaf(1, 2) +
+    poly_needed_leaf_bonus;
 }
