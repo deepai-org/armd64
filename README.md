@@ -397,6 +397,7 @@ atomic helper imports used by default compiler output:
 `__aarch64_swp4_acq_rel`,
 `__aarch64_ldclr8_acq_rel`, `__aarch64_ldclr4_acq_rel`,
 `__aarch64_ldeor8_acq_rel`, `__aarch64_ldeor4_acq_rel`,
+`__aarch64_ldset8_acq_rel`, `__aarch64_ldset4_acq_rel`,
 `__aarch64_ldset4_relax`, `__aarch64_cas8_acq_rel`, and
 `__aarch64_cas4_acq_rel`.
 More complex ABI cases such as arbitrary external import target descriptors,

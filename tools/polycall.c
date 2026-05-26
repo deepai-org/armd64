@@ -119,7 +119,9 @@ enum {
   POLY_IMPORT_FUNC_AARCH64_LDCLR8_ACQ_REL = 46,
   POLY_IMPORT_FUNC_AARCH64_LDEOR8_ACQ_REL = 47,
   POLY_IMPORT_FUNC_AARCH64_LDCLR4_ACQ_REL = 48,
-  POLY_IMPORT_FUNC_AARCH64_LDEOR4_ACQ_REL = 49
+  POLY_IMPORT_FUNC_AARCH64_LDEOR4_ACQ_REL = 49,
+  POLY_IMPORT_FUNC_AARCH64_LDSET8_ACQ_REL = 50,
+  POLY_IMPORT_FUNC_AARCH64_LDSET4_ACQ_REL = 51
 };
 
 struct poly_dynamic_reloc {
@@ -692,6 +694,16 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__aarch64_ldeor4_acq_rel") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDEOR4_ACQ_REL *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__aarch64_ldset8_acq_rel") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDSET8_ACQ_REL *
+      POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__aarch64_ldset4_acq_rel") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_AARCH64_LDSET4_ACQ_REL *
       POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
