@@ -479,7 +479,10 @@ AArch64 `x0` or RISC-V `a0` for integer returns.  The current
 `polycall` harness points these descriptors at `noinline` x86_64 C functions
 linked from `tools/polycall_x86_helpers.c`, so the path exercises a separately
 compiled x86 helper object with compiler-generated function bodies rather than
-handwritten helper bytecode in the call trampoline.
+handwritten helper bytecode in the call trampoline. The eight-argument x86
+helper also performs a nested compiled x86 helper call before returning, so the
+descriptor path covers ordinary x86 call/return activity inside the imported
+target.
 The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
 common GCC AArch64 outline

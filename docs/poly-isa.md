@@ -492,7 +492,9 @@ exercise real PLT/GOT calls to `poly_import_x86_sum8` and verify that
 AArch64/RISC-V seventh and eighth integer arguments land in standard x86 SysV
 stack-argument slots.  The companion post-import probes return from the x86
 helper back into foreign code and fold in a ninth foreign stack argument before
-the outer `PCALL` returns. The imported-object
+the outer `PCALL` returns. The x86 sum8 helper performs a nested compiled x86
+helper call before returning, so the descriptor path is exercised across
+ordinary x86 call/return activity inside the imported target. The imported-object
 probes exercise real compiler-emitted GOT loads of
 undefined `poly_import_value`. The function-pointer probes exercise compiler
 emitted same-image data relocations to local function symbols plus native
@@ -605,7 +607,8 @@ foreign integer return register.  The `polycall` descriptor table currently
 targets `noinline` x86_64 C helpers linked from
 `tools/polycall_x86_helpers.c`, which verifies the call gate against a
 separately compiled x86 helper object instead of trampoline-local handwritten
-byte helpers.
+byte helpers. The eight-argument target includes a nested compiled x86 helper
+call, so ordinary x86 calls inside the imported target are covered as well.
 A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
