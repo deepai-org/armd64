@@ -122,13 +122,13 @@ preserves the shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30` or
 verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`, and
-`riscv-pcall-sum9.elf`) plus an AArch64 compiler-shaped stack-frame payload
-(`aarch64-pcall-frame.elf`) that uses `sub sp, sp, #imm`, stack load/store, and
-`add sp, sp, #imm`.  More complex ABI cases such as aggregate returns, variadic
-calls, TLS, unwind, and exceptions still need descriptor-driven or software
-thunk support.  Direct register aliases are an implementation optimization only
-where they match the native ABI contract; they are not the external
-compatibility contract.
+`riscv-pcall-sum9.elf`) plus compiler-shaped stack-frame payloads
+(`aarch64-pcall-frame.elf` and `riscv-pcall-frame.elf`) that use native `SP`
+adjustment, stack load/store, and teardown before returning.  More complex ABI
+cases such as aggregate returns, variadic calls, TLS, unwind, and exceptions
+still need descriptor-driven or software thunk support.  Direct register
+aliases are an implementation optimization only where they match the native ABI
+contract; they are not the external compatibility contract.
 
 Cross-ISA returns are expected to use native return instructions.  AArch64
 libraries return with `ret` through `x30`, and RISC-V libraries return with
