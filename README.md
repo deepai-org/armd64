@@ -244,13 +244,14 @@ AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
 where the caller enters the other foreign frontend and the callee returns with
 ordinary native `ret`/`jalr` through a hardware cookie without routing through
 x86.  The gate also covers a nested AArch64 -> RISC-V -> AArch64 call chain.
-Synthetic AArch64/RISC-V register banks and the current poly mode are lazily
-saved and restored per guest `CR3` plus user `FSBASE`.  A normal x86_64 Linux
-process switch does not share foreign registers with another address space, and
-threads in one process get separate synthetic banks when the kernel restores a
-different TLS base. The low overlapping return/scratch values still use the
-current x86 register bridge; this is not yet a full XSAVE-backed foreign
-register ABI.
+Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
+hardware-style continuation state for `PCALL`, x86 import returns, and neutral
+foreign cross-calls are lazily saved and restored per guest `CR3` plus user
+`FSBASE`.  A normal x86_64 Linux process switch does not share foreign
+registers or continuation cookies with another address space, and threads in
+one process get separate synthetic banks when the kernel restores a different
+TLS base. The low overlapping return/scratch values still use the current x86
+register bridge; this is not yet a full XSAVE-backed foreign register ABI.
 
 The Bochs compatibility runtime handles selected foreign Linux syscall traps
 deterministically after recording the architectural trap.  Supported syscall
