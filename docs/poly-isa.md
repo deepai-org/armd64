@@ -250,7 +250,8 @@ probe exercises RISC-V `c.lw`/`c.sw` and `c.lwsp`/`c.swsp` forms. The
 compressed-ALU probe exercises RISC-V `c.addiw`, `c.srli`, `c.srai`, `c.andi`,
 `c.sub`, `c.xor`, `c.or`, `c.and`, `c.subw`, and `c.addw`. The compressed-FP
 probe exercises RISC-V `c.fld`/`c.fsd` and `c.fldsp`/`c.fsdsp` double-FP
-memory forms. It also
+memory forms. The FP integer-result probes exercise RISC-V `fmv.x.w`,
+`fmv.x.d`, `fclass.s`, `fclass.d`, and `fcvt.w.s`. It also
 includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and

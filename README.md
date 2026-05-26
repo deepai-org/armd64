@@ -334,8 +334,10 @@ division, square root, and fused multiply-add
 FP argument registers, FP min/max `fmin.s`/`fmin.d`/`fmax.s`/`fmax.d`,
 FP compare `feq`/`flt`/`fle`, FP sign-injection
 `fsgnj`/`fsgnjn`/`fsgnjx` including `fneg`/`fabs`/`fmv`, integer-to-FP bit moves
-`fmv.w.x`/`fmv.d.x`, signed and unsigned integer-to-FP
-`fcvt.s/d.{w,wu,l,lu}`, scalar float/double `fcvt.s.d`/`fcvt.d.s`, and FP
+`fmv.w.x`/`fmv.d.x`, FP-to-integer bit moves `fmv.x.w`/`fmv.x.d`,
+FP class tests `fclass.s`/`fclass.d`, signed and unsigned integer-to-FP
+`fcvt.s/d.{w,wu,l,lu}`, signed and unsigned FP-to-integer conversions from
+scalar float/double, scalar float/double `fcvt.s.d`/`fcvt.d.s`, and FP
 `flw`/`fld`/`fsw`/`fsd` memory forms.  It also
 decodes a first RV64C compatibility subset for common
 compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
