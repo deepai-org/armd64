@@ -83,9 +83,10 @@ payloads. `polycall` also accepts simple `ET_DYN` images with
 64-bit dynamic relocations (`R_AARCH64_ABS64` or `R_RISCV_64`), applying them
 with the actual runtime load bias before `PCALL`. Symbolic relocation metadata
 and `path#symbol` entrypoint lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the
-loaded dynamic image, with section tables kept as a fallback for synthetic
-test payloads; external imported symbol binding remains out of scope for this
-prototype. The gate uses nonzero `poly_entry` symbol offsets for the
+loaded dynamic image. `DT_HASH` is used to bound the sectionless dynamic symbol
+table, with section tables kept as a fallback for synthetic test payloads;
+external imported symbol binding remains out of scope for this prototype. The
+gate uses nonzero `poly_entry` symbol offsets for the
 dynamic-relocation probes so symbol resolution, not the ELF entrypoint, selects
 the target, and also includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata.

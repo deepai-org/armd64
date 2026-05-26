@@ -6,6 +6,7 @@
 
 enum {
   DT_NULL = 0,
+  DT_HASH = 4,
   DT_STRTAB = 5,
   DT_SYMTAB = 6,
   DT_RELA = 7,
@@ -156,6 +157,13 @@ static unsigned char symbol_info(unsigned bind, unsigned type) {
   return (unsigned char) ((bind << 4) | (type & 0xf));
 }
 
+static void write_u32_le(unsigned char *bytes, uint32_t value) {
+  bytes[0] = (unsigned char) (value & 0xff);
+  bytes[1] = (unsigned char) ((value >> 8) & 0xff);
+  bytes[2] = (unsigned char) ((value >> 16) & 0xff);
+  bytes[3] = (unsigned char) ((value >> 24) & 0xff);
+}
+
 int main(int argc, char **argv) {
   if (argc < 4) {
     fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-symbol64 VALUE] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
@@ -265,12 +273,21 @@ int main(int argc, char **argv) {
   const uint64_t dynstr_size = has_dynsym ?
     1 + (export_name ? strlen(export_name) + 1 : 0) +
     (dyn_symbolic ? sizeof(data_symbol_name) : 0) : 0;
+  const uint64_t dynhash_offset = has_dynsym ?
+    align_up_u64(dynstr_offset + dynstr_size, 4) : 0;
+  const uint64_t dynhash_vaddr = has_dynsym ?
+    dynstr_vaddr + (dynhash_offset - dynstr_offset) : 0;
+  const uint64_t dynhash_size = has_dynsym ?
+    (2 + 1 + dynsym_count) * sizeof(uint32_t) : 0;
   const uint64_t data_size = dyn_image ?
-    (has_dynsym ? 0x300 + dynsym_size + dynstr_size :
+    (has_dynsym ? 0x300 + dynsym_size + dynstr_size +
+      (dynhash_offset - dynstr_offset - dynstr_size) + dynhash_size :
       0x200 + sizeof(struct elf64_rela)) :
     (split_data ? 8 : 0);
-  const uint64_t dynamic_count = dyn_image ? (has_dynsym ? 8 : 4) : 0;
-  const uint64_t shstr_offset = align_up_u64(dynstr_offset + dynstr_size, 8);
+  const uint64_t dynamic_count = dyn_image ? (has_dynsym ? 9 : 4) : 0;
+  const uint64_t shstr_offset = align_up_u64(
+    has_dynsym ? dynhash_offset + dynhash_size : dynstr_offset + dynstr_size,
+    8);
   const char shstrtab[] = "\0.text\0.data\0.dynamic\0.rela.dyn\0.dynsym\0.dynstr\0.shstrtab\0";
   const uint64_t shstr_size = sizeof(shstrtab);
   const uint64_t shoff = align_up_u64(shstr_offset + shstr_size, 8);
@@ -403,7 +420,7 @@ int main(int argc, char **argv) {
         fclose(out);
         return 1;
       }
-      struct elf64_dyn dyn[8];
+      struct elf64_dyn dyn[9];
       memset(dyn, 0, sizeof(dyn));
       dyn[0].d_tag = DT_RELA;
       dyn[0].d_val = rela_vaddr;
@@ -420,7 +437,9 @@ int main(int argc, char **argv) {
         dyn[5].d_val = dynstr_vaddr;
         dyn[6].d_tag = DT_STRSZ;
         dyn[6].d_val = dynstr_size;
-        dyn[7].d_tag = DT_NULL;
+        dyn[7].d_tag = DT_HASH;
+        dyn[7].d_val = dynhash_vaddr;
+        dyn[8].d_tag = DT_NULL;
       }
       else {
         dyn[3].d_tag = DT_NULL;
@@ -508,6 +527,44 @@ int main(int argc, char **argv) {
       fprintf(stderr, "mkpolyelf: dynstr write failed\n");
       fclose(out);
       return 1;
+    }
+
+    if (dyn_image) {
+      if (fseek(out, (long) dynhash_offset, SEEK_SET) != 0) {
+        fprintf(stderr, "mkpolyelf: dynhash seek failed\n");
+        fclose(out);
+        return 1;
+      }
+      unsigned char hash_word[4];
+      write_u32_le(hash_word, 1);
+      if (fwrite(hash_word, sizeof(hash_word), 1, out) != 1) {
+        fprintf(stderr, "mkpolyelf: dynhash write failed\n");
+        fclose(out);
+        return 1;
+      }
+      write_u32_le(hash_word, (uint32_t) dynsym_count);
+      if (fwrite(hash_word, sizeof(hash_word), 1, out) != 1) {
+        fprintf(stderr, "mkpolyelf: dynhash write failed\n");
+        fclose(out);
+        return 1;
+      }
+      write_u32_le(hash_word, dynsym_count > 1 ? 1 : 0);
+      if (fwrite(hash_word, sizeof(hash_word), 1, out) != 1) {
+        fprintf(stderr, "mkpolyelf: dynhash write failed\n");
+        fclose(out);
+        return 1;
+      }
+      for (uint64_t n = 0; n < dynsym_count; n++) {
+        uint32_t chain = 0;
+        if (n > 0 && n + 1 < dynsym_count)
+          chain = (uint32_t) (n + 1);
+        write_u32_le(hash_word, chain);
+        if (fwrite(hash_word, sizeof(hash_word), 1, out) != 1) {
+          fprintf(stderr, "mkpolyelf: dynhash write failed\n");
+          fclose(out);
+          return 1;
+        }
+      }
     }
   }
 

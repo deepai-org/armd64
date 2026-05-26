@@ -137,8 +137,9 @@ calls, AArch64 `adrp` page-relative data addressing, NZCV-backed AArch64
 conditional branches, RISC-V `auipc` page-relative data addressing, split ELF
 `PT_LOAD` text/data layout, simple `ET_DYN` relative relocations, same-image
 symbolic 64-bit dynamic relocations and exported entrypoints through both
-section-backed and `PT_DYNAMIC` symbol metadata, and teardown before
-returning.  More complex ABI cases such as external imported symbol binding,
+section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH`
+symbol counts for sectionless dynamic objects, and teardown before returning.
+More complex ABI cases such as external imported symbol binding,
 aggregate returns, variadic calls, TLS, unwind, and exceptions still need
 descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI

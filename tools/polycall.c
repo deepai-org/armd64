@@ -317,6 +317,7 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
     const Elf64_Dyn *dyn, size_t dyn_count, struct poly_symbol_table *table) {
   uint64_t symtab_vaddr = 0;
   uint64_t strtab_vaddr = 0;
+  uint64_t hash_vaddr = 0;
   uint64_t strsz = 0;
   uint64_t syment = sizeof(Elf64_Sym);
 
@@ -331,6 +332,9 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
         break;
       case DT_STRTAB:
         strtab_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_HASH:
+        hash_vaddr = dyn[n].d_un.d_ptr;
         break;
       case DT_STRSZ:
         strsz = dyn[n].d_un.d_val;
@@ -349,18 +353,40 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
 
   size_t symtab_offset = 0;
   size_t strtab_offset = 0;
+  size_t symbol_count = 0;
   if (elf_vaddr_to_image_offset(program, symtab_vaddr, sizeof(Elf64_Sym),
         &symtab_offset) < 0 ||
       elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
         &strtab_offset) < 0)
     return -1;
-  if (strtab_offset <= symtab_offset ||
-      (strtab_offset - symtab_offset) % sizeof(Elf64_Sym) != 0)
+  if (hash_vaddr) {
+    size_t hash_offset = 0;
+    if (elf_vaddr_to_image_offset(program, hash_vaddr, 8, &hash_offset) < 0)
+      return -1;
+    const uint32_t *hash = (const uint32_t *) (program->image + hash_offset);
+    const uint32_t nbucket = hash[0];
+    const uint32_t nchain = hash[1];
+    const uint64_t hash_size = (uint64_t) (2 + nbucket + nchain) *
+      sizeof(uint32_t);
+    if (nbucket == 0 || nchain == 0 ||
+        elf_vaddr_to_image_offset(program, hash_vaddr, hash_size,
+          &hash_offset) < 0)
+      return -1;
+    symbol_count = nchain;
+  }
+  else {
+    if (strtab_offset <= symtab_offset ||
+        (strtab_offset - symtab_offset) % sizeof(Elf64_Sym) != 0)
+      return -1;
+    symbol_count = (strtab_offset - symtab_offset) / sizeof(Elf64_Sym);
+  }
+  if (symbol_count > (SIZE_MAX / sizeof(Elf64_Sym)) ||
+      elf_vaddr_to_image_offset(program, symtab_vaddr,
+        (uint64_t) symbol_count * sizeof(Elf64_Sym), &symtab_offset) < 0)
     return -1;
 
   table->symbols = (const Elf64_Sym *) (program->image + symtab_offset);
-  table->symbol_count = (strtab_offset - symtab_offset) /
-    sizeof(Elf64_Sym);
+  table->symbol_count = symbol_count;
   table->strings = (const char *) (program->image + strtab_offset);
   table->strings_size = (size_t) strsz;
   return 0;
