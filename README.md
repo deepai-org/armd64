@@ -505,7 +505,7 @@ numbers currently include:
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
   `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `getpid`,
   `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
-  `getpgid(0)`, `getsid(0)`, `exit`, and `exit_group`.
+  `getpgid(0)`, `getsid(0)`, `rseq`, `exit`, and `exit_group`.
 - File-style syscalls: `getcwd`, `read`, `readv`, `write`, `writev`,
   `openat`, `readlinkat`, `newfstatat`, `fstat`, `close`, `getdents64`,
   `lseek`, and `uname`.

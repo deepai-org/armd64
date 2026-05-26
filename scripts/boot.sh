@@ -937,6 +937,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigprocmask.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801003 0xd28010e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-futex.elf" 0xaa0103e0 0xd2800001 0xd2800002 0xd2800003 0xd2800c48 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-madvise.elf" 0xaa0103e0 0xd2820001 0xd2800002 0xd2801d28 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rseq.elf" 0xaa0103e0 0xd2800401 0xd2800002 0xd2800003 0xd28024a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-tid-address.elf" 0xaa0103e0 0xd2800c08 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-robust-list.elf" 0xaa0103e0 0xd2800301 0xd2800c68 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prlimit64.elf" 0xaa0103e3 0xd2800000 0xd2800061 0xd2800002 0xd28020a8 0xd4000001 0xf9400060
@@ -1043,6 +1044,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rt-sigprocmask.elf" 0x00000513 0x00000593 0x00000613 0x00800693 0x08700893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-futex.elf" 0x00058513 0x00000593 0x00000613 0x00000693 0x06200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-madvise.elf" 0x00058513 0x000015b7 0x00000613 0x0e900893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rseq.elf" 0x00058513 0x02000593 0x00000613 0x00000693 0x12500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-tid-address.elf" 0x00058513 0x06000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-robust-list.elf" 0x00058513 0x01800593 0x06300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-prlimit64.elf" 0x00058693 0x00000513 0x00300593 0x00000613 0x10500893 0x00000073 0x0006b503
@@ -1248,6 +1250,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-rt-sigprocmask.elf=0 \
     /usr/lib/polyapps/aarch64-futex.elf=0 \
     /usr/lib/polyapps/aarch64-madvise.elf=0 \
+    /usr/lib/polyapps/aarch64-rseq.elf=0 \
     /usr/lib/polyapps/aarch64-set-tid-address.elf=4243 \
     /usr/lib/polyapps/aarch64-set-robust-list.elf=0 \
     /usr/lib/polyapps/aarch64-prlimit64.elf=8388608 \
@@ -1333,6 +1336,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-rt-sigprocmask.elf=0 \
     /usr/lib/polyapps/riscv-futex.elf=0 \
     /usr/lib/polyapps/riscv-madvise.elf=0 \
+    /usr/lib/polyapps/riscv-rseq.elf=0 \
     /usr/lib/polyapps/riscv-set-tid-address.elf=4243 \
     /usr/lib/polyapps/riscv-set-robust-list.elf=0 \
     /usr/lib/polyapps/riscv-prlimit64.elf=8388608 \
@@ -1617,6 +1621,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-rt-sigprocmask.elf \
     /usr/lib/polyapps/aarch64-futex.elf \
     /usr/lib/polyapps/aarch64-madvise.elf \
+    /usr/lib/polyapps/aarch64-rseq.elf \
     /usr/lib/polyapps/aarch64-set-tid-address.elf \
     /usr/lib/polyapps/aarch64-set-robust-list.elf \
     /usr/lib/polyapps/aarch64-prlimit64.elf \
@@ -1702,6 +1707,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-rt-sigprocmask.elf \
     /usr/lib/polyapps/riscv-futex.elf \
     /usr/lib/polyapps/riscv-madvise.elf \
+    /usr/lib/polyapps/riscv-rseq.elf \
     /usr/lib/polyapps/riscv-set-tid-address.elf \
     /usr/lib/polyapps/riscv-set-robust-list.elf \
     /usr/lib/polyapps/riscv-prlimit64.elf \
