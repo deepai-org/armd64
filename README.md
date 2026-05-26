@@ -264,7 +264,10 @@ PLT/GOT descriptors, compiler-built imported-object
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-built weak undefined
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
-`riscv-pcall-weak-import-real.so#poly_entry`), compiler-built relocated
+`riscv-pcall-weak-import-real.so#poly_entry`), compiler-built `DT_NEEDED`
+shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
+`libpolyneeded-aarch64.so`, and `riscv-pcall-needed-real.so#poly_entry` with
+`libpolyneeded-riscv.so`), compiler-built relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-built two-word aggregate
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
@@ -455,6 +458,8 @@ objects, scalar double FP arguments and returns through
 the native FP register ABI, scalar double FP function imports through PLT/GOT call
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,
+same-directory `DT_NEEDED` foreign shared-library dependencies with direct
+binding of undefined function relocations to dependency text,
 compiler-emitted same-image function-pointer relocations and indirect native
 calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
 `DT_FINI_ARRAY` destructor execution during teardown,

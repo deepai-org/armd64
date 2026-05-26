@@ -67,12 +67,15 @@ enum {
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
+  MAX_NEEDED_DEPS = 4,
+  MAX_DEP_PATH = 192,
   RELOC_BASE_ABSOLUTE = 0,
   RELOC_BASE_LOAD_BIAS = 1,
   RELOC_BASE_IMPORT_PAGE = 2,
   RELOC_BASE_IMPORT_CALL = 3,
   RELOC_BASE_IRELATIVE = 4,
-  RELOC_BASE_TLS_OFFSET = 5
+  RELOC_BASE_TLS_OFFSET = 5,
+  RELOC_BASE_DEP_LOAD_BIAS = 100
 };
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
@@ -209,6 +212,17 @@ struct poly_symbol_table {
   size_t strings_size;
 };
 
+struct poly_dependency {
+  char path[MAX_DEP_PATH];
+  const char *arch_name;
+  int arch;
+  uint8_t *image;
+  size_t image_size;
+  uint64_t base_vaddr;
+  size_t loaded_bytes;
+  struct poly_symbol_table dynsym;
+};
+
 struct poly_program {
   const char *path;
   const char *arch_name;
@@ -234,6 +248,8 @@ struct poly_program {
   size_t fini_count;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
+  struct poly_dependency deps[MAX_NEEDED_DEPS];
+  size_t dep_count;
   int needs_x86_import;
 };
 
@@ -1242,6 +1258,258 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
   return 0;
 }
 
+static int build_needed_path(const char *owner_path, const char *needed,
+    char *out, size_t out_size) {
+  if (!needed || needed[0] == '\0')
+    return -1;
+  if (needed[0] == '/') {
+    if (strlen(needed) >= out_size)
+      return -1;
+    strcpy(out, needed);
+    return 0;
+  }
+
+  const char *slash = strrchr(owner_path, '/');
+  if (!slash) {
+    if (strlen(needed) >= out_size)
+      return -1;
+    strcpy(out, needed);
+    return 0;
+  }
+
+  const size_t dir_len = (size_t) (slash - owner_path) + 1;
+  const size_t needed_len = strlen(needed);
+  if (dir_len + needed_len >= out_size)
+    return -1;
+  memcpy(out, owner_path, dir_len);
+  memcpy(out + dir_len, needed, needed_len + 1);
+  return 0;
+}
+
+static int load_dependency_object(const char *path, int expected_arch,
+    struct poly_dependency *dep) {
+  memset(dep, 0, sizeof(*dep));
+  if (strlen(path) >= sizeof(dep->path)) {
+    fprintf(stderr, "POLYCALL_FAIL: dependency path too long: %s\n", path);
+    return -1;
+  }
+  strcpy(dep->path, path);
+
+  unsigned char *data = NULL;
+  size_t size = 0;
+  if (read_file(path, &data, &size) < 0)
+    return -1;
+
+  if (size < sizeof(Elf64_Ehdr)) {
+    fprintf(stderr, "POLYCALL_FAIL: dependency ELF too small: %s\n", path);
+    free(data);
+    return -1;
+  }
+
+  const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *) data;
+  struct poly_program arch_probe;
+  memset(&arch_probe, 0, sizeof(arch_probe));
+  if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG) != 0 ||
+      ehdr->e_ident[EI_CLASS] != ELFCLASS64 ||
+      ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
+      (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) ||
+      detect_arch(ehdr->e_machine, &arch_probe) < 0 ||
+      arch_probe.arch != expected_arch) {
+    fprintf(stderr, "POLYCALL_FAIL: unsupported dependency ELF header: %s\n",
+      path);
+    free(data);
+    return -1;
+  }
+  dep->arch = arch_probe.arch;
+  dep->arch_name = arch_probe.arch_name;
+
+  if (ehdr->e_phentsize < sizeof(Elf64_Phdr) ||
+      ehdr->e_phoff > size ||
+      (uint64_t) ehdr->e_phnum * ehdr->e_phentsize > size - ehdr->e_phoff) {
+    fprintf(stderr, "POLYCALL_FAIL: bad dependency program header table: %s\n",
+      path);
+    free(data);
+    return -1;
+  }
+
+  uint64_t base_vaddr = UINT64_MAX;
+  uint64_t limit_vaddr = 0;
+  uint64_t dynamic_vaddr = 0;
+  uint64_t dynamic_size = 0;
+  int found_load = 0;
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *phdr = (const Elf64_Phdr *)
+      (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type == PT_DYNAMIC) {
+      dynamic_vaddr = phdr->p_vaddr;
+      dynamic_size = phdr->p_filesz;
+      continue;
+    }
+    if (phdr->p_type != PT_LOAD)
+      continue;
+    if (phdr->p_filesz > phdr->p_memsz ||
+        phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+        phdr->p_vaddr > UINT64_MAX - phdr->p_memsz) {
+      fprintf(stderr, "POLYCALL_FAIL: bad dependency load segment: %s\n",
+        path);
+      free(data);
+      return -1;
+    }
+    const uint64_t segment_base = align_down_u64(phdr->p_vaddr, 0x1000);
+    const uint64_t segment_limit = phdr->p_vaddr + phdr->p_memsz;
+    if (segment_base < base_vaddr)
+      base_vaddr = segment_base;
+    if (segment_limit > limit_vaddr)
+      limit_vaddr = segment_limit;
+    found_load = 1;
+  }
+
+  if (!found_load || limit_vaddr <= base_vaddr ||
+      limit_vaddr - base_vaddr > MAX_PROGRAM_BYTES - 4) {
+    fprintf(stderr, "POLYCALL_FAIL: unsupported dependency load image: %s\n",
+      path);
+    free(data);
+    return -1;
+  }
+
+  dep->base_vaddr = base_vaddr;
+  dep->image_size = (size_t) (limit_vaddr - base_vaddr + 4);
+  dep->image = calloc(1, dep->image_size);
+  if (!dep->image) {
+    fprintf(stderr, "POLYCALL_FAIL: out of memory loading dependency %s\n",
+      path);
+    free(data);
+    return -1;
+  }
+
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *phdr = (const Elf64_Phdr *)
+      (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type != PT_LOAD)
+      continue;
+    const uint64_t load_offset = phdr->p_vaddr - base_vaddr;
+    if (load_offset > dep->image_size ||
+        phdr->p_filesz > dep->image_size - load_offset) {
+      fprintf(stderr, "POLYCALL_FAIL: dependency load segment out of range: %s\n",
+        path);
+      free(dep->image);
+      dep->image = NULL;
+      free(data);
+      return -1;
+    }
+    memcpy(dep->image + load_offset, data + phdr->p_offset,
+      (size_t) phdr->p_filesz);
+    dep->loaded_bytes += (size_t) phdr->p_filesz;
+  }
+
+  if (dynamic_size == 0 || dynamic_size % sizeof(Elf64_Dyn) != 0) {
+    fprintf(stderr, "POLYCALL_FAIL: dependency lacks usable dynamic metadata: %s\n",
+      path);
+    free(dep->image);
+    dep->image = NULL;
+    free(data);
+    return -1;
+  }
+
+  struct poly_program dep_view;
+  memset(&dep_view, 0, sizeof(dep_view));
+  dep_view.path = dep->path;
+  dep_view.arch = dep->arch;
+  dep_view.arch_name = dep->arch_name;
+  dep_view.image = dep->image;
+  dep_view.image_size = dep->image_size;
+  dep_view.base_vaddr = dep->base_vaddr;
+
+  size_t dynamic_offset = 0;
+  if (elf_vaddr_to_image_offset(&dep_view, dynamic_vaddr, dynamic_size,
+        &dynamic_offset) < 0 ||
+      load_dynsym_from_dynamic(&dep_view,
+        (const Elf64_Dyn *) (dep->image + dynamic_offset),
+        (size_t) (dynamic_size / sizeof(Elf64_Dyn)), &dep->dynsym) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: dependency lacks dynamic symbols: %s\n",
+      path);
+    free(dep->image);
+    dep->image = NULL;
+    free(data);
+    return -1;
+  }
+
+  free(data);
+  return 0;
+}
+
+static int load_needed_dependencies(struct poly_program *program,
+    const Elf64_Dyn *dyn, size_t dyn_count) {
+  uint64_t strtab_vaddr = 0;
+  uint64_t strsz = 0;
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_NULL:
+        n = dyn_count;
+        break;
+      case DT_STRTAB:
+        strtab_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_STRSZ:
+        strsz = dyn[n].d_un.d_val;
+        break;
+      default:
+        break;
+    }
+  }
+  if (!strtab_vaddr || strsz == 0)
+    return 0;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return 0;
+  const char *strings = (const char *) (program->image + strtab_offset);
+
+  for (size_t n = 0; n < dyn_count; n++) {
+    if (dyn[n].d_tag == DT_NULL)
+      break;
+    if (dyn[n].d_tag != DT_NEEDED)
+      continue;
+    const uint64_t needed_offset = dyn[n].d_un.d_val;
+    if (needed_offset >= strsz ||
+        memchr(strings + needed_offset, '\0',
+          (size_t) (strsz - needed_offset)) == NULL) {
+      fprintf(stderr, "POLYCALL_FAIL: bad DT_NEEDED string: %s\n",
+        program->path);
+      return -1;
+    }
+
+    char needed_path[MAX_DEP_PATH];
+    if (build_needed_path(program->path, strings + needed_offset,
+          needed_path, sizeof(needed_path)) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: bad DT_NEEDED path: %s\n",
+        program->path);
+      return -1;
+    }
+
+    int duplicate = 0;
+    for (size_t d = 0; d < program->dep_count; d++) {
+      if (strcmp(program->deps[d].path, needed_path) == 0) {
+        duplicate = 1;
+        break;
+      }
+    }
+    if (duplicate)
+      continue;
+    if (program->dep_count >= MAX_NEEDED_DEPS) {
+      fprintf(stderr, "POLYCALL_FAIL: too many DT_NEEDED dependencies: %s\n",
+        program->path);
+      return -1;
+    }
+    if (load_dependency_object(needed_path, program->arch,
+          &program->deps[program->dep_count]) < 0)
+      return -1;
+    program->dep_count++;
+  }
+  return 0;
+}
+
 static int resolve_symbol_from_table(const struct poly_symbol_table *table,
     const char *symbol_name, uint64_t *symbol_vaddr) {
   if (!table->symbols || !table->strings || !symbol_name)
@@ -1271,8 +1539,24 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
   return resolve_symbol_from_table(&table, symbol_name, symbol_vaddr);
 }
 
+static int resolve_dependency_symbol(const struct poly_program *program,
+    const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
+  for (size_t n = 0; n < program->dep_count; n++) {
+    if (resolve_symbol_from_table(&program->deps[n].dynsym, symbol_name,
+          symbol_value) == 0) {
+      *base_kind = RELOC_BASE_DEP_LOAD_BIAS + (int) n;
+      return 0;
+    }
+  }
+  return -1;
+}
+
 static int resolve_external_reloc_symbol(struct poly_program *program,
     const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
+  if (resolve_dependency_symbol(program, symbol_name, symbol_value,
+        base_kind) == 0)
+    return 0;
+
   if (strcmp(symbol_name, "poly_import_value") == 0) {
     *symbol_value = 0;
     *base_kind = RELOC_BASE_IMPORT_PAGE;
@@ -1960,12 +2244,20 @@ static int load_elf_program(const char *path, const char *symbol_name,
       free(data);
       return -1;
     }
-    if (load_dynamic_relocs(program, data, size, ehdr,
-          (const Elf64_Dyn *) (program->image + dynamic_offset),
-          (size_t) (dynamic_size / sizeof(Elf64_Dyn))) < 0) {
+    const Elf64_Dyn *dynamic =
+      (const Elf64_Dyn *) (program->image + dynamic_offset);
+    const size_t dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
+    if (load_needed_dependencies(program, dynamic, dynamic_count) < 0 ||
+        load_dynamic_relocs(program, data, size, ehdr, dynamic,
+          dynamic_count) < 0) {
       free(program->relocs);
       program->relocs = NULL;
       program->reloc_count = 0;
+      for (size_t d = 0; d < program->dep_count; d++) {
+        free(program->deps[d].image);
+        program->deps[d].image = NULL;
+      }
+      program->dep_count = 0;
       free(program->image);
       program->image = NULL;
       free(data);
@@ -2268,6 +2560,14 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
   return entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
 }
 
+static void unmap_dependency_images(uint8_t **dep_foreign,
+    const size_t *dep_sizes, size_t dep_count) {
+  for (size_t n = 0; n < dep_count; n++) {
+    if (dep_foreign[n])
+      munmap(dep_foreign[n], dep_sizes[n]);
+  }
+}
+
 static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
@@ -2289,6 +2589,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     import_descriptor_size;
   const size_t code_size = stub_size;
   const size_t foreign_size = program->image_size;
+  uint8_t *dep_foreign[MAX_NEEDED_DEPS];
+  uint64_t dep_load_bias[MAX_NEEDED_DEPS];
+  size_t dep_sizes[MAX_NEEDED_DEPS];
+  memset(dep_foreign, 0, sizeof(dep_foreign));
+  memset(dep_load_bias, 0, sizeof(dep_load_bias));
+  memset(dep_sizes, 0, sizeof(dep_sizes));
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -2438,12 +2744,36 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   }
   memcpy(foreign, program->image, program->image_size);
+  for (size_t n = 0; n < program->dep_count; n++) {
+    dep_sizes[n] = program->deps[n].image_size;
+    dep_foreign[n] = mmap(NULL, dep_sizes[n], PROT_READ | PROT_WRITE | PROT_EXEC,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (dep_foreign[n] == MAP_FAILED) {
+      dep_foreign[n] = NULL;
+      fprintf(stderr, "POLYCALL_FAIL: dependency mmap failed: %s\n",
+        strerror(errno));
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    memcpy(dep_foreign[n], program->deps[n].image,
+      program->deps[n].image_size);
+    size_t dep_offset = program->deps[n].image_size - 4;
+    emit_u32(dep_foreign[n], &dep_offset, fallback_ret);
+    dep_load_bias[n] = (uint64_t) (uintptr_t) dep_foreign[n] -
+      program->deps[n].base_vaddr;
+  }
   if (tls) {
     size_t tls_image_offset = 0;
     if (elf_vaddr_to_image_offset(program, program->tls_vaddr,
           program->tls_filesz, &tls_image_offset) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: TLS image escaped loaded image: %s\n",
         program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       munmap(tls, tls_size);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
@@ -2464,6 +2794,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         foreign_size - program->relocs[n].offset < 8) {
       fprintf(stderr, "POLYCALL_FAIL: relocation target escaped image: %s\n",
         program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
       munmap(import_page, 4096);
@@ -2472,7 +2803,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       return -1;
     }
     uint64_t reloc_base = 0;
-    if (program->relocs[n].base_kind == RELOC_BASE_LOAD_BIAS)
+    if (program->relocs[n].base_kind == RELOC_BASE_ABSOLUTE)
+      reloc_base = 0;
+    else if (program->relocs[n].base_kind == RELOC_BASE_LOAD_BIAS)
       reloc_base = load_bias;
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_PAGE)
       reloc_base = (uint64_t) (uintptr_t) import_page;
@@ -2480,6 +2813,24 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       reloc_base = POLY_IMPORT_CALL_BASE;
     else if (program->relocs[n].base_kind == RELOC_BASE_TLS_OFFSET)
       reloc_base = 0;
+    else if (program->relocs[n].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
+        program->relocs[n].base_kind <
+          RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {
+      const size_t dep_index =
+        (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_LOAD_BIAS);
+      reloc_base = dep_load_bias[dep_index];
+    }
+    else {
+      fprintf(stderr, "POLYCALL_FAIL: unknown relocation base kind: %s\n",
+        program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
     const uint64_t reloc_value = program->relocs[n].value + reloc_base;
     write_le64(foreign + program->relocs[n].offset, reloc_value);
   }
@@ -2493,6 +2844,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         foreign_size - program->relocs[n].offset < 8) {
       fprintf(stderr, "POLYCALL_FAIL: IRELATIVE target escaped image: %s\n",
         program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
       munmap(import_page, 4096);
@@ -2505,6 +2857,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           &resolver_offset) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: IRELATIVE resolver escaped image: %s\n",
         program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
       munmap(import_page, 4096);
@@ -2528,6 +2881,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           program->init_array_size, &init_array_offset) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: INIT_ARRAY escaped image: %s\n",
         program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
       munmap(import_page, 4096);
@@ -2565,6 +2919,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           program->fini_array_size, &fini_array_offset) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: FINI_ARRAY escaped image: %s\n",
         program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
       munmap(import_page, 4096);
@@ -2590,6 +2945,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (program->fini_result_vaddr == 0) {
       fprintf(stderr, "POLYCALL_FAIL: fini result symbol missing: %s\n",
         program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
       munmap(import_page, 4096);
@@ -2603,6 +2959,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   if (tls)
     munmap(tls, tls_size);
+  unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
   munmap(import_page, 4096);
   munmap(foreign, foreign_size);
   munmap(code, code_size);
@@ -2612,12 +2969,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
 static void free_program(struct poly_program *program) {
   free(program->image);
   free(program->relocs);
+  for (size_t n = 0; n < program->dep_count; n++)
+    free(program->deps[n].image);
   program->image = NULL;
   program->relocs = NULL;
   program->image_size = 0;
   program->entry_offset = 0;
   program->loaded_bytes = 0;
   program->reloc_count = 0;
+  program->dep_count = 0;
 }
 
 int main(int argc, char **argv) {
@@ -2637,9 +2997,10 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, symbol_name, &program) < 0)
       return 1;
 
-    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu tls=%llu inits=%zu finis=%zu symbol=%s path=%s\n",
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu deps=%zu tls=%llu inits=%zu finis=%zu symbol=%s path=%s\n",
       program.arch_name, (unsigned) program.elf_type, program.image_size,
       program.loaded_bytes, program.entry_offset, program.reloc_count,
+      program.dep_count,
       (unsigned long long) program.tls_memsz, program.init_count,
       program.fini_count,
       symbol_name ? symbol_name : "-", program.path);

@@ -334,7 +334,10 @@ objects (`aarch64-pcall-import-real.so#poly_entry` and
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-produced weak undefined
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
-`riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced relocated
+`riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced `DT_NEEDED`
+shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
+`libpolyneeded-aarch64.so`, and `riscv-pcall-needed-real.so#poly_entry` with
+`libpolyneeded-riscv.so`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced two-word aggregate
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
@@ -604,6 +607,9 @@ gate covers `poly_import_value` through an undefined dynamic symbol relocation.
 Undefined weak object/function relocations resolve to zero, matching ordinary
 ELF optional-symbol semantics; the weak-import probes cover AArch64 weak
 `GLOB_DAT`/`JUMP_SLOT` and RISC-V weak symbolic relocations.
+Same-directory `DT_NEEDED` dependencies are loaded as foreign shared libraries,
+and undefined function relocations in the requesting object can bind directly
+to dependency text without routing through an x86 import descriptor.
 Imported function symbols can bind to prototype hardware call-descriptor
 slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
 foreign argument registers through an x86/runtime import target, writes the
