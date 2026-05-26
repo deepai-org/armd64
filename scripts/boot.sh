@@ -1342,6 +1342,10 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-epoll-create1.elf" 0xd2800000 0xd2800288 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-epoll-ctl.elf" 0xd2800080 0xd2800041 0xd2800062 0xd2800003 0xd28002a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-epoll-pwait.elf" 0xd2800080 0xd2800001 0xd2800002 0xd2800003 0xd2800004 0xd2800005 0xd28002c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-nanosleep.elf" 0xaa0103e0 0xd2800001 0xd2800ca8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clock-nanosleep.elf" 0xaa0103e2 0xd2800020 0xd2800001 0xd2800003 0xd2800e68 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sched-getaffinity.elf" 0xaa0103e2 0xd2800000 0xd2800101 0xd2800f68 0xd4000001 0xf9400040
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sched-yield.elf" 0xd2800f88 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-socket.elf" 0xd2800040 0xd2800021 0xd2800002 0xd28018c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-socketpair.elf" 0xaa0103e3 0xd2800040 0xd2800021 0xd2800002 0xd28018e8 0xd4000001 0xb9400060
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-bind.elf" 0xd28000a0 0xd2800001 0xd2800002 0xd2801908 0xd4000001
@@ -1488,6 +1492,10 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-epoll-create1.elf" 0x00000513 0x01400893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-epoll-ctl.elf" 0x00400513 0x00200593 0x00300613 0x00000693 0x01500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-epoll-pwait.elf" 0x00400513 0x00000593 0x00000613 0x00000693 0x00000713 0x00000793 0x01600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-nanosleep.elf" 0x00058513 0x00000593 0x06500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clock-nanosleep.elf" 0x00058613 0x00100513 0x00000593 0x00000693 0x07300893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sched-getaffinity.elf" 0x00058293 0x00000513 0x00800593 0x00028613 0x07b00893 0x00000073 0x0002b503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sched-yield.elf" 0x07c00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-socket.elf" 0x00200513 0x00100593 0x00000613 0x0c600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-socketpair.elf" 0x00058693 0x00200513 0x00100593 0x00000613 0x0c700893 0x00000073 0x0006a503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-bind.elf" 0x00500513 0x00000593 0x00000613 0x0c800893 0x00000073
@@ -1727,6 +1735,10 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-epoll-create1.elf=4 \
     /usr/lib/polyapps/aarch64-epoll-ctl.elf=0 \
     /usr/lib/polyapps/aarch64-epoll-pwait.elf=0 \
+    /usr/lib/polyapps/aarch64-nanosleep.elf=0 \
+    /usr/lib/polyapps/aarch64-clock-nanosleep.elf=0 \
+    /usr/lib/polyapps/aarch64-sched-getaffinity.elf=1 \
+    /usr/lib/polyapps/aarch64-sched-yield.elf=0 \
     /usr/lib/polyapps/aarch64-socket.elf=5 \
     /usr/lib/polyapps/aarch64-socketpair.elf=11 \
     /usr/lib/polyapps/aarch64-bind.elf=0 \
@@ -1846,6 +1858,10 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-epoll-create1.elf=4 \
     /usr/lib/polyapps/riscv-epoll-ctl.elf=0 \
     /usr/lib/polyapps/riscv-epoll-pwait.elf=0 \
+    /usr/lib/polyapps/riscv-nanosleep.elf=0 \
+    /usr/lib/polyapps/riscv-clock-nanosleep.elf=0 \
+    /usr/lib/polyapps/riscv-sched-getaffinity.elf=1 \
+    /usr/lib/polyapps/riscv-sched-yield.elf=0 \
     /usr/lib/polyapps/riscv-socket.elf=5 \
     /usr/lib/polyapps/riscv-socketpair.elf=11 \
     /usr/lib/polyapps/riscv-bind.elf=0 \
@@ -2234,6 +2250,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-epoll-create1.elf \
     /usr/lib/polyapps/aarch64-epoll-ctl.elf \
     /usr/lib/polyapps/aarch64-epoll-pwait.elf \
+    /usr/lib/polyapps/aarch64-nanosleep.elf \
+    /usr/lib/polyapps/aarch64-clock-nanosleep.elf \
+    /usr/lib/polyapps/aarch64-sched-getaffinity.elf \
+    /usr/lib/polyapps/aarch64-sched-yield.elf \
     /usr/lib/polyapps/aarch64-socket.elf \
     /usr/lib/polyapps/aarch64-socketpair.elf \
     /usr/lib/polyapps/aarch64-bind.elf \
@@ -2353,6 +2373,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-epoll-create1.elf \
     /usr/lib/polyapps/riscv-epoll-ctl.elf \
     /usr/lib/polyapps/riscv-epoll-pwait.elf \
+    /usr/lib/polyapps/riscv-nanosleep.elf \
+    /usr/lib/polyapps/riscv-clock-nanosleep.elf \
+    /usr/lib/polyapps/riscv-sched-getaffinity.elf \
+    /usr/lib/polyapps/riscv-sched-yield.elf \
     /usr/lib/polyapps/riscv-socket.elf \
     /usr/lib/polyapps/riscv-socketpair.elf \
     /usr/lib/polyapps/riscv-bind.elf \

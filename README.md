@@ -683,9 +683,10 @@ numbers currently include:
 - Network-style syscalls: `socket`, `socketpair`, `bind`, `listen`,
   `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.
-- Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
-  `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`, `munmap`,
-  `mprotect`, `madvise`, and `mmap`.
+- Memory/time-style syscalls: `nanosleep`, `clock_gettime`,
+  `clock_nanosleep`, `sched_getaffinity`, `sched_yield`, `getrusage`,
+  `getcpu`, `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`,
+  `munmap`, `mprotect`, `madvise`, and `mmap`.
 
 The shared syscall dispatcher carries six foreign Linux ABI arguments for both
 foreign architectures; current `mmap6` payloads verify argument registers beyond
