@@ -162,6 +162,8 @@ objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`) plus compiler-produced scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`), compiler-produced scalar double
+FP callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and
+`riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-produced scalar double
 FP conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
 `riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-produced scalar double
 FP division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and
@@ -241,7 +243,9 @@ shift/mask sequences. The signed-extension probes exercise compiler-emitted
 AArch64 `sxth`, `sbfx`, plus `add ... asr/sxtb/sxth/sxtw` and
 RISC-V signed byte/halfword/word arithmetic. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
-shift/add indexed load-store sequences. It also
+shift/add indexed load-store sequences. The scalar FP callee-saved probes
+exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V
+`fsd`/`fld` of `fs0` and later across imported calls. It also
 includes sectionless `dyntab` probes that exercise only
 `PT_DYNAMIC` symbol metadata. PLT-style dynamic relocation tables are accepted through
 `DT_JMPREL`/`DT_PLTREL=RELA`/`DT_PLTRELSZ`, including `R_AARCH64_JUMP_SLOT` and

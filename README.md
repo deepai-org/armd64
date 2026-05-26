@@ -185,6 +185,8 @@ objects (`aarch64-pcall-fp64-real.so#poly_entry` and
 `riscv-pcall-fp64-real.so#poly_entry`), compiler-built scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`), compiler-built scalar double FP
+callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and
+`riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-built scalar double FP
 conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
 `riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-built scalar double FP
 division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and
@@ -310,7 +312,7 @@ and float `fadd`/`fsub`/`fmul`/`fdiv`, fused multiply-add `fmadd`,
 unsigned FP-to-integer conversion for finite scalar double values,
 scalar float/double `fcvt` narrowing and widening, signed and unsigned
 integer-to-FP `scvtf`/`ucvtf` conversions from GPR and scalar FP/SIMD integer
-sources, scalar FP `ldr`/`str`,
+sources, scalar FP pair loads/stores and scalar FP `ldr`/`str`,
 generic byte/halfword/word/dword load-store forms plus scalar FP load-store
 forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, unscaled `ldur`/`stur` integer and scalar FP
