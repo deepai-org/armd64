@@ -504,7 +504,7 @@ numbers currently include:
 - File-style syscalls: `getcwd`, `read`, `readv`, `write`, `writev`,
   `openat`, `newfstatat`, `fstat`, `close`, `lseek`, and `uname`.
 - Memory/time-style syscalls: `clock_gettime`, `getrusage`, `getcpu`,
-  `gettimeofday`, `sysinfo`, and `mmap`.
+  `gettimeofday`, `sysinfo`, `brk`, `munmap`, `mprotect`, and `mmap`.
 
 The shared syscall dispatcher carries six foreign Linux ABI arguments for both
 foreign architectures; current `mmap6` payloads verify argument registers beyond
