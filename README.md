@@ -195,6 +195,8 @@ objects (`aarch64-pcall-fp64-fma-variants-real.so#poly_entry` and
 `riscv-pcall-fp64-fma-variants-real.so#poly_entry`), compiler-built scalar double
 FP min/max objects (`aarch64-pcall-fp64-minmax-real.so#poly_entry` and
 `riscv-pcall-fp64-minmax-real.so#poly_entry`), compiler-built scalar double FP
+select objects (`aarch64-pcall-fp64-select-real.so#poly_entry` and
+`riscv-pcall-fp64-select-real.so#poly_entry`), compiler-built scalar double FP
 indexed-memory objects (`aarch64-pcall-fp64-indexed-mem-real.so#poly_entry` and
 `riscv-pcall-fp64-indexed-mem-real.so#poly_entry`), compiler-built scalar double
 FP conversion objects (`aarch64-pcall-fp64-convert-real.so#poly_entry` and
@@ -219,6 +221,8 @@ objects (`aarch64-pcall-fp32-fma-variants-real.so#poly_entry` and
 `riscv-pcall-fp32-fma-variants-real.so#poly_entry`), compiler-built scalar float
 FP min/max objects (`aarch64-pcall-fp32-minmax-real.so#poly_entry` and
 `riscv-pcall-fp32-minmax-real.so#poly_entry`), compiler-built scalar float FP
+select objects (`aarch64-pcall-fp32-select-real.so#poly_entry` and
+`riscv-pcall-fp32-select-real.so#poly_entry`), compiler-built scalar float FP
 memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
 `riscv-pcall-fp32-mem-real.so#poly_entry`), and compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
@@ -290,7 +294,8 @@ and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, fused multiply-add `fmadd`,
 `fmsub`, `fnmadd`, and `fnmsub`, register `fmov`, unary
 `fneg`/`fabs`/`fsqrt`, normal-number min/max `fminnm`/`fmaxnm`,
-`fcmp`/`fcmpe` including zero-immediate compare, 32-bit and 64-bit signed and
+`fcmp`/`fcmpe` including zero-immediate compare, scalar FP `fcsel`,
+32-bit and 64-bit signed and
 unsigned FP-to-integer conversion for finite scalar double values,
 scalar float/double `fcvt` narrowing and widening, signed and unsigned
 integer-to-FP `scvtf`/`ucvtf` conversions from GPR and scalar FP/SIMD integer
