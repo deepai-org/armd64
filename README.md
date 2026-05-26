@@ -65,8 +65,9 @@ Linux ABI passthrough, or equal-speed execution.
 The Bochs fork treats selected userspace x86 byte sequences as polyglot CPU
 operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are unchanged.
 The preferred prototype hot path decodes a fixed `0f 24 <op> POLY!`
-opcode-family placeholder through the `BX_IA_POLYMODE` handler; legacy `UD2`
-envelopes remain available for compatibility, debug status, and runtime probes.
+opcode-family placeholder through the `BX_IA_POLYMODE` handler; the runtime
+tools use this opcode family for hot frontend switches and `PCALL`.  Legacy
+`UD2` envelopes remain available for compatibility plus debug/status probes.
 The current handler accepts these operations only from guest userspace.
 
 Preferred 8-byte x86 poly opcode-family operations:

@@ -5,7 +5,13 @@
 
 #include "polycpuid.h"
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
+#define POLY_OP_EXIT ".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_ENTER_A64 ".byte 0x0f,0x24,0x01,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_ENTER_RV64 ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_PCALL_A64 ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_PCALL_RV64 ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+
+static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x30" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x31" ::: "memory"); }
 static inline void poly_syscall_mode_status(void) { asm volatile(".byte 0x2e,0x0f,0x0b,0x53,0x59,0x53,0x43,0x32" ::: "memory"); }
@@ -63,7 +69,7 @@ static void stage(const char *msg) {
 
 static inline void raw_aarch64_arith_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0xd2800540\n" // movz x0,#42
     ".long 0x91000400\n" // add x0,x0,#1
     ".long 0xd42fffe0\n" // brk #0x7fff
@@ -72,7 +78,7 @@ static inline void raw_aarch64_arith_probe(void) {
 
 static inline void raw_riscv_arith_probe(void) {
   asm volatile(
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0x01100513\n" // addi a0,zero,17
     ".long 0x00550513\n" // addi a0,a0,5
     ".long 0x0000000b\n" // custom-0 x86 escape
@@ -81,7 +87,7 @@ static inline void raw_riscv_arith_probe(void) {
 
 static inline void poly_opcode_aarch64_arith_probe(void) {
   asm volatile(
-    ".byte 0x0f,0x24,0x01,0x50,0x4f,0x4c,0x59,0x21\n"
+    POLY_OP_ENTER_A64
     ".long 0xd2800540\n" // movz x0,#42
     ".long 0x91000400\n" // add x0,x0,#1
     ".long 0xd42fffe0\n" // brk #0x7fff
@@ -90,7 +96,7 @@ static inline void poly_opcode_aarch64_arith_probe(void) {
 
 static inline void poly_opcode_riscv_arith_probe(void) {
   asm volatile(
-    ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
+    POLY_OP_ENTER_RV64
     ".long 0x01100513\n" // addi a0,zero,17
     ".long 0x00550513\n" // addi a0,a0,5
     ".long 0x0000000b\n" // custom-0 x86 escape
@@ -101,7 +107,7 @@ static inline void raw_aarch64_sp_probe(void) {
   asm volatile(
     "movq $19, %%rax\n"
     "movq $23, %%rdi\n"
-    ".byte 0x0f,0x24,0x01,0x50,0x4f,0x4c,0x59,0x21\n"
+    POLY_OP_ENTER_A64
     ".long 0xd10043ff\n" // sub sp,sp,#16
     ".long 0xa90007e0\n" // stp x0,x1,[sp]
     ".long 0xa9400fe2\n" // ldp x2,x3,[sp]
@@ -115,7 +121,7 @@ static inline void raw_riscv_sp_probe(void) {
   asm volatile(
     "movq $17, %%rax\n"
     "movq $25, %%rdi\n"
-    ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
+    POLY_OP_ENTER_RV64
     ".long 0xff010113\n" // addi sp,sp,-16
     ".long 0x00a13023\n" // sd a0,0(sp)
     ".long 0x00b13423\n" // sd a1,8(sp)
@@ -129,7 +135,7 @@ static inline void raw_riscv_sp_probe(void) {
 
 static inline void raw_aarch64_wide_regs_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0xd28000ea\n" // movz x10,#7
     ".long 0xd280046b\n" // movz x11,#35
     ".long 0x8b0b014c\n" // add x12,x10,x11
@@ -140,7 +146,7 @@ static inline void raw_aarch64_wide_regs_probe(void) {
 
 static inline void raw_riscv_wide_regs_probe(void) {
   asm volatile(
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0x00900813\n" // addi x16,zero,9
     ".long 0x02100913\n" // addi x18,zero,33
     ".long 0x012809b3\n" // add x19,x16,x18
@@ -151,7 +157,7 @@ static inline void raw_riscv_wide_regs_probe(void) {
 
 static inline void raw_aarch64_imm_regs_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0xd28000ea\n" // movz x10,#7
     ".long 0x9100154d\n" // add x13,x10,#5
     ".long 0xd10021a0\n" // sub x0,x13,#8
@@ -161,7 +167,7 @@ static inline void raw_aarch64_imm_regs_probe(void) {
 
 static inline void raw_riscv_imm_regs_probe(void) {
   asm volatile(
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0xffd00293\n" // addi x5,zero,-3
     ".long 0x03628513\n" // addi a0,x5,54
     ".long 0x0000000b\n"
@@ -176,7 +182,7 @@ static inline void raw_aarch64_abi_args_probe(void) {
     "movq $4, %%rcx\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0x8b020020\n"
     ".long 0x8b030000\n"
     ".long 0x8b040000\n"
@@ -194,7 +200,7 @@ static inline void raw_riscv_abi_args_probe(void) {
     "movq $4, %%rcx\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0x00c58533\n"
     ".long 0x00d50533\n"
     ".long 0x00e50533\n"
@@ -214,7 +220,7 @@ static inline void pcall_aarch64_sysv_args_probe(void) {
     "movq $6, %%r9\n"
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x41,0x36,0x34\n"
+    POLY_OP_PCALL_A64
     "1:\n"
     ".long 0x8b010000\n" // add x0,x0,x1
     ".long 0x8b020000\n" // add x0,x0,x2
@@ -236,7 +242,7 @@ static inline void pcall_riscv_sysv_args_probe(void) {
     "movq $6, %%r9\n"
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x52,0x56,0x36\n"
+    POLY_OP_PCALL_RV64
     "1:\n"
     ".long 0x00b50533\n" // add a0,a0,a1
     ".long 0x00c50533\n" // add a0,a0,a2
@@ -258,7 +264,7 @@ static inline void poly_opcode_pcall_aarch64_sysv_args_probe(void) {
     "movq $6, %%r9\n"
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    POLY_OP_PCALL_A64
     "1:\n"
     ".long 0x8b010000\n" // add x0,x0,x1
     ".long 0x8b020000\n" // add x0,x0,x2
@@ -280,7 +286,7 @@ static inline void poly_opcode_pcall_riscv_sysv_args_probe(void) {
     "movq $6, %%r9\n"
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+    POLY_OP_PCALL_RV64
     "1:\n"
     ".long 0x00b50533\n" // add a0,a0,a1
     ".long 0x00c50533\n" // add a0,a0,a2
@@ -294,7 +300,7 @@ static inline void poly_opcode_pcall_riscv_sysv_args_probe(void) {
 
 static inline void raw_fp64_aarch64_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0x1e612800\n"
     ".long 0x1e613800\n"
     ".long 0x1e610800\n"
@@ -304,7 +310,7 @@ static inline void raw_fp64_aarch64_probe(void) {
 
 static inline void raw_fp64_riscv_probe(void) {
   asm volatile(
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0x02b50553\n"
     ".long 0x0ab50553\n"
     ".long 0x12b50553\n"
@@ -316,7 +322,7 @@ static inline void pcall_fp64_aarch64_probe(void) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x41,0x36,0x34\n"
+    POLY_OP_PCALL_A64
     "1:\n"
     ".long 0x1e612800\n"
     ".long 0x1e613800\n"
@@ -330,7 +336,7 @@ static inline void pcall_fp64_riscv_probe(void) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x40,0x0f,0x0b,0x50,0x43,0x52,0x56,0x36\n"
+    POLY_OP_PCALL_RV64
     "1:\n"
     ".long 0x02b50553\n"
     ".long 0x0ab50553\n"
@@ -342,14 +348,14 @@ static inline void pcall_fp64_riscv_probe(void) {
 
 static inline void raw_barrier_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0xd2800120\n"
     ".long 0xd5033fbf\n"
     ".long 0xd5033f9f\n"
     ".long 0xd5033fdf\n"
     ".long 0x91002000\n"
     ".long 0xd42fffe0\n"
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0x01400513\n"
     ".long 0x0ff0000f\n"
     ".long 0x0000100f\n"
@@ -360,7 +366,7 @@ static inline void raw_barrier_probe(void) {
 
 static inline void raw_mixed_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0x91000400\n"
     ".long 0xd42fffc0\n"
     ".long 0x00550513\n"
@@ -372,7 +378,7 @@ static inline void raw_mixed_probe(void) {
 
 static inline void raw_switch_stress_step(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0x91000400\n"
     ".long 0xd42fffc0\n"
     ".long 0x00550513\n"
@@ -384,7 +390,7 @@ static inline void raw_switch_stress_step(void) {
 
 static inline void raw_aarch64_strlen_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0xd4200020\n"
     ".long 0xd42fffe0\n"
     ::: "rax", "memory");
@@ -392,7 +398,7 @@ static inline void raw_aarch64_strlen_probe(void) {
 
 static inline void raw_riscv_strlen_probe(void) {
   asm volatile(
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0x00100893\n"
     ".long 0x00100073\n"
     ".long 0x0000000b\n"
@@ -401,7 +407,7 @@ static inline void raw_riscv_strlen_probe(void) {
 
 static inline void raw_aarch64_getpid_probe(void) {
   asm volatile(
-    ".byte 0x65,0x0f,0x0b,0x52,0x41,0x57,0x36,0x34\n"
+    POLY_OP_ENTER_A64
     ".long 0xd2801588\n"
     ".long 0xd4000001\n"
     ".long 0xd42fffe0\n"
@@ -410,7 +416,7 @@ static inline void raw_aarch64_getpid_probe(void) {
 
 static inline void raw_riscv_getpid_probe(void) {
   asm volatile(
-    ".byte 0x66,0x0f,0x0b,0x52,0x41,0x57,0x52,0x56\n"
+    POLY_OP_ENTER_RV64
     ".long 0x0ac00893\n"
     ".long 0x00000073\n"
     ".long 0x0000000b\n"
