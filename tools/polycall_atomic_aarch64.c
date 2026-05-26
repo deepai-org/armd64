@@ -8,8 +8,20 @@ static unsigned long or_counter = 0x40;
 static unsigned int and_word_counter = 0x7f;
 static unsigned int xor_word_counter = 0x21;
 static unsigned int or_word_counter = 0x12;
+static unsigned short add_half_counter = 5;
+static unsigned char add_byte_counter = 6;
+static unsigned short swap_half_counter = 17;
+static unsigned char swap_byte_counter = 11;
+static unsigned short and_half_counter = 0x7f;
+static unsigned char and_byte_counter = 0x3f;
+static unsigned short xor_half_counter = 0x21;
+static unsigned char xor_byte_counter = 0x12;
+static unsigned short or_half_counter = 0x100;
+static unsigned char or_byte_counter = 0x20;
 static unsigned long cas_value = 99;
 static unsigned int cas_word_value = 19;
+static unsigned short cas_half_value = 123;
+static unsigned char cas_byte_value = 27;
 
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
@@ -35,17 +47,50 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
       (unsigned int) c + 0x20, __ATOMIC_RELEASE);
   unsigned int or_wold = __atomic_fetch_or(&or_word_counter,
       (unsigned int) c + 0x40, __ATOMIC_RELAXED);
+  unsigned short add_hold = __atomic_fetch_add(&add_half_counter,
+      (unsigned short) c + 5, __ATOMIC_ACQUIRE);
+  unsigned char add_bold = __atomic_fetch_add(&add_byte_counter,
+      (unsigned char) a + 4, __ATOMIC_RELAXED);
+  unsigned short swap_hold = __atomic_exchange_n(&swap_half_counter,
+      (unsigned short) b + 40, __ATOMIC_RELEASE);
+  unsigned char swap_bold = __atomic_exchange_n(&swap_byte_counter,
+      (unsigned char) c + 7, __ATOMIC_ACQUIRE);
+  unsigned short and_hold = __atomic_fetch_and(&and_half_counter,
+      (unsigned short) c + 0x30, __ATOMIC_ACQ_REL);
+  unsigned char and_bold = __atomic_fetch_and(&and_byte_counter,
+      (unsigned char) a + 0x08, __ATOMIC_RELAXED);
+  unsigned short xor_hold = __atomic_fetch_xor(&xor_half_counter,
+      (unsigned short) b + 0x40, __ATOMIC_RELEASE);
+  unsigned char xor_bold = __atomic_fetch_xor(&xor_byte_counter,
+      (unsigned char) c + 0x50, __ATOMIC_ACQUIRE);
+  unsigned short or_hold = __atomic_fetch_or(&or_half_counter,
+      (unsigned short) a + 0x20, __ATOMIC_ACQ_REL);
+  unsigned char or_bold = __atomic_fetch_or(&or_byte_counter,
+      (unsigned char) b + 0x04, __ATOMIC_RELAXED);
   unsigned long expected = 99;
   int ok = __atomic_compare_exchange_n(&cas_value, &expected, c + 100, 0,
       __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
   unsigned int word_expected = 19;
   int word_ok = __atomic_compare_exchange_n(&cas_word_value, &word_expected,
       (unsigned int) c + 20, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+  unsigned short half_expected = 123;
+  int half_ok = __atomic_compare_exchange_n(&cas_half_value, &half_expected,
+      (unsigned short) c + 200, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
+  unsigned char byte_expected = 27;
+  int byte_ok = __atomic_compare_exchange_n(&cas_byte_value, &byte_expected,
+      (unsigned char) a + 40, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
 
   return old + prev + counter + word_counter + wold + cas_value +
     (unsigned long) ok + expected + (unsigned long) word_ok +
     word_expected + cas_word_value + add_wold + add_word_counter +
     swap_wold + swap_word_counter + and_old + and_counter + xor_old +
     xor_counter + or_old + or_counter + and_wold + and_word_counter +
-    xor_wold + xor_word_counter + or_wold + or_word_counter;
+    xor_wold + xor_word_counter + or_wold + or_word_counter + add_hold +
+    add_half_counter + add_bold + add_byte_counter + swap_hold +
+    swap_half_counter + swap_bold + swap_byte_counter + and_hold +
+    and_half_counter + and_bold + and_byte_counter + xor_hold +
+    xor_half_counter + xor_bold + xor_byte_counter + or_hold +
+    or_half_counter + or_bold + or_byte_counter + (unsigned long) half_ok +
+    half_expected + cas_half_value + (unsigned long) byte_ok +
+    byte_expected + cas_byte_value;
 }

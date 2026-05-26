@@ -393,7 +393,7 @@ The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
 common GCC AArch64 outline
 atomic helper imports used by default compiler output:
-32-bit and 64-bit `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`
+8-, 16-, 32-, and 64-bit `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`
 helpers with `relax`, `acq`, `rel`, and `acq_rel` suffixes.  The loader
 aliases these suffixes to the same operation descriptor because the prototype
 defines foreign atomic memory ordering in terms of the x86-TSO execution
@@ -456,8 +456,9 @@ forms including register-offset indexed addressing, 64-bit
 `stp`/`ldp` pair load-store forms, unscaled `ldur`/`stur` integer and scalar FP
 forms plus single-register pre/post-indexed load-store writeback forms,
 exclusive atomics `ldxr`/`ldaxr`/`stxr`/`stlxr` and `clrex`, LSE atomic
-read-modify-write forms `swp`, `ldadd`, `ldset`, and `cas` for the decoded
-32-bit and 64-bit compiler-emitted encodings, `svc`, and `brk`.
+read-modify-write forms `swp`, `ldadd`, `ldclr`, `ldeor`, `ldset`, and `cas`
+for decoded 8-, 16-, 32-, and 64-bit compiler-emitted encodings, `svc`, and
+`brk`.
 
 The direct-fetch RISC-V path covers the generated/probed RV64 subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `lui`, `auipc`, OP-IMM

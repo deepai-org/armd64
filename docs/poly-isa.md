@@ -426,10 +426,11 @@ compare probes exercise compiler-emitted AArch64 `ccmp` for chained conditions
 plus RISC-V branch fallback sequences. The AArch64 post-index memory probe
 exercises single-register `ldr`/`str` post-index writeback forms. The AArch64
 atomic probes exercise compiler-emitted exclusive `ldxr`/`ldaxr` plus
-`stxr`/`stlxr`, `clrex`, LSE `ldadd`, `swp`, `ldset`, and `cas`, and GCC
-outline atomic helper imports for default compiler output. The RISC-V atomic
-probe exercises compiler-emitted `amoadd.d`, `amoswap.d`, `amoor.w`, `lr.d`,
-and `sc.d` forms from C `__atomic` builtins. The integer indexed-memory probes
+`stxr`/`stlxr`, `clrex`, 8-, 16-, 32-, and 64-bit LSE `ldadd`, `swp`,
+`ldclr`, `ldeor`, `ldset`, and `cas`, and GCC outline atomic helper imports
+for default compiler output. The RISC-V atomic probe exercises
+compiler-emitted `amoadd.d`, `amoswap.d`, `amoor.w`, `lr.d`, and `sc.d` forms
+from C `__atomic` builtins. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later, scalar float
@@ -488,8 +489,8 @@ or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
 The same descriptor path currently provides prototype imports for common GCC
 TLS accessors (`R_AARCH64_TLSDESC`, RISC-V `__tls_get_addr`, and initial-exec
 `R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64`) and common GCC
-AArch64 outline atomic helpers: 32-bit and 64-bit `ldadd`, `swp`, `ldclr`,
-`ldeor`, `ldset`, and `cas` with `relax`, `acq`, `rel`, and `acq_rel`
+AArch64 outline atomic helpers: 8-, 16-, 32-, and 64-bit `ldadd`, `swp`,
+`ldclr`, `ldeor`, `ldset`, and `cas` with `relax`, `acq`, `rel`, and `acq_rel`
 suffixes.  The suffixes alias to the same operation descriptors because the
 prototype defines foreign atomic memory ordering in terms of the x86-TSO
 execution model.  These are compatibility descriptors for observed compiler
