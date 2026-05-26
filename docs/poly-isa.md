@@ -280,7 +280,10 @@ division/modulo helper objects (`aarch64-pcall-int128-helpers-real.so#poly_entry
 and `riscv-pcall-int128-helpers-real.so#poly_entry`), compiler-produced 128-bit
 integer/double conversion helper objects
 (`aarch64-pcall-int128-fp-helpers-real.so#poly_entry` and
-`riscv-pcall-int128-fp-helpers-real.so#poly_entry`), compiler-produced integer carry-chain
+`riscv-pcall-int128-fp-helpers-real.so#poly_entry`), compiler-produced 128-bit
+integer/float conversion helper objects
+(`aarch64-pcall-int128-float-helpers-real.so#poly_entry` and
+`riscv-pcall-int128-float-helpers-real.so#poly_entry`), compiler-produced integer carry-chain
 objects (`aarch64-pcall-int-carry-real.so#poly_entry` and
 `riscv-pcall-int-carry-real.so#poly_entry`), compiler-produced integer variable-shift
 objects (`aarch64-pcall-int-varshift-real.so#poly_entry` and

@@ -144,7 +144,11 @@ enum {
   POLY_IMPORT_FUNC_FIXDFTI = 71,
   POLY_IMPORT_FUNC_FIXUNSDFTI = 72,
   POLY_IMPORT_FUNC_FLOATTIDF = 73,
-  POLY_IMPORT_FUNC_FLOATUNTIDF = 74
+  POLY_IMPORT_FUNC_FLOATUNTIDF = 74,
+  POLY_IMPORT_FUNC_FIXSFTI = 75,
+  POLY_IMPORT_FUNC_FIXUNSSFTI = 76,
+  POLY_IMPORT_FUNC_FLOATTISF = 77,
+  POLY_IMPORT_FUNC_FLOATUNTISF = 78
 };
 
 struct poly_dynamic_reloc {
@@ -778,6 +782,22 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__floatuntidf") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FLOATUNTIDF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__fixsfti") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FIXSFTI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__fixunssfti") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FIXUNSSFTI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__floattisf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOATTISF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__floatuntisf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOATUNTISF * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (resolve_aarch64_outline_atomic_import(symbol_name, symbol_value) == 0)
