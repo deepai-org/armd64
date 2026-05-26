@@ -113,8 +113,8 @@ and call operations:
   AArch64 foreign stack window.
 - `0f 24 1f 50 4f 4c 59 21`: prototype
   `PCALL.RV64.SYSV.FP64STACK`, preserving scalar FP register aliases while
-  mapping x86_64 SysV FP64 overflow stack arguments from `[RSP+8]` and
-  `[RSP+16]` into RISC-V `a0` and `a1` after `fa0`-`fa7` are consumed.
+  mapping up to eight x86_64 SysV FP64 overflow stack arguments from
+  `[RSP+8]` onward into RISC-V `a0`-`a7` after `fa0`-`fa7` are consumed.
 - `0f 24 20 50 4f 4c 59 21`: prototype `PIRET`, used by
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
@@ -398,7 +398,7 @@ objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), and compiler-produced scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
-`riscv-pcall-fp64-real.so#poly_entry`) plus ten-double FP stack-argument objects
+`riscv-pcall-fp64-real.so#poly_entry`) plus sixteen-double FP stack-argument objects
 (`aarch64-pcall-fp64-stack-real.so#poly_entry` and
 `riscv-pcall-fp64-stack-real.so#poly_entry`) plus compiler-produced homogeneous
 double aggregate return objects (`aarch64-pcall-fpair-real.so#poly_entry` and

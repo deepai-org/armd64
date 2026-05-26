@@ -1970,11 +1970,14 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
       uint64_t u;
     } fp_result;
     double (*entry)(double, double, double, double, double, double, double,
-        double, double, double) =
+        double, double, double, double, double, double, double, double,
+        double) =
       (double (*)(double, double, double, double, double, double, double,
-        double, double, double)) code;
+        double, double, double, double, double, double, double, double,
+        double)) code;
     fp_result.d = entry(1.0, 2.0, 3.0, 4.0, 5.0,
-      6.0, 7.0, 8.0, 9.0, 10.0);
+      6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+      13.0, 14.0, 15.0, 16.0);
     return fp_result.u;
   }
   if (call_kind == POLY_CALL_PAIR_U64) {

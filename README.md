@@ -95,7 +95,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV call to RISC-V with `{u32,float}` compact aggregate | `0f 24 1c 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.COMPACT_U32_F32`: unpacks the x86_64 SysV packed aggregate from `RDI` into RISC-V `a0`/`fa0`, shifts the following integer argument to `a1`, and repacks the returned `a0`/`fa0` lanes into `RAX`. |
 | x86 SysV call to RISC-V with `{float,u32}` compact aggregate | `0f 24 1d 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.COMPACT_F32_U32`: unpacks the x86_64 SysV packed aggregate from `RDI` into RISC-V `fa0`/`a0`, shifts the following integer argument to `a1`, and repacks the returned `fa0`/`a0` lanes into `RAX`. |
 | x86 SysV FP-stack call to AArch64 | `0f 24 1e 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.FP64STACK`: same scalar FP register aliases as `PCALL.A64.SYSV`, but copies x86_64 SysV FP overflow stack arguments from `[RSP+8]` to the foreign stack window. |
-| x86 SysV FP-overflow call to RISC-V | `0f 24 1f 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FP64STACK`: same scalar FP register aliases as `PCALL.RV64.SYSV`, but maps x86_64 SysV FP overflow stack arguments from `[RSP+8]`/`[RSP+16]` into RISC-V `a0`/`a1` as required by psABI once `fa0`-`fa7` are consumed. |
+| x86 SysV FP-overflow call to RISC-V | `0f 24 1f 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FP64STACK`: same scalar FP register aliases as `PCALL.RV64.SYSV`, but maps up to eight x86_64 SysV FP overflow stack arguments from `[RSP+8]` onward into RISC-V `a0`-`a7` as required by psABI once `fa0`-`fa7` are consumed. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
@@ -208,7 +208,7 @@ foreign `SP` window below the x86 frame, and copies integer overflow stack
 arguments from `[RSP+24]` onward so the first foreign stack argument is visible
 at `[sp]`; AArch64 FP64 stack-argument variants copy from `[RSP+8]` because
 x86_64 SysV uses the overflow stack only after `XMM0`-`XMM7` are consumed, while
-the RISC-V variant maps those overflow FP lanes into `a0`/`a1` per psABI.  x86
+the RISC-V variant maps those overflow FP lanes into `a0`-`a7` per psABI.  x86
 `RSP` is restored when the native foreign return hits the return cookie.  The
 bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, including
 two-register homogeneous double aggregate arguments and returns through
@@ -335,7 +335,7 @@ objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
-`riscv-pcall-fp64-real.so#poly_entry`) plus ten-double FP stack-argument objects
+`riscv-pcall-fp64-real.so#poly_entry`) plus sixteen-double FP stack-argument objects
 (`aarch64-pcall-fp64-stack-real.so#poly_entry` and
 `riscv-pcall-fp64-stack-real.so#poly_entry`), compiler-built homogeneous double
 aggregate return objects (`aarch64-pcall-fpair-real.so#poly_entry` and
