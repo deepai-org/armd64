@@ -7,11 +7,19 @@ static unsigned long xor_counter = 0x55;
 static unsigned long or_counter = 0x40;
 static unsigned long sub_counter = 0xff;
 static unsigned long nand_counter = 0xff;
+static unsigned long min_counter = 100;
+static unsigned long max_counter = 100;
+static unsigned long minu_counter = 100;
+static unsigned long maxu_counter = 100;
 static unsigned int and_word_counter = 0x7f;
 static unsigned int xor_word_counter = 0x21;
 static unsigned int or_word_counter = 0x12;
 static unsigned int sub_word_counter = 0x7f;
 static unsigned int nand_word_counter = 0x7f;
+static unsigned int min_word_counter = 100;
+static unsigned int max_word_counter = 100;
+static unsigned int minu_word_counter = 100;
+static unsigned int maxu_word_counter = 100;
 static unsigned short add_half_counter = 5;
 static unsigned char add_byte_counter = 6;
 static unsigned short xor_half_counter = 0x21;
@@ -23,6 +31,142 @@ static unsigned char nand_byte_counter = 0x17;
 static unsigned long cas_value = 99;
 static unsigned short cas_half_value = 123;
 static unsigned char cas_byte_value = 27;
+
+static unsigned long fetch_min_u64(unsigned long *ptr, long value)
+{
+#ifdef __riscv
+  unsigned long old;
+  __asm__ volatile ("amomin.d.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return old;
+#else
+  unsigned long old = *ptr;
+  if ((long) old > value)
+    *ptr = (unsigned long) value;
+  return old;
+#endif
+}
+
+static unsigned long fetch_max_u64(unsigned long *ptr, long value)
+{
+#ifdef __riscv
+  unsigned long old;
+  __asm__ volatile ("amomax.d.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return old;
+#else
+  unsigned long old = *ptr;
+  if ((long) old < value)
+    *ptr = (unsigned long) value;
+  return old;
+#endif
+}
+
+static unsigned long fetch_minu_u64(unsigned long *ptr, unsigned long value)
+{
+#ifdef __riscv
+  unsigned long old;
+  __asm__ volatile ("amominu.d.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return old;
+#else
+  unsigned long old = *ptr;
+  if (old > value)
+    *ptr = value;
+  return old;
+#endif
+}
+
+static unsigned long fetch_maxu_u64(unsigned long *ptr, unsigned long value)
+{
+#ifdef __riscv
+  unsigned long old;
+  __asm__ volatile ("amomaxu.d.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return old;
+#else
+  unsigned long old = *ptr;
+  if (old < value)
+    *ptr = value;
+  return old;
+#endif
+}
+
+static unsigned int fetch_min_u32(unsigned int *ptr, int value)
+{
+#ifdef __riscv
+  long old;
+  __asm__ volatile ("amomin.w.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return (unsigned int) old;
+#else
+  unsigned int old = *ptr;
+  if ((int) old > value)
+    *ptr = (unsigned int) value;
+  return old;
+#endif
+}
+
+static unsigned int fetch_max_u32(unsigned int *ptr, int value)
+{
+#ifdef __riscv
+  long old;
+  __asm__ volatile ("amomax.w.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return (unsigned int) old;
+#else
+  unsigned int old = *ptr;
+  if ((int) old < value)
+    *ptr = (unsigned int) value;
+  return old;
+#endif
+}
+
+static unsigned int fetch_minu_u32(unsigned int *ptr, unsigned int value)
+{
+#ifdef __riscv
+  long old;
+  __asm__ volatile ("amominu.w.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return (unsigned int) old;
+#else
+  unsigned int old = *ptr;
+  if (old > value)
+    *ptr = value;
+  return old;
+#endif
+}
+
+static unsigned int fetch_maxu_u32(unsigned int *ptr, unsigned int value)
+{
+#ifdef __riscv
+  long old;
+  __asm__ volatile ("amomaxu.w.aqrl %0, %2, %1"
+      : "=r"(old), "+A"(*ptr)
+      : "r"(value)
+      : "memory");
+  return (unsigned int) old;
+#else
+  unsigned int old = *ptr;
+  if (old < value)
+    *ptr = value;
+  return old;
+#endif
+}
 
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
@@ -55,6 +199,16 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
       __ATOMIC_ACQ_REL);
   unsigned int nand_wold = __atomic_fetch_nand(&nand_word_counter,
       (unsigned int) b + 0x20, __ATOMIC_ACQ_REL);
+  unsigned long min_old = fetch_min_u64(&min_counter, -((long) a + 5));
+  unsigned long max_old = fetch_max_u64(&max_counter, (long) a + 200);
+  unsigned long minu_old = fetch_minu_u64(&minu_counter, b + 50);
+  unsigned long maxu_old = fetch_maxu_u64(&maxu_counter, c + 300);
+  unsigned int min_wold = fetch_min_u32(&min_word_counter, -((int) b + 5));
+  unsigned int max_wold = fetch_max_u32(&max_word_counter, (int) b + 200);
+  unsigned int minu_wold = fetch_minu_u32(&minu_word_counter,
+      (unsigned int) c + 50);
+  unsigned int maxu_wold = fetch_maxu_u32(&maxu_word_counter,
+      (unsigned int) c + 300);
   unsigned short add_hold = __atomic_fetch_add(&add_half_counter,
       (unsigned short) c + 5, __ATOMIC_ACQUIRE);
   unsigned char add_bold = __atomic_fetch_add(&add_byte_counter,
@@ -91,6 +245,10 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
     sub_wold + sub_word_counter + sub_hold + sub_half_counter + sub_bold +
     sub_byte_counter + nand_old + nand_counter + nand_wold +
     nand_word_counter + nand_hold + nand_half_counter + nand_bold +
-    nand_byte_counter + (unsigned long) half_ok + half_expected +
-    cas_half_value + (unsigned long) byte_ok + byte_expected + cas_byte_value;
+    nand_byte_counter + min_old + min_counter + max_old + max_counter +
+    minu_old + minu_counter + maxu_old + maxu_counter + min_wold +
+    min_word_counter + max_wold + max_word_counter + minu_wold +
+    minu_word_counter + maxu_wold + maxu_word_counter +
+    (unsigned long) half_ok + half_expected + cas_half_value +
+    (unsigned long) byte_ok + byte_expected + cas_byte_value;
 }
