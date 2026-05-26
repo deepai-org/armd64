@@ -128,9 +128,9 @@ callee and return the deterministic syscall result through the caller's native
 result register.  The libcall probes execute native AArch64 `brk #1` or
 RISC-V `ebreak` strlen traps inside the neutral callee and return through the
 same hardware cookie path.  Descriptor-import probes execute ordinary AArch64
-`blr` or RISC-V `jalr` calls to the `strlen` import descriptor inside the
-neutral callee, preserve the callee's native link register, and return through
-the same cross-frontend cookie path.  The
+`blr` or RISC-V `jalr` calls to the `strlen` and three-argument `memcmp`
+import descriptors inside the neutral callee, preserve the callee's native link
+register, and return through the same cross-frontend cookie path.  The
 prototype saves that stack, the `PCALL` return cookie, and x86-import return
 state with the same synthetic bank as the non-aliased foreign registers.  The
 bank key is guest `CR3`, user `FSBASE`, and an 8 MiB-aligned user stack-region
@@ -407,9 +407,9 @@ the caller continuation in `ra`. The descriptor path also accepts common libc
 symbol names `strlen`, `memcpy`, `memset`, and `memcmp`, so compiler-produced
 foreign objects can call those routines through ordinary PLT/GOT entries
 without using synthetic breakpoint libcalls. The neutral cross-call gate also
-covers direct descriptor `strlen` calls inside foreign callees, proving
-descriptor imports are not limited to x86-entered `PCALL` payloads. The gate
-also covers
+covers direct descriptor `strlen` and three-argument `memcmp` calls inside
+foreign callees, proving descriptor imports are not limited to x86-entered
+`PCALL` payloads. The gate also covers
 `poly_import_x86_add`, where the descriptor
 enters a real x86_64 helper target supplied by the runtime, synthesizes an x86
 return address to a nearby `PIRET` landing pad, lets the helper use an ordinary
