@@ -11,6 +11,7 @@ extern void *memchr(const void *, int, size_t);
 extern char *strchr(const char *, int);
 extern char *strrchr(const char *, int);
 extern char *strstr(const char *, const char *);
+extern char *strcpy(char *, const char *);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
@@ -53,6 +54,12 @@ static char *call_strstr(const char *base, const char *needle)
   return strstr(base, needle);
 }
 
+__attribute__((noinline))
+static char *call_strcpy(char *dest, const char *src)
+{
+  return strcpy(dest, src);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -61,6 +68,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
 {
   char buffer[16];
   char overlap[16];
+  char copied[16];
 
   (void) a0;
   (void) a1;
@@ -76,6 +84,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   memcpy(buffer, source, sizeof(source));
   memset(overlap, 0, sizeof(overlap));
   memcpy(overlap, overlap_source, sizeof(overlap_source));
+  memset(copied, 0, sizeof(copied));
   memmove(overlap + 2, overlap, 5);
   size_t len = strlen(buffer);
   int string_same = call_strcmp(buffer, expected);
@@ -91,8 +100,10 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   char *substring_found = call_strstr(buffer, "ly-");
   char *suffix_found = call_strstr(buffer, "libc");
   char *substring_not_found = call_strstr(buffer, "z");
+  char *copy_result = call_strcpy(copied, buffer);
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
+  int copied_same = memcmp(copied, expected, sizeof(expected));
   buffer[4] = 'X';
   int different = memcmp(buffer, expected, sizeof(expected));
 
@@ -111,5 +122,7 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (substring_found == buffer + 2 ? 1400 : 14000) +
     (suffix_found == buffer + 5 ? 1500 : 15000) +
     (substring_not_found == 0 ? 1600 : 16000) +
+    (copy_result == copied ? 1700 : 17000) +
+    (copied_same == 0 ? 1800 : 18000) +
     (unsigned char) buffer[0];
 }
