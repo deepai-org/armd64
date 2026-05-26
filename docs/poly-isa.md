@@ -491,8 +491,9 @@ proving that distinct undefined function symbols can dispatch through separate
 descriptor slots. The compiler-produced import objects exercise real
 PLT/GOT-backed `JUMP_SLOT` calls to `poly_import_add`: AArch64 PLT code may
 branch with `br` after the caller's `bl` saved the continuation in `x30`, and
-RISC-V PLT code may use `jalr` with a scratch link register while preserving
-the caller continuation in `ra`. The descriptor path also accepts common libc
+RISC-V PLT code may use 32-bit `jalr`, compressed `c.jalr`, or compressed
+`c.jr` tail-call transfers while preserving the caller continuation in `ra`.
+The descriptor path also accepts common libc
 symbol names `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,

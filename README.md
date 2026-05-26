@@ -401,7 +401,8 @@ compiler-emitted conditional select variants and branch patterns
 `riscv-pcall-import.elf`), prototype imported
 function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
-`riscv-pcall-import-func.elf`, `riscv-pcall-import-mul.elf`,
+`riscv-pcall-import-func.elf`, `riscv-pcall-import-cjalr.elf`,
+`riscv-pcall-import-cjr.elf`, `riscv-pcall-import-mul.elf`,
 `riscv-pcall-import-x86.elf`) plus real compiler-emitted PLT/GOT calls to
 `poly_import_add`, `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,

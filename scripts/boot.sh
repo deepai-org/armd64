@@ -1134,6 +1134,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-jumprel.elf" --dyn-jump-slot64 0x7b 0x00002517 0x00053503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import.elf" --dyn-import64 poly_import_value 0x00002517 0x00053503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-func.elf" --dyn-import-func64 poly_import_add 0xff010113 0x00113423 0x00002297 0xff82b283 0x000280e7 0x00813083 0x01010113 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-cjalr.elf" --dyn-import-func64 poly_import_add 0xff010113 0x00113423 0x00002297 0xff82b283 0x00019282 0x00813083 0x01010113 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-cjr.elf" --dyn-import-func64 poly_import_add 0x00002297 0x0002b283 0x00018282
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-mul.elf" --dyn-import-func64 poly_import_mul 0xff010113 0x00113423 0x00002297 0xff82b283 0x000280e7 0x00813083 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-import-x86.elf" --dyn-import-func64 poly_import_x86_add 0xff010113 0x00113423 0x00002297 0xff82b283 0x000280e7 0x00813083 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mem.elf" 0x04d00513 0x00a5b023 0x00000513 0x0005b503
@@ -1682,6 +1684,8 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-import.elf=123 \
     /usr/lib/polyapps/riscv-pcall-import-func.elf=103 \
+    /usr/lib/polyapps/riscv-pcall-import-cjalr.elf=103 \
+    /usr/lib/polyapps/riscv-pcall-import-cjr.elf=103 \
     /usr/lib/polyapps/riscv-pcall-import-mul.elf=102 \
     /usr/lib/polyapps/riscv-pcall-import-x86.elf=203 >/dev/ttyS0 2>&1
 fi
