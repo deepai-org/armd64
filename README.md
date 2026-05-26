@@ -211,7 +211,7 @@ objects (`aarch64-pcall-import-real.so#poly_entry` and
 function objects (`aarch64-pcall-libc-import-real.so#poly_entry` and
 `riscv-pcall-libc-import-real.so#poly_entry`) that call `strlen`, `strcmp`, `strncmp`, `memcpy`,
 `memmove`, `memset`, `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`,
-`strncpy`, and `strnlen` through PLT/GOT descriptors, compiler-built imported-object
+`strncpy`, `strnlen`, `strcat`, and `strncat` through PLT/GOT descriptors, compiler-built imported-object
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-built weak undefined
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
@@ -377,8 +377,8 @@ function call gates (`aarch64-pcall-import-func.elf`,
 `riscv-pcall-import-func.elf`, `riscv-pcall-import-mul.elf`,
 `riscv-pcall-import-x86.elf`) plus real compiler-emitted PLT/GOT calls to
 `poly_import_add`, `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
-`memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`, and
-`strnlen`, and teardown
+`memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
+`strnlen`, `strcat`, and `strncat`, and teardown
 before returning.
 The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
 an x86 return address to the dedicated `0f 24` `PIRET`, accepts the helper's
