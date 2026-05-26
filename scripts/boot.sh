@@ -763,7 +763,13 @@ EOF
   local bochs_pid=$!
   local deadline=$((SECONDS + 120))
   local success=0
+  local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|POLY[A-Z_]*_FAIL'
   while (( SECONDS < deadline )); do
+    if grep -Eiq "$fatal_pattern" "$SERIAL_LOG" "$BOCHS_LOG" 2>/dev/null; then
+      success=-1
+      break
+    fi
+
     if grep -q "BOOT_OK: initramfs reached userspace" "$SERIAL_LOG"; then
       if [[ "$RUN_POLY_PROBE" == "1" ]]; then
         if ! grep -q "POLY_PROBE_OK" "$SERIAL_LOG"; then
@@ -808,12 +814,16 @@ EOF
   fi
   wait "$bochs_pid" 2>/dev/null || true
 
-  if (( success )); then
+  if (( success > 0 )); then
     echo "Boot smoke test passed."
     exit 0
   fi
 
-  echo "Boot smoke test failed."
+  if (( success < 0 )); then
+    echo "Boot smoke test failed due to a fatal guest or emulator log pattern."
+  else
+    echo "Boot smoke test failed."
+  fi
   echo "Serial log:"
   cat "$SERIAL_LOG" || true
   echo "Console log:"
