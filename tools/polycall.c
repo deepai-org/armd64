@@ -1312,7 +1312,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     };
     memcpy(code + offset, host_helper, sizeof(host_helper));
     offset += sizeof(host_helper);
-    const uint8_t import_return[] = { 0x41, 0x0f, 0x0b, 0x50, 0x49, 0x52, 0x45, 0x54 };
+    const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, import_return, sizeof(import_return));
     offset += sizeof(import_return);
   }

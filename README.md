@@ -80,6 +80,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV call to RISC-V | `0f 24 11 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
 | x86 SysV sret call to AArch64 | `0f 24 12 50 4f 4c 59 21` | Prototype `PCALL.A64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`, shifts user args back to `x0`-`x7`, and enters raw AArch64. |
 | x86 SysV sret call to RISC-V | `0f 24 13 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
+| x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 
 Legacy fixed 8-byte `UD2` envelopes:
 
@@ -92,7 +93,7 @@ Legacy fixed 8-byte `UD2` envelopes:
 | x86 SysV call to RISC-V | `40 0f 0b 50 43 52 56 36` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
 | x86 SysV sret call to AArch64 | `42 0f 0b 50 53 41 36 34` | Prototype `PCALL.A64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`, shifts user args back to `x0`-`x7`, and enters raw AArch64. |
 | x86 SysV sret call to RISC-V | `42 0f 0b 50 53 52 56 36` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
-| x86 import return | `41 0f 0b 50 49 52 45 54` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
+| x86 import return | `41 0f 0b 50 49 52 45 54` | Legacy prototype `PIRET`: compatibility encoding for descriptor-driven import returns. |
 | Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
 | Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
 | Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign raw instructions`, `3=foreign syscalls`, `4=foreign libcalls`. |
@@ -361,8 +362,9 @@ function call gates (`aarch64-pcall-import-func.elf`,
 `poly_import_add`, `strlen`, `memcpy`, `memset`, and `memcmp`, and teardown
 before returning.
 The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
-an x86 return address to `PIRET`, accepts the helper's ordinary `ret`, and maps
-the x86 `RAX` result back to AArch64 `x0` or RISC-V `a0`.
+an x86 return address to the dedicated `0f 24` `PIRET`, accepts the helper's
+ordinary `ret`, and maps the x86 `RAX` result back to AArch64 `x0` or RISC-V
+`a0`.
 The same descriptor mechanism currently resolves common GCC AArch64 outline
 atomic helper imports used by default compiler output:
 `__aarch64_ldadd8_acq_rel`, `__aarch64_swp8_acq_rel`,

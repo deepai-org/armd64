@@ -63,6 +63,9 @@ and call operations:
 - `0f 24 11 50 4f 4c 59 21`: prototype `PCALL.RV64.SYSV`.
 - `0f 24 12 50 4f 4c 59 21`: prototype `PCALL.A64.SYSV.SRET`.
 - `0f 24 13 50 4f 4c 59 21`: prototype `PCALL.RV64.SYSV.SRET`.
+- `0f 24 20 50 4f 4c 59 21`: prototype `PIRET`, used by
+  descriptor-driven foreign-to-x86 import calls to resume the saved foreign
+  return PC after an x86 helper returns normally.
 
 Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
 handler and validates the trailing `POLY!` magic before changing frontend
@@ -80,9 +83,8 @@ Legacy fixed 8-byte `UD2` envelopes remain as compatibility/debug encodings:
   the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`.
 - `42 0f 0b 50 53 52 56 36`: prototype `PCALL.RV64.SYSV.SRET`, mapping
   the x86_64 hidden result pointer in `RDI` to RISC-V `a0`.
-- `41 0f 0b 50 49 52 45 54`: prototype `PIRET`, used by
-  descriptor-driven foreign-to-x86 import calls to resume the saved foreign
-  return PC after an x86 helper returns normally.
+- `41 0f 0b 50 49 52 45 54`: legacy prototype `PIRET`, retained as a
+  compatibility/debug encoding for descriptor-driven import returns.
 
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
@@ -429,9 +431,9 @@ covers direct descriptor `strlen`, `memset`, `memcpy`, and three-argument
 limited to x86-entered `PCALL` payloads. The gate also covers
 `poly_import_x86_add`, where the descriptor
 enters a real x86_64 helper target supplied by the runtime, synthesizes an x86
-return address to a nearby `PIRET` landing pad, lets the helper use an ordinary
-`ret`, and then resumes the saved AArch64/RISC-V return PC with the x86 `RAX`
-result mapped back to the native foreign return register.
+return address to a nearby dedicated `0f 24` `PIRET` landing pad, lets the
+helper use an ordinary `ret`, and then resumes the saved AArch64/RISC-V return
+PC with the x86 `RAX` result mapped back to the native foreign return register.
 A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
