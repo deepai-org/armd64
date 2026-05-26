@@ -87,11 +87,14 @@ bank key is guest `CR3`, user `FSBASE`, and an 8 MiB-aligned user stack-region
 key, which keeps common pthread stacks isolated even when static TLS does not
 give each guest thread a distinct `FSBASE`.  The `polythread` guest test
 exercises this with real x86_64 pthreads repeatedly entering AArch64 and
-RISC-V `PCALL` paths.  The Bochs prototype now records raw-mode interrupt
-state before x86_64 long-mode interrupt delivery and restores the recorded
-foreign frontend after `IRET64`, `SYSRET`, or `SYSEXIT` returns to the
+RISC-V `PCALL` paths.  The `polysignal` guest test arms real `SIGALRM`
+delivery during long raw AArch64 and RISC-V `PCALL` loops, verifying that the
+x86_64 signal handler and `rt_sigreturn` path resume the interrupted foreign
+frontend.  The Bochs prototype now records raw-mode interrupt state before
+x86_64 long-mode interrupt delivery and restores the recorded foreign frontend
+after `IRET64`, `SYSRET`, `SYSEXIT`, or Linux signal return reaches the
 interrupted user RIP.  Final hardware still needs this state exposed as an
-architectural, XSAVE-visible component, plus precise signal-return rules.
+architectural, XSAVE-visible component.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register

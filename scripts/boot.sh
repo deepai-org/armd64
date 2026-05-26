@@ -33,6 +33,8 @@ POLY_CALL_SRC="$ROOT_DIR/tools/polycall.c"
 POLY_CALL_BIN="$OUT_DIR/polycall"
 POLY_THREAD_SRC="$ROOT_DIR/tools/polythread.c"
 POLY_THREAD_BIN="$OUT_DIR/polythread"
+POLY_SIGNAL_SRC="$ROOT_DIR/tools/polysignal.c"
+POLY_SIGNAL_BIN="$OUT_DIR/polysignal"
 POLY_BENCH_SRC="$ROOT_DIR/tools/polybench.c"
 POLY_BENCH_BIN="$OUT_DIR/polybench"
 POLY_BINFMT_SRC="$ROOT_DIR/tools/polybinfmt.sh"
@@ -57,6 +59,7 @@ RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
 RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
+RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
 RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 BOCHS_BIOS_DIR=""
@@ -159,6 +162,10 @@ build_poly_thread() {
 
   "$compiler" -O2 -static -s -fno-stack-protector -pthread \
     --sysroot=/usr/x86_64-linux-gnu "$POLY_THREAD_SRC" -o "$POLY_THREAD_BIN"
+}
+
+build_poly_signal() {
+  compile_poly_tool "$POLY_SIGNAL_SRC" "$POLY_SIGNAL_BIN" "${POLY_SIGNAL_CC:-}"
 }
 
 build_poly_bench() {
@@ -468,6 +475,7 @@ build_initramfs() {
   build_poly_exec
   build_poly_call
   build_poly_thread
+  build_poly_signal
   build_poly_bench
   build_native_check
   local busybox_version
@@ -504,6 +512,7 @@ build_initramfs() {
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
   cp "$POLY_CALL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polycall"
   cp "$POLY_THREAD_BIN" "$TMP_DIR/initramfs-root/usr/bin/polythread"
+  cp "$POLY_SIGNAL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polysignal"
   cp "$POLY_BENCH_BIN" "$TMP_DIR/initramfs-root/usr/bin/polybench"
   cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   cp "$NATIVE_CHECK_BIN" "$TMP_DIR/initramfs-root/usr/bin/nativecheck.elf"
@@ -520,6 +529,7 @@ RUN_POLY_APPS="$RUN_POLY_APPS"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_CALL="$RUN_POLY_CALL"
 RUN_POLY_THREAD="$RUN_POLY_THREAD"
+RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
 RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 
@@ -709,6 +719,10 @@ fi
 
 if [ "$RUN_POLY_THREAD" = "1" ]; then
   /usr/bin/polythread >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_SIGNAL" = "1" ]; then
+  /usr/bin/polysignal >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_BENCH" = "1" ]; then
@@ -1007,6 +1021,12 @@ EOF
       fi
       if [[ "$RUN_POLY_THREAD" == "1" ]]; then
         if ! grep -q "POLYTHREAD_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_SIGNAL" == "1" ]]; then
+        if ! grep -q "POLYSIGNAL_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
