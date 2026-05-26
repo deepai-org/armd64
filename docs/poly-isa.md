@@ -400,8 +400,11 @@ descriptor slots. The compiler-produced import objects exercise real
 PLT/GOT-backed `JUMP_SLOT` calls to `poly_import_add`: AArch64 PLT code may
 branch with `br` after the caller's `bl` saved the continuation in `x30`, and
 RISC-V PLT code may use `jalr` with a scratch link register while preserving
-the caller continuation in `ra`. The gate also covers `poly_import_x86_add`,
-where the descriptor
+the caller continuation in `ra`. The descriptor path also accepts common libc
+symbol names `strlen`, `memcpy`, `memset`, and `memcmp`, so compiler-produced
+foreign objects can call those routines through ordinary PLT/GOT entries
+without using synthetic breakpoint libcalls. The gate also covers
+`poly_import_x86_add`, where the descriptor
 enters a real x86_64 helper target supplied by the runtime, synthesizes an x86
 return address to a nearby `PIRET` landing pad, lets the helper use an ordinary
 `ret`, and then resumes the saved AArch64/RISC-V return PC with the x86 `RAX`

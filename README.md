@@ -194,7 +194,10 @@ verifies this against loaded foreign ELF64 function payloads
 `aarch64-pcall-state.so#poly_entry`, and
 `riscv-pcall-state.so#poly_entry`) plus compiler-built imported-function
 objects (`aarch64-pcall-import-real.so#poly_entry` and
-`riscv-pcall-import-real.so#poly_entry`), compiler-built imported-object
+`riscv-pcall-import-real.so#poly_entry`), compiler-built libc-style imported
+function objects (`aarch64-pcall-libc-import-real.so#poly_entry` and
+`riscv-pcall-libc-import-real.so#poly_entry`) that call `strlen`, `memcpy`,
+`memset`, and `memcmp` through PLT/GOT descriptors, compiler-built imported-object
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-built weak undefined
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
@@ -341,7 +344,8 @@ function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
 `riscv-pcall-import-func.elf`, `riscv-pcall-import-mul.elf`,
 `riscv-pcall-import-x86.elf`) plus real compiler-emitted PLT/GOT calls to
-`poly_import_add`, and teardown before returning.
+`poly_import_add`, `strlen`, `memcpy`, `memset`, and `memcmp`, and teardown
+before returning.
 The `poly_import_x86_add` descriptor enters a real x86_64 helper, synthesizes
 an x86 return address to `PIRET`, accepts the helper's ordinary `ret`, and maps
 the x86 `RAX` result back to AArch64 `x0` or RISC-V `a0`.

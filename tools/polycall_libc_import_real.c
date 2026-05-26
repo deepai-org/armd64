@@ -1,0 +1,38 @@
+typedef unsigned long size_t;
+
+extern size_t strlen(const char *);
+extern void *memcpy(void *, const void *, size_t);
+extern void *memset(void *, int, size_t);
+extern int memcmp(const void *, const void *, size_t);
+
+static const char source[] = "poly-libc";
+static const char expected[] = "poly-libc";
+
+__attribute__((visibility("default")))
+unsigned long poly_entry(unsigned long a0, unsigned long a1,
+    unsigned long a2, unsigned long a3, unsigned long a4,
+    unsigned long a5, unsigned long a6, unsigned long a7,
+    unsigned long a8)
+{
+  char buffer[16];
+
+  (void) a0;
+  (void) a1;
+  (void) a2;
+  (void) a3;
+  (void) a4;
+  (void) a5;
+  (void) a6;
+  (void) a7;
+  (void) a8;
+
+  memset(buffer, 0x41, sizeof(buffer));
+  memcpy(buffer, source, sizeof(source));
+  size_t len = strlen(buffer);
+  int same = memcmp(buffer, expected, sizeof(expected));
+  buffer[4] = 'X';
+  int different = memcmp(buffer, expected, sizeof(expected));
+
+  return len + (same == 0 ? 100 : 1000) +
+    (different > 0 ? 200 : 2000) + (unsigned char) buffer[0];
+}

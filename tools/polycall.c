@@ -57,7 +57,11 @@ enum {
   POLY_IMPORT_FUNC_AARCH64_LDADD8_ACQ_REL = 4,
   POLY_IMPORT_FUNC_AARCH64_SWP8_ACQ_REL = 5,
   POLY_IMPORT_FUNC_AARCH64_LDSET4_RELAX = 6,
-  POLY_IMPORT_FUNC_AARCH64_CAS8_ACQ_REL = 7
+  POLY_IMPORT_FUNC_AARCH64_CAS8_ACQ_REL = 7,
+  POLY_IMPORT_FUNC_STRLEN = 8,
+  POLY_IMPORT_FUNC_MEMCPY = 9,
+  POLY_IMPORT_FUNC_MEMSET = 10,
+  POLY_IMPORT_FUNC_MEMCMP = 11
 };
 
 struct poly_dynamic_reloc {
@@ -394,6 +398,22 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_fp64_add") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FP64_ADD * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strlen") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRLEN * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "memcpy") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMCPY * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "memset") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMSET * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "memcmp") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMCMP * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "__aarch64_ldadd8_acq_rel") == 0) {
