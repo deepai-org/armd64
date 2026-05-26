@@ -673,7 +673,8 @@ numbers currently include:
   `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `getpid`,
   `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
   `getpgid(0)`, `getsid(0)`, `rseq`, `exit`, and `exit_group`.
-- File-style syscalls: `getcwd`, `eventfd2`, `dup3`, `pipe2`,
+- File-style syscalls: `getcwd`, `eventfd2`, `inotify_init1`,
+  `inotify_add_watch`, `inotify_rm_watch`, `dup3`, `pipe2`,
   `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
   `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `pselect6`,
   `ppoll`, `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`,
