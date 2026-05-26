@@ -247,8 +247,10 @@ the native FP register ABI, scalar double FP function imports through PLT/GOT ca
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, compiler-emitted same-image function-pointer relocations and indirect
 native calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
-compiler-emitted conditional select and branch patterns
-(`aarch64-pcall-import.elf`, `riscv-pcall-import.elf`), prototype imported
+compiler-emitted conditional select variants and branch patterns
+(`aarch64-pcall-select-variants-real.so`,
+`riscv-pcall-select-variants-real.so`, `aarch64-pcall-import.elf`,
+`riscv-pcall-import.elf`), prototype imported
 function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
 `riscv-pcall-import-func.elf`, `riscv-pcall-import-mul.elf`,
@@ -289,7 +291,8 @@ immediate and shifted-register forms, shifted-register
 bitfield signed-extension aliases `sxtb`/`sxth`/`sxtw`,
 unconditional branch and call `b`/`bl`,
 condition-code branch `b.cond`, register branch and call `br`/`blr`,
-`cbz`/`cbnz`, conditional select `csel`, logical-immediate `and`/`orr`/`eor`
+`cbz`/`cbnz`, conditional select `csel`/`csinc`/`csinv`/`csneg`,
+logical-immediate `and`/`orr`/`eor`
 and `tst`/`ands`, native `ret`, `dmb`/`dsb`/`isb`, scalar double
 and float `fadd`/`fsub`/`fmul`/`fdiv`, fused multiply-add `fmadd`,
 `fmsub`, `fnmadd`, and `fnmsub`, register `fmov`, unary

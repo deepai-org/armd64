@@ -224,7 +224,8 @@ emitted same-image data relocations to local function symbols plus native
 indirect calls through `blr` or `jalr`. The constructor probes execute
 compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
 entrypoint. The conditional probes exercise compiler-emitted AArch64
-logical-immediate `tst` plus `csel`, and RISC-V branch/select patterns. The
+logical-immediate `tst`, `csel`, and conditional-select variants
+`csinc`/`csinv`/`csneg`, plus RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
 non-`x0` registers and RISC-V ordinary branch forms. The signed-extension
 probes exercise compiler-emitted AArch64 `sxth` plus `add ... sxtb/sxtw` and
