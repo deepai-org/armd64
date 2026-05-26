@@ -90,8 +90,8 @@ The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
 The Bochs prototype backs this with a small bounded cross-return stack and
-`polybench` covers scalar double FP cross-calls in both directions plus a
-nested AArch64 -> RISC-V -> AArch64 call chain.  The
+`polybench` covers scalar double FP cross-calls, mixed integer/FP cross-calls,
+and a nested AArch64 -> RISC-V -> AArch64 call chain.  The
 prototype saves that stack, the `PCALL` return cookie, and x86-import return
 state with the same synthetic bank as the non-aliased foreign registers.  The
 bank key is guest `CR3`, user `FSBASE`, and an 8 MiB-aligned user stack-region
