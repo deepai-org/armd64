@@ -27,7 +27,7 @@ struct poly_request {
   int check_expected;
 };
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x64,0x0f,0x0b,0x58,0x4d,0x4f,0x44,0x45" ::: "memory"); }
+static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 
 static int parse_u64(const char *text, uint64_t *value) {
   char *end = NULL;
@@ -224,12 +224,12 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   code[2] = 0x90;
   size_t offset = 3;
   if (program->arch == POLY_ARCH_AARCH64) {
-    const uint8_t raw_switch[] = { 0x65, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x36, 0x34 };
+    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, aarch64_adr(30, (int64_t) (program->insn_count + 1) * 4));
   } else {
-    const uint8_t raw_switch[] = { 0x66, 0x0f, 0x0b, 0x52, 0x41, 0x57, 0x52, 0x56 };
+    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     int64_t escape_offset = (int64_t) (program->insn_count + 2) * 4;
