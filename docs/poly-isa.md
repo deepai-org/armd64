@@ -79,6 +79,8 @@ RISC-V-to-AArch64 code without an x86 trampoline.
 The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
+The Bochs prototype backs this with a small bounded cross-return stack and
+`polybench` covers a nested AArch64 -> RISC-V -> AArch64 call chain.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation.  They currently cover the common register

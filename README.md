@@ -41,8 +41,8 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
-  RISC-V-to-AArch64 code blobs that switch and call directly without returning
-  to x86.
+  RISC-V-to-AArch64 code blobs that switch, call, and nest calls directly
+  without returning to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
@@ -86,6 +86,9 @@ address in `x16` with an AArch64 return PC in `x17`; RISC-V custom-2
 RISC-V return PC in `x6`.  The callee returns with its ordinary native return
 instruction to a hardware cookie, which restores the caller frontend mode and
 maps the shared argument/result registers back.  Raw
+cross-call returns use a small bounded hardware-style return stack in the
+prototype, so nested AArch64-to-RISC-V-to-AArch64 calls can unwind through
+ordinary native returns without an x86 trampoline.  Raw
 foreign fetch is only active at guest CPL3; kernel, interrupt, and exception
 paths continue through normal x86_64 decode even if the current userspace poly
 mode is raw AArch64 or raw RISC-V.  Raw fetch is also bound to the guest CR3
@@ -240,7 +243,7 @@ compressed integer code: `c.addi4spn`, `c.ld`, `c.sd`, `c.addi`, `c.li`,
 AArch64-to-RISC-V and RISC-V-to-AArch64 frontend switches, plus cross-ISA calls
 where the caller enters the other foreign frontend and the callee returns with
 ordinary native `ret`/`jalr` through a hardware cookie without routing through
-x86.
+x86.  The gate also covers a nested AArch64 -> RISC-V -> AArch64 call chain.
 Synthetic AArch64/RISC-V register banks and the current poly mode are lazily
 saved and restored per guest `CR3` plus user `FSBASE`.  A normal x86_64 Linux
 process switch does not share foreign registers with another address space, and
