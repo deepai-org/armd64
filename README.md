@@ -286,7 +286,9 @@ float FP import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
 `aarch64-pcall-fp32-import-real.so#poly_entry`, and
 `riscv-pcall-fp32-import-real.so#poly_entry`), compiler-built scalar double FP
 callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and
-`riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-built scalar double FP
+`riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-built scalar float FP
+callee-saved objects (`aarch64-pcall-fp32-callee-real.so#poly_entry` and
+`riscv-pcall-fp32-callee-real.so#poly_entry`), compiler-built scalar double FP
 conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
 `riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-built scalar double FP
 division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and

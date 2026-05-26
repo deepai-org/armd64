@@ -317,7 +317,9 @@ import objects (`aarch64-pcall-fp64-import-real.so#poly_entry`,
 `aarch64-pcall-fp32-import-real.so#poly_entry`, and
 `riscv-pcall-fp32-import-real.so#poly_entry`), compiler-produced scalar double
 FP callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and
-`riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-produced scalar double
+`riscv-pcall-fp64-callee-real.so#poly_entry`), compiler-produced scalar float
+FP callee-saved objects (`aarch64-pcall-fp32-callee-real.so#poly_entry` and
+`riscv-pcall-fp32-callee-real.so#poly_entry`), compiler-produced scalar double
 FP conditional objects (`aarch64-pcall-fp64-cond-real.so#poly_entry` and
 `riscv-pcall-fp64-cond-real.so#poly_entry`), compiler-produced scalar double
 FP division objects (`aarch64-pcall-fp64-div-real.so#poly_entry` and
@@ -430,8 +432,9 @@ probe exercises compiler-emitted `amoadd.d`, `amoswap.d`, `amoor.w`, `lr.d`,
 and `sc.d` forms from C `__atomic` builtins. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
-exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V
-`fsd`/`fld` of `fs0` and later across imported calls. The compressed-word
+exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later, scalar float
+use of saved `s8` and later lanes, plus RISC-V `fsd`/`fld` of `fs0` and later
+across imported calls. The compressed-word
 probe exercises RISC-V `c.lw`/`c.sw` and `c.lwsp`/`c.swsp` forms. The
 compressed-ALU probe exercises RISC-V `c.addiw`, `c.srli`, `c.srai`, `c.andi`,
 `c.sub`, `c.xor`, `c.or`, `c.and`, `c.subw`, and `c.addw`. The compressed-FP
