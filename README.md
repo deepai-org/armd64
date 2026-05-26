@@ -124,9 +124,10 @@ verifies this against loaded foreign ELF64 function payloads
 (`aarch64-pcall-sum.elf`, `riscv-pcall-sum.elf`, `aarch64-pcall-sum8.elf`,
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`, and
 `riscv-pcall-sum9.elf`) plus compiler-shaped stack-frame payloads
-(`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`, and
-`riscv-pcall-frame.elf`) that use native `SP` adjustment, stack load/store,
-pair frame save/restore where applicable, and teardown before returning.  More complex ABI
+(`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
+`aarch64-pcall-bl.elf`, and `riscv-pcall-frame.elf`) that use native `SP`
+adjustment, stack load/store, pair frame save/restore, local AArch64 `bl`
+calls where applicable, and teardown before returning.  More complex ABI
 cases such as aggregate returns, variadic calls, TLS, unwind, and exceptions
 still need descriptor-driven or software thunk support.  Direct register
 aliases are an implementation optimization only where they match the native ABI
@@ -150,8 +151,9 @@ the trap, but the trap record is the intended ISA boundary.
 The direct-fetch AArch64 path covers the generated/probed subset used by
 `polyprobe`, `polyapp`, `polyexec`, and `polybench`: `adr`, `movz`, `movn`,
 `movk`, `add`/`sub` immediate forms including `SP`, shifted-register
-`add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch, `cbz`/`cbnz`, native
-`ret`, `dmb`/`dsb`/`isb`, scalar double `fadd`/`fsub`/`fmul` and register
+`add`/`sub`/`mul`/`eor`/`and`/`orr`, unconditional branch and call `b`/`bl`,
+register branch and call `br`/`blr`, `cbz`/`cbnz`, native `ret`,
+`dmb`/`dsb`/`isb`, scalar double `fadd`/`fsub`/`fmul` and register
 `fmov`, generic byte/halfword/word/dword load-store forms, 64-bit
 `stp`/`ldp` pair load-store forms, `svc`, and `brk`.
 
