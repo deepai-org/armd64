@@ -107,7 +107,7 @@ runtime dispatch:
 | `0x40000001` | `EAX=1`, `EBX=mode mask`, `ECX=feature mask`, `EDX=0` | Reports poly CPUID ABI version 1, supported frontend modes, implemented prototype features, and no architectural XSAVE component yet. |
 | `0x40000002, subleaf 0` | `EAX[15:0]=0x7fff`, `EAX[31:16]=0x7ffe`, `EBX=0x7ffd`, `ECX=0x0000000b`, `EDX=0x0000002b` | Reports native raw-mode escape/cross-switch encodings: AArch64-to-x86, AArch64-to-RISC-V switch, AArch64-to-RISC-V call, RISC-V-to-x86, and RISC-V-to-AArch64 switch. |
 | `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=0x0000107b`, `ECX=0x0000207b`, `EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding and compact `{u32,float}`/`{float,u32}` native ABI cross-call variants. |
-| `0x40000002, subleaf 2` | `EAX=106`, `EBX=2`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
+| `0x40000002, subleaf 2` | `EAX=106`, `EBX=3`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -457,10 +457,13 @@ function call gates (`aarch64-pcall-import-func.elf`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`, `bcmp`,
 `bcopy`, `bzero`, `strcasecmp`, `strncasecmp`, `strcasestr`, `index`, and `rindex`, and teardown
 before returning.
-The `poly_import_x86_add` and `poly_import_x86_mul` descriptors enter real
-x86_64 helpers through a runtime-supplied descriptor table, synthesize an x86
-return address to the dedicated `0f 24` `PIRET`, accept each helper's ordinary
-`ret`, and map the x86 `RAX` result back to AArch64 `x0` or RISC-V `a0`.
+The `poly_import_x86_add`, `poly_import_x86_mul`, and
+`poly_import_x86_sum6` descriptors enter real x86_64 helpers through a
+runtime-supplied descriptor table, map up to six native foreign integer
+arguments to x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`,
+synthesize an x86 return address to the dedicated `0f 24` `PIRET`, accept each
+helper's ordinary `ret`, and map the x86 `RAX` result back to AArch64 `x0` or
+RISC-V `a0`.
 The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
 common GCC AArch64 outline

@@ -165,7 +165,7 @@ discover the experimental hardware contract before emitting poly operations:
   reports the compact `{float,u32}` variant.  Other registers are reserved
   zero.
 - `CPUID.EAX=0x40000002, ECX=2`: `EAX=106` reports the first
-  foreign-to-x86 import descriptor slot id, `EBX=2` reports the current slot
+  foreign-to-x86 import descriptor slot id, `EBX=3` reports the current slot
   count, `ECX=16` reports the descriptor byte size, and `EDX=16` reports the
   import-call stride.
 
@@ -585,8 +585,10 @@ PLT/GOT entries without using synthetic breakpoint libcalls. The neutral
 cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,
 `memcpy`, and three-argument `memcmp` calls inside foreign callees, proving
 descriptor imports are not limited to x86-entered `PCALL` payloads. The gate
-also covers `poly_import_x86_add` and `poly_import_x86_mul`, where descriptor
-slots select real x86_64 helper targets from a runtime-supplied table,
+also covers `poly_import_x86_add`, `poly_import_x86_mul`, and
+`poly_import_x86_sum6`, where descriptor slots select real x86_64 helper
+targets from a runtime-supplied table, map up to six native foreign integer
+arguments to x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`,
 synthesize an x86 return address to a nearby dedicated `0f 24` `PIRET` landing
 pad, let the helper use an ordinary `ret`, and then resume the saved
 AArch64/RISC-V return PC with the x86 `RAX` result mapped back to the native
