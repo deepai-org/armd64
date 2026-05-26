@@ -7,6 +7,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#ifndef DT_GNU_HASH
+#define DT_GNU_HASH 0x6ffffef5
+#endif
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
@@ -394,11 +398,74 @@ static int load_dynsym_from_sections(const unsigned char *data, size_t size,
   return -1;
 }
 
+static int load_symbol_count_from_gnu_hash(const struct poly_program *program,
+    uint64_t gnu_hash_vaddr, size_t symtab_offset, size_t *symbol_count) {
+  size_t hash_offset = 0;
+  if (elf_vaddr_to_image_offset(program, gnu_hash_vaddr, 16, &hash_offset) < 0)
+    return -1;
+
+  const uint32_t *hash = (const uint32_t *) (program->image + hash_offset);
+  const uint32_t nbuckets = hash[0];
+  const uint32_t symoffset = hash[1];
+  const uint32_t bloom_size = hash[2];
+  if (nbuckets == 0 || bloom_size == 0)
+    return -1;
+
+  const uint64_t buckets_offset = (uint64_t) hash_offset + 16 +
+    (uint64_t) bloom_size * sizeof(uint64_t);
+  const uint64_t buckets_size = (uint64_t) nbuckets * sizeof(uint32_t);
+  if (buckets_offset > program->image_size ||
+      buckets_size > program->image_size - buckets_offset)
+    return -1;
+
+  const uint64_t chains_offset = buckets_offset + buckets_size;
+  if (chains_offset > program->image_size ||
+      symtab_offset > program->image_size ||
+      (program->image_size - symtab_offset) / sizeof(Elf64_Sym) < symoffset)
+    return -1;
+
+  const size_t max_symbols =
+    (program->image_size - symtab_offset) / sizeof(Elf64_Sym);
+  const uint32_t *buckets =
+    (const uint32_t *) (program->image + buckets_offset);
+  size_t count = symoffset;
+
+  for (uint32_t n = 0; n < nbuckets; n++) {
+    uint32_t index = buckets[n];
+    if (index == 0)
+      continue;
+    if (index < symoffset || index >= max_symbols)
+      return -1;
+
+    while (1) {
+      const uint64_t chain_offset = chains_offset +
+        (uint64_t) (index - symoffset) * sizeof(uint32_t);
+      if (chain_offset > program->image_size ||
+          sizeof(uint32_t) > program->image_size - chain_offset)
+        return -1;
+
+      const uint32_t chain = *(const uint32_t *)
+        (program->image + chain_offset);
+      if ((size_t) index + 1 > count)
+        count = (size_t) index + 1;
+      if (chain & 1)
+        break;
+      index++;
+      if (index >= max_symbols)
+        return -1;
+    }
+  }
+
+  *symbol_count = count;
+  return 0;
+}
+
 static int load_dynsym_from_dynamic(const struct poly_program *program,
     const Elf64_Dyn *dyn, size_t dyn_count, struct poly_symbol_table *table) {
   uint64_t symtab_vaddr = 0;
   uint64_t strtab_vaddr = 0;
   uint64_t hash_vaddr = 0;
+  uint64_t gnu_hash_vaddr = 0;
   uint64_t strsz = 0;
   uint64_t syment = sizeof(Elf64_Sym);
 
@@ -416,6 +483,9 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
         break;
       case DT_HASH:
         hash_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_GNU_HASH:
+        gnu_hash_vaddr = dyn[n].d_un.d_ptr;
         break;
       case DT_STRSZ:
         strsz = dyn[n].d_un.d_val;
@@ -454,6 +524,11 @@ static int load_dynsym_from_dynamic(const struct poly_program *program,
           &hash_offset) < 0)
       return -1;
     symbol_count = nchain;
+  }
+  else if (gnu_hash_vaddr) {
+    if (load_symbol_count_from_gnu_hash(program, gnu_hash_vaddr,
+          symtab_offset, &symbol_count) < 0)
+      return -1;
   }
   else {
     if (strtab_offset <= symtab_offset ||

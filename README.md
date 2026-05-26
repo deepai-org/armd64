@@ -133,6 +133,8 @@ verifies this against loaded foreign ELF64 function payloads
 `riscv-pcall-sum8.elf`, `aarch64-pcall-sum9.elf`,
 `riscv-pcall-sum9.elf`, and compiler-produced AArch64/RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
+`aarch64-pcall-gnu-hash-real.so#poly_entry`,
+`riscv-pcall-gnu-hash-real.so#poly_entry`,
 `aarch64-pcall-state.so#poly_entry`, and
 `riscv-pcall-state.so#poly_entry`) plus compiler-built imported-function
 objects (`aarch64-pcall-import-real.so#poly_entry` and
@@ -162,10 +164,10 @@ AArch64 and RISC-V `ET_DYN` `.so` objects with dynamic symbol lookup, writable
 static data, split ELF `PT_LOAD` text/data layout, simple `ET_DYN` relative
 relocations, same-image
 symbolic 64-bit dynamic relocations and exported entrypoints through both
-section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH`
-symbol counts and `DT_JMPREL`/`JUMP_SLOT` PLT relocations for sectionless
-dynamic objects, scalar double FP arguments and returns through the native FP
-register ABI, scalar double FP function imports through PLT/GOT call
+section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH` and
+GNU `DT_GNU_HASH` symbol counts plus `DT_JMPREL`/`JUMP_SLOT` PLT relocations
+for sectionless dynamic objects, scalar double FP arguments and returns through
+the native FP register ABI, scalar double FP function imports through PLT/GOT call
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, compiler-emitted same-image function-pointer relocations and indirect
 native calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints

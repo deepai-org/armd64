@@ -171,6 +171,10 @@ build_poly_elf_payloads() {
     "$AARCH64_POLYCALL_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
+    "$AARCH64_POLYCALL_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-gnu-hash-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_STATE_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-state.so"
@@ -203,6 +207,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$RISCV64_POLYCALL_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
+    "$RISCV64_POLYCALL_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-gnu-hash-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -612,6 +621,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-sum8.elf=36 \
     /usr/lib/polyapps/aarch64-pcall-sum9.elf=45 \
     /usr/lib/polyapps/aarch64-pcall-real.so#poly_entry=45 \
+    /usr/lib/polyapps/aarch64-pcall-gnu-hash-real.so#poly_entry=45 \
     /usr/lib/polyapps/aarch64-pcall-state.so#poly_entry=83 \
     /usr/lib/polyapps/aarch64-pcall-import-real.so#poly_entry=145 \
     /usr/lib/polyapps/aarch64-pcall-import-value-real.so#poly_entry=168 \
@@ -621,6 +631,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-import-real.so#poly_entry=0x402b800000000000 \
     /usr/lib/polyapps/riscv-pcall-sum9.elf=45 \
     /usr/lib/polyapps/riscv-pcall-real.so#poly_entry=45 \
+    /usr/lib/polyapps/riscv-pcall-gnu-hash-real.so#poly_entry=45 \
     /usr/lib/polyapps/riscv-pcall-state.so#poly_entry=83 \
     /usr/lib/polyapps/riscv-pcall-import-real.so#poly_entry=145 \
     /usr/lib/polyapps/riscv-pcall-import-value-real.so#poly_entry=168 \

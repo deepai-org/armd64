@@ -102,9 +102,12 @@ payloads. `polycall` also accepts simple `ET_DYN` images with
 with the actual runtime load bias before `PCALL`. Symbolic relocation metadata
 and `path#symbol` entrypoint lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the
 loaded dynamic image. `DT_HASH` is used to bound the sectionless dynamic symbol
-table, with section tables kept as a fallback for synthetic test payloads. The
-gate uses compiler-produced AArch64 and RISC-V shared objects
+table, and `DT_GNU_HASH` is supported for common GNU-hash-only shared objects.
+Section tables are kept as a fallback for synthetic test payloads. The gate
+uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
+`aarch64-pcall-gnu-hash-real.so#poly_entry`,
+`riscv-pcall-gnu-hash-real.so#poly_entry`,
 `aarch64-pcall-state.so#poly_entry`, and
 `riscv-pcall-state.so#poly_entry`) plus compiler-produced imported-function
 objects (`aarch64-pcall-import-real.so#poly_entry` and
