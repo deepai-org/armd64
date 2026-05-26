@@ -152,7 +152,8 @@ the hardware bridge saves the x86 `RSP`, exposes a separate 16-byte-aligned
 foreign `SP` window below the x86 frame, and copies stack arguments from
 `[RSP+24]` onward so the first foreign stack argument is visible at `[sp]`; x86
 `RSP` is restored when the native foreign return hits the return cookie.  The
-bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, sets `x30`
+bridge preserves the shared `XMM0`-`XMM7` FP argument/return aliases, including
+two-register homogeneous double aggregate returns through `XMM0`/`XMM1`, sets `x30`
 or `ra` to a return cookie, enters raw fetch at the `R10` target, maps
 AArch64 `x0` or RISC-V `a0` back to x86 `RAX`, and maps AArch64 `x1` or RISC-V
 `a1` back to x86 `RDX` for ordinary two-word integer aggregate returns.  The
@@ -223,7 +224,9 @@ objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
 stack-frame objects (`aarch64-pcall-callee-real.so#poly_entry` and
 `riscv-pcall-callee-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
-`riscv-pcall-fp64-real.so#poly_entry`), compiler-built scalar double FP
+`riscv-pcall-fp64-real.so#poly_entry`), compiler-built homogeneous double
+aggregate return objects (`aarch64-pcall-fpair-real.so#poly_entry` and
+`riscv-pcall-fpair-real.so#poly_entry`), compiler-built scalar double FP
 import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
 `riscv-pcall-fp64-import-real.so#poly_entry`), compiler-built scalar double FP
 callee-saved objects (`aarch64-pcall-fp64-callee-real.so#poly_entry` and
