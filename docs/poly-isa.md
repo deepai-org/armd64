@@ -153,7 +153,9 @@ objects (`aarch64-pcall-signed-ext-real.so#poly_entry` and
 objects (`aarch64-pcall-signed-load-real.so#poly_entry` and
 `riscv-pcall-signed-load-real.so#poly_entry`), compiler-produced integer-division
 objects (`aarch64-pcall-int-div-real.so#poly_entry` and
-`riscv-pcall-int-div-real.so#poly_entry`), compiler-produced unscaled-memory
+`riscv-pcall-int-div-real.so#poly_entry`), compiler-produced integer multiply-add
+objects (`aarch64-pcall-int-madd-real.so#poly_entry` and
+`riscv-pcall-int-madd-real.so#poly_entry`), compiler-produced unscaled-memory
 objects (`aarch64-pcall-unscaled-mem-real.so#poly_entry` and
 `riscv-pcall-unscaled-mem-real.so#poly_entry`), compiler-produced indexed-memory
 objects (`aarch64-pcall-indexed-mem-real.so#poly_entry` and
@@ -247,7 +249,9 @@ shift/mask sequences. The signed-extension probes exercise compiler-emitted
 AArch64 `sxth`, `sbfx`, plus `add ... asr/sxtb/sxth/sxtw` and
 RISC-V signed byte/halfword/word arithmetic. The integer-division probes
 exercise compiler-emitted AArch64 `udiv`/`sdiv` plus RISC-V
-`divu`/`div`/`divuw`/`divw`. The integer indexed-memory probes
+`divu`/`div`/`divuw`/`divw`. The integer multiply-add probes exercise
+compiler-emitted AArch64 `madd`/`msub` plus RISC-V `mul`/`add`/`sub`
+sequences. The integer indexed-memory probes
 exercise compiler-emitted AArch64 register-offset `ldr`/`str` forms and RISC-V
 shift/add indexed load-store sequences. The scalar FP callee-saved probes
 exercise compiler-emitted AArch64 `stp`/`ldp` of `d8` and later plus RISC-V
