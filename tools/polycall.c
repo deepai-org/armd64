@@ -188,7 +188,8 @@ enum {
   POLY_IMPORT_FUNC_X86_SLOT0 = 106,
   POLY_IMPORT_FUNC_X86_SLOT1 = 107,
   POLY_IMPORT_FUNC_X86_SLOT2 = 108,
-  POLY_IMPORT_FUNC_X86_SLOT3 = 109
+  POLY_IMPORT_FUNC_X86_SLOT3 = 109,
+  POLY_IMPORT_FUNC_X86_SLOT4 = 110
 };
 
 struct poly_dynamic_reloc {
@@ -676,6 +677,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_fp64_add") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_X86_SLOT3 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_fp32_add") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_X86_SLOT4 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_fp64_add") == 0) {
@@ -1244,7 +1249,8 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     if (strcmp(symbol_name, "poly_import_x86_add") == 0 ||
         strcmp(symbol_name, "poly_import_x86_mul") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum6") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fp64_add") == 0)
+        strcmp(symbol_name, "poly_import_x86_fp64_add") == 0 ||
+        strcmp(symbol_name, "poly_import_x86_fp32_add") == 0)
       program->needs_x86_import = 1;
     *base_kind = RELOC_BASE_IMPORT_CALL;
     return 0;
@@ -2138,15 +2144,17 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t host_mul_size = 14;
   const size_t host_sum6_size = 25;
   const size_t host_fp64_add_size = 21;
+  const size_t host_fp32_add_size = 17;
   const size_t pcall_return_offset = save_regs_size + save_tls_size +
     10 + 10 + tls_setup_size + import_setup_size + 8;
   const size_t main_stub_size = pcall_return_offset + restore_regs_size +
     restore_tls_size + 1;
   const size_t host_helper_size = needs_x86_import ?
-    host_add_size + host_mul_size + host_sum6_size + host_fp64_add_size : 0;
+    host_add_size + host_mul_size + host_sum6_size + host_fp64_add_size +
+    host_fp32_add_size : 0;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
   const size_t import_descriptor_size = needs_x86_import ?
-    4 * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
+    5 * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
   const size_t stub_size = main_stub_size + host_helper_size +
     import_return_size + import_descriptor_size;
   const size_t code_size = stub_size;
@@ -2195,8 +2203,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint64_t import_x86_sum6_target = import_x86_mul_target + host_mul_size;
   const uint64_t import_x86_fp64_add_target =
     import_x86_sum6_target + host_sum6_size;
-  const uint64_t import_x86_return =
+  const uint64_t import_x86_fp32_add_target =
     import_x86_fp64_add_target + host_fp64_add_size;
+  const uint64_t import_x86_return =
+    import_x86_fp32_add_target + host_fp32_add_size;
   const uint64_t import_x86_table = import_x86_return + import_return_size;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   if (needs_x86_import)
@@ -2285,6 +2295,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       0x00, 0x00, 0x00, 0x00,       // double 200.5
       0x00, 0x10, 0x69, 0x40
     };
+    const uint8_t host_fp32_add[] = {
+      0xf3, 0x0f, 0x58, 0xc1,       // addss xmm0,xmm1
+      0xf3, 0x0f, 0x58, 0x05, 0x01, 0x00, 0x00, 0x00, // addss xmm0,[rip+1]
+      0xc3,                         // ret
+      0x00, 0x80, 0x48, 0x43        // float 200.5
+    };
     memcpy(code + offset, host_add, sizeof(host_add));
     offset += sizeof(host_add);
     memcpy(code + offset, host_mul, sizeof(host_mul));
@@ -2293,6 +2309,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     offset += sizeof(host_sum6);
     memcpy(code + offset, host_fp64_add, sizeof(host_fp64_add));
     offset += sizeof(host_fp64_add);
+    memcpy(code + offset, host_fp32_add, sizeof(host_fp32_add));
+    offset += sizeof(host_fp32_add);
     const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, import_return, sizeof(import_return));
     offset += sizeof(import_return);
@@ -2303,6 +2321,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_u64(code, &offset, import_x86_sum6_target);
     emit_u64(code, &offset, import_x86_return);
     emit_u64(code, &offset, import_x86_fp64_add_target);
+    emit_u64(code, &offset, import_x86_return);
+    emit_u64(code, &offset, import_x86_fp32_add_target);
     emit_u64(code, &offset, import_x86_return);
   }
   if (offset != code_size) {

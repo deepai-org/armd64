@@ -101,6 +101,7 @@ POLYCALL_HETERO_F32_U32_REAL_SRC="$ROOT_DIR/tools/polycall_hetero_f32_u32_real.c
 POLYCALL_MIXED_ARGS_REAL_SRC="$ROOT_DIR/tools/polycall_mixed_args_real.c"
 POLYCALL_FP64_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_import_real.c"
 POLYCALL_X86_FP64_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_fp64_import_real.c"
+POLYCALL_X86_FP32_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_fp32_import_real.c"
 POLYCALL_FP32_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_import_real.c"
 POLYCALL_FP64_CALLEE_REAL_SRC="$ROOT_DIR/tools/polycall_fp64_callee_real.c"
 POLYCALL_FP32_CALLEE_REAL_SRC="$ROOT_DIR/tools/polycall_fp32_callee_real.c"
@@ -538,6 +539,11 @@ build_poly_elf_payloads() {
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_X86_FP32_IMPORT_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-x86-fp32-import-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -ffp-contract=off \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FP32_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fp32-import-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -966,6 +972,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_X86_FP64_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-x86-fp64-import-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d -ffp-contract=off \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_X86_FP32_IMPORT_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-x86-fp32-import-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1666,6 +1677,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     heterof32u32:/usr/lib/polyapps/aarch64-pcall-hetero-f32-u32-real.so#poly_entry=0x0000000840e80000 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-import-real.so#poly_entry=0x402b800000000000 \
     fp64:/usr/lib/polyapps/aarch64-pcall-x86-fp64-import-real.so#poly_entry=0x4069e80000000000 \
+    fp32:/usr/lib/polyapps/aarch64-pcall-x86-fp32-import-real.so#poly_entry=0x434f4000 \
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-import-real.so#poly_entry=0x415c0000 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-callee-real.so#poly_entry=0x4040400000000000 \
     fp32:/usr/lib/polyapps/aarch64-pcall-fp32-callee-real.so#poly_entry=0x42020000 \
@@ -1755,6 +1767,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     heterof32u32:/usr/lib/polyapps/riscv-pcall-hetero-f32-u32-real.so#poly_entry=0x0000000840e80000 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-import-real.so#poly_entry=0x402b800000000000 \
     fp64:/usr/lib/polyapps/riscv-pcall-x86-fp64-import-real.so#poly_entry=0x4069e80000000000 \
+    fp32:/usr/lib/polyapps/riscv-pcall-x86-fp32-import-real.so#poly_entry=0x434f4000 \
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-import-real.so#poly_entry=0x415c0000 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-callee-real.so#poly_entry=0x4040400000000000 \
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-callee-real.so#poly_entry=0x42020000 \

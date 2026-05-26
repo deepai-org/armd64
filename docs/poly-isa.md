@@ -165,7 +165,7 @@ discover the experimental hardware contract before emitting poly operations:
   reports the compact `{float,u32}` variant.  Other registers are reserved
   zero.
 - `CPUID.EAX=0x40000002, ECX=2`: `EAX=106` reports the first
-  foreign-to-x86 import descriptor slot id, `EBX=4` reports the current slot
+  foreign-to-x86 import descriptor slot id, `EBX=5` reports the current slot
   count, `ECX=16` reports the descriptor byte size, and `EDX=16` reports the
   import-call stride.
 
@@ -586,14 +586,15 @@ cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,
 `memcpy`, and three-argument `memcmp` calls inside foreign callees, proving
 descriptor imports are not limited to x86-entered `PCALL` payloads. The gate
 also covers `poly_import_x86_add`, `poly_import_x86_mul`,
-`poly_import_x86_sum6`, and `poly_import_x86_fp64_add`, where descriptor slots
-select real x86_64 helper targets from a runtime-supplied table, map up to six
-native foreign integer arguments to x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`,
-`R8`, and `R9`, reuse the shared `XMM0-XMM7`/`v0-v7`/`fa0-fa7` FP register
-aliases for scalar FP arguments and returns, synthesize an x86 return address
-to a nearby dedicated `0f 24` `PIRET` landing pad, let the helper use an
-ordinary `ret`, and then resume the saved AArch64/RISC-V return PC with the x86
-`RAX` result mapped back to the native foreign integer return register.
+`poly_import_x86_sum6`, `poly_import_x86_fp64_add`, and
+`poly_import_x86_fp32_add`, where descriptor slots select real x86_64 helper
+targets from a runtime-supplied table, map up to six native foreign integer
+arguments to x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, reuse the
+shared `XMM0-XMM7`/`v0-v7`/`fa0-fa7` FP register aliases for scalar FP
+arguments and returns, synthesize an x86 return address to a nearby dedicated
+`0f 24` `PIRET` landing pad, let the helper use an ordinary `ret`, and then
+resume the saved AArch64/RISC-V return PC with the x86 `RAX` result mapped back
+to the native foreign integer return register.
 A raw x86 function address is still not itself a valid AArch64 or RISC-V branch
 target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
