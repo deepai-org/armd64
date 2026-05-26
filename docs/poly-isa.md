@@ -138,7 +138,7 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`21` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`22` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, and deterministic compatibility
@@ -147,8 +147,9 @@ discover the experimental hardware contract before emitting poly operations:
   `{u64,double}`/`{double,u64}`/`{u64,float}`/`{float,u64}` heterogeneous
   aggregate bridging for native ABI `PCALL`, plus RISC-V `{u32,float}` and
   `{float,u32}` compact aggregate bridges and matching neutral
-  AArch64<->RISC-V compact aggregate cross-calls.  The double-lane bridge
-  forms also cover ABI-compatible `{u32,double}` and `{double,u32}` shapes.
+  AArch64<->RISC-V compact aggregate cross-calls, and runtime-supplied
+  foreign-to-x86 import descriptor slots.  The double-lane bridge forms also
+  cover ABI-compatible `{u32,double}` and `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
@@ -163,6 +164,10 @@ discover the experimental hardware contract before emitting poly operations:
   compact `{u32,float}` AArch64 cross-call encoding, and `ECX=0x0000207b`
   reports the compact `{float,u32}` variant.  Other registers are reserved
   zero.
+- `CPUID.EAX=0x40000002, ECX=2`: `EAX=106` reports the first
+  foreign-to-x86 import descriptor slot id, `EBX=2` reports the current slot
+  count, `ECX=16` reports the descriptor byte size, and `EDX=16` reports the
+  import-call stride.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:

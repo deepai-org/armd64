@@ -23,6 +23,10 @@ enum {
   POLY_RISCV_AARCH64_CALL = 0x0000005b,
   POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32 = 0x0000107b,
   POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32 = 0x0000207b,
+  POLY_IMPORT_FUNC_X86_SLOT0 = 106,
+  POLY_IMPORT_FUNC_X86_SLOT1 = 107,
+  POLY_IMPORT_X86_DESCRIPTOR_SIZE = 16,
+  POLY_IMPORT_CALL_STRIDE = 16,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
   POLY_CPUID_FEATURE_NEUTRAL_SWITCH = (1U << 2),
@@ -44,7 +48,8 @@ enum {
   POLY_CPUID_FEATURE_HETERO_F32_U64 = (1U << 18),
   POLY_CPUID_FEATURE_COMPACT_U32_F32 = (1U << 19),
   POLY_CPUID_FEATURE_COMPACT_F32_U32 = (1U << 20),
-  POLY_CPUID_FEATURE_NEUTRAL_COMPACT = (1U << 21)
+  POLY_CPUID_FEATURE_NEUTRAL_COMPACT = (1U << 21),
+  POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS = (1U << 22)
 };
 
 struct poly_cpuid_regs {
@@ -92,7 +97,8 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_HETERO_F32_U64 |
     POLY_CPUID_FEATURE_COMPACT_U32_F32 |
     POLY_CPUID_FEATURE_COMPACT_F32_U32 |
-    POLY_CPUID_FEATURE_NEUTRAL_COMPACT;
+    POLY_CPUID_FEATURE_NEUTRAL_COMPACT |
+    POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS;
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
@@ -111,6 +117,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf1(void) {
   regs.ebx = POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32;
   regs.ecx = POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32;
   regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf2(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_IMPORT_FUNC_X86_SLOT0;
+  regs.ebx = POLY_IMPORT_FUNC_X86_SLOT1 - POLY_IMPORT_FUNC_X86_SLOT0 + 1;
+  regs.ecx = POLY_IMPORT_X86_DESCRIPTOR_SIZE;
+  regs.edx = POLY_IMPORT_CALL_STRIDE;
   return regs;
 }
 
