@@ -26,7 +26,8 @@ static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
-  POLY_IMPORT_FUNC_X86_ADD = 2
+  POLY_IMPORT_FUNC_X86_ADD = 2,
+  POLY_IMPORT_FUNC_FP64_ADD = 3
 };
 
 struct poly_dynamic_reloc {
@@ -316,6 +317,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_X86_ADD * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_fp64_add") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FP64_ADD * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   return -1;

@@ -138,7 +138,9 @@ verifies this against loaded foreign ELF64 function payloads
 objects (`aarch64-pcall-import-real.so#poly_entry` and
 `riscv-pcall-import-real.so#poly_entry`), compiler-built scalar double FP
 objects (`aarch64-pcall-fp64-real.so#poly_entry` and
-`riscv-pcall-fp64-real.so#poly_entry`), and compiler-shaped stack-frame payloads
+`riscv-pcall-fp64-real.so#poly_entry`), compiler-built scalar double FP
+import objects (`aarch64-pcall-fp64-import-real.so#poly_entry` and
+`riscv-pcall-fp64-import-real.so#poly_entry`), and compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
 `aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
@@ -157,7 +159,8 @@ symbolic 64-bit dynamic relocations and exported entrypoints through both
 section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH`
 symbol counts and `DT_JMPREL`/`JUMP_SLOT` PLT relocations for sectionless
 dynamic objects, scalar double FP arguments and returns through the native FP
-register ABI, undefined object-symbol imports
+register ABI, scalar double FP function imports through PLT/GOT call
+descriptors, undefined object-symbol imports
 (`aarch64-pcall-import.elf`, `riscv-pcall-import.elf`), prototype imported
 function call gates (`aarch64-pcall-import-func.elf`,
 `aarch64-pcall-import-mul.elf`, `aarch64-pcall-import-x86.elf`,
