@@ -67,8 +67,8 @@ operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are unchanged.
 The preferred prototype hot path decodes a fixed `0f 24 <op> POLY!`
 opcode-family placeholder through the `BX_IA_POLYMODE` handler; the runtime
 tools use this opcode family for hot frontend switches, `PCALL`, and status
-reads.  Legacy `UD2` envelopes remain available as compatibility fallbacks, but
-the current runtime tools no longer use them for the hot or status paths.
+reads.  `UD2` is no longer an alternate polyglot envelope; ordinary `UD2`
+retains standard invalid-opcode behavior.
 The current handler accepts these operations only from guest userspace.
 
 Preferred 8-byte x86 poly opcode-family operations:
@@ -87,23 +87,6 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
 | Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign libcalls. |
 | Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC. |
-
-Legacy fixed 8-byte `UD2` compatibility envelopes:
-
-| Operation | Bytes | Effect |
-| --- | --- | --- |
-| Switch to x86_64 mode | `64 0f 0b 58 4d 4f 44 45` | Sets current poly mode to x86_64. |
-| Switch to raw AArch64 mode | `65 0f 0b 52 41 57 36 34` | Sets current poly mode to raw AArch64; following bytes are fetched as fixed 32-bit AArch64 instructions. |
-| Switch to raw RISC-V mode | `66 0f 0b 52 41 57 52 56` | Sets current poly mode to raw RISC-V; following bytes are fetched as mixed 16/32-bit RISC-V instructions. |
-| x86 SysV call to AArch64 | `40 0f 0b 50 43 41 36 34` | Prototype `PCALL.A64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to AAPCS64 and enters raw AArch64. |
-| x86 SysV call to RISC-V | `40 0f 0b 50 43 52 56 36` | Prototype `PCALL.RV64.SYSV`: `R10=foreign target`, `R11=x86 return`; maps x86_64 SysV integer args to RISC-V psABI and enters raw RISC-V. |
-| x86 SysV sret call to AArch64 | `42 0f 0b 50 53 41 36 34` | Prototype `PCALL.A64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`, shifts user args back to `x0`-`x7`, and enters raw AArch64. |
-| x86 SysV sret call to RISC-V | `42 0f 0b 50 53 52 56 36` | Prototype `PCALL.RV64.SYSV.SRET`: maps the x86_64 hidden result pointer in `RDI` to RISC-V `a0`, shifts user args to `a1`-`a7`, and enters raw RISC-V. |
-| x86 import return | `41 0f 0b 50 49 52 45 54` | Legacy prototype `PIRET`: compatibility encoding for descriptor-driven import returns. |
-| Syscall status | `2e 0f 0b 53 59 53 43 <id>` | Returns syscall state in `RAX`: `0=current mode`, `1=last foreign syscall number`, `2=last foreign syscall mode`. |
-| Libcall status | `3e 0f 0b 4c 49 42 43 <id>` | Returns libcall state in `RAX`: `0=current libcall status`, `1=last libcall number`, `2=last libcall mode`. |
-| Switch/status counters | `4e 0f 0b 53 57 43 48 <id>` | Returns mode/counter state in `RAX`: `0=switches`, `1=current mode`, `2=foreign raw instructions`, `3=foreign syscalls`, `4=foreign libcalls`. |
-| Trap status | `36 0f 0b 54 52 41 50 <id>` | Returns last foreign trap state in `RAX`: `0=reason`, `1=source mode`, `2=number`, `3`-`8=arg0`-`arg5`, other ids return trap PC. |
 
 When `POLY_ENABLED=1`, the prototype exposes a private CPUID discovery leaf for
 runtime dispatch:
@@ -588,8 +571,7 @@ Expected success markers include:
 
 - Foreign execution is still a Bochs prototype, not full native hardware
   decode.  The current hot path has a CPUID-gated `0f 24 ... POLY!`
-  opcode-family placeholder decoded through `BX_IA_POLYMODE`; legacy `UD2`
-  compatibility fallbacks still exist in Bochs for older probes.
+  opcode-family placeholder decoded through `BX_IA_POLYMODE`.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
 - Syscall and breakpoint traps are recorded explicitly, but the current
   compatibility runtime still returns deterministic scaffold results rather

@@ -84,21 +84,8 @@ handler and validates the trailing `POLY!` magic before changing frontend
 state.  It is still a prototype allocation, but it no longer depends on the
 generic invalid-opcode dispatch path or a `UD2` envelope.
 
-Legacy fixed 8-byte `UD2` envelopes remain as compatibility encodings for
-older probes, but the current runtime tools use the `0f 24` family for hot
-frontend operations and status reads:
-
-- `65 0f 0b 52 41 57 36 34`: enter raw AArch64 fetch.
-- `66 0f 0b 52 41 57 52 56`: enter raw RISC-V fetch.
-- `64 0f 0b 58 4d 4f 44 45`: return to x86_64 mode.
-- `40 0f 0b 50 43 41 36 34`: prototype `PCALL.A64.SYSV`.
-- `40 0f 0b 50 43 52 56 36`: prototype `PCALL.RV64.SYSV`.
-- `42 0f 0b 50 53 41 36 34`: prototype `PCALL.A64.SYSV.SRET`, mapping
-  the x86_64 hidden result pointer in `RDI` to AAPCS64 `x8`.
-- `42 0f 0b 50 53 52 56 36`: prototype `PCALL.RV64.SYSV.SRET`, mapping
-  the x86_64 hidden result pointer in `RDI` to RISC-V `a0`.
-- `41 0f 0b 50 49 52 45 54`: legacy prototype `PIRET`, retained as a
-  compatibility/debug encoding for descriptor-driven import returns.
+`UD2` is not an alternate polyglot envelope in the current ISA contract;
+ordinary `UD2` retains standard invalid-opcode behavior.
 
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
