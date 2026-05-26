@@ -5,13 +5,17 @@ static unsigned int swap_word_counter = 23;
 static unsigned long and_counter = 0xff;
 static unsigned long xor_counter = 0x55;
 static unsigned long or_counter = 0x40;
+static unsigned long nand_counter = 0xff;
 static unsigned int and_word_counter = 0x7f;
 static unsigned int xor_word_counter = 0x21;
 static unsigned int or_word_counter = 0x12;
+static unsigned int nand_word_counter = 0x7f;
 static unsigned short add_half_counter = 5;
 static unsigned char add_byte_counter = 6;
 static unsigned short xor_half_counter = 0x21;
 static unsigned char or_byte_counter = 0x20;
+static unsigned short nand_half_counter = 0x33;
+static unsigned char nand_byte_counter = 0x17;
 static unsigned long cas_value = 99;
 static unsigned short cas_half_value = 123;
 static unsigned char cas_byte_value = 27;
@@ -39,6 +43,10 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
       (unsigned int) c + 0x20, __ATOMIC_RELEASE);
   unsigned int or_wold = __atomic_fetch_or(&or_word_counter,
       (unsigned int) c + 0x40, __ATOMIC_RELAXED);
+  unsigned long nand_old = __atomic_fetch_nand(&nand_counter, a + 0x10,
+      __ATOMIC_ACQ_REL);
+  unsigned int nand_wold = __atomic_fetch_nand(&nand_word_counter,
+      (unsigned int) b + 0x20, __ATOMIC_ACQ_REL);
   unsigned short add_hold = __atomic_fetch_add(&add_half_counter,
       (unsigned short) c + 5, __ATOMIC_ACQUIRE);
   unsigned char add_bold = __atomic_fetch_add(&add_byte_counter,
@@ -47,6 +55,10 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
       (unsigned short) b + 0x40, __ATOMIC_RELEASE);
   unsigned char or_bold = __atomic_fetch_or(&or_byte_counter,
       (unsigned char) b + 0x04, __ATOMIC_RELAXED);
+  unsigned short nand_hold = __atomic_fetch_nand(&nand_half_counter,
+      (unsigned short) c + 0x30, __ATOMIC_ACQ_REL);
+  unsigned char nand_bold = __atomic_fetch_nand(&nand_byte_counter,
+      (unsigned char) a + 0x40, __ATOMIC_ACQ_REL);
   unsigned long expected = 99;
   int ok = __atomic_compare_exchange_n(&cas_value, &expected, c + 100, 0,
       __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
@@ -63,7 +75,8 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
     xor_counter + or_old + or_counter + and_wold + and_word_counter +
     xor_wold + xor_word_counter + or_wold + or_word_counter + add_hold +
     add_half_counter + add_bold + add_byte_counter + xor_hold +
-    xor_half_counter + or_bold + or_byte_counter + (unsigned long) half_ok +
-    half_expected + cas_half_value + (unsigned long) byte_ok +
-    byte_expected + cas_byte_value;
+    xor_half_counter + or_bold + or_byte_counter + nand_old + nand_counter +
+    nand_wold + nand_word_counter + nand_hold + nand_half_counter + nand_bold +
+    nand_byte_counter + (unsigned long) half_ok + half_expected +
+    cas_half_value + (unsigned long) byte_ok + byte_expected + cas_byte_value;
 }

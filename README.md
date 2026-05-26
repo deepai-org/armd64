@@ -157,7 +157,7 @@ Foreign atomic operations use the same Bochs virtual-memory path as ordinary
 foreign loads and stores.  The current prototype covers compiler-emitted
 AArch64 exclusive and LSE atomics, GCC AArch64 outline atomic helper imports,
 RISC-V A-extension word/dword AMOs, and the LR.W/SC.W loops GCC emits for
-RISC-V byte and halfword atomics.
+RISC-V byte and halfword atomics, including compiler-emitted NAND loops.
 
 The current register bridge aliases the overlapping caller-visible integer ABI:
 
@@ -468,7 +468,8 @@ arithmetic, compare/register-shift and division/remainder forms,
 register-register `add`, `sub`, `mul`, `mulh`, `mulhsu`, `mulhu`, `xor`, `and`, and `or`,
 `beq`/`bne`/`blt`/`bge`/`bltu`/`bgeu`, `jal`, generic `jalr`, selected
 byte/halfword/word/dword load-store forms, A-extension `lr`/`sc`, AMO
-word/dword forms, and compiler-emitted byte/halfword LR.W/SC.W atomic loops,
+word/dword forms, and compiler-emitted byte/halfword LR.W/SC.W atomic loops
+including NAND,
 `fence`, `fence.i`, `ecall`,
 `ebreak`, custom-0 escape, and scalar double `fadd.d`/`fsub.d`/`fmul.d` over
 `fa0`-`fa7`, plus scalar float `fadd.s`/`fsub.s`/`fmul.s` and scalar FP
