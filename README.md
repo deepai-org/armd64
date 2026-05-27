@@ -73,8 +73,10 @@ make clean
 | `make boot-poly-bench-arch-traps` | Mixed-mode raw loop and cross-ISA benchmark/probe coverage with guest trap-vector policy. |
 | `make boot-poly-full-arch-traps` | Broad combined gate for the current prototype. |
 
-The boot script still runs lightweight manifest/contract checks at startup, but
-the primary confidence signal is the real guest boot tests above.
+The primary confidence signal is the real guest boot tests above. Static
+contract checks are still available through the explicit `make check-*` targets
+or by running boot targets with `RUN_CONTRACT_CHECKS=1`, but they are not on the
+default boot path.
 
 ## Source Layout
 

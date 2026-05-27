@@ -1385,27 +1385,31 @@ static void emit_movabs_r14(uint8_t *code, size_t *offset, uint64_t value) {
   emit_u64(code, offset, value);
 }
 
-static void emit_save_callee_regs(uint8_t *code, size_t *offset) {
+static void emit_save_callee_regs(uint8_t *code, size_t *offset,
+    uint64_t save_area) {
+  emit_movabs_r10(code, offset, save_area);
   const uint8_t save[] = {
-    0x48, 0x89, 0x5c, 0x24, 0xf8, // mov [rsp-8],rbx
-    0x48, 0x89, 0x6c, 0x24, 0xf0, // mov [rsp-16],rbp
-    0x4c, 0x89, 0x64, 0x24, 0xe8, // mov [rsp-24],r12
-    0x4c, 0x89, 0x6c, 0x24, 0xe0, // mov [rsp-32],r13
-    0x4c, 0x89, 0x74, 0x24, 0xd8, // mov [rsp-40],r14
-    0x4c, 0x89, 0x7c, 0x24, 0xd0  // mov [rsp-48],r15
+    0x49, 0x89, 0x1a,       // mov [r10],rbx
+    0x49, 0x89, 0x6a, 0x08, // mov [r10+8],rbp
+    0x4d, 0x89, 0x62, 0x10, // mov [r10+16],r12
+    0x4d, 0x89, 0x6a, 0x18, // mov [r10+24],r13
+    0x4d, 0x89, 0x72, 0x20, // mov [r10+32],r14
+    0x4d, 0x89, 0x7a, 0x28  // mov [r10+40],r15
   };
   memcpy(code + *offset, save, sizeof(save));
   *offset += sizeof(save);
 }
 
-static void emit_restore_callee_regs(uint8_t *code, size_t *offset) {
+static void emit_restore_callee_regs(uint8_t *code, size_t *offset,
+    uint64_t save_area) {
+  emit_movabs_r10(code, offset, save_area);
   const uint8_t restore[] = {
-    0x48, 0x8b, 0x5c, 0x24, 0xf8, // mov rbx,[rsp-8]
-    0x48, 0x8b, 0x6c, 0x24, 0xf0, // mov rbp,[rsp-16]
-    0x4c, 0x8b, 0x64, 0x24, 0xe8, // mov r12,[rsp-24]
-    0x4c, 0x8b, 0x6c, 0x24, 0xe0, // mov r13,[rsp-32]
-    0x4c, 0x8b, 0x74, 0x24, 0xd8, // mov r14,[rsp-40]
-    0x4c, 0x8b, 0x7c, 0x24, 0xd0  // mov r15,[rsp-48]
+    0x49, 0x8b, 0x1a,       // mov rbx,[r10]
+    0x49, 0x8b, 0x6a, 0x08, // mov rbp,[r10+8]
+    0x4d, 0x8b, 0x62, 0x10, // mov r12,[r10+16]
+    0x4d, 0x8b, 0x6a, 0x18, // mov r13,[r10+24]
+    0x4d, 0x8b, 0x72, 0x20, // mov r14,[r10+32]
+    0x4d, 0x8b, 0x7a, 0x28  // mov r15,[r10+40]
   };
   memcpy(code + *offset, restore, sizeof(restore));
   *offset += sizeof(restore);
@@ -4203,6 +4207,93 @@ static int load_elf_program(const char *path, const char *symbol_name,
   return 0;
 }
 
+extern uint64_t polycall_guarded_call_u64(const uint8_t *code,
+    uint64_t *bad_mask);
+
+__asm__(
+  ".text\n"
+  ".globl polycall_guarded_call_u64\n"
+  ".type polycall_guarded_call_u64,@function\n"
+  "polycall_guarded_call_u64:\n"
+  "  pushq %rbx\n"
+  "  pushq %rbp\n"
+  "  pushq %r12\n"
+  "  pushq %r13\n"
+  "  pushq %r14\n"
+  "  pushq %r15\n"
+  "  subq $16, %rsp\n"
+  "  movq %rsi, 8(%rsp)\n"
+  "  movq %rdi, %r10\n"
+  "  movabsq $0x1badd00d00000001, %rbx\n"
+  "  movabsq $0x1badd00d00000002, %rbp\n"
+  "  movabsq $0x1badd00d00000003, %r12\n"
+  "  movabsq $0x1badd00d00000004, %r13\n"
+  "  movabsq $0x1badd00d00000005, %r14\n"
+  "  movabsq $0x1badd00d00000006, %r15\n"
+  "  movq $1, %rdi\n"
+  "  movq $2, %rsi\n"
+  "  movq $3, %rdx\n"
+  "  movq $4, %rcx\n"
+  "  movq $5, %r8\n"
+  "  movq $6, %r9\n"
+  "  pushq $9\n"
+  "  pushq $8\n"
+  "  pushq $7\n"
+  "  call *%r10\n"
+  "  addq $24, %rsp\n"
+  "  movq %rax, (%rsp)\n"
+  "  xorl %ecx, %ecx\n"
+  "  movabsq $0x1badd00d00000001, %rdx\n"
+  "  cmpq %rdx, %rbx\n"
+  "  je 1f\n"
+  "  orq $1, %rcx\n"
+  "1:\n"
+  "  movabsq $0x1badd00d00000002, %rdx\n"
+  "  cmpq %rdx, %rbp\n"
+  "  je 2f\n"
+  "  orq $2, %rcx\n"
+  "2:\n"
+  "  movabsq $0x1badd00d00000003, %rdx\n"
+  "  cmpq %rdx, %r12\n"
+  "  je 3f\n"
+  "  orq $4, %rcx\n"
+  "3:\n"
+  "  movabsq $0x1badd00d00000004, %rdx\n"
+  "  cmpq %rdx, %r13\n"
+  "  je 4f\n"
+  "  orq $8, %rcx\n"
+  "4:\n"
+  "  movabsq $0x1badd00d00000005, %rdx\n"
+  "  cmpq %rdx, %r14\n"
+  "  je 5f\n"
+  "  orq $16, %rcx\n"
+  "5:\n"
+  "  movabsq $0x1badd00d00000006, %rdx\n"
+  "  cmpq %rdx, %r15\n"
+  "  je 6f\n"
+  "  orq $32, %rcx\n"
+  "6:\n"
+  "  movq 8(%rsp), %rdx\n"
+  "  movq %rcx, (%rdx)\n"
+  "  movq (%rsp), %rax\n"
+  "  addq $16, %rsp\n"
+  "  popq %r15\n"
+  "  popq %r14\n"
+  "  popq %r13\n"
+  "  popq %r12\n"
+  "  popq %rbp\n"
+  "  popq %rbx\n"
+  "  ret\n"
+  ".size polycall_guarded_call_u64, .-polycall_guarded_call_u64\n"
+);
+
+static void fail_callee_save_guard(uint64_t mask) {
+  fprintf(stderr,
+    "POLYCALL_FAIL: x86 callee-saved register clobber mask=0x%llx\n",
+    (unsigned long long) mask);
+  exit(1);
+}
+
 static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     uint64_t target, int call_kind) {
   write_le64(code + target_imm_offset, target);
@@ -4489,9 +4580,11 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     return ((uint64_t) result.i << 32) | fp_bits.u;
   }
 
-  uint64_t (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) =
-    (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)) code;
-  return entry(1, 2, 3, 4, 5, 6, 7, 8, 9);
+  uint64_t bad_mask = 0;
+  uint64_t result = polycall_guarded_call_u64(code, &bad_mask);
+  if (bad_mask != 0)
+    fail_callee_save_guard(bad_mask);
+  return result;
 }
 
 static void unmap_dependency_images(uint8_t **dep_foreign,
@@ -4559,8 +4652,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (needs_x86_import &&
       read_poly_import_contract(&import_contract) < 0)
     return -1;
-  const size_t callee_save_size = 30;
-  const size_t callee_restore_size = 30;
+  const size_t callee_save_size = 33;
+  const size_t callee_restore_size = 33;
+  const size_t callee_save_area_size = 48;
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
@@ -4574,7 +4668,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     import_descriptor_count * import_contract.x86_descriptor_size : 0;
   const size_t stub_size = main_stub_size + import_return_size +
     import_descriptor_size;
-  const size_t code_size = stub_size;
+  const size_t code_size = stub_size + callee_save_area_size;
   const size_t foreign_size = program->image_size;
   uint8_t *dep_foreign[MAX_NEEDED_DEPS];
   uint64_t dep_load_bias[MAX_NEEDED_DEPS];
@@ -4642,8 +4736,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint64_t import_x86_return = (uint64_t) (uintptr_t) (code + main_stub_size);
   const uint64_t import_x86_table = import_x86_return + import_return_size;
   const size_t import_x86_table_offset = main_stub_size + import_return_size;
+  const uint64_t callee_save_area = (uint64_t) (uintptr_t) (code + stub_size);
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
-  emit_save_callee_regs(code, &offset);
+  emit_save_callee_regs(code, &offset, callee_save_area);
   const size_t target_imm_offset = offset + 2;
   emit_movabs_r10(code, &offset, 0);
   emit_movabs_r11(code, &offset, return_rip);
@@ -4699,7 +4794,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
-  emit_restore_callee_regs(code, &offset);
+  emit_restore_callee_regs(code, &offset, callee_save_area);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
     const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
@@ -4725,7 +4820,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         x86_descriptor_flags_for_import_id(import_id));
     }
   }
-  if (offset != code_size) {
+  if (offset != stub_size) {
     fprintf(stderr, "POLYCALL_FAIL: internal x86 stub size mismatch\n");
     if (tls)
       munmap(tls, tls_size);

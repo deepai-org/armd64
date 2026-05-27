@@ -204,6 +204,7 @@ RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
 EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
+RUN_CONTRACT_CHECKS="${RUN_CONTRACT_CHECKS:-0}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
@@ -211,9 +212,11 @@ elif [[ -d "$ROOT_DIR/bochs-prepoly-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs/bios"
 fi
 
-"$POLY_IMPORT_ID_CHECK"
-"$POLY_ARCH_CONTRACT_CHECK"
-"$POLY_CPUID_CONTRACT_CHECK"
+if [[ "$RUN_CONTRACT_CHECKS" == "1" ]]; then
+  "$POLY_IMPORT_ID_CHECK"
+  "$POLY_ARCH_CONTRACT_CHECK"
+  "$POLY_CPUID_CONTRACT_CHECK"
+fi
 
 download() {
   local url="$1"
