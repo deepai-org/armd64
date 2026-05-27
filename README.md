@@ -9,8 +9,7 @@ instruction streams run through direct foreign fetch inside the x86_64 process.
 This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
 current implementation validates the architecture shape, Linux boot path,
 foreign ELF launch path, mixed-ISA transitions, explicit foreign trap records,
-and an opt-in deterministic compatibility runtime for scaffolded syscall/break
-tests.
+and guest-routed syscall/break trap handling through an OS-neutral packet path.
 It does not yet implement full AArch64 or RISC-V ISA coverage, real foreign
 Linux ABI passthrough, or equal-speed execution.
 
@@ -24,13 +23,12 @@ Linux ABI passthrough, or equal-speed execution.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when
   `POLY_ENABLED=0`.
-- The default `make boot-poly` path now keeps Bochs syscall/break
-  compatibility disabled and runs the guest trap-vector probe, manifest app
-  suite, focused direct ELF execution, `PCALL`, thread, signal, and native
+- The default `make boot-poly` path runs the guest trap-vector probe, manifest
+  app suite, focused direct ELF execution, `PCALL`, thread, signal, and native
   CPUID checks.  This makes the hardware-style trap packet path the normal
   smoke test.
-- The `make boot-poly-arch-traps` path disables the Bochs compatibility
-  dispatcher and verifies that AArch64/RISC-V syscall and breakpoint traps route
+- The `make boot-poly-arch-traps` path verifies that AArch64/RISC-V syscall and
+  breakpoint traps route
   through the architectural trap vector.  Its guest x86 handler translates the
   selected foreign Linux syscalls into real x86 Linux `syscall` instructions,
   then resumes the original raw frontend with `POLY_TRAP_RETURN`; it also runs
@@ -85,7 +83,7 @@ Linux ABI passthrough, or equal-speed execution.
   32-bit foreign instructions, and escaping back to x86_64.  The manifest path
   accepts variable-size executable segments up to 1 MiB.  It installs an x86
   architectural trap-vector handler for deterministic test syscalls/breaks,
-  so the Bochs compatibility service is not required for this suite.  Breakpoint
+  so no Bochs CPU syscall/string helper policy is required.  Breakpoint
   trap manifests accept neutral `break_*` keys; old `libcall_*` keys are still
   accepted for existing generated payloads.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
@@ -186,9 +184,9 @@ raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
 RISC-V, neutral direct switches, native return cookies, x86 SysV `PCALL`,
 `PCALL` sret, scalar FP bridging, trap records, user return restoration, x86 TSO
 foreign ordering, and per-thread synthetic banks.  Bit `11` is reserved and is
-not used to advertise the optional Bochs deterministic syscall/break
-compatibility runtime; that runtime is simulator test scaffolding, not CPU
-architecture.  Bit `12` additionally advertises the prototype x86 poly opcode
+not used to advertise syscall or breakpoint compatibility behavior; trap policy
+is guest software, not CPU architecture.  Bit `12` additionally advertises the
+prototype x86 poly opcode
 family. Bit `13` advertises the two-float aggregate return packing
 variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
 argument unpacking; bits `15`-`18` advertise the `{u64,double}`,
@@ -650,17 +648,16 @@ custom escape instruction.
 exported function instead of only the ELF entrypoint; the dynamic-relocation
 probes export `poly_entry` away from offset zero to exercise that path.
 
-Foreign traps are now recorded as explicit, operating-system-neutral
-architectural exits before any compatibility behavior runs.  AArch64 `svc` and
-RISC-V `ecall` record reason `1`; AArch64 `brk` and RISC-V `ebreak` record
+Foreign traps are recorded as explicit, operating-system-neutral architectural
+exits.  AArch64 `svc` and RISC-V `ecall` record reason `1`; AArch64 `brk` and
+RISC-V `ebreak` record
 reason `2`.  The record includes source mode, trap number, six ABI arguments,
 the foreign PC, the resume PC, and the raw trap selector/immediate when the
 foreign instruction encoding carries one.  In hardware or FPGA this packet is
-the boundary:
-firmware, the OS, or a userspace runtime routes it.  The current Bochs
-dispatcher is only a compatibility service layered after the packet is captured.
+the boundary: firmware, the OS, or a userspace runtime routes it.  Bochs does
+not synthesize Linux syscall or libc-helper results from raw trap instructions.
 
-When `cpu.poly_compat_traps=0`, software can install an architectural trap
+Software can install an architectural trap
 vector with `0f 24 60 ... POLY!` using `RAX=handler_pc` and can select the
 handler frontend with `0f 24 63 ... POLY!` using `RAX=mode`.  The default
 handler mode is x86_64.  In the Bochs prototype, the installed trap vector and
@@ -808,97 +805,19 @@ interrupt prototype covers ordinary long-mode
 userspace; the final ISA still needs an explicit, architectural XSAVE-visible
 foreign state component.
 
-After the OS-neutral trap packet is recorded, the Bochs prototype can run a
-test-only compatibility service for selected foreign Linux syscall numbers.
-This service is controlled by `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` and
-defaults off so the CPU model exposes the hardware-style trap-exit contract
-rather than Linux/libc policy.  It is intentionally not advertised through
-CPUID; software must treat it as a Bochs-only regression shim.  The legacy
-`make boot-poly-compat` and
-`make boot-poly-full-compat` regression targets opt in explicitly.  When disabled, the
-prototype records the packet, leaves raw mode, and either enters the configured
-architectural trap vector or raises an x86 `#UD` for syscall traps / `#BP` for
-breakpoint traps if no vector is installed.
+After the OS-neutral trap packet is recorded, Bochs now always uses the same
+architectural trap path that silicon or FPGA logic would expose.  It either
+enters the configured architectural trap vector or raises an x86 `#UD` for
+foreign syscall traps / `#BP` for foreign breakpoint traps if no vector is
+installed.  The deprecated `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` switch is
+retained only so old configs still parse; it no longer enables Linux syscall
+emulation or string-helper libcalls inside the CPU model.
 `nativecheck.elf` verifies the no-vector signal behavior with `SIGILL` for
 foreign syscall traps and `SIGTRAP` for foreign breakpoint traps.
-The service is not part of the CPU contract; it stands in for firmware, kernel,
-loader, or userspace-runtime routing that a real implementation would provide.
-When enabled, the service still runs only if the guest has not installed an
-architectural trap vector for the current userspace poly state.  The service
-consumes the already-recorded `POLYTRAP` packet instead of receiving decoded
-raw-instruction operands directly, so the Bochs prototype keeps the same
-trap-packet boundary that silicon or FPGA logic would expose.
-The current service recognizes:
-
-- Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
-  `futex`, `set_robust_list`, `get_robust_list`, `kill`, `tkill`, `tgkill`, `sigaltstack`,
-  `rt_sigaction`, `rt_sigprocmask`, `capget`,
-  `capset`, `personality`, `waitid`, `wait4`, `setpriority`, `getpriority`, `setpgid`,
-  `setsid`, `umask`, `prctl`, `setregid`, `setgid`, `setreuid`, `setuid`,
-  `setresuid`, `getresuid`, `setresgid`, `getresgid`, `setfsuid`,
-  `setfsgid`, `getgroups`, `setgroups`, `getpid`, `getppid`, `getuid`,
-  `geteuid`, `getgid`, `getegid`, `gettid`, `getpgid(0)`, `getsid(0)`,
-  `rseq`, `exit`, and `exit_group`.
-- File-style syscalls: `getcwd`, `eventfd2`, `inotify_init1`,
-  `inotify_add_watch`, `inotify_rm_watch`, `dup3`, `pipe2`,
-  `timer_create`, `timer_gettime`, `timer_getoverrun`, `timer_settime`,
-  `timer_delete`, `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
-  `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `fsync`,
-  `fdatasync`, `sync_file_range`, `fadvise64`, `statfs`, `fstatfs`,
-  `truncate`, `ftruncate`, `fallocate`, `chdir`, `fchdir`, `fchmod`,
-  `fchmodat`, `fchownat`, `fchown`, `setxattr`, `lsetxattr`, `fsetxattr`,
-  `getxattr`, `lgetxattr`, `fgetxattr`, `listxattr`, `llistxattr`,
-  `flistxattr`, `removexattr`, `lremovexattr`, `fremovexattr`,
-  `ioprio_set`, `ioprio_get`, `flock`, `mknodat`, `mkdirat`, `unlinkat`,
-  `symlinkat`, `linkat`, `renameat`, `renameat2`, `chroot`, `umount2`,
-  `mount`, `pivot_root`, `open_tree`, `move_mount`, `fsopen`, `fsconfig`,
-  `fsmount`, `fspick`, `mount_setattr`, `pselect6`, `ppoll`,
-  `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`,
-  `newfstatat`, `fstat`, `statx`, `close`, `getdents64`, `lseek`, and
-  `uname`.
-- Network-style syscalls: `socket`, `socketpair`, `bind`, `listen`,
-  `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
-  `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.
-- Memory/time-style syscalls: `nanosleep`, `getitimer`, `setitimer`,
-  `clock_gettime`, `clock_getres`, `clock_nanosleep`, `times`,
-  `sched_setparam`, `sched_setscheduler`,
-  `sched_getscheduler`, `sched_getparam`, `sched_setaffinity`,
-  `sched_getaffinity`, `sched_yield`, `sched_get_priority_max`,
-  `sched_get_priority_min`, `getrusage`,
-  `getrlimit`, `setrlimit`, `getcpu`, `gettimeofday`, `sysinfo`,
-  `prlimit64`, `getrandom`, `brk`,
-  `munmap`, `mremap`, `mprotect`, `madvise`, `mlock`, `munlock`,
-  `mlockall`, `munlockall`, `mlock2`, `close_range`, `membarrier`, and
-  `mmap`.
-
-The compatibility dispatcher also has deterministic unavailable probes that
-return Linux `-ENOSYS` for syscalls commonly probed by runtimes and libraries:
-`clone`, `execve`, `get_mempolicy`, `set_mempolicy`, `migrate_pages`,
-`move_pages`, `seccomp`, `bpf`, `userfaultfd`, `pkey_mprotect`, `pkey_alloc`, `pkey_free`,
-`pidfd_send_signal`, `io_uring_setup`, `io_uring_enter`,
-`io_uring_register`, `pidfd_open`, `clone3`, `openat2`, `pidfd_getfd`,
-`process_madvise`, `landlock_create_ruleset`, `landlock_add_rule`,
-`landlock_restrict_self`, `process_mrelease`, `futex_waitv`, and
-`set_mempolicy_home_node`.
-
-The compatibility syscall service carries six foreign Linux ABI arguments for
-both foreign architectures; current `mmap6` payloads verify argument registers
-beyond `arg2` reach the service after the architectural trap packet is recorded.
-
-The Bochs compatibility runtime also handles selected breakpoint traps as
-deterministic scaffold library calls after recording an OS-neutral break-trap
-packet.  This is not the hardware ISA contract; real precompiled-code interop
-should use ordinary dynamic-linker bindings, hardware-assisted `PCALL`
-descriptors, software thunks, or OS/runtime trap routing.
-
-- AArch64 uses `brk #id`.
-- RISC-V uses `a7=id; ebreak`.
-- Supported ids are `1=strlen`, `2=memfill`, `3=memcmp`, and `4=memcpy`.
-- Break-trap packets use the source frontend's native ABI argument registers:
-  AArch64 `x0`-`x5` or RISC-V `a0`-`a5`.  The deterministic scaffold ids use
-  `arg0` as the left/destination pointer and `arg2` as the byte count for
-  count-bearing operations.  This keeps the architectural packet independent of
-  the old shifted x86 bridge convention.
+Syscall translation, breakpoint handling, dynamic-linker binding, and libc
+helper policy belong in firmware, the guest OS, the loader, or a userspace
+runtime trap handler.  The CPU-facing contract is only the packet fields, trap
+vector delivery, and trap return state restoration.
 
 ## Validation Gates
 
@@ -981,8 +900,9 @@ make boot-poly-full-arch-traps
 `make boot-poly-full` is the unsuffixed alias for the same disabled-compat full
 gate.
 
-Run the fuller legacy compatibility-runtime gate, including direct foreign ELF
-execution and guest `binfmt_misc` registration:
+Run the full legacy-named gate, including direct foreign ELF execution and
+guest `binfmt_misc` registration.  The target name is retained for old scripts;
+the Bochs compatibility dispatcher is no longer used:
 
 ```bash
 make boot-poly-full-compat
@@ -1006,9 +926,9 @@ Expected success markers include:
   decode.  The current hot path has a CPUID-gated `0f 24 ... POLY!`
   opcode-family placeholder decoded through `BX_IA_POLYMODE`.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
-- Syscall and breakpoint traps are recorded explicitly as OS-neutral packets,
-  but the optional compatibility runtime still returns deterministic scaffold
-  results rather than complete host or guest Linux ABI behavior.
+- Syscall and breakpoint traps are recorded explicitly as OS-neutral packets.
+  Full foreign Linux ABI compatibility depends on guest trap-vector policy,
+  loader support, and dynamic-linker integration rather than Bochs CPU policy.
 - Equal-speed or minimal-slowdown execution is a design target.  The current
   implementation demonstrates raw direct-fetch execution and multi-burst raw
   loops, but not full equal-speed execution across complete ISAs.

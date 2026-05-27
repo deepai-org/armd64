@@ -740,8 +740,7 @@ execution model.  These are compatibility descriptors for observed compiler
 output, not a general libgcc or libc implementation.  Raw LSE additionally
 covers signed/unsigned min/max RMW opcodes.
 
-The prototype now records a unified `POLYTRAP` state before running any
-compatibility dispatcher:
+The prototype records a unified `POLYTRAP` state before leaving raw execution:
 
 - Reason `0`: no trap.
 - Reason `1`: foreign syscall trap (`svc` or `ecall`).
@@ -756,19 +755,12 @@ compatibility dispatcher:
 - PC records the foreign instruction address that raised the trap.
 - Resume PC records the next foreign instruction address for trap return.
 
-The temporary deterministic syscall and break-helper behavior in Bochs is a
-compatibility runtime layered after this trap record.  It consumes the same
-`POLYTRAP` packet that a guest handler receives; the raw decoder does not treat
-Linux syscalls or libc helpers as architectural CPU behavior.  It is not the
-final ISA contract and intentionally has no Linux or libc meaning at the
-architectural layer.  The final contract is the precise trap exit plus explicit
-state that software can save, restore, inspect, and route.
+Bochs no longer treats Linux syscalls or libc helpers as architectural CPU
+behavior.  The deprecated `cpu.poly_compat_traps` option is retained as a
+configuration no-op for old command lines, but foreign traps always use the
+OS-neutral architectural path.  The contract is the precise trap exit plus
+explicit state that software can save, restore, inspect, and route.
 
-The runtime is controlled by `cpu.poly_compat_traps` in Bochs and defaults off.
-It is a simulator-only regression shim and is not advertised through CPUID; bit
-`11` remains reserved in the architectural feature mask.  When the runtime is
-disabled, the trap packet is still recorded, and Bochs leaves raw mode without
-synthesizing a Linux syscall or libc result.
 If an architectural trap vector was installed with `0f 24 60 ... POLY!`
 (`RAX=handler_pc`), control transfers to that handler.  `0f 24 63 ... POLY!`
 selects the handler frontend with `RAX=mode`; x86_64 is the default.  For an
@@ -794,32 +786,16 @@ and either an explicit software-selected state key or the 8 MiB stack-region
 fallback key when the explicit key is zero.  A different guest address space
 starts with no stale trap vector, no stale syscall/break status, no stale
 trap packet, and no stale trap-return frame.
-The installed architectural trap vector has priority over the optional Bochs
-compatibility dispatcher even when `cpu.poly_compat_traps=1`; the dispatcher is
-only a fallback when no vector is installed. `nativecheck.elf` verifies this for
-syscall and break trap packets.
-If no vector is installed and compatibility is disabled, syscall traps surface
-as x86 `#UD`; breakpoint traps surface as x86 `#BP`.  This keeps the CPU model
-OS-neutral: software, not the CPU, decides whether a trap means Linux syscall
-translation, a debugger breakpoint, a dynamic-linker binding, or something
-else.
+If no vector is installed, syscall traps surface as x86 `#UD`; breakpoint traps
+surface as x86 `#BP`.  This keeps the CPU model OS-neutral: software, not the
+CPU, decides whether a trap means Linux syscall translation, a debugger
+breakpoint, a dynamic-linker binding, or something else.
 `nativecheck.elf` verifies the corresponding guest signals: `SIGILL` for
 foreign syscall traps and `SIGTRAP` for foreign breakpoint traps.
 
-The Bochs compatibility runtime can also handle selected breakpoint traps as
-deterministic scaffold helper calls after recording the same OS-neutral
-break-trap packet.  This is not the hardware ISA contract; real precompiled
-interop should use ordinary dynamic-linker bindings, hardware-assisted `PCALL`
-descriptors, software thunks, or OS/runtime trap routing.
-
-- AArch64 uses `brk #id`.
-- RISC-V uses `a7=id; ebreak`.
-- Supported scaffold ids are `1=strlen`, `2=memfill`, `3=memcmp`, and
-  `4=memcpy`.
-- Break-trap packets use the source frontend's native ABI argument registers:
-  AArch64 `x0`-`x5` or RISC-V `a0`-`a5`.  The deterministic scaffold ids use
-  `arg0` as the left/destination pointer and `arg2` as the byte count for
-  count-bearing operations, independent of any x86 bridge convention.
+Breakpoint traps use the source frontend's native ABI argument registers:
+AArch64 `x0`-`x5` or RISC-V `a0`-`a5`.  Runtime helper ids, dynamic-linker
+bindings, and OS syscall translation are guest policy layered above this packet.
 
 ## Compatibility Rule
 
