@@ -74,6 +74,8 @@ POLYCALL_NEEDED_EXTRA_REAL_SRC="$ROOT_DIR/tools/polycall_needed_extra_real.c"
 POLYCALL_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_main_real.c"
 POLYCALL_ABS_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_abs_needed_dep_real.c"
 POLYCALL_ABS_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_abs_needed_main_real.c"
+POLYCALL_PRELOAD_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_preload_dep_real.c"
+POLYCALL_PRELOAD_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_preload_main_real.c"
 POLYCALL_RUNPATH_PREFER_BAD_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_runpath_prefer_bad_dep_real.c"
 POLYCALL_MANY_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_many_needed_dep_real.c"
 POLYCALL_MANY_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_many_needed_main_real.c"
@@ -534,6 +536,15 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyabsneeded-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-abs-needed-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolypreload-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreload-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_MAIN_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-preload-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,'$ORIGIN/polydeps/libpolyoriginneeded-aarch64.so' \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1485,6 +1496,17 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyabsneeded-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-abs-needed-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolypreload-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreload-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_MAIN_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-preload-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,'$ORIGIN/polydeps/libpolyoriginneeded-riscv.so' \
@@ -3985,6 +4007,14 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-import-x86.elf=203 \
     /usr/lib/polyapps/riscv-pcall-import-x86-mul.elf=202 \
     /usr/lib/polyapps/riscv-pcall-import-x86-sum6.elf=221 >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreload-aarch64.so \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/aarch64-pcall-preload-real.so#poly_entry=945 \
+      >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreload-riscv.so \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/riscv-pcall-preload-real.so#poly_entry=945 \
+      >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_THREAD" = "1" ]; then

@@ -3052,6 +3052,92 @@ static int load_needed_dependencies(struct poly_program *program,
     0);
 }
 
+static int preload_separator(char c) {
+  return c == ':' || c == ' ' || c == '\t' || c == '\n';
+}
+
+static int dependency_path_already_loaded(const struct poly_program *program,
+    const char *path) {
+  for (size_t d = 0; d < program->dep_count; d++) {
+    if (strcmp(program->deps[d].path, path) == 0)
+      return 1;
+  }
+  return 0;
+}
+
+static int build_preload_path(const struct poly_program *program,
+    const char *token, size_t token_len, char *out, size_t out_size) {
+  if (token_len == 0 || token_len >= MAX_DEP_PATH)
+    return -1;
+
+  char raw[MAX_DEP_PATH];
+  memcpy(raw, token, token_len);
+  raw[token_len] = '\0';
+
+  char expanded[MAX_DEP_PATH];
+  if (expand_runpath_entry(program->path, program->arch_name, raw, token_len,
+        expanded, sizeof(expanded)) < 0)
+    return -1;
+
+  if (expanded[0] == '/') {
+    if (strlen(expanded) >= out_size || access(expanded, R_OK) != 0)
+      return -1;
+    strcpy(out, expanded);
+    return 0;
+  }
+
+  const char *library_path = getenv("LD_LIBRARY_PATH");
+  if (library_path && library_path[0] != '\0' &&
+      build_runpath_needed_path(program->path, program->arch_name,
+        library_path, strlen(library_path), expanded, out, out_size) == 0)
+    return 0;
+
+  if (build_needed_path(program->path, expanded, out, out_size) == 0 &&
+      access(out, R_OK) == 0)
+    return 0;
+
+  return -1;
+}
+
+static int load_preload_dependencies(struct poly_program *program) {
+  const char *preload = getenv("POLY_LD_PRELOAD");
+  if (!preload || preload[0] == '\0')
+    preload = getenv("LD_PRELOAD");
+  if (!preload || preload[0] == '\0')
+    return 0;
+
+  size_t offset = 0;
+  while (preload[offset] != '\0') {
+    while (preload[offset] != '\0' && preload_separator(preload[offset]))
+      offset++;
+    const size_t start = offset;
+    while (preload[offset] != '\0' && !preload_separator(preload[offset]))
+      offset++;
+    const size_t token_len = offset - start;
+    if (token_len == 0)
+      continue;
+
+    char path[MAX_DEP_PATH];
+    if (build_preload_path(program, preload + start, token_len, path,
+          sizeof(path)) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: bad preload dependency path: %.*s\n",
+        (int) token_len, preload + start);
+      return -1;
+    }
+    if (dependency_path_already_loaded(program, path))
+      continue;
+    if (program->dep_count >= MAX_NEEDED_DEPS) {
+      fprintf(stderr, "POLYCALL_FAIL: too many preload dependencies: %s\n",
+        program->path);
+      return -1;
+    }
+    const size_t dep_index = program->dep_count++;
+    if (load_dependency_object(program, dep_index, path, program->arch, 0) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static uint16_t symbol_version_index(const struct poly_symbol_table *table,
     size_t symbol_index) {
   if (!table->versym || symbol_index >= table->versym_count)
@@ -4275,7 +4361,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
     const size_t dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
     (void) load_dynsym_from_dynamic(program, dynamic, dynamic_count,
       &program->root_dynsym);
-    if (load_needed_dependencies(program, dynamic, dynamic_count) < 0 ||
+    if (load_preload_dependencies(program) < 0 ||
+        load_needed_dependencies(program, dynamic, dynamic_count) < 0 ||
         load_dynamic_relocs(program, data, size, ehdr, dynamic,
           dynamic_count) < 0) {
       free(program->relocs);
