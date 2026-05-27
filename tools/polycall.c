@@ -28,6 +28,12 @@
 #ifndef R_AARCH64_TLSDESC
 #define R_AARCH64_TLSDESC 1031
 #endif
+#ifndef R_AARCH64_TLS_DTPMOD64
+#define R_AARCH64_TLS_DTPMOD64 1028
+#endif
+#ifndef R_AARCH64_TLS_DTPREL64
+#define R_AARCH64_TLS_DTPREL64 1029
+#endif
 #ifndef R_AARCH64_TLS_TPREL64
 #define R_AARCH64_TLS_TPREL64 1030
 #endif
@@ -2629,7 +2635,30 @@ static int process_rela_table(struct poly_program *program,
         return -1;
       continue;
     }
-    if (program->arch == POLY_ARCH_RISCV &&
+    else if (program->arch == POLY_ARCH_AARCH64 &&
+        (reloc_type == R_AARCH64_TLS_DTPMOD64 ||
+         reloc_type == R_AARCH64_TLS_DTPREL64)) {
+      if (!dynsym.symbols &&
+          load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
+          load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: TLS relocations require dynsym metadata: %s\n",
+          program->path);
+        return -1;
+      }
+
+      if (reloc_type == R_AARCH64_TLS_DTPMOD64) {
+        reloc_value = 1;
+        base_kind = RELOC_BASE_ABSOLUTE;
+      }
+      else {
+        if (resolve_tls_reloc_symbol(program, &dynsym, symbol_index,
+              &reloc_value) < 0)
+          return -1;
+        reloc_value += (uint64_t) rela[n].r_addend;
+        base_kind = RELOC_BASE_TLS_OFFSET;
+      }
+    }
+    else if (program->arch == POLY_ARCH_RISCV &&
         (reloc_type == R_RISCV_TLS_DTPMOD64 ||
          reloc_type == R_RISCV_TLS_DTPREL64 ||
          reloc_type == R_RISCV_TLS_TPREL64)) {

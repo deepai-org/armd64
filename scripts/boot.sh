@@ -486,6 +486,11 @@ build_poly_elf_payloads() {
     "$POLYCALL_TLS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-tls-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -mtls-dialect=trad \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_TLS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-tls-trad-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_TLS_INITIAL_EXEC_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-tls-ie-real.so"
@@ -2738,6 +2743,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-ctor-real.so#poly_entry=245 \
     fini:/usr/lib/polyapps/aarch64-pcall-fini-real.so#poly_entry=1145 \
     /usr/lib/polyapps/aarch64-pcall-tls-real.so#poly_entry=55 \
+    /usr/lib/polyapps/aarch64-pcall-tls-trad-real.so#poly_entry=55 \
     /usr/lib/polyapps/aarch64-pcall-tls-ie-real.so#poly_entry=55 \
     /usr/lib/polyapps/aarch64-pcall-cond-real.so#poly_entry=115 \
     /usr/lib/polyapps/aarch64-pcall-select-variants-real.so#poly_entry=266 \

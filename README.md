@@ -622,8 +622,10 @@ destructor-visible dependency state checks,
 compiler-emitted same-image function-pointer relocations and indirect native
 calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
 `DT_FINI_ARRAY` destructor execution during teardown,
-compiler-emitted AArch64 TLSDESC and RISC-V `__tls_get_addr` access to
-`PT_TLS` initial images through the `PCALL` TLS-base register, plus
+compiler-emitted AArch64 TLSDESC, AArch64 traditional
+`R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64`, and RISC-V
+`__tls_get_addr` access to `PT_TLS` initial images through the `PCALL`
+TLS-base register, plus
 initial-exec `R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses,
 compiler-emitted conditional select variants and branch patterns
 (`aarch64-pcall-select-variants-real.so`,
@@ -660,7 +662,8 @@ compiler-emitted libc string/memory imports such as
 environment, allocation, teardown-registration, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
 `__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, plus
-TLS accessor imports for AArch64 TLSDESC and RISC-V `__tls_get_addr`, plus scalar
+TLS accessor imports for AArch64 TLSDESC, AArch64 traditional
+`__tls_get_addr`, and RISC-V `__tls_get_addr`, plus scalar
 libgcc 128-bit div/mod helpers `__udivti3`, `__umodti3`, `__divti3`, and
 `__modti3`, scalar int128/float conversion helpers `__fixdfti`,
 `__fixunsdfti`, `__floattidf`, `__floatuntidf`, `__fixsfti`,
@@ -698,11 +701,11 @@ handwritten helper bytecode in the call trampoline. The eight-argument x86
 helper also performs a nested compiled x86 helper call before returning, so the
 descriptor path covers ordinary x86 call/return activity inside the imported
 target.
-The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
-`__tls_get_addr` TLS accesses for self-contained foreign shared objects through
-runtime x86 helper descriptors that consume the `PCALL` TLS-base register, and
-common GCC AArch64 outline atomic helper imports used by default compiler
-output:
+The same descriptor mechanism currently resolves AArch64 TLSDESC, AArch64
+traditional `__tls_get_addr`, and RISC-V `__tls_get_addr` TLS accesses for
+self-contained foreign shared objects through runtime x86 helper descriptors
+that consume the `PCALL` TLS-base register, and common GCC AArch64 outline
+atomic helper imports used by default compiler output:
 8-, 16-, 32-, and 64-bit `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`
 helpers with `relax`, `acq`, `rel`, and `acq_rel` suffixes.  The loader
 aliases these suffixes to the same operation descriptor because the prototype

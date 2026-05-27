@@ -661,8 +661,10 @@ compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
 entrypoint. The destructor probes execute compiler-emitted `DT_FINI_ARRAY`
 entries during foreign-object teardown and verify their effect on foreign
 static state. The TLS probes exercise compiler-emitted AArch64 TLSDESC with
-`mrs tpidr_el0` and RISC-V `__tls_get_addr` against a copied `PT_TLS` initial
-image supplied through the `PCALL` TLS-base register, plus initial-exec
+`mrs tpidr_el0`, AArch64 traditional
+`R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and
+RISC-V `__tls_get_addr` against a copied `PT_TLS` initial image supplied
+through the `PCALL` TLS-base register, plus initial-exec
 `R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses against the same
 TLS base. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst`, `csel`, and conditional-select variants
@@ -808,7 +810,8 @@ that descriptor as the import target.  `polycall` uses this path for
 teardown, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
 `__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, for
-AArch64 TLSDESC and RISC-V `__tls_get_addr` TLS accessors, and for scalar
+AArch64 TLSDESC, AArch64 traditional `__tls_get_addr`, and RISC-V
+`__tls_get_addr` TLS accessors, and for scalar
 libgcc 128-bit div/mod helpers `__udivti3`,
 `__umodti3`, `__divti3`, and `__modti3`, scalar int128/float conversion
 helpers `__fixdfti`, `__fixunsdfti`, `__floattidf`, `__floatuntidf`,
@@ -830,8 +833,10 @@ the CPU does not synthesize fixed fallback results.
 The CPU contract is the descriptor call gate and ABI register mapping, not the
 semantics of those library functions.
 The same descriptor path currently provides prototype imports for common GCC
-dynamic TLS accessors (`R_AARCH64_TLSDESC` and RISC-V `__tls_get_addr`) through
-runtime x86 helper descriptors that consume the `PCALL` TLS-base register.
+dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
+`R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and
+RISC-V `__tls_get_addr`) through runtime x86 helper descriptors that consume
+the `PCALL` TLS-base register.
 Initial-exec `R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64` relocations bind
 directly to that same TLS base. The descriptor path also covers common GCC
 AArch64 outline atomic helpers: 8-, 16-, 32-, and 64-bit `ldadd`, `swp`,
