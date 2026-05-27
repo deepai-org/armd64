@@ -168,7 +168,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
 | Break status | `0f 24 38+id 50 4f 4c 59 21` | Returns breakpoint-trap state in `RAX`: `id=1` last break number, `id=2` last break source mode. |
 | Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign breakpoint traps. |
-| Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC. |
+| Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args 0-5, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC, `id=12`-`13` args 6-7. |
 | Trap vector | `0f 24 60-64 50 4f 4c 59 21` | `0x60` sets the architectural trap vector PC from `RAX`, `0x61` reads it into `RAX`, `0x62` resumes the recorded source frontend at the trap resume PC, `0x63` sets the trap-handler frontend mode from `RAX`, and `0x64` reads the handler mode into `RAX`. |
 | State key | `0f 24 65-66 50 4f 4c 59 21` | `0x65` sets the explicit userspace poly state key from `RAX`, with `RAX=0` disabling the explicit key and falling back to the stack-region key. `0x66` reads the explicit key into `RAX`. |
 | State save/restore | `0f 24 67-68 50 4f 4c 59 21` | Prototype fixed-layout state operations. `0x67` exports the current keyed poly state to the 4096-byte `struct poly_xsave_state` buffer pointed to by `RAX`; `0x68` imports that layout back into the current keyed state and continues in x86 mode. This is an explicit software operation, not a claim that leaf `0x40000003` exposes a real XCR0 component yet. |
@@ -187,8 +187,8 @@ runtime dispatch:
 | `0x40000002, subleaf 4` | `EAX=0x7ff9`, `EBX=0x0000407b`, `ECX=0x63`, `EDX=0x64` | Reports the native raw-mode trap-return encodings and x86 trap-vector mode set/get opcodes. |
 | `0x40000002, subleaf 5` | `EAX=140`, `EBX=0xffffe000`, `ECX=0xffffffff`, `EDX=16` | Reports the foreign import-call manifest: import ID count, 64-bit import-call window base split low/high, and import-call stride. |
 | `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus synthetic banks, status registers, trap-vector policy, trap-packet state, trap-return save state, and fixed 32-byte transition frames keyed by `CR3`, `FSBASE`, and either an explicit userspace state key or an 8 MiB stack-region fallback key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
-| `0x40000004` | `EAX=20`, `EBX=4096`, `ECX=0x00400001`, `EDX=0x1f` | Defines the silicon-target XSAVE contract: proposed XCR0 component 20, 4096-byte 64-byte-aligned save area, layout version 1, and flags requiring OSXSAVE/XCR0 enablement, interrupt-resume state, trap state, and no hidden foreign banks. This leaf is a formal architecture contract; the Bochs prototype still reports the active component as zero in leaf `0x40000003`. |
-| `0x40000005` | `EAX=1`, `EBX=64`, `ECX=6`, `EDX=0x1f` | Defines the architectural `POLYTRAP` packet ABI: layout version 1, 64-byte trap header, six native ABI argument slots, and flags for vector delivery, no-vector x86 exception delivery, trap-return state restoration, handler entry from all frontends, and trap-status opcodes. |
+| `0x40000004` | `EAX=20`, `EBX=4096`, `ECX=0x00400002`, `EDX=0x1f` | Defines the silicon-target XSAVE contract: proposed XCR0 component 20, 4096-byte 64-byte-aligned save area, layout version 2, and flags requiring OSXSAVE/XCR0 enablement, interrupt-resume state, trap state, and no hidden foreign banks. This leaf is a formal architecture contract; the Bochs prototype still reports the active component as zero in leaf `0x40000003`. |
+| `0x40000005` | `EAX=2`, `EBX=64`, `ECX=8`, `EDX=0x1f` | Defines the architectural `POLYTRAP` packet ABI: layout version 2, 64-byte trap header, eight native ABI argument slots, and flags for vector delivery, no-vector x86 exception delivery, trap-return state restoration, handler entry from all frontends, and trap-status opcodes. |
 | `0x40000006` | `EAX=1`, `EBX=0x1f`, `ECX=0x0f`, `EDX=0x18` | Defines the raw-mode interrupt/resume ABI: raw fetch is CPL3-only, asynchronous entry uses a standard x86 interrupt frame after saving precise foreign state, raw loops check events between foreign instructions, and `IRET64`/`SYSRET`/`SYSEXIT`/signal-return paths can restore AArch64 or RISC-V raw mode. |
 | `0x40000007` | `EAX=1`, `EBX=1`, `ECX=0x1f`, `EDX=0x18` | Defines the foreign memory-ordering ABI: raw AArch64/RISC-V execute under the x86 TSO model, use the same coherent x86 memory subsystem, decode AArch64 barriers and RISC-V fences as ordering-preserving no-ops, route atomics through coherent memory operations, and do not introduce weak reordering. |
 | `0x40000008` | `EAX=1`, `EBX=0x1ff`, `ECX=0x00020004`, `EDX=0x19` | Defines the cross-frontend transition ABI: x86 transitions use decoded poly opcodes, raw frontends use native escape instructions, each transition flushes the frontend and ends the current block, next PCs are precise, raw instruction fetch is fixed-width/aligned, AArch64/RISC-V can switch or call each other without x86 rendezvous, native returns use hardware cookies, and trap return is architectural. |
@@ -257,8 +257,8 @@ state/trap sizes from those structures rather than from independent literals.
 Leaf `0x40000005` makes trap handling discoverable as a hardware ABI rather
 than Bochs policy.  The packet header is the `0x40`-byte region stored at
 offset `0x040` in the proposed XSAVE component: reason, source mode, trap
-number, selector/immediate, trap PC, and resume PC.  The six argument slots are
-the `0x30`-byte region at offset `0x080`.  Software can depend on these fields
+number, selector/immediate, trap PC, and resume PC.  The eight argument slots are
+the `0x40`-byte region at offset `0x080`.  Software can depend on these fields
 for syscall translation, debugger breakpoints, dynamic-linker binding, or
 runtime policy without relying on Bochs CPU helpers.
 
@@ -831,14 +831,15 @@ space starts with no installed vector, no stale trap packet, no stale
 trap-return frame, and no stale last-syscall/break status.  For an x86
 handler, trap delivery uses
 `RAX=reason`, `RBX=source mode`, `RCX=trap number`, `RDX=trap PC`,
-`RSI=selector`, `RDI=arg0`, and `R8`-`R12` for trap arguments `1`-`5`;
+`RSI=selector`, `RDI=arg0`, `R8`-`R12` for trap arguments `1`-`5`, and
+`R13`-`R14` for trap arguments `6`-`7`;
 the same fields remain available through trap-status opcodes for debugging and
 late inspection.  For an AArch64 handler, delivery uses
 `x0=reason`, `x1=source mode`, `x2=trap number`, `x3=trap PC`, `x4=selector`,
-and `x5`-`x10` for trap arguments `0`-`5`; for a RISC-V handler, it uses
+and `x5`-`x12` for trap arguments `0`-`7`; for a RISC-V handler, it uses
 `a0=reason`, `a1=source mode`, `a2=trap number`, `a3=trap PC`,
 `a4=selector`, `a5`-`a7` for trap arguments `0`-`2`, and `t0`-`t2` for trap
-arguments `3`-`5`.
+arguments `3`-`5`, plus `t3`-`t4` for trap arguments `6`-`7`.
 The handler can read the full packet with trap-status opcodes, apply
 OS/runtime policy in software, place the result in the shared result register,
 and execute the native trap-return instruction for its frontend:

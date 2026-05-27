@@ -111,12 +111,22 @@ assert_contains "read_poly_aarch64_reg\\(0, &arg0\\)" "$IMPORT_CALL_FUNC" \
   "AArch64 import call gate must capture native ABI argument lane x0"
 assert_contains "read_poly_aarch64_reg\\(5, &arg5\\)" "$IMPORT_CALL_FUNC" \
   "AArch64 import call gate must capture native ABI argument lane x5"
+assert_contains "read_poly_aarch64_reg\\(6, &arg6\\)" "$IMPORT_CALL_FUNC" \
+  "AArch64 unresolved import traps must preserve native ABI argument lane x6"
+assert_contains "read_poly_aarch64_reg\\(7, &arg7\\)" "$IMPORT_CALL_FUNC" \
+  "AArch64 unresolved import traps must preserve native ABI argument lane x7"
 assert_contains "read_poly_riscv_reg\\(10, &arg0\\)" "$IMPORT_CALL_FUNC" \
   "RISC-V import call gate must capture native ABI argument lane a0"
 assert_contains "read_poly_riscv_reg\\(15, &arg5\\)" "$IMPORT_CALL_FUNC" \
   "RISC-V import call gate must capture native ABI argument lane a5"
+assert_contains "read_poly_riscv_reg\\(16, &arg6\\)" "$IMPORT_CALL_FUNC" \
+  "RISC-V unresolved import traps must preserve native ABI argument lane a6"
+assert_contains "read_poly_riscv_reg\\(17, &arg7\\)" "$IMPORT_CALL_FUNC" \
+  "RISC-V unresolved import traps must preserve native ABI argument lane a7"
 assert_contains "bx_poly_record_import_trap" "$IMPORT_CALL_FUNC" \
   "unresolved descriptor imports must record an architectural import trap"
+assert_contains "arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7" "$IMPORT_CALL_FUNC" \
+  "unresolved descriptor imports must record all eight native ABI argument lanes"
 assert_contains "deliver_poly_architectural_trap" "$IMPORT_CALL_FUNC" \
   "unresolved descriptor imports must exit through the architectural trap path"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \

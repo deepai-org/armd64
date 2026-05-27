@@ -133,9 +133,10 @@ path for this family:
   breakpoint traps.
 - `0f 24 50+id 50 4f 4c 59 21`: trap status read.  `id=0` returns the reason,
   `id=1` returns the source mode, `id=2` returns the trap number, `id=3`-`8`
-  return trap arguments, `id=9` returns the trap PC, and `id=10` returns the
-  trap selector/immediate where the foreign instruction encoding provides one;
-  `id=11` returns the trap resume PC.
+  return trap arguments `0`-`5`, `id=9` returns the trap PC, and `id=10`
+  returns the trap selector/immediate where the foreign instruction encoding
+  provides one; `id=11` returns the trap resume PC, and `id=12`-`13` return
+  trap arguments `6`-`7`.
 - `0f 24 60 50 4f 4c 59 21`: trap vector set.  `RAX` is the x86 handler PC or
   zero to disable vector delivery.
 - `0f 24 61 50 4f 4c 59 21`: trap vector get.  Returns the current handler PC in
@@ -239,7 +240,7 @@ discover the experimental hardware contract before emitting poly operations:
   `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
 - `CPUID.EAX=0x40000004`: silicon-target XSAVE contract discovery.  `EAX=20`
   is the proposed XCR0 component number, `EBX=4096` is the component byte
-  size, `ECX[15:0]=1` is the layout version, `ECX[31:16]=64` is the required
+  size, `ECX[15:0]=2` is the layout version, `ECX[31:16]=64` is the required
   byte alignment, and `EDX=0x1f` reports flags: user XCR0 component,
   OSXSAVE/XRSTOR required, interrupt-resume state present, trap state present,
   and no hidden foreign register banks permitted.  This is a formal hardware
@@ -248,9 +249,9 @@ discover the experimental hardware contract before emitting poly operations:
   prototype intentionally leaves those active fields clear while it still uses
   keyed synthetic banks.  Component `20` avoids component `11`, which is
   already assigned to standard x86 CET_U state in current x86 XSAVE maps.
-- `CPUID.EAX=0x40000005`: architectural trap-packet ABI discovery.  `EAX=1`
+- `CPUID.EAX=0x40000005`: architectural trap-packet ABI discovery.  `EAX=2`
   is the trap layout version, `EBX=64` is the byte size of the fixed packet
-  header, `ECX=6` is the native ABI argument slot count, and `EDX=0x1f`
+  header, `ECX=8` is the native ABI argument slot count, and `EDX=0x1f`
   reports flags: vector delivery, no-vector x86 exception delivery,
   trap-return source-state restoration, x86/AArch64/RISC-V handler entry, and
   trap-status opcodes.  This leaf is independent from the active XSAVE leaf so
@@ -301,8 +302,8 @@ The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 | --- | ---: | --- |
 | `0x000` | `0x040` | Header: magic/version/size, current frontend mode, flags, foreign PC, foreign TLS base, trap-vector PC, and trap-vector mode. |
 | `0x040` | `0x040` | Last architectural trap packet header: reason, source mode, trap number, selector/immediate, trap PC, and resume PC. |
-| `0x080` | `0x030` | Last trap argument registers `arg0`-`arg5`. |
-| `0x0b0` | `0x050` | Active cross-frontend transition record and reserved expansion. |
+| `0x080` | `0x040` | Last trap argument registers `arg0`-`arg7`. |
+| `0x0c0` | `0x040` | Active cross-frontend transition record and reserved expansion. |
 | `0x100` | `0x100` | AArch64 integer state: `x0`-`x30` plus `sp`, each 64-bit. |
 | `0x200` | `0x200` | AArch64 SIMD/FP state: `v0`-`v31`, each 128-bit. |
 | `0x400` | `0x080` | AArch64 `NZCV`, `FPCR`, `FPSR`, reservation metadata, and reserved expansion. |
@@ -963,14 +964,16 @@ If an architectural trap vector was installed with `0f 24 60 ... POLY!`
 (`RAX=handler_pc`), control transfers to that handler.  `0f 24 63 ... POLY!`
 selects the handler frontend with `RAX=mode`; x86_64 is the default.  For an
 x86 handler, delivery uses `RAX=reason`, `RBX=source mode`, `RCX=trap number`,
-`RDX=trap PC`, `RSI=selector`, `RDI=arg0`, and `R8`-`R12` for trap arguments
-`1`-`5`; the same fields remain available through trap-status opcodes for
+`RDX=trap PC`, `RSI=selector`, `RDI=arg0`, `R8`-`R12` for trap arguments
+`1`-`5`, and `R13`-`R14` for trap arguments `6`-`7`; the same fields remain
+available through trap-status opcodes for
 debugging and late inspection.  For an AArch64 handler, delivery uses
 `x0=reason`, `x1=source mode`, `x2=trap number`, `x3=trap PC`, `x4=selector`,
-and `x5`-`x10` for trap arguments `0`-`5`.  For a RISC-V handler, delivery uses
+and `x5`-`x12` for trap arguments `0`-`7`.  For a RISC-V handler, delivery uses
 `a0=reason`, `a1=source mode`, `a2=trap number`, `a3=trap PC`,
 `a4=selector`, `a5`-`a7` for trap arguments `0`-`2`, and `t0`-`t2` for trap
-arguments `3`-`5`.  The handler can inspect the full packet with trap-status
+arguments `3`-`5`, plus `t3`-`t4` for trap arguments `6`-`7`.  The handler
+can inspect the full packet with trap-status
 opcodes, place a result in the shared result register, and execute the native
 trap-return instruction for its frontend: `0f 24 62 ... POLY!` from x86,
 AArch64 `brk #0x7ff9`, or RISC-V custom `0x0000407b`.  Trap return restores
