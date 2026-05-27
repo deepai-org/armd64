@@ -597,10 +597,11 @@ AArch64 and RISC-V `ET_DYN` `.so` objects with dynamic symbol lookup, writable
 static data, split ELF `PT_LOAD` text/data layout, simple `ET_DYN` relative
 relocations through both `RELA` addends and `REL` in-place addends, packed
 `DT_RELR` direct and bitmap relative relocation tables,
-`R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolver relocations, same-image
-symbolic 64-bit dynamic relocations and exported entrypoints through both
-section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH` and
-GNU `DT_GNU_HASH` symbol counts plus `DT_JMPREL`/`JUMP_SLOT` PLT relocations
+`R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolver relocations,
+symbolic `STT_GNU_IFUNC` resolver relocations, same-image symbolic 64-bit
+dynamic relocations and exported entrypoints through both section-backed and
+`PT_DYNAMIC` symbol metadata, including SysV `DT_HASH` and GNU `DT_GNU_HASH`
+symbol counts plus `DT_JMPREL`/`JUMP_SLOT` PLT relocations
 using both `DT_PLTREL=RELA` and `DT_PLTREL=REL` tables for sectionless dynamic
 objects, `R_AARCH64_COPY`/`R_RISCV_COPY` copy relocations for non-PIE foreign
 executables referencing data exported by same-directory foreign shared

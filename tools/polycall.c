@@ -58,6 +58,9 @@
 #ifndef R_RISCV_TLS_TPREL64
 #define R_RISCV_TLS_TPREL64 11
 #endif
+#ifndef STT_GNU_IFUNC
+#define STT_GNU_IFUNC 10
+#endif
 
 enum {
   POLY_ARCH_AARCH64 = 1,
@@ -98,7 +101,8 @@ enum {
   RELOC_BASE_IRELATIVE = 4,
   RELOC_BASE_TLS_OFFSET = 5,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
-  RELOC_BASE_DEP_COPY = 200
+  RELOC_BASE_DEP_COPY = 200,
+  RELOC_BASE_DEP_IFUNC = 300
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
@@ -1312,6 +1316,12 @@ static uint32_t copy_reloc_type_for_arch(int arch) {
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_COPY;
   return UINT32_MAX;
+}
+
+static int reloc_base_is_resolver(int base_kind) {
+  return base_kind == RELOC_BASE_IRELATIVE ||
+    (base_kind >= RELOC_BASE_DEP_IFUNC &&
+     base_kind < RELOC_BASE_DEP_IFUNC + MAX_NEEDED_DEPS);
 }
 
 static const uint64_t poly_import_value = 123;
@@ -2573,20 +2583,33 @@ static int resolve_dependency_symbol(const struct poly_program *program,
   size_t best = program->dep_count;
   size_t best_rank = (size_t) -1;
   uint64_t best_value = 0;
+  unsigned best_type = STT_NOTYPE;
   for (size_t n = 0; n < program->dep_count; n++) {
-    uint64_t candidate_value = 0;
-    if (resolve_symbol_from_table_filtered(&program->deps[n].dynsym,
-          symbol_name, &candidate_value, 1) < 0)
+    const struct poly_symbol_table *table = &program->deps[n].dynsym;
+    if (!table->symbols || !table->strings || !symbol_name)
       continue;
-    if (program->deps[n].lookup_rank >= best_rank)
-      continue;
-    best = n;
-    best_rank = program->deps[n].lookup_rank;
-    best_value = candidate_value;
+    for (size_t s = 0; s < table->symbol_count; s++) {
+      const Elf64_Sym *sym = &table->symbols[s];
+      const unsigned type = ELF64_ST_TYPE(sym->st_info);
+      if (sym->st_name >= table->strings_size ||
+          sym->st_shndx == SHN_UNDEF ||
+          (type != STT_FUNC && type != STT_NOTYPE &&
+           type != STT_OBJECT && type != STT_GNU_IFUNC) ||
+          strcmp(table->strings + sym->st_name, symbol_name) != 0)
+        continue;
+      if (program->deps[n].lookup_rank >= best_rank)
+        continue;
+      best = n;
+      best_rank = program->deps[n].lookup_rank;
+      best_value = sym->st_value;
+      best_type = type;
+    }
   }
   if (best < program->dep_count) {
     *symbol_value = best_value;
-    *base_kind = RELOC_BASE_DEP_LOAD_BIAS + (int) best;
+    *base_kind = best_type == STT_GNU_IFUNC ?
+      RELOC_BASE_DEP_IFUNC + (int) best :
+      RELOC_BASE_DEP_LOAD_BIAS + (int) best;
     return 0;
   }
   return -1;
@@ -2705,7 +2728,8 @@ static int resolve_reloc_symbol(struct poly_program *program,
   }
 
   *symbol_value = sym->st_value;
-  *base_kind = RELOC_BASE_LOAD_BIAS;
+  *base_kind = ELF64_ST_TYPE(sym->st_info) == STT_GNU_IFUNC ?
+    RELOC_BASE_IRELATIVE : RELOC_BASE_LOAD_BIAS;
   return 0;
 }
 
@@ -4018,7 +4042,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   for (size_t d = 0; d < program->dep_count; d++) {
     const struct poly_dependency *dep = &program->deps[d];
     for (size_t r = 0; r < dep->reloc_count; r++) {
-      if (dep->relocs[r].base_kind == RELOC_BASE_IRELATIVE)
+      if (reloc_base_is_resolver(dep->relocs[r].base_kind))
         continue;
       if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_COPY &&
           dep->relocs[r].base_kind <
@@ -4093,11 +4117,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   for (size_t d = 0; d < program->dep_count; d++) {
     const struct poly_dependency *dep = &program->deps[d];
     for (size_t r = 0; r < dep->reloc_count; r++) {
-      if (dep->relocs[r].base_kind != RELOC_BASE_IRELATIVE)
+      if (!reloc_base_is_resolver(dep->relocs[r].base_kind))
         continue;
       if (dep->relocs[r].offset > dep_sizes[d] ||
           dep_sizes[d] - dep->relocs[r].offset < 8) {
-        fprintf(stderr, "POLYCALL_FAIL: dependency IRELATIVE target escaped image: %s\n",
+        fprintf(stderr, "POLYCALL_FAIL: dependency resolver target escaped image: %s\n",
           dep->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
         if (tls)
@@ -4107,7 +4131,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         munmap(code, code_size);
         return -1;
       }
-      const uint64_t resolver = dep_load_bias[d] + dep->relocs[r].value;
+      uint64_t resolver = 0;
+      if (dep->relocs[r].base_kind == RELOC_BASE_IRELATIVE)
+        resolver = dep_load_bias[d] + dep->relocs[r].value;
+      else {
+        const size_t resolver_dep =
+          (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_IFUNC);
+        resolver = dep_load_bias[resolver_dep] + dep->relocs[r].value;
+      }
       const uint64_t resolved = call_poly_stub(code, target_imm_offset,
         resolver, POLY_CALL_U64);
       write_le64(dep_foreign[d] + dep->relocs[r].offset, resolved);
@@ -4160,7 +4191,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   write_le64(code + heap_imm_offset, (uint64_t) (uintptr_t) import_page);
   const uint64_t load_bias = (uint64_t) (uintptr_t) foreign - program->base_vaddr;
   for (size_t n = 0; n < program->reloc_count; n++) {
-    if (program->relocs[n].base_kind == RELOC_BASE_IRELATIVE)
+    if (reloc_base_is_resolver(program->relocs[n].base_kind))
       continue;
     if (program->relocs[n].base_kind >= RELOC_BASE_DEP_COPY &&
         program->relocs[n].base_kind <
@@ -4286,11 +4317,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
 
   for (size_t n = 0; n < program->reloc_count; n++) {
-    if (program->relocs[n].base_kind != RELOC_BASE_IRELATIVE)
+    if (!reloc_base_is_resolver(program->relocs[n].base_kind))
       continue;
     if (program->relocs[n].offset > foreign_size ||
         foreign_size - program->relocs[n].offset < 8) {
-      fprintf(stderr, "POLYCALL_FAIL: IRELATIVE target escaped image: %s\n",
+      fprintf(stderr, "POLYCALL_FAIL: resolver target escaped image: %s\n",
         program->path);
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
@@ -4300,20 +4331,28 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       munmap(code, code_size);
       return -1;
     }
-    size_t resolver_offset = 0;
-    if (elf_vaddr_to_image_offset(program, program->relocs[n].value, 4,
-          &resolver_offset) < 0) {
-      fprintf(stderr, "POLYCALL_FAIL: IRELATIVE resolver escaped image: %s\n",
-        program->path);
-      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
-      if (tls)
-        munmap(tls, tls_size);
-      munmap(import_page, 4096);
-      munmap(foreign, foreign_size);
-      munmap(code, code_size);
-      return -1;
+    uint64_t resolver = 0;
+    if (program->relocs[n].base_kind == RELOC_BASE_IRELATIVE) {
+      size_t resolver_offset = 0;
+      if (elf_vaddr_to_image_offset(program, program->relocs[n].value, 4,
+            &resolver_offset) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: resolver escaped image: %s\n",
+          program->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      resolver = load_bias + program->relocs[n].value;
     }
-    const uint64_t resolver = load_bias + program->relocs[n].value;
+    else {
+      const size_t resolver_dep =
+        (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_IFUNC);
+      resolver = dep_load_bias[resolver_dep] + program->relocs[n].value;
+    }
     const uint64_t resolved = call_poly_stub(code, target_imm_offset,
       resolver, POLY_CALL_U64);
     write_le64(foreign + program->relocs[n].offset, resolved);
