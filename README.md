@@ -419,7 +419,12 @@ leaf dependency `libpolyneeded-leaf-riscv.so`), compiler-built `DT_NEEDED`
 dependency-IFUNC pairs (`aarch64-pcall-needed-ifunc-real.so#poly_entry` with
 `libpolyneededifunc-aarch64.so`, and
 `riscv-pcall-needed-ifunc-real.so#poly_entry` with
-`libpolyneededifunc-riscv.so`), compiler-built relocated function-pointer
+`libpolyneededifunc-riscv.so`), compiler-built `DT_NEEDED` dependency-`DT_INIT`
+and dependency-`DT_FINI` pairs
+(`aarch64-pcall-needed-dt-init-real.so#poly_entry` with
+`libpolyneededdtinit-aarch64.so`, and
+`riscv-pcall-needed-dt-init-real.so#poly_entry` with
+`libpolyneededdtinit-riscv.so`), compiler-built relocated function-pointer
 objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-built two-word aggregate
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
@@ -624,9 +629,9 @@ limit. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`
 dependency subdirectories,
 plus dependency library dynamic relocations before those dependency calls
 execute, dependency-local TLS blocks in the shared `PCALL` TLS image,
-dependency `DT_INIT_ARRAY` constructor execution before entering dependent
-foreign code and dependency `DT_FINI_ARRAY` teardown afterward with
-destructor-visible dependency state checks,
+dependency `DT_INIT`/`DT_INIT_ARRAY` constructor execution before entering
+dependent foreign code and dependency `DT_FINI_ARRAY`/`DT_FINI` teardown
+afterward with destructor-visible dependency state checks,
 compiler-emitted same-image function-pointer relocations and indirect native
 calls, `DT_INIT`/`DT_INIT_ARRAY` constructor execution before foreign
 entrypoints, `DT_FINI_ARRAY`/`DT_FINI` destructor execution during teardown,

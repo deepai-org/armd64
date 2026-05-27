@@ -73,6 +73,8 @@ POLYCALL_NEEDED_TLS_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_dep_real.c
 POLYCALL_NEEDED_TLS_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_main_real.c"
 POLYCALL_NEEDED_IFUNC_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_ifunc_dep_real.c"
 POLYCALL_NEEDED_IFUNC_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_ifunc_main_real.c"
+POLYCALL_NEEDED_DT_INIT_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_dt_init_dep_real.c"
+POLYCALL_NEEDED_DT_INIT_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_dt_init_main_real.c"
 POLYCALL_COPY_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_copy_dep_real.c"
 POLYCALL_COPY_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_copy_main_real.c"
 POLYCALL_FUNCPTR_REAL_SRC="$ROOT_DIR/tools/polycall_funcptr_real.c"
@@ -495,6 +497,18 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyneededifunc-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-needed-ifunc-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyneededdtinit-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none -Wl,-init,poly_needed_dt_init \
+    -Wl,-fini,poly_needed_dt_fini \
+    "$POLYCALL_NEEDED_DT_INIT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyneededdtinit-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_NEEDED_DT_INIT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyneededdtinit-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-needed-dt-init-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycopy-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -1082,6 +1096,20 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyneededifunc-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-needed-ifunc-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyneededdtinit-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none -Wl,-init,poly_needed_dt_init \
+    -Wl,-fini,poly_needed_dt_fini \
+    "$POLYCALL_NEEDED_DT_INIT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyneededdtinit-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_NEEDED_DT_INIT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyneededdtinit-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-needed-dt-init-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycopy-riscv.so -Wl,--hash-style=sysv \
@@ -2840,6 +2868,8 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     depfini:/usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/aarch64-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/aarch64-pcall-needed-ifunc-real.so#poly_entry=845 \
+    /usr/lib/polyapps/aarch64-pcall-needed-dt-init-real.so#poly_entry=945 \
+    depfini:/usr/lib/polyapps/aarch64-pcall-needed-dt-init-real.so#poly_entry=1945 \
     /usr/lib/polyapps/aarch64-pcall-copy-reloc.elf#poly_entry=78 \
     /usr/lib/polyapps/aarch64-pcall-funcptr-real.so#poly_entry=124 \
     pair:/usr/lib/polyapps/aarch64-pcall-pair-real.so#poly_entry=0x620000002d \
@@ -2958,6 +2988,8 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     depfini:/usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/riscv-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/riscv-pcall-needed-ifunc-real.so#poly_entry=845 \
+    /usr/lib/polyapps/riscv-pcall-needed-dt-init-real.so#poly_entry=945 \
+    depfini:/usr/lib/polyapps/riscv-pcall-needed-dt-init-real.so#poly_entry=1945 \
     /usr/lib/polyapps/riscv-pcall-copy-reloc.elf#poly_entry=78 \
     /usr/lib/polyapps/riscv-pcall-funcptr-real.so#poly_entry=124 \
     pair:/usr/lib/polyapps/riscv-pcall-pair-real.so#poly_entry=0x620000002d \

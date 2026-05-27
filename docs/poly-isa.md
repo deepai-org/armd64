@@ -463,7 +463,12 @@ with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
 dependency-IFUNC pairs (`aarch64-pcall-needed-ifunc-real.so#poly_entry` with
 `libpolyneededifunc-aarch64.so`, and
 `riscv-pcall-needed-ifunc-real.so#poly_entry` with
-`libpolyneededifunc-riscv.so`), compiler-produced copy-relocation executables
+`libpolyneededifunc-riscv.so`), compiler-produced `DT_NEEDED`
+dependency-`DT_INIT`/`DT_FINI` pairs
+(`aarch64-pcall-needed-dt-init-real.so#poly_entry` with
+`libpolyneededdtinit-aarch64.so`, and
+`riscv-pcall-needed-dt-init-real.so#poly_entry` with
+`libpolyneededdtinit-riscv.so`), compiler-produced copy-relocation executables
 (`aarch64-pcall-copy-reloc.elf#poly_entry` and
 `riscv-pcall-copy-reloc.elf#poly_entry`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
