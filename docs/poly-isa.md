@@ -874,6 +874,9 @@ When multiple dependency libraries export the same function/object symbol, the
 foreign loader ranks direct `DT_NEEDED` dependencies ahead of transitive
 dependencies so a later direct library can interpose over an earlier indirect
 provider.
+Already loaded dependencies are reused for later ordinary SONAME-style
+`DT_NEEDED` requests with the same SONAME, even when a later RUNPATH resolves
+the same SONAME to a different path.
 Dependencies recursively load their own same-directory `DT_NEEDED` entries, so
 an intermediate foreign library can call a second foreign library through its
 ordinary PLT/GOT relocations. Dependency library dynamic relocations are applied

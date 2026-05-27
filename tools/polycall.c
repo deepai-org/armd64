@@ -2683,6 +2683,9 @@ static const char *poly_library_path(void) {
   return getenv("LD_LIBRARY_PATH");
 }
 
+static int dependency_identity_already_loaded(struct poly_program *program,
+    const char *path, const char *needed, size_t needed_depth);
+
 static int load_dependency_object(struct poly_program *owner, size_t dep_index,
     const char *path, int expected_arch, size_t needed_depth,
     const char *inherited_rpath, size_t inherited_rpath_len,
@@ -3066,17 +3069,8 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
       return -1;
     }
 
-    int duplicate = 0;
-    for (size_t d = 0; d < owner->dep_count; d++) {
-      if (strcmp(owner->deps[d].path, needed_path) == 0) {
-        if (needed_depth == 0 &&
-            owner->deps[d].lookup_rank >= MAX_NEEDED_DEPS)
-          owner->deps[d].lookup_rank = owner->direct_dep_count++;
-        duplicate = 1;
-        break;
-      }
-    }
-    if (duplicate)
+    if (dependency_identity_already_loaded(owner, needed_path, needed,
+          needed_depth))
       continue;
     if (owner->dep_count >= MAX_NEEDED_DEPS) {
       fprintf(stderr, "POLYCALL_FAIL: too many DT_NEEDED dependencies: %s\n",
@@ -3108,6 +3102,22 @@ static int dependency_path_already_loaded(const struct poly_program *program,
   for (size_t d = 0; d < program->dep_count; d++) {
     if (strcmp(program->deps[d].path, path) == 0)
       return 1;
+  }
+  return 0;
+}
+
+static int dependency_identity_already_loaded(struct poly_program *program,
+    const char *path, const char *needed, size_t needed_depth) {
+  const int needed_is_soname = needed && strchr(needed, '/') == NULL;
+  for (size_t d = 0; d < program->dep_count; d++) {
+    if (strcmp(program->deps[d].path, path) != 0 &&
+        (!needed_is_soname ||
+         strcmp(program->deps[d].soname, needed) != 0))
+      continue;
+    if (needed_depth == 0 &&
+        program->deps[d].lookup_rank >= MAX_NEEDED_DEPS)
+      program->deps[d].lookup_rank = program->direct_dep_count++;
+    return 1;
   }
   return 0;
 }
