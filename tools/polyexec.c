@@ -7,6 +7,7 @@
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
+#include <time.h>
 #include <unistd.h>
 
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -370,6 +371,15 @@ static int parse_request(const char *arg, struct poly_request *request) {
         return -1;
       }
       request->expected = (uint64_t) limit.rlim_cur;
+    }
+    else if (strcmp(expected + 1, "clockresnsec") == 0) {
+      struct timespec resolution;
+      if (clock_getres(CLOCK_REALTIME, &resolution) < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: unable to compute clock_getres expected value: %s\n",
+          strerror(errno));
+        return -1;
+      }
+      request->expected = (uint64_t) resolution.tv_nsec;
     }
     else if (strcmp(expected + 1, "cwd") == 0) {
       char cwd[256];
