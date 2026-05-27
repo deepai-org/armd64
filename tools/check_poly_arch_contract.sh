@@ -267,6 +267,8 @@ assert_not_contains "POLY_COMPAT_TRAPS|poly_compat_traps" "$ROOT_DIR/scripts/boo
   "boot configuration must not emit the removed compat trap knob"
 assert_not_contains "poly_cpuid_expected_feature_mask_for_compat" "$ROOT_DIR/tools/polycpuid.h" \
   "CPUID checks must not carry compat-trap feature variants"
+assert_not_contains "POLY_CPUID_FEATURE_COMPAT_TRAPS" "$ROOT_DIR/tools/polycpuid.h" \
+  "CPUID ABI must not retain a named compatibility-trap feature bit"
 assert_not_contains "libcall_(expected|number_expected|id)" "$ROOT_DIR/tools/polyapp.c" \
   "polyapp manifests must use neutral break-trap keys, not legacy libcall aliases"
 
