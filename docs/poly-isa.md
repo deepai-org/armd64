@@ -162,9 +162,9 @@ discover the experimental hardware contract before emitting poly operations:
 - `0x40000001.ECX`: feature mask.  Bits `0`-`26` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
-  foreign ordering, per-thread synthetic banks, optional deterministic
-  compatibility syscall/libcall traps, the prototype x86 poly opcode family, and two-float
-  aggregate return packing, two-float aggregate argument unpacking, and
+  foreign ordering, per-thread synthetic banks, reserved bit `11`, the
+  prototype x86 poly opcode family, and two-float aggregate return packing,
+  two-float aggregate argument unpacking, and
   `{u64,double}`/`{double,u64}`/`{u64,float}`/`{float,u64}` heterogeneous
   aggregate bridging for native ABI `PCALL`, plus RISC-V `{u32,float}` and
   `{float,u32}` compact aggregate bridges and matching neutral
@@ -764,9 +764,10 @@ architectural layer.  The final contract is the precise trap exit plus explicit
 state that software can save, restore, inspect, and route.
 
 The runtime is controlled by `cpu.poly_compat_traps` in Bochs and defaults off.
-When it is disabled, CPUID feature bit `11` is clear, the trap packet is still
-recorded, and Bochs leaves raw mode without synthesizing a Linux syscall or
-libc result.
+It is a simulator-only regression shim and is not advertised through CPUID; bit
+`11` remains reserved in the architectural feature mask.  When the runtime is
+disabled, the trap packet is still recorded, and Bochs leaves raw mode without
+synthesizing a Linux syscall or libc result.
 If an architectural trap vector was installed with `0f 24 60 ... POLY!`
 (`RAX=handler_pc`), control transfers to that handler.  `0f 24 63 ... POLY!`
 selects the handler frontend with `RAX=mode`; x86_64 is the default.  For an
@@ -796,6 +797,11 @@ The installed architectural trap vector has priority over the optional Bochs
 compatibility dispatcher even when `cpu.poly_compat_traps=1`; the dispatcher is
 only a fallback when no vector is installed. `nativecheck.elf` verifies this for
 syscall and break/libcall trap packets.
+If no vector is installed and compatibility is disabled, syscall traps surface
+as x86 `#UD`; breakpoint traps surface as x86 `#BP`.  This keeps the CPU model
+OS-neutral: software, not the CPU, decides whether a trap means Linux syscall
+translation, a debugger breakpoint, a dynamic-linker binding, or something
+else.
 
 The Bochs compatibility runtime can also handle selected breakpoint traps as
 deterministic scaffold library calls after recording the same OS-neutral

@@ -48,7 +48,7 @@ enum {
   POLY_CPUID_FEATURE_USER_RETURN_RESTORE = (1U << 8),
   POLY_CPUID_FEATURE_X86_TSO = (1U << 9),
   POLY_CPUID_FEATURE_THREAD_BANKS = (1U << 10),
-  POLY_CPUID_FEATURE_COMPAT_TRAPS = (1U << 11),
+  POLY_CPUID_FEATURE_COMPAT_TRAPS = (1U << 11), /* reserved; Bochs-only shim */
   POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
   POLY_CPUID_FEATURE_FPAIR32_RET = (1U << 13),
   POLY_CPUID_FEATURE_FPAIR32_ARG = (1U << 14),
@@ -102,6 +102,7 @@ static inline uint32_t poly_cpuid_expected_mode_mask(void) {
 }
 
 static inline uint32_t poly_cpuid_expected_feature_mask_for_compat(int compat_traps) {
+  (void) compat_traps;
   uint32_t mask = POLY_CPUID_FEATURE_RAW_AARCH64 |
     POLY_CPUID_FEATURE_RAW_RISCV |
     POLY_CPUID_FEATURE_NEUTRAL_SWITCH |
@@ -128,8 +129,6 @@ static inline uint32_t poly_cpuid_expected_feature_mask_for_compat(int compat_tr
     POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
     POLY_CPUID_FEATURE_TRAP_VECTOR |
     POLY_CPUID_FEATURE_STATE_KEY;
-  if (compat_traps)
-    mask |= POLY_CPUID_FEATURE_COMPAT_TRAPS;
   return mask;
 }
 

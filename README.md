@@ -183,10 +183,10 @@ The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
 RISC-V, neutral direct switches, native return cookies, x86 SysV `PCALL`,
 `PCALL` sret, scalar FP bridging, trap records, user return restoration, x86 TSO
-foreign ordering, and per-thread synthetic banks.  Bit `11` advertises the
-optional Bochs deterministic syscall/libcall compatibility runtime when
-`cpu.poly_compat_traps=1`; it is clear when trap-only architectural exits are
-configured.  Bit `12` additionally advertises the prototype x86 poly opcode
+foreign ordering, and per-thread synthetic banks.  Bit `11` is reserved and is
+not used to advertise the optional Bochs deterministic syscall/libcall
+compatibility runtime; that runtime is simulator test scaffolding, not CPU
+architecture.  Bit `12` additionally advertises the prototype x86 poly opcode
 family. Bit `13` advertises the two-float aggregate return packing
 variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
 argument unpacking; bits `15`-`18` advertise the `{u64,double}`,
@@ -810,10 +810,13 @@ After the OS-neutral trap packet is recorded, the Bochs prototype can run a
 test-only compatibility service for selected foreign Linux syscall numbers.
 This service is controlled by `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` and
 defaults off so the CPU model exposes the hardware-style trap-exit contract
-rather than Linux/libc policy.  The legacy `make boot-poly-compat` and
+rather than Linux/libc policy.  It is intentionally not advertised through
+CPUID; software must treat it as a Bochs-only regression shim.  The legacy
+`make boot-poly-compat` and
 `make boot-poly-full-compat` regression targets opt in explicitly.  When disabled, the
 prototype records the packet, leaves raw mode, and either enters the configured
-architectural trap vector or raises an x86 `#UD` if no vector is installed.
+architectural trap vector or raises an x86 `#UD` for syscall traps / `#BP` for
+breakpoint traps if no vector is installed.
 The service is not part of the CPU contract; it stands in for firmware, kernel,
 loader, or userspace-runtime routing that a real implementation would provide.
 When enabled, the service still runs only if the guest has not installed an
