@@ -218,7 +218,14 @@ enum {
   POLY_IMPORT_FUNC_MEMALIGN = 129,
   POLY_IMPORT_FUNC_ATEXIT = 130,
   POLY_IMPORT_FUNC_CXA_ATEXIT = 131,
-  POLY_IMPORT_FUNC_CXA_FINALIZE = 132
+  POLY_IMPORT_FUNC_CXA_FINALIZE = 132,
+  POLY_IMPORT_FUNC_GETPID = 133,
+  POLY_IMPORT_FUNC_GETPPID = 134,
+  POLY_IMPORT_FUNC_GETUID = 135,
+  POLY_IMPORT_FUNC_GETEUID = 136,
+  POLY_IMPORT_FUNC_GETGID = 137,
+  POLY_IMPORT_FUNC_GETEGID = 138,
+  POLY_IMPORT_FUNC_GETTID = 139
 };
 
 enum {
@@ -852,6 +859,34 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__cxa_finalize") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_CXA_FINALIZE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "getpid") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETPID * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "getppid") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETPPID * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "getuid") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETUID * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "geteuid") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETEUID * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "getgid") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETGID * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "getegid") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETEGID * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "gettid") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETTID * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
