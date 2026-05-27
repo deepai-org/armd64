@@ -582,12 +582,13 @@ custom escape instruction.
 exported function instead of only the ELF entrypoint; the dynamic-relocation
 probes export `poly_entry` away from offset zero to exercise that path.
 
-Foreign traps are now recorded as explicit architectural exits before any
-compatibility behavior runs.  AArch64 `svc` and RISC-V `ecall` record reason
-`1`; AArch64 `brk` and RISC-V `ebreak` record reason `2`.  The record includes
-source mode, trap number, six ABI arguments, and the foreign PC.  The current
-Bochs dispatcher may still return deterministic scaffold values after recording
-the trap, but the trap record is the intended ISA boundary.
+Foreign traps are now recorded as explicit, operating-system-neutral
+architectural exits before any compatibility behavior runs.  AArch64 `svc` and
+RISC-V `ecall` record reason `1`; AArch64 `brk` and RISC-V `ebreak` record
+reason `2`.  The record includes source mode, trap number, six ABI arguments,
+and the foreign PC.  In hardware or FPGA this packet is the boundary: firmware,
+the OS, or a userspace runtime routes it.  The current Bochs dispatcher is only
+a compatibility service layered after the packet is captured.
 
 ## Supported Foreign Subset
 
@@ -700,9 +701,11 @@ register ABI. The current interrupt prototype covers ordinary long-mode
 userspace; the final ISA still needs an explicit, architectural XSAVE-visible
 foreign state component.
 
-The Bochs compatibility runtime handles selected foreign Linux syscall traps
-deterministically after recording the architectural trap.  Supported syscall
-numbers currently include:
+After the OS-neutral trap packet is recorded, the Bochs prototype can run a
+test-only compatibility service for selected foreign Linux syscall numbers.
+This service is not part of the CPU contract; it stands in for firmware,
+kernel, loader, or userspace-runtime routing that a real implementation would
+provide.  The current service recognizes:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
   `futex`, `set_robust_list`, `get_robust_list`, `kill`, `tkill`, `tgkill`, `sigaltstack`,
@@ -755,14 +758,15 @@ return Linux `-ENOSYS` for syscalls commonly probed by runtimes and libraries:
 `landlock_restrict_self`, `process_mrelease`, `futex_waitv`, and
 `set_mempolicy_home_node`.
 
-The shared syscall dispatcher carries six foreign Linux ABI arguments for both
-foreign architectures; current `mmap6` payloads verify argument registers beyond
-`arg2` reach the dispatcher.
+The compatibility syscall service carries six foreign Linux ABI arguments for
+both foreign architectures; current `mmap6` payloads verify argument registers
+beyond `arg2` reach the service after the architectural trap packet is recorded.
 
 The Bochs compatibility runtime also handles selected breakpoint traps as
-deterministic scaffold library calls.  This is not the hardware ISA contract;
-real precompiled-code interop should use software thunks or OS/runtime trap
-routing.
+deterministic scaffold library calls after recording an OS-neutral break-trap
+packet.  This is not the hardware ISA contract; real precompiled-code interop
+should use ordinary dynamic-linker bindings, hardware-assisted `PCALL`
+descriptors, software thunks, or OS/runtime trap routing.
 
 - AArch64 uses `brk #id`.
 - RISC-V uses `a7=id; ebreak`.
@@ -815,9 +819,9 @@ Expected success markers include:
   decode.  The current hot path has a CPUID-gated `0f 24 ... POLY!`
   opcode-family placeholder decoded through `BX_IA_POLYMODE`.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
-- Syscall and breakpoint traps are recorded explicitly, but the current
-  compatibility runtime still returns deterministic scaffold results rather
-  than complete host or guest Linux ABI behavior.
+- Syscall and breakpoint traps are recorded explicitly as OS-neutral packets,
+  but the current compatibility runtime still returns deterministic scaffold
+  results rather than complete host or guest Linux ABI behavior.
 - Equal-speed or minimal-slowdown execution is a design target.  The current
   implementation demonstrates raw direct-fetch execution and multi-burst raw
   loops, but not full equal-speed execution across complete ISAs.

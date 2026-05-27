@@ -32,12 +32,13 @@ implementation should expose CPUID feature bits plus XCR0 state components so
 the OS can save and restore foreign integer and FP/SIMD state with
 `XSAVE`/`XRSTOR`.
 
-Foreign traps are architectural exits, not hardware libcalls or Linux policy.
-When foreign code executes AArch64 `svc`, RISC-V `ecall`, AArch64 `brk`, or
-RISC-V `ebreak`, hardware records a trap frame, switches the frontend back to
-x86_64, and transfers control to an OS/runtime-defined trap path.  The OS or
-userspace runtime decides whether to translate a syscall, deliver a signal,
-invoke a thunk, or reject the operation.
+Foreign traps are architectural exits, not hardware libcalls, Linux policy, or
+any other operating-system policy.  When foreign code executes AArch64 `svc`,
+RISC-V `ecall`, AArch64 `brk`, or RISC-V `ebreak`, hardware records a trap
+frame, switches the frontend back to x86_64 or another configured supervisor
+frontend, and transfers control to an implementation-defined trap path.  Firmware,
+the OS, a loader, or a userspace runtime decides whether to translate a syscall,
+deliver a signal, invoke a thunk, or reject the operation.
 
 Foreign memory ordering is currently specified as x86_64 TSO for the prototype
 compatibility target.  AArch64 and RISC-V barriers are legal decode points, and
@@ -728,7 +729,8 @@ compatibility dispatcher:
 
 The temporary deterministic syscall and libcall behavior in Bochs is a
 compatibility runtime layered after this trap record.  It is not the final ISA
-contract.  The final contract is the precise trap exit plus explicit state that
+contract and intentionally has no Linux or libc meaning at the architectural
+layer.  The final contract is the precise trap exit plus explicit state that
 software can save, restore, inspect, and route.
 
 ## Compatibility Rule
