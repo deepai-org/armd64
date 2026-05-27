@@ -769,7 +769,10 @@ constructor probes execute compiler-emitted `DT_INIT_ARRAY` entries and
 linker-selected `DT_INIT` functions before the requested foreign entrypoint.
 The destructor probes execute compiler-emitted `DT_FINI_ARRAY` entries and
 linker-selected `DT_FINI` functions during foreign-object teardown and verify
-their effect on foreign static state. The TLS probes exercise compiler-emitted AArch64 TLSDESC with
+their effect on foreign static state. The RELRO probes exercise
+compiler-produced `PT_GNU_RELRO` ranges containing relocated read-only data;
+the loader applies relocations, marks those ranges read-only, and then enters
+foreign constructors or entrypoints. The TLS probes exercise compiler-emitted AArch64 TLSDESC with
 `mrs tpidr_el0`, AArch64 traditional
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and
 RISC-V `__tls_get_addr` against a copied `PT_TLS` initial image supplied
@@ -915,6 +918,9 @@ run their constructors before ordinary dependency constructors. Dependency
 `DT_FINI_ARRAY` and `DT_FINI` destructors run during teardown. The
 `depfini:` harness mode verifies dependency finalizers by calling an exported
 dependency result symbol after dependency teardown and before unmapping.
+Root and dependency `PT_GNU_RELRO` ranges are protected read-only after
+ordinary, copy, and IFUNC relocations have been written and before any
+foreign constructor, preinit callback, or entrypoint executes.
 Dependency `PT_TLS` images are laid out in the same software-allocated TLS
 block as the entry object, with each dependency's TLS relocations resolved to a
 distinct offset under the `PCALL` TLS-base register. Dependency TLS

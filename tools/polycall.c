@@ -462,6 +462,8 @@ struct poly_dependency {
   uint64_t fini_array_vaddr;
   uint64_t fini_array_size;
   size_t fini_count;
+  uint64_t relro_vaddr;
+  uint64_t relro_size;
   uint64_t tls_vaddr;
   uint64_t tls_filesz;
   uint64_t tls_memsz;
@@ -509,6 +511,8 @@ struct poly_program {
   uint64_t fini_array_size;
   uint64_t fini_result_vaddr;
   size_t fini_count;
+  uint64_t relro_vaddr;
+  uint64_t relro_size;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
   struct poly_symbol_table root_dynsym;
@@ -1408,6 +1412,10 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
 
 static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
   return value & ~(alignment - 1);
+}
+
+static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
+  return (value + alignment - 1) & ~(alignment - 1);
 }
 
 static int align_up_size(size_t value, size_t alignment, size_t *result) {
@@ -2751,6 +2759,11 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
       dynamic_size = phdr->p_filesz;
       continue;
     }
+    if (phdr->p_type == PT_GNU_RELRO) {
+      dep->relro_vaddr = phdr->p_vaddr;
+      dep->relro_size = phdr->p_memsz;
+      continue;
+    }
     if (phdr->p_type == PT_TLS) {
       if (phdr->p_filesz > phdr->p_memsz ||
           phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
@@ -2860,6 +2873,8 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   dep_view.fini_array_vaddr = dep->fini_array_vaddr;
   dep_view.fini_array_size = dep->fini_array_size;
   dep_view.fini_count = dep->fini_count;
+  dep_view.relro_vaddr = dep->relro_vaddr;
+  dep_view.relro_size = dep->relro_size;
   dep_view.symbolic_binding = dep->symbolic_binding;
   dep_view.dependency_view = 1;
   dep_view.tls_vaddr = dep->tls_vaddr;
@@ -2945,6 +2960,8 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   dep->fini_array_vaddr = dep_view.fini_array_vaddr;
   dep->fini_array_size = dep_view.fini_array_size;
   dep->fini_count = dep_view.fini_count;
+  dep->relro_vaddr = dep_view.relro_vaddr;
+  dep->relro_size = dep_view.relro_size;
   dep->symbolic_binding = dep_view.symbolic_binding;
   owner->needs_x86_import = dep_view.needs_x86_import;
 
@@ -4312,6 +4329,11 @@ static int load_elf_program(const char *path, const char *symbol_name,
       dynamic_size = phdr->p_filesz;
       continue;
     }
+    if (phdr->p_type == PT_GNU_RELRO) {
+      program->relro_vaddr = phdr->p_vaddr;
+      program->relro_size = phdr->p_memsz;
+      continue;
+    }
     if (phdr->p_type == PT_TLS) {
       if (phdr->p_filesz > phdr->p_memsz ||
           phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
@@ -4906,6 +4928,44 @@ static uint8_t *map_foreign_program_image(const struct poly_program *program,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
+static int protect_relro_region(const char *path, uint8_t *image,
+    size_t image_size, uint64_t base_vaddr, uint64_t relro_vaddr,
+    uint64_t relro_size) {
+  if (relro_size == 0)
+    return 0;
+  if (relro_vaddr > UINT64_MAX - relro_size) {
+    fprintf(stderr, "POLYCALL_FAIL: bad RELRO range: %s\n", path);
+    return -1;
+  }
+  size_t relro_offset = 0;
+  if (image_vaddr_to_offset(base_vaddr, image_size, relro_vaddr, relro_size,
+        &relro_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: RELRO escaped image: %s\n", path);
+    return -1;
+  }
+
+  const uint64_t relro_start = align_down_u64(relro_vaddr, 0x1000);
+  const uint64_t relro_end_unaligned = relro_vaddr + relro_size;
+  if (relro_end_unaligned > UINT64_MAX - 0xfff) {
+    fprintf(stderr, "POLYCALL_FAIL: bad RELRO page range: %s\n", path);
+    return -1;
+  }
+  const uint64_t relro_end = align_up_u64(relro_end_unaligned, 0x1000);
+  if (relro_start < base_vaddr || relro_end < relro_start ||
+      relro_end - relro_start > SIZE_MAX) {
+    fprintf(stderr, "POLYCALL_FAIL: bad RELRO page range: %s\n", path);
+    return -1;
+  }
+  void *addr = image + (size_t) (relro_start - base_vaddr);
+  const size_t length = (size_t) (relro_end - relro_start);
+  if (mprotect(addr, length, PROT_READ) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: RELRO mprotect failed: %s: %s\n",
+      path, strerror(errno));
+    return -1;
+  }
+  return 0;
+}
+
 static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     uint8_t *dep_image, size_t dep_size, uint64_t dep_load_bias,
     uint8_t *code, size_t target_imm_offset) {
@@ -5432,6 +5492,30 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
 
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_dependency *dep = &program->deps[d];
+    if (protect_relro_region(dep->path, dep_foreign[d], dep_sizes[d],
+          dep->base_vaddr, dep->relro_vaddr, dep->relro_size) < 0) {
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+  }
+  if (protect_relro_region(program->path, foreign, foreign_size,
+        program->base_vaddr, program->relro_vaddr, program->relro_size) < 0) {
+    unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+    if (tls)
+      munmap(tls, tls_size);
+    munmap(import_page, 4096);
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
+  }
+
   if (program->preinit_array_size != 0) {
     size_t preinit_array_offset = 0;
     if (elf_vaddr_to_image_offset(program, program->preinit_array_vaddr,
@@ -5741,15 +5825,20 @@ int main(int argc, char **argv) {
 
     size_t dep_init_count = 0;
     size_t dep_fini_count = 0;
+    size_t dep_relro_count = 0;
     for (size_t d = 0; d < program.dep_count; d++) {
       dep_init_count += program.deps[d].init_count;
       dep_fini_count += program.deps[d].fini_count;
+      if (program.deps[d].relro_size != 0)
+        dep_relro_count++;
     }
+    const size_t relro_count =
+      (program.relro_size != 0 ? 1U : 0U) + dep_relro_count;
 
-    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu deps=%zu dep_inits=%zu dep_finis=%zu tls=%llu inits=%zu finis=%zu symbol=%s path=%s\n",
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu deps=%zu dep_inits=%zu dep_finis=%zu relro=%zu tls=%llu inits=%zu finis=%zu symbol=%s path=%s\n",
       program.arch_name, (unsigned) program.elf_type, program.image_size,
       program.loaded_bytes, program.entry_offset, program.reloc_count,
-      program.dep_count, dep_init_count, dep_fini_count,
+      program.dep_count, dep_init_count, dep_fini_count, relro_count,
       (unsigned long long) program.tls_memsz, program.init_count,
       program.fini_count,
       symbol_name ? symbol_name : "-", program.path);
