@@ -71,8 +71,9 @@ Linux ABI passthrough, or equal-speed execution.
   benchmark exits are routed through userspace packet handling rather than
   Bochs CPU policy.
 - The `make boot-poly-apps-arch-traps` path runs the manifest-backed `polyapp`
-  payload suite through a guest-installed trap vector, keeping syscall/break
-  policy outside the CPU model.
+  payload suite through a guest-installed trap vector, including mixed
+  AArch64-to-RISC-V and RISC-V-to-AArch64 direct-switch payloads, keeping
+  syscall/break policy outside the CPU model.
 - The `make boot-poly-full` and `make boot-poly-full-arch-traps` paths combine
   the trap-vector probe, manifest apps, focused direct ELF execution, `PCALL`,
   thread/signal, benchmark, binfmt, and native CPUID gates in one run.

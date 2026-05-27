@@ -26,8 +26,10 @@ enum {
 struct payload {
   const char *path;
   const char *arch_name;
+  const char *final_arch_name;
   char elf_path[128];
   int arch;
+  int final_arch;
   uint64_t expected;
   uint64_t syscall_expected;
   uint64_t syscall_number_expected;
@@ -574,14 +576,41 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
 }
 
 static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
-  register uint64_t rax __asm__("rax") = (uint64_t) (uintptr_t) scratch;
-  register uint64_t rdi __asm__("rdi") = (uint64_t) (uintptr_t) scratch;
-  register uint64_t rsi __asm__("rsi") = (uint64_t) (uintptr_t) scratch;
-  asm volatile("call *%3"
-      : "+a"(rax), "+D"(rdi), "+S"(rsi)
+  uint64_t rax = (uint64_t) (uintptr_t) scratch;
+  asm volatile(
+      "pushq %%rbx\n"
+      "pushq %%rbp\n"
+      "pushq %%r12\n"
+      "pushq %%r13\n"
+      "pushq %%r14\n"
+      "pushq %%r15\n"
+      "movq %%rax, %%rdi\n"
+      "movq %%rax, %%rsi\n"
+      "call *%1"
+      "\npopq %%r15"
+      "\npopq %%r14"
+      "\npopq %%r13"
+      "\npopq %%r12"
+      "\npopq %%rbp"
+      "\npopq %%rbx"
+      : "+a"(rax)
       : "r"(code)
-      : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+      : "rdi", "rsi", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
   return rax;
+}
+
+static int parse_arch(const char *arch, int *arch_value, const char **arch_name) {
+  if (strcmp(arch, "aarch64") == 0) {
+    *arch_value = POLY_ARCH_AARCH64;
+    *arch_name = "aarch64";
+    return 0;
+  }
+  if (strcmp(arch, "riscv") == 0) {
+    *arch_value = POLY_ARCH_RISCV;
+    *arch_name = "riscv";
+    return 0;
+  }
+  return -1;
 }
 
 static uint32_t aarch64_adr(unsigned rd, int64_t byte_offset) {
@@ -708,14 +737,15 @@ static int load_payload(const char *path, struct payload *payload) {
 
     if (strncmp(line, "arch=", 5) == 0) {
       const char *arch = line + 5;
-      if (strcmp(arch, "aarch64") == 0) {
-        payload->arch = POLY_ARCH_AARCH64;
-        payload->arch_name = "aarch64";
-      } else if (strcmp(arch, "riscv") == 0) {
-        payload->arch = POLY_ARCH_RISCV;
-        payload->arch_name = "riscv";
-      } else {
+      if (parse_arch(arch, &payload->arch, &payload->arch_name) < 0) {
         fprintf(stderr, "POLYAPP_FAIL: unsupported arch in %s: %s\n", path, arch);
+        fclose(file);
+        return -1;
+      }
+    } else if (strncmp(line, "final_arch=", 11) == 0) {
+      const char *arch = line + 11;
+      if (parse_arch(arch, &payload->final_arch, &payload->final_arch_name) < 0) {
+        fprintf(stderr, "POLYAPP_FAIL: unsupported final arch in %s: %s\n", path, arch);
         fclose(file);
         return -1;
       }
@@ -819,6 +849,10 @@ static int load_payload(const char *path, struct payload *payload) {
     fprintf(stderr, "POLYAPP_FAIL: incomplete payload %s\n", path);
     return -1;
   }
+  if (payload->final_arch == 0) {
+    payload->final_arch = payload->arch;
+    payload->final_arch_name = payload->arch_name;
+  }
   return 0;
 }
 
@@ -863,7 +897,7 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   for (size_t n = 0; n < payload->insn_count; n++) {
     emit_u32(code, &offset, payload->insns[n]);
   }
-  const uint32_t escape = payload->arch == POLY_ARCH_AARCH64 ? 0xd42fffe0U : 0x0000000bU;
+  const uint32_t escape = payload->final_arch == POLY_ARCH_AARCH64 ? 0xd42fffe0U : 0x0000000bU;
   emit_u32(code, &offset, escape);
   code[offset++] = 0xc3;
 
