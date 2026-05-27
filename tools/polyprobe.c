@@ -633,6 +633,18 @@ int main(void) {
       poly_arch_state.edx);
     return 1;
   }
+  struct poly_cpuid_regs expected_trap =
+    poly_cpuid_expected_trap_leaf();
+  struct poly_cpuid_regs poly_trap =
+    poly_read_cpuid(POLY_CPUID_BASE + 5, 0);
+  if (poly_trap.eax != expected_trap.eax ||
+      poly_trap.ebx != expected_trap.ebx ||
+      poly_trap.ecx != expected_trap.ecx ||
+      poly_trap.edx != expected_trap.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID trap leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_trap.eax, poly_trap.ebx, poly_trap.ecx, poly_trap.edx);
+    return 1;
+  }
 
   stage("POLY_STAGE: x86-status");
   poly_mode_x86();

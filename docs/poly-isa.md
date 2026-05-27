@@ -156,7 +156,7 @@ ordinary `UD2` retains standard invalid-opcode behavior.
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
 
-- `CPUID.EAX=0x40000000`: `EAX=0x40000004`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000000`: `EAX=0x40000005`, `EBX:EDX:ECX="PolyglotCPU!"`.
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
@@ -223,6 +223,14 @@ discover the experimental hardware contract before emitting poly operations:
   and leaf `0x40000001.EDX` reports the same component id; the Bochs
   prototype intentionally leaves those active fields clear while it still uses
   keyed synthetic banks.
+- `CPUID.EAX=0x40000005`: architectural trap-packet ABI discovery.  `EAX=1`
+  is the trap layout version, `EBX=64` is the byte size of the fixed packet
+  header, `ECX=6` is the native ABI argument slot count, and `EDX=0x1f`
+  reports flags: vector delivery, no-vector x86 exception delivery,
+  trap-return source-state restoration, x86/AArch64/RISC-V handler entry, and
+  trap-status opcodes.  This leaf is independent from the active XSAVE leaf so
+  software can discover the packet ABI before hardware exposes the full foreign
+  register component.
 
 The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 

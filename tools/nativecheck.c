@@ -882,6 +882,18 @@ int main(void) {
         arch_state.eax, arch_state.ebx, arch_state.ecx, arch_state.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_trap =
+      poly_cpuid_expected_trap_leaf();
+    struct poly_cpuid_regs trap =
+      poly_read_cpuid(POLY_CPUID_BASE + 5, 0);
+    if (trap.eax != expected_trap.eax ||
+        trap.ebx != expected_trap.ebx ||
+        trap.ecx != expected_trap.ecx ||
+        trap.edx != expected_trap.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID trap leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        trap.eax, trap.ebx, trap.ecx, trap.edx);
+      return 1;
+    }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
       return 1;
