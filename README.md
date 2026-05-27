@@ -671,7 +671,7 @@ descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,
 same-directory `DT_NEEDED` foreign shared-library dependencies with direct
 binding of undefined function and object-symbol relocations to dependency
-text/data, dependency-to-root callback relocations, and dependency-exported symbolic IFUNC resolvers, weak undefined
+text/data, dependency-to-root callback and TLS relocations, and dependency-exported symbolic IFUNC resolvers, weak undefined
 relocations binding to dependency exports when present, direct-dependency
 symbol interposition ahead of transitive dependencies when symbols collide,
 GNU symbol-version and provider-SONAME matching for dependency exports,
@@ -693,7 +693,8 @@ compiler-emitted AArch64 TLSDESC, AArch64 traditional
 `__tls_get_addr` access to `PT_TLS` initial images through the `PCALL`
 TLS-base register, plus
 initial-exec `R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses,
-including undefined `STT_TLS` relocations bound to `DT_NEEDED` dependencies,
+including undefined `STT_TLS` relocations bound to `DT_NEEDED` dependencies
+or root-object TLS exports referenced by dependencies,
 versioned `DT_NEEDED` calls that require a non-default dependency symbol
 version,
 compiler-emitted conditional select variants and branch patterns

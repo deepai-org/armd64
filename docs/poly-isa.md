@@ -512,7 +512,12 @@ where a needed DSO binds an undefined relocation back to the root loaded object
 (`aarch64-pcall-root-export-real.so#poly_entry` with
 `libpolyrootdep-aarch64.so`, and
 `riscv-pcall-root-export-real.so#poly_entry` with
-`libpolyrootdep-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
+`libpolyrootdep-riscv.so`), compiler-produced dependency-to-root TLS pairs
+where a needed DSO binds an undefined TLS relocation back to the root loaded
+object (`aarch64-pcall-root-tls-real.so#poly_entry` with
+`libpolyroottls-aarch64.so`, and
+`riscv-pcall-root-tls-real.so#poly_entry` with
+`libpolyroottls-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
 (`aarch64-pcall-needed-tls-real.so#poly_entry` with
 `libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
 with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
@@ -854,7 +859,9 @@ destructors run during teardown. The
 dependency result symbol after dependency teardown and before unmapping.
 Dependency `PT_TLS` images are laid out in the same software-allocated TLS
 block as the entry object, with each dependency's TLS relocations resolved to a
-distinct offset under the `PCALL` TLS-base register.
+distinct offset under the `PCALL` TLS-base register. Dependency TLS
+relocations may also bind to exportable `STT_TLS` symbols in the root loaded
+foreign object, so dependency callbacks can share root TLS state.
 Imported function symbols can bind to prototype hardware call-descriptor
 slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
 foreign argument registers through an x86/runtime import target, writes the

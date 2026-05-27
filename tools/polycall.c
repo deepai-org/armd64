@@ -128,6 +128,7 @@ enum {
   RELOC_BASE_IRELATIVE = 4,
   RELOC_BASE_TLS_OFFSET = 5,
   RELOC_BASE_ROOT_LOAD_BIAS = 6,
+  RELOC_BASE_ROOT_TLS_OFFSET = 7,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
@@ -3187,6 +3188,31 @@ static int resolve_dependency_tls_symbol(const struct poly_program *program,
   return -1;
 }
 
+static int resolve_root_tls_symbol(const struct poly_program *program,
+    const char *symbol_name,
+    const struct poly_version_requirement *required_version,
+    uint64_t *symbol_value) {
+  const struct poly_symbol_table *table = &program->root_dynsym;
+  if (!table->symbols || !table->strings || !symbol_name ||
+      (required_version && required_version->filename))
+    return -1;
+
+  for (size_t s = 0; s < table->symbol_count; s++) {
+    const Elf64_Sym *sym = &table->symbols[s];
+    if (sym->st_name >= table->strings_size ||
+        sym->st_shndx == SHN_UNDEF ||
+        !symbol_is_dependency_export(sym) ||
+        ELF64_ST_TYPE(sym->st_info) != STT_TLS ||
+        strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
+        !symbol_export_version_matches(table, s,
+          required_version ? required_version->name : NULL))
+      continue;
+    *symbol_value = sym->st_value;
+    return 0;
+  }
+  return -1;
+}
+
 static int resolve_external_reloc_symbol(struct poly_program *program,
     const char *symbol_name,
     const struct poly_version_requirement *required_version,
@@ -3301,6 +3327,11 @@ static int resolve_tls_reloc_symbol(struct poly_program *program,
           &dep_index, &dep_tls_offset) == 0) {
       *tls_offset = dep_tls_offset;
       *base_kind = RELOC_BASE_DEP_TLS_OFFSET + (int) dep_index;
+      return 0;
+    }
+    if (resolve_root_tls_symbol(program, symbol_name, &required_version,
+          tls_offset) == 0) {
+      *base_kind = RELOC_BASE_ROOT_TLS_OFFSET;
       return 0;
     }
     if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
@@ -4665,6 +4696,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = import_contract.call_base;
       else if (dep->relocs[r].base_kind == RELOC_BASE_TLS_OFFSET)
         reloc_base = program->deps[d].tls_offset;
+      else if (dep->relocs[r].base_kind == RELOC_BASE_ROOT_TLS_OFFSET)
+        reloc_base = program->tls_offset;
       else if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_TLS_OFFSET &&
           dep->relocs[r].base_kind <
             RELOC_BASE_DEP_TLS_OFFSET + (int) program->dep_count) {
@@ -4820,6 +4853,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_CALL)
       reloc_base = import_contract.call_base;
     else if (program->relocs[n].base_kind == RELOC_BASE_TLS_OFFSET)
+      reloc_base = program->tls_offset;
+    else if (program->relocs[n].base_kind == RELOC_BASE_ROOT_TLS_OFFSET)
       reloc_base = program->tls_offset;
     else if (program->relocs[n].base_kind >= RELOC_BASE_DEP_TLS_OFFSET &&
         program->relocs[n].base_kind <
