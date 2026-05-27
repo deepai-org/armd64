@@ -685,7 +685,8 @@ libraries. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`,
 `$PLATFORM`/`${PLATFORM}` expansion to the foreign frontend platform name
 (`aarch64` or `riscv`), relative dependency subdirectories, and absolute
 dependency directories, and absolute `DT_NEEDED` path entries are honored,
-including old-style RPATH-only objects built without
+including `$ORIGIN/...` dynamic-string token expansion in `DT_NEEDED` names
+and old-style RPATH-only objects built without
 new dtags, colon-separated RUNPATH fallback directories, and `LD_LIBRARY_PATH`
 lookup for foreign dependencies with the same `$ORIGIN`, `$LIB`, and
 `$PLATFORM` dynamic-string token expansion.

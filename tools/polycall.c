@@ -2895,6 +2895,14 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     }
 
     const char *needed = strings + needed_offset;
+    char expanded_needed[MAX_DEP_PATH];
+    if (expand_runpath_entry(origin_path, owner->arch_name, needed,
+          strlen(needed), expanded_needed, sizeof(expanded_needed)) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: bad DT_NEEDED string: %s\n",
+        origin_path);
+      return -1;
+    }
+    needed = expanded_needed;
     char needed_path[MAX_DEP_PATH];
     int found_needed = -1;
     if (needed[0] != '/' && library_path_len != 0)
