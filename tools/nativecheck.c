@@ -10,6 +10,8 @@
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x24,0x61,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_MODE_GET ".byte 0x0f,0x24,0x64,0x50,0x4f,0x4c,0x59,0x21\n"
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -27,6 +29,14 @@ static inline void poly_trap_vector_set(void) {
 
 static inline void poly_trap_vector_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_GET ::: "memory");
+}
+
+static inline void poly_trap_vector_mode_set(void) {
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET ::: "memory");
+}
+
+static inline void poly_trap_vector_mode_get(void) {
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "memory");
 }
 
 __attribute__((naked, noinline, used))
@@ -83,14 +93,45 @@ static void poly_trap_vector_handler(void) {
     "ud2\n");
 }
 
+extern const unsigned char poly_aarch64_trap_vector_raw[];
+extern const unsigned char poly_riscv_trap_vector_raw[];
+
+__asm__(
+  ".pushsection .text\n"
+  ".balign 4\n"
+  ".globl poly_aarch64_trap_vector_raw\n"
+  ".type poly_aarch64_trap_vector_raw,@function\n"
+  "poly_aarch64_trap_vector_raw:\n"
+  ".long 0xd2824680\n" // movz x0,#0x1234
+  ".long 0xd42fff20\n" // brk #0x7ff9, architectural trap return
+  "ud2\n"
+  ".size poly_aarch64_trap_vector_raw, .-poly_aarch64_trap_vector_raw\n"
+  ".balign 4\n"
+  ".globl poly_riscv_trap_vector_raw\n"
+  ".type poly_riscv_trap_vector_raw,@function\n"
+  "poly_riscv_trap_vector_raw:\n"
+  ".long 0x56700513\n" // addi a0,zero,0x567
+  ".long 0x0000407b\n" // custom trap return
+  "ud2\n"
+  ".size poly_riscv_trap_vector_raw, .-poly_riscv_trap_vector_raw\n"
+  ".popsection\n");
+
 static int run_poly_trap_vector_probe(void) {
   void *handler = (void *) poly_trap_vector_handler;
   uint64_t expected_pid = (uint64_t) getpid();
+  write_rax(POLY_MODE_X86);
+  poly_trap_vector_mode_set();
   write_rax((uint64_t) handler);
   poly_trap_vector_set();
   poly_trap_vector_get();
   if (read_rax() != (uint64_t) handler) {
     fputs("NATIVE_CHECK_FAIL: poly trap vector get mismatch\n", stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly trap vector mode get mismatch got=%llu\n",
+      (unsigned long long) read_rax());
     return 1;
   }
 
@@ -145,8 +186,42 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
+  write_rax(POLY_MODE_RAW_AARCH64);
+  poly_trap_vector_mode_set();
+  write_rax((uint64_t) (void *) poly_aarch64_trap_vector_raw);
+  poly_trap_vector_set();
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00100073\n" // ebreak
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+  result = read_rax();
+  if (result != 0x1234) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 trap vector result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  write_rax(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_mode_set();
+  write_rax((uint64_t) (void *) poly_riscv_trap_vector_raw);
+  poly_trap_vector_set();
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd4200000\n" // brk #0
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+  result = read_rax();
+  if (result != 0x567) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv trap vector result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
   write_rax(0);
   poly_trap_vector_set();
+  write_rax(POLY_MODE_X86);
+  poly_trap_vector_mode_set();
   puts("NATIVE_POLY_TRAP_VECTOR_OK");
   return 0;
 }

@@ -117,7 +117,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
 | Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign libcalls. |
 | Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC. |
-| Trap vector | `0f 24 60/61/62 50 4f 4c 59 21` | `0x60` sets the architectural trap vector from `RAX`, `0x61` reads it into `RAX`, and `0x62` resumes the recorded source frontend at the trap resume PC. |
+| Trap vector | `0f 24 60-64 50 4f 4c 59 21` | `0x60` sets the architectural trap vector PC from `RAX`, `0x61` reads it into `RAX`, `0x62` resumes the recorded source frontend at the trap resume PC, `0x63` sets the trap-handler frontend mode from `RAX`, and `0x64` reads the handler mode into `RAX`. |
 
 When `POLY_ENABLED=1`, the prototype exposes a private CPUID discovery leaf for
 runtime dispatch:
@@ -130,6 +130,7 @@ runtime dispatch:
 | `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=0x0000107b`, `ECX=0x0000207b`, `EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding and compact `{u32,float}`/`{float,u32}` native ABI cross-call variants. |
 | `0x40000002, subleaf 2` | `EAX=106`, `EBX=8`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
 | `0x40000002, subleaf 3` | `EAX=0x7ffa`, `EBX=0x0000307b`, `ECX=0`, `EDX=0` | Reports the neutral FP64 overflow stack-argument cross-call encodings: AArch64 `brk #0x7ffa` to RISC-V and RISC-V custom `0x0000307b` to AArch64. |
+| `0x40000002, subleaf 4` | `EAX=0x7ff9`, `EBX=0x0000407b`, `ECX=0x63`, `EDX=0x64` | Reports the native raw-mode trap-return encodings and x86 trap-vector mode set/get opcodes. |
 | `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus hidden synthetic banks keyed by `CR3`, `FSBASE`, and an 8 MiB stack-region key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
@@ -177,7 +178,9 @@ custom opcodes `0x0000107b`/`0x0000207b` are compact `{u32,float}` and
 `brk #0x7ffa` and RISC-V custom opcode `0x0000307b` are FP64 overflow
 stack-argument variants; they preserve the shared `d0`-`d7`/`fa0`-`fa7`
 aliases while mapping the eight extra double lanes between AArch64 stack slots
-and RISC-V `a0`-`a7`.  The callee returns with its ordinary native return
+and RISC-V `a0`-`a7`. AArch64 `brk #0x7ff9` and RISC-V custom opcode
+`0x0000407b` are native raw-mode trap returns for mode-qualified architectural
+trap handlers. The callee returns with its ordinary native return
 instruction to a hardware cookie, which restores the caller frontend mode and
 maps the shared integer and scalar FP argument/result registers back.  Raw
 cross-call returns use a small bounded hardware-style return stack in the
@@ -606,16 +609,21 @@ the boundary:
 firmware, the OS, or a userspace runtime routes it.  The current Bochs
 dispatcher is only a compatibility service layered after the packet is captured.
 
-When `cpu.poly_compat_traps=0`, x86 software can install an architectural trap
-vector with `0f 24 60 ... POLY!` using `RAX=handler_pc`.  Foreign traps then
-leave the raw frontend and enter x86 at that handler with `RAX=reason`,
-`RBX=source mode`, `RCX=trap number`, `RDX=trap PC`, `RSI=selector`, and
-`RDI=arg0`.  The handler can read the full packet with trap-status opcodes,
-apply OS/runtime policy in software, place the result in the shared result
-register, and execute `0f 24 62 ... POLY!` to resume the recorded source
-frontend at the trap resume PC.  Trap delivery preserves the source frontend's
-aliased argument registers across the x86 handler and only commits the x86
-result register back to the foreign result register on trap return.
+When `cpu.poly_compat_traps=0`, software can install an architectural trap
+vector with `0f 24 60 ... POLY!` using `RAX=handler_pc` and can select the
+handler frontend with `0f 24 63 ... POLY!` using `RAX=mode`.  The default
+handler mode is x86_64.  For an x86 handler, trap delivery uses
+`RAX=reason`, `RBX=source mode`, `RCX=trap number`, `RDX=trap PC`,
+`RSI=selector`, and `RDI=arg0`.  For an AArch64 handler, delivery uses
+`x0=reason`, `x1=source mode`, `x2=trap number`, `x3=trap PC`, `x4=selector`,
+and `x5=arg0`; for a RISC-V handler, it uses `a0`-`a5` for the same fields.
+The handler can read the full packet with trap-status opcodes, apply
+OS/runtime policy in software, place the result in the shared result register,
+and execute the native trap-return instruction for its frontend:
+`0f 24 62 ... POLY!` from x86, AArch64 `brk #0x7ff9`, or RISC-V custom
+`0x0000407b`.  Trap delivery preserves the source frontend's aliased argument
+registers across the handler and only commits the handler result register back
+to the source result register on trap return.
 The `polyexec` trap-vector handler is the current userspace policy example:
 its entry stub only adapts the architectural trap-packet register ABI to a C
 dispatcher, and that dispatcher maps selected generic AArch64/RISC-V Linux

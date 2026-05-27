@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_ARG1 ".byte 0x0f,0x24,0x54,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_ARG2 ".byte 0x0f,0x24,0x55,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -19,6 +20,7 @@
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
+  POLY_MODE_X86 = 0,
   POLY_MODE_RAW_AARCH64 = 3,
   POLY_MODE_RAW_RISCV = 4,
   POLY_TRAP_SYSCALL = 1,
@@ -48,6 +50,10 @@ static inline void write_rax(uint64_t value) {
 
 static inline void poly_trap_vector_set(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET ::: "memory");
+}
+
+static inline void poly_trap_vector_mode_set(void) {
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET ::: "memory");
 }
 
 static inline uint64_t poly_trap_arg1(void) {
@@ -256,6 +262,8 @@ static void poly_trap_vector_handler(void) {
 }
 
 static void install_poly_trap_vector(void) {
+  write_rax(POLY_MODE_X86);
+  poly_trap_vector_mode_set();
   write_rax((uint64_t) (void *) poly_trap_vector_handler);
   poly_trap_vector_set();
 }
@@ -263,6 +271,8 @@ static void install_poly_trap_vector(void) {
 static void clear_poly_trap_vector(void) {
   write_rax(0);
   poly_trap_vector_set();
+  write_rax(POLY_MODE_X86);
+  poly_trap_vector_mode_set();
 }
 
 static int parse_u64(const char *text, uint64_t *value) {
