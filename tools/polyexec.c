@@ -13,10 +13,16 @@
 #define POLY_OP_TRAP_ARG1 ".byte 0x0f,0x24,0x54,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_ARG2 ".byte 0x0f,0x24,0x55,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_ARG3 ".byte 0x0f,0x24,0x56,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_ARG4 ".byte 0x0f,0x24,0x57,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_ARG5 ".byte 0x0f,0x24,0x58,0x50,0x4f,0x4c,0x59,0x21\n"
 
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
+  POLY_MODE_RAW_AARCH64 = 3,
+  POLY_MODE_RAW_RISCV = 4,
+  POLY_TRAP_SYSCALL = 1,
+  POLY_TRAP_BREAK = 2,
   MAX_PROGRAM_BYTES = 1024 * 1024
 };
 
@@ -44,131 +50,178 @@ static inline void poly_trap_vector_set(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET ::: "memory");
 }
 
+static inline uint64_t poly_trap_arg1(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_ARG1 : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_arg2(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_ARG2 : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_arg3(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_ARG3 : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_arg4(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_ARG4 : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_arg5(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_ARG5 : "=a"(value) :: "memory");
+  return value;
+}
+
+static int poly_is_raw_foreign_mode(uint64_t mode) {
+  return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
+}
+
+static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,
+    uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
+  register long rax __asm__("rax") = number;
+  register long rdi __asm__("rdi") = (long) arg0;
+  register long rsi __asm__("rsi") = (long) arg1;
+  register long rdx __asm__("rdx") = (long) arg2;
+  register long r10 __asm__("r10") = (long) arg3;
+  register long r8 __asm__("r8") = (long) arg4;
+  register long r9 __asm__("r9") = (long) arg5;
+  asm volatile("syscall"
+      : "+r"(rax)
+      : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
+      : "rcx", "r11", "memory");
+  return rax;
+}
+
+static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) {
+  switch (number) {
+    case 17: *x86_number = SYS_getcwd; return 1;
+    case 56: *x86_number = SYS_openat; return 1;
+    case 57: *x86_number = SYS_close; return 1;
+    case 61: *x86_number = SYS_getdents64; return 1;
+    case 62: *x86_number = SYS_lseek; return 1;
+    case 63: *x86_number = SYS_read; return 1;
+    case 64: *x86_number = SYS_write; return 1;
+    case 65: *x86_number = SYS_readv; return 1;
+    case 66: *x86_number = SYS_writev; return 1;
+    case 78: *x86_number = SYS_readlinkat; return 1;
+    case 79: *x86_number = SYS_newfstatat; return 1;
+    case 80: *x86_number = SYS_fstat; return 1;
+    case 93: *x86_number = SYS_exit; return 1;
+    case 94: *x86_number = SYS_exit_group; return 1;
+    case 96: *x86_number = SYS_set_tid_address; return 1;
+    case 98: *x86_number = SYS_futex; return 1;
+    case 99: *x86_number = SYS_set_robust_list; return 1;
+    case 100: *x86_number = SYS_get_robust_list; return 1;
+    case 113: *x86_number = SYS_clock_gettime; return 1;
+    case 134: *x86_number = SYS_rt_sigaction; return 1;
+    case 135: *x86_number = SYS_rt_sigprocmask; return 1;
+    case 160: *x86_number = SYS_uname; return 1;
+    case 167: *x86_number = SYS_prctl; return 1;
+    case 169: *x86_number = SYS_gettimeofday; return 1;
+    case 172: *x86_number = SYS_getpid; return 1;
+    case 173: *x86_number = SYS_getppid; return 1;
+    case 174: *x86_number = SYS_getuid; return 1;
+    case 175: *x86_number = SYS_geteuid; return 1;
+    case 176: *x86_number = SYS_getgid; return 1;
+    case 177: *x86_number = SYS_getegid; return 1;
+    case 178: *x86_number = SYS_gettid; return 1;
+    case 179: *x86_number = SYS_sysinfo; return 1;
+    case 214: *x86_number = SYS_brk; return 1;
+    case 215: *x86_number = SYS_munmap; return 1;
+    case 222: *x86_number = SYS_mmap; return 1;
+    case 226: *x86_number = SYS_mprotect; return 1;
+    case 233: *x86_number = SYS_madvise; return 1;
+    case 261: *x86_number = SYS_prlimit64; return 1;
+    case 278: *x86_number = SYS_getrandom; return 1;
+    case 291: *x86_number = SYS_statx; return 1;
+    case 293: *x86_number = SYS_rseq; return 1;
+    default: return 0;
+  }
+}
+
+__attribute__((noinline, used))
+uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
+    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0) {
+  (void) pc;
+  (void) selector;
+
+  if (!poly_is_raw_foreign_mode(mode))
+    return (uint64_t) -ENOSYS;
+
+  if (reason == POLY_TRAP_SYSCALL) {
+    long x86_number = -1;
+    if (!poly_generic_linux_syscall_to_x86(number, &x86_number))
+      return (uint64_t) -ENOSYS;
+    return (uint64_t) poly_x86_syscall6(x86_number, arg0, poly_trap_arg1(),
+      poly_trap_arg2(), poly_trap_arg3(), poly_trap_arg4(), poly_trap_arg5());
+  }
+
+  if (reason == POLY_TRAP_BREAK) {
+    if (number == 1) {
+      const char *text = (const char *) arg0;
+      uint64_t length = 0;
+      while (length < 4096 && text[length] != '\0')
+        length++;
+      return length;
+    }
+    if (number == 2) {
+      uint8_t *dest = (uint8_t *) arg0;
+      uint8_t value = (uint8_t) poly_trap_arg1();
+      uint64_t count = poly_trap_arg3();
+      if (count > 4096)
+        count = 4096;
+      for (uint64_t n = 0; n < count; n++)
+        dest[n] = value;
+      return count;
+    }
+    if (number == 3) {
+      const uint8_t *left = (const uint8_t *) arg0;
+      const uint8_t *right = (const uint8_t *) poly_trap_arg1();
+      uint64_t count = poly_trap_arg2();
+      if (count > 4096)
+        count = 4096;
+      for (uint64_t n = 0; n < count; n++) {
+        if (left[n] != right[n])
+          return (uint64_t) ((int64_t) left[n] - (int64_t) right[n]);
+      }
+      return 0;
+    }
+    if (number == 4) {
+      uint8_t *dest = (uint8_t *) arg0;
+      const uint8_t *src = (const uint8_t *) poly_trap_arg1();
+      uint64_t count = poly_trap_arg3();
+      if (count > 4096)
+        count = 4096;
+      for (uint64_t n = 0; n < count; n++)
+        dest[n] = src[n];
+      return count;
+    }
+  }
+
+  return (uint64_t) -ENOSYS;
+}
+
 __attribute__((naked, noinline, used))
 static void poly_trap_vector_handler(void) {
   __asm__(
-    "cmpq $1, %rax\n"
-    "jne 3f\n"
-    "cmpq $3, %rbx\n"
-    "je 1f\n"
-    "cmpq $4, %rbx\n"
-    "jne 9f\n"
-    "1:\n"
-    "cmpq $172, %rcx\n"
-    "je 20f\n"
-    "cmpq $173, %rcx\n"
-    "je 21f\n"
-    "cmpq $174, %rcx\n"
-    "je 22f\n"
-    "cmpq $175, %rcx\n"
-    "je 23f\n"
-    "cmpq $176, %rcx\n"
-    "je 24f\n"
-    "cmpq $177, %rcx\n"
-    "je 25f\n"
-    "cmpq $178, %rcx\n"
-    "je 26f\n"
-    "jmp 9f\n"
-    "20:\n"
-    "movq $39, %rax\n"
-    "jmp 2f\n"
-    "21:\n"
-    "movq $110, %rax\n"
-    "jmp 2f\n"
-    "22:\n"
-    "movq $102, %rax\n"
-    "jmp 2f\n"
-    "23:\n"
-    "movq $107, %rax\n"
-    "jmp 2f\n"
-    "24:\n"
-    "movq $104, %rax\n"
-    "jmp 2f\n"
-    "25:\n"
-    "movq $108, %rax\n"
-    "jmp 2f\n"
-    "26:\n"
-    "movq $186, %rax\n"
-    "2:\n"
-    "syscall\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    "3:\n"
-    "cmpq $2, %rax\n"
-    "jne 9f\n"
-    "cmpq $3, %rbx\n"
-    "je 4f\n"
-    "cmpq $4, %rbx\n"
-    "jne 9f\n"
-    "4:\n"
-    "cmpq $1, %rcx\n"
-    "je 5f\n"
-    "cmpq $2, %rcx\n"
-    "je 7f\n"
-    "cmpq $3, %rcx\n"
-    "je 11f\n"
-    "cmpq $4, %rcx\n"
-    "je 15f\n"
-    "jmp 9f\n"
-    "5:\n"
-    "xorq %rax, %rax\n"
-    "6:\n"
-    "cmpb $0, (%rdi,%rax,1)\n"
-    "je 10f\n"
-    "incq %rax\n"
-    "jmp 6b\n"
-    "7:\n"
-    POLY_OP_TRAP_ARG3
-    "movq %rax, %r8\n"
-    POLY_OP_TRAP_ARG1
-    "movb %al, %r9b\n"
-    "xorq %rax, %rax\n"
-    "8:\n"
-    "cmpq %r8, %rax\n"
-    "jae 10f\n"
-    "movb %r9b, (%rdi,%rax,1)\n"
-    "incq %rax\n"
-    "jmp 8b\n"
-    "11:\n"
-    POLY_OP_TRAP_ARG1
-    "movq %rax, %r8\n"
-    POLY_OP_TRAP_ARG2
-    "movq %rax, %r9\n"
-    "xorq %rax, %rax\n"
-    "12:\n"
-    "cmpq %r9, %rax\n"
-    "jae 14f\n"
-    "movzbl (%rdi,%rax,1), %r10d\n"
-    "movzbl (%r8,%rax,1), %r11d\n"
-    "cmpq %r11, %r10\n"
-    "jne 13f\n"
-    "incq %rax\n"
-    "jmp 12b\n"
-    "13:\n"
-    "movq %r10, %rax\n"
-    "subq %r11, %rax\n"
-    "jmp 10f\n"
-    "14:\n"
-    "xorq %rax, %rax\n"
-    "jmp 10f\n"
-    "15:\n"
-    POLY_OP_TRAP_ARG3
-    "movq %rax, %r8\n"
-    POLY_OP_TRAP_ARG1
-    "movq %rax, %r9\n"
-    "xorq %rax, %rax\n"
-    "16:\n"
-    "cmpq %r8, %rax\n"
-    "jae 10f\n"
-    "movb (%r9,%rax,1), %r10b\n"
-    "movb %r10b, (%rdi,%rax,1)\n"
-    "incq %rax\n"
-    "jmp 16b\n"
-    "10:\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    "9:\n"
-    "movq $-38, %rax\n"
+    "movq %rdi, %r9\n"
+    "movq %rsi, %r8\n"
+    "movq %rcx, %r10\n"
+    "movq %rdx, %rcx\n"
+    "movq %r10, %rdx\n"
+    "movq %rbx, %rsi\n"
+    "movq %rax, %rdi\n"
+    "subq $8, %rsp\n"
+    "call poly_trap_vector_dispatch\n"
+    "addq $8, %rsp\n"
     POLY_OP_TRAP_RETURN
     "ud2\n");
 }
@@ -225,6 +278,16 @@ static int parse_request(const char *arg, struct poly_request *request) {
     }
     else if (strcmp(expected + 1, "tid") == 0) {
       request->expected = (uint64_t) syscall(SYS_gettid);
+    }
+    else if (strcmp(expected + 1, "cwd") == 0) {
+      char cwd[256];
+      long result = syscall(SYS_getcwd, cwd, sizeof(cwd));
+      if (result < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: unable to compute getcwd expected value: %s\n",
+          strerror(errno));
+        return -1;
+      }
+      request->expected = (uint64_t) result;
     }
     else if (parse_u64(expected + 1, &request->expected) < 0) {
       fprintf(stderr, "POLYEXEC_FAIL: bad expected value: %s\n", arg);
@@ -423,7 +486,7 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   emit_u32(code, &offset, escape);
   code[offset++] = 0xc3;
 
-  char scratch[64] = "poly!";
+  char scratch[4096] = "poly!";
   uint64_t (*entry)(uint64_t *, uint64_t *) = (uint64_t (*)(uint64_t *, uint64_t *)) code;
   *result = entry((uint64_t *) scratch, (uint64_t *) scratch);
   poly_mode_x86();
