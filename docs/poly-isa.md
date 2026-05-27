@@ -753,10 +753,12 @@ compatibility dispatcher:
 - Resume PC records the next foreign instruction address for trap return.
 
 The temporary deterministic syscall and libcall behavior in Bochs is a
-compatibility runtime layered after this trap record.  It is not the final ISA
-contract and intentionally has no Linux or libc meaning at the architectural
-layer.  The final contract is the precise trap exit plus explicit state that
-software can save, restore, inspect, and route.
+compatibility runtime layered after this trap record.  It consumes the same
+`POLYTRAP` packet that a guest handler receives; the raw decoder does not treat
+Linux syscalls or libc helpers as architectural CPU behavior.  It is not the
+final ISA contract and intentionally has no Linux or libc meaning at the
+architectural layer.  The final contract is the precise trap exit plus explicit
+state that software can save, restore, inspect, and route.
 
 The runtime is controlled by `cpu.poly_compat_traps` in Bochs and defaults off.
 When it is disabled, CPUID feature bit `11` is clear, the trap packet is still

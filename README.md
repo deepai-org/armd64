@@ -793,7 +793,10 @@ architectural trap vector or raises an x86 `#UD` if no vector is installed.
 The service is not part of the CPU contract; it stands in for firmware, kernel,
 loader, or userspace-runtime routing that a real implementation would provide.
 When enabled, the service still runs only if the guest has not installed an
-architectural trap vector for the current userspace poly state.
+architectural trap vector for the current userspace poly state.  The service
+consumes the already-recorded `POLYTRAP` packet instead of receiving decoded
+raw-instruction operands directly, so the Bochs prototype keeps the same
+trap-packet boundary that silicon or FPGA logic would expose.
 The current service recognizes:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
