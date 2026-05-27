@@ -395,9 +395,44 @@ static uint32_t riscv_fmv_d_x(uint32_t rd, uint32_t rs1) {
     ((rd & 0x1fU) << 7) | 0x53U;
 }
 
+static uint64_t call_code_no_args(const uint8_t *code) {
+  uint64_t rax;
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%rbp\n"
+    "pushq %%r12\n"
+    "pushq %%r13\n"
+    "pushq %%r14\n"
+    "pushq %%r15\n"
+    "call *%1\n"
+    "popq %%r15\n"
+    "popq %%r14\n"
+    "popq %%r13\n"
+    "popq %%r12\n"
+    "popq %%rbp\n"
+    "popq %%rbx"
+    : "=a"(rax)
+    : "r"(code)
+    : "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+  return rax;
+}
+
 static uint64_t call_code_with_rax_arg(const uint8_t *code, const char *payload) {
   register uint64_t rax asm("rax") = (uint64_t) (uintptr_t) payload;
-  asm volatile("call *%1"
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%rbp\n"
+    "pushq %%r12\n"
+    "pushq %%r13\n"
+    "pushq %%r14\n"
+    "pushq %%r15\n"
+    "call *%1\n"
+    "popq %%r15\n"
+    "popq %%r14\n"
+    "popq %%r13\n"
+    "popq %%r12\n"
+    "popq %%rbp\n"
+    "popq %%rbx"
     : "+a"(rax)
     : "r"(code)
     : "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
@@ -409,10 +444,20 @@ static uint64_t call_code_with_rax_arg_and_imports(const uint8_t *code,
   register uint64_t rax asm("rax") = (uint64_t) (uintptr_t) payload;
   uint64_t import_base = (uint64_t) (uintptr_t) polybench_x86_imports;
   asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%rbp\n"
     "pushq %%r12\n"
+    "pushq %%r13\n"
+    "pushq %%r14\n"
+    "pushq %%r15\n"
     "movq %2, %%r12\n"
     "call *%1\n"
-    "popq %%r12"
+    "popq %%r15\n"
+    "popq %%r14\n"
+    "popq %%r13\n"
+    "popq %%r12\n"
+    "popq %%rbp\n"
+    "popq %%rbx"
     : "+a"(rax)
     : "r"(code), "r"(import_base)
     : "r12", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
@@ -425,7 +470,20 @@ static uint64_t call_code_with_poly3_args(const uint8_t *code,
   uint64_t rax = (uint64_t) (uintptr_t) arg0;
   uint64_t rdi = (uint64_t) (uintptr_t) arg1;
   uint64_t rsi = arg2;
-  asm volatile("call *%3"
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%rbp\n"
+    "pushq %%r12\n"
+    "pushq %%r13\n"
+    "pushq %%r14\n"
+    "pushq %%r15\n"
+    "call *%3\n"
+    "popq %%r15\n"
+    "popq %%r14\n"
+    "popq %%r13\n"
+    "popq %%r12\n"
+    "popq %%rbp\n"
+    "popq %%rbx"
     : "+a"(rax), "+D"(rdi), "+S"(rsi)
     : "r"(code)
     : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
@@ -439,10 +497,20 @@ static uint64_t call_code_with_poly3_args_and_imports(const uint8_t *code,
   uint64_t rsi = arg2;
   uint64_t import_base = (uint64_t) (uintptr_t) polybench_x86_imports;
   asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%rbp\n"
     "pushq %%r12\n"
+    "pushq %%r13\n"
+    "pushq %%r14\n"
+    "pushq %%r15\n"
     "movq %4, %%r12\n"
     "call *%3\n"
-    "popq %%r12"
+    "popq %%r15\n"
+    "popq %%r14\n"
+    "popq %%r13\n"
+    "popq %%r12\n"
+    "popq %%rbp\n"
+    "popq %%rbx"
     : "+a"(rax), "+D"(rdi), "+S"(rsi)
     : "r"(code), "r"(import_base)
     : "r12", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
@@ -484,8 +552,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
 
   poly_foreign_insn_count_status();
   uint64_t before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   uint64_t after = read_rax();
@@ -523,8 +590,7 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -562,8 +628,7 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -600,8 +665,7 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -654,8 +718,7 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -722,8 +785,7 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1301,8 +1363,7 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1374,8 +1435,7 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1429,8 +1489,7 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1498,8 +1557,7 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1679,8 +1737,7 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1747,8 +1804,7 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1803,8 +1859,7 @@ static int run_cross_call_compact_u32_f32_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1859,8 +1914,7 @@ static int run_cross_call_compact_f32_u32_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2055,8 +2109,7 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2122,8 +2175,7 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2821,8 +2873,7 @@ static int run_nested_cross_call(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
-  *result = entry();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
