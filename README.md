@@ -280,7 +280,9 @@ import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 objects (`aarch64-pcall-stack-protector-real.so#poly_entry` and
 `riscv-pcall-stack-protector-real.so#poly_entry`), compiler-built errno-access
 objects (`aarch64-pcall-errno-real.so#poly_entry` and
-`riscv-pcall-errno-real.so#poly_entry`), compiler-built `DT_NEEDED`
+`riscv-pcall-errno-real.so#poly_entry`), compiler-built aux-vector dispatch
+objects (`aarch64-pcall-getauxval-real.so#poly_entry` and
+`riscv-pcall-getauxval-real.so#poly_entry`), compiler-built `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 `libpolyneeded-aarch64.so` and its leaf dependency
 `libpolyneeded-leaf-aarch64.so`, and
@@ -516,7 +518,7 @@ post-import continuations that fold in a ninth foreign stack argument
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`, `bcmp`,
 `bcopy`, `bzero`, `strcasecmp`, `strncasecmp`, `strcasestr`, `index`, `rindex`,
-`__stack_chk_guard`, `__stack_chk_fail`, and `__errno_location`, and teardown
+`__stack_chk_guard`, `__stack_chk_fail`, `__errno_location`, and `getauxval`, and teardown
 before returning.
 The `poly_import_x86_add`, `poly_import_x86_mul`,
 `poly_import_x86_sum6`, `poly_import_x86_sum8`,

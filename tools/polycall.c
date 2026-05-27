@@ -201,7 +201,8 @@ enum {
   POLY_IMPORT_FUNC_X86_SLOT6 = 112,
   POLY_IMPORT_FUNC_X86_SLOT7 = 113,
   POLY_IMPORT_FUNC_STACK_CHK_FAIL = 114,
-  POLY_IMPORT_FUNC_ERRNO_LOCATION = 115
+  POLY_IMPORT_FUNC_ERRNO_LOCATION = 115,
+  POLY_IMPORT_FUNC_GETAUXVAL = 116
 };
 
 struct poly_dynamic_reloc {
@@ -736,6 +737,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__errno_location") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_ERRNO_LOCATION * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "getauxval") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETAUXVAL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
