@@ -226,8 +226,10 @@ discover the experimental hardware contract before emitting poly operations:
   restores the stack-region fallback.  Bit `9` means native cross-frontend
   return state uses fixed 32-byte transition records.  Bit `10` means the
   prototype implements explicit state export/import opcodes `0f 24 67/68 ...
-  POLY!` using the fixed `struct poly_xsave_state` layout.  `EBX=23` reports
-  the stack region shift.
+  POLY!` using the fixed `struct poly_xsave_state` layout.  Bit `11` means the
+  formal silicon-target XSAVE component contract is present in leaf
+  `0x40000004`, even if bit `7` is clear because guest `XSAVE/XRSTOR` does not
+  yet save the component.  `EBX=23` reports the stack region shift.
   Legacy syscall/break status registers, trap-vector policy, recorded
   trap-packet/status state, trap-return save state, and 32-byte transition
   records are part of this keyed prototype state until an XSAVE component is
@@ -931,8 +933,9 @@ fallback key when the explicit key is zero.  A different guest address space
 starts with no stale trap vector, no stale syscall/break status, no stale
 trap packet, and no stale trap-return frame.  Software can also explicitly
 export/import this keyed state with `0f 24 67/68 ... POLY!` and the fixed
-4096-byte `struct poly_xsave_state` layout; this is still a prototype
-save/restore path, not an OS-enabled XCR0 component.
+4096-byte `struct poly_xsave_state` layout. CPUID state bit `11` advertises the
+formal `0x40000004` hardware layout, but this is still a prototype save/restore
+path, not an OS-enabled XCR0 component.
 If no vector is installed, syscall and import traps surface as x86 `#UD`;
 breakpoint traps surface as x86 `#BP`.  This keeps the CPU model OS-neutral:
 software, not the CPU, decides whether a trap means Linux syscall translation,

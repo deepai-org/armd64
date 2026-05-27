@@ -226,7 +226,9 @@ cross-frontend return state uses fixed 32-byte transition records rather than
 ad hoc variable C fields. Bit `10` means the prototype implements explicit
 `0f 24 67/68 ... POLY!` export/import operations using the same fixed
 `struct poly_xsave_state` layout that leaf `0x40000004` assigns to a future
-hardware XSAVE component.
+hardware XSAVE component. Bit `11` means the formal silicon-target XSAVE
+component contract is present in leaf `0x40000004`, even if bit `7` is still
+clear because the component is not active in guest `XSAVE/XRSTOR`.
 
 Leaf `0x40000004` is the intended hardware state ABI.  When a silicon/FPGA
 implementation sets bit `7` in `0x40000003.EAX` and reports component `11`,
@@ -900,12 +902,14 @@ fallback keeps common pthread stacks separate when no explicit key is selected.
 The low overlapping return/scratch values still use the current x86 register
 bridge; this is not yet a full XSAVE-backed foreign register ABI. The prototype
 can explicitly export/import the keyed state through the fixed 4096-byte
-`struct poly_xsave_state` layout, but the state is still not wired into the
-guest OS `XSAVE`/`XRSTOR` context-switch path. The current interrupt prototype
+`struct poly_xsave_state` layout, and CPUID state bit `11` points software at
+the formal leaf `0x40000004` hardware layout. The state is still not wired into
+the guest OS `XSAVE`/`XRSTOR` context-switch path. The current interrupt prototype
 covers ordinary long-mode
 `IRET64`, `SYSRET`, `SYSEXIT`, and Linux signal-return paths into raw
-userspace; the final ISA still needs an explicit, architectural XSAVE-visible
-foreign state component.
+userspace; the final implementation still needs to activate the architectural
+XSAVE-visible foreign state component by setting state bit `7` and reporting the
+component id in `0x40000003.ECX`/`0x40000001.EDX`.
 
 After the OS-neutral trap packet is recorded, Bochs now always uses the same
 architectural trap path that silicon or FPGA logic would expose.  It either
