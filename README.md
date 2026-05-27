@@ -32,8 +32,9 @@ Linux ABI passthrough, or equal-speed execution.
   `clock_gettime`, `clock_getres`, `gettimeofday`, `set_tid_address`,
   `rt_sigprocmask`, robust-list, `prlimit64`, `getrandom`, real anonymous
   `mmap` store, real `mprotect`/`munmap` on anonymous mappings,
-  `openat`/`read`/`close`, zero-length `write`, `strlen`, `memfill`, `memcmp`,
-  and `memcpy` ELF payloads through the same disabled-compat path.
+  `openat`/`read`/`close`, `newfstatat`, `fstat`, `statx`, zero-length
+  `write`, `strlen`, `memfill`, `memcmp`, and `memcpy` ELF payloads through
+  the same disabled-compat path.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
