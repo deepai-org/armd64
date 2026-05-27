@@ -1,10 +1,9 @@
 # Bochs Polyglot CPU Harness
 
 Boots x86_64 Linux in modified Bochs and tests a prototype CPU extension for
-running precompiled AArch64 and RISC-V code from x86_64 userspace.
-
-The goal is real binary compatibility and fast cross-ISA interop, not a new
-compiler-only ABI.
+running precompiled AArch64 and RISC-V code from x86_64 userspace. The target
+is real binary compatibility, including cross-ISA libraries linked into x86_64
+programs.
 
 ## Requirements
 
@@ -14,43 +13,41 @@ compiler-only ABI.
 ## Run
 
 ```bash
-make image                  # Rebuild after Bochs source changes.
-make boot                   # Baseline x86_64 Linux boot.
-make boot-poly              # Poly ISA smoke tests.
-make boot-poly-call-arch-traps
-make boot-poly-full-arch-traps
-make clean
+make image                       # Build the Bochs/test image.
+make boot                        # Baseline x86_64 Linux boot.
+make boot-poly                   # Main poly smoke tests.
+make boot-poly-call-arch-traps   # Cross-ISA library calls.
+make boot-poly-binfmt-arch-traps # Foreign ELF app execution.
+make boot-poly-full-arch-traps   # Broad poly test set.
+make clean                       # Remove generated output.
 ```
-
-Read results in:
 
 - `out/serial.log`: guest console and pass/fail markers.
 - `out/bochs.log`: Bochs CPU/device log.
 - `out/bochs-boot.iso`: generated boot ISO.
 
-Expected markers include `POLY_PROBE_OK`, `POLYAPP_OK`, `POLYCALL_OK`,
-`POLYTHREAD_OK`, `POLYSIGNAL_OK`, and `POLYBINFMT_OK`.
+Useful markers: `BOOT_OK`, `POLY_PROBE_OK`, `POLYAPP_OK`, `POLYCALL_OK`,
+`POLYTHREAD_OK`, `POLYSIGNAL_OK`, `POLYBINFMT_OK`.
 
-## ISA Delta From x86_64
+## ISA Difference From x86_64
 
-x86_64 remains the boot ISA, kernel ISA, and default userspace ISA. Normal
-x86_64 code is unchanged unless it executes the polyglot extension.
+x86_64 remains the boot ISA, kernel ISA, and default userspace ISA. Ordinary
+x86_64 code runs unchanged unless it executes the polyglot extension.
 
-- Discovery: private CPUID leaves starting at `0x40000000`.
-- Prototype opcodes: `0f 24 <op> 50 4f 4c 59 21` (`POLY!`).
-- Hardware target: dedicated non-exception opcodes, not `UD2` envelopes.
-- Execution: switch the frontend from x86 variable-length decode to raw
-  32-bit AArch64 or RISC-V fetch from the shared program counter.
-- Calls: `PCALL` bridges x86_64 SysV callers into native AAPCS64 or RISC-V
-  psABI callees; no custom "PolyFast" ABI is used for compatibility.
-- Returns: native foreign returns use a cookie to resume the x86_64 caller.
-- Traps/syscalls: foreign traps, syscalls, illegal instructions, and
-  breakpoints exit as architectural records for x86_64-side runtime or OS
-  policy.
-- Memory: foreign accesses use the same guest virtual memory path as x86_64;
-  the prototype defines foreign memory ordering as x86 TSO.
-- State: extra foreign architectural state is internal in Bochs today; hardware
-  should expose it through CPUID/XCR0/XSAVE-like OS state.
+- Discovery uses private CPUID leaves starting at `0x40000000`.
+- Prototype Bochs opcodes use `0f 24 <op> 50 4f 4c 59 21` (`POLY!`).
+- Hardware should use dedicated non-exception opcodes, not `UD2` traps.
+- `PENTER.A64` and `PENTER.RV64` switch from x86 variable-length decode to raw
+  AArch64 or RISC-V decode at the shared program counter.
+- `PCALL.*.SYSV` bridges x86_64 SysV callers into native AAPCS64 or RISC-V
+  psABI callees. Existing ABI compatibility wins over a custom compiler ABI.
+- Native foreign returns use return cookies to resume the x86_64 caller.
+- Foreign syscalls, breakpoints, illegal instructions, and traps exit as
+  architectural trap records for OS/runtime policy.
+- Foreign memory uses the same guest virtual memory path as x86_64 and inherits
+  x86 TSO ordering in the prototype.
+- Extra foreign state is internal in Bochs today; hardware should expose it via
+  CPUID/XCR0/XSAVE-like OS-managed state.
 
 Foreign escape instructions:
 
@@ -59,8 +56,6 @@ Foreign escape instructions:
 - RISC-V custom-0 `0x0000000b`: exit to x86_64.
 - RISC-V custom-1 `0x0000002b`: switch to AArch64.
 
-Current limits: AArch64/RISC-V instruction coverage is still a tested subset,
+Current limits: AArch64/RISC-V instruction coverage is a tested subset,
 `polycall` is not a complete Linux dynamic linker, and equal-speed execution is
-a design goal rather than a measured result.
-
-Detailed architecture: `docs/poly-isa.md`.
+not yet a measured result. Detailed architecture: `docs/poly-isa.md`.
