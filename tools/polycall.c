@@ -2469,6 +2469,20 @@ static int build_origin_path(const char *owner_path, const char *suffix,
   return 0;
 }
 
+static int build_relative_needed_path(const char *entry, size_t entry_len,
+    const char *needed, char *out, size_t out_size) {
+  const size_t needed_len = strlen(needed);
+  const int entry_has_slash = entry_len != 0 && entry[entry_len - 1] == '/';
+  const size_t sep_len = entry_has_slash ? 0 : 1;
+  if (entry_len + sep_len + needed_len + 1 > out_size)
+    return -1;
+  memcpy(out, entry, entry_len);
+  if (sep_len != 0)
+    out[entry_len] = '/';
+  memcpy(out + entry_len + sep_len, needed, needed_len + 1);
+  return 0;
+}
+
 static int build_runpath_needed_path(const char *owner_path,
     const char *runpath, size_t runpath_len, const char *needed,
     char *out, size_t out_size) {
@@ -2506,6 +2520,10 @@ static int build_runpath_needed_path(const char *owner_path,
         memcpy(out + entry_len + sep_len, needed, needed_len + 1);
         built = 0;
       }
+    }
+    else {
+      built = build_relative_needed_path(entry, entry_len, needed, out,
+        out_size);
     }
 
     if (built == 0 && access(out, R_OK) == 0)
