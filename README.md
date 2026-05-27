@@ -681,10 +681,11 @@ numbers currently include:
   `inotify_add_watch`, `inotify_rm_watch`, `dup3`, `pipe2`,
   `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
   `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `fsync`,
-  `fdatasync`, `sync_file_range`, `fadvise64`, `pselect6`, `ppoll`,
-  `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`,
-  `newfstatat`, `fstat`, `statx`, `close`, `getdents64`, `lseek`, and
-  `uname`.
+  `fdatasync`, `sync_file_range`, `fadvise64`, `statfs`, `fstatfs`,
+  `truncate`, `ftruncate`, `fallocate`, `chdir`, `fchdir`, `fchmod`,
+  `fchmodat`, `fchownat`, `fchown`, `pselect6`, `ppoll`, `epoll_create1`,
+  `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`, `newfstatat`, `fstat`,
+  `statx`, `close`, `getdents64`, `lseek`, and `uname`.
 - Network-style syscalls: `socket`, `socketpair`, `bind`, `listen`,
   `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.

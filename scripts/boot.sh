@@ -1330,6 +1330,17 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fdatasync.elf" 0xd2800060 0xd2800a68 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sync-file-range.elf" 0xd2800060 0xd2800001 0xd2800002 0xd2800003 0xd2800a88 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fadvise64.elf" 0xd2800060 0xd2800001 0xd2800002 0xd2800003 0xd2801be8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-statfs.elf" 0xaa0103e0 0xd2800568 0xd4000001 0xf9400020
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fstatfs.elf" 0xd2800060 0xd2800588 0xd4000001 0xf9400020
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-truncate.elf" 0xaa0103e0 0xd2800001 0xd28005a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ftruncate.elf" 0xd2800060 0xd2800001 0xd28005c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fallocate.elf" 0xd2800060 0xd2800001 0xd2800002 0xd2800003 0xd28005e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-chdir.elf" 0xaa0103e0 0xd2800628 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fchdir.elf" 0xd2800060 0xd2800648 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fchmod.elf" 0xd2800060 0xd2800001 0xd2800688 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fchmodat.elf" 0xd2800000 0xd2800002 0xd2800003 0xd28006a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fchownat.elf" 0xd2800000 0xd2807d02 0xd2807d03 0xd2800004 0xd28006c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fchown.elf" 0xd2800060 0xd2807d01 0xd2807d02 0xd28006e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-timerfd-create.elf" 0xd2800020 0xd2800001 0xd2800aa8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-timerfd-settime.elf" 0xaa0103e4 0xd28001a0 0xd2800001 0xaa0403e2 0xaa0403e3 0xd2800ac8 0xd4000001 0xf9400880
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-timerfd-gettime.elf" 0xaa0103e2 0xd28001a0 0xaa0203e1 0xd2800ae8 0xd4000001 0xf9400840
@@ -1508,6 +1519,17 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fdatasync.elf" 0x00300513 0x05300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sync-file-range.elf" 0x00300513 0x00000593 0x00000613 0x00000693 0x05400893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fadvise64.elf" 0x00300513 0x00000593 0x00000613 0x00000693 0x0df00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-statfs.elf" 0x00058513 0x02b00893 0x00000073 0x0005b503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fstatfs.elf" 0x00300513 0x02c00893 0x00000073 0x0005b503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-truncate.elf" 0x00058513 0x00000593 0x02d00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ftruncate.elf" 0x00300513 0x00000593 0x02e00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fallocate.elf" 0x00300513 0x00000593 0x00000613 0x00000693 0x02f00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-chdir.elf" 0x00058513 0x03100893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fchdir.elf" 0x00300513 0x03200893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fchmod.elf" 0x00300513 0x00000593 0x03400893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fchmodat.elf" 0x00000513 0x00000613 0x00000693 0x03500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fchownat.elf" 0x00000513 0x3e800613 0x3e800693 0x00000713 0x03600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fchown.elf" 0x00300513 0x3e800593 0x3e800613 0x03700893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-timerfd-create.elf" 0x00100513 0x00000593 0x05500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-timerfd-settime.elf" 0x00058293 0x00d00513 0x00000593 0x00028613 0x00028693 0x05600893 0x00000073 0x0102b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-timerfd-gettime.elf" 0x00058293 0x00d00513 0x00028593 0x05700893 0x00000073 0x0102b503
@@ -1779,6 +1801,17 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-fdatasync.elf=0 \
     /usr/lib/polyapps/aarch64-sync-file-range.elf=0 \
     /usr/lib/polyapps/aarch64-fadvise64.elf=0 \
+    /usr/lib/polyapps/aarch64-statfs.elf=0x21215441545350 \
+    /usr/lib/polyapps/aarch64-fstatfs.elf=0x21215441545350 \
+    /usr/lib/polyapps/aarch64-truncate.elf=0 \
+    /usr/lib/polyapps/aarch64-ftruncate.elf=0 \
+    /usr/lib/polyapps/aarch64-fallocate.elf=0 \
+    /usr/lib/polyapps/aarch64-chdir.elf=0 \
+    /usr/lib/polyapps/aarch64-fchdir.elf=0 \
+    /usr/lib/polyapps/aarch64-fchmod.elf=0 \
+    /usr/lib/polyapps/aarch64-fchmodat.elf=0 \
+    /usr/lib/polyapps/aarch64-fchownat.elf=0 \
+    /usr/lib/polyapps/aarch64-fchown.elf=0 \
     /usr/lib/polyapps/aarch64-timerfd-create.elf=13 \
     /usr/lib/polyapps/aarch64-timerfd-settime.elf=21 \
     /usr/lib/polyapps/aarch64-timerfd-gettime.elf=34 \
@@ -1930,6 +1963,17 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-fdatasync.elf=0 \
     /usr/lib/polyapps/riscv-sync-file-range.elf=0 \
     /usr/lib/polyapps/riscv-fadvise64.elf=0 \
+    /usr/lib/polyapps/riscv-statfs.elf=0x21215441545350 \
+    /usr/lib/polyapps/riscv-fstatfs.elf=0x21215441545350 \
+    /usr/lib/polyapps/riscv-truncate.elf=0 \
+    /usr/lib/polyapps/riscv-ftruncate.elf=0 \
+    /usr/lib/polyapps/riscv-fallocate.elf=0 \
+    /usr/lib/polyapps/riscv-chdir.elf=0 \
+    /usr/lib/polyapps/riscv-fchdir.elf=0 \
+    /usr/lib/polyapps/riscv-fchmod.elf=0 \
+    /usr/lib/polyapps/riscv-fchmodat.elf=0 \
+    /usr/lib/polyapps/riscv-fchownat.elf=0 \
+    /usr/lib/polyapps/riscv-fchown.elf=0 \
     /usr/lib/polyapps/riscv-timerfd-create.elf=13 \
     /usr/lib/polyapps/riscv-timerfd-settime.elf=21 \
     /usr/lib/polyapps/riscv-timerfd-gettime.elf=34 \
@@ -2350,6 +2394,17 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-fdatasync.elf \
     /usr/lib/polyapps/aarch64-sync-file-range.elf \
     /usr/lib/polyapps/aarch64-fadvise64.elf \
+    /usr/lib/polyapps/aarch64-statfs.elf \
+    /usr/lib/polyapps/aarch64-fstatfs.elf \
+    /usr/lib/polyapps/aarch64-truncate.elf \
+    /usr/lib/polyapps/aarch64-ftruncate.elf \
+    /usr/lib/polyapps/aarch64-fallocate.elf \
+    /usr/lib/polyapps/aarch64-chdir.elf \
+    /usr/lib/polyapps/aarch64-fchdir.elf \
+    /usr/lib/polyapps/aarch64-fchmod.elf \
+    /usr/lib/polyapps/aarch64-fchmodat.elf \
+    /usr/lib/polyapps/aarch64-fchownat.elf \
+    /usr/lib/polyapps/aarch64-fchown.elf \
     /usr/lib/polyapps/aarch64-timerfd-create.elf \
     /usr/lib/polyapps/aarch64-timerfd-settime.elf \
     /usr/lib/polyapps/aarch64-timerfd-gettime.elf \
@@ -2501,6 +2556,17 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-fdatasync.elf \
     /usr/lib/polyapps/riscv-sync-file-range.elf \
     /usr/lib/polyapps/riscv-fadvise64.elf \
+    /usr/lib/polyapps/riscv-statfs.elf \
+    /usr/lib/polyapps/riscv-fstatfs.elf \
+    /usr/lib/polyapps/riscv-truncate.elf \
+    /usr/lib/polyapps/riscv-ftruncate.elf \
+    /usr/lib/polyapps/riscv-fallocate.elf \
+    /usr/lib/polyapps/riscv-chdir.elf \
+    /usr/lib/polyapps/riscv-fchdir.elf \
+    /usr/lib/polyapps/riscv-fchmod.elf \
+    /usr/lib/polyapps/riscv-fchmodat.elf \
+    /usr/lib/polyapps/riscv-fchownat.elf \
+    /usr/lib/polyapps/riscv-fchown.elf \
     /usr/lib/polyapps/riscv-timerfd-create.elf \
     /usr/lib/polyapps/riscv-timerfd-settime.elf \
     /usr/lib/polyapps/riscv-timerfd-gettime.elf \
