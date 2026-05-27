@@ -1,12 +1,15 @@
 IMAGE ?= armd64-bochs
 
-.PHONY: image check-poly-import-ids boot boot-poly boot-poly-compat boot-poly-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-call-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full boot-poly-full-compat clean
+.PHONY: image check-poly-import-ids check-poly-arch-contract boot boot-poly boot-poly-compat boot-poly-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-call-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full boot-poly-full-compat clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
 
 check-poly-import-ids:
 	./tools/check_poly_import_ids.sh
+
+check-poly-arch-contract:
+	./tools/check_poly_arch_contract.sh
 
 boot:
 	docker run --rm \
