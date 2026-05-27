@@ -1,9 +1,12 @@
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <elf.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -225,7 +228,8 @@ enum {
   POLY_IMPORT_FUNC_GETEUID = 136,
   POLY_IMPORT_FUNC_GETGID = 137,
   POLY_IMPORT_FUNC_GETEGID = 138,
-  POLY_IMPORT_FUNC_GETTID = 139
+  POLY_IMPORT_FUNC_GETTID = 139,
+  POLY_IMPORT_FUNC_COUNT = 140
 };
 
 enum {
@@ -325,6 +329,163 @@ extern double poly_host_x86_fp64_sum8(double a, double b, double c,
 extern double poly_host_x86_mixed_u64_fp64(uint64_t a, double b, uint64_t c,
     double d, uint64_t e, double f);
 extern float poly_host_x86_fp32_add(float a, float b);
+extern uint64_t poly_host_x86_strlen(const char *text);
+extern uint64_t poly_host_x86_strcmp(const unsigned char *left_text,
+    const unsigned char *right_text);
+extern uint64_t poly_host_x86_strncmp(const unsigned char *left_text,
+    const unsigned char *right_text, uint64_t max_len);
+extern uint64_t poly_host_x86_strcasecmp(const unsigned char *left_text,
+    const unsigned char *right_text);
+extern uint64_t poly_host_x86_strncasecmp(const unsigned char *left_text,
+    const unsigned char *right_text, uint64_t max_len);
+extern uint64_t poly_host_x86_strcasestr(const uint8_t *haystack,
+    const uint8_t *needle_text);
+extern uint64_t poly_host_x86_memcpy(uint8_t *dest, const uint8_t *src,
+    uint64_t size);
+extern uint64_t poly_host_x86_memmove(uint8_t *dest, const uint8_t *src,
+    uint64_t size);
+extern uint64_t poly_host_x86_memset(uint8_t *dest, uint64_t value,
+    uint64_t size);
+extern uint64_t poly_host_x86_memcmp(const unsigned char *left_text,
+    const unsigned char *right_text, uint64_t size);
+extern uint64_t poly_host_x86_memchr(const uint8_t *text, uint64_t needle,
+    uint64_t size);
+extern uint64_t poly_host_x86_memrchr(const uint8_t *text, uint64_t needle,
+    uint64_t size);
+extern uint64_t poly_host_x86_memmem(const uint8_t *haystack,
+    uint64_t haystack_size, const uint8_t *needle, uint64_t needle_size);
+extern uint64_t poly_host_x86_strchr(const uint8_t *text, uint64_t needle);
+extern uint64_t poly_host_x86_strrchr(const uint8_t *text, uint64_t needle);
+extern uint64_t poly_host_x86_strstr(const uint8_t *haystack,
+    const uint8_t *needle_text);
+extern uint64_t poly_host_x86_strcpy(uint8_t *dest, const uint8_t *src);
+extern uint64_t poly_host_x86_strncpy(uint8_t *dest, const uint8_t *src,
+    uint64_t max_len);
+extern uint64_t poly_host_x86_strnlen(const char *text, uint64_t max_len);
+extern uint64_t poly_host_x86_strcat(uint8_t *dest, const uint8_t *src);
+extern uint64_t poly_host_x86_strncat(uint8_t *dest, const uint8_t *src,
+    uint64_t max_len);
+extern uint64_t poly_host_x86_strspn(const uint8_t *text,
+    const uint8_t *accept_text);
+extern uint64_t poly_host_x86_strcspn(const uint8_t *text,
+    const uint8_t *reject_text);
+extern uint64_t poly_host_x86_strpbrk(const uint8_t *text,
+    const uint8_t *accept_text);
+extern uint64_t poly_host_x86_stpcpy(uint8_t *dest, const uint8_t *src);
+extern uint64_t poly_host_x86_stpncpy(uint8_t *dest, const uint8_t *src,
+    uint64_t max_len);
+extern uint64_t poly_host_x86_mempcpy(uint8_t *dest, const uint8_t *src,
+    uint64_t size);
+extern uint64_t poly_host_x86_rawmemchr(const uint8_t *text, uint64_t needle);
+extern uint64_t poly_host_x86_strchrnul(const uint8_t *text, uint64_t needle);
+extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
+    uint64_t size);
+extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
+
+static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
+  static const char *const names[] = {
+    "strlen", "strcmp", "strncmp", "strcasecmp", "strncasecmp",
+    "strcasestr", "memcpy", "memmove", "memset", "memcmp", "memchr",
+    "memrchr", "memmem", "strchr", "index", "strrchr", "rindex",
+    "strstr", "strcpy", "strncpy", "strnlen", "strcat", "strncat",
+    "strspn", "strcspn", "strpbrk", "stpcpy", "stpncpy", "mempcpy",
+    "rawmemchr", "strchrnul", "bcmp", "bcopy", "bzero"
+  };
+
+  for (size_t n = 0; n < sizeof(names) / sizeof(names[0]); n++) {
+    if (strcmp(symbol_name, names[n]) == 0)
+      return 1;
+  }
+
+  return 0;
+}
+
+static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
+  switch (import_id) {
+    case POLY_IMPORT_FUNC_X86_SLOT0:
+      return (uint64_t) (uintptr_t) poly_host_x86_add;
+    case POLY_IMPORT_FUNC_X86_SLOT1:
+      return (uint64_t) (uintptr_t) poly_host_x86_mul;
+    case POLY_IMPORT_FUNC_X86_SLOT2:
+      return (uint64_t) (uintptr_t) poly_host_x86_sum6;
+    case POLY_IMPORT_FUNC_X86_SLOT3:
+      return (uint64_t) (uintptr_t) poly_host_x86_fp64_add;
+    case POLY_IMPORT_FUNC_X86_SLOT4:
+      return (uint64_t) (uintptr_t) poly_host_x86_fp32_add;
+    case POLY_IMPORT_FUNC_X86_SLOT5:
+      return (uint64_t) (uintptr_t) poly_host_x86_sum8;
+    case POLY_IMPORT_FUNC_X86_SLOT6:
+      return (uint64_t) (uintptr_t) poly_host_x86_fp64_sum8;
+    case POLY_IMPORT_FUNC_X86_SLOT7:
+      return (uint64_t) (uintptr_t) poly_host_x86_mixed_u64_fp64;
+    case POLY_IMPORT_FUNC_STRLEN:
+      return (uint64_t) (uintptr_t) poly_host_x86_strlen;
+    case POLY_IMPORT_FUNC_STRCMP:
+      return (uint64_t) (uintptr_t) poly_host_x86_strcmp;
+    case POLY_IMPORT_FUNC_STRNCMP:
+      return (uint64_t) (uintptr_t) poly_host_x86_strncmp;
+    case POLY_IMPORT_FUNC_STRCASECMP:
+      return (uint64_t) (uintptr_t) poly_host_x86_strcasecmp;
+    case POLY_IMPORT_FUNC_STRNCASECMP:
+      return (uint64_t) (uintptr_t) poly_host_x86_strncasecmp;
+    case POLY_IMPORT_FUNC_STRCASESTR:
+      return (uint64_t) (uintptr_t) poly_host_x86_strcasestr;
+    case POLY_IMPORT_FUNC_MEMCPY:
+      return (uint64_t) (uintptr_t) poly_host_x86_memcpy;
+    case POLY_IMPORT_FUNC_MEMMOVE:
+      return (uint64_t) (uintptr_t) poly_host_x86_memmove;
+    case POLY_IMPORT_FUNC_MEMSET:
+      return (uint64_t) (uintptr_t) poly_host_x86_memset;
+    case POLY_IMPORT_FUNC_MEMCMP:
+      return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
+    case POLY_IMPORT_FUNC_MEMCHR:
+      return (uint64_t) (uintptr_t) poly_host_x86_memchr;
+    case POLY_IMPORT_FUNC_MEMRCHR:
+      return (uint64_t) (uintptr_t) poly_host_x86_memrchr;
+    case POLY_IMPORT_FUNC_MEMMEM:
+      return (uint64_t) (uintptr_t) poly_host_x86_memmem;
+    case POLY_IMPORT_FUNC_STRCHR:
+      return (uint64_t) (uintptr_t) poly_host_x86_strchr;
+    case POLY_IMPORT_FUNC_STRRCHR:
+      return (uint64_t) (uintptr_t) poly_host_x86_strrchr;
+    case POLY_IMPORT_FUNC_STRSTR:
+      return (uint64_t) (uintptr_t) poly_host_x86_strstr;
+    case POLY_IMPORT_FUNC_STRCPY:
+      return (uint64_t) (uintptr_t) poly_host_x86_strcpy;
+    case POLY_IMPORT_FUNC_STRNCPY:
+      return (uint64_t) (uintptr_t) poly_host_x86_strncpy;
+    case POLY_IMPORT_FUNC_STRNLEN:
+      return (uint64_t) (uintptr_t) poly_host_x86_strnlen;
+    case POLY_IMPORT_FUNC_STRCAT:
+      return (uint64_t) (uintptr_t) poly_host_x86_strcat;
+    case POLY_IMPORT_FUNC_STRNCAT:
+      return (uint64_t) (uintptr_t) poly_host_x86_strncat;
+    case POLY_IMPORT_FUNC_STRSPN:
+      return (uint64_t) (uintptr_t) poly_host_x86_strspn;
+    case POLY_IMPORT_FUNC_STRCSPN:
+      return (uint64_t) (uintptr_t) poly_host_x86_strcspn;
+    case POLY_IMPORT_FUNC_STRPBRK:
+      return (uint64_t) (uintptr_t) poly_host_x86_strpbrk;
+    case POLY_IMPORT_FUNC_STPCPY:
+      return (uint64_t) (uintptr_t) poly_host_x86_stpcpy;
+    case POLY_IMPORT_FUNC_STPNCPY:
+      return (uint64_t) (uintptr_t) poly_host_x86_stpncpy;
+    case POLY_IMPORT_FUNC_MEMPCPY:
+      return (uint64_t) (uintptr_t) poly_host_x86_mempcpy;
+    case POLY_IMPORT_FUNC_RAWMEMCHR:
+      return (uint64_t) (uintptr_t) poly_host_x86_rawmemchr;
+    case POLY_IMPORT_FUNC_STRCHRNUL:
+      return (uint64_t) (uintptr_t) poly_host_x86_strchrnul;
+    case POLY_IMPORT_FUNC_BCMP:
+      return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
+    case POLY_IMPORT_FUNC_BCOPY:
+      return (uint64_t) (uintptr_t) poly_host_x86_bcopy;
+    case POLY_IMPORT_FUNC_BZERO:
+      return (uint64_t) (uintptr_t) poly_host_x86_bzero;
+    default:
+      return 0;
+  }
+}
 
 static int parse_u64(const char *text, uint64_t *value) {
   char *end = NULL;
@@ -1950,7 +2111,8 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_fp64_add") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum8") == 0 ||
         strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fp32_add") == 0)
+        strcmp(symbol_name, "poly_import_x86_fp32_add") == 0 ||
+        import_symbol_uses_x86_descriptor(symbol_name))
       program->needs_x86_import = 1;
     *base_kind = RELOC_BASE_IMPORT_CALL;
     return 0;
@@ -2972,8 +3134,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t main_stub_size = pcall_return_offset + restore_regs_size +
     restore_tls_size + restore_heap_size + 1;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
+  const size_t import_descriptor_count = needs_x86_import ?
+    POLY_IMPORT_FUNC_COUNT : 0;
   const size_t import_descriptor_size = needs_x86_import ?
-    8 * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
+    import_descriptor_count * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
   const size_t stub_size = main_stub_size + import_return_size +
     import_descriptor_size;
   const size_t code_size = stub_size;
@@ -3042,24 +3206,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + pcall_return_offset);
-  const uint64_t import_x86_add_target =
-    (uint64_t) (uintptr_t) poly_host_x86_add;
-  const uint64_t import_x86_mul_target =
-    (uint64_t) (uintptr_t) poly_host_x86_mul;
-  const uint64_t import_x86_sum6_target =
-    (uint64_t) (uintptr_t) poly_host_x86_sum6;
-  const uint64_t import_x86_sum8_target =
-    (uint64_t) (uintptr_t) poly_host_x86_sum8;
-  const uint64_t import_x86_fp64_add_target =
-    (uint64_t) (uintptr_t) poly_host_x86_fp64_add;
-  const uint64_t import_x86_fp64_sum8_target =
-    (uint64_t) (uintptr_t) poly_host_x86_fp64_sum8;
-  const uint64_t import_x86_mixed_u64_fp64_target =
-    (uint64_t) (uintptr_t) poly_host_x86_mixed_u64_fp64;
-  const uint64_t import_x86_fp32_add_target =
-    (uint64_t) (uintptr_t) poly_host_x86_fp32_add;
   const uint64_t import_x86_return = (uint64_t) (uintptr_t) (code + main_stub_size);
   const uint64_t import_x86_table = import_x86_return + import_return_size;
+  const size_t import_x86_table_offset = main_stub_size + import_return_size;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   if (needs_x86_import)
     emit_save_import_regs(code, &offset);
@@ -3129,22 +3278,21 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, import_return, sizeof(import_return));
     offset += sizeof(import_return);
-    emit_u64(code, &offset, import_x86_add_target);
-    emit_u64(code, &offset, import_x86_return);
-    emit_u64(code, &offset, import_x86_mul_target);
-    emit_u64(code, &offset, import_x86_return);
-    emit_u64(code, &offset, import_x86_sum6_target);
-    emit_u64(code, &offset, import_x86_return);
-    emit_u64(code, &offset, import_x86_fp64_add_target);
-    emit_u64(code, &offset, import_x86_return);
-    emit_u64(code, &offset, import_x86_fp32_add_target);
-    emit_u64(code, &offset, import_x86_return);
-    emit_u64(code, &offset, import_x86_sum8_target);
-    emit_u64(code, &offset, import_x86_return);
-    emit_u64(code, &offset, import_x86_fp64_sum8_target);
-    emit_u64(code, &offset, import_x86_return);
-    emit_u64(code, &offset, import_x86_mixed_u64_fp64_target);
-    emit_u64(code, &offset, import_x86_return);
+    for (size_t n = 0; n < import_descriptor_count; n++) {
+      emit_u64(code, &offset, 0);
+      emit_u64(code, &offset, 0);
+    }
+    for (uint64_t import_id = 0; import_id < POLY_IMPORT_FUNC_COUNT;
+         import_id++) {
+      const uint64_t target =
+        x86_descriptor_target_for_import_id(import_id);
+      if (target == 0)
+        continue;
+      const size_t descriptor_offset = import_x86_table_offset +
+        (size_t) import_id * POLY_X86_IMPORT_DESCRIPTOR_SIZE;
+      write_le64(code + descriptor_offset, target);
+      write_le64(code + descriptor_offset + 8, import_x86_return);
+    }
   }
   if (offset != code_size) {
     fprintf(stderr, "POLYCALL_FAIL: internal x86 stub size mismatch\n");

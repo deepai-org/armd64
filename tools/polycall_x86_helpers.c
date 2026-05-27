@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdint.h>
 
 #if defined(__GNUC__)
@@ -57,4 +58,502 @@ double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64(uint64_t a, double b,
 float POLY_HOST_HELPER poly_host_x86_fp32_add(float a, float b)
 {
   return a + b + 200.5f;
+}
+
+static uint64_t poly_host_bound_4096(uint64_t count)
+{
+  return count < 4096 ? count : 4096;
+}
+
+static unsigned char poly_host_ascii_lower(unsigned char value)
+{
+  if (value >= 'A' && value <= 'Z')
+    return (unsigned char) (value + ('a' - 'A'));
+  return value;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
+{
+  uint64_t result = 0;
+  while (result < 4096 && text[result] != 0)
+    result++;
+  return result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strnlen(const char *text,
+    uint64_t max_len)
+{
+  const uint64_t count = poly_host_bound_4096(max_len);
+  uint64_t result = 0;
+  while (result < count && text[result] != 0)
+    result++;
+  return result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strcmp(const unsigned char *left_text,
+    const unsigned char *right_text)
+{
+  int64_t cmp = 0;
+  for (uint64_t n = 0; n < 4096; n++) {
+    const unsigned char left = left_text[n];
+    const unsigned char right = right_text[n];
+    if (left != right || left == 0 || right == 0) {
+      cmp = (int64_t) left - (int64_t) right;
+      break;
+    }
+  }
+  return (uint64_t) cmp;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strncmp(const unsigned char *left_text,
+    const unsigned char *right_text, uint64_t max_len)
+{
+  const uint64_t count = poly_host_bound_4096(max_len);
+  int64_t cmp = 0;
+  for (uint64_t n = 0; n < count; n++) {
+    const unsigned char left = left_text[n];
+    const unsigned char right = right_text[n];
+    if (left != right || left == 0 || right == 0) {
+      cmp = (int64_t) left - (int64_t) right;
+      break;
+    }
+  }
+  return (uint64_t) cmp;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strcasecmp(
+    const unsigned char *left_text, const unsigned char *right_text)
+{
+  int64_t cmp = 0;
+  for (uint64_t n = 0; n < 4096; n++) {
+    const unsigned char left = poly_host_ascii_lower(left_text[n]);
+    const unsigned char right = poly_host_ascii_lower(right_text[n]);
+    if (left != right || left == 0 || right == 0) {
+      cmp = (int64_t) left - (int64_t) right;
+      break;
+    }
+  }
+  return (uint64_t) cmp;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strncasecmp(
+    const unsigned char *left_text, const unsigned char *right_text,
+    uint64_t max_len)
+{
+  const uint64_t count = poly_host_bound_4096(max_len);
+  int64_t cmp = 0;
+  for (uint64_t n = 0; n < count; n++) {
+    const unsigned char left = poly_host_ascii_lower(left_text[n]);
+    const unsigned char right = poly_host_ascii_lower(right_text[n]);
+    if (left != right || left == 0 || right == 0) {
+      cmp = (int64_t) left - (int64_t) right;
+      break;
+    }
+  }
+  return (uint64_t) cmp;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memcpy(uint8_t *dest,
+    const uint8_t *src, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  for (uint64_t n = 0; n < count; n++)
+    dest[n] = src[n];
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memmove(uint8_t *dest,
+    const uint8_t *src, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  if (dest <= src) {
+    for (uint64_t n = 0; n < count; n++)
+      dest[n] = src[n];
+  }
+  else {
+    for (uint64_t n = count; n > 0; n--)
+      dest[n - 1] = src[n - 1];
+  }
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memset(uint8_t *dest, uint64_t value,
+    uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  for (uint64_t n = 0; n < count; n++)
+    dest[n] = (uint8_t) value;
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memcmp(const unsigned char *left_text,
+    const unsigned char *right_text, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  int64_t cmp = 0;
+  for (uint64_t n = 0; n < count; n++) {
+    const unsigned char left = left_text[n];
+    const unsigned char right = right_text[n];
+    if (left != right) {
+      cmp = (int64_t) left - (int64_t) right;
+      break;
+    }
+  }
+  return (uint64_t) cmp;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memchr(const uint8_t *text,
+    uint64_t needle, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  for (uint64_t n = 0; n < count; n++) {
+    if (text[n] == (uint8_t) needle)
+      return (uint64_t) (uintptr_t) (text + n);
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strchr(const uint8_t *text,
+    uint64_t needle)
+{
+  for (uint64_t n = 0; n < 4096; n++) {
+    const uint8_t value = text[n];
+    if (value == (uint8_t) needle)
+      return (uint64_t) (uintptr_t) (text + n);
+    if (value == 0)
+      break;
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strrchr(const uint8_t *text,
+    uint64_t needle)
+{
+  uint64_t result = 0;
+  for (uint64_t n = 0; n < 4096; n++) {
+    const uint8_t value = text[n];
+    if (value == (uint8_t) needle)
+      result = (uint64_t) (uintptr_t) (text + n);
+    if (value == 0)
+      break;
+  }
+  return result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strstr(const uint8_t *haystack,
+    const uint8_t *needle_text)
+{
+  const uint8_t first = needle_text[0];
+  if (first == 0)
+    return (uint64_t) (uintptr_t) haystack;
+
+  for (uint64_t n = 0; n < 4096; n++) {
+    const uint8_t left = haystack[n];
+    if (left == 0)
+      break;
+    if (left != first)
+      continue;
+
+    bool matched = true;
+    uint64_t m = 1;
+    for (; m < 4096 - n; m++) {
+      const uint8_t needle = needle_text[m];
+      if (needle == 0)
+        break;
+      const uint8_t value = haystack[n + m];
+      if (value != needle || value == 0) {
+        matched = false;
+        break;
+      }
+    }
+    if (m == 4096 - n)
+      matched = false;
+    if (matched)
+      return (uint64_t) (uintptr_t) (haystack + n);
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strcasestr(const uint8_t *haystack,
+    const uint8_t *needle_text)
+{
+  const uint8_t first = poly_host_ascii_lower(needle_text[0]);
+  if (first == 0)
+    return (uint64_t) (uintptr_t) haystack;
+
+  for (uint64_t n = 0; n < 4096; n++) {
+    const uint8_t left = poly_host_ascii_lower(haystack[n]);
+    if (left == 0)
+      break;
+    if (left != first)
+      continue;
+
+    bool matched = true;
+    uint64_t m = 1;
+    for (; m < 4096 - n; m++) {
+      const uint8_t needle = poly_host_ascii_lower(needle_text[m]);
+      if (needle == 0)
+        break;
+      const uint8_t value = poly_host_ascii_lower(haystack[n + m]);
+      if (value != needle || value == 0) {
+        matched = false;
+        break;
+      }
+    }
+    if (m == 4096 - n)
+      matched = false;
+    if (matched)
+      return (uint64_t) (uintptr_t) (haystack + n);
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strcpy(uint8_t *dest,
+    const uint8_t *src)
+{
+  for (uint64_t n = 0; n < 4096; n++) {
+    const uint8_t value = src[n];
+    dest[n] = value;
+    if (value == 0)
+      break;
+  }
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strncpy(uint8_t *dest,
+    const uint8_t *src, uint64_t max_len)
+{
+  const uint64_t count = poly_host_bound_4096(max_len);
+  bool padding = false;
+  for (uint64_t n = 0; n < count; n++) {
+    uint8_t value = 0;
+    if (!padding) {
+      value = src[n];
+      if (value == 0)
+        padding = true;
+    }
+    dest[n] = value;
+  }
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strcat(uint8_t *dest,
+    const uint8_t *src)
+{
+  uint64_t dest_len = 0;
+  while (dest_len < 4096 && dest[dest_len] != 0)
+    dest_len++;
+  for (uint64_t n = 0; dest_len + n < 4096; n++) {
+    const uint8_t value = src[n];
+    dest[dest_len + n] = value;
+    if (value == 0)
+      break;
+  }
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strncat(uint8_t *dest,
+    const uint8_t *src, uint64_t max_len)
+{
+  uint64_t dest_len = 0;
+  const uint64_t count = poly_host_bound_4096(max_len);
+  while (dest_len < 4096 && dest[dest_len] != 0)
+    dest_len++;
+  uint64_t copied = 0;
+  while (copied < count && dest_len + copied < 4095) {
+    const uint8_t value = src[copied];
+    if (value == 0)
+      break;
+    dest[dest_len + copied] = value;
+    copied++;
+  }
+  if (dest_len + copied < 4096)
+    dest[dest_len + copied] = 0;
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strspn(const uint8_t *text,
+    const uint8_t *accept_text)
+{
+  uint64_t result = 0;
+  for (; result < 4096; result++) {
+    const uint8_t value = text[result];
+    bool matched = false;
+    if (value == 0)
+      break;
+    for (uint64_t n = 0; n < 4096; n++) {
+      const uint8_t accept = accept_text[n];
+      if (accept == 0)
+        break;
+      if (accept == value) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched)
+      break;
+  }
+  return result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strcspn(const uint8_t *text,
+    const uint8_t *reject_text)
+{
+  uint64_t result = 0;
+  for (; result < 4096; result++) {
+    const uint8_t value = text[result];
+    bool rejected = false;
+    if (value == 0)
+      break;
+    for (uint64_t n = 0; n < 4096; n++) {
+      const uint8_t reject = reject_text[n];
+      if (reject == 0)
+        break;
+      if (reject == value) {
+        rejected = true;
+        break;
+      }
+    }
+    if (rejected)
+      break;
+  }
+  return result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strpbrk(const uint8_t *text,
+    const uint8_t *accept_text)
+{
+  for (uint64_t offset = 0; offset < 4096; offset++) {
+    const uint8_t value = text[offset];
+    if (value == 0)
+      break;
+    for (uint64_t n = 0; n < 4096; n++) {
+      const uint8_t accept = accept_text[n];
+      if (accept == 0)
+        break;
+      if (accept == value)
+        return (uint64_t) (uintptr_t) (text + offset);
+    }
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_stpcpy(uint8_t *dest,
+    const uint8_t *src)
+{
+  for (uint64_t n = 0; n < 4096; n++) {
+    const uint8_t value = src[n];
+    dest[n] = value;
+    if (value == 0)
+      return (uint64_t) (uintptr_t) (dest + n);
+  }
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_stpncpy(uint8_t *dest,
+    const uint8_t *src, uint64_t max_len)
+{
+  const uint64_t count = poly_host_bound_4096(max_len);
+  bool padding = false;
+  uint8_t *result = dest + count;
+  for (uint64_t n = 0; n < count; n++) {
+    uint8_t value = 0;
+    if (!padding) {
+      value = src[n];
+      if (value == 0) {
+        padding = true;
+        result = dest + n;
+      }
+    }
+    dest[n] = value;
+  }
+  return (uint64_t) (uintptr_t) result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_mempcpy(uint8_t *dest,
+    const uint8_t *src, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  for (uint64_t n = 0; n < count; n++)
+    dest[n] = src[n];
+  return (uint64_t) (uintptr_t) (dest + count);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_rawmemchr(const uint8_t *text,
+    uint64_t needle)
+{
+  for (uint64_t n = 0; n < 4096; n++) {
+    if (text[n] == (uint8_t) needle)
+      return (uint64_t) (uintptr_t) (text + n);
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strchrnul(const uint8_t *text,
+    uint64_t needle)
+{
+  for (uint64_t n = 0; n < 4096; n++) {
+    const uint8_t value = text[n];
+    if (value == (uint8_t) needle || value == 0)
+      return (uint64_t) (uintptr_t) (text + n);
+  }
+  return (uint64_t) (uintptr_t) text;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_bcopy(const uint8_t *src,
+    uint8_t *dest, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  if (dest <= src) {
+    for (uint64_t n = 0; n < count; n++)
+      dest[n] = src[n];
+  }
+  else {
+    for (uint64_t n = count; n > 0; n--)
+      dest[n - 1] = src[n - 1];
+  }
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_bzero(uint8_t *dest, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  for (uint64_t n = 0; n < count; n++)
+    dest[n] = 0;
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memrchr(const uint8_t *text,
+    uint64_t needle, uint64_t size)
+{
+  const uint64_t count = poly_host_bound_4096(size);
+  for (uint64_t n = count; n > 0; n--) {
+    if (text[n - 1] == (uint8_t) needle)
+      return (uint64_t) (uintptr_t) (text + n - 1);
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memmem(const uint8_t *haystack,
+    uint64_t haystack_size, const uint8_t *needle, uint64_t needle_size)
+{
+  const uint64_t haystack_len = poly_host_bound_4096(haystack_size);
+  const uint64_t needle_len = poly_host_bound_4096(needle_size);
+  if (needle_len == 0)
+    return (uint64_t) (uintptr_t) haystack;
+  if (needle_len > haystack_len)
+    return 0;
+
+  for (uint64_t n = 0; n <= haystack_len - needle_len; n++) {
+    bool matched = true;
+    for (uint64_t m = 0; m < needle_len; m++) {
+      if (haystack[n + m] != needle[m]) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched)
+      return (uint64_t) (uintptr_t) (haystack + n);
+  }
+  return 0;
 }

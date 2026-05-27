@@ -606,10 +606,15 @@ The `poly_import_x86_add`, `poly_import_x86_mul`,
 `poly_import_x86_sum6`, `poly_import_x86_sum8`,
 `poly_import_x86_fp64_add`, `poly_import_x86_fp64_sum8`,
 `poly_import_x86_mixed_u64_fp64`, and `poly_import_x86_fp32_add` descriptors enter
-real x86_64 helpers through a runtime-supplied descriptor table, map the first
-six native foreign integer arguments to x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`,
-`R8`, and `R9`, place seventh and eighth integer arguments in the standard x86
-stack-argument slots when needed, reuse the shared
+real x86_64 helpers through a runtime-supplied descriptor table.  The same
+generic descriptor table is now used by `polycall` for compiler-emitted libc
+string/memory imports such as `strlen`, `memcpy`, and `memcmp`; Bochs checks a
+software-supplied descriptor before falling back to any older fixed helper ID.
+This makes those library calls runtime policy rather than CPU semantics.  The
+descriptor call gate maps the first six native foreign integer arguments to
+x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, places seventh and
+eighth integer arguments in the standard x86 stack-argument slots when needed,
+reuses the shared
 `XMM0-XMM7`/`v0-v7`/`fa0-fa7` FP register aliases for scalar FP arguments and
 returns, including an eight-double x86 SysV import that exercises every scalar
 FP argument register and a mixed integer/double import that exercises the
