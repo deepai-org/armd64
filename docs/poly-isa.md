@@ -775,7 +775,10 @@ registers, recorded trap-packet/status state, and trap-return save frame are
 keyed with the userspace poly state, so a different guest address space starts
 with no stale trap vector, no stale syscall/libcall status, no stale trap
 packet, and no stale trap-return frame.
-`nativecheck.elf` verifies this for syscall and break/libcall trap packets.
+The installed architectural trap vector has priority over the optional Bochs
+compatibility dispatcher even when `cpu.poly_compat_traps=1`; the dispatcher is
+only a fallback when no vector is installed. `nativecheck.elf` verifies this for
+syscall and break/libcall trap packets.
 
 The Bochs compatibility runtime can also handle selected breakpoint traps as
 deterministic scaffold library calls after recording the same OS-neutral

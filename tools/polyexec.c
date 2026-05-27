@@ -950,7 +950,9 @@ int main(int argc, char **argv) {
   }
 
   puts("POLYEXEC: start");
-  install_poly_trap_vector();
+  const char *trap_vector_env = getenv("POLYEXEC_TRAP_VECTOR");
+  if (trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0)
+    install_poly_trap_vector();
   for (int n = 1; n < argc; n++) {
     struct poly_request request;
     if (parse_request(argv[n], &request) < 0)

@@ -606,7 +606,7 @@ int main(void) {
       return 1;
     }
     puts("NATIVE_CPUID_POLY_PRESENT");
-    if (!compat_traps && run_poly_trap_vector_probe() != 0)
+    if (run_poly_trap_vector_probe() != 0)
       return 1;
   }
   puts("NATIVE_CHECK_OK");

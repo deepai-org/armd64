@@ -2116,6 +2116,7 @@ if [ "$RUN_POLY_APPS" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_EXEC" = "1" ]; then
+    POLYEXEC_TRAP_VECTOR=$([ "$POLY_COMPAT_TRAPS" = "1" ] && echo 0 || echo 1) \
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-add.elf=132 \
     /usr/lib/polyapps/aarch64-regadd.elf=123 \
