@@ -1434,6 +1434,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-capget.elf" 0xaa0103e2 0xaa0203e0 0x91002041 0xd2800b48 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-capset.elf" 0xaa0103e2 0xaa0203e0 0x91002041 0xd2800b68 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-personality.elf" 0x92800000 0xd2800b88 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-waitid.elf" 0xd2800be8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setpriority.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801188 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getpriority.elf" 0xd2800000 0xd2800001 0xd28011a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setpgid.elf" 0xd2800000 0xd2800001 0xd2801348 0xd4000001
@@ -1690,6 +1691,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-capget.elf" 0x00058293 0x00028513 0x00828593 0x05a00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-capset.elf" 0x00058293 0x00028513 0x00828593 0x05b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-personality.elf" 0xfff00513 0x05c00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-waitid.elf" 0x05f00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setpriority.elf" 0x00000513 0x00000593 0x00000613 0x08c00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getpriority.elf" 0x00000513 0x00000593 0x08d00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setpgid.elf" 0x00000513 0x00000593 0x09a00893 0x00000073
@@ -2037,6 +2039,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-capget.elf=0 \
     /usr/lib/polyapps/aarch64-capset.elf=0 \
     /usr/lib/polyapps/aarch64-personality.elf=0 \
+    /usr/lib/polyapps/aarch64-waitid.elf=0xfffffffffffffff6 \
     /usr/lib/polyapps/aarch64-setpriority.elf=0 \
     /usr/lib/polyapps/aarch64-getpriority.elf=20 \
     /usr/lib/polyapps/aarch64-setpgid.elf=0 \
@@ -2266,6 +2269,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-capget.elf=0 \
     /usr/lib/polyapps/riscv-capset.elf=0 \
     /usr/lib/polyapps/riscv-personality.elf=0 \
+    /usr/lib/polyapps/riscv-waitid.elf=0xfffffffffffffff6 \
     /usr/lib/polyapps/riscv-setpriority.elf=0 \
     /usr/lib/polyapps/riscv-getpriority.elf=20 \
     /usr/lib/polyapps/riscv-setpgid.elf=0 \
@@ -2762,6 +2766,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-capget.elf \
     /usr/lib/polyapps/aarch64-capset.elf \
     /usr/lib/polyapps/aarch64-personality.elf \
+    /usr/lib/polyapps/aarch64-waitid.elf \
     /usr/lib/polyapps/aarch64-setpriority.elf \
     /usr/lib/polyapps/aarch64-getpriority.elf \
     /usr/lib/polyapps/aarch64-setpgid.elf \
@@ -2991,6 +2996,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-capget.elf \
     /usr/lib/polyapps/riscv-capset.elf \
     /usr/lib/polyapps/riscv-personality.elf \
+    /usr/lib/polyapps/riscv-waitid.elf \
     /usr/lib/polyapps/riscv-setpriority.elf \
     /usr/lib/polyapps/riscv-getpriority.elf \
     /usr/lib/polyapps/riscv-setpgid.elf \
