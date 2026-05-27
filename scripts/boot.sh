@@ -47,6 +47,7 @@ NATIVE_CHECK_SRC="$ROOT_DIR/tools/nativecheck.c"
 NATIVE_CHECK_BIN="$OUT_DIR/nativecheck"
 AARCH64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/aarch64_polycall_real.c"
 RISCV64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/riscv64_polycall_real.c"
+POLYEXEC_GNU_HASH_REAL_SRC="$ROOT_DIR/tools/polyexec_gnu_hash_real.c"
 POLYCALL_STATE_SRC="$ROOT_DIR/tools/polycall_state.c"
 POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_import_real.c"
 POLYCALL_LIBC_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_libc_import_real.c"
@@ -378,6 +379,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
     "$AARCH64_POLYCALL_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-gnu-hash-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
+    "$POLYEXEC_GNU_HASH_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_STATE_SRC" \
@@ -1290,6 +1295,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
     "$RISCV64_POLYCALL_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-gnu-hash-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
+    "$POLYEXEC_GNU_HASH_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -3604,11 +3614,13 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-memcmp.elf=1 \
     /usr/lib/polyapps/riscv-memcmp.elf=1 \
     /usr/lib/polyapps/aarch64-memcpy.elf=4 \
+    /usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so#poly_entry=45 \
     /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so#poly_entry=45 \
     /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \

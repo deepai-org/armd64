@@ -95,8 +95,9 @@ Linux ABI passthrough, or equal-speed execution.
   using the same raw-mode execution path, preserving executable bytes exactly
   so RISC-V compressed 16-bit code does not have to be repacked as 32-bit
   words. It accepts explicit `foreign.elf#symbol` entries for generated
-  `ET_DYN` images and applies simple architecture-relative dynamic relocations
-  in userspace before entering raw mode. The full boot gate includes a 6-byte
+  `ET_DYN` images, resolves sectionless `DT_GNU_HASH`-only shared-object
+  entrypoints, and applies simple architecture-relative dynamic relocations in
+  userspace before entering raw mode. The full boot gate includes a 6-byte
   compressed RISC-V ELF entry segment to cover this path.
 - `tools/polycall.c` loads generated foreign ELF64 function payloads and calls
   their entrypoints through the prototype hardware ABI bridge (`PCALL`), so

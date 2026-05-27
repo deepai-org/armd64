@@ -42,6 +42,10 @@
 #define DT_RELRENT 37
 #endif
 
+#ifndef DT_GNU_HASH
+#define DT_GNU_HASH 0x6ffffef5
+#endif
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
@@ -487,13 +491,14 @@ static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes, size
 }
 
 static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
-  register uint64_t rax __asm__("rax") = (uint64_t) (uintptr_t) scratch;
-  register uint64_t rdi __asm__("rdi") = (uint64_t) (uintptr_t) scratch;
-  register uint64_t rsi __asm__("rsi") = (uint64_t) (uintptr_t) scratch;
-  asm volatile("call *%3"
-      : "+a"(rax), "+D"(rdi), "+S"(rsi)
+  uint64_t rax = (uint64_t) (uintptr_t) scratch;
+  asm volatile(
+      "movq %%rax, %%rdi\n"
+      "movq %%rax, %%rsi\n"
+      "call *%1"
+      : "+a"(rax)
       : "r"(code)
-      : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+      : "rdi", "rsi", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
   return rax;
 }
 
@@ -653,6 +658,7 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
   uint64_t strsz = 0;
   uint64_t syment = sizeof(Elf64_Sym);
   uint64_t hash_vaddr = 0;
+  uint64_t gnu_hash_vaddr = 0;
 
   for (size_t n = 0; n < dyn_count; n++) {
     switch (dyn[n].d_tag) {
@@ -661,19 +667,90 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
       case DT_STRSZ: strsz = dyn[n].d_un.d_val; break;
       case DT_SYMENT: syment = dyn[n].d_un.d_val; break;
       case DT_HASH: hash_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_GNU_HASH: gnu_hash_vaddr = dyn[n].d_un.d_ptr; break;
       default: break;
     }
   }
 
   if (!symtab_vaddr || !strtab_vaddr || !strsz ||
-      syment < sizeof(Elf64_Sym) || !hash_vaddr)
+      syment < sizeof(Elf64_Sym))
     return -1;
 
-  size_t hash_offset = 0;
-  if (elf_vaddr_to_image_offset(program, hash_vaddr, 8, &hash_offset) < 0)
+  size_t symbol_count = 0;
+  if (hash_vaddr) {
+    size_t hash_offset = 0;
+    if (elf_vaddr_to_image_offset(program, hash_vaddr, 8, &hash_offset) < 0)
+      return -1;
+    uint32_t nchain = 0;
+    memcpy(&nchain, program->code_bytes + hash_offset + 4, sizeof(nchain));
+    symbol_count = nchain;
+  }
+  else if (gnu_hash_vaddr) {
+    size_t symtab_offset = 0;
+    if (elf_vaddr_to_image_offset(program, symtab_vaddr, syment,
+          &symtab_offset) < 0)
+      return -1;
+
+    size_t hash_offset = 0;
+    if (elf_vaddr_to_image_offset(program, gnu_hash_vaddr, 16,
+          &hash_offset) < 0)
+      return -1;
+    const uint32_t *hash = (const uint32_t *) (program->code_bytes + hash_offset);
+    const uint32_t nbuckets = hash[0];
+    const uint32_t symoffset = hash[1];
+    const uint32_t bloom_size = hash[2];
+    if (nbuckets == 0 || bloom_size == 0)
+      return -1;
+
+    const uint64_t buckets_offset = (uint64_t) hash_offset + 16 +
+      (uint64_t) bloom_size * sizeof(uint64_t);
+    const uint64_t buckets_size = (uint64_t) nbuckets * sizeof(uint32_t);
+    if (buckets_offset > program->code_size ||
+        buckets_size > program->code_size - buckets_offset)
+      return -1;
+
+    const uint64_t chains_offset = buckets_offset + buckets_size;
+    if (chains_offset > program->code_size ||
+        symtab_offset > program->code_size ||
+        (program->code_size - symtab_offset) / syment < symoffset)
+      return -1;
+
+    const size_t max_symbols =
+      (program->code_size - symtab_offset) / syment;
+    const uint32_t *buckets =
+      (const uint32_t *) (program->code_bytes + buckets_offset);
+    symbol_count = symoffset;
+
+    for (uint32_t n = 0; n < nbuckets; n++) {
+      uint32_t index = buckets[n];
+      if (index == 0)
+        continue;
+      if (index < symoffset || index >= max_symbols)
+        return -1;
+
+      while (1) {
+        const uint64_t chain_offset = chains_offset +
+          (uint64_t) (index - symoffset) * sizeof(uint32_t);
+        if (chain_offset > program->code_size ||
+            sizeof(uint32_t) > program->code_size - chain_offset)
+          return -1;
+
+        const uint32_t chain =
+          *(const uint32_t *) (program->code_bytes + chain_offset);
+        if ((size_t) index + 1 > symbol_count)
+          symbol_count = (size_t) index + 1;
+        if (chain & 1)
+          break;
+        index++;
+        if (index >= max_symbols)
+          return -1;
+      }
+    }
+  }
+  else {
     return -1;
-  uint32_t symbol_count = 0;
-  memcpy(&symbol_count, program->code_bytes + hash_offset + 4, sizeof(symbol_count));
+  }
+
   if (symbol_count == 0 || symbol_count > 4096)
     return -1;
 
