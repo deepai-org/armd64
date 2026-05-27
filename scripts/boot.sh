@@ -640,6 +640,23 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolyenvplatform-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-ld-platform-path-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyenvprefer-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ABS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps/libpolyenvprefer-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyenvprefer-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_RUNPATH_PREFER_BAD_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps/libpolyenvprefer-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/polydeps' \
+    "$POLYCALL_ABS_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps" \
+    -Wl,--no-as-needed -l:libpolyenvprefer-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-ld-prefer-runpath-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyrelrunpath-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_ABS_NEEDED_DEP_REAL_SRC" \
@@ -1510,6 +1527,26 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps/riscv" \
     -Wl,--no-as-needed -l:libpolyenvplatform-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-ld-platform-path-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyenvprefer-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ABS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps/libpolyenvprefer-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyenvprefer-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_RUNPATH_PREFER_BAD_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps/libpolyenvprefer-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/polydeps' \
+    "$POLYCALL_ABS_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps" \
+    -Wl,--no-as-needed -l:libpolyenvprefer-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-ld-prefer-runpath-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolyrelrunpath-riscv.so \
@@ -3448,6 +3485,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-braced-platform-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-ld-library-path-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-ld-platform-path-real.so#poly_entry=945 \
+    /usr/lib/polyapps/aarch64-pcall-ld-prefer-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-relative-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-runpath-prefer-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-many-needed-real.so#poly_entry=4545 \
@@ -3589,6 +3627,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-braced-platform-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-ld-library-path-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-ld-platform-path-real.so#poly_entry=945 \
+    /usr/lib/polyapps/riscv-pcall-ld-prefer-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-relative-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-runpath-prefer-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-many-needed-real.so#poly_entry=4545 \
