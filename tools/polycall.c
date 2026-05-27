@@ -210,7 +210,9 @@ enum {
   POLY_IMPORT_FUNC_MALLOC = 121,
   POLY_IMPORT_FUNC_CALLOC = 122,
   POLY_IMPORT_FUNC_REALLOC = 123,
-  POLY_IMPORT_FUNC_FREE = 124
+  POLY_IMPORT_FUNC_FREE = 124,
+  POLY_IMPORT_FUNC_STRDUP = 125,
+  POLY_IMPORT_FUNC_STRNDUP = 126
 };
 
 enum {
@@ -812,6 +814,14 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "free") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FREE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strdup") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRDUP * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strndup") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRNDUP * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
