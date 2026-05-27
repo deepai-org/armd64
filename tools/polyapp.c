@@ -17,7 +17,8 @@
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
-  POLY_LIBCALL_STATUS = 0,
+  POLY_BREAK_STATUS = 0,
+  POLY_LIBCALL_STATUS = POLY_BREAK_STATUS,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   SCRATCH_SIZE = 64,
   SCRATCH_CHECK_SIZE = 16
@@ -54,7 +55,7 @@ static uint64_t polyapp_exit_result;
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
-static inline void poly_libcall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
@@ -744,16 +745,20 @@ static int load_payload(const char *path, struct payload *payload) {
         return -1;
       }
       payload->check_syscall_number = 1;
-    } else if (strncmp(line, "libcall_expected=", 17) == 0) {
-      if (parse_u64(line + 17, &payload->libcall_expected) < 0) {
-        fprintf(stderr, "POLYAPP_FAIL: bad libcall expected value in %s\n", path);
+    } else if (strncmp(line, "break_expected=", 15) == 0 ||
+               strncmp(line, "libcall_expected=", 17) == 0) {
+      const char *value = line[0] == 'b' ? line + 15 : line + 17;
+      if (parse_u64(value, &payload->libcall_expected) < 0) {
+        fprintf(stderr, "POLYAPP_FAIL: bad break expected value in %s\n", path);
         fclose(file);
         return -1;
       }
       payload->check_libcall = 1;
-    } else if (strncmp(line, "libcall_number_expected=", 24) == 0) {
-      if (parse_u64(line + 24, &payload->libcall_number_expected) < 0) {
-        fprintf(stderr, "POLYAPP_FAIL: bad libcall number expected value in %s\n", path);
+    } else if (strncmp(line, "break_number_expected=", 22) == 0 ||
+               strncmp(line, "libcall_number_expected=", 24) == 0) {
+      const char *value = line[0] == 'b' ? line + 22 : line + 24;
+      if (parse_u64(value, &payload->libcall_number_expected) < 0) {
+        fprintf(stderr, "POLYAPP_FAIL: bad break number expected value in %s\n", path);
         fclose(file);
         return -1;
       }
@@ -775,14 +780,16 @@ static int load_payload(const char *path, struct payload *payload) {
       }
       strcpy(payload->scratch_hex_expected, line + 21);
       payload->check_scratch_hex = 1;
-    } else if (strncmp(line, "libcall_id=", 11) == 0) {
-      uint64_t libcall_id = 0;
-      if (parse_u64(line + 11, &libcall_id) < 0 || libcall_id != POLY_LIBCALL_STATUS) {
-        fprintf(stderr, "POLYAPP_FAIL: unsupported libcall id in %s\n", path);
+    } else if (strncmp(line, "break_id=", 9) == 0 ||
+               strncmp(line, "libcall_id=", 11) == 0) {
+      const char *value = line[0] == 'b' ? line + 9 : line + 11;
+      uint64_t break_id = 0;
+      if (parse_u64(value, &break_id) < 0 || break_id != POLY_BREAK_STATUS) {
+        fprintf(stderr, "POLYAPP_FAIL: unsupported break id in %s\n", path);
         fclose(file);
         return -1;
       }
-      payload->libcall_id = (unsigned) libcall_id;
+      payload->libcall_id = (unsigned) break_id;
     } else if (strncmp(line, "insn=", 5) == 0) {
       uint64_t insn = 0;
       if (parse_u64(line + 5, &insn) < 0 || insn > UINT32_MAX) {
@@ -871,7 +878,7 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
     *libcall_result = 0x4c000000ULL | (raw_mode << 8);
   }
   if (payload->check_libcall_number) {
-    poly_libcall_number_status();
+    poly_break_number_status();
     *libcall_number_result = read_rax();
   }
   memcpy(scratch_result, scratch, SCRATCH_CHECK_SIZE);
@@ -944,20 +951,24 @@ int main(int argc, char **argv) {
       }
     }
     if (payload.check_libcall) {
+      printf("POLYAPP_BREAK: arch=%s id=%u value=%llu path=%s\n",
+        payload.arch_name, payload.libcall_id, (unsigned long long) libcall_result, payload.path);
       printf("POLYAPP_LIBCALL: arch=%s id=%u value=%llu path=%s\n",
         payload.arch_name, payload.libcall_id, (unsigned long long) libcall_result, payload.path);
       if (libcall_result != payload.libcall_expected) {
-        fprintf(stderr, "POLYAPP_FAIL: %s libcall expected %llu got %llu\n",
+        fprintf(stderr, "POLYAPP_FAIL: %s break expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.libcall_expected, (unsigned long long) libcall_result);
         free_payload(&payload);
         return 1;
       }
     }
     if (payload.check_libcall_number) {
+      printf("POLYAPP_BREAK_NUMBER: arch=%s value=%llu path=%s\n",
+        payload.arch_name, (unsigned long long) libcall_number_result, payload.path);
       printf("POLYAPP_LIBCALL_NUMBER: arch=%s value=%llu path=%s\n",
         payload.arch_name, (unsigned long long) libcall_number_result, payload.path);
       if (libcall_number_result != payload.libcall_number_expected) {
-        fprintf(stderr, "POLYAPP_FAIL: %s libcall number expected %llu got %llu\n",
+        fprintf(stderr, "POLYAPP_FAIL: %s break number expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.libcall_number_expected, (unsigned long long) libcall_number_result);
         free_payload(&payload);
         return 1;

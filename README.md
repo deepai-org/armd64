@@ -85,7 +85,9 @@ Linux ABI passthrough, or equal-speed execution.
   32-bit foreign instructions, and escaping back to x86_64.  The manifest path
   accepts variable-size executable segments up to 1 MiB.  It installs an x86
   architectural trap-vector handler for deterministic test syscalls/libcalls,
-  so the Bochs compatibility service is not required for this suite.
+  so the Bochs compatibility service is not required for this suite.  Breakpoint
+  trap manifests accept neutral `break_*` keys; old `libcall_*` keys are still
+  accepted for existing generated payloads.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
   using the same raw-mode execution path, preserving executable bytes exactly
   so RISC-V compressed 16-bit code does not have to be repacked as 32-bit
