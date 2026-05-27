@@ -149,6 +149,25 @@ static void child_expect_riscv_ebreak_signal(void) {
   _exit(99);
 }
 
+__attribute__((noreturn, noinline))
+static void child_expect_aarch64_import_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd29c1010\n" // movz x16,#0xe080
+    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
+    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
+    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "memory");
+  _exit(99);
+}
+
 static int expect_child_signal(const char *name, int expected_signal,
     void (*child_func)(void)) {
   pid_t child = fork();
@@ -185,6 +204,9 @@ static int run_poly_no_vector_signal_probe(void) {
   if (expect_child_signal("poly riscv ebreak no-vector", SIGTRAP,
         child_expect_riscv_ebreak_signal) != 0)
     return 1;
+  if (expect_child_signal("poly aarch64 import no-vector", SIGILL,
+        child_expect_aarch64_import_signal) != 0)
+    return 1;
 
   puts("NATIVE_POLY_NO_VECTOR_SIGNALS_OK");
   return 0;
@@ -220,7 +242,22 @@ static void poly_trap_vector_handler(void) {
     "ud2\n"
     "3:\n"
     "cmpq $2, %rax\n"
+    "je 4f\n"
+    "cmpq $3, %rax\n"
     "jne 9f\n"
+    "cmpq $3, %rbx\n"
+    "jne 9f\n"
+    "cmpq $8, %rcx\n"
+    "jne 9f\n"
+    "cmpq $0, %rsi\n"
+    "jne 9f\n"
+    "cmpq $77, %rdi\n"
+    "jne 9f\n"
+    "movq $5555, %rax\n"
+    "pxor %xmm0, %xmm0\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n"
+    "4:\n"
     "cmpq $3, %rbx\n"
     "jne 5f\n"
     "cmpq $5, %rcx\n"
@@ -608,6 +645,30 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv break status mismatch number=%llu mode=%llu\n",
       (unsigned long long) poly_break_status_number(),
       (unsigned long long) poly_break_status_mode());
+    return 1;
+  }
+
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd29c1010\n" // movz x16,#0xe080
+    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
+    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
+    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "memory");
+  result = read_rax();
+  if (result != 5555) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import trap result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_IMPORT) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly import packet reason mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
     return 1;
   }
 

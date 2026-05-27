@@ -758,17 +758,20 @@ The prototype records a unified `POLYTRAP` state before leaving raw execution:
 - Reason `0`: no trap.
 - Reason `1`: foreign syscall trap (`svc` or `ecall`).
 - Reason `2`: foreign breakpoint trap (`brk` or `ebreak`).
+- Reason `3`: unresolved descriptor-backed foreign import.
 - Mode records the raw source mode: `3` for AArch64, `4` for RISC-V.
 - Number records the syscall number register for syscall traps (`x8` for
   AArch64, `a7` for RISC-V) or the breakpoint immediate/id for breakpoint
-  traps.
+  traps. For import traps, it records the unresolved import descriptor id.
 - Selector records the raw trap selector/immediate where the instruction
   encoding provides one, for example AArch64 `svc #imm` or `brk #imm`; RISC-V
   `ecall`/`ebreak` record selector `0` because their service id comes from
-  register state.
+  register state. Import traps record selector `0`.
 - Arguments record the native foreign ABI argument registers.
-- PC records the foreign instruction address that raised the trap.
-- Resume PC records the next foreign instruction address for trap return.
+- PC records the foreign instruction address that raised the trap. For import
+  traps, it records the unresolved descriptor target address.
+- Resume PC records the next foreign instruction address for trap return. For
+  import traps, it records the native link-register return address.
 
 Bochs no longer treats Linux syscalls or libc helpers as architectural CPU
 behavior.  The deprecated `cpu.poly_compat_traps` option is retained as a
@@ -802,12 +805,12 @@ and either an explicit software-selected state key or the 8 MiB stack-region
 fallback key when the explicit key is zero.  A different guest address space
 starts with no stale trap vector, no stale syscall/break status, no stale
 trap packet, and no stale trap-return frame.
-If no vector is installed, syscall traps surface as x86 `#UD`; breakpoint traps
-surface as x86 `#BP`.  This keeps the CPU model OS-neutral: software, not the
-CPU, decides whether a trap means Linux syscall translation, a debugger
-breakpoint, a dynamic-linker binding, or something else.
+If no vector is installed, syscall and import traps surface as x86 `#UD`;
+breakpoint traps surface as x86 `#BP`.  This keeps the CPU model OS-neutral:
+software, not the CPU, decides whether a trap means Linux syscall translation,
+a debugger breakpoint, a dynamic-linker binding, or something else.
 `nativecheck.elf` verifies the corresponding guest signals: `SIGILL` for
-foreign syscall traps and `SIGTRAP` for foreign breakpoint traps.
+foreign syscall/import traps and `SIGTRAP` for foreign breakpoint traps.
 
 Breakpoint traps use the source frontend's native ABI argument registers:
 AArch64 `x0`-`x5` or RISC-V `a0`-`a5`.  Runtime helper ids, dynamic-linker
