@@ -165,7 +165,7 @@ ordinary `UD2` retains standard invalid-opcode behavior.
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
 
-- `CPUID.EAX=0x40000000`: `EAX=0x40000005`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000000`: `EAX=0x40000006`, `EBX:EDX:ECX="PolyglotCPU!"`.
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
@@ -254,6 +254,14 @@ discover the experimental hardware contract before emitting poly operations:
   trap-status opcodes.  This leaf is independent from the active XSAVE leaf so
   software can discover the packet ABI before hardware exposes the full foreign
   register component.
+- `CPUID.EAX=0x40000006`: raw-mode interrupt/resume ABI discovery.  `EAX=1`
+  is the interrupt ABI version.  `EBX=0x1f` reports flags: raw fetch is
+  CPL3-only, asynchronous entry uses a standard x86 interrupt frame, precise
+  foreign state is saved before entry, the interrupted foreign PC is precise,
+  and events are checked between raw foreign instructions.  `ECX=0x0f`
+  reports supported return paths: `IRET64`, `SYSRET`, `SYSEXIT`, and guest
+  signal return.  `EDX=0x18` is the covered raw frontend mask: AArch64 bit
+  `3` and RISC-V bit `4`.
 
 The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 
@@ -283,7 +291,8 @@ RFLAGS, RIP, XMM/YMM/ZMM, x87, PKRU, and similar state remain in their normal
 x86 architectural save locations.  Hardware must update this component before
 delivering asynchronous events from raw foreign fetch and must restore the
 recorded frontend mode/PC on `IRET`, `SYSRET`, `SYSEXIT`, or signal-return
-equivalent when returning to the interrupted user address.
+equivalent when returning to the interrupted user address.  Leaf `0x40000006`
+is the runtime-discoverable interrupt ABI for those entry and return semantics.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:

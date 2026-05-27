@@ -966,6 +966,18 @@ int main(void) {
         trap.eax, trap.ebx, trap.ecx, trap.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_interrupt =
+      poly_cpuid_expected_interrupt_leaf();
+    struct poly_cpuid_regs interrupt =
+      poly_read_cpuid(POLY_CPUID_BASE + 6, 0);
+    if (interrupt.eax != expected_interrupt.eax ||
+        interrupt.ebx != expected_interrupt.ebx ||
+        interrupt.ecx != expected_interrupt.ecx ||
+        interrupt.edx != expected_interrupt.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID interrupt leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        interrupt.eax, interrupt.ebx, interrupt.ecx, interrupt.edx);
+      return 1;
+    }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
       return 1;
