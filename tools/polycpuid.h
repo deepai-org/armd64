@@ -1,6 +1,7 @@
 #ifndef POLYCPUID_H
 #define POLYCPUID_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -87,6 +88,28 @@ enum {
   POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME = (1U << 2),
   POLY_STATE_XSAVE_FLAG_TRAP_STATE = (1U << 3),
   POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS = (1U << 4),
+  POLY_STATE_XSAVE_HEADER_OFFSET = 0x000,
+  POLY_STATE_XSAVE_HEADER_BYTES = 0x040,
+  POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
+  POLY_STATE_XSAVE_TRAP_PACKET_BYTES = 0x040,
+  POLY_STATE_XSAVE_TRAP_ARGS_OFFSET = 0x080,
+  POLY_STATE_XSAVE_TRAP_ARGS_BYTES = 0x030,
+  POLY_STATE_XSAVE_TRANSITION_OFFSET = 0x0b0,
+  POLY_STATE_XSAVE_TRANSITION_BYTES = 0x050,
+  POLY_STATE_XSAVE_AARCH64_GPR_OFFSET = 0x100,
+  POLY_STATE_XSAVE_AARCH64_GPR_BYTES = 0x100,
+  POLY_STATE_XSAVE_AARCH64_FP_OFFSET = 0x200,
+  POLY_STATE_XSAVE_AARCH64_FP_BYTES = 0x200,
+  POLY_STATE_XSAVE_AARCH64_STATUS_OFFSET = 0x400,
+  POLY_STATE_XSAVE_AARCH64_STATUS_BYTES = 0x080,
+  POLY_STATE_XSAVE_RISCV_GPR_OFFSET = 0x480,
+  POLY_STATE_XSAVE_RISCV_GPR_BYTES = 0x100,
+  POLY_STATE_XSAVE_RISCV_FP_OFFSET = 0x580,
+  POLY_STATE_XSAVE_RISCV_FP_BYTES = 0x200,
+  POLY_STATE_XSAVE_RISCV_STATUS_OFFSET = 0x780,
+  POLY_STATE_XSAVE_RISCV_STATUS_BYTES = 0x080,
+  POLY_STATE_XSAVE_RESERVED_OFFSET = 0x800,
+  POLY_STATE_XSAVE_RESERVED_BYTES = 0x800,
   POLY_TRAP_PACKET_LAYOUT_VERSION = 1,
   POLY_TRAP_PACKET_HEADER_BYTES = 64,
   POLY_TRAP_PACKET_ARG_COUNT = 6,
@@ -103,6 +126,141 @@ struct poly_cpuid_regs {
   uint32_t ecx;
   uint32_t edx;
 };
+
+struct poly_u128 {
+  uint64_t lo;
+  uint64_t hi;
+};
+
+struct poly_xsave_header {
+  uint32_t magic;
+  uint16_t layout_version;
+  uint16_t header_bytes;
+  uint32_t total_bytes;
+  uint32_t current_mode;
+  uint64_t flags;
+  uint64_t foreign_pc;
+  uint64_t foreign_tls_base;
+  uint64_t trap_vector_pc;
+  uint32_t trap_vector_mode;
+  uint32_t reserved0;
+  uint64_t reserved1;
+};
+
+struct poly_trap_packet {
+  uint32_t reason;
+  uint32_t source_mode;
+  uint64_t number;
+  uint64_t selector;
+  uint64_t trap_pc;
+  uint64_t resume_pc;
+  uint64_t flags;
+  uint64_t reserved[2];
+};
+
+struct poly_transition_frame {
+  uint64_t return_pc;
+  uint32_t caller_mode;
+  uint32_t target_mode;
+  uint16_t abi_kind;
+  uint16_t flags;
+  uint32_t reserved0;
+  uint64_t cookie;
+};
+
+struct poly_xsave_transition_area {
+  struct poly_transition_frame active;
+  uint8_t reserved[POLY_STATE_XSAVE_TRANSITION_BYTES -
+    sizeof(struct poly_transition_frame)];
+};
+
+struct poly_aarch64_status_state {
+  uint64_t nzcv;
+  uint64_t fpcr;
+  uint64_t fpsr;
+  uint64_t reservation_addr;
+  uint64_t reservation_value;
+  uint64_t reserved[11];
+};
+
+struct poly_riscv_status_state {
+  uint64_t fcsr;
+  uint64_t reservation_addr;
+  uint64_t reservation_value;
+  uint64_t reserved[13];
+};
+
+struct poly_xsave_state {
+  struct poly_xsave_header header;
+  struct poly_trap_packet trap;
+  uint64_t trap_args[POLY_TRAP_PACKET_ARG_COUNT];
+  struct poly_xsave_transition_area transition;
+  uint64_t aarch64_gpr[32];
+  struct poly_u128 aarch64_fp[32];
+  struct poly_aarch64_status_state aarch64_status;
+  uint64_t riscv_gpr[32];
+  struct poly_u128 riscv_fp[32];
+  struct poly_riscv_status_state riscv_status;
+  uint8_t reserved[POLY_STATE_XSAVE_RESERVED_BYTES];
+};
+
+#define POLY_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
+
+POLY_STATIC_ASSERT(sizeof(struct poly_u128) == 16,
+  "poly_u128 must be 16 bytes");
+POLY_STATIC_ASSERT(sizeof(struct poly_xsave_header) ==
+  POLY_STATE_XSAVE_HEADER_BYTES,
+  "poly XSAVE header size must match CPUID contract");
+POLY_STATIC_ASSERT(sizeof(struct poly_trap_packet) ==
+  POLY_STATE_XSAVE_TRAP_PACKET_BYTES,
+  "poly trap packet size must match CPUID contract");
+POLY_STATIC_ASSERT(sizeof(struct poly_transition_frame) == 32,
+  "poly transition frame must remain 32 bytes");
+POLY_STATIC_ASSERT(sizeof(struct poly_xsave_transition_area) ==
+  POLY_STATE_XSAVE_TRANSITION_BYTES,
+  "poly transition area size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_aarch64_status_state) ==
+  POLY_STATE_XSAVE_AARCH64_STATUS_BYTES,
+  "poly AArch64 status area size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_riscv_status_state) ==
+  POLY_STATE_XSAVE_RISCV_STATUS_BYTES,
+  "poly RISC-V status area size must match XSAVE layout");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, header) ==
+  POLY_STATE_XSAVE_HEADER_OFFSET,
+  "poly XSAVE header offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, trap) ==
+  POLY_STATE_XSAVE_TRAP_PACKET_OFFSET,
+  "poly trap packet offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, trap_args) ==
+  POLY_STATE_XSAVE_TRAP_ARGS_OFFSET,
+  "poly trap args offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, transition) ==
+  POLY_STATE_XSAVE_TRANSITION_OFFSET,
+  "poly transition area offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, aarch64_gpr) ==
+  POLY_STATE_XSAVE_AARCH64_GPR_OFFSET,
+  "poly AArch64 GPR offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, aarch64_fp) ==
+  POLY_STATE_XSAVE_AARCH64_FP_OFFSET,
+  "poly AArch64 FP offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, aarch64_status) ==
+  POLY_STATE_XSAVE_AARCH64_STATUS_OFFSET,
+  "poly AArch64 status offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, riscv_gpr) ==
+  POLY_STATE_XSAVE_RISCV_GPR_OFFSET,
+  "poly RISC-V GPR offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, riscv_fp) ==
+  POLY_STATE_XSAVE_RISCV_FP_OFFSET,
+  "poly RISC-V FP offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, riscv_status) ==
+  POLY_STATE_XSAVE_RISCV_STATUS_OFFSET,
+  "poly RISC-V status offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, reserved) ==
+  POLY_STATE_XSAVE_RESERVED_OFFSET,
+  "poly reserved area offset drifted");
+POLY_STATIC_ASSERT(sizeof(struct poly_xsave_state) ==
+  POLY_STATE_XSAVE_BYTES_ARCH,
+  "poly XSAVE area size must match CPUID contract");
 
 static inline struct poly_cpuid_regs poly_read_cpuid(uint32_t leaf,
     uint32_t subleaf) {
@@ -221,7 +379,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_STATE_XSAVE_COMPONENT_ARCH;
-  regs.ebx = POLY_STATE_XSAVE_BYTES_ARCH;
+  regs.ebx = (uint32_t) sizeof(struct poly_xsave_state);
   regs.ecx = POLY_STATE_XSAVE_LAYOUT_VERSION |
     (POLY_STATE_XSAVE_ALIGN_ARCH << 16);
   regs.edx = POLY_STATE_XSAVE_FLAG_XCR0_USER |
@@ -235,8 +393,9 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_trap_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_TRAP_PACKET_LAYOUT_VERSION;
-  regs.ebx = POLY_TRAP_PACKET_HEADER_BYTES;
-  regs.ecx = POLY_TRAP_PACKET_ARG_COUNT;
+  regs.ebx = (uint32_t) sizeof(struct poly_trap_packet);
+  regs.ecx = (uint32_t) (sizeof(((struct poly_xsave_state *) 0)->trap_args) /
+    sizeof(((struct poly_xsave_state *) 0)->trap_args[0]));
   regs.edx = POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY |
     POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS |
     POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE |

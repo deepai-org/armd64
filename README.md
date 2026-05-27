@@ -221,6 +221,12 @@ other x86 architectural state remain in the normal x86 save areas.  Hardware
 must not rely on CR3/FSBASE hash tables or any other hidden foreign register
 banks once this XSAVE component is active.
 
+The C layout in `tools/polycpuid.h` is the executable ABI definition for this
+component.  `struct poly_xsave_state`, `struct poly_trap_packet`, and the
+fixed 32-byte `struct poly_transition_frame` are checked with compile-time
+offset and size assertions, and the probe tools derive their expected CPUID
+state/trap sizes from those structures rather than from independent literals.
+
 Leaf `0x40000005` makes trap handling discoverable as a hardware ABI rather
 than Bochs policy.  The packet header is the `0x40`-byte region stored at
 offset `0x040` in the proposed XSAVE component: reason, source mode, trap

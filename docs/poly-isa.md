@@ -248,6 +248,13 @@ The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 | `0x780` | `0x080` | RISC-V `fcsr`, reservation metadata, and reserved expansion. |
 | `0x800` | `0x800` | Reserved, zero on save and ignored on restore until a future layout version assigns it. |
 
+`tools/polycpuid.h` defines the matching C ABI types.  The layout is guarded by
+compile-time assertions for every offset above, the total 4096-byte component
+size, the 64-byte trap packet, and the 32-byte transition frame.  Runtime probe
+expectations for leaves `0x40000004` and `0x40000005` are derived from those
+types so a future structure drift fails the build or probe instead of silently
+changing the advertised hardware contract.
+
 This component contains only polyglot-extension state.  Existing x86 GPR,
 RFLAGS, RIP, XMM/YMM/ZMM, x87, PKRU, and similar state remain in their normal
 x86 architectural save locations.  Hardware must update this component before
