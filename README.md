@@ -648,11 +648,16 @@ libgcc 128-bit div/mod helpers `__udivti3`, `__umodti3`, `__divti3`, and
 `__clzdi2`, `__ctzdi2`, `__paritydi2`, and
 `__popcountdi2`, plus 16-byte libatomic helpers
 `__atomic_compare_exchange_16`, `__atomic_load_16`, and
-`__atomic_store_16`.  For `poly_import_add`/`poly_import_mul`,
+`__atomic_store_16`, and quad-precision libgcc helpers `__addtf3`,
+`__subtf3`, `__multf3`, `__divtf3`, `__floatunditf`, `__fixunstfdi`,
+`__floatditf`, `__floatsitf`, `__floatunsitf`, `__fixtfdi`, `__fixtfsi`,
+`__fixunstfsi`, `__eqtf2`, `__lttf2`, `__letf2`, `__gttf2`, `__getf2`,
+`__netf2`, `__unordtf2`, `__extendsftf2`, `__extenddftf2`,
+`__trunctfsf2`, and `__trunctfdf2`.  For `poly_import_add`/`poly_import_mul`,
 `poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory
 helpers, the OS-sensitive environment/allocation/teardown/process-query class,
-these scalar libgcc helpers, and these 16-byte libatomic helpers, a
-software-supplied descriptor is now
+these scalar libgcc helpers, these 16-byte libatomic helpers, and these
+quad-precision libgcc helpers, a software-supplied descriptor is now
 required; Bochs no longer synthesizes a fixed CPU fallback result.
 This makes those library and process-query calls runtime policy rather than CPU semantics. The
 descriptor call gate maps the first six native foreign integer arguments to

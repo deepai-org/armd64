@@ -241,6 +241,153 @@ uint64_t POLY_HOST_HELPER poly_host_x86_popcountdi2(uint64_t value)
   return count;
 }
 
+__float128 POLY_HOST_HELPER poly_host_x86_addtf3(__float128 left,
+    __float128 right)
+{
+  return left + right;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_subtf3(__float128 left,
+    __float128 right)
+{
+  return left - right;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_multf3(__float128 left,
+    __float128 right)
+{
+  return left * right;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_divtf3(__float128 left,
+    __float128 right)
+{
+  return left / right;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_floatunditf(uint64_t source)
+{
+  return (__float128) source;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_fixunstfdi(__float128 source)
+{
+  return (uint64_t) source;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_floatditf(int64_t source)
+{
+  return (__float128) source;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_floatsitf(int64_t source)
+{
+  return (__float128) (int32_t) source;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_floatunsitf(uint64_t source)
+{
+  return (__float128) (uint32_t) source;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_fixtfdi(__float128 source)
+{
+  return (uint64_t) (int64_t) source;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_fixtfsi(__float128 source)
+{
+  return (uint64_t) (int64_t) (int32_t) source;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_fixunstfsi(__float128 source)
+{
+  return (uint64_t) (uint32_t) source;
+}
+
+static uint64_t poly_host_x86_tf_compare(__float128 left, __float128 right,
+    uint64_t import_kind)
+{
+  const int unordered = (left != left) || (right != right);
+  if (import_kind == 102)
+    return unordered ? 1 : 0;
+  if (unordered) {
+    if (import_kind == 92 || import_kind == 101 ||
+        import_kind == 93 || import_kind == 94)
+      return 1;
+    return (uint64_t) -1;
+  }
+  if (import_kind == 92 || import_kind == 101)
+    return left == right ? 0 : 1;
+  if (left < right)
+    return (uint64_t) -1;
+  if (left > right)
+    return 1;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_eqtf2(__float128 left,
+    __float128 right)
+{
+  return poly_host_x86_tf_compare(left, right, 92);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_lttf2(__float128 left,
+    __float128 right)
+{
+  return poly_host_x86_tf_compare(left, right, 93);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_letf2(__float128 left,
+    __float128 right)
+{
+  return poly_host_x86_tf_compare(left, right, 94);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_gttf2(__float128 left,
+    __float128 right)
+{
+  return poly_host_x86_tf_compare(left, right, 95);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_getf2(__float128 left,
+    __float128 right)
+{
+  return poly_host_x86_tf_compare(left, right, 96);
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_extendsftf2(float source)
+{
+  return (__float128) source;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_extenddftf2(double source)
+{
+  return (__float128) source;
+}
+
+float POLY_HOST_HELPER poly_host_x86_trunctfsf2(__float128 source)
+{
+  return (float) source;
+}
+
+double POLY_HOST_HELPER poly_host_x86_trunctfdf2(__float128 source)
+{
+  return (double) source;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_netf2(__float128 left,
+    __float128 right)
+{
+  return poly_host_x86_tf_compare(left, right, 101);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_unordtf2(__float128 left,
+    __float128 right)
+{
+  return poly_host_x86_tf_compare(left, right, 102);
+}
+
 static uint64_t poly_host_bound_4096(uint64_t count)
 {
   return count < 4096 ? count : 4096;

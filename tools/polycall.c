@@ -434,6 +434,29 @@ extern uint64_t poly_host_x86_clzdi2(uint64_t value);
 extern uint64_t poly_host_x86_ctzdi2(uint64_t value);
 extern uint64_t poly_host_x86_paritydi2(uint64_t value);
 extern uint64_t poly_host_x86_popcountdi2(uint64_t value);
+extern __float128 poly_host_x86_addtf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_subtf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_multf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_divtf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_floatunditf(uint64_t source);
+extern uint64_t poly_host_x86_fixunstfdi(__float128 source);
+extern __float128 poly_host_x86_floatditf(int64_t source);
+extern __float128 poly_host_x86_floatsitf(int64_t source);
+extern __float128 poly_host_x86_floatunsitf(uint64_t source);
+extern uint64_t poly_host_x86_fixtfdi(__float128 source);
+extern uint64_t poly_host_x86_fixtfsi(__float128 source);
+extern uint64_t poly_host_x86_fixunstfsi(__float128 source);
+extern uint64_t poly_host_x86_eqtf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_lttf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_letf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_gttf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_getf2(__float128 left, __float128 right);
+extern __float128 poly_host_x86_extendsftf2(float source);
+extern __float128 poly_host_x86_extenddftf2(double source);
+extern float poly_host_x86_trunctfsf2(__float128 source);
+extern double poly_host_x86_trunctfdf2(__float128 source);
+extern uint64_t poly_host_x86_netf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_unordtf2(__float128 left, __float128 right);
 
 static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
   static const char *const names[] = {
@@ -455,7 +478,13 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "__fixsfti", "__fixunssfti", "__floattisf", "__floatuntisf",
     "__atomic_compare_exchange_16", "__atomic_load_16",
     "__atomic_store_16",
-    "__clzdi2", "__ctzdi2", "__paritydi2", "__popcountdi2"
+    "__clzdi2", "__ctzdi2", "__paritydi2", "__popcountdi2",
+    "__addtf3", "__subtf3", "__multf3", "__divtf3",
+    "__floatunditf", "__fixunstfdi", "__floatditf", "__floatsitf",
+    "__fixtfdi", "__eqtf2", "__lttf2", "__letf2", "__gttf2",
+    "__getf2", "__extendsftf2", "__extenddftf2", "__trunctfsf2",
+    "__trunctfdf2", "__netf2", "__unordtf2", "__floatunsitf",
+    "__fixtfsi", "__fixunstfsi"
   };
 
   for (size_t n = 0; n < sizeof(names) / sizeof(names[0]); n++) {
@@ -642,6 +671,52 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_x86_paritydi2;
     case POLY_IMPORT_FUNC_POPCOUNTDI2:
       return (uint64_t) (uintptr_t) poly_host_x86_popcountdi2;
+    case POLY_IMPORT_FUNC_ADDTF3:
+      return (uint64_t) (uintptr_t) poly_host_x86_addtf3;
+    case POLY_IMPORT_FUNC_SUBTF3:
+      return (uint64_t) (uintptr_t) poly_host_x86_subtf3;
+    case POLY_IMPORT_FUNC_MULTF3:
+      return (uint64_t) (uintptr_t) poly_host_x86_multf3;
+    case POLY_IMPORT_FUNC_DIVTF3:
+      return (uint64_t) (uintptr_t) poly_host_x86_divtf3;
+    case POLY_IMPORT_FUNC_FLOATUNDITF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floatunditf;
+    case POLY_IMPORT_FUNC_FIXUNSTFDI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixunstfdi;
+    case POLY_IMPORT_FUNC_FLOATDITF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floatditf;
+    case POLY_IMPORT_FUNC_FLOATSITF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floatsitf;
+    case POLY_IMPORT_FUNC_FIXTFDI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixtfdi;
+    case POLY_IMPORT_FUNC_EQTF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_eqtf2;
+    case POLY_IMPORT_FUNC_LTTF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_lttf2;
+    case POLY_IMPORT_FUNC_LETF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_letf2;
+    case POLY_IMPORT_FUNC_GTTF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_gttf2;
+    case POLY_IMPORT_FUNC_GETF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_getf2;
+    case POLY_IMPORT_FUNC_EXTENDSFTF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_extendsftf2;
+    case POLY_IMPORT_FUNC_EXTENDDFTF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_extenddftf2;
+    case POLY_IMPORT_FUNC_TRUNCTFSF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_trunctfsf2;
+    case POLY_IMPORT_FUNC_TRUNCTFDF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_trunctfdf2;
+    case POLY_IMPORT_FUNC_NETF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_netf2;
+    case POLY_IMPORT_FUNC_UNORDTF2:
+      return (uint64_t) (uintptr_t) poly_host_x86_unordtf2;
+    case POLY_IMPORT_FUNC_FLOATUNSITF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floatunsitf;
+    case POLY_IMPORT_FUNC_FIXTFSI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixtfsi;
+    case POLY_IMPORT_FUNC_FIXUNSTFSI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixunstfsi;
     default:
       return 0;
   }
