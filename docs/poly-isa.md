@@ -802,6 +802,8 @@ as x86 `#UD`; breakpoint traps surface as x86 `#BP`.  This keeps the CPU model
 OS-neutral: software, not the CPU, decides whether a trap means Linux syscall
 translation, a debugger breakpoint, a dynamic-linker binding, or something
 else.
+`nativecheck.elf` verifies the corresponding guest signals: `SIGILL` for
+foreign syscall traps and `SIGTRAP` for foreign breakpoint traps.
 
 The Bochs compatibility runtime can also handle selected breakpoint traps as
 deterministic scaffold library calls after recording the same OS-neutral

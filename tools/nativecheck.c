@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -91,6 +92,102 @@ static inline uint64_t poly_libcall_status_mode(void) {
   uint64_t value;
   asm volatile(POLY_OP_LIBCALL_STATUS_MODE : "=a"(value) :: "memory");
   return value;
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_aarch64_svc_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_ecall_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_aarch64_brk_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd42000a0\n" // brk #5
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_ebreak_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00500893\n" // addi a7,zero,5
+    ".long 0x00100073\n" // ebreak
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
+  _exit(99);
+}
+
+static int expect_child_signal(const char *name, int expected_signal,
+    void (*child_func)(void)) {
+  pid_t child = fork();
+  if (child < 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: %s fork failed\n", name);
+    return 1;
+  }
+  if (child == 0)
+    child_func();
+
+  int status = 0;
+  if (waitpid(child, &status, 0) != child) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: %s wait failed\n", name);
+    return 1;
+  }
+  if (!WIFSIGNALED(status) || WTERMSIG(status) != expected_signal) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: %s expected signal %d status=0x%x\n",
+      name, expected_signal, status);
+    return 1;
+  }
+  return 0;
+}
+
+static int run_poly_no_vector_signal_probe(void) {
+  if (expect_child_signal("poly aarch64 svc no-vector", SIGILL,
+        child_expect_aarch64_svc_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv ecall no-vector", SIGILL,
+        child_expect_riscv_ecall_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly aarch64 brk no-vector", SIGTRAP,
+        child_expect_aarch64_brk_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv ebreak no-vector", SIGTRAP,
+        child_expect_riscv_ebreak_signal) != 0)
+    return 1;
+
+  puts("NATIVE_POLY_NO_VECTOR_SIGNALS_OK");
+  return 0;
 }
 
 __attribute__((naked, noinline, used))
@@ -718,6 +815,8 @@ int main(void) {
     }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
+      return 1;
+    if (!compat_traps && run_poly_no_vector_signal_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;
