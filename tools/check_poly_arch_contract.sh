@@ -172,6 +172,12 @@ assert_contains "symbol_is_dependency_export" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must filter dependency exports by ELF binding and visibility"
 assert_contains "ELF64_ST_VISIBILITY" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must inspect ELF symbol visibility"
+assert_contains "pcall-root-export-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover dependency relocations bound to root exports"
+assert_contains "RELOC_BASE_ROOT_LOAD_BIAS" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must have a relocation base for root-object exports"
+assert_contains "resolve_root_symbol" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must resolve dependency relocations against root exports"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

@@ -69,6 +69,8 @@ POLYCALL_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_dep_real.c"
 POLYCALL_NEEDED_OVERRIDE_REAL_SRC="$ROOT_DIR/tools/polycall_needed_override_real.c"
 POLYCALL_NEEDED_EXTRA_REAL_SRC="$ROOT_DIR/tools/polycall_needed_extra_real.c"
 POLYCALL_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_main_real.c"
+POLYCALL_ROOT_EXPORT_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_root_export_dep_real.c"
+POLYCALL_ROOT_EXPORT_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_root_export_main_real.c"
 POLYCALL_NEEDED_TLS_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_dep_real.c"
 POLYCALL_NEEDED_TLS_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_main_real.c"
 POLYCALL_NEEDED_TLS_EXTERNAL_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_external_main_real.c"
@@ -478,6 +480,17 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolyneeded-extra-a-aarch64.so \
     -Wl,--no-as-needed -l:libpolyneeded-extra-b-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-needed-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyrootdep-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_ROOT_EXPORT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyrootdep-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ROOT_EXPORT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyrootdep-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-root-export-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyneededtls-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -1090,6 +1103,19 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolyneeded-extra-a-riscv.so \
     -Wl,--no-as-needed -l:libpolyneeded-extra-b-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-needed-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyrootdep-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_ROOT_EXPORT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyrootdep-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ROOT_EXPORT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyrootdep-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-root-export-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolyneededtls-riscv.so -Wl,--hash-style=sysv \
@@ -2906,6 +2932,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-process-real.so#poly_entry=16771 \
     /usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=103 \
+    /usr/lib/polyapps/aarch64-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/aarch64-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/aarch64-pcall-needed-tls-external-real.so#poly_entry=1045 \
     /usr/lib/polyapps/aarch64-pcall-versioned-real.so#poly_entry=1045 \
@@ -3028,6 +3055,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-process-real.so#poly_entry=16771 \
     /usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=103 \
+    /usr/lib/polyapps/riscv-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/riscv-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/riscv-pcall-needed-tls-external-real.so#poly_entry=1045 \
     /usr/lib/polyapps/riscv-pcall-versioned-real.so#poly_entry=1045 \

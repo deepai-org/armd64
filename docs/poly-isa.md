@@ -507,7 +507,12 @@ objects (`aarch64-pcall-ifunc-real.so#poly_entry` and
 `riscv-pcall-ifunc-real.so#poly_entry`), compiler-produced `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 `libpolyneeded-aarch64.so`, and `riscv-pcall-needed-real.so#poly_entry` with
-`libpolyneeded-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
+`libpolyneeded-riscv.so`), compiler-produced dependency-to-root export pairs
+where a needed DSO binds an undefined relocation back to the root loaded object
+(`aarch64-pcall-root-export-real.so#poly_entry` with
+`libpolyrootdep-aarch64.so`, and
+`riscv-pcall-root-export-real.so#poly_entry` with
+`libpolyrootdep-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
 (`aarch64-pcall-needed-tls-real.so#poly_entry` with
 `libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
 with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
@@ -823,6 +828,9 @@ unversioned requests preferring default exports and explicit version requests
 requiring both the matching dependency version definition and the matching
 `DT_VERNEED` provider filename/SONAME. Non-exported dependency symbols are not
 eligible for external binding even if they appear in dynamic symbol metadata.
+Undefined relocations in dependencies may also bind to exportable symbols in
+the root loaded foreign object, matching common callback/hook patterns in
+ordinary dynamic linking.
 Weak undefined foreign relocations first try the loaded dependency scope and
 only resolve to zero when no dependency exports the requested symbol.
 When multiple dependency libraries export the same function/object symbol, the

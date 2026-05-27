@@ -127,6 +127,7 @@ enum {
   RELOC_BASE_IMPORT_CALL = 3,
   RELOC_BASE_IRELATIVE = 4,
   RELOC_BASE_TLS_OFFSET = 5,
+  RELOC_BASE_ROOT_LOAD_BIAS = 6,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
@@ -428,6 +429,7 @@ struct poly_program {
   size_t fini_count;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
+  struct poly_symbol_table root_dynsym;
   struct poly_dependency deps[MAX_NEEDED_DEPS];
   size_t dep_count;
   size_t direct_dep_count;
@@ -2742,6 +2744,7 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
 
   memcpy(dep_view.deps, owner->deps, sizeof(dep_view.deps));
   dep_view.dep_count = owner->dep_count;
+  dep_view.root_dynsym = owner->root_dynsym;
   dep_view.needs_x86_import = owner->needs_x86_import;
   if (load_dynamic_relocs(&dep_view, data, size, ehdr, dynamic,
         dynamic_count) < 0) {
@@ -3023,6 +3026,33 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
   return resolve_symbol_from_table(&table, symbol_name, symbol_vaddr);
 }
 
+static int resolve_root_symbol(const struct poly_program *program,
+    const char *symbol_name,
+    const struct poly_version_requirement *required_version,
+    uint64_t *symbol_value, int *base_kind) {
+  const struct poly_symbol_table *table = &program->root_dynsym;
+  if (!table->symbols || !table->strings || !symbol_name ||
+      (required_version && required_version->filename))
+    return -1;
+
+  for (size_t s = 0; s < table->symbol_count; s++) {
+    const Elf64_Sym *sym = &table->symbols[s];
+    const unsigned type = ELF64_ST_TYPE(sym->st_info);
+    if (sym->st_name >= table->strings_size ||
+        sym->st_shndx == SHN_UNDEF ||
+        !symbol_is_dependency_export(sym) ||
+        (type != STT_FUNC && type != STT_NOTYPE && type != STT_OBJECT) ||
+        strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
+        !symbol_export_version_matches(table, s,
+          required_version ? required_version->name : NULL))
+      continue;
+    *symbol_value = sym->st_value;
+    *base_kind = RELOC_BASE_ROOT_LOAD_BIAS;
+    return 0;
+  }
+  return -1;
+}
+
 static int resolve_dependency_symbol(const struct poly_program *program,
     const char *symbol_name,
     const struct poly_version_requirement *required_version,
@@ -3161,6 +3191,10 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     const char *symbol_name,
     const struct poly_version_requirement *required_version,
     uint64_t *symbol_value, int *base_kind) {
+  if (resolve_root_symbol(program, symbol_name, required_version,
+        symbol_value, base_kind) == 0)
+    return 0;
+
   if (resolve_dependency_symbol(program, symbol_name, required_version,
         symbol_value,
         base_kind) == 0)
@@ -4005,6 +4039,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
     const Elf64_Dyn *dynamic =
       (const Elf64_Dyn *) (program->image + dynamic_offset);
     const size_t dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
+    (void) load_dynsym_from_dynamic(program, dynamic, dynamic_count,
+      &program->root_dynsym);
     if (load_needed_dependencies(program, dynamic, dynamic_count) < 0 ||
         load_dynamic_relocs(program, data, size, ehdr, dynamic,
           dynamic_count) < 0) {
@@ -4544,6 +4580,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   }
   memcpy(foreign, program->image, program->image_size);
+  const uint64_t root_load_bias =
+    (uint64_t) (uintptr_t) foreign - program->base_vaddr;
   for (size_t n = 0; n < program->dep_count; n++) {
     dep_sizes[n] = program->deps[n].image_size;
     dep_foreign[n] = mmap(NULL, dep_sizes[n], PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -4619,6 +4657,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = 0;
       else if (dep->relocs[r].base_kind == RELOC_BASE_LOAD_BIAS)
         reloc_base = dep_load_bias[d];
+      else if (dep->relocs[r].base_kind == RELOC_BASE_ROOT_LOAD_BIAS)
+        reloc_base = root_load_bias;
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_PAGE)
         reloc_base = (uint64_t) (uintptr_t) import_page;
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_CALL)
@@ -4729,7 +4769,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     write_le64(code + tls_imm_offset, 0);
   }
   write_le64(code + heap_imm_offset, (uint64_t) (uintptr_t) import_page);
-  const uint64_t load_bias = (uint64_t) (uintptr_t) foreign - program->base_vaddr;
+  const uint64_t load_bias = root_load_bias;
   for (size_t n = 0; n < program->reloc_count; n++) {
     if (reloc_base_is_resolver(program->relocs[n].base_kind))
       continue;
