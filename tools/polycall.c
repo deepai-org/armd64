@@ -381,6 +381,29 @@ extern uint64_t poly_host_x86_strchrnul(const uint8_t *text, uint64_t needle);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
+extern uint64_t poly_host_x86_errno_location(void);
+extern uint64_t poly_host_x86_getauxval(uint64_t type);
+extern uint64_t poly_host_x86_getpagesize(void);
+extern uint64_t poly_host_x86_sysconf(uint64_t name);
+extern uint64_t poly_host_x86_getenv(const char *name);
+extern uint64_t poly_host_x86_malloc(uint64_t size);
+extern uint64_t poly_host_x86_calloc(uint64_t count, uint64_t size);
+extern uint64_t poly_host_x86_realloc(uint8_t *old_ptr, uint64_t size);
+extern uint64_t poly_host_x86_free(void *ptr);
+extern uint64_t poly_host_x86_strdup(const uint8_t *src);
+extern uint64_t poly_host_x86_strndup(const uint8_t *src, uint64_t max_len);
+extern uint64_t poly_host_x86_posix_memalign(uint64_t *out,
+    uint64_t alignment, uint64_t size);
+extern uint64_t poly_host_x86_aligned_alloc(uint64_t alignment, uint64_t size);
+extern uint64_t poly_host_x86_memalign(uint64_t alignment, uint64_t size);
+extern uint64_t poly_host_x86_atexit(void *callback);
+extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
+    void *dso_handle);
+extern uint64_t poly_host_x86_cxa_finalize(void *dso_handle);
+extern uint64_t poly_host_x86_getpid(void);
+extern uint64_t poly_host_x86_getppid(void);
+extern uint64_t poly_host_x86_getuid(void);
+extern uint64_t poly_host_x86_gettid(void);
 
 static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
   static const char *const names[] = {
@@ -389,7 +412,12 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "memrchr", "memmem", "strchr", "index", "strrchr", "rindex",
     "strstr", "strcpy", "strncpy", "strnlen", "strcat", "strncat",
     "strspn", "strcspn", "strpbrk", "stpcpy", "stpncpy", "mempcpy",
-    "rawmemchr", "strchrnul", "bcmp", "bcopy", "bzero"
+    "rawmemchr", "strchrnul", "bcmp", "bcopy", "bzero",
+    "__errno_location", "getauxval", "getpagesize", "sysconf", "getenv",
+    "secure_getenv", "malloc", "calloc", "realloc", "free", "strdup",
+    "strndup", "posix_memalign", "aligned_alloc", "memalign", "atexit",
+    "__cxa_atexit", "__cxa_finalize", "getpid", "getppid", "getuid",
+    "geteuid", "getgid", "getegid", "gettid"
   };
 
   for (size_t n = 0; n < sizeof(names) / sizeof(names[0]); n++) {
@@ -482,6 +510,52 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_x86_bcopy;
     case POLY_IMPORT_FUNC_BZERO:
       return (uint64_t) (uintptr_t) poly_host_x86_bzero;
+    case POLY_IMPORT_FUNC_ERRNO_LOCATION:
+      return (uint64_t) (uintptr_t) poly_host_x86_errno_location;
+    case POLY_IMPORT_FUNC_GETAUXVAL:
+      return (uint64_t) (uintptr_t) poly_host_x86_getauxval;
+    case POLY_IMPORT_FUNC_GETPAGESIZE:
+      return (uint64_t) (uintptr_t) poly_host_x86_getpagesize;
+    case POLY_IMPORT_FUNC_SYSCONF:
+      return (uint64_t) (uintptr_t) poly_host_x86_sysconf;
+    case POLY_IMPORT_FUNC_GETENV:
+    case POLY_IMPORT_FUNC_SECURE_GETENV:
+      return (uint64_t) (uintptr_t) poly_host_x86_getenv;
+    case POLY_IMPORT_FUNC_MALLOC:
+      return (uint64_t) (uintptr_t) poly_host_x86_malloc;
+    case POLY_IMPORT_FUNC_CALLOC:
+      return (uint64_t) (uintptr_t) poly_host_x86_calloc;
+    case POLY_IMPORT_FUNC_REALLOC:
+      return (uint64_t) (uintptr_t) poly_host_x86_realloc;
+    case POLY_IMPORT_FUNC_FREE:
+      return (uint64_t) (uintptr_t) poly_host_x86_free;
+    case POLY_IMPORT_FUNC_STRDUP:
+      return (uint64_t) (uintptr_t) poly_host_x86_strdup;
+    case POLY_IMPORT_FUNC_STRNDUP:
+      return (uint64_t) (uintptr_t) poly_host_x86_strndup;
+    case POLY_IMPORT_FUNC_POSIX_MEMALIGN:
+      return (uint64_t) (uintptr_t) poly_host_x86_posix_memalign;
+    case POLY_IMPORT_FUNC_ALIGNED_ALLOC:
+      return (uint64_t) (uintptr_t) poly_host_x86_aligned_alloc;
+    case POLY_IMPORT_FUNC_MEMALIGN:
+      return (uint64_t) (uintptr_t) poly_host_x86_memalign;
+    case POLY_IMPORT_FUNC_ATEXIT:
+      return (uint64_t) (uintptr_t) poly_host_x86_atexit;
+    case POLY_IMPORT_FUNC_CXA_ATEXIT:
+      return (uint64_t) (uintptr_t) poly_host_x86_cxa_atexit;
+    case POLY_IMPORT_FUNC_CXA_FINALIZE:
+      return (uint64_t) (uintptr_t) poly_host_x86_cxa_finalize;
+    case POLY_IMPORT_FUNC_GETPID:
+      return (uint64_t) (uintptr_t) poly_host_x86_getpid;
+    case POLY_IMPORT_FUNC_GETPPID:
+      return (uint64_t) (uintptr_t) poly_host_x86_getppid;
+    case POLY_IMPORT_FUNC_GETUID:
+    case POLY_IMPORT_FUNC_GETEUID:
+    case POLY_IMPORT_FUNC_GETGID:
+    case POLY_IMPORT_FUNC_GETEGID:
+      return (uint64_t) (uintptr_t) poly_host_x86_getuid;
+    case POLY_IMPORT_FUNC_GETTID:
+      return (uint64_t) (uintptr_t) poly_host_x86_gettid;
     default:
       return 0;
   }

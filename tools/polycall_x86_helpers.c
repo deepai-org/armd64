@@ -8,6 +8,13 @@
 #endif
 
 static volatile uint64_t poly_host_x86_zero;
+static int poly_host_errno_value;
+static uint8_t poly_host_heap[64 * 1024];
+static uint64_t poly_host_heap_cursor;
+
+enum {
+  POLY_HOST_HEAP_HEADER_SIZE = 16
+};
 
 uint64_t POLY_HOST_HELPER poly_host_x86_add(uint64_t a, uint64_t b)
 {
@@ -72,6 +79,190 @@ static unsigned char poly_host_ascii_lower(unsigned char value)
   return value;
 }
 
+static uint64_t poly_host_align_up(uint64_t value, uint64_t alignment)
+{
+  return (value + alignment - 1) & ~(alignment - 1);
+}
+
+static void *poly_host_alloc_aligned(uint64_t size, uint64_t alignment)
+{
+  if (alignment < 8)
+    alignment = 8;
+  if ((alignment & (alignment - 1)) != 0)
+    return 0;
+
+  const uint64_t base = (uint64_t) (uintptr_t) poly_host_heap;
+  const uint64_t min_raw = poly_host_heap_cursor +
+    POLY_HOST_HEAP_HEADER_SIZE;
+  if (min_raw < poly_host_heap_cursor || min_raw > sizeof(poly_host_heap))
+    return 0;
+  if (base > UINT64_MAX - min_raw)
+    return 0;
+  const uint64_t absolute = base + min_raw;
+  if (absolute > UINT64_MAX - (alignment - 1))
+    return 0;
+
+  const uint64_t aligned = poly_host_align_up(absolute, alignment);
+  if (aligned < base)
+    return 0;
+  const uint64_t raw = aligned - base;
+  if (raw < POLY_HOST_HEAP_HEADER_SIZE)
+    return 0;
+  const uint64_t header = raw - POLY_HOST_HEAP_HEADER_SIZE;
+  if (size > sizeof(poly_host_heap) || raw > sizeof(poly_host_heap) - size)
+    return 0;
+
+  poly_host_heap_cursor = raw + size;
+  *((uint64_t *) (void *) (poly_host_heap + header)) = size;
+  *((uint64_t *) (void *) (poly_host_heap + header + 8)) = raw;
+  return poly_host_heap + raw;
+}
+
+static uint64_t poly_host_alloc_size(const void *ptr)
+{
+  const uint8_t *bytes = (const uint8_t *) ptr;
+  if (bytes < poly_host_heap + POLY_HOST_HEAP_HEADER_SIZE ||
+      bytes >= poly_host_heap + sizeof(poly_host_heap))
+    return 0;
+  return *((const uint64_t *) (const void *) (bytes -
+    POLY_HOST_HEAP_HEADER_SIZE));
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_errno_location(void)
+{
+  return (uint64_t) (uintptr_t) &poly_host_errno_value;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
+{
+  (void) type;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_getpagesize(void)
+{
+  return 4096;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_sysconf(uint64_t name)
+{
+  return name == 30 ? 4096 : (uint64_t) -1;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_getenv(const char *name)
+{
+  (void) name;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_malloc(uint64_t size)
+{
+  return (uint64_t) (uintptr_t) poly_host_alloc_aligned(size, 8);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_calloc(uint64_t count, uint64_t size)
+{
+  if (count != 0 && size > UINT64_MAX / count)
+    return 0;
+  const uint64_t total = count * size;
+  uint8_t *ptr = (uint8_t *) poly_host_alloc_aligned(total, 8);
+  for (uint64_t n = 0; ptr != 0 && n < total; n++)
+    ptr[n] = 0;
+  return (uint64_t) (uintptr_t) ptr;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_realloc(uint8_t *old_ptr,
+    uint64_t size)
+{
+  if (old_ptr == 0)
+    return poly_host_x86_malloc(size);
+  if (size == 0)
+    return 0;
+
+  uint8_t *new_ptr = (uint8_t *) poly_host_alloc_aligned(size, 8);
+  const uint64_t old_size = poly_host_alloc_size(old_ptr);
+  const uint64_t copy_size = old_size < size ? old_size : size;
+  for (uint64_t n = 0; new_ptr != 0 && n < copy_size; n++)
+    new_ptr[n] = old_ptr[n];
+  return (uint64_t) (uintptr_t) new_ptr;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_free(void *ptr)
+{
+  (void) ptr;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_posix_memalign(uint64_t *out,
+    uint64_t alignment, uint64_t size)
+{
+  if (alignment < 8 || (alignment & (alignment - 1)) != 0)
+    return 22;
+  void *ptr = poly_host_alloc_aligned(size, alignment);
+  if (ptr == 0)
+    return 12;
+  *out = (uint64_t) (uintptr_t) ptr;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_aligned_alloc(uint64_t alignment,
+    uint64_t size)
+{
+  if (alignment == 0 || (alignment & (alignment - 1)) != 0 ||
+      size % alignment != 0)
+    return 0;
+  return (uint64_t) (uintptr_t) poly_host_alloc_aligned(size, alignment);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_memalign(uint64_t alignment,
+    uint64_t size)
+{
+  if (alignment == 0 || (alignment & (alignment - 1)) != 0)
+    return 0;
+  return (uint64_t) (uintptr_t) poly_host_alloc_aligned(size, alignment);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)
+{
+  (void) callback;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_cxa_atexit(void *callback, void *arg,
+    void *dso_handle)
+{
+  (void) callback;
+  (void) arg;
+  (void) dso_handle;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_cxa_finalize(void *dso_handle)
+{
+  (void) dso_handle;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_getpid(void)
+{
+  return 4242;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_getppid(void)
+{
+  return 4241;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_getuid(void)
+{
+  return 1000;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_gettid(void)
+{
+  return 4243;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
 {
   uint64_t result = 0;
@@ -88,6 +279,34 @@ uint64_t POLY_HOST_HELPER poly_host_x86_strnlen(const char *text,
   while (result < count && text[result] != 0)
     result++;
   return result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strdup(const uint8_t *src)
+{
+  uint64_t len = 0;
+  while (len < 4096 && src[len] != 0)
+    len++;
+  if (len == 4096)
+    return 0;
+  uint8_t *dest = (uint8_t *) poly_host_alloc_aligned(len + 1, 8);
+  for (uint64_t n = 0; dest != 0 && n <= len; n++)
+    dest[n] = src[n];
+  return (uint64_t) (uintptr_t) dest;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strndup(const uint8_t *src,
+    uint64_t max_len)
+{
+  const uint64_t limit = poly_host_bound_4096(max_len);
+  uint64_t len = 0;
+  while (len < limit && src[len] != 0)
+    len++;
+  uint8_t *dest = (uint8_t *) poly_host_alloc_aligned(len + 1, 8);
+  for (uint64_t n = 0; dest != 0 && n < len; n++)
+    dest[n] = src[n];
+  if (dest != 0)
+    dest[len] = 0;
+  return (uint64_t) (uintptr_t) dest;
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_strcmp(const unsigned char *left_text,

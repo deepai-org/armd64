@@ -608,9 +608,12 @@ The `poly_import_x86_add`, `poly_import_x86_mul`,
 `poly_import_x86_mixed_u64_fp64`, and `poly_import_x86_fp32_add` descriptors enter
 real x86_64 helpers through a runtime-supplied descriptor table.  The same
 generic descriptor table is now used by `polycall` for compiler-emitted libc
-string/memory imports such as `strlen`, `memcpy`, and `memcmp`; Bochs checks a
-software-supplied descriptor before falling back to any older fixed helper ID.
-This makes those library calls runtime policy rather than CPU semantics.  The
+string/memory imports such as `strlen`, `memcpy`, and `memcmp`, plus
+environment, allocation, teardown-registration, aux-vector/page-size, errno,
+and process-query imports such as `getenv`, `malloc`, `atexit`, `getauxval`,
+`__errno_location`, and `getpid`; Bochs checks a software-supplied descriptor
+before falling back to any older fixed helper ID.
+This makes those library and process-query calls runtime policy rather than CPU semantics.  The
 descriptor call gate maps the first six native foreign integer arguments to
 x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, places seventh and
 eighth integer arguments in the standard x86 stack-argument slots when needed,
