@@ -1477,6 +1477,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-futex.elf" 0xaa0103e0 0xd2800001 0xd2800002 0xd2800003 0xd2800c48 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-madvise.elf" 0xaa0103e0 0xd2820001 0xd2800002 0xd2801d28 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mremap.elf" 0xaa0103e9 0xaa0903e0 0xd2800801 0xd2801002 0xd2800003 0xd2800004 0xd2801b08 0xd4000001 0xcb090000
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clone.elf" 0xd2801b88 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-execve.elf" 0xd2801ba8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-membarrier-query.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2802368 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-membarrier-cmd.elf" 0xd2800020 0xd2800001 0xd2800002 0xd2802368 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rseq.elf" 0xaa0103e0 0xd2800401 0xd2800002 0xd2800003 0xd28024a8 0xd4000001
@@ -1757,6 +1759,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-futex.elf" 0x00058513 0x00000593 0x00000613 0x00000693 0x06200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-madvise.elf" 0x00058513 0x000015b7 0x00000613 0x0e900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mremap.elf" 0x00058293 0x00028513 0x04000593 0x08000613 0x00000693 0x00000713 0x0d800893 0x00000073 0x40550533
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clone.elf" 0x0dc00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-execve.elf" 0x0dd00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-membarrier-query.elf" 0x00000513 0x00000593 0x00000613 0x11b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-membarrier-cmd.elf" 0x00100513 0x00000593 0x00000613 0x11b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rseq.elf" 0x00058513 0x02000593 0x00000613 0x00000693 0x12500893 0x00000073
@@ -2128,6 +2132,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-futex.elf=0 \
     /usr/lib/polyapps/aarch64-madvise.elf=0 \
     /usr/lib/polyapps/aarch64-mremap.elf=0 \
+    /usr/lib/polyapps/aarch64-clone.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-execve.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-membarrier-query.elf=1 \
     /usr/lib/polyapps/aarch64-membarrier-cmd.elf=0 \
     /usr/lib/polyapps/aarch64-rseq.elf=0 \
@@ -2381,6 +2387,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-futex.elf=0 \
     /usr/lib/polyapps/riscv-madvise.elf=0 \
     /usr/lib/polyapps/riscv-mremap.elf=0 \
+    /usr/lib/polyapps/riscv-clone.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-execve.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-membarrier-query.elf=1 \
     /usr/lib/polyapps/riscv-membarrier-cmd.elf=0 \
     /usr/lib/polyapps/riscv-rseq.elf=0 \
@@ -2901,6 +2909,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-futex.elf \
     /usr/lib/polyapps/aarch64-madvise.elf \
     /usr/lib/polyapps/aarch64-mremap.elf \
+    /usr/lib/polyapps/aarch64-clone.elf \
+    /usr/lib/polyapps/aarch64-execve.elf \
     /usr/lib/polyapps/aarch64-membarrier-query.elf \
     /usr/lib/polyapps/aarch64-membarrier-cmd.elf \
     /usr/lib/polyapps/aarch64-rseq.elf \
@@ -3154,6 +3164,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-futex.elf \
     /usr/lib/polyapps/riscv-madvise.elf \
     /usr/lib/polyapps/riscv-mremap.elf \
+    /usr/lib/polyapps/riscv-clone.elf \
+    /usr/lib/polyapps/riscv-execve.elf \
     /usr/lib/polyapps/riscv-membarrier-query.elf \
     /usr/lib/polyapps/riscv-membarrier-cmd.elf \
     /usr/lib/polyapps/riscv-rseq.elf \
