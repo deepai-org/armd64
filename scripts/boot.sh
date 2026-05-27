@@ -2108,7 +2108,7 @@ if [ "$RUN_NATIVE_CHECK" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_PROBE" = "1" ]; then
-  /usr/bin/polyprobe >/dev/ttyS0 2>&1
+  EXPECT_POLY_COMPAT_TRAPS="$EXPECT_POLY_COMPAT_TRAPS" /usr/bin/polyprobe >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then

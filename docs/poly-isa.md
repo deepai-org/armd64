@@ -278,8 +278,11 @@ same hardware cookie path.  Descriptor-import probes execute ordinary AArch64
 `blr` or RISC-V `jalr` calls to `strlen`, `strnlen`, `memset`, `memcpy`, and
 three-argument `memcmp` import descriptors inside the neutral callee, preserve
 the callee's native link register, mutate a shared x86 buffer through the
-foreign memory path, and return through the same cross-frontend cookie path.  The
-prototype saves that stack, the `PCALL` return cookie, and x86-import return
+foreign memory path, and return through the same cross-frontend cookie path.
+`polyprobe` also installs a guest x86 trap-vector handler for its raw syscall
+and breakpoint probes, so the low-level status/counter gate can run without
+Bochs synthesizing Linux or libc behavior.
+The prototype saves that stack, the `PCALL` return cookie, and x86-import return
 state with the same synthetic bank as the non-aliased foreign registers.  The
 bank key is guest `CR3`, user `FSBASE`, and either an explicit userspace poly
 state key or an 8 MiB-aligned user stack-region fallback key.  Runtime or OS

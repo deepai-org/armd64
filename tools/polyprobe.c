@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -10,6 +11,9 @@
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_PCALL_A64 ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_PCALL_RV64 ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
@@ -29,6 +33,14 @@ static inline void poly_trap_mode_status(void) { asm volatile(".byte 0x0f,0x24,0
 static inline void poly_trap_number_status(void) { asm volatile(".byte 0x0f,0x24,0x52,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_trap_arg0_status(void) { asm volatile(".byte 0x0f,0x24,0x53,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x24,0x5a,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+
+static inline void poly_trap_vector_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
+}
+
+static inline void poly_trap_vector_mode_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
+}
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -61,6 +73,91 @@ static void stage(const char *msg) {
     return;
   ssize_t ignored = write(1, "\n", 1);
   (void) ignored;
+}
+
+static int poly_is_raw_foreign_mode(uint64_t mode) {
+  return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
+}
+
+__attribute__((noinline, used))
+uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
+    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
+    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
+    uint64_t arg5) {
+  (void) pc;
+  (void) selector;
+  (void) arg1;
+  (void) arg2;
+  (void) arg3;
+  (void) arg4;
+  (void) arg5;
+
+  if (!poly_is_raw_foreign_mode(mode))
+    return (uint64_t) -38;
+  if (reason == POLY_TRAP_SYSCALL && number == 172)
+    return 4242;
+  if (reason == POLY_TRAP_BREAK && number == 1) {
+    const char *text = (const char *) arg0;
+    uint64_t length = 0;
+    while (length < 4096 && text[length] != '\0')
+      length++;
+    return length;
+  }
+  return (uint64_t) -38;
+}
+
+__attribute__((naked, noinline, used))
+static void polyprobe_trap_vector_handler(void) {
+  __asm__(
+    "pushq %rbx\n"
+    "pushq %rcx\n"
+    "pushq %rdx\n"
+    "pushq %rsi\n"
+    "pushq %rdi\n"
+    "pushq %r8\n"
+    "pushq %r9\n"
+    "pushq %r10\n"
+    "pushq %r11\n"
+    "pushq %r12\n"
+    "pushq %r13\n"
+    "pushq %r14\n"
+    "pushq %r15\n"
+    "pushq %rbp\n"
+    "pushq %r12\n"
+    "pushq %r11\n"
+    "pushq %r10\n"
+    "pushq %r9\n"
+    "pushq %r8\n"
+    "movq %rdi, %r9\n"
+    "movq %rsi, %r8\n"
+    "movq %rcx, %r10\n"
+    "movq %rdx, %rcx\n"
+    "movq %r10, %rdx\n"
+    "movq %rbx, %rsi\n"
+    "movq %rax, %rdi\n"
+    "call polyprobe_trap_vector_dispatch\n"
+    "addq $40, %rsp\n"
+    "popq %rbp\n"
+    "popq %r15\n"
+    "popq %r14\n"
+    "popq %r13\n"
+    "popq %r12\n"
+    "popq %r11\n"
+    "popq %r10\n"
+    "popq %r9\n"
+    "popq %r8\n"
+    "popq %rdi\n"
+    "popq %rsi\n"
+    "popq %rdx\n"
+    "popq %rcx\n"
+    "popq %rbx\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n");
+}
+
+static void install_polyprobe_trap_vector(void) {
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value((uint64_t) (void *) polyprobe_trap_vector_handler);
 }
 
 static inline void raw_aarch64_arith_probe(void) {
@@ -437,8 +534,12 @@ static inline void raw_riscv_getpid_probe(void) {
 
 int main(void) {
   stage("POLY_PROBE: start");
+  install_polyprobe_trap_vector();
 
   stage("POLY_STAGE: cpuid");
+  const char *expect_compat_env = getenv("EXPECT_POLY_COMPAT_TRAPS");
+  int expect_compat = expect_compat_env == NULL ||
+    strcmp(expect_compat_env, "0") != 0;
   struct poly_cpuid_regs poly_vendor = poly_read_cpuid(POLY_CPUID_BASE, 0);
   char vendor[13];
   poly_cpuid_vendor_string(&poly_vendor, vendor);
@@ -452,7 +553,7 @@ int main(void) {
     poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
   if (poly_features.eax != POLY_CPUID_ABI_VERSION ||
       poly_features.ebx != poly_cpuid_expected_mode_mask() ||
-      poly_features.ecx != poly_cpuid_expected_feature_mask() ||
+      poly_features.ecx != poly_cpuid_expected_feature_mask_for_compat(expect_compat) ||
       poly_features.edx != 0) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID feature mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_features.eax, poly_features.ebx, poly_features.ecx, poly_features.edx);
