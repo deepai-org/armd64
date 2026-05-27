@@ -5,9 +5,18 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
+  POLY_MODE_X86 = 0,
+  POLY_MODE_RAW_AARCH64 = 3,
+  POLY_MODE_RAW_RISCV = 4,
+  POLY_TRAP_SYSCALL = 1,
+  POLY_TRAP_BREAK = 2,
   LOOP_ITERS = 200,
   POLY_IMPORT_FUNC_STRLEN = 8,
   POLY_IMPORT_FUNC_MEMCPY = 9,
@@ -22,6 +31,14 @@ enum {
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x24,0x40,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x24,0x42,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+
+static inline void poly_trap_vector_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
+}
+
+static inline void poly_trap_vector_mode_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
+}
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -94,6 +111,91 @@ static uint64_t fp64_to_bits(double value) {
   } fp;
   fp.d = value;
   return fp.u;
+}
+
+static int poly_is_raw_foreign_mode(uint64_t mode) {
+  return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
+}
+
+__attribute__((noinline, used))
+uint64_t polybench_trap_vector_dispatch(uint64_t reason, uint64_t mode,
+    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
+    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
+    uint64_t arg5) {
+  (void) pc;
+  (void) selector;
+  (void) arg1;
+  (void) arg2;
+  (void) arg3;
+  (void) arg4;
+  (void) arg5;
+
+  if (!poly_is_raw_foreign_mode(mode))
+    return (uint64_t) -38;
+  if (reason == POLY_TRAP_SYSCALL && number == 172)
+    return 4242;
+  if (reason == POLY_TRAP_BREAK && number == 1) {
+    const char *text = (const char *) arg0;
+    uint64_t length = 0;
+    while (length < 4096 && text[length] != '\0')
+      length++;
+    return length;
+  }
+  return (uint64_t) -38;
+}
+
+__attribute__((naked, noinline, used))
+static void polybench_trap_vector_handler(void) {
+  __asm__(
+    "pushq %rbx\n"
+    "pushq %rcx\n"
+    "pushq %rdx\n"
+    "pushq %rsi\n"
+    "pushq %rdi\n"
+    "pushq %r8\n"
+    "pushq %r9\n"
+    "pushq %r10\n"
+    "pushq %r11\n"
+    "pushq %r12\n"
+    "pushq %r13\n"
+    "pushq %r14\n"
+    "pushq %r15\n"
+    "pushq %rbp\n"
+    "pushq %r12\n"
+    "pushq %r11\n"
+    "pushq %r10\n"
+    "pushq %r9\n"
+    "pushq %r8\n"
+    "movq %rdi, %r9\n"
+    "movq %rsi, %r8\n"
+    "movq %rcx, %r10\n"
+    "movq %rdx, %rcx\n"
+    "movq %r10, %rdx\n"
+    "movq %rbx, %rsi\n"
+    "movq %rax, %rdi\n"
+    "call polybench_trap_vector_dispatch\n"
+    "addq $40, %rsp\n"
+    "popq %rbp\n"
+    "popq %r15\n"
+    "popq %r14\n"
+    "popq %r13\n"
+    "popq %r12\n"
+    "popq %r11\n"
+    "popq %r10\n"
+    "popq %r9\n"
+    "popq %r8\n"
+    "popq %rdi\n"
+    "popq %rsi\n"
+    "popq %rdx\n"
+    "popq %rcx\n"
+    "popq %rbx\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n");
+}
+
+static void install_polybench_trap_vector(void) {
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value((uint64_t) (void *) polybench_trap_vector_handler);
 }
 
 static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
@@ -3092,6 +3194,7 @@ static int check_cross_calls(void) {
 
 int main(void) {
   puts("POLYBENCH: start");
+  install_polybench_trap_vector();
   if (check_loop("aarch64", POLY_ARCH_AARCH64) < 0)
     return 1;
   if (check_loop("riscv", POLY_ARCH_RISCV) < 0)

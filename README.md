@@ -52,6 +52,10 @@ Linux ABI passthrough, or equal-speed execution.
   and atomic helper descriptors without relying on Bochs syscall/libcall
   emulation.  It also runs the thread-bank and signal-resume stress checks with
   compatibility traps disabled.
+- The `make boot-poly-bench-arch-traps` path disables the compatibility
+  dispatcher and runs `polybench` with a guest-installed architectural trap
+  vector, so cross-ISA syscall/libcall benchmark exits are routed through
+  userspace packet handling rather than Bochs CPU policy.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -909,6 +913,13 @@ compatibility traps disabled, including thread-bank and signal-resume stress:
 
 ```bash
 make boot-poly-call-arch-traps
+```
+
+Run the cross-ISA benchmark suite with Bochs compatibility traps disabled and a
+guest-installed trap-vector handler:
+
+```bash
+make boot-poly-bench-arch-traps
 ```
 
 Run the fuller legacy compatibility-runtime gate, including direct foreign ELF
