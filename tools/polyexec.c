@@ -55,7 +55,23 @@ enum {
   POLY_TRAP_SYSCALL = 1,
   POLY_TRAP_BREAK = 2,
   POLY_TRAP_IMPORT = 3,
+  POLY_CPUID_BASE = 0x40000000,
+  POLY_CPUID_MAX = 0x40000009,
+  POLY_CPUID_ABI_VERSION = 1,
+  POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
+  POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
+  POLY_CPUID_FEATURE_NATIVE_RET = (1U << 3),
+  POLY_CPUID_FEATURE_TRAP_RECORDS = (1U << 7),
+  POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
+  POLY_CPUID_FEATURE_TRAP_VECTOR = (1U << 25),
   MAX_PROGRAM_BYTES = 1024 * 1024
+};
+
+struct poly_cpuid_regs {
+  uint32_t eax;
+  uint32_t ebx;
+  uint32_t ecx;
+  uint32_t edx;
 };
 
 struct poly_program {
@@ -78,6 +94,56 @@ struct poly_request {
 };
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+
+static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
+  struct poly_cpuid_regs regs;
+  asm volatile("cpuid"
+      : "=a"(regs.eax), "=b"(regs.ebx), "=c"(regs.ecx), "=d"(regs.edx)
+      : "a"(leaf), "c"(subleaf)
+      : "memory");
+  return regs;
+}
+
+static int poly_cpuid_vendor_matches(const struct poly_cpuid_regs *regs) {
+  return regs->ebx == 0x796c6f50U &&
+    regs->edx == 0x746f6c67U &&
+    regs->ecx == 0x21555043U;
+}
+
+static int read_poly_base_contract(int require_trap_vector) {
+  const struct poly_cpuid_regs base = read_cpuid(POLY_CPUID_BASE, 0);
+  if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly CPUID missing base=(0x%x,0x%x,0x%x,0x%x)\n",
+      base.eax, base.ebx, base.ecx, base.edx);
+    return -1;
+  }
+
+  const uint32_t required_modes =
+    (1U << POLY_MODE_X86) |
+    (1U << POLY_MODE_RAW_AARCH64) |
+    (1U << POLY_MODE_RAW_RISCV);
+  uint32_t required_features =
+    POLY_CPUID_FEATURE_RAW_AARCH64 |
+    POLY_CPUID_FEATURE_RAW_RISCV |
+    POLY_CPUID_FEATURE_NATIVE_RET |
+    POLY_CPUID_FEATURE_TRAP_RECORDS |
+    POLY_CPUID_FEATURE_X86_POLY_OPCODES;
+  if (require_trap_vector)
+    required_features |= POLY_CPUID_FEATURE_TRAP_VECTOR;
+
+  const struct poly_cpuid_regs features = read_cpuid(POLY_CPUID_BASE + 1, 0);
+  if (features.eax != POLY_CPUID_ABI_VERSION ||
+      (features.ebx & required_modes) != required_modes ||
+      (features.ecx & required_features) != required_features) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
+      features.eax, features.ebx, features.ecx, features.edx);
+    return -1;
+  }
+
+  return 0;
+}
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
@@ -1074,7 +1140,11 @@ int main(int argc, char **argv) {
 
   puts("POLYEXEC: start");
   const char *trap_vector_env = getenv("POLYEXEC_TRAP_VECTOR");
-  if (trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0)
+  const int use_trap_vector =
+    trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0;
+  if (read_poly_base_contract(use_trap_vector) < 0)
+    return 1;
+  if (use_trap_vector)
     install_poly_trap_vector();
   for (int n = 1; n < argc; n++) {
     struct poly_request request;
