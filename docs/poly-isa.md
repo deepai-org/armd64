@@ -131,7 +131,14 @@ and call operations:
 - `0f 24 50+id 50 4f 4c 59 21`: trap status read.  `id=0` returns the reason,
   `id=1` returns the source mode, `id=2` returns the trap number, `id=3`-`8`
   return trap arguments, `id=9` returns the trap PC, and `id=10` returns the
-  trap selector/immediate where the foreign instruction encoding provides one.
+  trap selector/immediate where the foreign instruction encoding provides one;
+  `id=11` returns the trap resume PC.
+- `0f 24 60 50 4f 4c 59 21`: trap vector set.  `RAX` is the x86 handler PC or
+  zero to disable vector delivery.
+- `0f 24 61 50 4f 4c 59 21`: trap vector get.  Returns the current handler PC in
+  `RAX`.
+- `0f 24 62 50 4f 4c 59 21`: trap return.  Resumes the recorded source frontend
+  at the trap resume PC.
 
 Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
 handler and validates the trailing `POLY!` magic before changing frontend
@@ -148,7 +155,7 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`23` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`25` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, optional deterministic
@@ -160,8 +167,9 @@ discover the experimental hardware contract before emitting poly operations:
   AArch64<->RISC-V compact aggregate cross-calls, and runtime-supplied
   foreign-to-x86 import descriptor slots, and FP64 overflow stack-argument
   `PCALL` variants, and neutral AArch64<->RISC-V FP64 overflow stack-argument
-  cross-call variants.  The double-lane bridge forms also cover ABI-compatible
-  `{u32,double}` and `{double,u32}` shapes.
+  cross-call variants, and the architectural trap vector/trap-return path.  The
+  double-lane bridge forms also cover ABI-compatible `{u32,double}` and
+  `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
   because the Bochs prototype still uses synthetic banks rather than an
   OS-visible foreign XSAVE state component.
@@ -731,6 +739,7 @@ compatibility dispatcher:
   register state.
 - Arguments record the native foreign ABI argument registers.
 - PC records the foreign instruction address that raised the trap.
+- Resume PC records the next foreign instruction address for trap return.
 
 The temporary deterministic syscall and libcall behavior in Bochs is a
 compatibility runtime layered after this trap record.  It is not the final ISA
@@ -740,8 +749,14 @@ software can save, restore, inspect, and route.
 
 The runtime is controlled by `cpu.poly_compat_traps` in Bochs.  When it is
 disabled, CPUID feature bit `11` is clear, the trap packet is still recorded,
-and Bochs leaves raw mode with an x86 `#UD` rather than synthesizing a Linux
-syscall or libc result.
+and Bochs leaves raw mode without synthesizing a Linux syscall or libc result.
+If an architectural trap vector was installed with `0f 24 60 ... POLY!`
+(`RAX=handler_pc`), control transfers to that x86 handler with `RAX=reason`,
+`RBX=source mode`, `RCX=trap number`, `RDX=trap PC`, `RSI=selector`, and
+`RDI=arg0`; otherwise Bochs raises x86 `#UD`.  The handler can inspect the full
+packet with trap-status opcodes, place a result in the shared result register,
+and execute `0f 24 62 ... POLY!` to resume the source frontend at the recorded
+resume PC.  `0f 24 61 ... POLY!` reads the current trap vector into `RAX`.
 
 ## Compatibility Rule
 

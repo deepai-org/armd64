@@ -106,7 +106,8 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
 | Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign libcalls. |
-| Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate. |
+| Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC. |
+| Trap vector | `0f 24 60/61/62 50 4f 4c 59 21` | `0x60` sets the architectural trap vector from `RAX`, `0x61` reads it into `RAX`, and `0x62` resumes the recorded source frontend at the trap resume PC. |
 
 When `POLY_ENABLED=1`, the prototype exposes a private CPUID discovery leaf for
 runtime dispatch:
@@ -139,7 +140,8 @@ the corresponding neutral AArch64<->RISC-V compact aggregate cross-call
 bridges; bit `22` advertises runtime-supplied foreign-to-x86 import descriptor
 slots; bit `23` advertises FP64 overflow stack-argument `PCALL` variants; bit
 `24` advertises neutral AArch64<->RISC-V FP64 overflow stack-argument
-cross-call variants.  The same
+cross-call variants; bit `25` advertises the architectural trap vector and
+trap-return path.  The same
 double-lane bridge forms also cover the ABI-compatible `{u32,double}` and
 `{double,u32}` shapes.
 `0x40000003.EAX` reports the current state-management contract. Bits `0`-`6`
@@ -588,10 +590,20 @@ Foreign traps are now recorded as explicit, operating-system-neutral
 architectural exits before any compatibility behavior runs.  AArch64 `svc` and
 RISC-V `ecall` record reason `1`; AArch64 `brk` and RISC-V `ebreak` record
 reason `2`.  The record includes source mode, trap number, six ABI arguments,
-the foreign PC, and the raw trap selector/immediate when the foreign instruction
-encoding carries one.  In hardware or FPGA this packet is the boundary:
+the foreign PC, the resume PC, and the raw trap selector/immediate when the
+foreign instruction encoding carries one.  In hardware or FPGA this packet is
+the boundary:
 firmware, the OS, or a userspace runtime routes it.  The current Bochs
 dispatcher is only a compatibility service layered after the packet is captured.
+
+When `cpu.poly_compat_traps=0`, x86 software can install an architectural trap
+vector with `0f 24 60 ... POLY!` using `RAX=handler_pc`.  Foreign traps then
+leave the raw frontend and enter x86 at that handler with `RAX=reason`,
+`RBX=source mode`, `RCX=trap number`, `RDX=trap PC`, `RSI=selector`, and
+`RDI=arg0`.  The handler can read the full packet with trap-status opcodes,
+apply OS/runtime policy in software, place the result in the shared result
+register, and execute `0f 24 62 ... POLY!` to resume the recorded source
+frontend at the trap resume PC.
 
 ## Supported Foreign Subset
 
@@ -708,11 +720,11 @@ After the OS-neutral trap packet is recorded, the Bochs prototype can run a
 test-only compatibility service for selected foreign Linux syscall numbers.
 This service is controlled by `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` and
 defaults on for the existing regression suite.  When disabled, the prototype
-records the packet, leaves raw mode, and raises an x86 `#UD` instead of
-returning deterministic Linux/libc results.  The service is not part of the CPU
-contract; it stands in for firmware, kernel, loader, or userspace-runtime
-routing that a real implementation would provide.  The current service
-recognizes:
+records the packet, leaves raw mode, and either enters the configured
+architectural trap vector or raises an x86 `#UD` if no vector is installed.
+The service is not part of the CPU contract; it stands in for firmware, kernel,
+loader, or userspace-runtime routing that a real implementation would provide.
+The current service recognizes:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
   `futex`, `set_robust_list`, `get_robust_list`, `kill`, `tkill`, `tgkill`, `sigaltstack`,

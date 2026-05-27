@@ -25,6 +25,7 @@ BOCHS_RC="$TMP_DIR/bochs.rc"
 CONSOLE_LOG="$OUT_DIR/bochs-console.log"
 POLY_PROBE_SRC="$ROOT_DIR/tools/polyprobe.c"
 POLY_PROBE_BIN="$OUT_DIR/polyprobe"
+POLY_CPUID_HEADER="$ROOT_DIR/tools/polycpuid.h"
 POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
@@ -204,7 +205,7 @@ compile_poly_tool() {
   local bin="$2"
   local requested_compiler="$3"
 
-  if [[ -x "$bin" && "$bin" -nt "$src" ]]; then
+  if [[ -x "$bin" && "$bin" -nt "$src" && "$bin" -nt "$POLY_CPUID_HEADER" ]]; then
     return
   fi
 
