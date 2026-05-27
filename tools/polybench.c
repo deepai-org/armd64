@@ -1870,8 +1870,7 @@ static int run_cross_call_libcall_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(const char *) = (uint64_t (*)(const char *)) code;
-  *result = entry(payload);
+  *result = call_code_with_rax_arg(code, payload);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -1937,8 +1936,7 @@ static int run_cross_call_libcall_riscv_to_aarch64(uint64_t *result,
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t (*entry)(const char *) = (uint64_t (*)(const char *)) code;
-  *result = entry(payload);
+  *result = call_code_with_rax_arg(code, payload);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;

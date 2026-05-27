@@ -49,10 +49,6 @@ static inline void write_rax(uint64_t value) {
   asm volatile("" :: "a"(value) : "memory");
 }
 
-static inline void write_rdi(uint64_t value) {
-  asm volatile("" :: "D"(value) : "memory");
-}
-
 static inline void write_xmm0_u64(uint64_t value) {
   asm volatile("movq %0, %%xmm0" :: "r"(value) : "xmm0", "memory");
 }
@@ -389,21 +385,29 @@ static inline void raw_switch_stress_step(void) {
     ::: "rax", "memory");
 }
 
-static inline void raw_aarch64_strlen_probe(void) {
+static inline void raw_aarch64_strlen_probe(uint64_t arg0) {
+  register uint64_t rax __asm__("rax") = arg0;
+  register uint64_t rdi __asm__("rdi") = arg0;
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd4200020\n"
     ".long 0xd42fffe0\n"
-    ::: "rax", "memory");
+    : "+a"(rax), "+D"(rdi)
+    :
+    : "memory");
 }
 
-static inline void raw_riscv_strlen_probe(void) {
+static inline void raw_riscv_strlen_probe(uint64_t arg0) {
+  register uint64_t rax __asm__("rax") = arg0;
+  register uint64_t rdi __asm__("rdi") = arg0;
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00100893\n"
     ".long 0x00100073\n"
     ".long 0x0000000b\n"
-    ::: "rax", "memory");
+    : "+a"(rax), "+D"(rdi)
+    :
+    : "memory");
 }
 
 static inline void raw_aarch64_getpid_probe(void) {
@@ -689,8 +693,7 @@ int main(void) {
 
   stage("POLY_STAGE: raw-libcall");
   const char libcall_string[] = "polyglot";
-  write_rdi((uint64_t) libcall_string);
-  raw_aarch64_strlen_probe();
+  raw_aarch64_strlen_probe((uint64_t) libcall_string);
   if (read_rax() != 8) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 libcall mismatch\n");
     return 1;
@@ -710,8 +713,7 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap selector mismatch\n");
     return 1;
   }
-  write_rdi((uint64_t) libcall_string);
-  raw_riscv_strlen_probe();
+  raw_riscv_strlen_probe((uint64_t) libcall_string);
   if (read_rax() != 8) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv libcall mismatch\n");
     return 1;
@@ -818,10 +820,9 @@ int main(void) {
     return 1;
   }
 
-  write_rdi((uint64_t) libcall_string);
   poly_foreign_libcall_count_status();
   uint64_t libcalls_before = read_rax();
-  raw_aarch64_strlen_probe();
+  raw_aarch64_strlen_probe((uint64_t) libcall_string);
   poly_foreign_libcall_count_status();
   if (read_rax() != libcalls_before + 1) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw foreign libcall count mismatch\n");

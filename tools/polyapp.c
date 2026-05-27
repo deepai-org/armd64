@@ -138,6 +138,17 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
 }
 
+static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
+  register uint64_t rax __asm__("rax") = (uint64_t) (uintptr_t) scratch;
+  register uint64_t rdi __asm__("rdi") = (uint64_t) (uintptr_t) scratch;
+  register uint64_t rsi __asm__("rsi") = (uint64_t) (uintptr_t) scratch;
+  asm volatile("call *%3"
+      : "+a"(rax), "+D"(rdi), "+S"(rsi)
+      : "r"(code)
+      : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+  return rax;
+}
+
 static uint32_t aarch64_adr(unsigned rd, int64_t byte_offset) {
   uint32_t imm = (uint32_t) byte_offset & 0x1fffffU;
   return 0x10000000U | ((imm & 0x3U) << 29) | (((imm >> 2) & 0x7ffffU) << 5) | (rd & 0x1fU);
@@ -410,8 +421,7 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
   code[offset++] = 0xc3;
 
   char scratch[SCRATCH_SIZE] = "poly!";
-  uint64_t (*entry)(uint64_t *, uint64_t *) = (uint64_t (*)(uint64_t *, uint64_t *)) code;
-  *result = entry((uint64_t *) scratch, (uint64_t *) scratch);
+  *result = run_poly_entry(code, (uint8_t *) scratch);
   const uint64_t raw_mode = payload->arch == POLY_ARCH_AARCH64 ? 3 : 4;
   if (payload->check_syscall) {
     *syscall_result = raw_mode;

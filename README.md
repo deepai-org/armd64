@@ -820,11 +820,11 @@ descriptors, software thunks, or OS/runtime trap routing.
 - AArch64 uses `brk #id`.
 - RISC-V uses `a7=id; ebreak`.
 - Supported ids are `1=strlen`, `2=memfill`, `3=memcmp`, and `4=memcpy`.
-- `RDI`/AArch64 `x1`/RISC-V `a1` is the implicit left/destination pointer;
-  explicit libcall operands use `RSI,RDX` via AArch64 `x2,x3` or RISC-V
-  `a2,a3`.  The architectural trap packet also records the aliased
-  result/count register as `arg3` so guest trap-vector software can service
-  count-bearing break traps without Bochs compatibility dispatch.
+- Break-trap packets use the source frontend's native ABI argument registers:
+  AArch64 `x0`-`x5` or RISC-V `a0`-`a5`.  The deterministic scaffold ids use
+  `arg0` as the left/destination pointer and `arg2` as the byte count for
+  count-bearing operations.  This keeps the architectural packet independent of
+  the old shifted x86 bridge convention.
 
 ## Validation Gates
 
