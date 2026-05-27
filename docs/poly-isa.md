@@ -205,10 +205,13 @@ discover the experimental hardware contract before emitting poly operations:
   ordering.  Bit `7` is intentionally clear until non-aliased foreign state is
   exposed as an architectural XSAVE component.  Bit `8` means software can
   select an explicit state key with `0f 24 65 ... POLY!`; a zero explicit key
-  restores the stack-region fallback.  `EBX=23` reports the stack region shift.
+  restores the stack-region fallback.  Bit `9` means native cross-frontend
+  return state uses fixed 32-byte transition records.  `EBX=23` reports the
+  stack region shift.
   Legacy syscall/break status registers, trap-vector policy, recorded
-  trap-packet/status state, and the trap-return save frame are part of this
-  keyed prototype state until an XSAVE component is assigned.  `ECX=0` and
+  trap-packet/status state, trap-return save state, and 32-byte transition
+  records are part of this keyed prototype state until an XSAVE component is
+  assigned.  `ECX=0` and
   `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
@@ -790,7 +793,8 @@ the source frontend's integer and scalar/vector FP state and commits only the
 handler result register back to the source result register.  `0f 24 61 ...
 POLY!` reads the current trap vector into `RAX`.
 In the Bochs prototype, the installed trap vector, legacy syscall/break status
-registers, recorded trap-packet/status state, and trap-return save frame are
+registers, recorded trap-packet/status state, trap-return save state, and
+32-byte transition records are
 keyed with the userspace poly state.  The key is guest `CR3`, user `FSBASE`,
 and either an explicit software-selected state key or the 8 MiB stack-region
 fallback key when the explicit key is zero.  A different guest address space
