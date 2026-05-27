@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
+HEADER="$ROOT_DIR/tools/polycpuid.h"
+TMP_DIR="${TMPDIR:-/tmp}/poly-cpuid-contract.$$"
+
+mkdir -p "$TMP_DIR"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+fail() {
+  echo "poly CPUID contract check failed: $*" >&2
+  exit 1
+}
+
+normalize_expr() {
+  local expr="$1"
+  expr="${expr%%//*}"
+  expr="${expr//BX_CONST64(/(}"
+  expr="${expr//Bit32u/}"
+  expr="${expr//Bit64u/}"
+  expr="${expr//uint32_t/}"
+  expr="${expr//uint64_t/}"
+  expr="${expr//ULL/}"
+  expr="${expr//LLU/}"
+  expr="${expr//LL/}"
+  expr="${expr//U/}"
+  expr="${expr//u/}"
+  expr="${expr// /}"
+  expr="${expr//;/}"
+  expr="${expr//,/}"
+  echo "$expr"
+}
+
+eval_expr() {
+  local expr
+  expr="$(normalize_expr "$1")"
+  [[ -n "$expr" ]] || fail "empty expression"
+  printf '%llu\n' "$((expr))"
+}
+
+bochs_const_expr() {
+  local name="$1"
+  awk -v name="$name" '
+    $0 ~ name "[[:space:]]*=" {
+      line = $0
+      sub(/.*=[[:space:]]*/, "", line)
+      sub(/;.*/, "", line)
+      print line
+      exit
+    }
+  ' "$BOCHS_CPU"
+}
+
+header_const_expr() {
+  local name="$1"
+  awk -v name="$name" '
+    $0 ~ name "[[:space:]]*=" {
+      line = $0
+      sub(/.*=[[:space:]]*/, "", line)
+      sub(/,.*/, "", line)
+      print line
+      exit
+    }
+  ' "$HEADER"
+}
+
+compare_const() {
+  local bochs_name="$1"
+  local header_name="$2"
+  local bochs_expr header_expr bochs_value header_value
+
+  bochs_expr="$(bochs_const_expr "$bochs_name")"
+  header_expr="$(header_const_expr "$header_name")"
+  [[ -n "$bochs_expr" ]] || fail "missing Bochs constant $bochs_name"
+  [[ -n "$header_expr" ]] || fail "missing header constant $header_name"
+
+  bochs_value="$(eval_expr "$bochs_expr")"
+  header_value="$(eval_expr "$header_expr")"
+  if [[ "$bochs_value" != "$header_value" ]]; then
+    fail "$bochs_name=$bochs_value differs from $header_name=$header_value"
+  fi
+}
+
+compare_const BX_POLY_MODE_X86 POLY_MODE_X86
+compare_const BX_POLY_MODE_RAW_AARCH64 POLY_MODE_RAW_AARCH64
+compare_const BX_POLY_MODE_RAW_RISCV POLY_MODE_RAW_RISCV
+compare_const BX_POLY_CPUID_BASE POLY_CPUID_BASE
+compare_const BX_POLY_AARCH64_BRK_X86_ESCAPE POLY_AARCH64_BRK_X86_ESCAPE
+compare_const BX_POLY_AARCH64_BRK_RISCV_SWITCH POLY_AARCH64_BRK_RISCV_SWITCH
+compare_const BX_POLY_AARCH64_BRK_RISCV_CALL POLY_AARCH64_BRK_RISCV_CALL
+compare_const BX_POLY_AARCH64_BRK_RISCV_CALL_COMPACT_U32_F32 POLY_AARCH64_BRK_RISCV_CALL_COMPACT_U32_F32
+compare_const BX_POLY_AARCH64_BRK_RISCV_CALL_COMPACT_F32_U32 POLY_AARCH64_BRK_RISCV_CALL_COMPACT_F32_U32
+compare_const BX_POLY_AARCH64_BRK_RISCV_CALL_FP64_STACK POLY_AARCH64_BRK_RISCV_CALL_FP64_STACK
+compare_const BX_POLY_AARCH64_BRK_TRAP_RETURN POLY_AARCH64_BRK_TRAP_RETURN
+compare_const BX_POLY_RISCV_X86_ESCAPE POLY_RISCV_X86_ESCAPE
+compare_const BX_POLY_RISCV_AARCH64_SWITCH POLY_RISCV_AARCH64_SWITCH
+compare_const BX_POLY_RISCV_AARCH64_CALL POLY_RISCV_AARCH64_CALL
+compare_const BX_POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32 POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32
+compare_const BX_POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32 POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32
+compare_const BX_POLY_RISCV_AARCH64_CALL_FP64_STACK POLY_RISCV_AARCH64_CALL_FP64_STACK
+compare_const BX_POLY_RISCV_TRAP_RETURN POLY_RISCV_TRAP_RETURN
+compare_const BX_POLY_IMPORT_FUNC_X86_SLOT0 POLY_IMPORT_FUNC_X86_SLOT0
+compare_const BX_POLY_IMPORT_FUNC_X86_SLOT7 POLY_IMPORT_FUNC_X86_SLOT7
+compare_const BX_POLY_IMPORT_CALL_COUNT POLY_IMPORT_FUNC_COUNT
+compare_const BX_POLY_IMPORT_X86_DESCRIPTOR_SIZE POLY_IMPORT_X86_DESCRIPTOR_SIZE
+compare_const BX_POLY_IMPORT_CALL_STRIDE POLY_IMPORT_CALL_STRIDE
+compare_const BX_POLY_CPUID_STATE_OVERLAP_GPRS POLY_CPUID_STATE_OVERLAP_GPRS
+compare_const BX_POLY_CPUID_STATE_SYNTHETIC_BANKS POLY_CPUID_STATE_SYNTHETIC_BANKS
+compare_const BX_POLY_CPUID_STATE_KEY_CR3 POLY_CPUID_STATE_KEY_CR3
+compare_const BX_POLY_CPUID_STATE_KEY_FSBASE POLY_CPUID_STATE_KEY_FSBASE
+compare_const BX_POLY_CPUID_STATE_KEY_STACK_REGION POLY_CPUID_STATE_KEY_STACK_REGION
+compare_const BX_POLY_CPUID_STATE_USER_RETURN_RESTORE POLY_CPUID_STATE_USER_RETURN_RESTORE
+compare_const BX_POLY_CPUID_STATE_X86_TSO POLY_CPUID_STATE_X86_TSO
+compare_const BX_POLY_CPUID_STATE_XSAVE_VISIBLE POLY_CPUID_STATE_XSAVE_VISIBLE
+compare_const BX_POLY_CPUID_STATE_KEY_EXPLICIT POLY_CPUID_STATE_KEY_EXPLICIT
+compare_const BX_POLY_CPUID_STATE_TRANSITION_FRAME_32 POLY_CPUID_STATE_TRANSITION_FRAME_32
+compare_const BX_POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE
+compare_const BX_POLY_STATE_STACK_KEY_SHIFT POLY_STATE_STACK_KEY_SHIFT
+compare_const BX_POLY_STATE_XSAVE_MAGIC POLY_STATE_XSAVE_MAGIC
+compare_const BX_POLY_STATE_XSAVE_COMPONENT_ARCH POLY_STATE_XSAVE_COMPONENT_ARCH
+compare_const BX_POLY_STATE_XSAVE_BYTES_ARCH POLY_STATE_XSAVE_BYTES_ARCH
+compare_const BX_POLY_STATE_XSAVE_ALIGN_ARCH POLY_STATE_XSAVE_ALIGN_ARCH
+compare_const BX_POLY_STATE_XSAVE_LAYOUT_VERSION POLY_STATE_XSAVE_LAYOUT_VERSION
+compare_const BX_POLY_STATE_XSAVE_FLAG_XCR0_USER POLY_STATE_XSAVE_FLAG_XCR0_USER
+compare_const BX_POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED
+compare_const BX_POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME
+compare_const BX_POLY_STATE_XSAVE_FLAG_TRAP_STATE POLY_STATE_XSAVE_FLAG_TRAP_STATE
+compare_const BX_POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS
+compare_const BX_POLY_STATE_XSAVE_HEADER_OFFSET POLY_STATE_XSAVE_HEADER_OFFSET
+compare_const BX_POLY_STATE_XSAVE_TRAP_PACKET_OFFSET POLY_STATE_XSAVE_TRAP_PACKET_OFFSET
+compare_const BX_POLY_STATE_XSAVE_TRAP_ARGS_OFFSET POLY_STATE_XSAVE_TRAP_ARGS_OFFSET
+compare_const BX_POLY_STATE_XSAVE_TRANSITION_OFFSET POLY_STATE_XSAVE_TRANSITION_OFFSET
+compare_const BX_POLY_STATE_XSAVE_AARCH64_GPR_OFFSET POLY_STATE_XSAVE_AARCH64_GPR_OFFSET
+compare_const BX_POLY_STATE_XSAVE_AARCH64_FP_OFFSET POLY_STATE_XSAVE_AARCH64_FP_OFFSET
+compare_const BX_POLY_STATE_XSAVE_AARCH64_STATUS_OFFSET POLY_STATE_XSAVE_AARCH64_STATUS_OFFSET
+compare_const BX_POLY_STATE_XSAVE_RISCV_GPR_OFFSET POLY_STATE_XSAVE_RISCV_GPR_OFFSET
+compare_const BX_POLY_STATE_XSAVE_RISCV_FP_OFFSET POLY_STATE_XSAVE_RISCV_FP_OFFSET
+compare_const BX_POLY_STATE_XSAVE_RISCV_STATUS_OFFSET POLY_STATE_XSAVE_RISCV_STATUS_OFFSET
+compare_const BX_POLY_TRAP_PACKET_LAYOUT_VERSION POLY_TRAP_PACKET_LAYOUT_VERSION
+compare_const BX_POLY_TRAP_PACKET_HEADER_BYTES POLY_TRAP_PACKET_HEADER_BYTES
+compare_const BX_POLY_TRAP_PACKET_ARG_COUNT POLY_TRAP_PACKET_ARG_COUNT
+compare_const BX_POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY
+compare_const BX_POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS
+compare_const BX_POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE
+compare_const BX_POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS
+compare_const BX_POLY_TRAP_PACKET_FLAG_STATUS_OPS POLY_TRAP_PACKET_FLAG_STATUS_OPS
+
+cat > "$TMP_DIR/polycpuid_layout_check.c" <<EOF
+#include "$HEADER"
+int main(void) { return sizeof(struct poly_xsave_state) == POLY_STATE_XSAVE_BYTES_ARCH ? 0 : 1; }
+EOF
+
+cc -std=gnu11 -Wall -Wextra -Werror -fsyntax-only \
+  "$TMP_DIR/polycpuid_layout_check.c"
+
+echo "poly CPUID contract OK"

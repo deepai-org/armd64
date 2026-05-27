@@ -28,6 +28,7 @@ POLY_PROBE_BIN="$OUT_DIR/polyprobe"
 POLY_CPUID_HEADER="$ROOT_DIR/tools/polycpuid.h"
 POLY_IMPORT_ID_CHECK="$ROOT_DIR/tools/check_poly_import_ids.sh"
 POLY_ARCH_CONTRACT_CHECK="$ROOT_DIR/tools/check_poly_arch_contract.sh"
+POLY_CPUID_CONTRACT_CHECK="$ROOT_DIR/tools/check_poly_cpuid_contract.sh"
 POLY_APP_SRC="$ROOT_DIR/tools/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/polyexec.c"
@@ -180,6 +181,7 @@ fi
 
 "$POLY_IMPORT_ID_CHECK"
 "$POLY_ARCH_CONTRACT_CHECK"
+"$POLY_CPUID_CONTRACT_CHECK"
 
 download() {
   local url="$1"

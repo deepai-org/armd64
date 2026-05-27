@@ -20,10 +20,11 @@ Linux ABI passthrough, or equal-speed execution.
 - The Docker image builds the local Bochs fork from
   `bochs-prepoly-src/bochs` and installs it as `bochs-poly`.
 - Every boot script run checks both the poly import ID manifest and the
-  architecture-contract source gate.  The latter fails if Bochs CPU execution
-  code starts using the deprecated compatibility trap knob again, if foreign
-  syscalls stop routing through the OS-neutral architectural trap packet, or if
-  the removed fixed x86 import helper fallback reappears.
+  architecture-contract source gates.  These fail if Bochs CPU execution code
+  starts using the deprecated compatibility trap knob again, if foreign syscalls
+  stop routing through the OS-neutral architectural trap packet, if the removed
+  fixed x86 import helper fallback reappears, or if Bochs' CPUID/XSAVE/trap
+  constants drift from the guest/runtime header.
 - The guest prints `BOOT_OK` on a clean baseline boot.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when
@@ -913,6 +914,7 @@ Run the static architecture-contract gates:
 ```bash
 make check-poly-import-ids
 make check-poly-arch-contract
+make check-poly-cpuid-contract
 ```
 
 Run the baseline x86_64 Linux boot:
