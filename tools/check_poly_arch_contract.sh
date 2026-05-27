@@ -168,6 +168,10 @@ assert_contains "DT_SONAME" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must parse dependency SONAMEs"
 assert_contains "dependency_matches_version_file" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must match GNU version provider filenames"
+assert_contains "symbol_is_dependency_export" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must filter dependency exports by ELF binding and visibility"
+assert_contains "ELF64_ST_VISIBILITY" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must inspect ELF symbol visibility"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

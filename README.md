@@ -675,6 +675,7 @@ text/data and dependency-exported symbolic IFUNC resolvers, weak undefined
 relocations binding to dependency exports when present, direct-dependency
 symbol interposition ahead of transitive dependencies when symbols collide,
 GNU symbol-version and provider-SONAME matching for dependency exports,
+ELF binding/visibility filtering for dependency exports,
 recursive loading of dependency libraries' own `DT_NEEDED`
 entries, and dependency sets larger than the original four-library prototype
 limit. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`

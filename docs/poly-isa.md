@@ -486,6 +486,8 @@ lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
 binding undefined relocations to dependency exports, so a relocation requiring
 `foo@OLD` from a specific needed library does not silently bind to a default
 `foo@@NEW` export or to the same version name from a different dependency.
+Dependency binding also requires exportable ELF binding and visibility:
+`STB_GLOBAL`/`STB_WEAK` plus `STV_DEFAULT`/`STV_PROTECTED`.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
@@ -819,7 +821,8 @@ bind directly to dependency text/data without routing through an x86 import
 descriptor. GNU symbol versions are matched during dependency binding, with
 unversioned requests preferring default exports and explicit version requests
 requiring both the matching dependency version definition and the matching
-`DT_VERNEED` provider filename/SONAME.
+`DT_VERNEED` provider filename/SONAME. Non-exported dependency symbols are not
+eligible for external binding even if they appear in dynamic symbol metadata.
 Weak undefined foreign relocations first try the loaded dependency scope and
 only resolve to zero when no dependency exports the requested symbol.
 When multiple dependency libraries export the same function/object symbol, the

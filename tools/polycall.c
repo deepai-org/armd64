@@ -2981,6 +2981,13 @@ static int dependency_matches_version_file(const struct poly_dependency *dep,
     strcmp(path_basename(dep->path), required_filename) == 0;
 }
 
+static int symbol_is_dependency_export(const Elf64_Sym *sym) {
+  const unsigned bind = ELF64_ST_BIND(sym->st_info);
+  const unsigned visibility = ELF64_ST_VISIBILITY(sym->st_other);
+  return (bind == STB_GLOBAL || bind == STB_WEAK) &&
+    (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
+}
+
 static int resolve_symbol_from_table_filtered(const struct poly_symbol_table *table,
     const char *symbol_name, uint64_t *symbol_vaddr, int allow_object) {
   if (!table->symbols || !table->strings || !symbol_name)
@@ -3037,6 +3044,7 @@ static int resolve_dependency_symbol(const struct poly_program *program,
       const unsigned type = ELF64_ST_TYPE(sym->st_info);
       if (sym->st_name >= table->strings_size ||
           sym->st_shndx == SHN_UNDEF ||
+          !symbol_is_dependency_export(sym) ||
           (type != STT_FUNC && type != STT_NOTYPE &&
            type != STT_OBJECT && type != STT_GNU_IFUNC) ||
           strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
@@ -3083,6 +3091,7 @@ static int resolve_dependency_object_symbol(const struct poly_program *program,
       const unsigned type = ELF64_ST_TYPE(sym->st_info);
       if (sym->st_name >= table->strings_size ||
           sym->st_shndx == SHN_UNDEF ||
+          !symbol_is_dependency_export(sym) ||
           (type != STT_OBJECT && type != STT_NOTYPE) ||
           strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
           !symbol_export_version_matches(table, s,
@@ -3126,6 +3135,7 @@ static int resolve_dependency_tls_symbol(const struct poly_program *program,
       const Elf64_Sym *sym = &table->symbols[s];
       if (sym->st_name >= table->strings_size ||
           sym->st_shndx == SHN_UNDEF ||
+          !symbol_is_dependency_export(sym) ||
           ELF64_ST_TYPE(sym->st_info) != STT_TLS ||
           strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
           !symbol_export_version_matches(table, s,
