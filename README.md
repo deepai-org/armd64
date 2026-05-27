@@ -160,6 +160,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC. |
 | Trap vector | `0f 24 60-64 50 4f 4c 59 21` | `0x60` sets the architectural trap vector PC from `RAX`, `0x61` reads it into `RAX`, `0x62` resumes the recorded source frontend at the trap resume PC, `0x63` sets the trap-handler frontend mode from `RAX`, and `0x64` reads the handler mode into `RAX`. |
 | State key | `0f 24 65-66 50 4f 4c 59 21` | `0x65` sets the explicit userspace poly state key from `RAX`, with `RAX=0` disabling the explicit key and falling back to the stack-region key. `0x66` reads the explicit key into `RAX`. |
+| State save/restore | `0f 24 67-68 50 4f 4c 59 21` | Prototype fixed-layout state operations. `0x67` exports the current keyed poly state to the 4096-byte `struct poly_xsave_state` buffer pointed to by `RAX`; `0x68` imports that layout back into the current keyed state and continues in x86 mode. This is an explicit software operation, not a claim that leaf `0x40000003` exposes a real XCR0 component yet. |
 
 When `POLY_ENABLED=1`, the prototype exposes a private CPUID discovery leaf for
 runtime dispatch:
@@ -208,7 +209,10 @@ as an architectural XSAVE component. Bit `8` means software can select an
 explicit state key with `0f 24 65 ... POLY!`; a zero key disables the explicit
 selector and restores the stack-region fallback. Bit `9` means native
 cross-frontend return state uses fixed 32-byte transition records rather than
-ad hoc variable C fields.
+ad hoc variable C fields. Bit `10` means the prototype implements explicit
+`0f 24 67/68 ... POLY!` export/import operations using the same fixed
+`struct poly_xsave_state` layout that leaf `0x40000004` assigns to a future
+hardware XSAVE component.
 
 Leaf `0x40000004` is the intended hardware state ABI.  When a silicon/FPGA
 implementation sets bit `7` in `0x40000003.EAX` and reports component `11`,
@@ -864,8 +868,11 @@ continuation cookies with another address space. Runtime or OS code should set
 an explicit key when it needs deterministic per-thread banks; the stack-region
 fallback keeps common pthread stacks separate when no explicit key is selected.
 The low overlapping return/scratch values still use the current x86 register
-bridge; this is not yet a full XSAVE-backed foreign register ABI. The current
-interrupt prototype covers ordinary long-mode
+bridge; this is not yet a full XSAVE-backed foreign register ABI. The prototype
+can explicitly export/import the keyed state through the fixed 4096-byte
+`struct poly_xsave_state` layout, but the state is still not wired into the
+guest OS `XSAVE`/`XRSTOR` context-switch path. The current interrupt prototype
+covers ordinary long-mode
 `IRET64`, `SYSRET`, `SYSEXIT`, and Linux signal-return paths into raw
 userspace; the final ISA still needs an explicit, architectural XSAVE-visible
 foreign state component.

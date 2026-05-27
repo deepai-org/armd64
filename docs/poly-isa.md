@@ -144,6 +144,14 @@ and call operations:
   explicit key and falls back to the stack-region key.
 - `0f 24 66 50 4f 4c 59 21`: explicit state key get.  Returns the current
   explicit key in `RAX`.
+- `0f 24 67 50 4f 4c 59 21`: explicit state export.  `RAX` points to a
+  4096-byte, 64-byte-aligned `struct poly_xsave_state` buffer.  The CPU writes
+  the current keyed prototype state in the fixed leaf `0x40000004` layout.
+- `0f 24 68 50 4f 4c 59 21`: explicit state import.  `RAX` points to a
+  `struct poly_xsave_state` buffer with magic `0x31594c50` and layout version
+  `1`.  The CPU imports the state into the current keyed prototype bank and
+  continues execution in x86 mode.  This is a prototype software state operation
+  and does not set the active XSAVE-visible bit in leaf `0x40000003`.
 
 Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
 handler and validates the trailing `POLY!` magic before changing frontend
@@ -206,8 +214,10 @@ discover the experimental hardware contract before emitting poly operations:
   exposed as an architectural XSAVE component.  Bit `8` means software can
   select an explicit state key with `0f 24 65 ... POLY!`; a zero explicit key
   restores the stack-region fallback.  Bit `9` means native cross-frontend
-  return state uses fixed 32-byte transition records.  `EBX=23` reports the
-  stack region shift.
+  return state uses fixed 32-byte transition records.  Bit `10` means the
+  prototype implements explicit state export/import opcodes `0f 24 67/68 ...
+  POLY!` using the fixed `struct poly_xsave_state` layout.  `EBX=23` reports
+  the stack region shift.
   Legacy syscall/break status registers, trap-vector policy, recorded
   trap-packet/status state, trap-return save state, and 32-byte transition
   records are part of this keyed prototype state until an XSAVE component is
@@ -874,7 +884,10 @@ keyed with the userspace poly state.  The key is guest `CR3`, user `FSBASE`,
 and either an explicit software-selected state key or the 8 MiB stack-region
 fallback key when the explicit key is zero.  A different guest address space
 starts with no stale trap vector, no stale syscall/break status, no stale
-trap packet, and no stale trap-return frame.
+trap packet, and no stale trap-return frame.  Software can also explicitly
+export/import this keyed state with `0f 24 67/68 ... POLY!` and the fixed
+4096-byte `struct poly_xsave_state` layout; this is still a prototype
+save/restore path, not an OS-enabled XCR0 component.
 If no vector is installed, syscall and import traps surface as x86 `#UD`;
 breakpoint traps surface as x86 `#BP`.  This keeps the CPU model OS-neutral:
 software, not the CPU, decides whether a trap means Linux syscall translation,

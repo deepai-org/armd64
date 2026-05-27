@@ -16,6 +16,8 @@
 #define POLY_OP_TRAP_VECTOR_MODE_GET ".byte 0x0f,0x24,0x64,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x24,0x65,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x24,0x66,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_STATE_IMPORT ".byte 0x0f,0x24,0x68,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x24,0x32,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -62,6 +64,14 @@ static inline uint64_t poly_state_key_get(void) {
   uint64_t value;
   asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
   return value;
+}
+
+static inline void poly_state_export(struct poly_xsave_state *state) {
+  asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
+}
+
+static inline void poly_state_import(struct poly_xsave_state *state) {
+  asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
 }
 
 static inline uint64_t poly_trap_status_reason(void) {
@@ -833,6 +843,55 @@ static int run_poly_state_key_probe(void) {
   return 0;
 }
 
+static int run_poly_state_save_restore_probe(void) {
+  struct poly_xsave_state snapshot __attribute__((aligned(64)));
+  const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+
+  memset(&snapshot, 0, sizeof(snapshot));
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value(trap_vector);
+  poly_state_export(&snapshot);
+
+  if (snapshot.header.magic != POLY_STATE_XSAVE_MAGIC ||
+      snapshot.header.layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      snapshot.header.header_bytes != POLY_STATE_XSAVE_HEADER_BYTES ||
+      snapshot.header.total_bytes != sizeof(snapshot)) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export header mismatch magic=0x%x version=%u bytes=%u\n",
+      snapshot.header.magic, snapshot.header.layout_version,
+      snapshot.header.total_bytes);
+    return 1;
+  }
+  if (snapshot.header.trap_vector_pc != trap_vector ||
+      snapshot.header.trap_vector_mode != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export trap vector mismatch pc=0x%llx mode=%u\n",
+      (unsigned long long) snapshot.header.trap_vector_pc,
+      snapshot.header.trap_vector_mode);
+    return 1;
+  }
+
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_state_import(&snapshot);
+
+  poly_trap_vector_get();
+  if (read_rax() != trap_vector) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import trap vector mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import trap mode mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  puts("NATIVE_POLY_STATE_SAVE_RESTORE_OK");
+  return 0;
+}
+
 int main(void) {
   const char *expect_poly_cpuid = getenv("EXPECT_POLY_CPUID");
 
@@ -900,6 +959,8 @@ int main(void) {
     if (run_poly_no_vector_signal_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
+      return 1;
+    if (run_poly_state_save_restore_probe() != 0)
       return 1;
   }
   puts("NATIVE_CHECK_OK");
