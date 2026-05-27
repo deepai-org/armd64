@@ -45,6 +45,10 @@ static inline void write_xmm0_u64(uint64_t value) {
   asm volatile("movq %0,%%xmm0" :: "r"(value) : "xmm0", "memory");
 }
 
+static inline void write_xmm1_u64(uint64_t value) {
+  asm volatile("movq %0,%%xmm1" :: "r"(value) : "xmm1", "memory");
+}
+
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
 }
@@ -1243,6 +1247,131 @@ static int run_poly_state_save_restore_probe(void) {
   return 0;
 }
 
+static int run_poly_state_register_bank_probe(void) {
+  struct poly_xsave_state snapshot __attribute__((aligned(64)));
+  const uint64_t three_bits = 0x4008000000000000ULL;
+  const uint64_t five_bits = 0x4014000000000000ULL;
+  const uint64_t seven_bits = 0x401c000000000000ULL;
+  const uint64_t ten_bits = 0x4024000000000000ULL;
+  const uint64_t twelve_bits = 0x4028000000000000ULL;
+
+  memset(&snapshot, 0, sizeof(snapshot));
+  poly_state_key_set_value(0x5354415445524547ULL);
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+
+  write_xmm0_u64(three_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28009b4\n" // movz x20,#77
+    ".long 0x1e604014\n" // fmov d20,d0
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+
+  write_xmm0_u64(five_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x05800a13\n" // addi s4,zero,88
+    ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+
+  poly_state_export(&snapshot);
+  if (snapshot.aarch64_gpr[20] != 77 ||
+      snapshot.aarch64_fp[20].lo != three_bits ||
+      snapshot.riscv_gpr[20] != 88 ||
+      snapshot.riscv_fp[20].lo != five_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state export register bank mismatch a64x20=%llu a64v20=0x%llx rvx20=%llu rvf20=0x%llx\n",
+      (unsigned long long) snapshot.aarch64_gpr[20],
+      (unsigned long long) snapshot.aarch64_fp[20].lo,
+      (unsigned long long) snapshot.riscv_gpr[20],
+      (unsigned long long) snapshot.riscv_fp[20].lo);
+    poly_state_key_set_value(0);
+    return 1;
+  }
+
+  write_xmm0_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800174\n" // movz x20,#11
+    ".long 0x1e604014\n" // fmov d20,d0
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+
+  write_xmm0_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00b00a13\n" // addi s4,zero,11
+    ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+
+  poly_state_import(&snapshot);
+
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 77) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import aarch64 x20 mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    poly_state_key_set_value(0);
+    return 1;
+  }
+
+  write_xmm1_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x1e612a80\n" // fadd d0,d20,d1
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+  if (read_xmm0_u64() != ten_bits) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import aarch64 d20 mismatch got=0x%llx\n",
+      (unsigned long long) read_xmm0_u64());
+    poly_state_key_set_value(0);
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x000a0513\n" // addi a0,s4,0
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 88) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv s4 mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    poly_state_key_set_value(0);
+    return 1;
+  }
+
+  write_xmm1_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x02ba7553\n" // fadd.d fa0,f20,fa1
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+  if (read_xmm0_u64() != twelve_bits) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv f20 mismatch got=0x%llx\n",
+      (unsigned long long) read_xmm0_u64());
+    poly_state_key_set_value(0);
+    return 1;
+  }
+
+  poly_state_key_set_value(0);
+  puts("NATIVE_POLY_STATE_REGISTER_BANK_OK");
+  return 0;
+}
+
 int main(void) {
   const char *expect_poly_cpuid = getenv("EXPECT_POLY_CPUID");
 
@@ -1373,6 +1502,8 @@ int main(void) {
     if (run_poly_state_key_probe() != 0)
       return 1;
     if (run_poly_state_save_restore_probe() != 0)
+      return 1;
+    if (run_poly_state_register_bank_probe() != 0)
       return 1;
   }
   puts("NATIVE_CHECK_OK");
