@@ -166,6 +166,7 @@ RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
 RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
 RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
+RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
 EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
 EXPECT_POLY_COMPAT_TRAPS="${EXPECT_POLY_COMPAT_TRAPS:-$POLY_COMPAT_TRAPS}"
@@ -2082,6 +2083,7 @@ RUN_POLY_THREAD="$RUN_POLY_THREAD"
 RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
 RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
+RUN_POLY_BINFMT_ARCH_TRAPS="$RUN_POLY_BINFMT_ARCH_TRAPS"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
 EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID"
 EXPECT_POLY_COMPAT_TRAPS="$EXPECT_POLY_COMPAT_TRAPS"
@@ -2977,7 +2979,51 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     echo "POLYBINFMT_FAIL: native x86 elf" >/dev/ttyS0
     exit 1
   }
-  for foreign in \
+  if [ "$RUN_POLY_BINFMT_ARCH_TRAPS" = "1" ]; then
+    for foreign in \
+      /usr/lib/polyapps/aarch64-add.elf \
+      /usr/lib/polyapps/aarch64-regadd.elf \
+      /usr/lib/polyapps/aarch64-mem.elf \
+      /usr/lib/polyapps/aarch64-strlen.elf \
+      /usr/lib/polyapps/aarch64-memfill.elf \
+      /usr/lib/polyapps/aarch64-memcmp.elf \
+      /usr/lib/polyapps/aarch64-memcpy.elf \
+      /usr/lib/polyapps/aarch64-mmap-real-store.elf \
+      /usr/lib/polyapps/aarch64-real-mprotect.elf \
+      /usr/lib/polyapps/aarch64-real-munmap.elf \
+      /usr/lib/polyapps/aarch64-real-openat-read-close.elf \
+      /usr/lib/polyapps/aarch64-real-newfstatat.elf \
+      /usr/lib/polyapps/aarch64-real-fstat0.elf \
+      /usr/lib/polyapps/aarch64-real-statx.elf \
+      /usr/lib/polyapps/aarch64-real-write-zero.elf \
+      /usr/lib/polyapps/aarch64-real-clock-getres.elf \
+      /usr/lib/polyapps/aarch64-real-gettimeofday.elf \
+      /usr/lib/polyapps/riscv-add.elf \
+      /usr/lib/polyapps/riscv-regadd.elf \
+      /usr/lib/polyapps/riscv-mem.elf \
+      /usr/lib/polyapps/riscv-strlen.elf \
+      /usr/lib/polyapps/riscv-memfill.elf \
+      /usr/lib/polyapps/riscv-memcmp.elf \
+      /usr/lib/polyapps/riscv-memcpy.elf \
+      /usr/lib/polyapps/riscv-mmap-real-store.elf \
+      /usr/lib/polyapps/riscv-real-mprotect.elf \
+      /usr/lib/polyapps/riscv-real-munmap.elf \
+      /usr/lib/polyapps/riscv-real-openat-read-close.elf \
+      /usr/lib/polyapps/riscv-real-newfstatat.elf \
+      /usr/lib/polyapps/riscv-real-fstat0.elf \
+      /usr/lib/polyapps/riscv-real-statx.elf \
+      /usr/lib/polyapps/riscv-real-write-zero.elf \
+      /usr/lib/polyapps/riscv-real-clock-getres.elf \
+      /usr/lib/polyapps/riscv-real-gettimeofday.elf
+    do
+      echo "POLYBINFMT_STEP: \$foreign" >/dev/ttyS0
+      "\$foreign" >/dev/ttyS0 2>&1 || {
+        echo "POLYBINFMT_FAIL: exec \$foreign" >/dev/ttyS0
+        exit 1
+      }
+    done
+  else
+    for foreign in \
     /usr/lib/polyapps/aarch64-add.elf \
     /usr/lib/polyapps/aarch64-regadd.elf \
     /usr/lib/polyapps/aarch64-movwide.elf \
@@ -3474,7 +3520,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: exec \$foreign" >/dev/ttyS0
       exit 1
     }
-  done
+    done
+  fi
   echo "POLYBINFMT_OK" >/dev/ttyS0
 fi
 
