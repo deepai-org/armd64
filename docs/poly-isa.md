@@ -431,7 +431,9 @@ payloads. `polycall` also accepts simple `ET_DYN` images with
 direct and bitmap relative relocation tables,
 `R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolver relocations, and same-image symbolic 64-bit dynamic relocations
 (`R_AARCH64_ABS64` or `R_RISCV_64`), applying them with the actual runtime load
-bias before `PCALL`. Symbolic relocation metadata and `path#symbol` entrypoint
+bias before `PCALL`. The loader also accepts `R_AARCH64_COPY`/`R_RISCV_COPY`
+copy relocations for non-PIE foreign executables that reference data exported by
+same-directory foreign shared libraries. Symbolic relocation metadata and `path#symbol` entrypoint
 lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
 `DT_HASH` is used to bound the sectionless dynamic symbol table, and
 `DT_GNU_HASH` is supported for common GNU-hash-only shared objects.
@@ -452,7 +454,9 @@ import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 `riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 `libpolyneeded-aarch64.so`, and `riscv-pcall-needed-real.so#poly_entry` with
-`libpolyneeded-riscv.so`), compiler-produced relocated
+`libpolyneeded-riscv.so`), compiler-produced copy-relocation executables
+(`aarch64-pcall-copy-reloc.elf#poly_entry` and
+`riscv-pcall-copy-reloc.elf#poly_entry`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-produced two-word aggregate
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
@@ -728,6 +732,10 @@ IFUNC-style resolver relocations are accepted through
 `R_AARCH64_IRELATIVE` and `R_RISCV_IRELATIVE`; the resolver runs in the
 foreign frontend after ordinary relocations are applied, and its return value is
 written to the relocation target.
+Copy relocations are accepted through `R_AARCH64_COPY` and `R_RISCV_COPY`; the
+loader resolves the exported object in loaded dependency scope and copies the
+symbol contents into the executable image before foreign constructors or
+entrypoints run.
 Undefined object-symbol relocations can bind to process-provided imports; the
 gate covers `poly_import_value` through an undefined dynamic symbol relocation.
 Undefined weak object/function relocations resolve to zero, matching ordinary

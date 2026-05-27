@@ -602,7 +602,9 @@ symbolic 64-bit dynamic relocations and exported entrypoints through both
 section-backed and `PT_DYNAMIC` symbol metadata, including SysV `DT_HASH` and
 GNU `DT_GNU_HASH` symbol counts plus `DT_JMPREL`/`JUMP_SLOT` PLT relocations
 using both `DT_PLTREL=RELA` and `DT_PLTREL=REL` tables for sectionless dynamic
-objects, scalar double FP arguments and returns through
+objects, `R_AARCH64_COPY`/`R_RISCV_COPY` copy relocations for non-PIE foreign
+executables referencing data exported by same-directory foreign shared
+libraries, scalar double FP arguments and returns through
 the native FP register ABI, scalar double FP function imports through PLT/GOT call
 descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,

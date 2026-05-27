@@ -10,6 +10,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
 #ifndef DT_GNU_HASH
 #define DT_GNU_HASH 0x6ffffef5
 #endif
@@ -25,8 +28,14 @@
 #ifndef R_AARCH64_IRELATIVE
 #define R_AARCH64_IRELATIVE 1032
 #endif
+#ifndef R_AARCH64_COPY
+#define R_AARCH64_COPY 1024
+#endif
 #ifndef R_AARCH64_TLSDESC
 #define R_AARCH64_TLSDESC 1031
+#endif
+#ifndef R_RISCV_COPY
+#define R_RISCV_COPY 4
 #endif
 #ifndef R_AARCH64_TLS_DTPMOD64
 #define R_AARCH64_TLS_DTPMOD64 1028
@@ -87,7 +96,8 @@ enum {
   RELOC_BASE_IMPORT_CALL = 3,
   RELOC_BASE_IRELATIVE = 4,
   RELOC_BASE_TLS_OFFSET = 5,
-  RELOC_BASE_DEP_LOAD_BIAS = 100
+  RELOC_BASE_DEP_LOAD_BIAS = 100,
+  RELOC_BASE_DEP_COPY = 200
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
@@ -266,6 +276,7 @@ struct poly_import_contract {
 
 struct poly_dynamic_reloc {
   size_t offset;
+  size_t size;
   uint64_t value;
   int base_kind;
 };
@@ -1255,6 +1266,14 @@ static uint32_t irelative_reloc_type_for_arch(int arch) {
   return UINT32_MAX;
 }
 
+static uint32_t copy_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_COPY;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_COPY;
+  return UINT32_MAX;
+}
+
 static const uint64_t poly_import_value = 123;
 static const uint64_t poly_stack_chk_guard = 0x706f6c7963616eULL;
 
@@ -1808,8 +1827,39 @@ static int append_dynamic_reloc(struct poly_program *program, size_t offset,
   }
   program->relocs = relocs;
   program->relocs[program->reloc_count].offset = offset;
+  program->relocs[program->reloc_count].size = 8;
   program->relocs[program->reloc_count].value = value;
   program->relocs[program->reloc_count].base_kind = base_kind;
+  program->reloc_count++;
+  return 0;
+}
+
+static int append_copy_reloc(struct poly_program *program, size_t offset,
+    size_t size, uint64_t source_vaddr, size_t dep_index) {
+  if (size == 0 || dep_index >= MAX_NEEDED_DEPS) {
+    fprintf(stderr, "POLYCALL_FAIL: bad copy relocation: %s\n",
+      program->path);
+    return -1;
+  }
+  if (program->reloc_count >= MAX_DYNAMIC_RELOCS) {
+    fprintf(stderr, "POLYCALL_FAIL: too many dynamic relocations: %s\n",
+      program->path);
+    return -1;
+  }
+
+  struct poly_dynamic_reloc *relocs = realloc(program->relocs,
+    (program->reloc_count + 1) * sizeof(*program->relocs));
+  if (!relocs) {
+    fprintf(stderr, "POLYCALL_FAIL: out of memory reading relocations: %s\n",
+      program->path);
+    return -1;
+  }
+  program->relocs = relocs;
+  program->relocs[program->reloc_count].offset = offset;
+  program->relocs[program->reloc_count].size = size;
+  program->relocs[program->reloc_count].value = source_vaddr;
+  program->relocs[program->reloc_count].base_kind =
+    RELOC_BASE_DEP_COPY + (int) dep_index;
   program->reloc_count++;
   return 0;
 }
@@ -2475,6 +2525,44 @@ static int resolve_dependency_symbol(const struct poly_program *program,
   return -1;
 }
 
+static int resolve_dependency_object_symbol(const struct poly_program *program,
+    const char *symbol_name, size_t *dep_index, uint64_t *symbol_value,
+    size_t *symbol_size) {
+  size_t best = program->dep_count;
+  size_t best_rank = (size_t) -1;
+  uint64_t best_value = 0;
+  size_t best_size = 0;
+
+  for (size_t n = 0; n < program->dep_count; n++) {
+    const struct poly_symbol_table *table = &program->deps[n].dynsym;
+    if (!table->symbols || !table->strings || !symbol_name)
+      continue;
+    for (size_t s = 0; s < table->symbol_count; s++) {
+      const Elf64_Sym *sym = &table->symbols[s];
+      const unsigned type = ELF64_ST_TYPE(sym->st_info);
+      if (sym->st_name >= table->strings_size ||
+          sym->st_shndx == SHN_UNDEF ||
+          (type != STT_OBJECT && type != STT_NOTYPE) ||
+          strcmp(table->strings + sym->st_name, symbol_name) != 0)
+        continue;
+      if (program->deps[n].lookup_rank >= best_rank)
+        continue;
+      best = n;
+      best_rank = program->deps[n].lookup_rank;
+      best_value = sym->st_value;
+      best_size = (size_t) sym->st_size;
+    }
+  }
+
+  if (best < program->dep_count) {
+    *dep_index = best;
+    *symbol_value = best_value;
+    *symbol_size = best_size;
+    return 0;
+  }
+  return -1;
+}
+
 static int resolve_external_reloc_symbol(struct poly_program *program,
     const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
   if (resolve_dependency_symbol(program, symbol_name, symbol_value,
@@ -2598,6 +2686,7 @@ static int process_rela_table(struct poly_program *program,
   const size_t rela_count = (size_t) (rela_size / sizeof(Elf64_Rela));
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
   const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
+  const uint32_t copy_type = copy_reloc_type_for_arch(program->arch);
   struct poly_symbol_table dynsym;
   memset(&dynsym, 0, sizeof(dynsym));
   for (size_t n = 0; n < rela_count; n++) {
@@ -2605,6 +2694,50 @@ static int process_rela_table(struct poly_program *program,
     const uint32_t reloc_type = ELF64_R_TYPE(rela[n].r_info);
     uint64_t reloc_value = 0;
     int base_kind = RELOC_BASE_LOAD_BIAS;
+    if (symbol_index != 0 && reloc_type == copy_type) {
+      if (!dynsym.symbols &&
+          load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
+          load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: copy relocations require dynsym metadata: %s\n",
+          program->path);
+        return -1;
+      }
+      if (symbol_index >= dynsym.symbol_count ||
+          dynsym.symbols[symbol_index].st_name >= dynsym.strings_size) {
+        fprintf(stderr, "POLYCALL_FAIL: bad copy relocation symbol: %s\n",
+          program->path);
+        return -1;
+      }
+      const Elf64_Sym *sym = &dynsym.symbols[symbol_index];
+      const char *symbol_name = dynsym.strings + sym->st_name;
+      size_t dep_index = 0;
+      uint64_t source_vaddr = 0;
+      size_t source_size = 0;
+      if (resolve_dependency_object_symbol(program, symbol_name, &dep_index,
+            &source_vaddr, &source_size) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: unresolved copy relocation symbol=%s path=%s\n",
+          symbol_name, program->path);
+        return -1;
+      }
+      const size_t copy_size = sym->st_size ? (size_t) sym->st_size :
+        source_size;
+      if (copy_size == 0 || (source_size != 0 && copy_size > source_size)) {
+        fprintf(stderr, "POLYCALL_FAIL: bad copy relocation size symbol=%s path=%s\n",
+          symbol_name, program->path);
+        return -1;
+      }
+      size_t relocation_offset = 0;
+      if (elf_vaddr_to_image_offset(program, rela[n].r_offset, copy_size,
+            &relocation_offset) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: copy relocation target out of image: %s\n",
+          program->path);
+        return -1;
+      }
+      if (append_copy_reloc(program, relocation_offset, copy_size,
+            source_vaddr, dep_index) < 0)
+        return -1;
+      continue;
+    }
     if (program->arch == POLY_ARCH_AARCH64 && reloc_type == R_AARCH64_TLSDESC) {
       program->needs_x86_import = 1;
       if (!dynsym.symbols &&
@@ -2756,6 +2889,7 @@ static int process_rel_table(struct poly_program *program,
   const size_t rel_count = (size_t) (rel_size / sizeof(Elf64_Rel));
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
   const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
+  const uint32_t copy_type = copy_reloc_type_for_arch(program->arch);
   struct poly_symbol_table dynsym;
   memset(&dynsym, 0, sizeof(dynsym));
   for (size_t n = 0; n < rel_count; n++) {
@@ -2771,6 +2905,49 @@ static int process_rel_table(struct poly_program *program,
 
     uint64_t reloc_value = read_le64(program->image + relocation_offset);
     int base_kind = RELOC_BASE_LOAD_BIAS;
+    if (symbol_index != 0 && reloc_type == copy_type) {
+      if (!dynsym.symbols &&
+          load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
+          load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: copy relocations require dynsym metadata: %s\n",
+          program->path);
+        return -1;
+      }
+      if (symbol_index >= dynsym.symbol_count ||
+          dynsym.symbols[symbol_index].st_name >= dynsym.strings_size) {
+        fprintf(stderr, "POLYCALL_FAIL: bad copy relocation symbol: %s\n",
+          program->path);
+        return -1;
+      }
+      const Elf64_Sym *sym = &dynsym.symbols[symbol_index];
+      const char *symbol_name = dynsym.strings + sym->st_name;
+      size_t dep_index = 0;
+      uint64_t source_vaddr = 0;
+      size_t source_size = 0;
+      if (resolve_dependency_object_symbol(program, symbol_name, &dep_index,
+            &source_vaddr, &source_size) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: unresolved copy relocation symbol=%s path=%s\n",
+          symbol_name, program->path);
+        return -1;
+      }
+      const size_t copy_size = sym->st_size ? (size_t) sym->st_size :
+        source_size;
+      if (copy_size == 0 || (source_size != 0 && copy_size > source_size)) {
+        fprintf(stderr, "POLYCALL_FAIL: bad copy relocation size symbol=%s path=%s\n",
+          symbol_name, program->path);
+        return -1;
+      }
+      if (relocation_offset > program->image_size ||
+          copy_size > program->image_size - relocation_offset) {
+        fprintf(stderr, "POLYCALL_FAIL: copy relocation target out of image: %s\n",
+          program->path);
+        return -1;
+      }
+      if (append_copy_reloc(program, relocation_offset, copy_size,
+            source_vaddr, dep_index) < 0)
+        return -1;
+      continue;
+    }
     if (symbol_index == 0 && reloc_type == relative_type) {
       // REL stores the addend in-place at the relocation target.
     }
@@ -3529,6 +3706,19 @@ static void unmap_dependency_images(uint8_t **dep_foreign,
   }
 }
 
+static uint8_t *map_foreign_program_image(const struct poly_program *program,
+    size_t foreign_size) {
+  if (program->elf_type == ET_EXEC) {
+    uint8_t *fixed = mmap((void *) (uintptr_t) program->base_vaddr,
+      foreign_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+    if (fixed != MAP_FAILED || errno != EEXIST)
+      return fixed;
+  }
+  return mmap(NULL, foreign_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+}
+
 static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
@@ -3579,8 +3769,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     fprintf(stderr, "POLYCALL_FAIL: x86 stub mmap failed: %s\n", strerror(errno));
     return -1;
   }
-  uint8_t *foreign = mmap(NULL, foreign_size, PROT_READ | PROT_WRITE | PROT_EXEC,
-    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  uint8_t *foreign = map_foreign_program_image(program, foreign_size);
   if (foreign == MAP_FAILED) {
     fprintf(stderr, "POLYCALL_FAIL: foreign mmap failed: %s\n", strerror(errno));
     munmap(code, code_size);
@@ -3762,6 +3951,31 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     for (size_t r = 0; r < dep->reloc_count; r++) {
       if (dep->relocs[r].base_kind == RELOC_BASE_IRELATIVE)
         continue;
+      if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_COPY &&
+          dep->relocs[r].base_kind <
+            RELOC_BASE_DEP_COPY + (int) program->dep_count) {
+        const size_t source_dep =
+          (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_COPY);
+        size_t source_offset = 0;
+        if (dep->relocs[r].offset > dep_sizes[d] ||
+            dep->relocs[r].size > dep_sizes[d] - dep->relocs[r].offset ||
+            image_vaddr_to_offset(program->deps[source_dep].base_vaddr,
+              dep_sizes[source_dep], dep->relocs[r].value,
+              dep->relocs[r].size, &source_offset) < 0) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency copy relocation escaped image: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        memcpy(dep_foreign[d] + dep->relocs[r].offset,
+          dep_foreign[source_dep] + source_offset, dep->relocs[r].size);
+        continue;
+      }
       if (dep->relocs[r].offset > dep_sizes[d] ||
           dep_sizes[d] - dep->relocs[r].offset < 8) {
         fprintf(stderr, "POLYCALL_FAIL: dependency relocation target escaped image: %s\n",
@@ -3854,6 +4068,31 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   for (size_t n = 0; n < program->reloc_count; n++) {
     if (program->relocs[n].base_kind == RELOC_BASE_IRELATIVE)
       continue;
+    if (program->relocs[n].base_kind >= RELOC_BASE_DEP_COPY &&
+        program->relocs[n].base_kind <
+          RELOC_BASE_DEP_COPY + (int) program->dep_count) {
+      const size_t source_dep =
+        (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_COPY);
+      size_t source_offset = 0;
+      if (program->relocs[n].offset > foreign_size ||
+          program->relocs[n].size > foreign_size - program->relocs[n].offset ||
+          image_vaddr_to_offset(program->deps[source_dep].base_vaddr,
+            dep_sizes[source_dep], program->relocs[n].value,
+            program->relocs[n].size, &source_offset) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: copy relocation escaped image: %s\n",
+          program->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      memcpy(foreign + program->relocs[n].offset,
+        dep_foreign[source_dep] + source_offset, program->relocs[n].size);
+      continue;
+    }
     if (program->relocs[n].offset > foreign_size ||
         foreign_size - program->relocs[n].offset < 8) {
       fprintf(stderr, "POLYCALL_FAIL: relocation target escaped image: %s\n",
