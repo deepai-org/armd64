@@ -670,7 +670,9 @@ deterministically after recording the architectural trap.  Supported syscall
 numbers currently include:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
-  `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `getpid`,
+  `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `setregid`,
+  `setgid`, `setreuid`, `setuid`, `setresuid`, `getresuid`, `setresgid`,
+  `getresgid`, `setfsuid`, `setfsgid`, `getgroups`, `setgroups`, `getpid`,
   `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
   `getpgid(0)`, `getsid(0)`, `rseq`, `exit`, and `exit_group`.
 - File-style syscalls: `getcwd`, `eventfd2`, `inotify_init1`,
