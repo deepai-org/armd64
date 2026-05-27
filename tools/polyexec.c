@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -152,6 +153,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 134: *x86_number = SYS_rt_sigaction; return 1;
     case 135: *x86_number = SYS_rt_sigprocmask; return 1;
     case 160: *x86_number = SYS_uname; return 1;
+    case 163: *x86_number = SYS_getrlimit; return 1;
     case 167: *x86_number = SYS_prctl; return 1;
     case 169: *x86_number = SYS_gettimeofday; return 1;
     case 155: *x86_number = SYS_getpgid; return 1;
@@ -359,6 +361,15 @@ static int parse_request(const char *arg, struct poly_request *request) {
     }
     else if (strcmp(expected + 1, "sid") == 0) {
       request->expected = (uint64_t) getsid(0);
+    }
+    else if (strcmp(expected + 1, "stackrlim") == 0) {
+      struct rlimit limit;
+      if (getrlimit(RLIMIT_STACK, &limit) < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: unable to compute getrlimit expected value: %s\n",
+          strerror(errno));
+        return -1;
+      }
+      request->expected = (uint64_t) limit.rlim_cur;
     }
     else if (strcmp(expected + 1, "cwd") == 0) {
       char cwd[256];
