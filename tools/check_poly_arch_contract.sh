@@ -188,6 +188,10 @@ assert_contains "pcall-root-ifunc-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency relocations bound to root IFUNC exports"
 assert_contains "RELOC_BASE_ROOT_IFUNC" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must have a relocation base for root-object IFUNC exports"
+assert_contains "pcall-root-weak-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover weak dependency relocations bound to root exports"
+assert_contains "resolve_root_symbol\\(program, symbol_name, &required_version" "$ROOT_DIR/tools/polycall.c" \
+  "polycall weak undefined relocations must search root exports before resolving to zero"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

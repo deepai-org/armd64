@@ -75,6 +75,8 @@ POLYCALL_ROOT_TLS_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_root_tls_dep_real.c"
 POLYCALL_ROOT_TLS_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_root_tls_main_real.c"
 POLYCALL_ROOT_IFUNC_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_root_ifunc_dep_real.c"
 POLYCALL_ROOT_IFUNC_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_root_ifunc_main_real.c"
+POLYCALL_ROOT_WEAK_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_root_weak_dep_real.c"
+POLYCALL_ROOT_WEAK_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_root_weak_main_real.c"
 POLYCALL_NEEDED_TLS_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_dep_real.c"
 POLYCALL_NEEDED_TLS_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_main_real.c"
 POLYCALL_NEEDED_TLS_EXTERNAL_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_tls_external_main_real.c"
@@ -517,6 +519,17 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyrootifunc-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-root-ifunc-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyrootweak-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_ROOT_WEAK_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyrootweak-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ROOT_WEAK_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyrootweak-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-root-weak-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyneededtls-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -1168,6 +1181,19 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyrootifunc-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-root-ifunc-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyrootweak-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_ROOT_WEAK_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyrootweak-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ROOT_WEAK_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyrootweak-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-root-weak-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolyneededtls-riscv.so -Wl,--hash-style=sysv \
@@ -2987,6 +3013,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/aarch64-pcall-root-tls-real.so#poly_entry=2348 \
     /usr/lib/polyapps/aarch64-pcall-root-ifunc-real.so#poly_entry=2045 \
+    /usr/lib/polyapps/aarch64-pcall-root-weak-real.so#poly_entry=955 \
     /usr/lib/polyapps/aarch64-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/aarch64-pcall-needed-tls-external-real.so#poly_entry=1045 \
     /usr/lib/polyapps/aarch64-pcall-versioned-real.so#poly_entry=1045 \
@@ -3112,6 +3139,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/riscv-pcall-root-tls-real.so#poly_entry=2348 \
     /usr/lib/polyapps/riscv-pcall-root-ifunc-real.so#poly_entry=2045 \
+    /usr/lib/polyapps/riscv-pcall-root-weak-real.so#poly_entry=955 \
     /usr/lib/polyapps/riscv-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/riscv-pcall-needed-tls-external-real.so#poly_entry=1045 \
     /usr/lib/polyapps/riscv-pcall-versioned-real.so#poly_entry=1045 \

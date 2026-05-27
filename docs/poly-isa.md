@@ -843,8 +843,8 @@ the root loaded foreign object, matching common callback/hook patterns in
 ordinary dynamic linking. Root-exported `STT_GNU_IFUNC` symbols are resolved
 by calling the root resolver in foreign mode before patching dependency
 relocations.
-Weak undefined foreign relocations first try the loaded dependency scope and
-only resolve to zero when no dependency exports the requested symbol.
+Weak undefined foreign relocations first try the root/dependency scope and only
+resolve to zero when no loaded object exports the requested symbol.
 When multiple dependency libraries export the same function/object symbol, the
 foreign loader ranks direct `DT_NEEDED` dependencies ahead of transitive
 dependencies so a later direct library can interpose over an earlier indirect

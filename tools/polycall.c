@@ -3282,6 +3282,9 @@ static int resolve_reloc_symbol(struct poly_program *program,
     const struct poly_version_requirement required_version =
       symbol_required_version(table, symbol_index);
     if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
+      if (resolve_root_symbol(program, symbol_name, &required_version,
+            symbol_value, base_kind) == 0)
+        return 0;
       if (resolve_dependency_symbol(program, symbol_name, &required_version,
             symbol_value, base_kind) == 0)
         return 0;
@@ -3327,15 +3330,15 @@ static int resolve_tls_reloc_symbol(struct poly_program *program,
     uint64_t dep_tls_offset = 0;
     const struct poly_version_requirement required_version =
       symbol_required_version(table, symbol_index);
+    if (resolve_root_tls_symbol(program, symbol_name, &required_version,
+          tls_offset) == 0) {
+      *base_kind = RELOC_BASE_ROOT_TLS_OFFSET;
+      return 0;
+    }
     if (resolve_dependency_tls_symbol(program, symbol_name, &required_version,
           &dep_index, &dep_tls_offset) == 0) {
       *tls_offset = dep_tls_offset;
       *base_kind = RELOC_BASE_DEP_TLS_OFFSET + (int) dep_index;
-      return 0;
-    }
-    if (resolve_root_tls_symbol(program, symbol_name, &required_version,
-          tls_offset) == 0) {
-      *base_kind = RELOC_BASE_ROOT_TLS_OFFSET;
       return 0;
     }
     if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
