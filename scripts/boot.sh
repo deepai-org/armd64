@@ -2590,7 +2590,9 @@ fi
 if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-getpid.elf=pid \
-    /usr/lib/polyapps/riscv-getpid.elf=pid >/dev/ttyS0 2>&1
+    /usr/lib/polyapps/riscv-getpid.elf=pid \
+    /usr/lib/polyapps/aarch64-strlen.elf=5 \
+    /usr/lib/polyapps/riscv-strlen.elf=5 >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_CALL" = "1" ]; then
