@@ -638,13 +638,15 @@ memory objects (`aarch64-pcall-fp32-mem-real.so#poly_entry` and
 `riscv-pcall-fp32-mem-real.so#poly_entry`), and compiler-shaped stack-frame payloads
 (`aarch64-pcall-frame.elf`, `aarch64-pcall-native-frame.elf`,
 `aarch64-pcall-bl.elf`, `aarch64-pcall-adrp.elf`, `aarch64-pcall-cond.elf`,
-`aarch64-pcall-split-load.elf`, `aarch64-pcall-dynrel.elf`,
+`aarch64-pcall-split-load.elf`, `aarch64-pcall-none-reloc.elf`,
+`aarch64-pcall-dynrel.elf`,
 `aarch64-pcall-rel.elf`, `aarch64-pcall-relr.elf`,
 `aarch64-pcall-relr-bitmap.elf`,
 `aarch64-pcall-irelative.elf`, `aarch64-pcall-dynsym.elf`,
 `aarch64-pcall-dyntab.elf`,
 `aarch64-pcall-dyntab-entry.elf`, `riscv-pcall-frame.elf`,
-`riscv-pcall-split-load.elf`, `riscv-pcall-dynrel.elf`,
+`riscv-pcall-split-load.elf`, `riscv-pcall-none-reloc.elf`,
+`riscv-pcall-dynrel.elf`,
 `riscv-pcall-rel.elf`, `riscv-pcall-relr.elf`,
 `riscv-pcall-relr-bitmap.elf`,
 `riscv-pcall-irelative.elf`, `riscv-pcall-dynsym.elf`,
@@ -656,7 +658,8 @@ conditional branches, RISC-V `auipc` page-relative data addressing, real
 AArch64 and RISC-V `ET_DYN` `.so` objects with dynamic symbol lookup, writable
 static data, split ELF `PT_LOAD` text/data layout, simple `ET_DYN` relative
 relocations through both `RELA` addends and `REL` in-place addends, packed
-`DT_RELR` direct and bitmap relative relocation tables,
+`DT_RELR` direct and bitmap relative relocation tables, dynamic
+`R_AARCH64_NONE`/`R_RISCV_NONE` no-op relocation entries,
 `R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolver relocations,
 symbolic `STT_GNU_IFUNC` resolver relocations, same-image symbolic 64-bit
 dynamic relocations and exported entrypoints through both section-backed and

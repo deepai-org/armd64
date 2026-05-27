@@ -14,8 +14,16 @@
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
 
+#ifndef R_AARCH64_NONE
+#define R_AARCH64_NONE 0
+#endif
+
 #ifndef R_AARCH64_RELATIVE
 #define R_AARCH64_RELATIVE 1027
+#endif
+
+#ifndef R_RISCV_NONE
+#define R_RISCV_NONE 0
 #endif
 
 #ifndef R_RISCV_RELATIVE
@@ -101,6 +109,14 @@ static uint32_t relative_reloc_type_for_arch(int arch) {
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_RELATIVE;
   return 0;
+}
+
+static uint32_t none_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_NONE;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_NONE;
+  return UINT32_MAX;
 }
 
 static int elf_vaddr_to_image_offset(const struct poly_program *program,
@@ -538,6 +554,7 @@ static int apply_relative_relocations(const struct poly_program *program,
   }
 
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
+  const uint32_t none_type = none_reloc_type_for_arch(program->arch);
   const uint64_t load_bias = (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   if (rela_vaddr && rela_size) {
     if (rela_ent < sizeof(Elf64_Rela) || rela_size % rela_ent)
@@ -547,7 +564,11 @@ static int apply_relative_relocations(const struct poly_program *program,
       return -1;
     for (size_t offset = 0; offset < rela_size; offset += (size_t) rela_ent) {
       const Elf64_Rela *rela = (const Elf64_Rela *) (loaded_image + rela_offset + offset);
-      if (ELF64_R_SYM(rela->r_info) != 0 || ELF64_R_TYPE(rela->r_info) != relative_type)
+      const uint64_t symbol_index = ELF64_R_SYM(rela->r_info);
+      const uint32_t reloc_type = ELF64_R_TYPE(rela->r_info);
+      if (reloc_type == none_type)
+        continue;
+      if (symbol_index != 0 || reloc_type != relative_type)
         return -1;
       size_t target = 0;
       if (elf_vaddr_to_image_offset(program, rela->r_offset, 8, &target) < 0)
@@ -564,7 +585,11 @@ static int apply_relative_relocations(const struct poly_program *program,
       return -1;
     for (size_t offset = 0; offset < rel_size; offset += (size_t) rel_ent) {
       const Elf64_Rel *rel = (const Elf64_Rel *) (loaded_image + rel_offset + offset);
-      if (ELF64_R_SYM(rel->r_info) != 0 || ELF64_R_TYPE(rel->r_info) != relative_type)
+      const uint64_t symbol_index = ELF64_R_SYM(rel->r_info);
+      const uint32_t reloc_type = ELF64_R_TYPE(rel->r_info);
+      if (reloc_type == none_type)
+        continue;
+      if (symbol_index != 0 || reloc_type != relative_type)
         return -1;
       size_t target = 0;
       if (elf_vaddr_to_image_offset(program, rel->r_offset, 8, &target) < 0)

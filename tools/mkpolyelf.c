@@ -33,11 +33,13 @@ enum {
   PF_R = 4,
   PT_DYNAMIC = 2,
   PT_LOAD = 1,
+  R_AARCH64_NONE = 0,
   R_AARCH64_ABS64 = 257,
   R_AARCH64_GLOB_DAT = 1025,
   R_AARCH64_JUMP_SLOT = 1026,
   R_AARCH64_RELATIVE = 1027,
   R_AARCH64_IRELATIVE = 1032,
+  R_RISCV_NONE = 0,
   R_RISCV_64 = 2,
   R_RISCV_JUMP_SLOT = 5,
   R_RISCV_RELATIVE = 3,
@@ -195,6 +197,14 @@ static uint32_t irelative_reloc_type_for_machine(int machine) {
   return 0;
 }
 
+static uint32_t none_reloc_type_for_machine(int machine) {
+  if (machine == EM_AARCH64)
+    return R_AARCH64_NONE;
+  if (machine == EM_RISCV)
+    return R_RISCV_NONE;
+  return 0;
+}
+
 static uint32_t import_reloc_type_for_machine(int machine) {
   if (machine == EM_AARCH64)
     return R_AARCH64_GLOB_DAT;
@@ -236,7 +246,7 @@ static int parse_text_token(const char *text, int machine, uint32_t *value, size
 
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-rel-relative64 VALUE|--dyn-relr64 VALUE|--dyn-relr-bitmap64 VALUE|--dyn-irelative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-rel-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN|h:HALFWORD...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-none64 VALUE|--dyn-relative64 VALUE|--dyn-rel-relative64 VALUE|--dyn-relr64 VALUE|--dyn-relr-bitmap64 VALUE|--dyn-irelative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-rel-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN|h:HALFWORD...\n", argv[0]);
     return 2;
   }
 
@@ -248,6 +258,7 @@ int main(int argc, char **argv) {
 
   int first_insn_arg = 3;
   int split_data = 0;
+  int dyn_none = 0;
   int dyn_relative = 0;
   int dyn_rel_relative = 0;
   int dyn_relr = 0;
@@ -260,6 +271,7 @@ int main(int argc, char **argv) {
   int dyn_import_func = 0;
   uint64_t data_value = 0;
   if (strcmp(argv[3], "--split-data64") == 0 ||
+      strcmp(argv[3], "--dyn-none64") == 0 ||
       strcmp(argv[3], "--dyn-relative64") == 0 ||
       strcmp(argv[3], "--dyn-rel-relative64") == 0 ||
       strcmp(argv[3], "--dyn-relr64") == 0 ||
@@ -279,6 +291,7 @@ int main(int argc, char **argv) {
       }
     }
     split_data = 1;
+    dyn_none = strcmp(argv[3], "--dyn-none64") == 0;
     dyn_relative = strcmp(argv[3], "--dyn-relative64") == 0;
     dyn_rel_relative = strcmp(argv[3], "--dyn-rel-relative64") == 0;
     dyn_relr = strcmp(argv[3], "--dyn-relr64") == 0;
@@ -340,7 +353,7 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  const int dyn_image = dyn_relative || dyn_rel_relative || dyn_relr ||
+  const int dyn_image = dyn_none || dyn_relative || dyn_rel_relative || dyn_relr ||
     dyn_relr_bitmap || dyn_irelative || dyn_symbolic;
   const uint64_t text_offset = 0x1000;
   const uint64_t text_vaddr = dyn_image ? 0 : 0x400000;
@@ -522,9 +535,9 @@ int main(int argc, char **argv) {
       return 1;
     }
     unsigned char bytes[8];
-    uint64_t first_data_value = (dyn_rel_relative || dyn_relr || dyn_relr_bitmap) ?
-      data_vaddr + 8 :
-      (dyn_image ? 0 : data_value);
+    uint64_t first_data_value = dyn_none ? data_value :
+      ((dyn_rel_relative || dyn_relr || dyn_relr_bitmap) ? data_vaddr + 8 :
+        (dyn_image ? 0 : data_value));
     for (unsigned n = 0; n < sizeof(bytes); n++)
       bytes[n] = (unsigned char) ((first_data_value >> (n * 8)) & 0xff);
     if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
@@ -651,6 +664,10 @@ int main(int argc, char **argv) {
       else if (dyn_irelative) {
         rela.r_info = (uint64_t) irelative_reloc_type_for_machine(machine);
         rela.r_addend = (int64_t) text_vaddr;
+      }
+      else if (dyn_none) {
+        rela.r_info = (uint64_t) none_reloc_type_for_machine(machine);
+        rela.r_addend = 0;
       }
       else {
         rela.r_info = (uint64_t) relative_reloc_type_for_machine(machine);

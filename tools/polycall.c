@@ -43,6 +43,9 @@
 #ifndef DF_1_INITFIRST
 #define DF_1_INITFIRST 0x20
 #endif
+#ifndef R_AARCH64_NONE
+#define R_AARCH64_NONE 0
+#endif
 #ifndef R_AARCH64_IRELATIVE
 #define R_AARCH64_IRELATIVE 1032
 #endif
@@ -54,6 +57,9 @@
 #endif
 #ifndef R_RISCV_COPY
 #define R_RISCV_COPY 4
+#endif
+#ifndef R_RISCV_NONE
+#define R_RISCV_NONE 0
 #endif
 #ifndef R_AARCH64_TLS_DTPMOD64
 #define R_AARCH64_TLS_DTPMOD64 1028
@@ -1541,6 +1547,14 @@ static uint32_t copy_reloc_type_for_arch(int arch) {
     return R_AARCH64_COPY;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_COPY;
+  return UINT32_MAX;
+}
+
+static uint32_t none_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_NONE;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_NONE;
   return UINT32_MAX;
 }
 
@@ -3458,6 +3472,7 @@ static int process_rela_table(struct poly_program *program,
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
   const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
   const uint32_t copy_type = copy_reloc_type_for_arch(program->arch);
+  const uint32_t none_type = none_reloc_type_for_arch(program->arch);
   struct poly_symbol_table dynsym;
   memset(&dynsym, 0, sizeof(dynsym));
   for (size_t n = 0; n < rela_count; n++) {
@@ -3465,7 +3480,10 @@ static int process_rela_table(struct poly_program *program,
     const uint32_t reloc_type = ELF64_R_TYPE(rela[n].r_info);
     uint64_t reloc_value = 0;
     int base_kind = RELOC_BASE_LOAD_BIAS;
-    if (symbol_index != 0 && reloc_type == copy_type) {
+    if (reloc_type == none_type) {
+      continue;
+    }
+    else if (symbol_index != 0 && reloc_type == copy_type) {
       if (!dynsym.symbols &&
           load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
           load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
@@ -3661,11 +3679,15 @@ static int process_rel_table(struct poly_program *program,
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
   const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
   const uint32_t copy_type = copy_reloc_type_for_arch(program->arch);
+  const uint32_t none_type = none_reloc_type_for_arch(program->arch);
   struct poly_symbol_table dynsym;
   memset(&dynsym, 0, sizeof(dynsym));
   for (size_t n = 0; n < rel_count; n++) {
     const uint64_t symbol_index = ELF64_R_SYM(rel[n].r_info);
     const uint32_t reloc_type = ELF64_R_TYPE(rel[n].r_info);
+    if (reloc_type == none_type)
+      continue;
+
     size_t relocation_offset = 0;
     if (elf_vaddr_to_image_offset(program, rel[n].r_offset, 8,
           &relocation_offset) < 0) {

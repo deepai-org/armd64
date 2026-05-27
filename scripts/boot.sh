@@ -2335,6 +2335,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-adrp.elf" 0x90000000 0x91004000 0xf9400000 0xd65f03c0 0x0000002a 0x00000000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cond.elf" 0xf100041f 0x54000061 0xeb00003f 0x5400006c 0xd2800020 0xd65f03c0 0xd2800540 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-split-load.elf" --split-data64 0x7b 0xd0000000 0x91000000 0xf9400000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-none-reloc.elf" --dyn-none64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-dynrel.elf" --dyn-relative64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-rel.elf" --dyn-rel-relative64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-relr.elf" --dyn-relr64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
@@ -2625,6 +2626,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-sum9.elf" 0x00b50533 0x00c50533 0x00d50533 0x00e50533 0x00f50533 0x01050533 0x01150533 0x00013283 0x00550533 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-frame.elf" 0xff010113 0x00b50533 0x00c50533 0x00d50533 0x00e50533 0x00f50533 0x01050533 0x01150533 0x01013283 0x00550533 0x00a13423 0x00813503 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-split-load.elf" --split-data64 0x7b 0x00002517 0x00053503 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-none-reloc.elf" --dyn-none64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-dynrel.elf" --dyn-relative64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-rel.elf" --dyn-rel-relative64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-relr.elf" --dyn-relr64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
@@ -3031,6 +3033,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-mem.elf=77 \
     /usr/lib/polyapps/aarch64-memwidth.elf=0x100001324 \
     /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
+    /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
@@ -3291,6 +3294,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-mem.elf=77 \
     /usr/lib/polyapps/riscv-memwidth.elf=0x1000000e0 \
     /usr/lib/polyapps/riscv-pcall-split-load.elf=123 \
+    /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
@@ -3588,10 +3592,12 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-memcmp.elf=1 \
     /usr/lib/polyapps/riscv-memcmp.elf=1 \
     /usr/lib/polyapps/aarch64-memcpy.elf=4 \
+    /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
@@ -3901,6 +3907,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-adrp.elf=42 \
     /usr/lib/polyapps/aarch64-pcall-cond.elf=42 \
     /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
+    /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
@@ -3919,6 +3926,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-import-x86-sum6.elf=221 \
     /usr/lib/polyapps/riscv-pcall-frame.elf=45 \
     /usr/lib/polyapps/riscv-pcall-split-load.elf=123 \
+    /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
