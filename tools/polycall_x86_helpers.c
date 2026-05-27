@@ -159,6 +159,46 @@ float POLY_HOST_HELPER poly_host_x86_floatuntisf(unsigned __int128 source)
   return (float) source;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_atomic_compare_exchange_16(
+    uint64_t *ptr, uint64_t *expected, uint64_t desired_lo,
+    uint64_t desired_hi, uint64_t weak, uint64_t success_order,
+    uint64_t failure_order)
+{
+  (void) weak;
+  (void) success_order;
+  (void) failure_order;
+
+  uint64_t actual_lo = ptr[0];
+  uint64_t actual_hi = ptr[1];
+  uint64_t expected_lo = expected[0];
+  uint64_t expected_hi = expected[1];
+  if (actual_lo == expected_lo && actual_hi == expected_hi) {
+    ptr[0] = desired_lo;
+    ptr[1] = desired_hi;
+    return 1;
+  }
+
+  expected[0] = actual_lo;
+  expected[1] = actual_hi;
+  return 0;
+}
+
+unsigned __int128 POLY_HOST_HELPER poly_host_x86_atomic_load_16(
+    uint64_t *ptr, uint64_t order)
+{
+  (void) order;
+  return ((unsigned __int128) ptr[1] << 64) | ptr[0];
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_atomic_store_16(uint64_t *ptr,
+    uint64_t value_lo, uint64_t value_hi, uint64_t order)
+{
+  (void) order;
+  ptr[0] = value_lo;
+  ptr[1] = value_hi;
+  return 0;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_clzdi2(uint64_t value)
 {
   uint64_t count = 0;

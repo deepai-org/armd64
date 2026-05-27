@@ -423,6 +423,13 @@ extern __int128 poly_host_x86_fixsfti(float source);
 extern unsigned __int128 poly_host_x86_fixunssfti(float source);
 extern float poly_host_x86_floattisf(__int128 source);
 extern float poly_host_x86_floatuntisf(unsigned __int128 source);
+extern uint64_t poly_host_x86_atomic_compare_exchange_16(uint64_t *ptr,
+    uint64_t *expected, uint64_t desired_lo, uint64_t desired_hi,
+    uint64_t weak, uint64_t success_order, uint64_t failure_order);
+extern unsigned __int128 poly_host_x86_atomic_load_16(uint64_t *ptr,
+    uint64_t order);
+extern uint64_t poly_host_x86_atomic_store_16(uint64_t *ptr,
+    uint64_t value_lo, uint64_t value_hi, uint64_t order);
 extern uint64_t poly_host_x86_clzdi2(uint64_t value);
 extern uint64_t poly_host_x86_ctzdi2(uint64_t value);
 extern uint64_t poly_host_x86_paritydi2(uint64_t value);
@@ -446,6 +453,8 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "__udivti3", "__umodti3", "__divti3", "__modti3",
     "__fixdfti", "__fixunsdfti", "__floattidf", "__floatuntidf",
     "__fixsfti", "__fixunssfti", "__floattisf", "__floatuntisf",
+    "__atomic_compare_exchange_16", "__atomic_load_16",
+    "__atomic_store_16",
     "__clzdi2", "__ctzdi2", "__paritydi2", "__popcountdi2"
   };
 
@@ -619,6 +628,12 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_x86_floattisf;
     case POLY_IMPORT_FUNC_FLOATUNTISF:
       return (uint64_t) (uintptr_t) poly_host_x86_floatuntisf;
+    case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
+      return (uint64_t) (uintptr_t) poly_host_x86_atomic_compare_exchange_16;
+    case POLY_IMPORT_FUNC_ATOMIC_LOAD_16:
+      return (uint64_t) (uintptr_t) poly_host_x86_atomic_load_16;
+    case POLY_IMPORT_FUNC_ATOMIC_STORE_16:
+      return (uint64_t) (uintptr_t) poly_host_x86_atomic_store_16;
     case POLY_IMPORT_FUNC_CLZDI2:
       return (uint64_t) (uintptr_t) poly_host_x86_clzdi2;
     case POLY_IMPORT_FUNC_CTZDI2:
