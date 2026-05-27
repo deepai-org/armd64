@@ -1510,6 +1510,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf" 0xd2803848 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-tid-address.elf" 0xaa0103e0 0xd2800c08 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-robust-list.elf" 0xaa0103e0 0xd2800301 0xd2800c68 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-get-robust-list.elf" 0xd2800000 0x91002022 0xd2800c88 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prlimit64.elf" 0xaa0103e3 0xd2800000 0xd2800061 0xd2800002 0xd28020a8 0xd4000001 0xf9400060
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getrandom.elf" 0xaa0103e0 0xd2800081 0xd2800002 0xd28022c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap.elf" 0xd2800000 0xd2801bc8 0xd4000001 0xcb020000
@@ -1786,6 +1787,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-mempolicy-home-node.elf" 0x1c200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-tid-address.elf" 0x00058513 0x06000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-robust-list.elf" 0x00058513 0x01800593 0x06300893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-get-robust-list.elf" 0x00000513 0x00858613 0x06400893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-prlimit64.elf" 0x00058693 0x00000513 0x00300593 0x00000613 0x10500893 0x00000073 0x0006b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getrandom.elf" 0x00058513 0x00400593 0x00000613 0x11600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap.elf" 0x00000513 0x0de00893 0x00000073 0x40c50533
@@ -2153,6 +2155,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-set-tid-address.elf=4243 \
     /usr/lib/polyapps/aarch64-set-robust-list.elf=0 \
+    /usr/lib/polyapps/aarch64-get-robust-list.elf=24 \
     /usr/lib/polyapps/aarch64-prlimit64.elf=8388608 \
     /usr/lib/polyapps/aarch64-getrandom.elf=4 \
     /usr/lib/polyapps/aarch64-mmap.elf=0 \
@@ -2402,6 +2405,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-set-mempolicy-home-node.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-set-tid-address.elf=4243 \
     /usr/lib/polyapps/riscv-set-robust-list.elf=0 \
+    /usr/lib/polyapps/riscv-get-robust-list.elf=24 \
     /usr/lib/polyapps/riscv-prlimit64.elf=8388608 \
     /usr/lib/polyapps/riscv-getrandom.elf=4 \
     /usr/lib/polyapps/riscv-mmap.elf=0 \
@@ -2918,6 +2922,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf \
     /usr/lib/polyapps/aarch64-set-tid-address.elf \
     /usr/lib/polyapps/aarch64-set-robust-list.elf \
+    /usr/lib/polyapps/aarch64-get-robust-list.elf \
     /usr/lib/polyapps/aarch64-prlimit64.elf \
     /usr/lib/polyapps/aarch64-getrandom.elf \
     /usr/lib/polyapps/aarch64-mmap.elf \
@@ -3167,6 +3172,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-set-mempolicy-home-node.elf \
     /usr/lib/polyapps/riscv-set-tid-address.elf \
     /usr/lib/polyapps/riscv-set-robust-list.elf \
+    /usr/lib/polyapps/riscv-get-robust-list.elf \
     /usr/lib/polyapps/riscv-prlimit64.elf \
     /usr/lib/polyapps/riscv-getrandom.elf \
     /usr/lib/polyapps/riscv-mmap.elf \
