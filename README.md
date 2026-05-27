@@ -50,7 +50,8 @@ Linux ABI passthrough, or equal-speed execution.
   native AArch64/RISC-V returns, dynamic relocations, dependency loading, TLS,
   FP/int ABI bridging, x86 import descriptors, libc-style import descriptors,
   and atomic helper descriptors without relying on Bochs syscall/libcall
-  emulation.
+  emulation.  It also runs the thread-bank and signal-resume stress checks with
+  compatibility traps disabled.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -901,7 +902,7 @@ make boot-poly-binfmt-arch-traps
 ```
 
 Run the generated cross-ISA `PCALL`/library-interop suite with Bochs
-compatibility traps disabled:
+compatibility traps disabled, including thread-bank and signal-resume stress:
 
 ```bash
 make boot-poly-call-arch-traps
