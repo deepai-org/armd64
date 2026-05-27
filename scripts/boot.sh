@@ -556,6 +556,11 @@ build_poly_elf_payloads() {
     "$POLYCALL_PRELOAD_OVERRIDE_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadoverride-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolypreloadoverride-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_OVERRIDE_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64/libpolypreloadoverride-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolypreloadsecond-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_SECOND_DEP_REAL_SRC" \
@@ -1553,6 +1558,12 @@ build_poly_elf_payloads() {
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_OVERRIDE_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadoverride-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolypreloadoverride-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_OVERRIDE_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv/libpolypreloadoverride-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolypreloadsecond-riscv.so \
@@ -4103,6 +4114,14 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
       /usr/bin/polycall \
       /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=1945 \
       >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD='\$ORIGIN/libpolypreloadoverride-aarch64.so' \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=1945 \
+      >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD='\$ORIGIN/\$PLATFORM/libpolypreloadoverride-aarch64.so' \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=1945 \
+      >/dev/ttyS0 2>&1
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadoverride-aarch64.so:/usr/lib/polyapps/libpolypreloadsecond-aarch64.so \
       /usr/bin/polycall \
       /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=1945 \
@@ -4120,6 +4139,14 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
       depfini:/usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=4900 \
       >/dev/ttyS0 2>&1
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadoverride-riscv.so \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=1945 \
+      >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD='\$ORIGIN/libpolypreloadoverride-riscv.so' \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=1945 \
+      >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD='\$ORIGIN/\$PLATFORM/libpolypreloadoverride-riscv.so' \
       /usr/bin/polycall \
       /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=1945 \
       >/dev/ttyS0 2>&1
