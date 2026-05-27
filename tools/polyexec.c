@@ -154,6 +154,8 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 160: *x86_number = SYS_uname; return 1;
     case 167: *x86_number = SYS_prctl; return 1;
     case 169: *x86_number = SYS_gettimeofday; return 1;
+    case 155: *x86_number = SYS_getpgid; return 1;
+    case 156: *x86_number = SYS_getsid; return 1;
     case 172: *x86_number = SYS_getpid; return 1;
     case 173: *x86_number = SYS_getppid; return 1;
     case 174: *x86_number = SYS_getuid; return 1;
@@ -351,6 +353,12 @@ static int parse_request(const char *arg, struct poly_request *request) {
     }
     else if (strcmp(expected + 1, "tid") == 0) {
       request->expected = (uint64_t) syscall(SYS_gettid);
+    }
+    else if (strcmp(expected + 1, "pgid") == 0) {
+      request->expected = (uint64_t) getpgid(0);
+    }
+    else if (strcmp(expected + 1, "sid") == 0) {
+      request->expected = (uint64_t) getsid(0);
     }
     else if (strcmp(expected + 1, "cwd") == 0) {
       char cwd[256];
