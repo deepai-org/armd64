@@ -639,8 +639,9 @@ space starts with no installed vector, no stale trap packet, no stale
 trap-return frame, and no stale last-syscall/libcall status.  For an x86
 handler, trap delivery uses
 `RAX=reason`, `RBX=source mode`, `RCX=trap number`, `RDX=trap PC`,
-`RSI=selector`, and `RDI=arg0`; the remaining packet fields are available
-through trap-status opcodes.  For an AArch64 handler, delivery uses
+`RSI=selector`, `RDI=arg0`, and `R8`-`R12` for trap arguments `1`-`5`;
+the same fields remain available through trap-status opcodes for debugging and
+late inspection.  For an AArch64 handler, delivery uses
 `x0=reason`, `x1=source mode`, `x2=trap number`, `x3=trap PC`, `x4=selector`,
 and `x5`-`x10` for trap arguments `0`-`5`; for a RISC-V handler, it uses
 `a0=reason`, `a1=source mode`, `a2=trap number`, `a3=trap PC`,

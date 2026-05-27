@@ -766,8 +766,9 @@ If an architectural trap vector was installed with `0f 24 60 ... POLY!`
 (`RAX=handler_pc`), control transfers to that handler.  `0f 24 63 ... POLY!`
 selects the handler frontend with `RAX=mode`; x86_64 is the default.  For an
 x86 handler, delivery uses `RAX=reason`, `RBX=source mode`, `RCX=trap number`,
-`RDX=trap PC`, `RSI=selector`, and `RDI=arg0`; remaining packet fields are
-available through trap-status opcodes.  For an AArch64 handler, delivery uses
+`RDX=trap PC`, `RSI=selector`, `RDI=arg0`, and `R8`-`R12` for trap arguments
+`1`-`5`; the same fields remain available through trap-status opcodes for
+debugging and late inspection.  For an AArch64 handler, delivery uses
 `x0=reason`, `x1=source mode`, `x2=trap number`, `x3=trap PC`, `x4=selector`,
 and `x5`-`x10` for trap arguments `0`-`5`.  For a RISC-V handler, delivery uses
 `a0=reason`, `a1=source mode`, `a2=trap number`, `a3=trap PC`,

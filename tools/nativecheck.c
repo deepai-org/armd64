@@ -130,6 +130,18 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "cmpq $5, %rsi\n"
     "jne 9f\n"
+    "cmpq $11, %rdi\n"
+    "jne 9f\n"
+    "cmpq $12, %r8\n"
+    "jne 9f\n"
+    "cmpq $13, %r9\n"
+    "jne 9f\n"
+    "cmpq $14, %r10\n"
+    "jne 9f\n"
+    "cmpq $15, %r11\n"
+    "jne 9f\n"
+    "cmpq $16, %r12\n"
+    "jne 9f\n"
     "movq $4444, %rax\n"
     "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
@@ -140,6 +152,18 @@ static void poly_trap_vector_handler(void) {
     "cmpq $5, %rcx\n"
     "jne 9f\n"
     "cmpq $0, %rsi\n"
+    "jne 9f\n"
+    "cmpq $21, %rdi\n"
+    "jne 9f\n"
+    "cmpq $22, %r8\n"
+    "jne 9f\n"
+    "cmpq $23, %r9\n"
+    "jne 9f\n"
+    "cmpq $24, %r10\n"
+    "jne 9f\n"
+    "cmpq $25, %r11\n"
+    "jne 9f\n"
+    "cmpq $26, %r12\n"
     "jne 9f\n"
     "movq $4545, %rax\n"
     "pxor %xmm0, %xmm0\n"
@@ -401,6 +425,12 @@ static int run_poly_trap_vector_probe(void) {
 
   asm volatile(
     POLY_OP_ENTER_A64
+    ".long 0xd2800160\n" // movz x0,#11
+    ".long 0xd2800181\n" // movz x1,#12
+    ".long 0xd28001a2\n" // movz x2,#13
+    ".long 0xd28001c3\n" // movz x3,#14
+    ".long 0xd28001e4\n" // movz x4,#15
+    ".long 0xd2800205\n" // movz x5,#16
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -459,6 +489,12 @@ static int run_poly_trap_vector_probe(void) {
 
   asm volatile(
     POLY_OP_ENTER_RV64
+    ".long 0x01500513\n" // addi a0,zero,21
+    ".long 0x01600593\n" // addi a1,zero,22
+    ".long 0x01700613\n" // addi a2,zero,23
+    ".long 0x01800693\n" // addi a3,zero,24
+    ".long 0x01900713\n" // addi a4,zero,25
+    ".long 0x01a00793\n" // addi a5,zero,26
     ".long 0x00500893\n" // addi x17,x0,5
     ".long 0x00100073\n" // ebreak
     ".long 0x0000000b\n" // custom-0 x86 escape

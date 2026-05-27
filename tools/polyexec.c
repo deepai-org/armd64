@@ -11,11 +11,6 @@
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_ARG1 ".byte 0x0f,0x24,0x54,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_ARG2 ".byte 0x0f,0x24,0x55,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_ARG3 ".byte 0x0f,0x24,0x56,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_ARG4 ".byte 0x0f,0x24,0x57,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_ARG5 ".byte 0x0f,0x24,0x58,0x50,0x4f,0x4c,0x59,0x21\n"
 
 #ifndef R_AARCH64_RELATIVE
 #define R_AARCH64_RELATIVE 1027
@@ -75,36 +70,6 @@ static inline void poly_trap_vector_set_value(uint64_t value) {
 
 static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
-}
-
-static inline uint64_t poly_trap_arg1(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_ARG1 : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_arg2(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_ARG2 : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_arg3(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_ARG3 : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_arg4(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_ARG4 : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_arg5(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_ARG5 : "=a"(value) :: "memory");
-  return value;
 }
 
 static int poly_is_raw_foreign_mode(uint64_t mode) {
@@ -212,7 +177,9 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
 
 __attribute__((noinline, used))
 uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
-    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0) {
+    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
+    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
+    uint64_t arg5) {
   (void) pc;
   (void) selector;
 
@@ -223,8 +190,8 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     long x86_number = -1;
     if (!poly_generic_linux_syscall_to_x86(number, &x86_number))
       return (uint64_t) -ENOSYS;
-    return (uint64_t) poly_x86_syscall6(x86_number, arg0, poly_trap_arg1(),
-      poly_trap_arg2(), poly_trap_arg3(), poly_trap_arg4(), poly_trap_arg5());
+    return (uint64_t) poly_x86_syscall6(x86_number, arg0, arg1, arg2, arg3,
+      arg4, arg5);
   }
 
   if (reason == POLY_TRAP_BREAK) {
@@ -237,8 +204,8 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     }
     if (number == 2) {
       uint8_t *dest = (uint8_t *) arg0;
-      uint8_t value = (uint8_t) poly_trap_arg1();
-      uint64_t count = poly_trap_arg2();
+      uint8_t value = (uint8_t) arg1;
+      uint64_t count = arg2;
       if (count > 4096)
         count = 4096;
       for (uint64_t n = 0; n < count; n++)
@@ -247,8 +214,8 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     }
     if (number == 3) {
       const uint8_t *left = (const uint8_t *) arg0;
-      const uint8_t *right = (const uint8_t *) poly_trap_arg1();
-      uint64_t count = poly_trap_arg2();
+      const uint8_t *right = (const uint8_t *) arg1;
+      uint64_t count = arg2;
       if (count > 4096)
         count = 4096;
       for (uint64_t n = 0; n < count; n++) {
@@ -259,8 +226,8 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     }
     if (number == 4) {
       uint8_t *dest = (uint8_t *) arg0;
-      const uint8_t *src = (const uint8_t *) poly_trap_arg1();
-      uint64_t count = poly_trap_arg2();
+      const uint8_t *src = (const uint8_t *) arg1;
+      uint64_t count = arg2;
       if (count > 4096)
         count = 4096;
       for (uint64_t n = 0; n < count; n++)
@@ -289,6 +256,11 @@ static void poly_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
+    "pushq %r12\n"
+    "pushq %r11\n"
+    "pushq %r10\n"
+    "pushq %r9\n"
+    "pushq %r8\n"
     "movq %rdi, %r9\n"
     "movq %rsi, %r8\n"
     "movq %rcx, %r10\n"
@@ -296,9 +268,8 @@ static void poly_trap_vector_handler(void) {
     "movq %r10, %rdx\n"
     "movq %rbx, %rsi\n"
     "movq %rax, %rdi\n"
-    "subq $8, %rsp\n"
     "call poly_trap_vector_dispatch\n"
-    "addq $8, %rsp\n"
+    "addq $40, %rsp\n"
     "popq %rbp\n"
     "popq %r15\n"
     "popq %r14\n"
