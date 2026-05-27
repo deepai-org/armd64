@@ -122,12 +122,13 @@ and call operations:
 - `0f 24 30+id 50 4f 4c 59 21`: syscall status read.  `id=0` returns the
   current mode, `id=1` returns the last foreign syscall number, and `id=2`
   returns the last foreign syscall mode.
-- `0f 24 38+id 50 4f 4c 59 21`: libcall status read.  `id=1` returns the last
-  libcall number and `id=2` returns the last libcall mode.
+- `0f 24 38+id 50 4f 4c 59 21`: break-trap status read.  `id=1` returns the
+  last break number and `id=2` returns the last break source mode.  Legacy
+  tools may still call this libcall status.
 - `0f 24 40+id 50 4f 4c 59 21`: mode/counter status read.  `id=0` returns
   frontend switches, `id=1` returns the current mode, `id=2` returns raw foreign
   instructions, `id=3` returns foreign syscalls, and `id=4` returns foreign
-  libcalls.
+  breakpoint traps.
 - `0f 24 50+id 50 4f 4c 59 21`: trap status read.  `id=0` returns the reason,
   `id=1` returns the source mode, `id=2` returns the trap number, `id=3`-`8`
   return trap arguments, `id=9` returns the trap PC, and `id=10` returns the
@@ -205,7 +206,7 @@ discover the experimental hardware contract before emitting poly operations:
   exposed as an architectural XSAVE component.  Bit `8` means software can
   select an explicit state key with `0f 24 65 ... POLY!`; a zero explicit key
   restores the stack-region fallback.  `EBX=23` reports the stack region shift.
-  Legacy syscall/libcall status registers, trap-vector policy, recorded
+  Legacy syscall/break status registers, trap-vector policy, recorded
   trap-packet/status state, and the trap-return save frame are part of this
   keyed prototype state until an XSAVE component is assigned.  `ECX=0` and
   `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
@@ -786,17 +787,17 @@ AArch64 `brk #0x7ff9`, or RISC-V custom `0x0000407b`.  Trap return restores
 the source frontend's integer and scalar/vector FP state and commits only the
 handler result register back to the source result register.  `0f 24 61 ...
 POLY!` reads the current trap vector into `RAX`.
-In the Bochs prototype, the installed trap vector, legacy syscall/libcall status
+In the Bochs prototype, the installed trap vector, legacy syscall/break status
 registers, recorded trap-packet/status state, and trap-return save frame are
 keyed with the userspace poly state.  The key is guest `CR3`, user `FSBASE`,
 and either an explicit software-selected state key or the 8 MiB stack-region
 fallback key when the explicit key is zero.  A different guest address space
-starts with no stale trap vector, no stale syscall/libcall status, no stale
+starts with no stale trap vector, no stale syscall/break status, no stale
 trap packet, and no stale trap-return frame.
 The installed architectural trap vector has priority over the optional Bochs
 compatibility dispatcher even when `cpu.poly_compat_traps=1`; the dispatcher is
 only a fallback when no vector is installed. `nativecheck.elf` verifies this for
-syscall and break/libcall trap packets.
+syscall and break trap packets.
 If no vector is installed and compatibility is disabled, syscall traps surface
 as x86 `#UD`; breakpoint traps surface as x86 `#BP`.  This keeps the CPU model
 OS-neutral: software, not the CPU, decides whether a trap means Linux syscall

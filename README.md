@@ -44,7 +44,7 @@ Linux ABI passthrough, or equal-speed execution.
   `nativecheck.elf` also verifies trap return preserves the source frontend's
   live native argument, syscall-number, and scalar FP alias registers while
   committing only the handler result, and that a userspace-installed trap
-  vector, recorded trap packet, last-syscall status, and last-break/libcall
+  vector, recorded trap packet, last-syscall status, and last-break status
   status do not leak across a `fork()` address-space boundary.
 - The `make boot-poly-probe-arch-traps` path disables the compatibility
   dispatcher and runs `polyprobe` with its own guest trap-vector handler, so the
@@ -159,8 +159,8 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV FP-overflow call to RISC-V | `0f 24 1f 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FP64STACK`: same scalar FP register aliases as `PCALL.RV64.SYSV`, but maps up to eight x86_64 SysV FP overflow stack arguments from `[RSP+8]` onward into RISC-V `a0`-`a7` as required by psABI once `fa0`-`fa7` are consumed. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
-| Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
-| Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign libcalls. |
+| Break status | `0f 24 38+id 50 4f 4c 59 21` | Returns breakpoint-trap state in `RAX`: `id=1` last break number, `id=2` last break source mode. Legacy tools may still call this libcall status. |
+| Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign breakpoint traps. |
 | Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC. |
 | Trap vector | `0f 24 60-64 50 4f 4c 59 21` | `0x60` sets the architectural trap vector PC from `RAX`, `0x61` reads it into `RAX`, `0x62` resumes the recorded source frontend at the trap resume PC, `0x63` sets the trap-handler frontend mode from `RAX`, and `0x64` reads the handler mode into `RAX`. |
 | State key | `0f 24 65-66 50 4f 4c 59 21` | `0x65` sets the explicit userspace poly state key from `RAX`, with `RAX=0` disabling the explicit key and falling back to the stack-region key. `0x66` reads the explicit key into `RAX`. |
@@ -667,7 +667,7 @@ synthetic foreign registers.  The recorded trap packet/status and temporary
 trap-return save frame are keyed there as well.  The legacy syscall/libcall
 status registers are keyed with the same state, so a different guest address
 space starts with no installed vector, no stale trap packet, no stale
-trap-return frame, and no stale last-syscall/libcall status.  For an x86
+trap-return frame, and no stale last-syscall/break status.  For an x86
 handler, trap delivery uses
 `RAX=reason`, `RBX=source mode`, `RCX=trap number`, `RDX=trap PC`,
 `RSI=selector`, `RDI=arg0`, and `R8`-`R12` for trap arguments `1`-`5`;

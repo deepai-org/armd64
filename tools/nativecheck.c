@@ -19,8 +19,8 @@
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x24,0x32,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_LIBCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_LIBCALL_STATUS_MODE ".byte 0x0f,0x24,0x3a,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_BREAK_STATUS_NUMBER ".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_BREAK_STATUS_MODE ".byte 0x0f,0x24,0x3a,0x50,0x4f,0x4c,0x59,0x21\n"
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -82,15 +82,15 @@ static inline uint64_t poly_syscall_status_mode(void) {
   return value;
 }
 
-static inline uint64_t poly_libcall_status_number(void) {
+static inline uint64_t poly_break_status_number(void) {
   uint64_t value;
-  asm volatile(POLY_OP_LIBCALL_STATUS_NUMBER : "=a"(value) :: "memory");
+  asm volatile(POLY_OP_BREAK_STATUS_NUMBER : "=a"(value) :: "memory");
   return value;
 }
 
-static inline uint64_t poly_libcall_status_mode(void) {
+static inline uint64_t poly_break_status_mode(void) {
   uint64_t value;
-  asm volatile(POLY_OP_LIBCALL_STATUS_MODE : "=a"(value) :: "memory");
+  asm volatile(POLY_OP_BREAK_STATUS_MODE : "=a"(value) :: "memory");
   return value;
 }
 
@@ -543,11 +543,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_reason());
     return 1;
   }
-  if (poly_libcall_status_number() != 5 ||
-      poly_libcall_status_mode() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent libcall status mismatch number=%llu mode=%llu\n",
-      (unsigned long long) poly_libcall_status_number(),
-      (unsigned long long) poly_libcall_status_mode());
+  if (poly_break_status_number() != 5 ||
+      poly_break_status_mode() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break status mismatch number=%llu mode=%llu\n",
+      (unsigned long long) poly_break_status_number(),
+      (unsigned long long) poly_break_status_mode());
     return 1;
   }
   pid_t break_child = fork();
@@ -558,9 +558,9 @@ static int run_poly_trap_vector_probe(void) {
   if (break_child == 0) {
     if (poly_trap_status_reason() != 0)
       _exit(31);
-    if (poly_libcall_status_number() != 0)
+    if (poly_break_status_number() != 0)
       _exit(32);
-    if (poly_libcall_status_mode() != POLY_MODE_X86)
+    if (poly_break_status_mode() != POLY_MODE_X86)
       _exit(33);
     _exit(0);
   }
@@ -576,11 +576,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_reason());
     return 1;
   }
-  if (poly_libcall_status_number() != 5 ||
-      poly_libcall_status_mode() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent libcall status lost after fork number=%llu mode=%llu\n",
-      (unsigned long long) poly_libcall_status_number(),
-      (unsigned long long) poly_libcall_status_mode());
+  if (poly_break_status_number() != 5 ||
+      poly_break_status_mode() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break status lost after fork number=%llu mode=%llu\n",
+      (unsigned long long) poly_break_status_number(),
+      (unsigned long long) poly_break_status_mode());
     return 1;
   }
 
@@ -603,11 +603,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (poly_libcall_status_number() != 5 ||
-      poly_libcall_status_mode() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv libcall status mismatch number=%llu mode=%llu\n",
-      (unsigned long long) poly_libcall_status_number(),
-      (unsigned long long) poly_libcall_status_mode());
+  if (poly_break_status_number() != 5 ||
+      poly_break_status_mode() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv break status mismatch number=%llu mode=%llu\n",
+      (unsigned long long) poly_break_status_number(),
+      (unsigned long long) poly_break_status_mode());
     return 1;
   }
 
