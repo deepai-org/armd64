@@ -56,8 +56,8 @@ Linux ABI passthrough, or equal-speed execution.
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
   RISC-V-to-AArch64 code blobs that switch, call, nest calls, and carry scalar
   double, mixed integer/FP, two-register integer returns, shared-stack values,
-  caller callee-saved registers, and syscall trap results directly without
-  returning to x86.
+  caller callee-saved integer/FP registers, and syscall trap results directly
+  without returning to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
