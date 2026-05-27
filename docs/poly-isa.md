@@ -518,8 +518,10 @@ with `libpolyunique-aarch64.so`, and
 `-Bsymbolic` dependency binding pairs
 (`aarch64-pcall-symbolic-preempt-real.so#poly_entry`,
 `aarch64-pcall-symbolic-bind-real.so#poly_entry`,
-`riscv-pcall-symbolic-preempt-real.so#poly_entry`, and
-`riscv-pcall-symbolic-bind-real.so#poly_entry`), compiler-produced symbolic IFUNC
+`aarch64-pcall-symbolic-protected-real.so#poly_entry`,
+`riscv-pcall-symbolic-preempt-real.so#poly_entry`,
+`riscv-pcall-symbolic-bind-real.so#poly_entry`, and
+`riscv-pcall-symbolic-protected-real.so#poly_entry`), compiler-produced symbolic IFUNC
 objects (`aarch64-pcall-ifunc-real.so#poly_entry` and
 `riscv-pcall-ifunc-real.so#poly_entry`), compiler-produced `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
@@ -851,7 +853,8 @@ ELF optional-symbol semantics; the weak-import probes cover AArch64 weak
 Dependency relocations for default-visibility defined symbols follow ordinary
 ELF interposition unless the dependency advertises `DT_SYMBOLIC` or
 `DF_SYMBOLIC` through `DT_FLAGS`; those `-Bsymbolic` objects bind their own
-defined symbols locally.
+defined symbols locally. `STV_PROTECTED` definitions are exported but also bind
+locally for the defining dependency's own relocations.
 Same-directory `DT_NEEDED` dependencies are loaded as foreign shared libraries,
 and undefined function or object-symbol relocations in the requesting object can
 bind directly to dependency text/data without routing through an x86 import
