@@ -2450,26 +2450,62 @@ static int load_soname_from_dynamic(const struct poly_program *program,
   return 0;
 }
 
-static int build_origin_path(const char *owner_path, const char *suffix,
-    size_t suffix_len, const char *needed, char *out, size_t out_size) {
-  const char *slash = strrchr(owner_path, '/');
-  const size_t dir_len = slash ? (size_t) (slash - owner_path) : 0;
-  const size_t needed_len = strlen(needed);
-  const int suffix_has_slash = suffix_len != 0 && suffix[suffix_len - 1] == '/';
-  const size_t sep_len = suffix_len == 0 || suffix_has_slash ? 0 : 1;
-  if (dir_len + suffix_len + sep_len + needed_len + 1 > out_size)
+static int append_path_bytes(char *out, size_t *out_len, size_t out_size,
+    const char *bytes, size_t bytes_len) {
+  if (*out_len + bytes_len + 1 > out_size)
     return -1;
-  if (dir_len != 0)
-    memcpy(out, owner_path, dir_len);
-  if (suffix_len != 0)
-    memcpy(out + dir_len, suffix, suffix_len);
-  if (sep_len != 0)
-    out[dir_len + suffix_len] = '/';
-  memcpy(out + dir_len + suffix_len + sep_len, needed, needed_len + 1);
+  memcpy(out + *out_len, bytes, bytes_len);
+  *out_len += bytes_len;
+  out[*out_len] = '\0';
   return 0;
 }
 
-static int build_relative_needed_path(const char *entry, size_t entry_len,
+static int append_origin_dir(const char *owner_path, char *out,
+    size_t *out_len, size_t out_size) {
+  const char *slash = strrchr(owner_path, '/');
+  const size_t dir_len = slash ? (size_t) (slash - owner_path) : 0;
+  return append_path_bytes(out, out_len, out_size, owner_path, dir_len);
+}
+
+static int expand_runpath_entry(const char *owner_path, const char *entry,
+    size_t entry_len, char *out, size_t out_size) {
+  size_t out_len = 0;
+  if (out_size == 0)
+    return -1;
+  out[0] = '\0';
+  for (size_t n = 0; n < entry_len;) {
+    if (entry_len - n >= 9 && memcmp(entry + n, "${ORIGIN}", 9) == 0) {
+      if (append_origin_dir(owner_path, out, &out_len, out_size) < 0)
+        return -1;
+      n += 9;
+      continue;
+    }
+    if (entry_len - n >= 7 && memcmp(entry + n, "$ORIGIN", 7) == 0) {
+      if (append_origin_dir(owner_path, out, &out_len, out_size) < 0)
+        return -1;
+      n += 7;
+      continue;
+    }
+    if (entry_len - n >= 6 && memcmp(entry + n, "${LIB}", 6) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, "lib", 3) < 0)
+        return -1;
+      n += 6;
+      continue;
+    }
+    if (entry_len - n >= 4 && memcmp(entry + n, "$LIB", 4) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, "lib", 3) < 0)
+        return -1;
+      n += 4;
+      continue;
+    }
+    if (append_path_bytes(out, &out_len, out_size, entry + n, 1) < 0)
+      return -1;
+    n++;
+  }
+  return out_len == 0 ? -1 : 0;
+}
+
+static int build_runpath_entry_needed_path(const char *entry, size_t entry_len,
     const char *needed, char *out, size_t out_size) {
   const size_t needed_len = strlen(needed);
   const int entry_has_slash = entry_len != 0 && entry[entry_len - 1] == '/';
@@ -2500,33 +2536,12 @@ static int build_runpath_needed_path(const char *owner_path,
     if (entry_len == 0)
       continue;
 
-    int built = -1;
-    if (entry_len >= 7 && memcmp(entry, "$ORIGIN", 7) == 0) {
-      built = build_origin_path(owner_path, entry + 7, entry_len - 7,
-        needed, out, out_size);
-    }
-    else if (entry_len >= 9 && memcmp(entry, "${ORIGIN}", 9) == 0) {
-      built = build_origin_path(owner_path, entry + 9, entry_len - 9,
-        needed, out, out_size);
-    }
-    else if (entry[0] == '/') {
-      const size_t needed_len = strlen(needed);
-      const int entry_has_slash = entry[entry_len - 1] == '/';
-      const size_t sep_len = entry_has_slash ? 0 : 1;
-      if (entry_len + sep_len + needed_len + 1 <= out_size) {
-        memcpy(out, entry, entry_len);
-        if (sep_len != 0)
-          out[entry_len] = '/';
-        memcpy(out + entry_len + sep_len, needed, needed_len + 1);
-        built = 0;
-      }
-    }
-    else {
-      built = build_relative_needed_path(entry, entry_len, needed, out,
-        out_size);
-    }
-
-    if (built == 0 && access(out, R_OK) == 0)
+    char expanded[MAX_DEP_PATH];
+    if (expand_runpath_entry(owner_path, entry, entry_len, expanded,
+          sizeof(expanded)) == 0 &&
+        build_runpath_entry_needed_path(expanded, strlen(expanded), needed,
+          out, out_size) == 0 &&
+        access(out, R_OK) == 0)
       return 0;
   }
   return -1;

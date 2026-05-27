@@ -681,14 +681,14 @@ recursive loading of dependency libraries' own `DT_NEEDED`
 entries, and dependency sets larger than the original four-library prototype
 limit, with boot coverage for direct dependency fans larger than eight
 libraries. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`,
-`${ORIGIN}/...`, relative dependency subdirectories, and absolute dependency
-directories, and absolute `DT_NEEDED` path entries are honored, including
-old-style RPATH-only objects built without new dtags and colon-separated
-RUNPATH fallback directories. Declared RUNPATH/RPATH directories are searched
-before the loader's compatibility fallback to the caller's directory, so a
-colocated same-SONAME object does not override the object's explicit dynamic
-linker metadata. Dependency library dynamic relocations are applied before
-those dependency calls
+`${ORIGIN}/...`, `$LIB` token expansion to `lib`, relative dependency
+subdirectories, and absolute dependency directories, and absolute `DT_NEEDED`
+path entries are honored, including old-style RPATH-only objects built without
+new dtags and colon-separated RUNPATH fallback directories. Declared
+RUNPATH/RPATH directories are searched before the loader's compatibility
+fallback to the caller's directory, so a colocated same-SONAME object does not
+override the object's explicit dynamic linker metadata. Dependency library
+dynamic relocations are applied before those dependency calls
 execute, dependency-local TLS blocks in the shared `PCALL` TLS image,
 dependency `DT_INIT`/`DT_INIT_ARRAY` constructor execution before entering
 dependent foreign code and dependency `DT_FINI_ARRAY`/`DT_FINI` teardown
