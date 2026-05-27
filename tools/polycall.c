@@ -34,6 +34,12 @@
 #ifndef DT_RELR
 #define DT_RELR 36
 #endif
+#ifndef DT_SYMBOLIC
+#define DT_SYMBOLIC 16
+#endif
+#ifndef DT_FLAGS
+#define DT_FLAGS 30
+#endif
 #ifndef DT_RELRSZ
 #define DT_RELRSZ 35
 #endif
@@ -42,6 +48,9 @@
 #endif
 #ifndef DF_1_INITFIRST
 #define DF_1_INITFIRST 0x20
+#endif
+#ifndef DF_SYMBOLIC
+#define DF_SYMBOLIC 0x2
 #endif
 #ifndef R_AARCH64_NONE
 #define R_AARCH64_NONE 0
@@ -460,6 +469,7 @@ struct poly_dependency {
   size_t tls_offset;
   size_t needed_depth;
   size_t lookup_rank;
+  int symbolic_binding;
   struct poly_symbol_table dynsym;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
@@ -505,6 +515,8 @@ struct poly_program {
   struct poly_dependency deps[MAX_NEEDED_DEPS];
   size_t dep_count;
   size_t direct_dep_count;
+  int symbolic_binding;
+  int dependency_view;
   int needs_x86_import;
   int needs_errno_location;
 };
@@ -2842,6 +2854,8 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   dep_view.fini_array_vaddr = dep->fini_array_vaddr;
   dep_view.fini_array_size = dep->fini_array_size;
   dep_view.fini_count = dep->fini_count;
+  dep_view.symbolic_binding = dep->symbolic_binding;
+  dep_view.dependency_view = 1;
   dep_view.tls_vaddr = dep->tls_vaddr;
   dep_view.tls_filesz = dep->tls_filesz;
   dep_view.tls_memsz = dep->tls_memsz;
@@ -2924,6 +2938,7 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   dep->fini_array_vaddr = dep_view.fini_array_vaddr;
   dep->fini_array_size = dep_view.fini_array_size;
   dep->fini_count = dep_view.fini_count;
+  dep->symbolic_binding = dep_view.symbolic_binding;
   owner->needs_x86_import = dep_view.needs_x86_import;
 
   free(data);
@@ -3265,6 +3280,17 @@ static int symbol_is_dependency_export(const Elf64_Sym *sym) {
     (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
 }
 
+static int symbol_definition_is_preemptible(const Elf64_Sym *sym) {
+  const unsigned bind = ELF64_ST_BIND(sym->st_info);
+  const unsigned type = ELF64_ST_TYPE(sym->st_info);
+  return (bind == STB_GLOBAL || bind == STB_WEAK ||
+      bind == STB_GNU_UNIQUE) &&
+    ELF64_ST_VISIBILITY(sym->st_other) == STV_DEFAULT &&
+    sym->st_shndx != SHN_UNDEF &&
+    (type == STT_FUNC || type == STT_NOTYPE ||
+     type == STT_OBJECT || type == STT_GNU_IFUNC);
+}
+
 static int resolve_symbol_from_table_filtered(const struct poly_symbol_table *table,
     const char *symbol_name, uint64_t *symbol_vaddr, int allow_object) {
   if (!table->symbols || !table->strings || !symbol_name)
@@ -3373,6 +3399,15 @@ static int resolve_dependency_symbol(const struct poly_program *program,
     return 0;
   }
   return -1;
+}
+
+static int resolve_preempting_symbol(const struct poly_program *program,
+    const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
+  if (resolve_root_symbol(program, symbol_name, NULL, symbol_value,
+        base_kind) == 0)
+    return 0;
+  return resolve_dependency_symbol(program, symbol_name, NULL, symbol_value,
+    base_kind);
 }
 
 static int resolve_dependency_object_symbol(const struct poly_program *program,
@@ -3567,6 +3602,14 @@ static int resolve_reloc_symbol(struct poly_program *program,
     return resolve_external_reloc_symbol(program, symbol_name,
       &required_version, symbol_value, base_kind);
   }
+
+  if (program->dependency_view &&
+      !program->symbolic_binding &&
+      symbol_definition_is_preemptible(sym) &&
+      resolve_preempting_symbol(program, symbol_name, symbol_value,
+        base_kind) == 0)
+    return 0;
+
   size_t symbol_offset = 0;
   if (elf_vaddr_to_image_offset(program, sym->st_value, 1, &symbol_offset) < 0) {
     fprintf(stderr, "POLYCALL_FAIL: relocation symbol escaped image: %s\n",
@@ -4072,6 +4115,13 @@ static int load_dynamic_relocs(struct poly_program *program,
         break;
       case DT_PLTREL:
         pltrel_type = dyn[n].d_un.d_val;
+        break;
+      case DT_SYMBOLIC:
+        program->symbolic_binding = 1;
+        break;
+      case DT_FLAGS:
+        if ((dyn[n].d_un.d_val & DF_SYMBOLIC) != 0)
+          program->symbolic_binding = 1;
         break;
       case DT_FLAGS_1:
         if ((dyn[n].d_un.d_val & DF_1_INITFIRST) != 0)

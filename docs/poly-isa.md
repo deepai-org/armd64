@@ -514,7 +514,12 @@ import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 dependency object-symbol pairs (`aarch64-pcall-gnu-unique-real.so#poly_entry`
 with `libpolyunique-aarch64.so`, and
 `riscv-pcall-gnu-unique-real.so#poly_entry` with
-`libpolyunique-riscv.so`), compiler-produced symbolic IFUNC
+`libpolyunique-riscv.so`), compiler-produced default-preemptible and
+`-Bsymbolic` dependency binding pairs
+(`aarch64-pcall-symbolic-preempt-real.so#poly_entry`,
+`aarch64-pcall-symbolic-bind-real.so#poly_entry`,
+`riscv-pcall-symbolic-preempt-real.so#poly_entry`, and
+`riscv-pcall-symbolic-bind-real.so#poly_entry`), compiler-produced symbolic IFUNC
 objects (`aarch64-pcall-ifunc-real.so#poly_entry` and
 `riscv-pcall-ifunc-real.so#poly_entry`), compiler-produced `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
@@ -843,6 +848,10 @@ gate covers `poly_import_value` through an undefined dynamic symbol relocation.
 Undefined weak object/function relocations resolve to zero, matching ordinary
 ELF optional-symbol semantics; the weak-import probes cover AArch64 weak
 `GLOB_DAT`/`JUMP_SLOT` and RISC-V weak symbolic relocations.
+Dependency relocations for default-visibility defined symbols follow ordinary
+ELF interposition unless the dependency advertises `DT_SYMBOLIC` or
+`DF_SYMBOLIC` through `DT_FLAGS`; those `-Bsymbolic` objects bind their own
+defined symbols locally.
 Same-directory `DT_NEEDED` dependencies are loaded as foreign shared libraries,
 and undefined function or object-symbol relocations in the requesting object can
 bind directly to dependency text/data without routing through an x86 import
