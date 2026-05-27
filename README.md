@@ -683,7 +683,7 @@ numbers currently include:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
   `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `capget`,
-  `capset`, `personality`, `waitid`, `setpriority`, `getpriority`, `setpgid`,
+  `capset`, `personality`, `waitid`, `wait4`, `setpriority`, `getpriority`, `setpgid`,
   `setsid`, `umask`, `prctl`, `setregid`, `setgid`, `setreuid`, `setuid`,
   `setresuid`, `getresuid`, `setresgid`, `getresgid`, `setfsuid`,
   `setfsgid`, `getgroups`, `setgroups`, `getpid`, `getppid`, `getuid`,
