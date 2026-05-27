@@ -69,11 +69,11 @@ Linux ABI passthrough, or equal-speed execution.
   dispatcher and runs the manifest-backed `polyapp` payload suite through a
   guest-installed trap vector, keeping syscall/libcall policy outside the CPU
   model.
-- The `make boot-poly-full-arch-traps` path combines the disabled-compat probe,
-  manifest apps, focused direct ELF execution, `PCALL`, thread/signal,
-  benchmark, binfmt, and native CPUID gates in one run. It intentionally uses
-  the real-syscall/trap-vector direct-exec set instead of the legacy
-  deterministic fake-syscall `polyexec` matrix.
+- The `make boot-poly-full` and `make boot-poly-full-arch-traps` paths combine
+  the disabled-compat probe, manifest apps, focused direct ELF execution,
+  `PCALL`, thread/signal, benchmark, binfmt, and native CPUID gates in one run.
+  They intentionally use the real-syscall/trap-vector direct-exec set instead
+  of the legacy deterministic fake-syscall `polyexec` matrix.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -811,7 +811,7 @@ test-only compatibility service for selected foreign Linux syscall numbers.
 This service is controlled by `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` and
 defaults off so the CPU model exposes the hardware-style trap-exit contract
 rather than Linux/libc policy.  The legacy `make boot-poly-compat` and
-`make boot-poly-full` regression targets opt in explicitly.  When disabled, the
+`make boot-poly-full-compat` regression targets opt in explicitly.  When disabled, the
 prototype records the packet, leaves raw mode, and either enters the configured
 architectural trap vector or raises an x86 `#UD` if no vector is installed.
 The service is not part of the CPU contract; it stands in for firmware, kernel,
@@ -971,11 +971,14 @@ benchmark, thread/signal, and binfmt tests:
 make boot-poly-full-arch-traps
 ```
 
+`make boot-poly-full` is the unsuffixed alias for the same disabled-compat full
+gate.
+
 Run the fuller legacy compatibility-runtime gate, including direct foreign ELF
 execution and guest `binfmt_misc` registration:
 
 ```bash
-make boot-poly-full
+make boot-poly-full-compat
 ```
 
 Expected success markers include:
