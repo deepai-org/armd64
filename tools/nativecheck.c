@@ -19,6 +19,7 @@
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_STATE_IMPORT ".byte 0x0f,0x24,0x68,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_STATUS_MODE ".byte 0x0f,0x24,0x51,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x24,0x5c,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x24,0x5d,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -79,6 +80,12 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
 static inline uint64_t poly_trap_status_reason(void) {
   uint64_t value;
   asm volatile(POLY_OP_TRAP_STATUS_REASON : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_status_mode(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_STATUS_MODE : "=a"(value) :: "memory");
   return value;
 }
 
@@ -270,7 +277,10 @@ static void poly_trap_vector_handler(void) {
     "cmpq $3, %rax\n"
     "jne 9f\n"
     "cmpq $3, %rbx\n"
+    "je 31f\n"
+    "cmpq $4, %rbx\n"
     "jne 9f\n"
+    "31:\n"
     "cmpq $8, %rcx\n"
     "jne 9f\n"
     "cmpq $0, %rsi\n"
@@ -701,8 +711,48 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_reason());
     return 1;
   }
+  if (poly_trap_status_mode() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import packet mode mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_mode());
+    return 1;
+  }
   if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly import packet extended args mismatch arg6=%llu arg7=%llu\n",
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import packet extended args mismatch arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
+    return 1;
+  }
+
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_RV64
+    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x05800813\n" // addi a6,zero,88
+    ".long 0x06300893\n" // addi a7,zero,99
+    ".long 0x000280e7\n" // jalr ra,0(t0)
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 5555) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import trap result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_IMPORT) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet reason mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  if (poly_trap_status_mode() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet mode mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_mode());
+    return 1;
+  }
+  if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet extended args mismatch arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return 1;

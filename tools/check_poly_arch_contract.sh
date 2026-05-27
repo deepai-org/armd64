@@ -136,10 +136,18 @@ assert_contains "POLY_OP_TRAP_STATUS_ARG6" "$NATIVECHECK" \
   "nativecheck must exercise trap-status access for trap argument lane 6"
 assert_contains "POLY_OP_TRAP_STATUS_ARG7" "$NATIVECHECK" \
   "nativecheck must exercise trap-status access for trap argument lane 7"
+assert_contains "POLY_OP_TRAP_STATUS_MODE" "$NATIVECHECK" \
+  "nativecheck must verify the recorded source mode for import traps"
 assert_contains 'cmpq \$88, %r13' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 6"
 assert_contains 'cmpq \$99, %r14' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 7"
+assert_contains "poly aarch64 import packet mode mismatch" "$NATIVECHECK" \
+  "nativecheck must verify AArch64 unresolved import trap source mode"
+assert_contains "poly riscv import packet mode mismatch" "$NATIVECHECK" \
+  "nativecheck must verify RISC-V unresolved import trap source mode"
+assert_contains "poly riscv import packet extended args mismatch" "$NATIVECHECK" \
+  "nativecheck must exercise RISC-V unresolved import trap argument lanes 6 and 7"
 assert_contains "eight[[:space:]]+ABI arguments" "$README" \
   "README must describe the POLYTRAP packet as carrying eight ABI arguments"
 assert_contains "first eight native foreign ABI argument registers" "$POLY_ISA_DOC" \
