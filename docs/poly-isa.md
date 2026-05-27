@@ -166,7 +166,7 @@ ordinary `UD2` retains standard invalid-opcode behavior.
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
 
-- `CPUID.EAX=0x40000000`: `EAX=0x40000007`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000000`: `EAX=0x40000008`, `EBX:EDX:ECX="PolyglotCPU!"`.
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
@@ -270,6 +270,16 @@ discover the experimental hardware contract before emitting poly operations:
   ordering-preserving no-ops, foreign atomics use coherent memory operations,
   and raw frontends do not inject weak AArch64/RISC-V reordering.  `EDX=0x18`
   is the covered raw frontend mask: AArch64 bit `3` and RISC-V bit `4`.
+- `CPUID.EAX=0x40000008`: cross-frontend transition ABI discovery.  `EAX=1`
+  is the transition ABI version.  `EBX=0x1ff` reports flags: x86 transitions
+  use decoded poly opcodes, raw frontends use native escape instructions, every
+  transition flushes the active frontend and ends the current decode block,
+  source and destination PCs are precise, raw fetch is fixed-width/aligned,
+  AArch64/RISC-V can switch or call each other without returning through x86,
+  native returns use hardware cookies, and trap return is architectural.
+  `ECX[15:0]=4` is the AArch64 raw alignment, `ECX[31:16]=2` is the RISC-V
+  raw alignment, and `EDX=0x19` is the covered frontend mask: x86 bit `0`,
+  AArch64 bit `3`, and RISC-V bit `4`.
 
 The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 

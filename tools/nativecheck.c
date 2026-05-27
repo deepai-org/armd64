@@ -990,6 +990,18 @@ int main(void) {
         memory.eax, memory.ebx, memory.ecx, memory.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_transition =
+      poly_cpuid_expected_transition_leaf();
+    struct poly_cpuid_regs transition =
+      poly_read_cpuid(POLY_CPUID_BASE + 8, 0);
+    if (transition.eax != expected_transition.eax ||
+        transition.ebx != expected_transition.ebx ||
+        transition.ecx != expected_transition.ecx ||
+        transition.edx != expected_transition.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID transition leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        transition.eax, transition.ebx, transition.ecx, transition.edx);
+      return 1;
+    }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
       return 1;
