@@ -34,8 +34,10 @@ Linux ABI passthrough, or equal-speed execution.
   32-bit foreign instructions, and escaping back to x86_64.  The manifest path
   accepts variable-size executable segments up to 1 MiB.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
-  using the same raw-mode execution path, including executable segments larger
-  than one raw burst.
+  using the same raw-mode execution path, preserving executable bytes exactly
+  so RISC-V compressed 16-bit code does not have to be repacked as 32-bit
+  words. The full boot gate includes a 6-byte compressed RISC-V ELF entry
+  segment to cover this path.
 - `tools/polycall.c` loads generated foreign ELF64 function payloads and calls
   their entrypoints through the prototype hardware ABI bridge (`PCALL`), so
   the return path uses ordinary AArch64/RISC-V return instructions rather than
@@ -60,7 +62,8 @@ Linux ABI passthrough, or equal-speed execution.
   values, caller callee-saved integer/FP registers, and syscall trap results
   directly without returning to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
-  AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest.
+  AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest,
+  including expected-result checks for compressed RISC-V fixtures.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
   frontend-switch opcodes, XSAVE-visible foreign state, explicit trap exits,
   and native-ABI thunking for precompiled cross-ISA libraries.
@@ -786,3 +789,7 @@ Expected success markers include:
 - Foreign ELF support is limited to the generated static payload shape used by
   `tools/mkpolyelf.c`, `tools/polyapp.c`, and `tools/polyexec.c`, but both
   `polyapp` and `polyexec` load variable-size executable segments up to 1 MiB.
+  `polyexec` preserves raw executable bytes, accepting 4-byte-aligned AArch64
+  and 2-byte-aligned RISC-V entry segments for compressed-code compatibility;
+  `riscv-compressed-half.elf` verifies a RISC-V entry size that is not a
+  multiple of 4 bytes.

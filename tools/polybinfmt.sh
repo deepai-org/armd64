@@ -53,6 +53,11 @@ case "$path" in
   */aarch64-brk.elf) expected=0x4c000305 ;;
   */aarch64-svc.elf) expected=0x53000703 ;;
   */riscv-add.elf) expected=27 ;;
+  */riscv-compressed.elf) expected=27 ;;
+  */riscv-compressed-half.elf) expected=27 ;;
+  */riscv-compressed-word.elf) expected=27 ;;
+  */riscv-compressed-alu.elf) expected=42 ;;
+  */riscv-compressed-fp.elf) expected=64 ;;
   */riscv-upper.elf) expected=0x1234567c ;;
   */riscv-immops.elf) expected=42 ;;
   */riscv-wordops.elf) expected=42 ;;

@@ -135,6 +135,16 @@ static int parse_u32(const char *text, uint32_t *value) {
   return 0;
 }
 
+static int parse_u16(const char *text, uint16_t *value) {
+  char *end = NULL;
+  errno = 0;
+  unsigned long parsed = strtoul(text, &end, 0);
+  if (errno || end == text || *end != '\0' || parsed > UINT16_MAX)
+    return -1;
+  *value = (uint16_t) parsed;
+  return 0;
+}
+
 static int parse_u64(const char *text, uint64_t *value) {
   char *end = NULL;
   errno = 0;
@@ -208,9 +218,25 @@ static void write_u32_le(unsigned char *bytes, uint32_t value) {
   bytes[3] = (unsigned char) ((value >> 24) & 0xff);
 }
 
+static int parse_text_token(const char *text, int machine, uint32_t *value, size_t *encoded_size) {
+  if (strncmp(text, "h:", 2) == 0) {
+    uint16_t parsed = 0;
+    if (machine != EM_RISCV || parse_u16(text + 2, &parsed) < 0)
+      return -1;
+    *value = parsed;
+    *encoded_size = 2;
+    return 0;
+  }
+
+  if (parse_u32(text, value) < 0)
+    return -1;
+  *encoded_size = 4;
+  return 0;
+}
+
 int main(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-rel-relative64 VALUE|--dyn-relr64 VALUE|--dyn-relr-bitmap64 VALUE|--dyn-irelative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-rel-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN...\n", argv[0]);
+    fprintf(stderr, "usage: %s ARCH OUTPUT [--split-data64 VALUE|--dyn-relative64 VALUE|--dyn-rel-relative64 VALUE|--dyn-relr64 VALUE|--dyn-relr-bitmap64 VALUE|--dyn-irelative64 VALUE|--dyn-symbol64 VALUE|--dyn-jump-slot64 VALUE|--dyn-rel-jump-slot64 VALUE|--dyn-import64 NAME|--dyn-import-func64 NAME] [--export NAME|--export-at NAME OFFSET|--export-dyntab NAME|--export-dyntab-at NAME OFFSET] INSN|h:HALFWORD...\n", argv[0]);
     return 2;
   }
 
@@ -324,8 +350,18 @@ int main(int argc, char **argv) {
   const uint64_t dynamic_vaddr = data_vaddr + 0x100;
   const uint64_t rela_offset = data_offset + 0x200;
   const uint64_t rela_vaddr = data_vaddr + 0x200;
-  const uint64_t text_size = (uint64_t) (argc - first_insn_arg) * 4;
-  if (export_name && (export_offset >= text_size || (export_offset & 3) != 0)) {
+  uint64_t text_size = 0;
+  for (int n = first_insn_arg; n < argc; n++) {
+    uint32_t parsed = 0;
+    size_t encoded_size = 0;
+    if (parse_text_token(argv[n], machine, &parsed, &encoded_size) < 0) {
+      fprintf(stderr, "mkpolyelf: bad instruction: %s\n", argv[n]);
+      return 1;
+    }
+    text_size += encoded_size;
+  }
+  const uint64_t export_alignment_mask = machine == EM_RISCV ? 1 : 3;
+  if (export_name && (export_offset >= text_size || (export_offset & export_alignment_mask) != 0)) {
     fprintf(stderr, "mkpolyelf: export offset is outside aligned text\n");
     return 2;
   }
@@ -460,7 +496,8 @@ int main(int argc, char **argv) {
 
   for (int n = first_insn_arg; n < argc; n++) {
     uint32_t insn = 0;
-    if (parse_u32(argv[n], &insn) < 0) {
+    size_t encoded_size = 0;
+    if (parse_text_token(argv[n], machine, &insn, &encoded_size) < 0) {
       fprintf(stderr, "mkpolyelf: bad instruction: %s\n", argv[n]);
       fclose(out);
       return 1;
@@ -471,7 +508,7 @@ int main(int argc, char **argv) {
       (unsigned char) ((insn >> 16) & 0xff),
       (unsigned char) ((insn >> 24) & 0xff)
     };
-    if (fwrite(bytes, sizeof(bytes), 1, out) != 1) {
+    if (fwrite(bytes, encoded_size, 1, out) != 1) {
       fprintf(stderr, "mkpolyelf: instruction write failed\n");
       fclose(out);
       return 1;

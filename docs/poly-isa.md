@@ -229,7 +229,12 @@ restores the caller frontend mode and continuation without an x86 rendezvous.
 The mixed raw probes also cover a 16-bit compressed RISC-V instruction followed
 by a direct switch to AArch64, proving the neutral path does not require
 32-bit-only RISC-V code before leaving the RISC-V frontend.  The Bochs
-prototype backs this with a small bounded cross-return stack and `polybench`
+prototype backs this with a small bounded cross-return stack. Direct RISC-V
+ELF execution preserves raw executable bytes and accepts 2-byte-aligned entry
+segments, so compressed-code compatibility is not dependent on packing
+halfwords into synthetic 32-bit loader words; the gate includes a 6-byte
+compressed RISC-V ELF entry segment to verify the non-4-byte-sized case.
+`polybench`
 covers scalar double FP cross-calls, eight-register double FP argument pressure
 across `d0`-`d7`/`fa0`-`fa7`, FP64 overflow stack-argument cross-calls that sum
 sixteen double arguments in both directions, mixed integer/FP cross-calls,
