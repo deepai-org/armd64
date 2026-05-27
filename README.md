@@ -25,8 +25,10 @@ Linux ABI passthrough, or equal-speed execution.
   syscalls stop routing through the OS-neutral architectural trap packet, if the
   removed fixed x86 import helper fallback reappears, if foreign barrier/fence
   decode stops honoring the x86-TSO no-op contract, if raw-mode interrupt
-  entry/`IRET64`/`SYSRET`/`SYSEXIT` resume hooks drift, or if Bochs'
-  CPUID/XSAVE/trap constants drift from the guest/runtime header.
+  entry/`IRET64`/`SYSRET`/`SYSEXIT` resume hooks drift, if direct
+  AArch64/RISC-V frontend switches or native cross-call cookies start routing
+  through x86 policy, or if Bochs' CPUID/XSAVE/trap constants drift from the
+  guest/runtime header.
 - The guest prints `BOOT_OK` on a clean baseline boot.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when
