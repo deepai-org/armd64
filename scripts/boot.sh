@@ -526,6 +526,18 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps" \
     -Wl,--no-as-needed -l:libpolyabsrunpath-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-abs-runpath-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyrpath-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ABS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps/libpolyrpath-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--disable-new-dtags -Wl,-rpath,'$ORIGIN/polydeps' \
+    "$POLYCALL_ABS_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps" \
+    -Wl,--no-as-needed -l:libpolyrpath-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-rpath-real.so"
   for idx in 1 2 3 4 5 6 7 8 9; do
     aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
       -DPOLY_MANY_NEEDED_INDEX="$idx" \
@@ -1244,6 +1256,20 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps" \
     -Wl,--no-as-needed -l:libpolyabsrunpath-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-abs-runpath-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyrpath-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ABS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps/libpolyrpath-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--disable-new-dtags -Wl,-rpath,'$ORIGIN/polydeps' \
+    "$POLYCALL_ABS_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps" \
+    -Wl,--no-as-needed -l:libpolyrpath-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-rpath-real.so"
   for idx in 1 2 3 4 5 6 7 8 9; do
     riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
       -march=rv64g -mabi=lp64d \
@@ -3139,6 +3165,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     depfini:/usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/aarch64-pcall-abs-needed-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-abs-runpath-real.so#poly_entry=945 \
+    /usr/lib/polyapps/aarch64-pcall-rpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-many-needed-real.so#poly_entry=4545 \
     /usr/lib/polyapps/aarch64-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/aarch64-pcall-root-tls-real.so#poly_entry=2348 \
@@ -3269,6 +3296,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     depfini:/usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/riscv-pcall-abs-needed-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-abs-runpath-real.so#poly_entry=945 \
+    /usr/lib/polyapps/riscv-pcall-rpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-many-needed-real.so#poly_entry=4545 \
     /usr/lib/polyapps/riscv-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/riscv-pcall-root-tls-real.so#poly_entry=2348 \
