@@ -710,7 +710,8 @@ numbers currently include:
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.
 - Memory/time-style syscalls: `nanosleep`, `clock_gettime`, `clock_getres`,
   `clock_nanosleep`, `sched_getaffinity`, `sched_yield`, `getrusage`,
-  `getcpu`, `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`,
+  `getrlimit`, `setrlimit`, `getcpu`, `gettimeofday`, `sysinfo`,
+  `prlimit64`, `getrandom`, `brk`,
   `munmap`, `mremap`, `mprotect`, `madvise`, `mlock`, `munlock`,
   `mlockall`, `munlockall`, `mlock2`, `close_range`, `membarrier`, and
   `mmap`.
