@@ -30,9 +30,12 @@ enum {
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10ULL;
-static const uint64_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 16ULL;
+static const uint64_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 32ULL;
 
 enum {
+  POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
+  POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 = (1U << 1),
+  POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 = (1U << 2),
   POLY_ABI_BRIDGE_ABI_VERSION = 1,
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64 = (1U << 0),
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV = (1U << 1),
@@ -253,6 +256,8 @@ static void install_polybench_trap_vector(void) {
 struct polybench_x86_import_descriptor {
   uint64_t target;
   uint64_t trampoline;
+  uint64_t flags;
+  uint64_t reserved;
 };
 
 static struct polybench_x86_import_descriptor

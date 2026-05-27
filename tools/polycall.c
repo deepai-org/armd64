@@ -108,9 +108,12 @@ enum {
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
-static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 16;
+static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 32;
 
 enum {
+  POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
+  POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 = (1U << 1),
+  POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 = (1U << 2),
   POLY_ABI_BRIDGE_ABI_VERSION = 1,
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64 = (1U << 0),
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV = (1U << 1),
@@ -1030,6 +1033,37 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       if (arch == POLY_ARCH_RISCV)
         return (uint64_t) (uintptr_t) poly_host_x86_riscv_fixunstfsi;
       return (uint64_t) (uintptr_t) poly_host_x86_fixunstfsi;
+    default:
+      return 0;
+  }
+}
+
+static uint64_t x86_descriptor_flags_for_import_id(uint64_t import_id) {
+  switch (import_id) {
+    case POLY_IMPORT_FUNC_X86_SLOT5:
+    case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
+      return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS;
+    case POLY_IMPORT_FUNC_UDIVTI3:
+    case POLY_IMPORT_FUNC_UMODTI3:
+    case POLY_IMPORT_FUNC_DIVTI3:
+    case POLY_IMPORT_FUNC_MODTI3:
+    case POLY_IMPORT_FUNC_FIXDFTI:
+    case POLY_IMPORT_FUNC_FIXUNSDFTI:
+    case POLY_IMPORT_FUNC_FIXSFTI:
+    case POLY_IMPORT_FUNC_FIXUNSSFTI:
+    case POLY_IMPORT_FUNC_ATOMIC_LOAD_16:
+      return POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128;
+    case POLY_IMPORT_FUNC_ADDTF3:
+    case POLY_IMPORT_FUNC_SUBTF3:
+    case POLY_IMPORT_FUNC_MULTF3:
+    case POLY_IMPORT_FUNC_DIVTF3:
+    case POLY_IMPORT_FUNC_FLOATUNDITF:
+    case POLY_IMPORT_FUNC_FLOATDITF:
+    case POLY_IMPORT_FUNC_FLOATSITF:
+    case POLY_IMPORT_FUNC_EXTENDSFTF2:
+    case POLY_IMPORT_FUNC_EXTENDDFTF2:
+    case POLY_IMPORT_FUNC_FLOATUNSITF:
+      return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128;
     default:
       return 0;
   }
@@ -4123,6 +4157,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     for (size_t n = 0; n < import_descriptor_count; n++) {
       emit_u64(code, &offset, 0);
       emit_u64(code, &offset, 0);
+      emit_u64(code, &offset, 0);
+      emit_u64(code, &offset, 0);
     }
     for (uint64_t import_id = 0; import_id < import_contract.import_count;
          import_id++) {
@@ -4134,6 +4170,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         (size_t) import_id * import_contract.x86_descriptor_size;
       write_le64(code + descriptor_offset, target);
       write_le64(code + descriptor_offset + 8, import_x86_return);
+      write_le64(code + descriptor_offset + 16,
+        x86_descriptor_flags_for_import_id(import_id));
     }
   }
   if (offset != code_size) {

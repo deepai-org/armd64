@@ -202,7 +202,7 @@ discover the experimental hardware contract before emitting poly operations:
   zero.
 - `CPUID.EAX=0x40000002, ECX=2`: `EAX=106` reports the first
   foreign-to-x86 import descriptor slot id, `EBX=8` reports the current slot
-  count, `ECX=16` reports the descriptor byte size, and `EDX=16` reports the
+  count, `ECX=32` reports the descriptor byte size, and `EDX=16` reports the
   import-call stride.
 - `CPUID.EAX=0x40000002, ECX=3`: `EAX=0x7ffa` reports the AArch64
   FP64 overflow stack-argument RISC-V cross-call encoding, and `EBX=0x0000307b`
@@ -290,7 +290,7 @@ discover the experimental hardware contract before emitting poly operations:
   runtime-supplied, fixed CPU helper fallbacks are not part of the ABI, and x86
   helper targets return through ordinary `ret`.  `ECX[7:0]=8` is the native
   GPR argument lane count, `ECX[15:8]=8` is the scalar FP argument lane count,
-  `ECX[31:16]=16` is the foreign stack alignment, `EDX[15:0]=16` is the
+  `ECX[31:16]=16` is the foreign stack alignment, `EDX[15:0]=32` is the
   descriptor byte size, and `EDX[31:16]=16` is the descriptor call stride.
   The `polycall` loader and `polybench` descriptor benchmarks validate this
   leaf before they install descriptor-backed foreign-to-x86 import tables.
@@ -911,7 +911,13 @@ holes before 16-byte integer arguments; the CPU import gate always captures and
 maps the fixed native argument lanes. RISC-V quad-precision helper descriptors
 rebuild `__float128` operands from fixed `a0/a1` and `a2/a3` GPR lane pairs in
 runtime x86 wrappers rather than requiring CPU-side XMM argument packing for
-specific helper IDs.
+specific helper IDs. Each 32-byte x86 import descriptor is
+`{target, trampoline, flags, reserved}`.  Flag bit `0` requests that the
+seventh and eighth native GPR argument lanes be written to x86 stack-argument
+slots, bit `1` maps an x86 `RDX:RAX` 128-bit integer return back to the native
+foreign return register pair, and bit `2` maps an x86 `XMM0` binary128 return
+back to AArch64 `v0` or RISC-V `a0/a1`. These flags are runtime metadata, not
+CPU-side helper-ID policy.
 The same descriptor path currently provides prototype imports for common GCC
 dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and

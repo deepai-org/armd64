@@ -182,7 +182,7 @@ runtime dispatch:
 | `0x40000001` | `EAX=1`, `EBX=mode mask`, `ECX=feature mask`, `EDX=0` | Reports poly CPUID ABI version 1, supported frontend modes, implemented prototype features, and no architectural XSAVE component yet. |
 | `0x40000002, subleaf 0` | `EAX[15:0]=0x7fff`, `EAX[31:16]=0x7ffe`, `EBX=0x7ffd`, `ECX=0x0000000b`, `EDX=0x0000002b` | Reports native raw-mode escape/cross-switch encodings: AArch64-to-x86, AArch64-to-RISC-V switch, AArch64-to-RISC-V call, RISC-V-to-x86, and RISC-V-to-AArch64 switch. |
 | `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=0x0000107b`, `ECX=0x0000207b`, `EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding and compact `{u32,float}`/`{float,u32}` native ABI cross-call variants. |
-| `0x40000002, subleaf 2` | `EAX=106`, `EBX=8`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
+| `0x40000002, subleaf 2` | `EAX=106`, `EBX=8`, `ECX=32`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
 | `0x40000002, subleaf 3` | `EAX=0x7ffa`, `EBX=0x0000307b`, `ECX=0`, `EDX=0` | Reports the neutral FP64 overflow stack-argument cross-call encodings: AArch64 `brk #0x7ffa` to RISC-V and RISC-V custom `0x0000307b` to AArch64. |
 | `0x40000002, subleaf 4` | `EAX=0x7ff9`, `EBX=0x0000407b`, `ECX=0x63`, `EDX=0x64` | Reports the native raw-mode trap-return encodings and x86 trap-vector mode set/get opcodes. |
 | `0x40000002, subleaf 5` | `EAX=140`, `EBX=0xffffe000`, `ECX=0xffffffff`, `EDX=16` | Reports the foreign import-call manifest: import ID count, 64-bit import-call window base split low/high, and import-call stride. |
@@ -192,7 +192,7 @@ runtime dispatch:
 | `0x40000006` | `EAX=1`, `EBX=0x1f`, `ECX=0x0f`, `EDX=0x18` | Defines the raw-mode interrupt/resume ABI: raw fetch is CPL3-only, asynchronous entry uses a standard x86 interrupt frame after saving precise foreign state, raw loops check events between foreign instructions, and `IRET64`/`SYSRET`/`SYSEXIT`/signal-return paths can restore AArch64 or RISC-V raw mode. |
 | `0x40000007` | `EAX=1`, `EBX=1`, `ECX=0x1f`, `EDX=0x18` | Defines the foreign memory-ordering ABI: raw AArch64/RISC-V execute under the x86 TSO model, use the same coherent x86 memory subsystem, decode AArch64 barriers and RISC-V fences as ordering-preserving no-ops, route atomics through coherent memory operations, and do not introduce weak reordering. |
 | `0x40000008` | `EAX=1`, `EBX=0x1ff`, `ECX=0x00020004`, `EDX=0x19` | Defines the cross-frontend transition ABI: x86 transitions use decoded poly opcodes, raw frontends use native escape instructions, each transition flushes the frontend and ends the current block, next PCs are precise, raw instruction fetch is fixed-width/aligned, AArch64/RISC-V can switch or call each other without x86 rendezvous, native returns use hardware cookies, and trap return is architectural. |
-| `0x40000009` | `EAX=1`, `EBX=0x7ff`, `ECX=0x00100808`, `EDX=0x00100010` | Defines the native ABI bridge/runtime descriptor contract: x86 SysV can enter AAPCS64 and RISC-V psABI, sret/scalar-FP/focused aggregate/FP64 overflow forms are hardware-described, imports use user-supplied descriptors with no CPU helper fallback, TLS base is explicit, x86 helpers return with ordinary `ret`, eight GPR and eight FP argument lanes are covered, the foreign stack is 16-byte aligned, and descriptor records/stride are 16 bytes. |
+| `0x40000009` | `EAX=1`, `EBX=0x7ff`, `ECX=0x00100808`, `EDX=0x00100020` | Defines the native ABI bridge/runtime descriptor contract: x86 SysV can enter AAPCS64 and RISC-V psABI, sret/scalar-FP/focused aggregate/FP64 overflow forms are hardware-described, imports use user-supplied descriptors with no CPU helper fallback, TLS base is explicit, x86 helpers return with ordinary `ret`, eight GPR and eight FP argument lanes are covered, the foreign stack is 16-byte aligned, descriptor records are 32 bytes, and descriptor call slots are 16 bytes apart. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -299,7 +299,7 @@ foreign-to-x86 imports, explicit TLS-base handoff, runtime-supplied descriptor
 tables, removal of fixed CPU helper fallback semantics, and x86 helper return
 through ordinary `ret`.  `ECX[7:0]=8` is the covered native GPR argument lane
 count, `ECX[15:8]=8` is the covered scalar FP argument lane count, and
-`ECX[31:16]=16` is the required foreign stack alignment.  `EDX[15:0]=16` is
+`ECX[31:16]=16` is the required foreign stack alignment.  `EDX[15:0]=32` is
 the descriptor byte size, and `EDX[31:16]=16` is the descriptor call stride.
 The `polycall` loader and `polybench` descriptor benchmarks validate this leaf
 before installing descriptor-backed foreign-to-x86 imports, so runtime import
@@ -763,7 +763,13 @@ the runtime descriptor target, not by CPU-side import-ID argument rewrites.
 RISC-V quad-precision helper descriptors likewise rebuild `__float128`
 operands from the fixed `a0/a1` and `a2/a3` GPR lane pairs in runtime x86
 wrappers instead of asking the CPU import gate to populate x86 XMM argument
-registers for specific helper IDs. The current
+registers for specific helper IDs. Each 32-byte x86 import descriptor is
+`{target, trampoline, flags, reserved}`.  Flag bit `0` requests the seventh and
+eighth native GPR argument lanes be written to x86 stack-argument slots, bit
+`1` maps an x86 `RDX:RAX` 128-bit integer return back to the native foreign
+return register pair, and bit `2` maps an x86 `XMM0` binary128 return back to
+AArch64 `v0` or RISC-V `a0/a1`.  These flags are runtime metadata, not
+CPU-side helper-ID policy. The current
 `polycall` harness points these descriptors at `noinline` x86_64 C functions
 linked from `tools/polycall_x86_helpers.c`, so the path exercises a separately
 compiled x86 helper object with compiler-generated function bodies rather than

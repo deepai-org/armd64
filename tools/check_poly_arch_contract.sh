@@ -128,6 +128,8 @@ assert_not_contains "BX_POLY_IMPORT_FUNC_ATOMIC_STORE_16" "$IMPORT_CALL_FUNC" \
   "AArch64 __int128 argument alignment must be handled by runtime descriptors, not CPU import mapping"
 assert_not_contains "uses_fp128_.*arg|BX_WRITE_XMM_REG_.*arg[0-9]" "$IMPORT_CALL_FUNC" \
   "RISC-V __float128 argument reconstruction must be handled by runtime descriptors, not CPU import mapping"
+assert_not_contains "bx_poly_import_uses_x86_stack_args|bx_poly_import_x86_returns_i128|bx_poly_import_x86_returns_fp128" "$BOCHS_CPU" \
+  "x86 import stack and return ABI shape must come from runtime descriptor flags"
 
 assert_not_contains "poly_raw: import x86 call|BX_POLY_IMPORT_X86_ADD_HELPER_SIZE|BX_POLY_IMPORT_FUNC_X86_ADD" \
   "$BOCHS_CPU" \
