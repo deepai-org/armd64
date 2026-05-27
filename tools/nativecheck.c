@@ -14,6 +14,8 @@
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_GET ".byte 0x0f,0x24,0x64,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x24,0x32,0x50,0x4f,0x4c,0x59,0x21\n"
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -54,6 +56,18 @@ static inline void poly_trap_vector_mode_get(void) {
 static inline uint64_t poly_trap_status_reason(void) {
   uint64_t value;
   asm volatile(POLY_OP_TRAP_STATUS_REASON : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_syscall_status_number(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_SYSCALL_STATUS_NUMBER : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_syscall_status_mode(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_SYSCALL_STATUS_MODE : "=a"(value) :: "memory");
   return value;
 }
 
@@ -201,6 +215,13 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_reason());
     return 1;
   }
+  if (poly_syscall_status_number() != 172 ||
+      poly_syscall_status_mode() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall status mismatch number=%llu mode=%llu\n",
+      (unsigned long long) poly_syscall_status_number(),
+      (unsigned long long) poly_syscall_status_mode());
+    return 1;
+  }
   pid_t trap_child = fork();
   if (trap_child < 0) {
     fputs("NATIVE_CHECK_FAIL: poly trap packet fork failed\n", stderr);
@@ -209,6 +230,10 @@ static int run_poly_trap_vector_probe(void) {
   if (trap_child == 0) {
     if (poly_trap_status_reason() != 0)
       _exit(21);
+    if (poly_syscall_status_number() != 0)
+      _exit(22);
+    if (poly_syscall_status_mode() != POLY_MODE_X86)
+      _exit(23);
     _exit(0);
   }
   status = 0;
@@ -221,6 +246,13 @@ static int run_poly_trap_vector_probe(void) {
   if (poly_trap_status_reason() != POLY_TRAP_SYSCALL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent trap packet lost after fork got=%llu\n",
       (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  if (poly_syscall_status_number() != 172 ||
+      poly_syscall_status_mode() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall status lost after fork number=%llu mode=%llu\n",
+      (unsigned long long) poly_syscall_status_number(),
+      (unsigned long long) poly_syscall_status_mode());
     return 1;
   }
 

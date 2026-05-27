@@ -198,10 +198,10 @@ discover the experimental hardware contract before emitting poly operations:
   8 MiB stack-region keying, user-return restoration, and x86 TSO foreign
   ordering.  Bit `7` is intentionally clear until non-aliased foreign state is
   exposed as an architectural XSAVE component.  `EBX=23` reports the stack
-  region shift.  Trap-vector policy, recorded trap-packet/status state, and
-  the trap-return save frame are part of this keyed prototype state until an
-  XSAVE component is assigned.  `ECX=0`/`EDX=0` mean no XCR0 component id or
-  XSAVE byte area is assigned yet.
+  region shift.  Legacy syscall/libcall status registers, trap-vector policy,
+  recorded trap-packet/status state, and the trap-return save frame are part of
+  this keyed prototype state until an XSAVE component is assigned.  `ECX=0` and
+  `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:
@@ -767,9 +767,10 @@ opcodes, place a result in the shared result register, and execute the native
 trap-return instruction for its frontend: `0f 24 62 ... POLY!` from x86,
 AArch64 `brk #0x7ff9`, or RISC-V custom `0x0000407b`.  `0f 24 61 ... POLY!`
 reads the current trap vector into `RAX`.
-In the Bochs prototype, the installed trap vector, recorded trap-packet/status
-state, and trap-return save frame are keyed with the userspace poly state, so a
-different guest address space starts with no stale trap vector, no stale trap
+In the Bochs prototype, the installed trap vector, legacy syscall/libcall status
+registers, recorded trap-packet/status state, and trap-return save frame are
+keyed with the userspace poly state, so a different guest address space starts
+with no stale trap vector, no stale syscall/libcall status, no stale trap
 packet, and no stale trap-return frame.
 
 The Bochs compatibility runtime can also handle selected breakpoint traps as
