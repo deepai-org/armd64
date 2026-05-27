@@ -2674,7 +2674,7 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     const char *origin_path, const uint8_t *image, size_t image_size,
     uint64_t base_vaddr, const Elf64_Dyn *dyn, size_t dyn_count,
     size_t needed_depth, const char *inherited_rpath,
-    size_t inherited_rpath_len);
+    size_t inherited_rpath_len, const char *inherited_rpath_origin);
 
 static const char *poly_library_path(void) {
   const char *library_path = getenv("POLY_LD_LIBRARY_PATH");
@@ -2685,7 +2685,8 @@ static const char *poly_library_path(void) {
 
 static int load_dependency_object(struct poly_program *owner, size_t dep_index,
     const char *path, int expected_arch, size_t needed_depth,
-    const char *inherited_rpath, size_t inherited_rpath_len) {
+    const char *inherited_rpath, size_t inherited_rpath_len,
+    const char *inherited_rpath_origin) {
   struct poly_dependency *dep = &owner->deps[dep_index];
   memset(dep, 0, sizeof(*dep));
   if (strlen(path) >= sizeof(dep->path)) {
@@ -2907,7 +2908,8 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   }
   if (load_needed_dependencies_from_dynamic(owner, dep->path, dep->image,
         dep->image_size, dep->base_vaddr, dynamic, dynamic_count,
-        dep->needed_depth + 1, inherited_rpath, inherited_rpath_len) < 0) {
+        dep->needed_depth + 1, inherited_rpath, inherited_rpath_len,
+        inherited_rpath_origin) < 0) {
     free(dep->image);
     dep->image = NULL;
     free(dep_view.relocs);
@@ -2951,7 +2953,7 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     const char *origin_path, const uint8_t *image, size_t image_size,
     uint64_t base_vaddr, const Elf64_Dyn *dyn, size_t dyn_count,
     size_t needed_depth, const char *inherited_rpath,
-    size_t inherited_rpath_len) {
+    size_t inherited_rpath_len, const char *inherited_rpath_origin) {
   uint64_t strtab_vaddr = 0;
   uint64_t strsz = 0;
   uint64_t rpath_offset = 0;
@@ -3004,9 +3006,11 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
   }
   const char *child_inherited_rpath = inherited_rpath;
   size_t child_inherited_rpath_len = inherited_rpath_len;
+  const char *child_inherited_rpath_origin = inherited_rpath_origin;
   if (runpath_offset == 0 && rpath_offset != 0 && search_path_len != 0) {
     child_inherited_rpath = search_path;
     child_inherited_rpath_len = search_path_len;
+    child_inherited_rpath_origin = origin_path;
   }
 
   for (size_t n = 0; n < dyn_count; n++) {
@@ -3044,9 +3048,10 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
         sizeof(needed_path));
     if (needed[0] != '/' && inherited_rpath_len != 0 &&
         inherited_rpath != search_path && found_needed < 0)
-      found_needed = build_runpath_needed_path(origin_path, owner->arch_name,
-        inherited_rpath, inherited_rpath_len, needed, needed_path,
-        sizeof(needed_path));
+      found_needed = build_runpath_needed_path(
+        inherited_rpath_origin ? inherited_rpath_origin : origin_path,
+        owner->arch_name, inherited_rpath, inherited_rpath_len, needed,
+        needed_path, sizeof(needed_path));
     if (found_needed < 0 &&
         (build_needed_path(origin_path, needed, needed_path,
            sizeof(needed_path)) < 0 ||
@@ -3075,7 +3080,8 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     }
     const size_t dep_index = owner->dep_count++;
     if (load_dependency_object(owner, dep_index, needed_path, owner->arch,
-          needed_depth, child_inherited_rpath, child_inherited_rpath_len) < 0)
+          needed_depth, child_inherited_rpath, child_inherited_rpath_len,
+          child_inherited_rpath_origin) < 0)
       return -1;
   }
   return 0;
@@ -3085,7 +3091,7 @@ static int load_needed_dependencies(struct poly_program *program,
     const Elf64_Dyn *dyn, size_t dyn_count) {
   return load_needed_dependencies_from_dynamic(program, program->path,
     program->image, program->image_size, program->base_vaddr, dyn, dyn_count,
-    0, NULL, 0);
+    0, NULL, 0, NULL);
 }
 
 static int preload_separator(char c) {
@@ -3177,7 +3183,7 @@ static int load_preload_dependencies(struct poly_program *program) {
     }
     const size_t dep_index = program->dep_count++;
     if (load_dependency_object(program, dep_index, path, program->arch, 0,
-          NULL, 0) < 0)
+          NULL, 0, NULL) < 0)
       return -1;
     promote_preload_dependency_scope(program, dep_index);
   }

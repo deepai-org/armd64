@@ -889,9 +889,11 @@ are used to resolve dependency libraries before a missing needed library fails
 to load. Colon-separated RUNPATH entries continue searching after a missing
 directory. Old-style RPATH-only objects built without new dtags are covered,
 including inherited RPATH lookup for transitive foreign dependencies whose
-direct parent has no local RUNPATH. `POLY_LD_LIBRARY_PATH` is searched for
-foreign dependencies before declared RUNPATH/RPATH directories using the same
-`$ORIGIN`, `$LIB`, and `$PLATFORM` dynamic-string token expansion, with boot
+direct parent has no local RUNPATH. Inherited `$ORIGIN` entries expand against
+the object that declared the RPATH, not the transitive dependency currently
+being loaded. `POLY_LD_LIBRARY_PATH` is searched for foreign dependencies
+before declared RUNPATH/RPATH directories using the same `$ORIGIN`, `$LIB`, and
+`$PLATFORM` dynamic-string token expansion, with boot
 coverage proving environment-path fallback after a missing directory and
 environment-path precedence over a conflicting declared RUNPATH library.
 If `POLY_LD_LIBRARY_PATH` is unset, the prototype falls back to
