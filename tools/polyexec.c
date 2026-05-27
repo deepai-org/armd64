@@ -131,7 +131,27 @@ static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,
 
 static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) {
   switch (number) {
+    case 5: *x86_number = SYS_setxattr; return 1;
+    case 6: *x86_number = SYS_lsetxattr; return 1;
+    case 7: *x86_number = SYS_fsetxattr; return 1;
+    case 8: *x86_number = SYS_getxattr; return 1;
+    case 9: *x86_number = SYS_lgetxattr; return 1;
+    case 10: *x86_number = SYS_fgetxattr; return 1;
+    case 11: *x86_number = SYS_listxattr; return 1;
+    case 12: *x86_number = SYS_llistxattr; return 1;
+    case 13: *x86_number = SYS_flistxattr; return 1;
+    case 14: *x86_number = SYS_removexattr; return 1;
+    case 15: *x86_number = SYS_lremovexattr; return 1;
+    case 16: *x86_number = SYS_fremovexattr; return 1;
     case 17: *x86_number = SYS_getcwd; return 1;
+    case 19: *x86_number = SYS_eventfd2; return 1;
+    case 24: *x86_number = SYS_dup3; return 1;
+    case 26: *x86_number = SYS_inotify_init1; return 1;
+    case 27: *x86_number = SYS_inotify_add_watch; return 1;
+    case 28: *x86_number = SYS_inotify_rm_watch; return 1;
+    case 30: *x86_number = SYS_ioprio_set; return 1;
+    case 31: *x86_number = SYS_ioprio_get; return 1;
+    case 32: *x86_number = SYS_flock; return 1;
     case 56: *x86_number = SYS_openat; return 1;
     case 57: *x86_number = SYS_close; return 1;
     case 61: *x86_number = SYS_getdents64; return 1;

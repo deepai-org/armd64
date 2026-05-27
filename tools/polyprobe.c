@@ -537,9 +537,6 @@ int main(void) {
   install_polyprobe_trap_vector();
 
   stage("POLY_STAGE: cpuid");
-  const char *expect_compat_env = getenv("EXPECT_POLY_COMPAT_TRAPS");
-  int expect_compat = expect_compat_env == NULL ||
-    strcmp(expect_compat_env, "0") != 0;
   struct poly_cpuid_regs poly_vendor = poly_read_cpuid(POLY_CPUID_BASE, 0);
   char vendor[13];
   poly_cpuid_vendor_string(&poly_vendor, vendor);
@@ -553,7 +550,7 @@ int main(void) {
     poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
   if (poly_features.eax != POLY_CPUID_ABI_VERSION ||
       poly_features.ebx != poly_cpuid_expected_mode_mask() ||
-      poly_features.ecx != poly_cpuid_expected_feature_mask_for_compat(expect_compat) ||
+      poly_features.ecx != poly_cpuid_expected_feature_mask() ||
       poly_features.edx != 0) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID feature mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_features.eax, poly_features.ebx, poly_features.ecx, poly_features.edx);

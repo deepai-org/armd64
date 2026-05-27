@@ -840,8 +840,11 @@ compatibility disabled and guest trap-vector packet handling:
 make boot-poly
 ```
 
-Run the legacy compatibility-runtime poly probe and manifest-backed generated
-foreign payloads:
+Run the deprecated-knob regression.  This deliberately sets
+`POLY_COMPAT_TRAPS=1`, then verifies native no-vector signals plus the
+trap-vector probe and manifest-backed generated foreign payloads.  The knob is
+accepted for old configs but must not re-enable Bochs CPU syscall/libcall
+policy:
 
 ```bash
 make boot-poly-compat
@@ -900,9 +903,9 @@ make boot-poly-full-arch-traps
 `make boot-poly-full` is the unsuffixed alias for the same disabled-compat full
 gate.
 
-Run the full legacy-named gate, including direct foreign ELF execution and
-guest `binfmt_misc` registration.  The target name is retained for old scripts;
-the Bochs compatibility dispatcher is no longer used:
+Run the full legacy-named deprecated-knob gate, including direct foreign ELF
+execution and guest `binfmt_misc` registration.  The target name is retained for
+old scripts; the Bochs compatibility dispatcher is no longer used:
 
 ```bash
 make boot-poly-full-compat
@@ -911,6 +914,7 @@ make boot-poly-full-compat
 Expected success markers include:
 
 - `BOOT_OK`
+- `NATIVE_POLY_NO_VECTOR_SIGNALS_OK`
 - `NATIVE_POLY_TRAP_VECTOR_OK`
 - `POLY_PROBE_OK`
 - `POLYAPP_OK`

@@ -169,7 +169,6 @@ RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
 EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
-EXPECT_POLY_COMPAT_TRAPS="${EXPECT_POLY_COMPAT_TRAPS:-$POLY_COMPAT_TRAPS}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
@@ -2086,7 +2085,6 @@ RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 RUN_POLY_BINFMT_ARCH_TRAPS="$RUN_POLY_BINFMT_ARCH_TRAPS"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
 EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID"
-EXPECT_POLY_COMPAT_TRAPS="$EXPECT_POLY_COMPAT_TRAPS"
 
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -2104,11 +2102,11 @@ echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
 
 if [ "$RUN_NATIVE_CHECK" = "1" ]; then
-  EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" EXPECT_POLY_COMPAT_TRAPS="$EXPECT_POLY_COMPAT_TRAPS" /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1
+  EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_PROBE" = "1" ]; then
-  EXPECT_POLY_COMPAT_TRAPS="$EXPECT_POLY_COMPAT_TRAPS" /usr/bin/polyprobe >/dev/ttyS0 2>&1
+  /usr/bin/polyprobe >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then

@@ -774,7 +774,6 @@ static int run_poly_state_key_probe(void) {
 
 int main(void) {
   const char *expect_poly_cpuid = getenv("EXPECT_POLY_CPUID");
-  const char *expect_poly_compat_traps = getenv("EXPECT_POLY_COMPAT_TRAPS");
 
   puts("NATIVE_ELF_OK");
   if (expect_poly_cpuid != NULL && strcmp(expect_poly_cpuid, "0") == 0) {
@@ -789,11 +788,8 @@ int main(void) {
       fputs("NATIVE_CHECK_FAIL: poly CPUID leaf missing while enabled\n", stderr);
       return 1;
     }
-    int compat_traps = expect_poly_compat_traps == NULL ||
-      strcmp(expect_poly_compat_traps, "0") != 0;
     struct poly_cpuid_regs features = poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
-    uint32_t expected_features =
-      poly_cpuid_expected_feature_mask_for_compat(compat_traps);
+    uint32_t expected_features = poly_cpuid_expected_feature_mask();
     if (features.eax != POLY_CPUID_ABI_VERSION ||
         features.ebx != poly_cpuid_expected_mode_mask() ||
         features.ecx != expected_features ||
@@ -816,7 +812,7 @@ int main(void) {
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
       return 1;
-    if (!compat_traps && run_poly_no_vector_signal_probe() != 0)
+    if (run_poly_no_vector_signal_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;
