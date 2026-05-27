@@ -145,6 +145,7 @@ enum {
   POLY_ERRNO_TLS_OFFSET = 4096,
   POLY_ERRNO_TLS_SIZE = 4104,
   MAX_NEEDED_DEPS = 32,
+  MAX_LOAD_SEGMENTS = 16,
   MAX_DEP_PATH = 192,
   RELOC_BASE_ABSOLUTE = 0,
   RELOC_BASE_LOAD_BIAS = 1,
@@ -444,6 +445,12 @@ struct poly_symbol_table {
   size_t verneed_count;
 };
 
+struct poly_load_segment {
+  uint64_t vaddr;
+  uint64_t memsz;
+  uint32_t flags;
+};
+
 struct poly_dependency {
   char path[MAX_DEP_PATH];
   char soname[MAX_DEP_PATH];
@@ -453,6 +460,8 @@ struct poly_dependency {
   size_t image_size;
   uint64_t base_vaddr;
   size_t loaded_bytes;
+  struct poly_load_segment load_segments[MAX_LOAD_SEGMENTS];
+  size_t load_segment_count;
   uint64_t init_vaddr;
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
@@ -492,6 +501,8 @@ struct poly_program {
   size_t entry_offset;
   uint64_t base_vaddr;
   size_t loaded_bytes;
+  struct poly_load_segment load_segments[MAX_LOAD_SEGMENTS];
+  size_t load_segment_count;
   uint64_t preinit_array_vaddr;
   uint64_t preinit_array_size;
   size_t preinit_count;
@@ -1447,6 +1458,19 @@ static int reserve_tls_range(size_t *total_size, uint64_t memsz,
     return -1;
   *offset = aligned;
   *total_size = aligned + (size_t) memsz;
+  return 0;
+}
+
+static int record_load_segment(struct poly_load_segment *segments,
+    size_t *count, const Elf64_Phdr *phdr, const char *path) {
+  if (*count >= MAX_LOAD_SEGMENTS) {
+    fprintf(stderr, "POLYCALL_FAIL: too many PT_LOAD segments: %s\n", path);
+    return -1;
+  }
+  segments[*count].vaddr = phdr->p_vaddr;
+  segments[*count].memsz = phdr->p_memsz;
+  segments[*count].flags = phdr->p_flags;
+  (*count)++;
   return 0;
 }
 
@@ -2791,6 +2815,11 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
     }
     const uint64_t segment_base = align_down_u64(phdr->p_vaddr, 0x1000);
     const uint64_t segment_limit = phdr->p_vaddr + phdr->p_memsz;
+    if (record_load_segment(dep->load_segments, &dep->load_segment_count,
+          phdr, path) < 0) {
+      free(data);
+      return -1;
+    }
     if (segment_base < base_vaddr)
       base_vaddr = segment_base;
     if (segment_limit > limit_vaddr)
@@ -4359,6 +4388,11 @@ static int load_elf_program(const char *path, const char *symbol_name,
     }
     uint64_t segment_base = align_down_u64(phdr->p_vaddr, 0x1000);
     uint64_t segment_limit = phdr->p_vaddr + phdr->p_memsz;
+    if (record_load_segment(program->load_segments,
+          &program->load_segment_count, phdr, path) < 0) {
+      free(data);
+      return -1;
+    }
     if (segment_base < base_vaddr)
       base_vaddr = segment_base;
     if (segment_limit > limit_vaddr)
@@ -4928,6 +4962,59 @@ static uint8_t *map_foreign_program_image(const struct poly_program *program,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
+static int load_segment_prot(uint32_t flags) {
+  int prot = 0;
+  if ((flags & PF_R) != 0)
+    prot |= PROT_READ;
+  if ((flags & PF_W) != 0)
+    prot |= PROT_WRITE;
+  if ((flags & PF_X) != 0)
+    prot |= PROT_EXEC;
+  return prot;
+}
+
+static int protect_load_segments(const char *path, uint8_t *image,
+    size_t image_size, uint64_t base_vaddr,
+    const struct poly_load_segment *segments, size_t segment_count) {
+  for (size_t n = 0; n < segment_count; n++) {
+    if (segments[n].memsz == 0)
+      continue;
+    if (segments[n].vaddr > UINT64_MAX - segments[n].memsz) {
+      fprintf(stderr, "POLYCALL_FAIL: bad PT_LOAD range: %s\n", path);
+      return -1;
+    }
+    size_t segment_offset = 0;
+    if (image_vaddr_to_offset(base_vaddr, image_size, segments[n].vaddr,
+          segments[n].memsz, &segment_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: PT_LOAD escaped image: %s\n", path);
+      return -1;
+    }
+
+    const uint64_t segment_start = align_down_u64(segments[n].vaddr, 0x1000);
+    const uint64_t segment_end_unaligned = segments[n].vaddr +
+      segments[n].memsz;
+    if (segment_end_unaligned > UINT64_MAX - 0xfff) {
+      fprintf(stderr, "POLYCALL_FAIL: bad PT_LOAD page range: %s\n", path);
+      return -1;
+    }
+    const uint64_t segment_end = align_up_u64(segment_end_unaligned, 0x1000);
+    if (segment_start < base_vaddr || segment_end < segment_start ||
+        segment_end - segment_start > SIZE_MAX) {
+      fprintf(stderr, "POLYCALL_FAIL: bad PT_LOAD page range: %s\n", path);
+      return -1;
+    }
+
+    void *addr = image + (size_t) (segment_start - base_vaddr);
+    const size_t length = (size_t) (segment_end - segment_start);
+    if (mprotect(addr, length, load_segment_prot(segments[n].flags)) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: PT_LOAD mprotect failed: %s: %s\n",
+        path, strerror(errno));
+      return -1;
+    }
+  }
+  return 0;
+}
+
 static int protect_relro_region(const char *path, uint8_t *image,
     size_t image_size, uint64_t base_vaddr, uint64_t relro_vaddr,
     uint64_t relro_size) {
@@ -5494,6 +5581,31 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
 
   for (size_t d = 0; d < program->dep_count; d++) {
     const struct poly_dependency *dep = &program->deps[d];
+    if (protect_load_segments(dep->path, dep_foreign[d], dep_sizes[d],
+          dep->base_vaddr, dep->load_segments, dep->load_segment_count) < 0) {
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+  }
+  if (protect_load_segments(program->path, foreign, foreign_size,
+        program->base_vaddr, program->load_segments,
+        program->load_segment_count) < 0) {
+    unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+    if (tls)
+      munmap(tls, tls_size);
+    munmap(import_page, 4096);
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
+  }
+
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_dependency *dep = &program->deps[d];
     if (protect_relro_region(dep->path, dep_foreign[d], dep_sizes[d],
           dep->base_vaddr, dep->relro_vaddr, dep->relro_size) < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -5826,19 +5938,22 @@ int main(int argc, char **argv) {
     size_t dep_init_count = 0;
     size_t dep_fini_count = 0;
     size_t dep_relro_count = 0;
+    size_t dep_load_segment_count = 0;
     for (size_t d = 0; d < program.dep_count; d++) {
       dep_init_count += program.deps[d].init_count;
       dep_fini_count += program.deps[d].fini_count;
       if (program.deps[d].relro_size != 0)
         dep_relro_count++;
+      dep_load_segment_count += program.deps[d].load_segment_count;
     }
     const size_t relro_count =
       (program.relro_size != 0 ? 1U : 0U) + dep_relro_count;
 
-    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu deps=%zu dep_inits=%zu dep_finis=%zu relro=%zu tls=%llu inits=%zu finis=%zu symbol=%s path=%s\n",
+    printf("POLYCALL_ELF: arch=%s type=%u image_bytes=%zu loaded_bytes=%zu entry_offset=%zu relocs=%zu deps=%zu loads=%zu dep_loads=%zu dep_inits=%zu dep_finis=%zu relro=%zu tls=%llu inits=%zu finis=%zu symbol=%s path=%s\n",
       program.arch_name, (unsigned) program.elf_type, program.image_size,
       program.loaded_bytes, program.entry_offset, program.reloc_count,
-      program.dep_count, dep_init_count, dep_fini_count, relro_count,
+      program.dep_count, program.load_segment_count, dep_load_segment_count,
+      dep_init_count, dep_fini_count, relro_count,
       (unsigned long long) program.tls_memsz, program.init_count,
       program.fini_count,
       symbol_name ? symbol_name : "-", program.path);
