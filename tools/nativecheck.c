@@ -20,6 +20,8 @@
 #define POLY_OP_STATE_IMPORT ".byte 0x0f,0x24,0x68,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_MODE ".byte 0x0f,0x24,0x51,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_STATUS_NUMBER ".byte 0x0f,0x24,0x52,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_STATUS_SELECTOR ".byte 0x0f,0x24,0x5a,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x24,0x5c,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x24,0x5d,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -86,6 +88,18 @@ static inline uint64_t poly_trap_status_reason(void) {
 static inline uint64_t poly_trap_status_mode(void) {
   uint64_t value;
   asm volatile(POLY_OP_TRAP_STATUS_MODE : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_status_number(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_STATUS_NUMBER : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_status_selector(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_STATUS_SELECTOR : "=a"(value) :: "memory");
   return value;
 }
 
@@ -199,6 +213,32 @@ static void child_expect_aarch64_import_signal(void) {
   _exit(99);
 }
 
+__attribute__((noreturn, noinline))
+static void child_expect_aarch64_illegal_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xffffffff\n" // unallocated in the supported AArch64 subset
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_illegal_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
 static int expect_child_signal(const char *name, int expected_signal,
     void (*child_func)(void)) {
   pid_t child = fork();
@@ -238,6 +278,12 @@ static int run_poly_no_vector_signal_probe(void) {
   if (expect_child_signal("poly aarch64 import no-vector", SIGILL,
         child_expect_aarch64_import_signal) != 0)
     return 1;
+  if (expect_child_signal("poly aarch64 illegal no-vector", SIGILL,
+        child_expect_aarch64_illegal_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv illegal no-vector", SIGILL,
+        child_expect_riscv_illegal_signal) != 0)
+    return 1;
 
   puts("NATIVE_POLY_NO_VECTOR_SIGNALS_OK");
   return 0;
@@ -275,12 +321,16 @@ static void poly_trap_vector_handler(void) {
     "cmpq $2, %rax\n"
     "je 4f\n"
     "cmpq $3, %rax\n"
-    "jne 9f\n"
-    "cmpq $3, %rbx\n"
     "je 31f\n"
+    "cmpq $4, %rax\n"
+    "je 6f\n"
+    "jmp 9f\n"
+    "31:\n"
+    "cmpq $3, %rbx\n"
+    "je 32f\n"
     "cmpq $4, %rbx\n"
     "jne 9f\n"
-    "31:\n"
+    "32:\n"
     "cmpq $8, %rcx\n"
     "jne 9f\n"
     "cmpq $0, %rsi\n"
@@ -338,6 +388,28 @@ static void poly_trap_vector_handler(void) {
     "cmpq $26, %r12\n"
     "jne 9f\n"
     "movq $4545, %rax\n"
+    "pxor %xmm0, %xmm0\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n"
+    "6:\n"
+    "cmpq $3, %rbx\n"
+    "jne 7f\n"
+    "cmpl $0xffffffff, %ecx\n"
+    "jne 9f\n"
+    "cmpq $4, %rsi\n"
+    "jne 9f\n"
+    "movq $4664, %rax\n"
+    "pxor %xmm0, %xmm0\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n"
+    "7:\n"
+    "cmpq $4, %rbx\n"
+    "jne 9f\n"
+    "cmpl $0xffffffff, %ecx\n"
+    "jne 9f\n"
+    "cmpq $4, %rsi\n"
+    "jne 9f\n"
+    "movq $4665, %rax\n"
     "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
@@ -755,6 +827,54 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet extended args mismatch arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xffffffff\n" // unallocated in the supported AArch64 subset
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 4664) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 illegal trap result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_ILLEGAL ||
+      poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
+      poly_trap_status_number() != 0xffffffffULL ||
+      poly_trap_status_selector() != 4) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 illegal trap packet mismatch reason=%llu mode=%llu number=0x%llx selector=%llu\n",
+      (unsigned long long) poly_trap_status_reason(),
+      (unsigned long long) poly_trap_status_mode(),
+      (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_selector());
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 4665) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv illegal trap result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_ILLEGAL ||
+      poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
+      poly_trap_status_number() != 0xffffffffULL ||
+      poly_trap_status_selector() != 4) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv illegal trap packet mismatch reason=%llu mode=%llu number=0x%llx selector=%llu\n",
+      (unsigned long long) poly_trap_status_reason(),
+      (unsigned long long) poly_trap_status_mode(),
+      (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_selector());
     return 1;
   }
 

@@ -831,14 +831,17 @@ probes export `poly_entry` away from offset zero to exercise that path.
 Foreign traps are recorded as explicit, operating-system-neutral architectural
 exits.  AArch64 `svc` and RISC-V `ecall` record reason `1`; AArch64 `brk` and
 RISC-V `ebreak` record reason `2`; unresolved descriptor-backed foreign
-imports record reason `3`.  The record includes source mode, trap number, eight ABI arguments, the foreign PC, the resume PC, and the raw trap
+imports record reason `3`; unsupported or illegal raw foreign instructions
+record reason `4`.  The record includes source mode, trap number, eight ABI arguments, the foreign PC, the resume PC, and the raw trap
 selector/immediate when the foreign instruction encoding carries one.  For
 syscall traps, the number is the native ABI syscall register (`x8` for
 AArch64, `a7` for RISC-V); AArch64 `svc #imm` stores `imm` only in the
 selector field.  For import traps, the number is the unresolved import
 descriptor id, the selector is zero, the PC is the descriptor target, and the
-resume PC is the native link-register return address.  In hardware or FPGA this
-packet is the boundary: firmware, the OS, or a userspace runtime routes it.
+resume PC is the native link-register return address.  For illegal-instruction
+traps, the number is the raw instruction word and the selector is the
+instruction length in bytes.  In hardware or FPGA this packet is the boundary:
+firmware, the OS, or a userspace runtime routes it.
 Bochs does not synthesize Linux syscall or libc-helper results from raw trap
 instructions.
 

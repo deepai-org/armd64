@@ -34,11 +34,12 @@ the OS can save and restore foreign integer and FP/SIMD state with
 
 Foreign traps are architectural exits, not hardware libcalls, Linux policy, or
 any other operating-system policy.  When foreign code executes AArch64 `svc`,
-RISC-V `ecall`, AArch64 `brk`, or RISC-V `ebreak`, hardware records a trap
-frame, switches the frontend back to x86_64 or another configured supervisor
-frontend, and transfers control to an implementation-defined trap path.  Firmware,
-the OS, a loader, or a userspace runtime decides whether to translate a syscall,
-deliver a signal, invoke a thunk, or reject the operation.
+RISC-V `ecall`, AArch64 `brk`, RISC-V `ebreak`, or an unsupported/illegal
+foreign instruction, hardware records a trap frame, switches the frontend back
+to x86_64 or another configured supervisor frontend, and transfers control to
+an implementation-defined trap path.  Firmware, the OS, a loader, or a
+userspace runtime decides whether to translate a syscall, deliver a signal,
+invoke a thunk, emulate the instruction, or reject the operation.
 
 Foreign memory ordering is specified as x86_64 TSO for the prototype
 compatibility target, and leaf `0x40000007` is the runtime-discoverable memory
@@ -1001,14 +1002,18 @@ The prototype records a unified `POLYTRAP` state before leaving raw execution:
 - Reason `1`: foreign syscall trap (`svc` or `ecall`).
 - Reason `2`: foreign breakpoint trap (`brk` or `ebreak`).
 - Reason `3`: unresolved descriptor-backed foreign import.
+- Reason `4`: unsupported or illegal raw foreign instruction.
 - Mode records the raw source mode: `3` for AArch64, `4` for RISC-V.
 - Number records the syscall number register for syscall traps (`x8` for
   AArch64, `a7` for RISC-V) or the breakpoint immediate/id for breakpoint
-  traps. For import traps, it records the unresolved import descriptor id.
+  traps. For import traps, it records the unresolved import descriptor id. For
+  illegal-instruction traps, it records the raw 16-bit or 32-bit instruction
+  word zero-extended to 32 bits.
 - Selector records the raw trap selector/immediate where the instruction
   encoding provides one, for example AArch64 `svc #imm` or `brk #imm`; RISC-V
   `ecall`/`ebreak` record selector `0` because their service id comes from
-  register state. Import traps record selector `0`.
+  register state. Import traps record selector `0`. Illegal-instruction traps
+  record the raw instruction length in bytes.
 - Arguments record the first eight native foreign ABI argument registers.
 - PC records the foreign instruction address that raised the trap. For import
   traps, it records the unresolved descriptor target address.
