@@ -9,7 +9,8 @@ instruction streams run through direct foreign fetch inside the x86_64 process.
 This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
 current implementation validates the architecture shape, Linux boot path,
 foreign ELF launch path, mixed-ISA transitions, explicit foreign trap records,
-and a deterministic compatibility runtime for scaffolded syscall/libcall tests.
+and an opt-in deterministic compatibility runtime for scaffolded syscall/libcall
+tests.
 It does not yet implement full AArch64 or RISC-V ISA coverage, real foreign
 Linux ABI passthrough, or equal-speed execution.
 
@@ -769,8 +770,10 @@ foreign state component.
 After the OS-neutral trap packet is recorded, the Bochs prototype can run a
 test-only compatibility service for selected foreign Linux syscall numbers.
 This service is controlled by `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` and
-defaults on for the existing regression suite.  When disabled, the prototype
-records the packet, leaves raw mode, and either enters the configured
+defaults off so the CPU model exposes the hardware-style trap-exit contract
+rather than Linux/libc policy.  The legacy `make boot-poly` and
+`make boot-poly-full` regression targets opt in explicitly.  When disabled, the
+prototype records the packet, leaves raw mode, and either enters the configured
 architectural trap vector or raises an x86 `#UD` if no vector is installed.
 The service is not part of the CPU contract; it stands in for firmware, kernel,
 loader, or userspace-runtime routing that a real implementation would provide.
@@ -860,7 +863,8 @@ Run the baseline x86_64 Linux boot:
 make boot
 ```
 
-Run the poly probe and manifest-backed generated foreign payloads:
+Run the legacy compatibility-runtime poly probe and manifest-backed generated
+foreign payloads:
 
 ```bash
 make boot-poly
@@ -880,8 +884,8 @@ ELF execution:
 make boot-poly-binfmt-arch-traps
 ```
 
-Run the fuller gate, including direct foreign ELF execution and guest
-`binfmt_misc` registration:
+Run the fuller legacy compatibility-runtime gate, including direct foreign ELF
+execution and guest `binfmt_misc` registration:
 
 ```bash
 make boot-poly-full

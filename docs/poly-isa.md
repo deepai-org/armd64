@@ -749,9 +749,10 @@ contract and intentionally has no Linux or libc meaning at the architectural
 layer.  The final contract is the precise trap exit plus explicit state that
 software can save, restore, inspect, and route.
 
-The runtime is controlled by `cpu.poly_compat_traps` in Bochs.  When it is
-disabled, CPUID feature bit `11` is clear, the trap packet is still recorded,
-and Bochs leaves raw mode without synthesizing a Linux syscall or libc result.
+The runtime is controlled by `cpu.poly_compat_traps` in Bochs and defaults off.
+When it is disabled, CPUID feature bit `11` is clear, the trap packet is still
+recorded, and Bochs leaves raw mode without synthesizing a Linux syscall or
+libc result.
 If an architectural trap vector was installed with `0f 24 60 ... POLY!`
 (`RAX=handler_pc`), control transfers to that handler.  `0f 24 63 ... POLY!`
 selects the handler frontend with `RAX=mode`; x86_64 is the default.  For an

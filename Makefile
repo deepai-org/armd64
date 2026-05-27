@@ -19,6 +19,7 @@ boot-poly:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
+		-e POLY_COMPAT_TRAPS=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
 		$(IMAGE) \
@@ -54,6 +55,7 @@ boot-poly-full:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
+		-e POLY_COMPAT_TRAPS=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_BENCH=1 \
