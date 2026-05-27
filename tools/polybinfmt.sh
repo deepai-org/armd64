@@ -30,6 +30,11 @@ case "$path" in
   */aarch64-memfill.elf) expected=4 ;;
   */aarch64-memcmp.elf) expected=1 ;;
   */aarch64-memcpy.elf) expected=4 ;;
+  */aarch64-eventfd2.elf) expected=0 ;;
+  */aarch64-inotify-init1.elf) expected=0 ;;
+  */aarch64-inotify-add-watch.elf) expected=1 ;;
+  */aarch64-inotify-rm-watch.elf) expected=0 ;;
+  */aarch64-dup3.elf) expected=8 ;;
   */aarch64-read.elf) expected=4 ;;
   */aarch64-write.elf) expected=5 ;;
   */aarch64-openat.elf) expected=3 ;;
@@ -103,6 +108,11 @@ case "$path" in
   */riscv-memfill.elf) expected=4 ;;
   */riscv-memcmp.elf) expected=1 ;;
   */riscv-memcpy.elf) expected=4 ;;
+  */riscv-eventfd2.elf) expected=0 ;;
+  */riscv-inotify-init1.elf) expected=0 ;;
+  */riscv-inotify-add-watch.elf) expected=1 ;;
+  */riscv-inotify-rm-watch.elf) expected=0 ;;
+  */riscv-dup3.elf) expected=8 ;;
   */riscv-read.elf) expected=4 ;;
   */riscv-write.elf) expected=5 ;;
   */riscv-openat.elf) expected=3 ;;

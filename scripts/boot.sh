@@ -4023,6 +4023,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-real-write-zero.elf \
       /usr/lib/polyapps/aarch64-real-clock-getres.elf \
       /usr/lib/polyapps/aarch64-real-gettimeofday.elf \
+      /usr/lib/polyapps/aarch64-eventfd2.elf \
+      /usr/lib/polyapps/aarch64-inotify-init1.elf \
+      /usr/lib/polyapps/aarch64-inotify-add-watch.elf \
+      /usr/lib/polyapps/aarch64-inotify-rm-watch.elf \
+      /usr/lib/polyapps/aarch64-dup3.elf \
       /usr/lib/polyapps/aarch64-getpgid.elf \
       /usr/lib/polyapps/aarch64-getsid.elf \
       /usr/lib/polyapps/aarch64-getrlimit.elf \
@@ -4048,6 +4053,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-real-write-zero.elf \
       /usr/lib/polyapps/riscv-real-clock-getres.elf \
       /usr/lib/polyapps/riscv-real-gettimeofday.elf \
+      /usr/lib/polyapps/riscv-eventfd2.elf \
+      /usr/lib/polyapps/riscv-inotify-init1.elf \
+      /usr/lib/polyapps/riscv-inotify-add-watch.elf \
+      /usr/lib/polyapps/riscv-inotify-rm-watch.elf \
+      /usr/lib/polyapps/riscv-dup3.elf \
       /usr/lib/polyapps/riscv-getpgid.elf \
       /usr/lib/polyapps/riscv-getsid.elf \
       /usr/lib/polyapps/riscv-getrlimit.elf
