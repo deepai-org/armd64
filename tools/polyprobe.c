@@ -10,6 +10,8 @@
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_PCALL_A64 ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_PCALL_RV64 ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
+#define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
 
 static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x24,0x30,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
@@ -70,7 +72,7 @@ static inline void raw_aarch64_arith_probe(void) {
     ".long 0xd2800540\n" // movz x0,#42
     ".long 0x91000400\n" // add x0,x0,#1
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_riscv_arith_probe(void) {
@@ -79,7 +81,7 @@ static inline void raw_riscv_arith_probe(void) {
     ".long 0x01100513\n" // addi a0,zero,17
     ".long 0x00550513\n" // addi a0,a0,5
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void poly_opcode_aarch64_arith_probe(void) {
@@ -88,7 +90,7 @@ static inline void poly_opcode_aarch64_arith_probe(void) {
     ".long 0xd2800540\n" // movz x0,#42
     ".long 0x91000400\n" // add x0,x0,#1
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void poly_opcode_riscv_arith_probe(void) {
@@ -97,7 +99,7 @@ static inline void poly_opcode_riscv_arith_probe(void) {
     ".long 0x01100513\n" // addi a0,zero,17
     ".long 0x00550513\n" // addi a0,a0,5
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_aarch64_sp_probe(void) {
@@ -111,7 +113,7 @@ static inline void raw_aarch64_sp_probe(void) {
     ".long 0x8b030040\n" // add x0,x2,x3
     ".long 0x910043ff\n" // add sp,sp,#16
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "rdx", "rsi", "rdi", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_riscv_sp_probe(void) {
@@ -127,7 +129,7 @@ static inline void raw_riscv_sp_probe(void) {
     ".long 0x00d60533\n" // add a0,a2,a3
     ".long 0x01010113\n" // addi sp,sp,16
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "rdx", "rsi", "rdi", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_aarch64_wide_regs_probe(void) {
@@ -138,7 +140,7 @@ static inline void raw_aarch64_wide_regs_probe(void) {
     ".long 0x8b0b014c\n" // add x12,x10,x11
     ".long 0x8b0a0180\n" // add x0,x12,x10
     ".long 0xd42fffe0\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_riscv_wide_regs_probe(void) {
@@ -149,7 +151,7 @@ static inline void raw_riscv_wide_regs_probe(void) {
     ".long 0x012809b3\n" // add x19,x16,x18
     ".long 0x01098533\n" // add a0,x19,x16
     ".long 0x0000000b\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_aarch64_imm_regs_probe(void) {
@@ -159,7 +161,7 @@ static inline void raw_aarch64_imm_regs_probe(void) {
     ".long 0x9100154d\n" // add x13,x10,#5
     ".long 0xd10021a0\n" // sub x0,x13,#8
     ".long 0xd42fffe0\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_riscv_imm_regs_probe(void) {
@@ -168,7 +170,7 @@ static inline void raw_riscv_imm_regs_probe(void) {
     ".long 0xffd00293\n" // addi x5,zero,-3
     ".long 0x03628513\n" // addi a0,x5,54
     ".long 0x0000000b\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_aarch64_abi_args_probe(void) {
@@ -358,7 +360,7 @@ static inline void raw_barrier_probe(void) {
     ".long 0x0000100f\n"
     ".long 0x00250513\n"
     ".long 0x0000000b\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_mixed_probe(void) {
@@ -370,7 +372,7 @@ static inline void raw_mixed_probe(void) {
     ".long 0x0000002b\n"
     ".long 0x91000400\n"
     ".long 0xd42fffe0\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_switch_stress_step(void) {
@@ -382,7 +384,7 @@ static inline void raw_switch_stress_step(void) {
     ".long 0x0000002b\n"
     ".long 0x91000400\n"
     ".long 0xd42fffe0\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_aarch64_strlen_probe(uint64_t arg0) {
@@ -394,7 +396,7 @@ static inline void raw_aarch64_strlen_probe(uint64_t arg0) {
     ".long 0xd42fffe0\n"
     : "+a"(rax), "+D"(rdi)
     :
-    : "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
 }
 
 static inline void raw_riscv_strlen_probe(uint64_t arg0) {
@@ -407,7 +409,7 @@ static inline void raw_riscv_strlen_probe(uint64_t arg0) {
     ".long 0x0000000b\n"
     : "+a"(rax), "+D"(rdi)
     :
-    : "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
 }
 
 static inline void raw_aarch64_getpid_probe(void) {
@@ -416,7 +418,7 @@ static inline void raw_aarch64_getpid_probe(void) {
     ".long 0xd2801588\n"
     ".long 0xd4000001\n"
     ".long 0xd42fffe0\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_riscv_getpid_probe(void) {
@@ -425,7 +427,7 @@ static inline void raw_riscv_getpid_probe(void) {
     ".long 0x0ac00893\n"
     ".long 0x00000073\n"
     ".long 0x0000000b\n"
-    ::: "rax", "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 int main(void) {
