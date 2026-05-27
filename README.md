@@ -898,7 +898,10 @@ Expected success markers include:
   loops, but not full equal-speed execution across complete ISAs.
 - Foreign ELF support is limited to the generated static payload shape used by
   `tools/mkpolyelf.c`, `tools/polyapp.c`, and `tools/polyexec.c`, but both
-  `polyapp` and `polyexec` load variable-size executable segments up to 1 MiB.
+  `polyapp` and `polyexec` load variable-size executable images up to 1 MiB.
+  `polyexec` now preserves later `PT_LOAD` contents at their entry-relative
+  offsets so split text/data payloads keep page-relative data references.
+  It still does not provide a full Linux ELF loader or dynamic linker.
   `polyexec` preserves raw executable bytes, accepting 4-byte-aligned AArch64
   and 2-byte-aligned RISC-V entry segments for compressed-code compatibility;
   `riscv-compressed-half.elf` and `riscv-compressed-jalr.elf` verify RISC-V

@@ -2130,6 +2130,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-ret.elf=55 \
     /usr/lib/polyapps/aarch64-mem.elf=77 \
     /usr/lib/polyapps/aarch64-memwidth.elf=0x100001324 \
+    /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
     /usr/lib/polyapps/aarch64-memfill.elf=4 \
     /usr/lib/polyapps/aarch64-memcmp.elf=1 \
@@ -2385,6 +2386,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-ret.elf=55 \
     /usr/lib/polyapps/riscv-mem.elf=77 \
     /usr/lib/polyapps/riscv-memwidth.elf=0x1000000e0 \
+    /usr/lib/polyapps/riscv-pcall-split-load.elf=123 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
     /usr/lib/polyapps/riscv-memfill.elf=4 \
     /usr/lib/polyapps/riscv-memcmp.elf=1 \
@@ -2984,6 +2986,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-add.elf \
       /usr/lib/polyapps/aarch64-regadd.elf \
       /usr/lib/polyapps/aarch64-mem.elf \
+      /usr/lib/polyapps/aarch64-pcall-split-load.elf \
       /usr/lib/polyapps/aarch64-strlen.elf \
       /usr/lib/polyapps/aarch64-memfill.elf \
       /usr/lib/polyapps/aarch64-memcmp.elf \
@@ -3001,6 +3004,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-add.elf \
       /usr/lib/polyapps/riscv-regadd.elf \
       /usr/lib/polyapps/riscv-mem.elf \
+      /usr/lib/polyapps/riscv-pcall-split-load.elf \
       /usr/lib/polyapps/riscv-strlen.elf \
       /usr/lib/polyapps/riscv-memfill.elf \
       /usr/lib/polyapps/riscv-memcmp.elf \

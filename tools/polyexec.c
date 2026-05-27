@@ -462,62 +462,107 @@ static int load_elf_program(const char *path, struct poly_program *program) {
     return -1;
   }
 
+  const Elf64_Phdr *entry_phdr = NULL;
+  uint64_t image_end = ehdr->e_entry;
   for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
     const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
-    if (phdr->p_type != PT_LOAD || !(phdr->p_flags & PF_X))
+    if (phdr->p_type != PT_LOAD)
       continue;
-    if (ehdr->e_entry < phdr->p_vaddr || ehdr->e_entry >= phdr->p_vaddr + phdr->p_filesz)
-      continue;
-    const uint64_t entry_offset = ehdr->e_entry - phdr->p_vaddr;
-    const uint64_t entry_filesz = phdr->p_filesz - entry_offset;
-    if (entry_filesz == 0 || entry_filesz > MAX_PROGRAM_BYTES ||
-        phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset) {
-      fprintf(stderr, "POLYEXEC_FAIL: bad ELF executable segment: %s\n", path);
-      free(data);
-      return -1;
-    }
-    if (program->arch == POLY_ARCH_AARCH64 && (entry_filesz % 4) != 0) {
-      fprintf(stderr, "POLYEXEC_FAIL: AArch64 executable segment is not 4-byte aligned: %s\n", path);
-      free(data);
-      return -1;
-    }
-    if (program->arch == POLY_ARCH_RISCV && (entry_filesz % 2) != 0) {
-      fprintf(stderr, "POLYEXEC_FAIL: RISC-V executable segment is not 2-byte aligned: %s\n", path);
+
+    if (phdr->p_filesz > phdr->p_memsz ||
+        phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+        phdr->p_vaddr > UINT64_MAX - phdr->p_memsz ||
+        phdr->p_vaddr > UINT64_MAX - phdr->p_filesz) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad ELF load segment: %s\n", path);
       free(data);
       return -1;
     }
 
-    program->code_size = (size_t) entry_filesz;
-    program->code_bytes = malloc(program->code_size);
-    if (!program->code_bytes) {
-      fprintf(stderr, "POLYEXEC_FAIL: out of memory loading %s\n", path);
-      free(data);
-      return -1;
-    }
-    const unsigned char *entry_bytes = data + phdr->p_offset + entry_offset;
-    memcpy(program->code_bytes, entry_bytes, program->code_size);
-    free(data);
-    return 0;
+    const uint64_t mem_end = phdr->p_vaddr + phdr->p_memsz;
+    const uint64_t file_end = phdr->p_vaddr + phdr->p_filesz;
+    if ((phdr->p_flags & PF_X) &&
+        ehdr->e_entry >= phdr->p_vaddr && ehdr->e_entry < file_end)
+      entry_phdr = phdr;
+    if (mem_end > ehdr->e_entry && mem_end > image_end)
+      image_end = mem_end;
   }
 
-  fprintf(stderr, "POLYEXEC_FAIL: no executable ELF segment at entry: %s\n", path);
+  if (entry_phdr == NULL) {
+    fprintf(stderr, "POLYEXEC_FAIL: no executable ELF segment at entry: %s\n", path);
+    free(data);
+    return -1;
+  }
+
+  if (image_end <= ehdr->e_entry || image_end - ehdr->e_entry > MAX_PROGRAM_BYTES) {
+    fprintf(stderr, "POLYEXEC_FAIL: ELF loaded image is too large: %s\n", path);
+    free(data);
+    return -1;
+  }
+
+  uint64_t image_size = image_end - ehdr->e_entry;
+  const uint64_t instruction_align = program->arch == POLY_ARCH_AARCH64 ? 4 : 2;
+  if ((image_size % instruction_align) != 0)
+    image_size += instruction_align - (image_size % instruction_align);
+  if (image_size == 0 || image_size > MAX_PROGRAM_BYTES) {
+    fprintf(stderr, "POLYEXEC_FAIL: ELF loaded image is too large: %s\n", path);
+    free(data);
+    return -1;
+  }
+
+  program->code_size = (size_t) image_size;
+  program->code_bytes = calloc(1, program->code_size);
+  if (!program->code_bytes) {
+    fprintf(stderr, "POLYEXEC_FAIL: out of memory loading %s\n", path);
+    free(data);
+    return -1;
+  }
+
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type != PT_LOAD || phdr->p_filesz == 0)
+      continue;
+
+    const uint64_t segment_file_end = phdr->p_vaddr + phdr->p_filesz;
+    if (segment_file_end <= ehdr->e_entry)
+      continue;
+
+    const uint64_t copy_start = phdr->p_vaddr > ehdr->e_entry ?
+      phdr->p_vaddr : ehdr->e_entry;
+    const uint64_t copy_end = segment_file_end;
+    const uint64_t copy_size = copy_end - copy_start;
+    const uint64_t source_offset = phdr->p_offset + (copy_start - phdr->p_vaddr);
+    const uint64_t dest_offset = copy_start - ehdr->e_entry;
+    if (dest_offset > program->code_size ||
+        copy_size > program->code_size - dest_offset ||
+        source_offset > size || copy_size > size - source_offset) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad ELF load copy range: %s\n", path);
+      free(program->code_bytes);
+      program->code_bytes = NULL;
+      program->code_size = 0;
+      free(data);
+      return -1;
+    }
+    memcpy(program->code_bytes + dest_offset, data + source_offset, (size_t) copy_size);
+  }
+
   free(data);
-  return -1;
+  return 0;
 }
 
 static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
-  const size_t code_size = 3 + 8 + return_setup_size + program->code_size + 4 + 1;
-  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (code == MAP_FAILED) {
+  const size_t raw_switch_size = 8;
+  const size_t prefix_size = raw_switch_size + return_setup_size;
+  const size_t foreign_entry_offset = 4096;
+  const size_t mapping_size = foreign_entry_offset + program->code_size + 4 + 1;
+  uint8_t *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mapping == MAP_FAILED) {
     fprintf(stderr, "POLYEXEC_FAIL: mmap failed: %s\n", strerror(errno));
     return -1;
   }
 
-  code[0] = 0x90;
-  code[1] = 0x90;
-  code[2] = 0x90;
-  size_t offset = 3;
+  uint8_t *code = mapping + foreign_entry_offset - prefix_size;
+  size_t offset = 0;
   if (program->arch == POLY_ARCH_AARCH64) {
     const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
@@ -531,15 +576,16 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     emit_u32(code, &offset, riscv_auipc(1, escape_offset));
     emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));
   }
-  emit_bytes(code, &offset, program->code_bytes, program->code_size);
+  offset = foreign_entry_offset;
+  emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ? 0xd42fffe0U : 0x0000000bU;
-  emit_u32(code, &offset, escape);
-  code[offset++] = 0xc3;
+  emit_u32(mapping, &offset, escape);
+  mapping[offset++] = 0xc3;
 
   char scratch[4096] = "poly!\0/init";
   *result = run_poly_entry(code, (uint8_t *) scratch);
   poly_mode_x86();
-  munmap(code, code_size);
+  munmap(mapping, mapping_size);
   return 0;
 }
 

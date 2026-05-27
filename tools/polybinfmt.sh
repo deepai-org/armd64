@@ -20,6 +20,7 @@ case "$path" in
   */aarch64-ret.elf) expected=55 ;;
   */aarch64-mem.elf) expected=77 ;;
   */aarch64-memwidth.elf) expected=0x100001324 ;;
+  */aarch64-pcall-split-load.elf) expected=123 ;;
   */aarch64-strlen.elf) expected=5 ;;
   */aarch64-memfill.elf) expected=4 ;;
   */aarch64-memcmp.elf) expected=1 ;;
@@ -87,6 +88,7 @@ case "$path" in
   */riscv-ret.elf) expected=55 ;;
   */riscv-mem.elf) expected=77 ;;
   */riscv-memwidth.elf) expected=0x1000000e0 ;;
+  */riscv-pcall-split-load.elf) expected=123 ;;
   */riscv-strlen.elf) expected=5 ;;
   */riscv-memfill.elf) expected=4 ;;
   */riscv-memcmp.elf) expected=1 ;;
