@@ -417,6 +417,9 @@ struct poly_program {
   size_t entry_offset;
   uint64_t base_vaddr;
   size_t loaded_bytes;
+  uint64_t preinit_array_vaddr;
+  uint64_t preinit_array_size;
+  size_t preinit_count;
   uint64_t tls_vaddr;
   uint64_t tls_filesz;
   uint64_t tls_memsz;
@@ -3865,6 +3868,12 @@ static int load_dynamic_relocs(struct poly_program *program,
       case DT_PLTREL:
         pltrel_type = dyn[n].d_un.d_val;
         break;
+      case DT_PREINIT_ARRAY:
+        program->preinit_array_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_PREINIT_ARRAYSZ:
+        program->preinit_array_size = dyn[n].d_un.d_val;
+        break;
       case DT_INIT:
         program->init_vaddr = dyn[n].d_un.d_ptr;
         program->init_count = 1;
@@ -3911,6 +3920,15 @@ static int load_dynamic_relocs(struct poly_program *program,
       program->path);
     return -1;
   }
+  if (program->preinit_array_size != 0 &&
+      (program->preinit_array_vaddr == 0 ||
+       program->preinit_array_size % sizeof(uint64_t) != 0)) {
+    fprintf(stderr, "POLYCALL_FAIL: bad PREINIT_ARRAY dynamic table: %s\n",
+      program->path);
+    return -1;
+  }
+  program->preinit_count =
+    (size_t) (program->preinit_array_size / sizeof(uint64_t));
   if (program->init_array_size != 0 &&
       (program->init_array_vaddr == 0 ||
        program->init_array_size % sizeof(uint64_t) != 0)) {
@@ -4989,6 +5007,29 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   offset = program->image_size - 4;
   emit_u32(foreign, &offset, fallback_ret);
+
+  if (program->preinit_array_size != 0) {
+    size_t preinit_array_offset = 0;
+    if (elf_vaddr_to_image_offset(program, program->preinit_array_vaddr,
+          program->preinit_array_size, &preinit_array_offset) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: PREINIT_ARRAY escaped image: %s\n",
+        program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    for (size_t n = 0; n < program->preinit_count; n++) {
+      uint64_t preinit_target = read_le64(foreign + preinit_array_offset +
+        n * 8);
+      if (preinit_target != 0)
+        (void) call_poly_stub(code, target_imm_offset, preinit_target,
+          POLY_CALL_U64);
+    }
+  }
 
   for (size_t depth = max_dep_depth + 1; depth > 0; depth--) {
     const size_t init_depth = depth - 1;
