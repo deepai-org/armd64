@@ -197,7 +197,8 @@ enum {
   POLY_IMPORT_FUNC_X86_SLOT4 = 110,
   POLY_IMPORT_FUNC_X86_SLOT5 = 111,
   POLY_IMPORT_FUNC_X86_SLOT6 = 112,
-  POLY_IMPORT_FUNC_X86_SLOT7 = 113
+  POLY_IMPORT_FUNC_X86_SLOT7 = 113,
+  POLY_IMPORT_FUNC_STACK_CHK_FAIL = 114
 };
 
 struct poly_dynamic_reloc {
@@ -645,6 +646,7 @@ static uint32_t irelative_reloc_type_for_arch(int arch) {
 }
 
 static const uint64_t poly_import_value = 123;
+static const uint64_t poly_stack_chk_guard = 0x706f6c7963616eULL;
 
 static int aarch64_outline_atomic_name_matches(const char *symbol_name,
     const char *op_name, unsigned width) {
@@ -722,6 +724,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_mul") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_MUL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__stack_chk_fail") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STACK_CHK_FAIL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
@@ -1767,6 +1773,11 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
 
   if (strcmp(symbol_name, "poly_import_value") == 0) {
     *symbol_value = 0;
+    *base_kind = RELOC_BASE_IMPORT_PAGE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__stack_chk_guard") == 0) {
+    *symbol_value = 8;
     *base_kind = RELOC_BASE_IMPORT_PAGE;
     return 0;
   }
@@ -2844,6 +2855,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
   }
   write_le64(import_page, poly_import_value);
+  write_le64(import_page + 8, poly_stack_chk_guard);
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + pcall_return_offset);
