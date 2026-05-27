@@ -3003,6 +3003,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-regadd.elf \
       /usr/lib/polyapps/aarch64-mem.elf \
       /usr/lib/polyapps/aarch64-pcall-split-load.elf \
+      /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
+      /usr/lib/polyapps/aarch64-pcall-rel.elf \
+      /usr/lib/polyapps/aarch64-pcall-relr.elf \
+      /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf \
       /usr/lib/polyapps/aarch64-strlen.elf \
       /usr/lib/polyapps/aarch64-memfill.elf \
       /usr/lib/polyapps/aarch64-memcmp.elf \
@@ -3021,6 +3025,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-regadd.elf \
       /usr/lib/polyapps/riscv-mem.elf \
       /usr/lib/polyapps/riscv-pcall-split-load.elf \
+      /usr/lib/polyapps/riscv-pcall-dynrel.elf \
+      /usr/lib/polyapps/riscv-pcall-rel.elf \
+      /usr/lib/polyapps/riscv-pcall-relr.elf \
+      /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf \
       /usr/lib/polyapps/riscv-strlen.elf \
       /usr/lib/polyapps/riscv-memfill.elf \
       /usr/lib/polyapps/riscv-memcmp.elf \
@@ -3057,6 +3065,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-ret.elf \
     /usr/lib/polyapps/aarch64-mem.elf \
     /usr/lib/polyapps/aarch64-memwidth.elf \
+    /usr/lib/polyapps/aarch64-pcall-split-load.elf \
+    /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
+    /usr/lib/polyapps/aarch64-pcall-rel.elf \
+    /usr/lib/polyapps/aarch64-pcall-relr.elf \
+    /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf \
     /usr/lib/polyapps/aarch64-strlen.elf \
     /usr/lib/polyapps/aarch64-memfill.elf \
     /usr/lib/polyapps/aarch64-memcmp.elf \
@@ -3312,6 +3325,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-ret.elf \
     /usr/lib/polyapps/riscv-mem.elf \
     /usr/lib/polyapps/riscv-memwidth.elf \
+    /usr/lib/polyapps/riscv-pcall-split-load.elf \
+    /usr/lib/polyapps/riscv-pcall-dynrel.elf \
+    /usr/lib/polyapps/riscv-pcall-rel.elf \
+    /usr/lib/polyapps/riscv-pcall-relr.elf \
+    /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf \
     /usr/lib/polyapps/riscv-strlen.elf \
     /usr/lib/polyapps/riscv-memfill.elf \
     /usr/lib/polyapps/riscv-memcmp.elf \

@@ -8,6 +8,7 @@ if [ -z "$path" ]; then
 fi
 
 expected=""
+entry=""
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
@@ -21,6 +22,10 @@ case "$path" in
   */aarch64-mem.elf) expected=77 ;;
   */aarch64-memwidth.elf) expected=0x100001324 ;;
   */aarch64-pcall-split-load.elf) expected=123 ;;
+  */aarch64-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
+  */aarch64-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
+  */aarch64-pcall-relr.elf) expected=123; entry="#poly_entry" ;;
+  */aarch64-pcall-relr-bitmap.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-strlen.elf) expected=5 ;;
   */aarch64-memfill.elf) expected=4 ;;
   */aarch64-memcmp.elf) expected=1 ;;
@@ -89,6 +94,10 @@ case "$path" in
   */riscv-mem.elf) expected=77 ;;
   */riscv-memwidth.elf) expected=0x1000000e0 ;;
   */riscv-pcall-split-load.elf) expected=123 ;;
+  */riscv-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
+  */riscv-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
+  */riscv-pcall-relr.elf) expected=123; entry="#poly_entry" ;;
+  */riscv-pcall-relr-bitmap.elf) expected=123; entry="#poly_entry" ;;
   */riscv-strlen.elf) expected=5 ;;
   */riscv-memfill.elf) expected=4 ;;
   */riscv-memcmp.elf) expected=1 ;;
@@ -133,8 +142,9 @@ case "$path" in
   */riscv-ecall.elf) expected=0x5303ff04 ;;
 esac
 
-echo "POLYBINFMT_EXEC: path=$path expected=${expected:-none}"
+target="${path}${entry}"
+echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none}"
 if [ -n "$expected" ]; then
-  exec /usr/bin/polyexec "$path=$expected"
+  exec /usr/bin/polyexec "$target=$expected"
 fi
-exec /usr/bin/polyexec "$path"
+exec /usr/bin/polyexec "$target"

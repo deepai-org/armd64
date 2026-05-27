@@ -33,11 +33,12 @@ Linux ABI passthrough, or equal-speed execution.
   `rt_sigprocmask`, robust-list, `prlimit64`, `getrandom`, real anonymous
   `mmap` store, real `mprotect`/`munmap` on anonymous mappings,
   `openat`/`read`/`close`, `newfstatat`, `fstat`, `statx`, zero-length
-  `write`, `strlen`, `memfill`, `memcmp`, and `memcpy` ELF payloads through
-  the same disabled-compat path.
+  `write`, `strlen`, `memfill`, `memcmp`, `memcpy`, and generated `ET_DYN`
+  relative-relocation ELF payloads through the same disabled-compat path.
 - The `make boot-poly-binfmt-arch-traps` path also disables the compatibility
   dispatcher, registers `binfmt_misc`, and executes a focused AArch64/RISC-V
-  ELF set through the same userspace trap-vector policy.
+  ELF set, including generated `ET_DYN #poly_entry` payloads, through the same
+  userspace trap-vector policy.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
