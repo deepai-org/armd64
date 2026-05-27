@@ -142,7 +142,7 @@ ordinary `UD2` retains standard invalid-opcode behavior.
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
 
-- `CPUID.EAX=0x40000000`: `EAX=0x40000002`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000000`: `EAX=0x40000003`, `EBX:EDX:ECX="PolyglotCPU!"`.
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
@@ -182,6 +182,14 @@ discover the experimental hardware contract before emitting poly operations:
   FP64 overflow stack-argument RISC-V cross-call encoding, and `EBX=0x0000307b`
   reports the matching RISC-V AArch64 cross-call encoding.  Other registers
   are reserved zero.
+- `CPUID.EAX=0x40000003`: prototype foreign-state contract discovery.
+  `EAX` reports state flags.  Bits `0`-`6` mean overlapping x86-visible
+  GPR/FP state, prototype synthetic banks, `CR3` keying, `FSBASE` keying,
+  8 MiB stack-region keying, user-return restoration, and x86 TSO foreign
+  ordering.  Bit `7` is intentionally clear until non-aliased foreign state is
+  exposed as an architectural XSAVE component.  `EBX=23` reports the stack
+  region shift, and `ECX=0`/`EDX=0` mean no XCR0 component id or XSAVE byte
+  area is assigned yet.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:
@@ -224,14 +232,16 @@ argument pressure across `d0`-`d7`/`fa0`-`fa7`, FP64 overflow stack-argument
 cross-calls that sum sixteen double arguments in both directions, mixed
 integer/FP cross-calls, two-register integer returns, compact
 `{u32,float}`/`{float,u32}` native ABI cross-call bridging, shared-stack
-cross-calls, caller callee-saved register
-preservation, syscall trap routing inside neutral callees, and a nested
-AArch64 -> RISC-V -> AArch64 call chain.  The stack probes use the
+cross-calls, caller callee-saved integer/FP register preservation, syscall
+trap routing inside neutral callees, and a nested AArch64 -> RISC-V ->
+AArch64 call chain.  The stack probes use the
 caller's real user `sp`: the caller allocates and restores an aligned slot,
 while the opposite foreign frontend reads it through ordinary native stack
 addressing.  The callee-saved probes keep AArch64 `x19` or RISC-V `s0` live
-across a neutral call into the opposite frontend.  The pair-return probes
-verify the second integer result lane maps across `x1`/`a1`.  The syscall
+across a neutral call into the opposite frontend, and the saved-FP probes keep
+AArch64 `d8` or RISC-V `fs0` live while the opposite frontend uses its own
+callee-saved FP register.  The pair-return probes verify the second integer
+result lane maps across `x1`/`a1`.  The syscall
 probes execute native AArch64 `svc` or RISC-V `ecall` inside the neutral
 callee and return the deterministic syscall result through the caller's native
 result register.  The libcall probes execute native AArch64 `brk #1` or
