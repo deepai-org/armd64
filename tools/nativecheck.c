@@ -214,6 +214,25 @@ static void child_expect_aarch64_import_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_riscv_import_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_RV64
+    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x05800813\n" // addi a6,zero,88
+    ".long 0x06300893\n" // addi a7,zero,99
+    ".long 0x000280e7\n" // jalr ra,0(t0)
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_aarch64_illegal_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -290,6 +309,9 @@ static int run_poly_no_vector_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly aarch64 import no-vector", SIGILL,
         child_expect_aarch64_import_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv import no-vector", SIGILL,
+        child_expect_riscv_import_signal) != 0)
     return 1;
   if (expect_child_signal("poly aarch64 illegal no-vector", SIGILL,
         child_expect_aarch64_illegal_signal) != 0)
@@ -850,6 +872,41 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet extended args mismatch arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
+    return 1;
+  }
+
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_RV64
+    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x05800813\n" // addi a6,zero,88
+    ".long 0x06300893\n" // addi a7,zero,99
+    ".short 0x9282\n" // c.jalr t0
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 5555) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import trap result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_IMPORT) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import packet reason mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  if (poly_trap_status_mode() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import packet mode mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_mode());
+    return 1;
+  }
+  if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import packet extended args mismatch arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return 1;
