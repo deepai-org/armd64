@@ -124,7 +124,8 @@ Linux ABI passthrough, or equal-speed execution.
   directly without returning to x86.
 - `tools/polybinfmt.sh` can register guest `binfmt_misc` entries so generated
   AArch64 and RISC-V ELF64 payloads execute directly from the x86_64 guest,
-  including expected-result checks for compressed RISC-V fixtures.
+  including expected-result checks for compressed RISC-V fixtures and
+  GNU-hash-only `ET_DYN #poly_entry` shared objects.
 - `docs/poly-isa.md` defines the silicon-oriented ISA contract: dedicated
   frontend-switch opcodes, XSAVE-visible foreign state, explicit trap exits,
   and native-ABI thunking for precompiled cross-ISA libraries.

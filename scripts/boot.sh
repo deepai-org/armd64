@@ -4017,6 +4017,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-regadd.elf \
       /usr/lib/polyapps/aarch64-mem.elf \
       /usr/lib/polyapps/aarch64-pcall-split-load.elf \
+      /usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so \
       /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
       /usr/lib/polyapps/aarch64-pcall-rel.elf \
       /usr/lib/polyapps/aarch64-pcall-relr.elf \
@@ -4047,6 +4048,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-regadd.elf \
       /usr/lib/polyapps/riscv-mem.elf \
       /usr/lib/polyapps/riscv-pcall-split-load.elf \
+      /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so \
       /usr/lib/polyapps/riscv-pcall-dynrel.elf \
       /usr/lib/polyapps/riscv-pcall-rel.elf \
       /usr/lib/polyapps/riscv-pcall-relr.elf \
