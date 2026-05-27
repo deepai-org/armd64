@@ -2663,6 +2663,13 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     uint64_t base_vaddr, const Elf64_Dyn *dyn, size_t dyn_count,
     size_t needed_depth);
 
+static const char *poly_library_path(void) {
+  const char *library_path = getenv("POLY_LD_LIBRARY_PATH");
+  if (library_path && library_path[0] != '\0')
+    return library_path;
+  return getenv("LD_LIBRARY_PATH");
+}
+
 static int load_dependency_object(struct poly_program *owner, size_t dep_index,
     const char *path, int expected_arch, size_t needed_depth) {
   struct poly_dependency *dep = &owner->deps[dep_index];
@@ -2964,7 +2971,7 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     rpath_offset;
   const char *search_path = NULL;
   size_t search_path_len = 0;
-  const char *library_path = getenv("LD_LIBRARY_PATH");
+  const char *library_path = poly_library_path();
   const size_t library_path_len = library_path ? strlen(library_path) : 0;
   if (search_path_offset != 0 && search_path_offset < strsz) {
     const void *end = memchr(strings + search_path_offset, '\0',
@@ -3094,7 +3101,7 @@ static int build_preload_path(const struct poly_program *program,
     return 0;
   }
 
-  const char *library_path = getenv("LD_LIBRARY_PATH");
+  const char *library_path = poly_library_path();
   if (library_path && library_path[0] != '\0' &&
       build_runpath_needed_path(program->path, program->arch_name,
         library_path, strlen(library_path), expanded, out, out_size) == 0)

@@ -4098,6 +4098,14 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-import-x86.elf=203 \
     /usr/lib/polyapps/riscv-pcall-import-x86-mul.elf=202 \
     /usr/lib/polyapps/riscv-pcall-import-x86-sum6.elf=221 >/dev/ttyS0 2>&1
+    POLY_LD_LIBRARY_PATH='/usr/lib/polyapps/missing-envdeps:\$ORIGIN/envorigin:/usr/lib/polyapps/envdeps:/usr/lib/polyapps/envdeps/\$PLATFORM' /usr/bin/polycall \
+      /usr/lib/polyapps/aarch64-pcall-ld-library-path-real.so#poly_entry=945 \
+      /usr/lib/polyapps/aarch64-pcall-ld-platform-path-real.so#poly_entry=945 \
+      /usr/lib/polyapps/aarch64-pcall-ld-origin-path-real.so#poly_entry=945 \
+      /usr/lib/polyapps/riscv-pcall-ld-library-path-real.so#poly_entry=945 \
+      /usr/lib/polyapps/riscv-pcall-ld-platform-path-real.so#poly_entry=945 \
+      /usr/lib/polyapps/riscv-pcall-ld-origin-path-real.so#poly_entry=945 \
+      >/dev/ttyS0 2>&1
     /usr/bin/polycall \
       /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=945 \
       /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=945 \

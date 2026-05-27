@@ -876,11 +876,13 @@ prototype cap, and direct dependency fans larger than eight libraries.
 are used to resolve dependency libraries before a missing needed library fails
 to load. Colon-separated RUNPATH entries continue searching after a missing
 directory. Old-style RPATH-only objects built without new dtags are covered,
-and `LD_LIBRARY_PATH` is searched for
-foreign dependencies before declared RUNPATH/RPATH directories using the same
+and `POLY_LD_LIBRARY_PATH` is searched for foreign dependencies before
+declared RUNPATH/RPATH directories using the same
 `$ORIGIN`, `$LIB`, and `$PLATFORM` dynamic-string token expansion, with boot
 coverage proving environment-path fallback after a missing directory and
 environment-path precedence over a conflicting declared RUNPATH library.
+If `POLY_LD_LIBRARY_PATH` is unset, the prototype falls back to
+`LD_LIBRARY_PATH` for compatibility with older tests.
 Absolute `DT_NEEDED` path strings are accepted directly by the user-space
 loader, and `DT_NEEDED` strings may use dynamic-string tokens such as
 `$ORIGIN/...`, `$ORIGIN/${LIB}/...`, and `$ORIGIN/${PLATFORM}/...`.
