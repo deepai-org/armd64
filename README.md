@@ -704,8 +704,9 @@ numbers currently include:
   `move_pages`, `seccomp`, `bpf`, `userfaultfd`, `pkey_mprotect`,
   `pkey_alloc`, `pkey_free`, `pidfd_send_signal`, `pidfd_open`, `clone3`,
   `close_range`, `openat2`, `pidfd_getfd`, `process_madvise`,
-  `process_mrelease`, `futex_waitv`, `set_mempolicy_home_node`,
-  `membarrier`, and `mmap`.
+  `landlock_create_ruleset`, `landlock_add_rule`, `landlock_restrict_self`,
+  `process_mrelease`, `futex_waitv`, `set_mempolicy_home_node`, `membarrier`,
+  and `mmap`.
 
 The shared syscall dispatcher carries six foreign Linux ABI arguments for both
 foreign architectures; current `mmap6` payloads verify argument registers beyond

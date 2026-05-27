@@ -1477,6 +1477,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat2.elf" 0xd28036a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pidfd-getfd.elf" 0xd28036c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-madvise.elf" 0xd2803708 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-landlock-create-ruleset.elf" 0xd2803788 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-landlock-add-rule.elf" 0xd28037a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-landlock-restrict-self.elf" 0xd28037c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-mrelease.elf" 0xd2803808 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-futex-waitv.elf" 0xd2803828 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf" 0xd2803848 0xd4000001
@@ -1723,6 +1726,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat2.elf" 0x1b500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pidfd-getfd.elf" 0x1b600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-madvise.elf" 0x1b800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-landlock-create-ruleset.elf" 0x1bc00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-landlock-add-rule.elf" 0x1bd00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-landlock-restrict-self.elf" 0x1be00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-mrelease.elf" 0x1c000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-futex-waitv.elf" 0x1c100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-mempolicy-home-node.elf" 0x1c200893 0x00000073
@@ -1747,7 +1753,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-uname.elf" 0x00058513 0x0a000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-exit.elf" 0x00700513 0x05d00893 0x00000073 0x06300513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-exit-group.elf" 0x00700513 0x05e00893 0x00000073 0x06400513
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ecall.elf" 0x1bc00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ecall.elf" 0x3ff00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ebreak.elf" 0x00500893 0x00100073
   local -a riscv_long=(0x00000513)
   for _ in $(seq 1 80); do
@@ -2062,6 +2068,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-openat2.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-pidfd-getfd.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-process-madvise.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-landlock-create-ruleset.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-landlock-add-rule.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-landlock-restrict-self.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-process-mrelease.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-futex-waitv.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf=0xffffffffffffffda \
@@ -2281,6 +2290,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-openat2.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-pidfd-getfd.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-process-madvise.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-landlock-create-ruleset.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-landlock-add-rule.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-landlock-restrict-self.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-process-mrelease.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-futex-waitv.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-set-mempolicy-home-node.elf=0xffffffffffffffda \
@@ -2306,7 +2318,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-exit.elf=7 \
     /usr/lib/polyapps/riscv-exit-group.elf=7 \
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
-    /usr/lib/polyapps/riscv-ecall.elf=0x5301bc04 \
+    /usr/lib/polyapps/riscv-ecall.elf=0x5303ff04 \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
 fi
 
@@ -2769,6 +2781,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-openat2.elf \
     /usr/lib/polyapps/aarch64-pidfd-getfd.elf \
     /usr/lib/polyapps/aarch64-process-madvise.elf \
+    /usr/lib/polyapps/aarch64-landlock-create-ruleset.elf \
+    /usr/lib/polyapps/aarch64-landlock-add-rule.elf \
+    /usr/lib/polyapps/aarch64-landlock-restrict-self.elf \
     /usr/lib/polyapps/aarch64-process-mrelease.elf \
     /usr/lib/polyapps/aarch64-futex-waitv.elf \
     /usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf \
@@ -2988,6 +3003,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-openat2.elf \
     /usr/lib/polyapps/riscv-pidfd-getfd.elf \
     /usr/lib/polyapps/riscv-process-madvise.elf \
+    /usr/lib/polyapps/riscv-landlock-create-ruleset.elf \
+    /usr/lib/polyapps/riscv-landlock-add-rule.elf \
+    /usr/lib/polyapps/riscv-landlock-restrict-self.elf \
     /usr/lib/polyapps/riscv-process-mrelease.elf \
     /usr/lib/polyapps/riscv-futex-waitv.elf \
     /usr/lib/polyapps/riscv-set-mempolicy-home-node.elf \
