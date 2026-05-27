@@ -29,6 +29,11 @@ static inline uint64_t read_rax(void) {
   return value;
 }
 
+static void emit_u16(uint8_t *code, size_t *offset, uint16_t value) {
+  code[(*offset)++] = (uint8_t) (value & 0xff);
+  code[(*offset)++] = (uint8_t) ((value >> 8) & 0xff);
+}
+
 static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) (value & 0xff);
   code[(*offset)++] = (uint8_t) ((value >> 8) & 0xff);
@@ -206,6 +211,45 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
 
   emit_u32(code, &offset, 0x01b50513U); // addi a0,a0,27
   emit_u32(code, &offset, 0x0000000bU); // custom-0 x86 escape
+  code[offset++] = 0xc3;
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  uint64_t (*entry)(void) = (uint64_t (*)(void)) code;
+  *result = entry();
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_compressed_reverse_mixed_program(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 2 + 8 + 2 + 4 + 2 * 4 + 1;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: compressed reverse mixed mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u16(code, &offset, 0x451dU); // c.li a0,7
+  emit_u32(code, &offset, 0x0000002bU); // custom-1, switch directly to AArch64
+  emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
+  emit_u32(code, &offset, 0xd42fffe0U); // brk #0x7fff, x86 escape
   code[offset++] = 0xc3;
 
   poly_foreign_insn_count_status();
@@ -2514,6 +2558,9 @@ static int check_mixed(void) {
   if (check_mixed_direction("aarch64-to-riscv", run_mixed_program) < 0)
     return -1;
   if (check_mixed_direction("riscv-to-aarch64", run_reverse_mixed_program) < 0)
+    return -1;
+  if (check_mixed_direction("riscv-compressed-to-aarch64",
+        run_compressed_reverse_mixed_program) < 0)
     return -1;
   return 0;
 }

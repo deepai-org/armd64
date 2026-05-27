@@ -226,15 +226,17 @@ similarly carry `d0`-`d7`/`fa0`-`fa7` through neutral cross-calls.
 The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
-The Bochs prototype backs this with a small bounded cross-return stack and
-`polybench` covers scalar double FP cross-calls, eight-register double FP
-argument pressure across `d0`-`d7`/`fa0`-`fa7`, FP64 overflow stack-argument
-cross-calls that sum sixteen double arguments in both directions, mixed
-integer/FP cross-calls, two-register integer returns, compact
-`{u32,float}`/`{float,u32}` native ABI cross-call bridging, shared-stack
-cross-calls, caller callee-saved integer/FP register preservation, syscall
-trap routing inside neutral callees, and a nested AArch64 -> RISC-V ->
-AArch64 call chain.  The stack probes use the
+The mixed raw probes also cover a 16-bit compressed RISC-V instruction followed
+by a direct switch to AArch64, proving the neutral path does not require
+32-bit-only RISC-V code before leaving the RISC-V frontend.  The Bochs
+prototype backs this with a small bounded cross-return stack and `polybench`
+covers scalar double FP cross-calls, eight-register double FP argument pressure
+across `d0`-`d7`/`fa0`-`fa7`, FP64 overflow stack-argument cross-calls that sum
+sixteen double arguments in both directions, mixed integer/FP cross-calls,
+two-register integer returns, compact `{u32,float}`/`{float,u32}` native ABI
+cross-call bridging, shared-stack cross-calls, caller callee-saved integer/FP
+register preservation, syscall trap routing inside neutral callees, and a
+nested AArch64 -> RISC-V -> AArch64 call chain.  The stack probes use the
 caller's real user `sp`: the caller allocates and restores an aligned slot,
 while the opposite foreign frontend reads it through ordinary native stack
 addressing.  The callee-saved probes keep AArch64 `x19` or RISC-V `s0` live
