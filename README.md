@@ -36,8 +36,8 @@ Linux ABI passthrough, or equal-speed execution.
   `write`, `strlen`, `memfill`, `memcmp`, `memcpy`, and generated `ET_DYN`
   relative-relocation ELF payloads through the same disabled-compat path.
   `nativecheck.elf` also verifies trap return preserves the source frontend's
-  live native argument and syscall-number registers while committing only the
-  handler result.
+  live native argument, syscall-number, and scalar FP alias registers while
+  committing only the handler result.
 - The `make boot-poly-binfmt-arch-traps` path also disables the compatibility
   dispatcher, registers `binfmt_misc`, and executes a focused AArch64/RISC-V
   ELF set, including generated `ET_DYN #poly_entry` payloads, through the same
@@ -637,9 +637,9 @@ OS/runtime policy in software, place the result in the shared result register,
 and execute the native trap-return instruction for its frontend:
 `0f 24 62 ... POLY!` from x86, AArch64 `brk #0x7ff9`, or RISC-V custom
 `0x0000407b`.  Trap delivery preserves the source frontend's aliased argument
-registers and the extra same-frontend packet registers across the handler, and
-only commits the handler result register back to the source result register on
-trap return.
+registers, scalar FP argument aliases, and the extra same-frontend packet
+registers across the handler, and only commits the handler result register back
+to the source result register on trap return.
 The `polyexec` trap-vector handler is the current userspace policy example:
 its entry stub only adapts the architectural trap-packet register ABI to a C
 dispatcher, and that dispatcher maps selected generic AArch64/RISC-V Linux

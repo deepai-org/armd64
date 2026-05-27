@@ -23,6 +23,16 @@ static inline void write_rax(uint64_t value) {
   asm volatile("" :: "a"(value) : "memory");
 }
 
+static inline uint64_t read_xmm0_u64(void) {
+  uint64_t value;
+  asm volatile("movq %%xmm0,%0" : "=r"(value));
+  return value;
+}
+
+static inline void write_xmm0_u64(uint64_t value) {
+  asm volatile("movq %0,%%xmm0" :: "r"(value) : "xmm0", "memory");
+}
+
 static inline void poly_trap_vector_set(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET ::: "memory");
 }
@@ -52,6 +62,7 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $39, %rax\n"
     "syscall\n"
+    "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "1:\n"
@@ -63,6 +74,7 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $39, %rax\n"
     "syscall\n"
+    "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "3:\n"
@@ -75,6 +87,7 @@ static void poly_trap_vector_handler(void) {
     "cmpq $5, %rsi\n"
     "jne 9f\n"
     "movq $4444, %rax\n"
+    "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "5:\n"
@@ -85,10 +98,12 @@ static void poly_trap_vector_handler(void) {
     "cmpq $0, %rsi\n"
     "jne 9f\n"
     "movq $4545, %rax\n"
+    "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "9:\n"
     "movq $0xffffffffffffffff, %rax\n"
+    "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
     "ud2\n");
 }
@@ -230,6 +245,34 @@ static int run_poly_trap_vector_probe(void) {
   if (result != 172) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved syscall register mismatch got=%llu\n",
       (unsigned long long) result);
+    return 1;
+  }
+
+  write_xmm0_u64(0x4008000000000000ULL);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+  uint64_t fp_result = read_xmm0_u64();
+  if (fp_result != 0x4008000000000000ULL) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved fp register mismatch got=0x%llx\n",
+      (unsigned long long) fp_result);
+    return 1;
+  }
+
+  write_xmm0_u64(0x4010000000000000ULL);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+  fp_result = read_xmm0_u64();
+  if (fp_result != 0x4010000000000000ULL) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved fp register mismatch got=0x%llx\n",
+      (unsigned long long) fp_result);
     return 1;
   }
 
