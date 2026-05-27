@@ -751,12 +751,35 @@ The runtime is controlled by `cpu.poly_compat_traps` in Bochs.  When it is
 disabled, CPUID feature bit `11` is clear, the trap packet is still recorded,
 and Bochs leaves raw mode without synthesizing a Linux syscall or libc result.
 If an architectural trap vector was installed with `0f 24 60 ... POLY!`
-(`RAX=handler_pc`), control transfers to that x86 handler with `RAX=reason`,
-`RBX=source mode`, `RCX=trap number`, `RDX=trap PC`, `RSI=selector`, and
-`RDI=arg0`; otherwise Bochs raises x86 `#UD`.  The handler can inspect the full
-packet with trap-status opcodes, place a result in the shared result register,
-and execute `0f 24 62 ... POLY!` to resume the source frontend at the recorded
-resume PC.  `0f 24 61 ... POLY!` reads the current trap vector into `RAX`.
+(`RAX=handler_pc`), control transfers to that handler.  `0f 24 63 ... POLY!`
+selects the handler frontend with `RAX=mode`; x86_64 is the default.  For an
+x86 handler, delivery uses `RAX=reason`, `RBX=source mode`, `RCX=trap number`,
+`RDX=trap PC`, `RSI=selector`, and `RDI=arg0`; remaining packet fields are
+available through trap-status opcodes.  For an AArch64 handler, delivery uses
+`x0=reason`, `x1=source mode`, `x2=trap number`, `x3=trap PC`, `x4=selector`,
+and `x5`-`x10` for trap arguments `0`-`5`.  For a RISC-V handler, delivery uses
+`a0=reason`, `a1=source mode`, `a2=trap number`, `a3=trap PC`,
+`a4=selector`, `a5`-`a7` for trap arguments `0`-`2`, and `t0`-`t2` for trap
+arguments `3`-`5`.  The handler can inspect the full packet with trap-status
+opcodes, place a result in the shared result register, and execute the native
+trap-return instruction for its frontend: `0f 24 62 ... POLY!` from x86,
+AArch64 `brk #0x7ff9`, or RISC-V custom `0x0000407b`.  `0f 24 61 ... POLY!`
+reads the current trap vector into `RAX`.
+
+The Bochs compatibility runtime can also handle selected breakpoint traps as
+deterministic scaffold library calls after recording the same OS-neutral
+break-trap packet.  This is not the hardware ISA contract; real precompiled
+interop should use ordinary dynamic-linker bindings, hardware-assisted `PCALL`
+descriptors, software thunks, or OS/runtime trap routing.
+
+- AArch64 uses `brk #id`.
+- RISC-V uses `a7=id; ebreak`.
+- Supported scaffold ids are `1=strlen`, `2=memfill`, `3=memcmp`, and
+  `4=memcpy`.
+- Break-trap packets use the source frontend's native ABI argument registers:
+  AArch64 `x0`-`x5` or RISC-V `a0`-`a5`.  The deterministic scaffold ids use
+  `arg0` as the left/destination pointer and `arg2` as the byte count for
+  count-bearing operations, independent of any x86 bridge convention.
 
 ## Compatibility Rule
 
