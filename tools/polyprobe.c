@@ -488,6 +488,18 @@ int main(void) {
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
+  struct poly_cpuid_regs expected_state =
+    poly_cpuid_expected_state_leaf();
+  struct poly_cpuid_regs poly_state =
+    poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
+  if (poly_state.eax != expected_state.eax ||
+      poly_state.ebx != expected_state.ebx ||
+      poly_state.ecx != expected_state.ecx ||
+      poly_state.edx != expected_state.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID state leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_state.eax, poly_state.ebx, poly_state.ecx, poly_state.edx);
+    return 1;
+  }
 
   stage("POLY_STAGE: x86-status");
   poly_mode_x86();

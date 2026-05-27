@@ -107,12 +107,13 @@ runtime dispatch:
 
 | Leaf | Registers | Meaning |
 | --- | --- | --- |
-| `0x40000000` | `EAX=0x40000002`, `EBX:EDX:ECX="PolyglotCPU!"` | Advertises the maximum poly CPUID leaf and the 12-byte poly vendor string. |
+| `0x40000000` | `EAX=0x40000003`, `EBX:EDX:ECX="PolyglotCPU!"` | Advertises the maximum poly CPUID leaf and the 12-byte poly vendor string. |
 | `0x40000001` | `EAX=1`, `EBX=mode mask`, `ECX=feature mask`, `EDX=0` | Reports poly CPUID ABI version 1, supported frontend modes, implemented prototype features, and no architectural XSAVE component yet. |
 | `0x40000002, subleaf 0` | `EAX[15:0]=0x7fff`, `EAX[31:16]=0x7ffe`, `EBX=0x7ffd`, `ECX=0x0000000b`, `EDX=0x0000002b` | Reports native raw-mode escape/cross-switch encodings: AArch64-to-x86, AArch64-to-RISC-V switch, AArch64-to-RISC-V call, RISC-V-to-x86, and RISC-V-to-AArch64 switch. |
 | `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=0x0000107b`, `ECX=0x0000207b`, `EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding and compact `{u32,float}`/`{float,u32}` native ABI cross-call variants. |
 | `0x40000002, subleaf 2` | `EAX=106`, `EBX=8`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
 | `0x40000002, subleaf 3` | `EAX=0x7ffa`, `EBX=0x0000307b`, `ECX=0`, `EDX=0` | Reports the neutral FP64 overflow stack-argument cross-call encodings: AArch64 `brk #0x7ffa` to RISC-V and RISC-V custom `0x0000307b` to AArch64. |
+| `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus hidden synthetic banks keyed by `CR3`, `FSBASE`, and an 8 MiB stack-region key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -133,6 +134,11 @@ slots; bit `23` advertises FP64 overflow stack-argument `PCALL` variants; bit
 cross-call variants.  The same
 double-lane bridge forms also cover the ABI-compatible `{u32,double}` and
 `{double,u32}` shapes.
+`0x40000003.EAX` reports the current state-management contract. Bits `0`-`6`
+mean overlapping x86 GPR/FP state, prototype synthetic banks, `CR3` keying,
+`FSBASE` keying, stack-region keying, user-return restore support, and x86 TSO
+foreign ordering. Bit `7` is intentionally clear until foreign state is exposed
+as an architectural XSAVE component.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
