@@ -121,6 +121,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 99: *x86_number = SYS_set_robust_list; return 1;
     case 100: *x86_number = SYS_get_robust_list; return 1;
     case 113: *x86_number = SYS_clock_gettime; return 1;
+    case 114: *x86_number = SYS_clock_getres; return 1;
     case 134: *x86_number = SYS_rt_sigaction; return 1;
     case 135: *x86_number = SYS_rt_sigprocmask; return 1;
     case 160: *x86_number = SYS_uname; return 1;
