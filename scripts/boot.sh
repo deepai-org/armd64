@@ -2878,6 +2878,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-exit-group.elf" 0x00700513 0x05e00893 0x00000073 0x06400513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ecall.elf" 0x3ff00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ebreak.elf" 0x00500893 0x00100073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-ebreak.elf" 0x00100893 h:0x9002
   local -a riscv_long=(0x00000513)
   for _ in $(seq 1 80); do
     riscv_long+=(0x00150513)
@@ -3519,6 +3520,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-exit.elf=7 \
     /usr/lib/polyapps/riscv-exit-group.elf=7 \
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf=5 \
     /usr/lib/polyapps/riscv-ecall.elf=0x5303ff04 \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
 fi
@@ -3602,6 +3604,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf=5 \
     /usr/lib/polyapps/riscv-memcpy.elf=4 >/dev/ttyS0 2>&1
 fi
 
@@ -4545,6 +4548,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-exit.elf \
     /usr/lib/polyapps/riscv-exit-group.elf \
     /usr/lib/polyapps/riscv-ebreak.elf \
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf \
     /usr/lib/polyapps/riscv-ecall.elf \
     /usr/lib/polyapps/riscv-long.elf
   do
