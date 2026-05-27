@@ -1521,6 +1521,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-read.elf" 0xd2800000 0x91000021 0xd2800082 0xd28007e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-readv.elf" 0xaa0103e3 0xf9000023 0xd2800084 0xf9000424 0xd2800000 0xd2800022 0xd2800828 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-write.elf" 0xd2800020 0x91000021 0xd28000a2 0xd2800808 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-real-write-zero.elf" 0xd2800020 0xd2800002 0xd2800808 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-writev.elf" 0xaa0103e3 0xf9000023 0xd28000a4 0xf9000424 0xd2800020 0xd2800022 0xd2800848 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pread64.elf" 0xd2800060 0x91000021 0xd2800082 0xd28000e3 0xd2800868 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pwrite64.elf" 0xd2800020 0x91000021 0xd28000a2 0xd28000e3 0xd2800888 0xd4000001
@@ -1805,6 +1806,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-read.elf" 0x00000513 0x00058593 0x00400613 0x03f00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-readv.elf" 0x00058293 0x0055b023 0x00400313 0x0065b423 0x00000513 0x00100613 0x04100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-write.elf" 0x00100513 0x00058593 0x00500613 0x04000893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-real-write-zero.elf" 0x00100513 0x00000613 0x04000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-writev.elf" 0x00058293 0x0055b023 0x00500313 0x0065b423 0x00100513 0x00100613 0x04200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pread64.elf" 0x00300513 0x00058593 0x00400613 0x00700693 0x04300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pwrite64.elf" 0x00100513 0x00058593 0x00500613 0x00700693 0x04400893 0x00000073
@@ -2617,6 +2619,8 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-mmap-real-store.elf=77 \
     /usr/lib/polyapps/aarch64-real-openat-read-close.elf=0 \
     /usr/lib/polyapps/riscv-real-openat-read-close.elf=0 \
+    /usr/lib/polyapps/aarch64-real-write-zero.elf=0 \
+    /usr/lib/polyapps/riscv-real-write-zero.elf=0 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
     /usr/lib/polyapps/aarch64-memfill.elf=4 \
