@@ -202,6 +202,9 @@ trap-return path; bit `26` advertises explicit software-selected poly state
 keys.  The same
 double-lane bridge forms also cover the ABI-compatible `{u32,double}` and
 `{double,u32}` shapes.
+Import ID `2` is reserved for the removed legacy x86-add helper and now traps
+like any unresolved descriptor-backed import; runtime-provided x86 helper calls
+start at descriptor slot ID `106`.
 `0x40000003.EAX` reports the current state-management contract. Bits `0`-`6`
 mean overlapping x86 GPR/FP state, prototype synthetic banks, `CR3` keying,
 `FSBASE` keying, stack-region keying, user-return restore support, and x86 TSO

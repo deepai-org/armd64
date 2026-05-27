@@ -213,6 +213,9 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000002, ECX=5`: `EAX=140` reports the foreign import ID
   count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
   base, and `EDX=16` reports the import-call stride.
+  Import ID `2` is reserved for the removed legacy x86-add helper and now
+  traps like any unresolved descriptor-backed import; runtime-provided x86
+  helper calls start at descriptor slot ID `106`.
 - `CPUID.EAX=0x40000003`: prototype foreign-state contract discovery.
   `EAX` reports state flags.  Bits `0`-`6` mean overlapping x86-visible
   GPR/FP state, prototype synthetic banks, `CR3` keying, `FSBASE` keying,
