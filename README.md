@@ -702,6 +702,8 @@ execute, dependency-local TLS blocks in the shared `PCALL` TLS image,
 dependency `DT_INIT`/`DT_INIT_ARRAY` constructor execution before entering
 dependent foreign code and dependency `DT_FINI_ARRAY`/`DT_FINI` teardown
 afterward with destructor-visible dependency state checks,
+root `DT_PREINIT_ARRAY` execution for PIE executables, `DF_1_INITFIRST`
+dependency initialization before ordinary dependency constructors,
 compiler-emitted same-image function-pointer relocations and indirect native
 calls, `DT_INIT`/`DT_INIT_ARRAY` constructor execution before foreign
 entrypoints, `DT_FINI_ARRAY`/`DT_FINI` destructor execution during teardown,

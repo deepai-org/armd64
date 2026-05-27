@@ -880,8 +880,10 @@ Declared RUNPATH/RPATH directories are searched before the loader's
 compatibility fallback to the caller's directory, so a colocated same-SONAME
 object does not override explicit dynamic-linker metadata.
 Dependency `DT_INIT` and `DT_INIT_ARRAY` constructors run before entering
-dependent foreign code, and dependency `DT_FINI_ARRAY` and `DT_FINI`
-destructors run during teardown. The
+dependent foreign code, root PIE executables run `DT_PREINIT_ARRAY` entries
+before ordinary constructors, and dependencies tagged with `DF_1_INITFIRST`
+run their constructors before ordinary dependency constructors. Dependency
+`DT_FINI_ARRAY` and `DT_FINI` destructors run during teardown. The
 `depfini:` harness mode verifies dependency finalizers by calling an exported
 dependency result symbol after dependency teardown and before unmapping.
 Dependency `PT_TLS` images are laid out in the same software-allocated TLS

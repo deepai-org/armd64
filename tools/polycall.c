@@ -40,6 +40,9 @@
 #ifndef DT_RELRENT
 #define DT_RELRENT 37
 #endif
+#ifndef DF_1_INITFIRST
+#define DF_1_INITFIRST 0x20
+#endif
 #ifndef R_AARCH64_IRELATIVE
 #define R_AARCH64_IRELATIVE 1032
 #endif
@@ -386,6 +389,7 @@ struct poly_dependency {
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
   size_t init_count;
+  int init_first;
   uint64_t fini_vaddr;
   uint64_t fini_array_vaddr;
   uint64_t fini_array_size;
@@ -430,6 +434,7 @@ struct poly_program {
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
   size_t init_count;
+  int init_first;
   uint64_t fini_vaddr;
   uint64_t fini_array_vaddr;
   uint64_t fini_array_size;
@@ -2737,6 +2742,7 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   dep_view.init_array_vaddr = dep->init_array_vaddr;
   dep_view.init_array_size = dep->init_array_size;
   dep_view.init_count = dep->init_count;
+  dep_view.init_first = dep->init_first;
   dep_view.fini_vaddr = dep->fini_vaddr;
   dep_view.fini_array_vaddr = dep->fini_array_vaddr;
   dep_view.fini_array_size = dep->fini_array_size;
@@ -2818,6 +2824,7 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   dep->init_array_vaddr = dep_view.init_array_vaddr;
   dep->init_array_size = dep_view.init_array_size;
   dep->init_count = dep_view.init_count;
+  dep->init_first = dep_view.init_first;
   dep->fini_vaddr = dep_view.fini_vaddr;
   dep->fini_array_vaddr = dep_view.fini_array_vaddr;
   dep->fini_array_size = dep_view.fini_array_size;
@@ -3868,6 +3875,10 @@ static int load_dynamic_relocs(struct poly_program *program,
       case DT_PLTREL:
         pltrel_type = dyn[n].d_un.d_val;
         break;
+      case DT_FLAGS_1:
+        if ((dyn[n].d_un.d_val & DF_1_INITFIRST) != 0)
+          program->init_first = 1;
+        break;
       case DT_PREINIT_ARRAY:
         program->preinit_array_vaddr = dyn[n].d_un.d_ptr;
         break;
@@ -4504,6 +4515,35 @@ static uint8_t *map_foreign_program_image(const struct poly_program *program,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
+static int call_dependency_init_callbacks(const struct poly_dependency *dep,
+    uint8_t *dep_image, size_t dep_size, uint64_t dep_load_bias,
+    uint8_t *code, size_t target_imm_offset) {
+  if (dep->init_vaddr != 0) {
+    const uint64_t init_target = dep_load_bias + dep->init_vaddr;
+    (void) call_poly_stub(code, target_imm_offset, init_target,
+      POLY_CALL_U64);
+  }
+  if (dep->init_array_size == 0)
+    return 0;
+
+  size_t init_array_offset = 0;
+  if (image_vaddr_to_offset(dep->base_vaddr, dep_size, dep->init_array_vaddr,
+        dep->init_array_size, &init_array_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: dependency INIT_ARRAY escaped image: %s\n",
+      dep->path);
+    return -1;
+  }
+  const size_t init_array_count =
+    (size_t) (dep->init_array_size / sizeof(uint64_t));
+  for (size_t n = 0; n < init_array_count; n++) {
+    uint64_t init_target = read_le64(dep_image + init_array_offset + n * 8);
+    if (init_target != 0)
+      (void) call_poly_stub(code, target_imm_offset, init_target,
+        POLY_CALL_U64);
+  }
+  return 0;
+}
+
 static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
@@ -5031,53 +5071,37 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
   }
 
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_dependency *dep = &program->deps[d];
+    if (!dep->init_first)
+      continue;
+    if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
+          dep_load_bias[d], code, target_imm_offset) < 0) {
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+  }
+
   for (size_t depth = max_dep_depth + 1; depth > 0; depth--) {
     const size_t init_depth = depth - 1;
     for (size_t d = 0; d < program->dep_count; d++) {
       const struct poly_dependency *dep = &program->deps[d];
-      if (dep->needed_depth != init_depth)
+      if (dep->init_first || dep->needed_depth != init_depth)
         continue;
-      if (dep->init_vaddr != 0) {
-        const uint64_t init_target = dep_load_bias[d] + dep->init_vaddr;
-        (void) call_poly_stub(code, target_imm_offset, init_target,
-          POLY_CALL_U64);
-      }
-      if (dep->init_array_size != 0) {
-        if (dep->init_array_vaddr < dep->base_vaddr ||
-            dep->init_array_size > dep_sizes[d]) {
-          fprintf(stderr, "POLYCALL_FAIL: dependency INIT_ARRAY escaped image: %s\n",
-            dep->path);
-          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
-          if (tls)
-            munmap(tls, tls_size);
-          munmap(import_page, 4096);
-          munmap(foreign, foreign_size);
-          munmap(code, code_size);
-          return -1;
-        }
-        const uint64_t init_array_offset =
-          dep->init_array_vaddr - dep->base_vaddr;
-        if (init_array_offset > dep_sizes[d] ||
-            dep->init_array_size > dep_sizes[d] - init_array_offset) {
-          fprintf(stderr, "POLYCALL_FAIL: dependency INIT_ARRAY escaped image: %s\n",
-            dep->path);
-          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
-          if (tls)
-            munmap(tls, tls_size);
-          munmap(import_page, 4096);
-          munmap(foreign, foreign_size);
-          munmap(code, code_size);
-          return -1;
-        }
-        const size_t init_array_count =
-          (size_t) (dep->init_array_size / sizeof(uint64_t));
-        for (size_t n = 0; n < init_array_count; n++) {
-          uint64_t init_target = read_le64(dep_foreign[d] +
-            init_array_offset + n * 8);
-          if (init_target != 0)
-            (void) call_poly_stub(code, target_imm_offset, init_target,
-              POLY_CALL_U64);
-        }
+      if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
+            dep_load_bias[d], code, target_imm_offset) < 0) {
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
       }
     }
   }
