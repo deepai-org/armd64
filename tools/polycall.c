@@ -84,6 +84,7 @@ enum {
   RELOC_BASE_DEP_LOAD_BIAS = 100
 };
 
+static const uint32_t POLY_CPUID_BASE = 0x40000000U;
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
 static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 16;
@@ -241,6 +242,22 @@ enum {
   POLY_IMPORT_HEAP_SIZE = 64 * 1024
 };
 
+struct poly_cpuid_regs {
+  uint32_t eax;
+  uint32_t ebx;
+  uint32_t ecx;
+  uint32_t edx;
+};
+
+struct poly_import_contract {
+  uint64_t call_base;
+  uint32_t call_stride;
+  uint32_t import_count;
+  uint32_t x86_slot0;
+  uint32_t x86_slot_count;
+  uint32_t x86_descriptor_size;
+};
+
 struct poly_dynamic_reloc {
   size_t offset;
   uint64_t value;
@@ -316,6 +333,47 @@ struct poly_request {
   int check_expected;
   int call_kind;
 };
+
+static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
+  struct poly_cpuid_regs regs;
+  asm volatile("cpuid"
+      : "=a"(regs.eax), "=b"(regs.ebx), "=c"(regs.ecx), "=d"(regs.edx)
+      : "a"(leaf), "c"(subleaf)
+      : "memory");
+  return regs;
+}
+
+static int read_poly_import_contract(struct poly_import_contract *contract) {
+  const struct poly_cpuid_regs descriptor =
+    read_cpuid(POLY_CPUID_BASE + 2, 2);
+  const struct poly_cpuid_regs manifest =
+    read_cpuid(POLY_CPUID_BASE + 2, 5);
+  const uint64_t call_base =
+    ((uint64_t) manifest.ecx << 32) | manifest.ebx;
+
+  if (descriptor.eax != POLY_IMPORT_FUNC_X86_SLOT0 ||
+      descriptor.ebx !=
+        POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1 ||
+      descriptor.ecx != POLY_X86_IMPORT_DESCRIPTOR_SIZE ||
+      descriptor.edx != POLY_IMPORT_CALL_STRIDE ||
+      manifest.eax != POLY_IMPORT_FUNC_COUNT ||
+      call_base != POLY_IMPORT_CALL_BASE ||
+      manifest.edx != POLY_IMPORT_CALL_STRIDE) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: CPU import ABI mismatch desc=(%u,%u,%u,%u) manifest=(%u,0x%016llx,%u)\n",
+      descriptor.eax, descriptor.ebx, descriptor.ecx, descriptor.edx,
+      manifest.eax, (unsigned long long) call_base, manifest.edx);
+    return -1;
+  }
+
+  contract->call_base = call_base;
+  contract->call_stride = manifest.edx;
+  contract->import_count = manifest.eax;
+  contract->x86_slot0 = descriptor.eax;
+  contract->x86_slot_count = descriptor.ebx;
+  contract->x86_descriptor_size = descriptor.ecx;
+  return 0;
+}
 
 extern uint64_t poly_host_x86_add(uint64_t a, uint64_t b);
 extern uint64_t poly_host_x86_mul(uint64_t a, uint64_t b);
@@ -3446,6 +3504,17 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t *result) {
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
   const int needs_x86_import = program->needs_x86_import;
+  struct poly_import_contract import_contract = {
+    POLY_IMPORT_CALL_BASE,
+    POLY_IMPORT_CALL_STRIDE,
+    POLY_IMPORT_FUNC_COUNT,
+    POLY_IMPORT_FUNC_X86_SLOT0,
+    POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1,
+    POLY_X86_IMPORT_DESCRIPTOR_SIZE
+  };
+  if (needs_x86_import &&
+      read_poly_import_contract(&import_contract) < 0)
+    return -1;
   const size_t save_regs_size = needs_x86_import ? 5 : 0;
   const size_t restore_regs_size = needs_x86_import ? 5 : 0;
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
@@ -3462,9 +3531,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     restore_tls_size + restore_heap_size + 1;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
   const size_t import_descriptor_count = needs_x86_import ?
-    POLY_IMPORT_FUNC_COUNT : 0;
+    import_contract.import_count : 0;
   const size_t import_descriptor_size = needs_x86_import ?
-    import_descriptor_count * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
+    import_descriptor_count * import_contract.x86_descriptor_size : 0;
   const size_t stub_size = main_stub_size + import_return_size +
     import_descriptor_size;
   const size_t code_size = stub_size;
@@ -3609,14 +3678,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       emit_u64(code, &offset, 0);
       emit_u64(code, &offset, 0);
     }
-    for (uint64_t import_id = 0; import_id < POLY_IMPORT_FUNC_COUNT;
+    for (uint64_t import_id = 0; import_id < import_contract.import_count;
          import_id++) {
       const uint64_t target =
         x86_descriptor_target_for_import_id(import_id);
       if (target == 0)
         continue;
       const size_t descriptor_offset = import_x86_table_offset +
-        (size_t) import_id * POLY_X86_IMPORT_DESCRIPTOR_SIZE;
+        (size_t) import_id * import_contract.x86_descriptor_size;
       write_le64(code + descriptor_offset, target);
       write_le64(code + descriptor_offset + 8, import_x86_return);
     }
@@ -3684,7 +3753,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_PAGE)
         reloc_base = (uint64_t) (uintptr_t) import_page;
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_CALL)
-        reloc_base = POLY_IMPORT_CALL_BASE;
+        reloc_base = import_contract.call_base;
       else if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
           dep->relocs[r].base_kind <
             RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {
@@ -3776,7 +3845,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_PAGE)
       reloc_base = (uint64_t) (uintptr_t) import_page;
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_CALL)
-      reloc_base = POLY_IMPORT_CALL_BASE;
+      reloc_base = import_contract.call_base;
     else if (program->relocs[n].base_kind == RELOC_BASE_TLS_OFFSET)
       reloc_base = 0;
     else if (program->relocs[n].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
