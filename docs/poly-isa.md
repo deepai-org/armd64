@@ -782,7 +782,8 @@ target; production hardware needs either this kind of architectural call gate
 or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
 When a runtime supplies a descriptor entry for an import ID, the Bochs CPU uses
 that descriptor as the import target.  `polycall` uses this path for
-`poly_import_add`/`poly_import_mul`, libc string/memory imports such as
+`poly_import_add`/`poly_import_mul`,
+`poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory imports such as
 `strlen`, `memcpy`, and `memcmp`, and also for environment, allocation,
 teardown, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
@@ -790,7 +791,8 @@ errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
 uses descriptors for scalar libgcc 128-bit div/mod helpers `__udivti3`,
 `__umodti3`, `__divti3`, and `__modti3`, and bit helpers `__clzdi2`,
 `__ctzdi2`, `__paritydi2`, and `__popcountdi2`.  For
-`poly_import_add`/`poly_import_mul`, libc string/memory helpers, that
+`poly_import_add`/`poly_import_mul`,
+`poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory helpers, that
 OS-sensitive class, and these scalar libgcc helpers, a software descriptor is
 mandatory; the CPU does not synthesize fixed fallback results.
 The CPU contract is the descriptor call gate and ABI register mapping, not the

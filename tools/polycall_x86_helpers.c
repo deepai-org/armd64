@@ -36,6 +36,16 @@ uint64_t POLY_HOST_HELPER poly_host_import_mul(uint64_t a, uint64_t b)
   return a * b + 100;
 }
 
+double POLY_HOST_HELPER poly_host_import_fp64_add(double a, double b)
+{
+  return a + b + 10.0;
+}
+
+float POLY_HOST_HELPER poly_host_import_fp32_add(float a, float b)
+{
+  return a + b + 10.0f;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_sum6(uint64_t a, uint64_t b,
     uint64_t c, uint64_t d, uint64_t e, uint64_t f)
 {

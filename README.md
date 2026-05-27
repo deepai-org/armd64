@@ -635,14 +635,16 @@ The `poly_import_x86_add`, `poly_import_x86_mul`,
 `poly_import_x86_mixed_u64_fp64`, and `poly_import_x86_fp32_add` descriptors enter
 real x86_64 helpers through a runtime-supplied descriptor table.  The same
 generic descriptor table is now used by `polycall` for `poly_import_add` and
-`poly_import_mul`, compiler-emitted libc string/memory imports such as
+`poly_import_mul`, `poly_import_fp64_add`/`poly_import_fp32_add`,
+compiler-emitted libc string/memory imports such as
 `strlen`, `memcpy`, and `memcmp`, plus
 environment, allocation, teardown-registration, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
 `__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, plus scalar
 libgcc 128-bit div/mod helpers `__udivti3`, `__umodti3`, `__divti3`, and
 `__modti3`, and bit helpers `__clzdi2`, `__ctzdi2`, `__paritydi2`, and
-`__popcountdi2`.  For `poly_import_add`/`poly_import_mul`, libc string/memory
+`__popcountdi2`.  For `poly_import_add`/`poly_import_mul`,
+`poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory
 helpers, the OS-sensitive environment/allocation/teardown/process-query class,
 and these scalar libgcc helpers, a software-supplied descriptor is now
 required; Bochs no longer synthesizes a fixed CPU fallback result.

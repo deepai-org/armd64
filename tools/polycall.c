@@ -321,6 +321,8 @@ extern uint64_t poly_host_x86_add(uint64_t a, uint64_t b);
 extern uint64_t poly_host_x86_mul(uint64_t a, uint64_t b);
 extern uint64_t poly_host_import_add(uint64_t a, uint64_t b);
 extern uint64_t poly_host_import_mul(uint64_t a, uint64_t b);
+extern double poly_host_import_fp64_add(double a, double b);
+extern float poly_host_import_fp32_add(float a, float b);
 extern uint64_t poly_host_x86_sum6(uint64_t a, uint64_t b, uint64_t c,
     uint64_t d, uint64_t e, uint64_t f);
 extern uint64_t poly_host_x86_sum8(uint64_t a, uint64_t b, uint64_t c,
@@ -421,6 +423,7 @@ extern uint64_t poly_host_x86_popcountdi2(uint64_t value);
 static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
   static const char *const names[] = {
     "poly_import_add", "poly_import_mul",
+    "poly_import_fp64_add", "poly_import_fp32_add",
     "strlen", "strcmp", "strncmp", "strcasecmp", "strncasecmp",
     "strcasestr", "memcpy", "memmove", "memset", "memcmp", "memchr",
     "memrchr", "memmem", "strchr", "index", "strrchr", "rindex",
@@ -450,6 +453,10 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_import_add;
     case POLY_IMPORT_FUNC_MUL:
       return (uint64_t) (uintptr_t) poly_host_import_mul;
+    case POLY_IMPORT_FUNC_FP64_ADD:
+      return (uint64_t) (uintptr_t) poly_host_import_fp64_add;
+    case POLY_IMPORT_FUNC_FP32_ADD:
+      return (uint64_t) (uintptr_t) poly_host_import_fp32_add;
     case POLY_IMPORT_FUNC_X86_SLOT0:
       return (uint64_t) (uintptr_t) poly_host_x86_add;
     case POLY_IMPORT_FUNC_X86_SLOT1:
