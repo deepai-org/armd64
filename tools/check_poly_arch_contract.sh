@@ -10,6 +10,8 @@ BOCHS_FETCHDECODE64="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode64
 BOCHS_OPMAP="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode_opmap.h"
 BOCHS_OPCODES="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/ia_opcodes.def"
 BOCHS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs"
+README="$ROOT_DIR/README.md"
+POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
 POLYPROBE="$ROOT_DIR/tools/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/polybench.c"
 NATIVECHECK="$ROOT_DIR/tools/nativecheck.c"
@@ -138,6 +140,12 @@ assert_contains 'cmpq \$88, %r13' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 6"
 assert_contains 'cmpq \$99, %r14' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 7"
+assert_contains "eight[[:space:]]+ABI arguments" "$README" \
+  "README must describe the POLYTRAP packet as carrying eight ABI arguments"
+assert_contains "first eight native foreign ABI argument registers" "$POLY_ISA_DOC" \
+  "poly ISA doc must describe all eight POLYTRAP argument lanes"
+assert_not_contains "six[[:space:]]+ABI arguments" "$README" \
+  "README must not describe the old six-argument POLYTRAP packet"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

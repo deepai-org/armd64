@@ -949,7 +949,7 @@ The prototype records a unified `POLYTRAP` state before leaving raw execution:
   encoding provides one, for example AArch64 `svc #imm` or `brk #imm`; RISC-V
   `ecall`/`ebreak` record selector `0` because their service id comes from
   register state. Import traps record selector `0`.
-- Arguments record the native foreign ABI argument registers.
+- Arguments record the first eight native foreign ABI argument registers.
 - PC records the foreign instruction address that raised the trap. For import
   traps, it records the unresolved descriptor target address.
 - Resume PC records the next foreign instruction address for trap return. For

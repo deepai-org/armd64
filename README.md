@@ -806,8 +806,7 @@ probes export `poly_entry` away from offset zero to exercise that path.
 Foreign traps are recorded as explicit, operating-system-neutral architectural
 exits.  AArch64 `svc` and RISC-V `ecall` record reason `1`; AArch64 `brk` and
 RISC-V `ebreak` record reason `2`; unresolved descriptor-backed foreign
-imports record reason `3`.  The record includes source mode, trap number, six
-ABI arguments, the foreign PC, the resume PC, and the raw trap
+imports record reason `3`.  The record includes source mode, trap number, eight ABI arguments, the foreign PC, the resume PC, and the raw trap
 selector/immediate when the foreign instruction encoding carries one.  For
 syscall traps, the number is the native ABI syscall register (`x8` for
 AArch64, `a7` for RISC-V); AArch64 `svc #imm` stores `imm` only in the
