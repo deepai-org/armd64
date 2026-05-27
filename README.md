@@ -23,6 +23,11 @@ Linux ABI passthrough, or equal-speed execution.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when
   `POLY_ENABLED=0`.
+- The `make boot-poly-arch-traps` path disables the Bochs compatibility
+  dispatcher and verifies that AArch64/RISC-V syscall and breakpoint traps route
+  through the architectural trap vector.  Its guest x86 handler translates the
+  foreign `getpid` syscall into a real x86 Linux `syscall`, then resumes the
+  original raw frontend with `POLY_TRAP_RETURN`.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -814,6 +819,13 @@ Run the poly probe and manifest-backed generated foreign payloads:
 make boot-poly
 ```
 
+Run the OS-neutral architectural trap-vector gate with Bochs syscall/libcall
+compatibility disabled:
+
+```bash
+make boot-poly-arch-traps
+```
+
 Run the fuller gate, including direct foreign ELF execution and guest
 `binfmt_misc` registration:
 
@@ -824,6 +836,7 @@ make boot-poly-full
 Expected success markers include:
 
 - `BOOT_OK`
+- `NATIVE_POLY_TRAP_VECTOR_OK`
 - `POLY_PROBE_OK`
 - `POLYAPP_OK`
 - `POLYEXEC_OK`
