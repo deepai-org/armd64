@@ -1325,6 +1325,23 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-add-watch.elf" 0xd28001c0 0xd2802002 0xd2800368 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-rm-watch.elf" 0xd28001c0 0xd28003e1 0xd2800388 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dup3.elf" 0xd28000a0 0xd2800101 0xd2800002 0xd2800308 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mkdirat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2800448 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-unlinkat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2800468 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-symlinkat.elf" 0xaa0103e0 0xd2800001 0xaa0103e2 0xd2800488 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-linkat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xaa0103e3 0xd2800004 0xd28004a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-renameat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xaa0103e3 0xd28004c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-umount2.elf" 0xaa0103e0 0xd2800001 0xd28004e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mount.elf" 0xaa0103e0 0xaa0103e1 0xaa0103e2 0xd2800003 0xd2800004 0xd2800508 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pivot-root.elf" 0xaa0103e0 0xaa0103e1 0xd2800528 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-chroot.elf" 0xaa0103e0 0xd2800668 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-renameat2.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xaa0103e3 0xd2800004 0xd2802288 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-open-tree.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2803588 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-move-mount.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xaa0103e3 0xd2800004 0xd28035a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fsopen.elf" 0xaa0103e0 0xd2800001 0xd28035c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fsconfig.elf" 0xd2800200 0xd2800001 0xaa0103e2 0xaa0103e3 0xd2800004 0xd28035e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fsmount.elf" 0xd2800200 0xd2800001 0xd2800002 0xd2803608 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fspick.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2803628 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mount-setattr.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xaa0103e3 0xd2800004 0xd2803748 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pipe2.elf" 0xaa0103e2 0xaa0103e0 0xd2800001 0xd2800768 0xd4000001 0xb9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fsync.elf" 0xd2800060 0xd2800a48 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fdatasync.elf" 0xd2800060 0xd2800a68 0xd4000001
@@ -1514,6 +1531,23 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-add-watch.elf" 0x00e00513 0x10000613 0x01b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-rm-watch.elf" 0x00e00513 0x01f00593 0x01c00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-dup3.elf" 0x00500513 0x00800593 0x00000613 0x01800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mkdirat.elf" 0x00000513 0x00058613 0x02200893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-unlinkat.elf" 0x00000513 0x00058613 0x02300893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-symlinkat.elf" 0x00058513 0x00000593 0x00058613 0x02400893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-linkat.elf" 0x00000513 0x00058613 0x00000613 0x00058693 0x00000713 0x02500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-renameat.elf" 0x00000513 0x00058613 0x00000613 0x00058693 0x02600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-umount2.elf" 0x00058513 0x00000593 0x02700893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mount.elf" 0x00058513 0x00058593 0x00058613 0x00000693 0x00000713 0x02800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pivot-root.elf" 0x00058513 0x00058593 0x02900893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-chroot.elf" 0x00058513 0x03300893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-renameat2.elf" 0x00000513 0x00058613 0x00000613 0x00058693 0x00000713 0x11400893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-open-tree.elf" 0x00000513 0x00058613 0x00000613 0x1ac00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-move-mount.elf" 0x00000513 0x00058613 0x00000613 0x00058693 0x00000713 0x1ad00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fsopen.elf" 0x00058513 0x00000593 0x1ae00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fsconfig.elf" 0x01000513 0x00000593 0x00058613 0x00058693 0x00000713 0x1af00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fsmount.elf" 0x01000513 0x00000593 0x00000613 0x1b000893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fspick.elf" 0x00000513 0x00058613 0x00000613 0x1b100893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mount-setattr.elf" 0x00000513 0x00058613 0x00000613 0x00058693 0x00000713 0x1ba00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pipe2.elf" 0x00058613 0x00058513 0x00000593 0x03b00893 0x00000073 0x00062503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fsync.elf" 0x00300513 0x05200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fdatasync.elf" 0x00300513 0x05300893 0x00000073
@@ -1796,6 +1830,23 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-inotify-add-watch.elf=31 \
     /usr/lib/polyapps/aarch64-inotify-rm-watch.elf=0 \
     /usr/lib/polyapps/aarch64-dup3.elf=8 \
+    /usr/lib/polyapps/aarch64-mkdirat.elf=0 \
+    /usr/lib/polyapps/aarch64-unlinkat.elf=0 \
+    /usr/lib/polyapps/aarch64-symlinkat.elf=0 \
+    /usr/lib/polyapps/aarch64-linkat.elf=0 \
+    /usr/lib/polyapps/aarch64-renameat.elf=0 \
+    /usr/lib/polyapps/aarch64-umount2.elf=0 \
+    /usr/lib/polyapps/aarch64-mount.elf=0 \
+    /usr/lib/polyapps/aarch64-pivot-root.elf=0 \
+    /usr/lib/polyapps/aarch64-chroot.elf=0 \
+    /usr/lib/polyapps/aarch64-renameat2.elf=0 \
+    /usr/lib/polyapps/aarch64-open-tree.elf=15 \
+    /usr/lib/polyapps/aarch64-move-mount.elf=0 \
+    /usr/lib/polyapps/aarch64-fsopen.elf=16 \
+    /usr/lib/polyapps/aarch64-fsconfig.elf=0 \
+    /usr/lib/polyapps/aarch64-fsmount.elf=17 \
+    /usr/lib/polyapps/aarch64-fspick.elf=18 \
+    /usr/lib/polyapps/aarch64-mount-setattr.elf=0 \
     /usr/lib/polyapps/aarch64-pipe2.elf=9 \
     /usr/lib/polyapps/aarch64-fsync.elf=0 \
     /usr/lib/polyapps/aarch64-fdatasync.elf=0 \
@@ -1958,6 +2009,23 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-inotify-add-watch.elf=31 \
     /usr/lib/polyapps/riscv-inotify-rm-watch.elf=0 \
     /usr/lib/polyapps/riscv-dup3.elf=8 \
+    /usr/lib/polyapps/riscv-mkdirat.elf=0 \
+    /usr/lib/polyapps/riscv-unlinkat.elf=0 \
+    /usr/lib/polyapps/riscv-symlinkat.elf=0 \
+    /usr/lib/polyapps/riscv-linkat.elf=0 \
+    /usr/lib/polyapps/riscv-renameat.elf=0 \
+    /usr/lib/polyapps/riscv-umount2.elf=0 \
+    /usr/lib/polyapps/riscv-mount.elf=0 \
+    /usr/lib/polyapps/riscv-pivot-root.elf=0 \
+    /usr/lib/polyapps/riscv-chroot.elf=0 \
+    /usr/lib/polyapps/riscv-renameat2.elf=0 \
+    /usr/lib/polyapps/riscv-open-tree.elf=15 \
+    /usr/lib/polyapps/riscv-move-mount.elf=0 \
+    /usr/lib/polyapps/riscv-fsopen.elf=16 \
+    /usr/lib/polyapps/riscv-fsconfig.elf=0 \
+    /usr/lib/polyapps/riscv-fsmount.elf=17 \
+    /usr/lib/polyapps/riscv-fspick.elf=18 \
+    /usr/lib/polyapps/riscv-mount-setattr.elf=0 \
     /usr/lib/polyapps/riscv-pipe2.elf=9 \
     /usr/lib/polyapps/riscv-fsync.elf=0 \
     /usr/lib/polyapps/riscv-fdatasync.elf=0 \
@@ -2389,6 +2457,23 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-inotify-add-watch.elf \
     /usr/lib/polyapps/aarch64-inotify-rm-watch.elf \
     /usr/lib/polyapps/aarch64-dup3.elf \
+    /usr/lib/polyapps/aarch64-mkdirat.elf \
+    /usr/lib/polyapps/aarch64-unlinkat.elf \
+    /usr/lib/polyapps/aarch64-symlinkat.elf \
+    /usr/lib/polyapps/aarch64-linkat.elf \
+    /usr/lib/polyapps/aarch64-renameat.elf \
+    /usr/lib/polyapps/aarch64-umount2.elf \
+    /usr/lib/polyapps/aarch64-mount.elf \
+    /usr/lib/polyapps/aarch64-pivot-root.elf \
+    /usr/lib/polyapps/aarch64-chroot.elf \
+    /usr/lib/polyapps/aarch64-renameat2.elf \
+    /usr/lib/polyapps/aarch64-open-tree.elf \
+    /usr/lib/polyapps/aarch64-move-mount.elf \
+    /usr/lib/polyapps/aarch64-fsopen.elf \
+    /usr/lib/polyapps/aarch64-fsconfig.elf \
+    /usr/lib/polyapps/aarch64-fsmount.elf \
+    /usr/lib/polyapps/aarch64-fspick.elf \
+    /usr/lib/polyapps/aarch64-mount-setattr.elf \
     /usr/lib/polyapps/aarch64-pipe2.elf \
     /usr/lib/polyapps/aarch64-fsync.elf \
     /usr/lib/polyapps/aarch64-fdatasync.elf \
@@ -2551,6 +2636,23 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-inotify-add-watch.elf \
     /usr/lib/polyapps/riscv-inotify-rm-watch.elf \
     /usr/lib/polyapps/riscv-dup3.elf \
+    /usr/lib/polyapps/riscv-mkdirat.elf \
+    /usr/lib/polyapps/riscv-unlinkat.elf \
+    /usr/lib/polyapps/riscv-symlinkat.elf \
+    /usr/lib/polyapps/riscv-linkat.elf \
+    /usr/lib/polyapps/riscv-renameat.elf \
+    /usr/lib/polyapps/riscv-umount2.elf \
+    /usr/lib/polyapps/riscv-mount.elf \
+    /usr/lib/polyapps/riscv-pivot-root.elf \
+    /usr/lib/polyapps/riscv-chroot.elf \
+    /usr/lib/polyapps/riscv-renameat2.elf \
+    /usr/lib/polyapps/riscv-open-tree.elf \
+    /usr/lib/polyapps/riscv-move-mount.elf \
+    /usr/lib/polyapps/riscv-fsopen.elf \
+    /usr/lib/polyapps/riscv-fsconfig.elf \
+    /usr/lib/polyapps/riscv-fsmount.elf \
+    /usr/lib/polyapps/riscv-fspick.elf \
+    /usr/lib/polyapps/riscv-mount-setattr.elf \
     /usr/lib/polyapps/riscv-pipe2.elf \
     /usr/lib/polyapps/riscv-fsync.elf \
     /usr/lib/polyapps/riscv-fdatasync.elf \
