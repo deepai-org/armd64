@@ -132,6 +132,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign libcalls. |
 | Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC. |
 | Trap vector | `0f 24 60-64 50 4f 4c 59 21` | `0x60` sets the architectural trap vector PC from `RAX`, `0x61` reads it into `RAX`, `0x62` resumes the recorded source frontend at the trap resume PC, `0x63` sets the trap-handler frontend mode from `RAX`, and `0x64` reads the handler mode into `RAX`. |
+| State key | `0f 24 65-66 50 4f 4c 59 21` | `0x65` sets the explicit userspace poly state key from `RAX`, with `RAX=0` disabling the explicit key and falling back to the stack-region key. `0x66` reads the explicit key into `RAX`. |
 
 When `POLY_ENABLED=1`, the prototype exposes a private CPUID discovery leaf for
 runtime dispatch:
@@ -145,7 +146,7 @@ runtime dispatch:
 | `0x40000002, subleaf 2` | `EAX=106`, `EBX=8`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
 | `0x40000002, subleaf 3` | `EAX=0x7ffa`, `EBX=0x0000307b`, `ECX=0`, `EDX=0` | Reports the neutral FP64 overflow stack-argument cross-call encodings: AArch64 `brk #0x7ffa` to RISC-V and RISC-V custom `0x0000307b` to AArch64. |
 | `0x40000002, subleaf 4` | `EAX=0x7ff9`, `EBX=0x0000407b`, `ECX=0x63`, `EDX=0x64` | Reports the native raw-mode trap-return encodings and x86 trap-vector mode set/get opcodes. |
-| `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus hidden synthetic banks, status registers, trap-vector policy, trap-packet state, and trap-return save frame keyed by `CR3`, `FSBASE`, and an 8 MiB stack-region key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
+| `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus hidden synthetic banks, status registers, trap-vector policy, trap-packet state, and trap-return save frame keyed by `CR3`, `FSBASE`, and either an explicit userspace state key or an 8 MiB stack-region fallback key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -166,14 +167,17 @@ bridges; bit `22` advertises runtime-supplied foreign-to-x86 import descriptor
 slots; bit `23` advertises FP64 overflow stack-argument `PCALL` variants; bit
 `24` advertises neutral AArch64<->RISC-V FP64 overflow stack-argument
 cross-call variants; bit `25` advertises the architectural trap vector and
-trap-return path.  The same
+trap-return path; bit `26` advertises explicit software-selected poly state
+keys.  The same
 double-lane bridge forms also cover the ABI-compatible `{u32,double}` and
 `{double,u32}` shapes.
 `0x40000003.EAX` reports the current state-management contract. Bits `0`-`6`
 mean overlapping x86 GPR/FP state, prototype synthetic banks, `CR3` keying,
 `FSBASE` keying, stack-region keying, user-return restore support, and x86 TSO
 foreign ordering. Bit `7` is intentionally clear until foreign state is exposed
-as an architectural XSAVE component.
+as an architectural XSAVE component. Bit `8` means software can select an
+explicit state key with `0f 24 65 ... POLY!`; a zero key disables the explicit
+selector and restores the stack-region fallback.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
@@ -206,9 +210,9 @@ mode is raw AArch64 or raw RISC-V.  When a long-mode interrupt hits raw
 foreign fetch, the prototype records the interrupted foreign frontend mode and
 RIP in the synthetic bank, lets the x86_64 kernel run as x86, and restores raw
 mode after `IRET64` returns to the recorded user RIP.  Raw fetch is bound to
-the guest `CR3`, user `FSBASE`, and stack-region bank key, so unrelated
-userspace tasks and common pthread stacks do not inherit raw decoding after a
-scheduler switch or a fault in the raw-mode task.
+the guest `CR3`, user `FSBASE`, and the explicit state key or stack-region
+fallback key, so unrelated userspace tasks and common pthread stacks do not
+inherit raw decoding after a scheduler switch or a fault in the raw-mode task.
 The current raw run loop batches up to 64 raw foreign instructions before
 returning to the outer Bochs event loop, while still checking async events and
 mode exits between individual raw instructions.
@@ -757,13 +761,15 @@ a nested AArch64 -> RISC-V -> AArch64 call chain.
 Synthetic AArch64/RISC-V register banks, the current poly mode, and hidden
 hardware-style continuation state for `PCALL`, x86 import returns, and neutral
 foreign cross-calls are lazily saved and restored per guest `CR3`, user
-`FSBASE`, and an 8 MiB-aligned user stack-region key in the Bochs prototype.
+`FSBASE`, and either an explicit userspace poly state key or an 8 MiB-aligned
+user stack-region fallback key in the Bochs prototype.
 A normal x86_64 Linux process switch does not share foreign registers or
-continuation cookies with another address space, and common pthread stacks get
-separate synthetic banks even when static TLS does not give each guest thread a
-distinct `FSBASE`. The low overlapping return/scratch values still use the
-current x86 register bridge; this is not yet a full XSAVE-backed foreign
-register ABI. The current interrupt prototype covers ordinary long-mode
+continuation cookies with another address space. Runtime or OS code should set
+an explicit key when it needs deterministic per-thread banks; the stack-region
+fallback keeps common pthread stacks separate when no explicit key is selected.
+The low overlapping return/scratch values still use the current x86 register
+bridge; this is not yet a full XSAVE-backed foreign register ABI. The current
+interrupt prototype covers ordinary long-mode
 `IRET64`, `SYSRET`, `SYSEXIT`, and Linux signal-return paths into raw
 userspace; the final ISA still needs an explicit, architectural XSAVE-visible
 foreign state component.

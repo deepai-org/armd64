@@ -139,6 +139,10 @@ and call operations:
   `RAX`.
 - `0f 24 62 50 4f 4c 59 21`: trap return.  Resumes the recorded source frontend
   at the trap resume PC.
+- `0f 24 65 50 4f 4c 59 21`: explicit state key set.  `RAX=0` disables the
+  explicit key and falls back to the stack-region key.
+- `0f 24 66 50 4f 4c 59 21`: explicit state key get.  Returns the current
+  explicit key in `RAX`.
 
 Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
 handler and validates the trailing `POLY!` magic before changing frontend
@@ -155,7 +159,7 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`25` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`26` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, optional deterministic
@@ -167,7 +171,8 @@ discover the experimental hardware contract before emitting poly operations:
   AArch64<->RISC-V compact aggregate cross-calls, and runtime-supplied
   foreign-to-x86 import descriptor slots, and FP64 overflow stack-argument
   `PCALL` variants, and neutral AArch64<->RISC-V FP64 overflow stack-argument
-  cross-call variants, and the architectural trap vector/trap-return path.  The
+  cross-call variants, the architectural trap vector/trap-return path, and
+  explicit software-selected poly state keys.  The
   double-lane bridge forms also cover ABI-compatible `{u32,double}` and
   `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
@@ -197,10 +202,12 @@ discover the experimental hardware contract before emitting poly operations:
   GPR/FP state, prototype synthetic banks, `CR3` keying, `FSBASE` keying,
   8 MiB stack-region keying, user-return restoration, and x86 TSO foreign
   ordering.  Bit `7` is intentionally clear until non-aliased foreign state is
-  exposed as an architectural XSAVE component.  `EBX=23` reports the stack
-  region shift.  Legacy syscall/libcall status registers, trap-vector policy,
-  recorded trap-packet/status state, and the trap-return save frame are part of
-  this keyed prototype state until an XSAVE component is assigned.  `ECX=0` and
+  exposed as an architectural XSAVE component.  Bit `8` means software can
+  select an explicit state key with `0f 24 65 ... POLY!`; a zero explicit key
+  restores the stack-region fallback.  `EBX=23` reports the stack region shift.
+  Legacy syscall/libcall status registers, trap-vector policy, recorded
+  trap-packet/status state, and the trap-return save frame are part of this
+  keyed prototype state until an XSAVE component is assigned.  `ECX=0` and
   `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
@@ -274,8 +281,10 @@ the callee's native link register, mutate a shared x86 buffer through the
 foreign memory path, and return through the same cross-frontend cookie path.  The
 prototype saves that stack, the `PCALL` return cookie, and x86-import return
 state with the same synthetic bank as the non-aliased foreign registers.  The
-bank key is guest `CR3`, user `FSBASE`, and an 8 MiB-aligned user stack-region
-key, which keeps common pthread stacks isolated even when static TLS does not
+bank key is guest `CR3`, user `FSBASE`, and either an explicit userspace poly
+state key or an 8 MiB-aligned user stack-region fallback key.  Runtime or OS
+code should set an explicit key for deterministic per-thread banks; the
+fallback keeps common pthread stacks isolated even when static TLS does not
 give each guest thread a distinct `FSBASE`.  The `polythread` guest test
 exercises this with real x86_64 pthreads repeatedly entering AArch64 and
 RISC-V `PCALL` paths.  The `polysignal` guest test arms real `SIGALRM`
@@ -772,9 +781,11 @@ handler result register back to the source result register.  `0f 24 61 ...
 POLY!` reads the current trap vector into `RAX`.
 In the Bochs prototype, the installed trap vector, legacy syscall/libcall status
 registers, recorded trap-packet/status state, and trap-return save frame are
-keyed with the userspace poly state, so a different guest address space starts
-with no stale trap vector, no stale syscall/libcall status, no stale trap
-packet, and no stale trap-return frame.
+keyed with the userspace poly state.  The key is guest `CR3`, user `FSBASE`,
+and either an explicit software-selected state key or the 8 MiB stack-region
+fallback key when the explicit key is zero.  A different guest address space
+starts with no stale trap vector, no stale syscall/libcall status, no stale
+trap packet, and no stale trap-return frame.
 The installed architectural trap vector has priority over the optional Bochs
 compatibility dispatcher even when `cpu.poly_compat_traps=1`; the dispatcher is
 only a fallback when no vector is installed. `nativecheck.elf` verifies this for

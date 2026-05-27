@@ -13,6 +13,8 @@
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_GET ".byte 0x0f,0x24,0x64,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x24,0x65,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x24,0x66,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x24,0x32,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -49,6 +51,16 @@ static inline void poly_trap_vector_mode_set_value(uint64_t value) {
 
 static inline void poly_trap_vector_mode_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "memory");
+}
+
+static inline void poly_state_key_set_value(uint64_t value) {
+  asm volatile(POLY_OP_STATE_KEY_SET :: "a"(value) : "memory");
+}
+
+static inline uint64_t poly_state_key_get(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
+  return value;
 }
 
 static inline uint64_t poly_trap_status_reason(void) {
@@ -564,6 +576,69 @@ static int run_poly_trap_vector_probe(void) {
   return 0;
 }
 
+static int run_poly_state_key_probe(void) {
+  const uint64_t key_a = 0x51544154454b4501ULL;
+  const uint64_t key_b = 0x51544154454b4502ULL;
+  void *handler = (void *) poly_trap_vector_handler;
+
+  poly_state_key_set_value(key_a);
+  if (poly_state_key_get() != key_a) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key A get mismatch got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return 1;
+  }
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value((uint64_t) handler);
+
+  poly_state_key_set_value(key_b);
+  if (poly_state_key_get() != key_b) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key B get mismatch got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key B inherited trap vector got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key B inherited trap mode got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+
+  poly_state_key_set_value(key_a);
+  poly_trap_vector_get();
+  if (read_rax() != (uint64_t) handler) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key A lost trap vector got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key A lost trap mode got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_state_key_set_value(key_b);
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_state_key_set_value(0);
+  if (poly_state_key_get() != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key disable mismatch got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return 1;
+  }
+
+  puts("NATIVE_POLY_STATE_KEY_OK");
+  return 0;
+}
+
 int main(void) {
   const char *expect_poly_cpuid = getenv("EXPECT_POLY_CPUID");
   const char *expect_poly_compat_traps = getenv("EXPECT_POLY_COMPAT_TRAPS");
@@ -607,6 +682,8 @@ int main(void) {
     }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
+      return 1;
+    if (run_poly_state_key_probe() != 0)
       return 1;
   }
   puts("NATIVE_CHECK_OK");
