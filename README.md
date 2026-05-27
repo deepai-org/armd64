@@ -691,7 +691,8 @@ numbers currently include:
   `rseq`, `exit`, and `exit_group`.
 - File-style syscalls: `getcwd`, `eventfd2`, `inotify_init1`,
   `inotify_add_watch`, `inotify_rm_watch`, `dup3`, `pipe2`,
-  `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
+  `timer_create`, `timer_gettime`, `timer_getoverrun`, `timer_settime`,
+  `timer_delete`, `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
   `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `fsync`,
   `fdatasync`, `sync_file_range`, `fadvise64`, `statfs`, `fstatfs`,
   `truncate`, `ftruncate`, `fallocate`, `chdir`, `fchdir`, `fchmod`,
