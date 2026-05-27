@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -48,14 +49,47 @@ static void poly_trap_vector_handler(void) {
   __asm__(
     "cmpq $1, %rax\n"
     "jne 3f\n"
-    "cmpq $172, %rcx\n"
-    "jne 9f\n"
     "cmpq $3, %rbx\n"
     "je 1f\n"
     "cmpq $4, %rbx\n"
     "jne 9f\n"
     "1:\n"
+    "cmpq $172, %rcx\n"
+    "je 20f\n"
+    "cmpq $173, %rcx\n"
+    "je 21f\n"
+    "cmpq $174, %rcx\n"
+    "je 22f\n"
+    "cmpq $175, %rcx\n"
+    "je 23f\n"
+    "cmpq $176, %rcx\n"
+    "je 24f\n"
+    "cmpq $177, %rcx\n"
+    "je 25f\n"
+    "cmpq $178, %rcx\n"
+    "je 26f\n"
+    "jmp 9f\n"
+    "20:\n"
     "movq $39, %rax\n"
+    "jmp 2f\n"
+    "21:\n"
+    "movq $110, %rax\n"
+    "jmp 2f\n"
+    "22:\n"
+    "movq $102, %rax\n"
+    "jmp 2f\n"
+    "23:\n"
+    "movq $107, %rax\n"
+    "jmp 2f\n"
+    "24:\n"
+    "movq $104, %rax\n"
+    "jmp 2f\n"
+    "25:\n"
+    "movq $108, %rax\n"
+    "jmp 2f\n"
+    "26:\n"
+    "movq $186, %rax\n"
+    "2:\n"
     "syscall\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
@@ -173,6 +207,24 @@ static int parse_request(const char *arg, struct poly_request *request) {
   if (expected) {
     if (strcmp(expected + 1, "pid") == 0) {
       request->expected = (uint64_t) getpid();
+    }
+    else if (strcmp(expected + 1, "ppid") == 0) {
+      request->expected = (uint64_t) getppid();
+    }
+    else if (strcmp(expected + 1, "uid") == 0) {
+      request->expected = (uint64_t) getuid();
+    }
+    else if (strcmp(expected + 1, "euid") == 0) {
+      request->expected = (uint64_t) geteuid();
+    }
+    else if (strcmp(expected + 1, "gid") == 0) {
+      request->expected = (uint64_t) getgid();
+    }
+    else if (strcmp(expected + 1, "egid") == 0) {
+      request->expected = (uint64_t) getegid();
+    }
+    else if (strcmp(expected + 1, "tid") == 0) {
+      request->expected = (uint64_t) syscall(SYS_gettid);
     }
     else if (parse_u64(expected + 1, &request->expected) < 0) {
       fprintf(stderr, "POLYEXEC_FAIL: bad expected value: %s\n", arg);

@@ -26,10 +26,11 @@ Linux ABI passthrough, or equal-speed execution.
 - The `make boot-poly-arch-traps` path disables the Bochs compatibility
   dispatcher and verifies that AArch64/RISC-V syscall and breakpoint traps route
   through the architectural trap vector.  Its guest x86 handler translates the
-  foreign `getpid` syscall into a real x86 Linux `syscall`, then resumes the
-  original raw frontend with `POLY_TRAP_RETURN`; it also runs generated
-  AArch64/RISC-V `getpid`, `strlen`, `memfill`, `memcmp`, and `memcpy` ELF
-  payloads through the same disabled-compat path.
+  foreign process-identity syscalls into real x86 Linux `syscall`
+  instructions, then resumes the original raw frontend with
+  `POLY_TRAP_RETURN`; it also runs generated AArch64/RISC-V process-identity,
+  `strlen`, `memfill`, `memcmp`, and `memcpy` ELF payloads through the same
+  disabled-compat path.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
