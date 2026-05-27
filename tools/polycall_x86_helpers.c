@@ -67,6 +67,48 @@ float POLY_HOST_HELPER poly_host_x86_fp32_add(float a, float b)
   return a + b + 200.5f;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_clzdi2(uint64_t value)
+{
+  uint64_t count = 0;
+  for (int bit = 63; bit >= 0; bit--) {
+    if ((value >> bit) & 1)
+      break;
+    count++;
+  }
+  return count;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_ctzdi2(uint64_t value)
+{
+  uint64_t count = 0;
+  for (int bit = 0; bit < 64; bit++) {
+    if ((value >> bit) & 1)
+      break;
+    count++;
+  }
+  return count;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_paritydi2(uint64_t value)
+{
+  uint64_t parity = 0;
+  while (value) {
+    parity ^= value & 1;
+    value >>= 1;
+  }
+  return parity;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_popcountdi2(uint64_t value)
+{
+  uint64_t count = 0;
+  while (value) {
+    count += value & 1;
+    value >>= 1;
+  }
+  return count;
+}
+
 static uint64_t poly_host_bound_4096(uint64_t count)
 {
   return count < 4096 ? count : 4096;
