@@ -2866,6 +2866,8 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     rpath_offset;
   const char *search_path = NULL;
   size_t search_path_len = 0;
+  const char *library_path = getenv("LD_LIBRARY_PATH");
+  const size_t library_path_len = library_path ? strlen(library_path) : 0;
   if (search_path_offset != 0 && search_path_offset < strsz) {
     const void *end = memchr(strings + search_path_offset, '\0',
       (size_t) (strsz - search_path_offset));
@@ -2895,7 +2897,11 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     const char *needed = strings + needed_offset;
     char needed_path[MAX_DEP_PATH];
     int found_needed = -1;
-    if (needed[0] != '/' && search_path_len != 0)
+    if (needed[0] != '/' && library_path_len != 0)
+      found_needed = build_runpath_needed_path(origin_path, owner->arch_name,
+        library_path, library_path_len, needed, needed_path,
+        sizeof(needed_path));
+    if (needed[0] != '/' && search_path_len != 0 && found_needed < 0)
       found_needed = build_runpath_needed_path(origin_path, owner->arch_name,
         search_path, search_path_len, needed, needed_path,
         sizeof(needed_path));

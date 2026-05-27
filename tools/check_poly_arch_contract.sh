@@ -188,6 +188,10 @@ assert_contains "pcall-platform-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover PLATFORM token expansion in DT_RUNPATH directories"
 assert_contains '\$PLATFORM' "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must expand PLATFORM dynamic-string tokens in DT_RUNPATH entries"
+assert_contains "pcall-ld-library-path-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover LD_LIBRARY_PATH dependency lookup"
+assert_contains "LD_LIBRARY_PATH" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must honor LD_LIBRARY_PATH for foreign dependency lookup"
 assert_contains "pcall-runpath-prefer-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover DT_RUNPATH precedence over fallback directories"
 assert_contains "found_needed" "$ROOT_DIR/tools/polycall.c" \
