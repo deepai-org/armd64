@@ -415,6 +415,14 @@ extern unsigned __int128 poly_host_x86_umodti3(
     unsigned __int128 dividend, unsigned __int128 divisor);
 extern __int128 poly_host_x86_divti3(__int128 dividend, __int128 divisor);
 extern __int128 poly_host_x86_modti3(__int128 dividend, __int128 divisor);
+extern __int128 poly_host_x86_fixdfti(double source);
+extern unsigned __int128 poly_host_x86_fixunsdfti(double source);
+extern double poly_host_x86_floattidf(__int128 source);
+extern double poly_host_x86_floatuntidf(unsigned __int128 source);
+extern __int128 poly_host_x86_fixsfti(float source);
+extern unsigned __int128 poly_host_x86_fixunssfti(float source);
+extern float poly_host_x86_floattisf(__int128 source);
+extern float poly_host_x86_floatuntisf(unsigned __int128 source);
 extern uint64_t poly_host_x86_clzdi2(uint64_t value);
 extern uint64_t poly_host_x86_ctzdi2(uint64_t value);
 extern uint64_t poly_host_x86_paritydi2(uint64_t value);
@@ -436,6 +444,8 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "memalign", "atexit", "__cxa_atexit", "__cxa_finalize", "getpid",
     "getppid", "getuid", "geteuid", "getgid", "getegid", "gettid",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
+    "__fixdfti", "__fixunsdfti", "__floattidf", "__floatuntidf",
+    "__fixsfti", "__fixunssfti", "__floattisf", "__floatuntisf",
     "__clzdi2", "__ctzdi2", "__paritydi2", "__popcountdi2"
   };
 
@@ -593,6 +603,22 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_x86_divti3;
     case POLY_IMPORT_FUNC_MODTI3:
       return (uint64_t) (uintptr_t) poly_host_x86_modti3;
+    case POLY_IMPORT_FUNC_FIXDFTI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixdfti;
+    case POLY_IMPORT_FUNC_FIXUNSDFTI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixunsdfti;
+    case POLY_IMPORT_FUNC_FLOATTIDF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floattidf;
+    case POLY_IMPORT_FUNC_FLOATUNTIDF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floatuntidf;
+    case POLY_IMPORT_FUNC_FIXSFTI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixsfti;
+    case POLY_IMPORT_FUNC_FIXUNSSFTI:
+      return (uint64_t) (uintptr_t) poly_host_x86_fixunssfti;
+    case POLY_IMPORT_FUNC_FLOATTISF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floattisf;
+    case POLY_IMPORT_FUNC_FLOATUNTISF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floatuntisf;
     case POLY_IMPORT_FUNC_CLZDI2:
       return (uint64_t) (uintptr_t) poly_host_x86_clzdi2;
     case POLY_IMPORT_FUNC_CTZDI2:

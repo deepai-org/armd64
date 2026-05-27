@@ -119,6 +119,46 @@ __int128 POLY_HOST_HELPER poly_host_x86_modti3(__int128 dividend,
   return dividend % divisor;
 }
 
+__int128 POLY_HOST_HELPER poly_host_x86_fixdfti(double source)
+{
+  return (__int128) source;
+}
+
+unsigned __int128 POLY_HOST_HELPER poly_host_x86_fixunsdfti(double source)
+{
+  return (unsigned __int128) source;
+}
+
+double POLY_HOST_HELPER poly_host_x86_floattidf(__int128 source)
+{
+  return (double) source;
+}
+
+double POLY_HOST_HELPER poly_host_x86_floatuntidf(unsigned __int128 source)
+{
+  return (double) source;
+}
+
+__int128 POLY_HOST_HELPER poly_host_x86_fixsfti(float source)
+{
+  return (__int128) source;
+}
+
+unsigned __int128 POLY_HOST_HELPER poly_host_x86_fixunssfti(float source)
+{
+  return (unsigned __int128) source;
+}
+
+float POLY_HOST_HELPER poly_host_x86_floattisf(__int128 source)
+{
+  return (float) source;
+}
+
+float POLY_HOST_HELPER poly_host_x86_floatuntisf(unsigned __int128 source)
+{
+  return (float) source;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_clzdi2(uint64_t value)
 {
   uint64_t count = 0;

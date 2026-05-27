@@ -642,7 +642,10 @@ environment, allocation, teardown-registration, stack-failure, aux-vector/page-s
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
 `__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, plus scalar
 libgcc 128-bit div/mod helpers `__udivti3`, `__umodti3`, `__divti3`, and
-`__modti3`, and bit helpers `__clzdi2`, `__ctzdi2`, `__paritydi2`, and
+`__modti3`, scalar int128/float conversion helpers `__fixdfti`,
+`__fixunsdfti`, `__floattidf`, `__floatuntidf`, `__fixsfti`,
+`__fixunssfti`, `__floattisf`, and `__floatuntisf`, and bit helpers
+`__clzdi2`, `__ctzdi2`, `__paritydi2`, and
 `__popcountdi2`.  For `poly_import_add`/`poly_import_mul`,
 `poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory
 helpers, the OS-sensitive environment/allocation/teardown/process-query class,
