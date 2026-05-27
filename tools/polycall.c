@@ -170,6 +170,7 @@ enum {
   POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS = (1U << 8),
   POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK = (1U << 9),
   POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET = (1U << 10),
+  POLY_ABI_BRIDGE_FLAG_VEC128 = (1U << 11),
   POLY_ABI_BRIDGE_GPR_ARG_COUNT = 8,
   POLY_ABI_BRIDGE_FP_ARG_COUNT = 8,
   POLY_ABI_BRIDGE_STACK_ALIGN = 16
@@ -186,7 +187,8 @@ static const uint32_t POLY_ABI_BRIDGE_REQUIRED_FLAGS =
   POLY_ABI_BRIDGE_FLAG_TLS_BASE |
   POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS |
   POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK |
-  POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET;
+  POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET |
+  POLY_ABI_BRIDGE_FLAG_VEC128;
 
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
@@ -474,20 +476,43 @@ static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
   return regs;
 }
 
-static int read_poly_import_contract(struct poly_import_contract *contract) {
-  const struct poly_cpuid_regs descriptor =
-    read_cpuid(POLY_CPUID_BASE + 2, 2);
-  const struct poly_cpuid_regs manifest =
-    read_cpuid(POLY_CPUID_BASE + 2, 5);
+static int read_poly_abi_bridge_contract(struct poly_import_contract *contract) {
   const struct poly_cpuid_regs abi_bridge =
     read_cpuid(POLY_CPUID_BASE + 9, 0);
-  const uint64_t call_base =
-    ((uint64_t) manifest.ecx << 32) | manifest.ebx;
   const uint32_t abi_gpr_arg_count = abi_bridge.ecx & 0xffU;
   const uint32_t abi_fp_arg_count = (abi_bridge.ecx >> 8) & 0xffU;
   const uint32_t abi_stack_align = (abi_bridge.ecx >> 16) & 0xffffU;
   const uint32_t abi_descriptor_size = abi_bridge.edx & 0xffffU;
   const uint32_t abi_call_stride = (abi_bridge.edx >> 16) & 0xffffU;
+
+  if (abi_bridge.eax != POLY_ABI_BRIDGE_ABI_VERSION ||
+      (abi_bridge.ebx & POLY_ABI_BRIDGE_REQUIRED_FLAGS) !=
+        POLY_ABI_BRIDGE_REQUIRED_FLAGS ||
+      abi_gpr_arg_count != POLY_ABI_BRIDGE_GPR_ARG_COUNT ||
+      abi_fp_arg_count != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
+      abi_stack_align != POLY_ABI_BRIDGE_STACK_ALIGN ||
+      abi_descriptor_size != POLY_X86_IMPORT_DESCRIPTOR_SIZE ||
+      abi_call_stride != POLY_IMPORT_CALL_STRIDE) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x)\n",
+      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);
+    return -1;
+  }
+
+  contract->abi_flags = abi_bridge.ebx;
+  contract->gpr_arg_count = abi_gpr_arg_count;
+  contract->fp_arg_count = abi_fp_arg_count;
+  contract->stack_align = abi_stack_align;
+  return 0;
+}
+
+static int read_poly_import_contract(struct poly_import_contract *contract) {
+  const struct poly_cpuid_regs descriptor =
+    read_cpuid(POLY_CPUID_BASE + 2, 2);
+  const struct poly_cpuid_regs manifest =
+    read_cpuid(POLY_CPUID_BASE + 2, 5);
+  const uint64_t call_base =
+    ((uint64_t) manifest.ecx << 32) | manifest.ebx;
 
   if (descriptor.eax != POLY_IMPORT_FUNC_X86_SLOT0 ||
       descriptor.ebx !=
@@ -504,30 +529,12 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
       return -1;
   }
 
-  if (abi_bridge.eax != POLY_ABI_BRIDGE_ABI_VERSION ||
-      (abi_bridge.ebx & POLY_ABI_BRIDGE_REQUIRED_FLAGS) !=
-        POLY_ABI_BRIDGE_REQUIRED_FLAGS ||
-      abi_gpr_arg_count != POLY_ABI_BRIDGE_GPR_ARG_COUNT ||
-      abi_fp_arg_count != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
-      abi_stack_align != POLY_ABI_BRIDGE_STACK_ALIGN ||
-      abi_descriptor_size != POLY_X86_IMPORT_DESCRIPTOR_SIZE ||
-      abi_call_stride != POLY_IMPORT_CALL_STRIDE) {
-    fprintf(stderr,
-      "POLYCALL_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x)\n",
-      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);
-    return -1;
-  }
-
   contract->call_base = call_base;
   contract->call_stride = manifest.edx;
   contract->import_count = manifest.eax;
   contract->x86_slot0 = descriptor.eax;
   contract->x86_slot_count = descriptor.ebx;
   contract->x86_descriptor_size = descriptor.ecx;
-  contract->abi_flags = abi_bridge.ebx;
-  contract->gpr_arg_count = abi_gpr_arg_count;
-  contract->fp_arg_count = abi_fp_arg_count;
-  contract->stack_align = abi_stack_align;
   return 0;
 }
 
@@ -4664,15 +4671,16 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
   const int needs_x86_import = program->needs_x86_import;
   struct poly_import_contract import_contract = {
-    POLY_IMPORT_CALL_BASE,
-    POLY_IMPORT_CALL_STRIDE,
-    POLY_IMPORT_FUNC_COUNT,
-    POLY_IMPORT_FUNC_X86_SLOT0,
-    POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1,
-    POLY_X86_IMPORT_DESCRIPTOR_SIZE
+    .call_base = POLY_IMPORT_CALL_BASE,
+    .call_stride = POLY_IMPORT_CALL_STRIDE,
+    .import_count = POLY_IMPORT_FUNC_COUNT,
+    .x86_slot0 = POLY_IMPORT_FUNC_X86_SLOT0,
+    .x86_slot_count = POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1,
+    .x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE
   };
-  if (needs_x86_import &&
-      read_poly_import_contract(&import_contract) < 0)
+  if (read_poly_abi_bridge_contract(&import_contract) < 0)
+    return -1;
+  if (needs_x86_import && read_poly_import_contract(&import_contract) < 0)
     return -1;
   const size_t callee_save_size = 33;
   const size_t callee_restore_size = 33;
