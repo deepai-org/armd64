@@ -16,15 +16,13 @@
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x24,0x32,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_LIBCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_LIBCALL_STATUS_MODE ".byte 0x0f,0x24,0x3a,0x50,0x4f,0x4c,0x59,0x21\n"
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
   return value;
-}
-
-static inline void write_rax(uint64_t value) {
-  asm volatile("" :: "a"(value) : "memory");
 }
 
 static inline uint64_t read_xmm0_u64(void) {
@@ -37,16 +35,16 @@ static inline void write_xmm0_u64(uint64_t value) {
   asm volatile("movq %0,%%xmm0" :: "r"(value) : "xmm0", "memory");
 }
 
-static inline void poly_trap_vector_set(void) {
-  asm volatile(POLY_OP_TRAP_VECTOR_SET ::: "memory");
+static inline void poly_trap_vector_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
 }
 
 static inline void poly_trap_vector_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_GET ::: "memory");
 }
 
-static inline void poly_trap_vector_mode_set(void) {
-  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET ::: "memory");
+static inline void poly_trap_vector_mode_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
 }
 
 static inline void poly_trap_vector_mode_get(void) {
@@ -68,6 +66,18 @@ static inline uint64_t poly_syscall_status_number(void) {
 static inline uint64_t poly_syscall_status_mode(void) {
   uint64_t value;
   asm volatile(POLY_OP_SYSCALL_STATUS_MODE : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_libcall_status_number(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_LIBCALL_STATUS_NUMBER : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_libcall_status_mode(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_LIBCALL_STATUS_MODE : "=a"(value) :: "memory");
   return value;
 }
 
@@ -156,10 +166,8 @@ __asm__(
 static int run_poly_trap_vector_probe(void) {
   void *handler = (void *) poly_trap_vector_handler;
   uint64_t expected_pid = (uint64_t) getpid();
-  write_rax(POLY_MODE_X86);
-  poly_trap_vector_mode_set();
-  write_rax((uint64_t) handler);
-  poly_trap_vector_set();
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value((uint64_t) handler);
   poly_trap_vector_get();
   if (read_rax() != (uint64_t) handler) {
     fputs("NATIVE_CHECK_FAIL: poly trap vector get mismatch\n", stderr);
@@ -203,7 +211,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd2801588\n" // movz x8,#172
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   uint64_t result = read_rax();
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 svc trap vector result mismatch got=%llu expected=%llu\n",
@@ -261,7 +270,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x0ac00893\n" // addi x17,x0,172
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ecall trap vector result mismatch got=%llu expected=%llu\n",
@@ -283,7 +293,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x8b040000\n" // add x0,x0,x4
     ".long 0x8b050000\n" // add x0,x0,x5
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 20) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved args mismatch got=%llu\n",
@@ -305,7 +316,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00e50533\n" // add a0,a0,a4
     ".long 0x00f50533\n" // add a0,a0,a5
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 20) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved args mismatch got=%llu\n",
@@ -319,7 +331,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xaa0803e0\n" // mov x0,x8
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 172) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved syscall register mismatch got=%llu\n",
@@ -333,7 +346,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x00088513\n" // addi a0,a7,0
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 172) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved syscall register mismatch got=%llu\n",
@@ -347,7 +361,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd2801588\n" // movz x8,#172
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   uint64_t fp_result = read_xmm0_u64();
   if (fp_result != 0x4008000000000000ULL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved fp register mismatch got=0x%llx\n",
@@ -361,7 +376,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   fp_result = read_xmm0_u64();
   if (fp_result != 0x4010000000000000ULL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved fp register mismatch got=0x%llx\n",
@@ -373,11 +389,57 @@ static int run_poly_trap_vector_probe(void) {
     POLY_OP_ENTER_A64
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 4444) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 brk trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_BREAK) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet reason mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  if (poly_libcall_status_number() != 5 ||
+      poly_libcall_status_mode() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent libcall status mismatch number=%llu mode=%llu\n",
+      (unsigned long long) poly_libcall_status_number(),
+      (unsigned long long) poly_libcall_status_mode());
+    return 1;
+  }
+  pid_t break_child = fork();
+  if (break_child < 0) {
+    fputs("NATIVE_CHECK_FAIL: poly break packet fork failed\n", stderr);
+    return 1;
+  }
+  if (break_child == 0) {
+    if (poly_trap_status_reason() != 0)
+      _exit(31);
+    if (poly_libcall_status_number() != 0)
+      _exit(32);
+    if (poly_libcall_status_mode() != POLY_MODE_X86)
+      _exit(33);
+    _exit(0);
+  }
+  status = 0;
+  if (waitpid(break_child, &status, 0) != break_child || !WIFEXITED(status) ||
+      WEXITSTATUS(status) != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly break packet leaked across address space status=0x%x\n",
+      status);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_BREAK) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet lost after fork got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  if (poly_libcall_status_number() != 5 ||
+      poly_libcall_status_mode() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent libcall status lost after fork number=%llu mode=%llu\n",
+      (unsigned long long) poly_libcall_status_number(),
+      (unsigned long long) poly_libcall_status_mode());
     return 1;
   }
 
@@ -386,18 +448,24 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00500893\n" // addi x17,x0,5
     ".long 0x00100073\n" // ebreak
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 4545) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ebreak trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
+  if (poly_libcall_status_number() != 5 ||
+      poly_libcall_status_mode() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv libcall status mismatch number=%llu mode=%llu\n",
+      (unsigned long long) poly_libcall_status_number(),
+      (unsigned long long) poly_libcall_status_mode());
+    return 1;
+  }
 
-  write_rax(POLY_MODE_RAW_AARCH64);
-  poly_trap_vector_mode_set();
-  write_rax((uint64_t) (void *) poly_aarch64_trap_vector_raw);
-  poly_trap_vector_set();
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
+  poly_trap_vector_set_value((uint64_t) (void *) poly_aarch64_trap_vector_raw);
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00100513\n" // addi a0,zero,1
@@ -409,7 +477,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 trap vector result mismatch got=%llu\n",
@@ -417,10 +486,8 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
-  write_rax(POLY_MODE_RAW_RISCV);
-  poly_trap_vector_mode_set();
-  write_rax((uint64_t) (void *) poly_riscv_trap_vector_raw);
-  poly_trap_vector_set();
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value((uint64_t) (void *) poly_riscv_trap_vector_raw);
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800020\n" // movz x0,#1
@@ -432,7 +499,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd2801588\n" // movz x8,#172
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "memory");
   result = read_rax();
   if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv trap vector result mismatch got=%llu\n",
@@ -440,10 +508,8 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
-  write_rax(0);
-  poly_trap_vector_set();
-  write_rax(POLY_MODE_X86);
-  poly_trap_vector_mode_set();
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
   puts("NATIVE_POLY_TRAP_VECTOR_OK");
   return 0;
 }

@@ -39,8 +39,8 @@ Linux ABI passthrough, or equal-speed execution.
   `nativecheck.elf` also verifies trap return preserves the source frontend's
   live native argument, syscall-number, and scalar FP alias registers while
   committing only the handler result, and that a userspace-installed trap
-  vector and recorded trap packet do not leak across a `fork()` address-space
-  boundary.
+  vector, recorded trap packet, last-syscall status, and last-break/libcall
+  status do not leak across a `fork()` address-space boundary.
 - The `make boot-poly-binfmt-arch-traps` path also disables the compatibility
   dispatcher, registers `binfmt_misc`, and executes a focused AArch64/RISC-V
   ELF set, including generated `ET_DYN #poly_entry` payloads, through the same
