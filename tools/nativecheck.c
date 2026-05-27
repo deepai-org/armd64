@@ -870,6 +870,18 @@ int main(void) {
         state.eax, state.ebx, state.ecx, state.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_arch_state =
+      poly_cpuid_expected_arch_state_leaf();
+    struct poly_cpuid_regs arch_state =
+      poly_read_cpuid(POLY_CPUID_BASE + 4, 0);
+    if (arch_state.eax != expected_arch_state.eax ||
+        arch_state.ebx != expected_arch_state.ebx ||
+        arch_state.ecx != expected_arch_state.ecx ||
+        arch_state.edx != expected_arch_state.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID arch state leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        arch_state.eax, arch_state.ebx, arch_state.ecx, arch_state.edx);
+      return 1;
+    }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
       return 1;

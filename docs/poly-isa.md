@@ -156,7 +156,7 @@ ordinary `UD2` retains standard invalid-opcode behavior.
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
 
-- `CPUID.EAX=0x40000000`: `EAX=0x40000003`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000000`: `EAX=0x40000004`, `EBX:EDX:ECX="PolyglotCPU!"`.
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
@@ -213,6 +213,39 @@ discover the experimental hardware contract before emitting poly operations:
   records are part of this keyed prototype state until an XSAVE component is
   assigned.  `ECX=0` and
   `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
+- `CPUID.EAX=0x40000004`: silicon-target XSAVE contract discovery.  `EAX=11`
+  is the proposed XCR0 component number, `EBX=4096` is the component byte
+  size, `ECX[15:0]=1` is the layout version, `ECX[31:16]=64` is the required
+  byte alignment, and `EDX=0x1f` reports flags: user XCR0 component,
+  OSXSAVE/XRSTOR required, interrupt-resume state present, trap state present,
+  and no hidden foreign register banks permitted.  This is a formal hardware
+  ABI definition.  It is active only when leaf `0x40000003.EAX` sets bit `7`
+  and leaf `0x40000001.EDX` reports the same component id; the Bochs
+  prototype intentionally leaves those active fields clear while it still uses
+  keyed synthetic banks.
+
+The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
+
+| Offset | Size | Contents |
+| --- | ---: | --- |
+| `0x000` | `0x040` | Header: magic/version/size, current frontend mode, flags, foreign PC, foreign TLS base, trap-vector PC, and trap-vector mode. |
+| `0x040` | `0x040` | Last architectural trap packet header: reason, source mode, trap number, selector/immediate, trap PC, and resume PC. |
+| `0x080` | `0x030` | Last trap argument registers `arg0`-`arg5`. |
+| `0x0b0` | `0x050` | Active cross-frontend transition record and reserved expansion. |
+| `0x100` | `0x100` | AArch64 integer state: `x0`-`x30` plus `sp`, each 64-bit. |
+| `0x200` | `0x200` | AArch64 SIMD/FP state: `v0`-`v31`, each 128-bit. |
+| `0x400` | `0x080` | AArch64 `NZCV`, `FPCR`, `FPSR`, reservation metadata, and reserved expansion. |
+| `0x480` | `0x100` | RISC-V integer state: `x0`-`x31`, each 64-bit; `x0` is saved as zero and ignored on restore. |
+| `0x580` | `0x200` | RISC-V FP state: `f0`-`f31`, each stored in a 128-bit slot for future FLEN growth. |
+| `0x780` | `0x080` | RISC-V `fcsr`, reservation metadata, and reserved expansion. |
+| `0x800` | `0x800` | Reserved, zero on save and ignored on restore until a future layout version assigns it. |
+
+This component contains only polyglot-extension state.  Existing x86 GPR,
+RFLAGS, RIP, XMM/YMM/ZMM, x87, PKRU, and similar state remain in their normal
+x86 architectural save locations.  Hardware must update this component before
+delivering asynchronous events from raw foreign fetch and must restore the
+recorded frontend mode/PC on `IRET`, `SYSRET`, `SYSEXIT`, or signal-return
+equivalent when returning to the interrupted user address.
 
 Raw foreign modes also have native frontend-switch encodings so x86 is not the
 only routing hub:
