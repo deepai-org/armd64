@@ -51,8 +51,10 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
   using the same raw-mode execution path, preserving executable bytes exactly
   so RISC-V compressed 16-bit code does not have to be repacked as 32-bit
-  words. The full boot gate includes a 6-byte compressed RISC-V ELF entry
-  segment to cover this path.
+  words. It accepts explicit `foreign.elf#symbol` entries for generated
+  `ET_DYN` images and applies simple architecture-relative dynamic relocations
+  in userspace before entering raw mode. The full boot gate includes a 6-byte
+  compressed RISC-V ELF entry segment to cover this path.
 - `tools/polycall.c` loads generated foreign ELF64 function payloads and calls
   their entrypoints through the prototype hardware ABI bridge (`PCALL`), so
   the return path uses ordinary AArch64/RISC-V return instructions rather than
@@ -899,9 +901,11 @@ Expected success markers include:
 - Foreign ELF support is limited to the generated static payload shape used by
   `tools/mkpolyelf.c`, `tools/polyapp.c`, and `tools/polyexec.c`, but both
   `polyapp` and `polyexec` load variable-size executable images up to 1 MiB.
-  `polyexec` now preserves later `PT_LOAD` contents at their entry-relative
-  offsets so split text/data payloads keep page-relative data references.
-  It still does not provide a full Linux ELF loader or dynamic linker.
+  `polyexec` now preserves later `PT_LOAD` contents at their loaded image
+  offsets so split text/data payloads keep page-relative data references, and
+  it can run generated `ET_DYN` symbol entries with `RELA`, `REL`, and `RELR`
+  relative relocations. It still does not provide a full Linux ELF loader or
+  dynamic linker.
   `polyexec` preserves raw executable bytes, accepting 4-byte-aligned AArch64
   and 2-byte-aligned RISC-V entry segments for compressed-code compatibility;
   `riscv-compressed-half.elf` and `riscv-compressed-jalr.elf` verify RISC-V
