@@ -215,7 +215,10 @@ enum {
   POLY_IMPORT_FUNC_STRNDUP = 126,
   POLY_IMPORT_FUNC_POSIX_MEMALIGN = 127,
   POLY_IMPORT_FUNC_ALIGNED_ALLOC = 128,
-  POLY_IMPORT_FUNC_MEMALIGN = 129
+  POLY_IMPORT_FUNC_MEMALIGN = 129,
+  POLY_IMPORT_FUNC_ATEXIT = 130,
+  POLY_IMPORT_FUNC_CXA_ATEXIT = 131,
+  POLY_IMPORT_FUNC_CXA_FINALIZE = 132
 };
 
 enum {
@@ -837,6 +840,18 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "memalign") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_MEMALIGN * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "atexit") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ATEXIT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__cxa_atexit") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CXA_ATEXIT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__cxa_finalize") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CXA_FINALIZE * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
