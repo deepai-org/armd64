@@ -97,8 +97,9 @@ Linux ABI passthrough, or equal-speed execution.
   words. It accepts explicit `foreign.elf#symbol` entries for generated
   `ET_DYN` images, resolves sectionless `DT_GNU_HASH`-only shared-object
   entrypoints, and applies simple architecture-relative dynamic relocations in
-  userspace before entering raw mode. The full boot gate includes a 6-byte
-  compressed RISC-V ELF entry segment to cover this path.
+  userspace before entering raw mode. The full boot gate includes both a
+  6-byte compressed RISC-V ELF entry segment and a compiler-built RV64GC
+  GNU-hash shared object to cover this path.
 - `tools/polycall.c` loads generated foreign ELF64 function payloads and calls
   their entrypoints through the prototype hardware ABI bridge (`PCALL`), so
   the return path uses ordinary AArch64/RISC-V return instructions rather than

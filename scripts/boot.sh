@@ -1301,6 +1301,11 @@ build_poly_elf_payloads() {
     "$POLYEXEC_GNU_HASH_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64gc -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
+    "$POLYEXEC_GNU_HASH_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_STATE_SRC" \
@@ -3621,6 +3626,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so#poly_entry=45 \
+    /usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so#poly_entry=45 \
     /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
@@ -4049,6 +4055,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-mem.elf \
       /usr/lib/polyapps/riscv-pcall-split-load.elf \
       /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so \
+      /usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so \
       /usr/lib/polyapps/riscv-pcall-dynrel.elf \
       /usr/lib/polyapps/riscv-pcall-rel.elf \
       /usr/lib/polyapps/riscv-pcall-relr.elf \
