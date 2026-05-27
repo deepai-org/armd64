@@ -1,61 +1,46 @@
 # Bochs Polyglot CPU Harness
 
-Boots x86_64 Linux in modified Bochs and tests a prototype CPU extension for
-running precompiled AArch64 and RISC-V code from x86_64 userspace. The target
-is real binary compatibility, including cross-ISA libraries linked into x86_64
-programs.
-
-## Requirements
-
-- Docker with `linux/arm64` support.
-- The checked-in `bochs-prepoly-src/` tree.
+Boots x86_64 Linux in a modified Bochs CPU model and tests a prototype ISA
+extension for running precompiled AArch64 and RISC-V code from x86_64
+userspace.
 
 ## Run
+
+Requires Docker with `linux/arm64` support and the checked-in
+`bochs-prepoly-src/` tree.
 
 ```bash
 make image                       # Build the Bochs/test image.
 make boot                        # Baseline x86_64 Linux boot.
 make boot-poly                   # Main poly smoke tests.
-make boot-poly-call-arch-traps   # Cross-ISA library calls.
-make boot-poly-binfmt-arch-traps # Foreign ELF app execution.
-make boot-poly-full-arch-traps   # Broad poly test set.
-make clean                       # Remove generated output.
+make boot-poly-call-arch-traps   # Cross-ISA library call tests.
+make boot-poly-binfmt-arch-traps # Foreign ELF execution through binfmt.
+make boot-poly-full-arch-traps   # Broadest current boot test set.
+make clean                       # Remove generated artifacts.
 ```
 
-- `out/serial.log`: guest console and pass/fail markers.
-- `out/bochs.log`: Bochs CPU/device log.
-- `out/bochs-boot.iso`: generated boot ISO.
+Read `out/serial.log` for guest pass/fail markers and `out/bochs.log` for the
+Bochs CPU/device log.
 
-Useful markers: `BOOT_OK`, `POLY_PROBE_OK`, `POLYAPP_OK`, `POLYCALL_OK`,
-`POLYTHREAD_OK`, `POLYSIGNAL_OK`, `POLYBINFMT_OK`.
+## How The ISA Differs From x86_64
 
-## ISA Difference From x86_64
-
-x86_64 remains the boot ISA, kernel ISA, and default userspace ISA. Ordinary
+x86_64 is still the boot ISA, kernel ISA, and default userspace ISA. Normal
 x86_64 code runs unchanged unless it executes the polyglot extension.
 
-- Discovery uses private CPUID leaves starting at `0x40000000`.
-- Prototype Bochs opcodes use `0f 24 <op> 50 4f 4c 59 21` (`POLY!`).
-- Hardware should use dedicated non-exception opcodes, not `UD2` traps.
+- CPUID advertises the extension through private leaves starting at
+  `0x40000000`.
+- The Bochs prototype encodes poly instructions as
+  `0f 24 <op> 50 4f 4c 59 21` (`POLY!`). Real hardware should use dedicated
+  non-exception opcodes.
 - `PENTER.A64` and `PENTER.RV64` switch from x86 variable-length decode to raw
-  AArch64 or RISC-V decode at the shared program counter.
+  32-bit AArch64 or RISC-V decode at the same virtual address space.
 - `PCALL.*.SYSV` bridges x86_64 SysV callers into native AAPCS64 or RISC-V
-  psABI callees. Existing ABI compatibility wins over a custom compiler ABI.
-- Native foreign returns use return cookies to resume the x86_64 caller.
-- Foreign syscalls, breakpoints, illegal instructions, and traps exit as
-  architectural trap records for OS/runtime policy.
-- Foreign memory uses the same guest virtual memory path as x86_64 and inherits
-  x86 TSO ordering in the prototype.
+  psABI callees. Existing binary compatibility is the goal, not a custom ABI.
+- Foreign returns, syscalls, illegal instructions, and breakpoints become
+  architectural trap/return records for the x86-side runtime or OS policy.
+- Foreign memory uses the same guest virtual memory path as x86_64 and currently
+  inherits x86 TSO ordering.
 - Extra foreign state is internal in Bochs today; hardware should expose it via
-  CPUID/XCR0/XSAVE-like OS-managed state.
+  CPUID/XCR0/XSAVE-style OS-managed state.
 
-Foreign escape instructions:
-
-- AArch64 `brk #0x7fff`: exit to x86_64.
-- AArch64 `brk #0x7ffe`: switch to RISC-V.
-- RISC-V custom-0 `0x0000000b`: exit to x86_64.
-- RISC-V custom-1 `0x0000002b`: switch to AArch64.
-
-Current limits: AArch64/RISC-V instruction coverage is a tested subset,
-`polycall` is not a complete Linux dynamic linker, and equal-speed execution is
-not yet a measured result. Detailed architecture: `docs/poly-isa.md`.
+Detailed architecture notes live in `docs/poly-isa.md`.
