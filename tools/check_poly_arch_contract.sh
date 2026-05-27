@@ -184,6 +184,10 @@ assert_contains "RELOC_BASE_ROOT_TLS_OFFSET" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must have a relocation base for root-object TLS exports"
 assert_contains "resolve_root_tls_symbol" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must resolve dependency TLS relocations against root exports"
+assert_contains "pcall-root-ifunc-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover dependency relocations bound to root IFUNC exports"
+assert_contains "RELOC_BASE_ROOT_IFUNC" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must have a relocation base for root-object IFUNC exports"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

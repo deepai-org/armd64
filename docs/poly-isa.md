@@ -517,7 +517,12 @@ where a needed DSO binds an undefined TLS relocation back to the root loaded
 object (`aarch64-pcall-root-tls-real.so#poly_entry` with
 `libpolyroottls-aarch64.so`, and
 `riscv-pcall-root-tls-real.so#poly_entry` with
-`libpolyroottls-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
+`libpolyroottls-riscv.so`), compiler-produced dependency-to-root IFUNC pairs
+where a needed DSO binds an undefined relocation back to a root IFUNC resolver
+(`aarch64-pcall-root-ifunc-real.so#poly_entry` with
+`libpolyrootifunc-aarch64.so`, and
+`riscv-pcall-root-ifunc-real.so#poly_entry` with
+`libpolyrootifunc-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
 (`aarch64-pcall-needed-tls-real.so#poly_entry` with
 `libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
 with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
@@ -835,7 +840,9 @@ requiring both the matching dependency version definition and the matching
 eligible for external binding even if they appear in dynamic symbol metadata.
 Undefined relocations in dependencies may also bind to exportable symbols in
 the root loaded foreign object, matching common callback/hook patterns in
-ordinary dynamic linking.
+ordinary dynamic linking. Root-exported `STT_GNU_IFUNC` symbols are resolved
+by calling the root resolver in foreign mode before patching dependency
+relocations.
 Weak undefined foreign relocations first try the loaded dependency scope and
 only resolve to zero when no dependency exports the requested symbol.
 When multiple dependency libraries export the same function/object symbol, the

@@ -671,7 +671,7 @@ descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,
 same-directory `DT_NEEDED` foreign shared-library dependencies with direct
 binding of undefined function and object-symbol relocations to dependency
-text/data, dependency-to-root callback and TLS relocations, and dependency-exported symbolic IFUNC resolvers, weak undefined
+text/data, dependency-to-root callback, TLS, and IFUNC relocations, and dependency-exported symbolic IFUNC resolvers, weak undefined
 relocations binding to dependency exports when present, direct-dependency
 symbol interposition ahead of transitive dependencies when symbols collide,
 GNU symbol-version and provider-SONAME matching for dependency exports,
