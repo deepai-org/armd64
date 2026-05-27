@@ -24,6 +24,11 @@ Linux ABI passthrough, or equal-speed execution.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when
   `POLY_ENABLED=0`.
+- The default `make boot-poly` path now keeps Bochs syscall/libcall
+  compatibility disabled and runs the guest trap-vector probe, manifest app
+  suite, focused direct ELF execution, `PCALL`, thread, signal, and native
+  CPUID checks.  This makes the hardware-style trap packet path the normal
+  smoke test.
 - The `make boot-poly-arch-traps` path disables the Bochs compatibility
   dispatcher and verifies that AArch64/RISC-V syscall and breakpoint traps route
   through the architectural trap vector.  Its guest x86 handler translates the
@@ -805,7 +810,7 @@ After the OS-neutral trap packet is recorded, the Bochs prototype can run a
 test-only compatibility service for selected foreign Linux syscall numbers.
 This service is controlled by `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` and
 defaults off so the CPU model exposes the hardware-style trap-exit contract
-rather than Linux/libc policy.  The legacy `make boot-poly` and
+rather than Linux/libc policy.  The legacy `make boot-poly-compat` and
 `make boot-poly-full` regression targets opt in explicitly.  When disabled, the
 prototype records the packet, leaves raw mode, and either enters the configured
 architectural trap vector or raises an x86 `#UD` if no vector is installed.
@@ -902,11 +907,18 @@ Run the baseline x86_64 Linux boot:
 make boot
 ```
 
+Run the default hardware-style poly smoke test with Bochs syscall/libcall
+compatibility disabled and guest trap-vector packet handling:
+
+```bash
+make boot-poly
+```
+
 Run the legacy compatibility-runtime poly probe and manifest-backed generated
 foreign payloads:
 
 ```bash
-make boot-poly
+make boot-poly-compat
 ```
 
 Run the OS-neutral architectural trap-vector gate with Bochs syscall/libcall
