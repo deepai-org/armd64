@@ -155,6 +155,7 @@ POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
 POLY_ELF_GEN_SRC="$ROOT_DIR/tools/mkpolyelf.c"
 POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
 POLY_ENABLED="${POLY_ENABLED:-0}"
+POLY_COMPAT_TRAPS="${POLY_COMPAT_TRAPS:-1}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
@@ -165,6 +166,7 @@ RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
 EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
+EXPECT_POLY_COMPAT_TRAPS="${EXPECT_POLY_COMPAT_TRAPS:-$POLY_COMPAT_TRAPS}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
@@ -2060,6 +2062,7 @@ RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
 EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID"
+EXPECT_POLY_COMPAT_TRAPS="$EXPECT_POLY_COMPAT_TRAPS"
 
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -2077,7 +2080,7 @@ echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
 
 if [ "$RUN_NATIVE_CHECK" = "1" ]; then
-  EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1
+  EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" EXPECT_POLY_COMPAT_TRAPS="$EXPECT_POLY_COMPAT_TRAPS" /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_PROBE" = "1" ]; then
@@ -3465,7 +3468,7 @@ vgaromimage: file=$vga_romimage
 boot: cdrom
 ata0-master: type=cdrom, path="$ISO_IMAGE", status=inserted
 com1: enabled=1, mode=file, dev="$SERIAL_LOG"
-cpu: poly_enabled=$POLY_ENABLED
+cpu: poly_enabled=$POLY_ENABLED, poly_compat_traps=$POLY_COMPAT_TRAPS
 log: "$BOCHS_LOG"
 panic: action=report
 error: action=report

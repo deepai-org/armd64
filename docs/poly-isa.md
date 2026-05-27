@@ -151,8 +151,8 @@ discover the experimental hardware contract before emitting poly operations:
 - `0x40000001.ECX`: feature mask.  Bits `0`-`23` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
-  foreign ordering, per-thread synthetic banks, and deterministic compatibility
-  syscall/libcall traps, the prototype x86 poly opcode family, and two-float
+  foreign ordering, per-thread synthetic banks, optional deterministic
+  compatibility syscall/libcall traps, the prototype x86 poly opcode family, and two-float
   aggregate return packing, two-float aggregate argument unpacking, and
   `{u64,double}`/`{double,u64}`/`{u64,float}`/`{float,u64}` heterogeneous
   aggregate bridging for native ABI `PCALL`, plus RISC-V `{u32,float}` and
@@ -737,6 +737,11 @@ compatibility runtime layered after this trap record.  It is not the final ISA
 contract and intentionally has no Linux or libc meaning at the architectural
 layer.  The final contract is the precise trap exit plus explicit state that
 software can save, restore, inspect, and route.
+
+The runtime is controlled by `cpu.poly_compat_traps` in Bochs.  When it is
+disabled, CPUID feature bit `11` is clear, the trap packet is still recorded,
+and Bochs leaves raw mode with an x86 `#UD` rather than synthesizing a Linux
+syscall or libc result.
 
 ## Compatibility Rule
 

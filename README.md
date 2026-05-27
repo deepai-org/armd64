@@ -125,9 +125,11 @@ The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
 RISC-V, neutral direct switches, native return cookies, x86 SysV `PCALL`,
 `PCALL` sret, scalar FP bridging, trap records, user return restoration, x86 TSO
-foreign ordering, per-thread synthetic banks, and deterministic compatibility
-syscall/libcall traps.  Bit `12` additionally advertises the prototype x86
-poly opcode family. Bit `13` advertises the two-float aggregate return packing
+foreign ordering, and per-thread synthetic banks.  Bit `11` advertises the
+optional Bochs deterministic syscall/libcall compatibility runtime when
+`cpu.poly_compat_traps=1`; it is clear when trap-only architectural exits are
+configured.  Bit `12` additionally advertises the prototype x86 poly opcode
+family. Bit `13` advertises the two-float aggregate return packing
 variants for native ABI `PCALL`; bit `14` advertises two-float aggregate
 argument unpacking; bits `15`-`18` advertise the `{u64,double}`,
 `{double,u64}`, `{u64,float}`, and `{float,u64}` heterogeneous aggregate
@@ -704,9 +706,13 @@ foreign state component.
 
 After the OS-neutral trap packet is recorded, the Bochs prototype can run a
 test-only compatibility service for selected foreign Linux syscall numbers.
-This service is not part of the CPU contract; it stands in for firmware,
-kernel, loader, or userspace-runtime routing that a real implementation would
-provide.  The current service recognizes:
+This service is controlled by `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS` and
+defaults on for the existing regression suite.  When disabled, the prototype
+records the packet, leaves raw mode, and raises an x86 `#UD` instead of
+returning deterministic Linux/libc results.  The service is not part of the CPU
+contract; it stands in for firmware, kernel, loader, or userspace-runtime
+routing that a real implementation would provide.  The current service
+recognizes:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
   `futex`, `set_robust_list`, `get_robust_list`, `kill`, `tkill`, `tgkill`, `sigaltstack`,
@@ -821,7 +827,7 @@ Expected success markers include:
   opcode-family placeholder decoded through `BX_IA_POLYMODE`.
 - AArch64 and RISC-V ISA support is limited to the tested generated subset.
 - Syscall and breakpoint traps are recorded explicitly as OS-neutral packets,
-  but the current compatibility runtime still returns deterministic scaffold
+  but the optional compatibility runtime still returns deterministic scaffold
   results rather than complete host or guest Linux ABI behavior.
 - Equal-speed or minimal-slowdown execution is a design target.  The current
   implementation demonstrates raw direct-fetch execution and multi-burst raw
