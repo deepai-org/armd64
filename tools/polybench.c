@@ -1930,13 +1930,13 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_libcall_aarch64_to_riscv(uint64_t *result,
+static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 256;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv libcall call mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv break call mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -1983,13 +1983,13 @@ static int run_cross_call_libcall_aarch64_to_riscv(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_libcall_riscv_to_aarch64(uint64_t *result,
+static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 256;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 libcall call mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 break call mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -2018,7 +2018,7 @@ static int run_cross_call_libcall_riscv_to_aarch64(uint64_t *result,
   while ((offset & 3U) != 0)
     code[offset++] = 0x90;
   const size_t aarch64_target_offset = offset;
-  emit_u32(code, &offset, 0xd4200020U); // brk #1, strlen libcall
+  emit_u32(code, &offset, 0xd4200020U); // brk #1, strlen break helper
   emit_u32(code, &offset, 0xd65f03c0U); // ret
 
   while ((offset & 7U) != 0)
@@ -2995,7 +2995,7 @@ static int check_cross_call_syscall_direction(const char *name,
   return 0;
 }
 
-static int check_cross_call_libcall_direction(const char *name,
+static int check_cross_call_string_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
   uint64_t insn_delta = 0;
@@ -3003,22 +3003,22 @@ static int check_cross_call_libcall_direction(const char *name,
   if (runner(&result, &insn_delta, &switch_delta) < 0)
     return -1;
 
-  printf("POLYBENCH_CROSS_CALL_LIBCALL_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+  printf("POLYBENCH_CROSS_CALL_STRING_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
     name, (unsigned long long) result, (unsigned long long) insn_delta,
     (unsigned long long) switch_delta);
 
   if (result != 8) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call libcall %s strlen expected 8 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call string %s strlen expected 8 got %llu\n",
       name, (unsigned long long) result);
     return -1;
   }
   if (insn_delta < 8) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call libcall %s raw instruction delta expected at least 8 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call string %s raw instruction delta expected at least 8 got %llu\n",
       name, (unsigned long long) insn_delta);
     return -1;
   }
   if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call libcall %s switch delta expected at least 4 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call string %s switch delta expected at least 4 got %llu\n",
       name, (unsigned long long) switch_delta);
     return -1;
   }
@@ -3165,16 +3165,16 @@ static int check_cross_calls(void) {
   if (check_cross_call_syscall_direction("riscv-calls-aarch64-syscall",
         run_cross_call_syscall_riscv_to_aarch64) < 0)
     return -1;
-  if (check_cross_call_libcall_direction("aarch64-calls-riscv-libcall",
-        run_cross_call_libcall_aarch64_to_riscv) < 0)
+  if (check_cross_call_string_direction("aarch64-calls-riscv-break",
+        run_cross_call_break_aarch64_to_riscv) < 0)
     return -1;
-  if (check_cross_call_libcall_direction("riscv-calls-aarch64-libcall",
-        run_cross_call_libcall_riscv_to_aarch64) < 0)
+  if (check_cross_call_string_direction("riscv-calls-aarch64-break",
+        run_cross_call_break_riscv_to_aarch64) < 0)
     return -1;
-  if (check_cross_call_libcall_direction("aarch64-calls-riscv-descriptor",
+  if (check_cross_call_string_direction("aarch64-calls-riscv-descriptor",
         run_cross_call_descriptor_aarch64_to_riscv) < 0)
     return -1;
-  if (check_cross_call_libcall_direction("riscv-calls-aarch64-descriptor",
+  if (check_cross_call_string_direction("riscv-calls-aarch64-descriptor",
         run_cross_call_descriptor_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_descriptor_memcmp_direction("aarch64-calls-riscv-descriptor-memcmp",

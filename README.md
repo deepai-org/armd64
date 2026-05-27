@@ -9,7 +9,7 @@ instruction streams run through direct foreign fetch inside the x86_64 process.
 This is an active scaffold, not a complete native-speed AArch64/RISC-V CPU.  The
 current implementation validates the architecture shape, Linux boot path,
 foreign ELF launch path, mixed-ISA transitions, explicit foreign trap records,
-and an opt-in deterministic compatibility runtime for scaffolded syscall/libcall
+and an opt-in deterministic compatibility runtime for scaffolded syscall/break
 tests.
 It does not yet implement full AArch64 or RISC-V ISA coverage, real foreign
 Linux ABI passthrough, or equal-speed execution.
@@ -24,7 +24,7 @@ Linux ABI passthrough, or equal-speed execution.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when
   `POLY_ENABLED=0`.
-- The default `make boot-poly` path now keeps Bochs syscall/libcall
+- The default `make boot-poly` path now keeps Bochs syscall/break
   compatibility disabled and runs the guest trap-vector probe, manifest app
   suite, focused direct ELF execution, `PCALL`, thread, signal, and native
   CPUID checks.  This makes the hardware-style trap packet path the normal
@@ -58,16 +58,16 @@ Linux ABI passthrough, or equal-speed execution.
   dispatcher and runs the generated cross-ISA `PCALL` suite, covering ordinary
   native AArch64/RISC-V returns, dynamic relocations, dependency loading, TLS,
   FP/int ABI bridging, x86 import descriptors, libc-style import descriptors,
-  and atomic helper descriptors without relying on Bochs syscall/libcall
+  and atomic helper descriptors without relying on Bochs syscall/break
   emulation.  It also runs the thread-bank and signal-resume stress checks with
   compatibility traps disabled.
 - The `make boot-poly-bench-arch-traps` path disables the compatibility
   dispatcher and runs `polybench` with a guest-installed architectural trap
-  vector, so cross-ISA syscall/libcall benchmark exits are routed through
+  vector, so cross-ISA syscall/break/import benchmark exits are routed through
   userspace packet handling rather than Bochs CPU policy.
 - The `make boot-poly-apps-arch-traps` path disables the compatibility
   dispatcher and runs the manifest-backed `polyapp` payload suite through a
-  guest-installed trap vector, keeping syscall/libcall policy outside the CPU
+  guest-installed trap vector, keeping syscall/break policy outside the CPU
   model.
 - The `make boot-poly-full` and `make boot-poly-full-arch-traps` paths combine
   the disabled-compat probe, manifest apps, focused direct ELF execution,
@@ -79,12 +79,12 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
   register state, shared foreign stack-pointer frame handling, native returns,
   mixed raw instruction streams, repeated mixed-mode switch stress, mixed
-  libcalls, mixed syscalls, and status/counter markers.
+  breakpoint traps, mixed syscalls, and status/counter markers.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly` by entering raw foreign mode, executing packed
   32-bit foreign instructions, and escaping back to x86_64.  The manifest path
   accepts variable-size executable segments up to 1 MiB.  It installs an x86
-  architectural trap-vector handler for deterministic test syscalls/libcalls,
+  architectural trap-vector handler for deterministic test syscalls/breaks,
   so the Bochs compatibility service is not required for this suite.  Breakpoint
   trap manifests accept neutral `break_*` keys; old `libcall_*` keys are still
   accepted for existing generated payloads.
@@ -186,7 +186,7 @@ raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
 RISC-V, neutral direct switches, native return cookies, x86 SysV `PCALL`,
 `PCALL` sret, scalar FP bridging, trap records, user return restoration, x86 TSO
 foreign ordering, and per-thread synthetic banks.  Bit `11` is reserved and is
-not used to advertise the optional Bochs deterministic syscall/libcall
+not used to advertise the optional Bochs deterministic syscall/break
 compatibility runtime; that runtime is simulator test scaffolding, not CPU
 architecture.  Bit `12` additionally advertises the prototype x86 poly opcode
 family. Bit `13` advertises the two-float aggregate return packing
@@ -666,7 +666,7 @@ handler frontend with `0f 24 63 ... POLY!` using `RAX=mode`.  The default
 handler mode is x86_64.  In the Bochs prototype, the installed trap vector and
 handler frontend mode are part of the same keyed userspace poly state as the
 synthetic foreign registers.  The recorded trap packet/status and temporary
-trap-return save frame are keyed there as well.  The legacy syscall/libcall
+trap-return save frame are keyed there as well.  The legacy syscall/break
 status registers are keyed with the same state, so a different guest address
 space starts with no installed vector, no stale trap packet, no stale
 trap-return frame, and no stale last-syscall/break status.  For an x86
@@ -914,7 +914,7 @@ Run the baseline x86_64 Linux boot:
 make boot
 ```
 
-Run the default hardware-style poly smoke test with Bochs syscall/libcall
+Run the default hardware-style poly smoke test with Bochs syscall/break
 compatibility disabled and guest trap-vector packet handling:
 
 ```bash
@@ -928,14 +928,14 @@ foreign payloads:
 make boot-poly-compat
 ```
 
-Run the OS-neutral architectural trap-vector gate with Bochs syscall/libcall
+Run the OS-neutral architectural trap-vector gate with Bochs syscall/break
 compatibility disabled:
 
 ```bash
 make boot-poly-arch-traps
 ```
 
-Run the low-level raw-mode probe with Bochs syscall/libcall compatibility
+Run the low-level raw-mode probe with Bochs syscall/break compatibility
 disabled and guest trap-vector packet handling:
 
 ```bash
@@ -970,8 +970,8 @@ guest-installed trap-vector handler:
 make boot-poly-bench-arch-traps
 ```
 
-Run the full disabled-compat gate, combining guest trap-vector syscall/libcall
-handling across probe, manifest apps, focused direct ELF execution, PCALL,
+Run the full disabled-compat gate, combining guest trap-vector syscall/break
+and import handling across probe, manifest apps, focused direct ELF execution, PCALL,
 benchmark, thread/signal, and binfmt tests:
 
 ```bash

@@ -702,7 +702,7 @@ symbol names `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`,
 `strcasecmp`, `strncasecmp`, `strcasestr`, `bcmp`, `bcopy`, `bzero`, `index`, and `rindex`, so
 compiler-produced foreign objects can call those routines through ordinary
-PLT/GOT entries without using synthetic breakpoint libcalls. The neutral
+PLT/GOT entries without using synthetic breakpoint helpers. The neutral
 cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,
 `memcpy`, and three-argument `memcmp` calls inside foreign callees, proving
 descriptor imports are not limited to x86-entered `PCALL` payloads. The gate
@@ -756,7 +756,7 @@ compatibility dispatcher:
 - PC records the foreign instruction address that raised the trap.
 - Resume PC records the next foreign instruction address for trap return.
 
-The temporary deterministic syscall and libcall behavior in Bochs is a
+The temporary deterministic syscall and break-helper behavior in Bochs is a
 compatibility runtime layered after this trap record.  It consumes the same
 `POLYTRAP` packet that a guest handler receives; the raw decoder does not treat
 Linux syscalls or libc helpers as architectural CPU behavior.  It is not the
@@ -807,7 +807,7 @@ else.
 foreign syscall traps and `SIGTRAP` for foreign breakpoint traps.
 
 The Bochs compatibility runtime can also handle selected breakpoint traps as
-deterministic scaffold library calls after recording the same OS-neutral
+deterministic scaffold helper calls after recording the same OS-neutral
 break-trap packet.  This is not the hardware ISA contract; real precompiled
 interop should use ordinary dynamic-linker bindings, hardware-assisted `PCALL`
 descriptors, software thunks, or OS/runtime trap routing.
