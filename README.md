@@ -29,10 +29,11 @@ Linux ABI passthrough, or equal-speed execution.
   selected foreign Linux syscalls into real x86 Linux `syscall` instructions,
   then resumes the original raw frontend with `POLY_TRAP_RETURN`; it also runs
   generated AArch64/RISC-V process-identity, `getcwd`, `uname`,
-  `clock_gettime`, `clock_getres`, `gettimeofday`, real anonymous `mmap` store,
-  real `mprotect`/`munmap` on anonymous mappings, `openat`/`read`/`close`,
-  zero-length `write`, `strlen`, `memfill`, `memcmp`, and `memcpy` ELF payloads
-  through the same disabled-compat path.
+  `clock_gettime`, `clock_getres`, `gettimeofday`, `set_tid_address`,
+  `rt_sigprocmask`, robust-list, `prlimit64`, `getrandom`, real anonymous
+  `mmap` store, real `mprotect`/`munmap` on anonymous mappings,
+  `openat`/`read`/`close`, zero-length `write`, `strlen`, `memfill`, `memcmp`,
+  and `memcpy` ELF payloads through the same disabled-compat path.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
