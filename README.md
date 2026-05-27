@@ -187,7 +187,7 @@ runtime dispatch:
 | `0x40000002, subleaf 4` | `EAX=0x7ff9`, `EBX=0x0000407b`, `ECX=0x63`, `EDX=0x64` | Reports the native raw-mode trap-return encodings and x86 trap-vector mode set/get opcodes. |
 | `0x40000002, subleaf 5` | `EAX=140`, `EBX=0xffffe000`, `ECX=0xffffffff`, `EDX=16` | Reports the foreign import-call manifest: import ID count, 64-bit import-call window base split low/high, and import-call stride. |
 | `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus synthetic banks, status registers, trap-vector policy, trap-packet state, trap-return save state, and fixed 32-byte transition frames keyed by `CR3`, `FSBASE`, and either an explicit userspace state key or an 8 MiB stack-region fallback key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
-| `0x40000004` | `EAX=11`, `EBX=4096`, `ECX=0x00400001`, `EDX=0x1f` | Defines the silicon-target XSAVE contract: proposed XCR0 component 11, 4096-byte 64-byte-aligned save area, layout version 1, and flags requiring OSXSAVE/XCR0 enablement, interrupt-resume state, trap state, and no hidden foreign banks. This leaf is a formal architecture contract; the Bochs prototype still reports the active component as zero in leaf `0x40000003`. |
+| `0x40000004` | `EAX=20`, `EBX=4096`, `ECX=0x00400001`, `EDX=0x1f` | Defines the silicon-target XSAVE contract: proposed XCR0 component 20, 4096-byte 64-byte-aligned save area, layout version 1, and flags requiring OSXSAVE/XCR0 enablement, interrupt-resume state, trap state, and no hidden foreign banks. This leaf is a formal architecture contract; the Bochs prototype still reports the active component as zero in leaf `0x40000003`. |
 | `0x40000005` | `EAX=1`, `EBX=64`, `ECX=6`, `EDX=0x1f` | Defines the architectural `POLYTRAP` packet ABI: layout version 1, 64-byte trap header, six native ABI argument slots, and flags for vector delivery, no-vector x86 exception delivery, trap-return state restoration, handler entry from all frontends, and trap-status opcodes. |
 | `0x40000006` | `EAX=1`, `EBX=0x1f`, `ECX=0x0f`, `EDX=0x18` | Defines the raw-mode interrupt/resume ABI: raw fetch is CPL3-only, asynchronous entry uses a standard x86 interrupt frame after saving precise foreign state, raw loops check events between foreign instructions, and `IRET64`/`SYSRET`/`SYSEXIT`/signal-return paths can restore AArch64 or RISC-V raw mode. |
 | `0x40000007` | `EAX=1`, `EBX=1`, `ECX=0x1f`, `EDX=0x18` | Defines the foreign memory-ordering ABI: raw AArch64/RISC-V execute under the x86 TSO model, use the same coherent x86 memory subsystem, decode AArch64 barriers and RISC-V fences as ordering-preserving no-ops, route atomics through coherent memory operations, and do not introduce weak reordering. |
@@ -236,15 +236,17 @@ component contract is present in leaf `0x40000004`, even if bit `7` is still
 clear because the component is not active in guest `XSAVE/XRSTOR`.
 
 Leaf `0x40000004` is the intended hardware state ABI.  When a silicon/FPGA
-implementation sets bit `7` in `0x40000003.EAX` and reports component `11`,
+implementation sets bit `7` in `0x40000003.EAX` and reports component `20`,
 the OS must include that XCR0 bit in its normal XSAVE/XRSTOR context-switch
-mask.  The 4096-byte component is versioned and 64-byte aligned.  It contains
-the current foreign frontend mode, foreign PC, trap vector and trap packet,
-fixed transition records, AArch64 `x0`-`x30`/`sp`/`v0`-`v31`/`NZCV`/FP state,
-and RISC-V `x0`-`x31`/`f0`-`f31`/`fcsr` state.  Standard x86 GPR, XMM, and
-other x86 architectural state remain in the normal x86 save areas.  Hardware
-must not rely on CR3/FSBASE hash tables or any other hidden foreign register
-banks once this XSAVE component is active.
+mask.  Component `20` is reserved for the poly architecture because lower
+component `11` is already the standard x86 CET_U state slot in current x86
+XSAVE maps.  The 4096-byte component is versioned and 64-byte aligned.  It
+contains the current foreign frontend mode, foreign PC, trap vector and trap
+packet, fixed transition records, AArch64 `x0`-`x30`/`sp`/`v0`-`v31`/`NZCV`/FP
+state, and RISC-V `x0`-`x31`/`f0`-`f31`/`fcsr` state.  Standard x86 GPR, XMM,
+and other x86 architectural state remain in the normal x86 save areas.
+Hardware must not rely on CR3/FSBASE hash tables or any other hidden foreign
+register banks once this XSAVE component is active.
 
 The C layout in `tools/polycpuid.h` is the executable ABI definition for this
 component.  `struct poly_xsave_state`, `struct poly_trap_packet`, and the

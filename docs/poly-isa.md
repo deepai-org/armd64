@@ -237,7 +237,7 @@ discover the experimental hardware contract before emitting poly operations:
   records are part of this keyed prototype state until an XSAVE component is
   assigned.  `ECX=0` and
   `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
-- `CPUID.EAX=0x40000004`: silicon-target XSAVE contract discovery.  `EAX=11`
+- `CPUID.EAX=0x40000004`: silicon-target XSAVE contract discovery.  `EAX=20`
   is the proposed XCR0 component number, `EBX=4096` is the component byte
   size, `ECX[15:0]=1` is the layout version, `ECX[31:16]=64` is the required
   byte alignment, and `EDX=0x1f` reports flags: user XCR0 component,
@@ -246,7 +246,8 @@ discover the experimental hardware contract before emitting poly operations:
   ABI definition.  It is active only when leaf `0x40000003.EAX` sets bit `7`
   and leaf `0x40000001.EDX` reports the same component id; the Bochs
   prototype intentionally leaves those active fields clear while it still uses
-  keyed synthetic banks.
+  keyed synthetic banks.  Component `20` avoids component `11`, which is
+  already assigned to standard x86 CET_U state in current x86 XSAVE maps.
 - `CPUID.EAX=0x40000005`: architectural trap-packet ABI discovery.  `EAX=1`
   is the trap layout version, `EBX=64` is the byte size of the fixed packet
   header, `ECX=6` is the native ABI argument slot count, and `EDX=0x1f`
