@@ -681,7 +681,8 @@ recursive loading of dependency libraries' own `DT_NEEDED`
 entries, and dependency sets larger than the original four-library prototype
 limit, with boot coverage for direct dependency fans larger than eight
 libraries. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`,
-`${ORIGIN}/...`, `$LIB` token expansion to `lib`, relative dependency
+`${ORIGIN}/...`, `$LIB` token expansion to `lib`, `$PLATFORM` expansion to the
+foreign frontend platform name (`aarch64` or `riscv`), relative dependency
 subdirectories, and absolute dependency directories, and absolute `DT_NEEDED`
 path entries are honored, including old-style RPATH-only objects built without
 new dtags and colon-separated RUNPATH fallback directories. Declared

@@ -862,7 +862,8 @@ The harness builds direct plus transitive dependency sets with five loaded
 foreign libraries, covering dependency trees beyond the original four-library
 prototype cap, and direct dependency fans larger than eight libraries.
 `DT_RUNPATH` is preferred over `DT_RPATH` when present, and `$ORIGIN/...`,
-`${ORIGIN}/...`, `$LIB` token expansion to `lib`, relative entries, and
+`${ORIGIN}/...`, `$LIB` token expansion to `lib`, `$PLATFORM` expansion to the
+foreign frontend platform name (`aarch64` or `riscv`), relative entries, and
 absolute dependency directories are used to resolve dependency libraries before
 a missing needed library fails to load. Colon-separated RUNPATH entries
 continue searching after a missing directory. Old-style RPATH-only objects

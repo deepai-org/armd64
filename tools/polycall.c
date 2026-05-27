@@ -2467,8 +2467,9 @@ static int append_origin_dir(const char *owner_path, char *out,
   return append_path_bytes(out, out_len, out_size, owner_path, dir_len);
 }
 
-static int expand_runpath_entry(const char *owner_path, const char *entry,
-    size_t entry_len, char *out, size_t out_size) {
+static int expand_runpath_entry(const char *owner_path,
+    const char *platform_name, const char *entry, size_t entry_len,
+    char *out, size_t out_size) {
   size_t out_len = 0;
   if (out_size == 0)
     return -1;
@@ -2498,6 +2499,20 @@ static int expand_runpath_entry(const char *owner_path, const char *entry,
       n += 4;
       continue;
     }
+    if (entry_len - n >= 11 && memcmp(entry + n, "${PLATFORM}", 11) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, platform_name,
+            strlen(platform_name)) < 0)
+        return -1;
+      n += 11;
+      continue;
+    }
+    if (entry_len - n >= 9 && memcmp(entry + n, "$PLATFORM", 9) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, platform_name,
+            strlen(platform_name)) < 0)
+        return -1;
+      n += 9;
+      continue;
+    }
     if (append_path_bytes(out, &out_len, out_size, entry + n, 1) < 0)
       return -1;
     n++;
@@ -2520,9 +2535,9 @@ static int build_runpath_entry_needed_path(const char *entry, size_t entry_len,
 }
 
 static int build_runpath_needed_path(const char *owner_path,
-    const char *runpath, size_t runpath_len, const char *needed,
-    char *out, size_t out_size) {
-  if (!runpath || runpath_len == 0 || needed[0] == '/')
+    const char *platform_name, const char *runpath, size_t runpath_len,
+    const char *needed, char *out, size_t out_size) {
+  if (!runpath || !platform_name || runpath_len == 0 || needed[0] == '/')
     return -1;
 
   size_t start = 0;
@@ -2537,8 +2552,8 @@ static int build_runpath_needed_path(const char *owner_path,
       continue;
 
     char expanded[MAX_DEP_PATH];
-    if (expand_runpath_entry(owner_path, entry, entry_len, expanded,
-          sizeof(expanded)) == 0 &&
+    if (expand_runpath_entry(owner_path, platform_name, entry, entry_len,
+          expanded, sizeof(expanded)) == 0 &&
         build_runpath_entry_needed_path(expanded, strlen(expanded), needed,
           out, out_size) == 0 &&
         access(out, R_OK) == 0)
@@ -2881,8 +2896,9 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
     char needed_path[MAX_DEP_PATH];
     int found_needed = -1;
     if (needed[0] != '/' && search_path_len != 0)
-      found_needed = build_runpath_needed_path(origin_path, search_path,
-        search_path_len, needed, needed_path, sizeof(needed_path));
+      found_needed = build_runpath_needed_path(origin_path, owner->arch_name,
+        search_path, search_path_len, needed, needed_path,
+        sizeof(needed_path));
     if (found_needed < 0 &&
         (build_needed_path(origin_path, needed, needed_path,
            sizeof(needed_path)) < 0 ||
