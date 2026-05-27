@@ -102,6 +102,9 @@
 #endif
 
 enum {
+  POLY_MODE_X86 = 0,
+  POLY_MODE_RAW_AARCH64 = 3,
+  POLY_MODE_RAW_RISCV = 4,
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   POLY_CALL_U64 = 0,
@@ -150,11 +153,32 @@ enum {
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
+static const uint32_t POLY_CPUID_MAX = 0x40000009U;
+static const uint32_t POLY_CPUID_ABI_VERSION = 1U;
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
 static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 32;
 
 enum {
+  POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
+  POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
+  POLY_CPUID_FEATURE_NEUTRAL_SWITCH = (1U << 2),
+  POLY_CPUID_FEATURE_NATIVE_RET = (1U << 3),
+  POLY_CPUID_FEATURE_PCALL_SYSV = (1U << 4),
+  POLY_CPUID_FEATURE_PCALL_SRET = (1U << 5),
+  POLY_CPUID_FEATURE_FP_BRIDGE = (1U << 6),
+  POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
+  POLY_CPUID_FEATURE_FPAIR32_RET = (1U << 13),
+  POLY_CPUID_FEATURE_FPAIR32_ARG = (1U << 14),
+  POLY_CPUID_FEATURE_HETERO_U64_F64 = (1U << 15),
+  POLY_CPUID_FEATURE_HETERO_F64_U64 = (1U << 16),
+  POLY_CPUID_FEATURE_HETERO_U64_F32 = (1U << 17),
+  POLY_CPUID_FEATURE_HETERO_F32_U64 = (1U << 18),
+  POLY_CPUID_FEATURE_COMPACT_U32_F32 = (1U << 19),
+  POLY_CPUID_FEATURE_COMPACT_F32_U32 = (1U << 20),
+  POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS = (1U << 22),
+  POLY_CPUID_FEATURE_FP64_STACK_ARGS = (1U << 23),
+  POLY_CPUID_FEATURE_VEC128_BRIDGE = (1U << 27),
   POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 = (1U << 1),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 = (1U << 2),
@@ -189,6 +213,32 @@ static const uint32_t POLY_ABI_BRIDGE_REQUIRED_FLAGS =
   POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK |
   POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET |
   POLY_ABI_BRIDGE_FLAG_VEC128;
+
+static const uint32_t POLY_CPUID_REQUIRED_MODES =
+  (1U << POLY_MODE_X86) |
+  (1U << POLY_MODE_RAW_AARCH64) |
+  (1U << POLY_MODE_RAW_RISCV);
+
+static const uint32_t POLY_CPUID_REQUIRED_FEATURES =
+  POLY_CPUID_FEATURE_RAW_AARCH64 |
+  POLY_CPUID_FEATURE_RAW_RISCV |
+  POLY_CPUID_FEATURE_NEUTRAL_SWITCH |
+  POLY_CPUID_FEATURE_NATIVE_RET |
+  POLY_CPUID_FEATURE_PCALL_SYSV |
+  POLY_CPUID_FEATURE_PCALL_SRET |
+  POLY_CPUID_FEATURE_FP_BRIDGE |
+  POLY_CPUID_FEATURE_X86_POLY_OPCODES |
+  POLY_CPUID_FEATURE_FPAIR32_RET |
+  POLY_CPUID_FEATURE_FPAIR32_ARG |
+  POLY_CPUID_FEATURE_HETERO_U64_F64 |
+  POLY_CPUID_FEATURE_HETERO_F64_U64 |
+  POLY_CPUID_FEATURE_HETERO_U64_F32 |
+  POLY_CPUID_FEATURE_HETERO_F32_U64 |
+  POLY_CPUID_FEATURE_COMPACT_U32_F32 |
+  POLY_CPUID_FEATURE_COMPACT_F32_U32 |
+  POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS |
+  POLY_CPUID_FEATURE_FP64_STACK_ARGS |
+  POLY_CPUID_FEATURE_VEC128_BRIDGE;
 
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
@@ -474,6 +524,36 @@ static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
       : "a"(leaf), "c"(subleaf)
       : "memory");
   return regs;
+}
+
+static int poly_cpuid_vendor_matches(const struct poly_cpuid_regs *regs) {
+  return regs->ebx == 0x796c6f50U &&
+    regs->edx == 0x746f6c67U &&
+    regs->ecx == 0x21555043U;
+}
+
+static int read_poly_base_contract(void) {
+  const struct poly_cpuid_regs base = read_cpuid(POLY_CPUID_BASE, 0);
+  if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: poly CPUID missing base=(0x%x,0x%x,0x%x,0x%x)\n",
+      base.eax, base.ebx, base.ecx, base.edx);
+    return -1;
+  }
+
+  const struct poly_cpuid_regs features = read_cpuid(POLY_CPUID_BASE + 1, 0);
+  if (features.eax != POLY_CPUID_ABI_VERSION ||
+      (features.ebx & POLY_CPUID_REQUIRED_MODES) !=
+        POLY_CPUID_REQUIRED_MODES ||
+      (features.ecx & POLY_CPUID_REQUIRED_FEATURES) !=
+        POLY_CPUID_REQUIRED_FEATURES) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
+      features.eax, features.ebx, features.ecx, features.edx);
+    return -1;
+  }
+
+  return 0;
 }
 
 static int read_poly_abi_bridge_contract(struct poly_import_contract *contract) {
@@ -4678,6 +4758,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     .x86_slot_count = POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1,
     .x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE
   };
+  if (read_poly_base_contract() < 0)
+    return -1;
   if (read_poly_abi_bridge_contract(&import_contract) < 0)
     return -1;
   if (needs_x86_import && read_poly_import_contract(&import_contract) < 0)
