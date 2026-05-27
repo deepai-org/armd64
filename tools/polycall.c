@@ -3065,6 +3065,14 @@ static int dependency_path_already_loaded(const struct poly_program *program,
   return 0;
 }
 
+static void promote_preload_dependency_scope(struct poly_program *program,
+    size_t first_dep) {
+  for (size_t d = first_dep; d < program->dep_count; d++) {
+    if (program->deps[d].lookup_rank >= MAX_NEEDED_DEPS)
+      program->deps[d].lookup_rank = program->direct_dep_count++;
+  }
+}
+
 static int build_preload_path(const struct poly_program *program,
     const char *token, size_t token_len, char *out, size_t out_size) {
   if (token_len == 0 || token_len >= MAX_DEP_PATH)
@@ -3134,6 +3142,7 @@ static int load_preload_dependencies(struct poly_program *program) {
     const size_t dep_index = program->dep_count++;
     if (load_dependency_object(program, dep_index, path, program->arch, 0) < 0)
       return -1;
+    promote_preload_dependency_scope(program, dep_index);
   }
   return 0;
 }

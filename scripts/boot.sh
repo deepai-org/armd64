@@ -78,6 +78,8 @@ POLYCALL_PRELOAD_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_preload_dep_real.c"
 POLYCALL_PRELOAD_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_preload_main_real.c"
 POLYCALL_PRELOAD_OVERRIDE_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_preload_override_dep_real.c"
 POLYCALL_PRELOAD_SECOND_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_preload_second_dep_real.c"
+POLYCALL_PRELOAD_CHAIN_LEAF_REAL_SRC="$ROOT_DIR/tools/polycall_preload_chain_leaf_real.c"
+POLYCALL_PRELOAD_CHAIN_REAL_SRC="$ROOT_DIR/tools/polycall_preload_chain_real.c"
 POLYCALL_RUNPATH_PREFER_BAD_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_runpath_prefer_bad_dep_real.c"
 POLYCALL_MANY_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_many_needed_dep_real.c"
 POLYCALL_MANY_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_many_needed_main_real.c"
@@ -558,6 +560,18 @@ build_poly_elf_payloads() {
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_SECOND_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadsecond-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolypreloadchainleaf-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_CHAIN_LEAF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchainleaf-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolypreloadchain-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_CHAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolypreloadchainleaf-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchain-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_MAIN_REAL_SRC" \
@@ -1543,6 +1557,20 @@ build_poly_elf_payloads() {
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_SECOND_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadsecond-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolypreloadchainleaf-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_CHAIN_LEAF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchainleaf-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolypreloadchain-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_PRELOAD_CHAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolypreloadchainleaf-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchain-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -4079,6 +4107,10 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
       /usr/bin/polycall \
       /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=2945 \
       >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadchain-aarch64.so \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=3945 \
+      >/dev/ttyS0 2>&1
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadoverride-riscv.so \
       /usr/bin/polycall \
       /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=1945 \
@@ -4090,6 +4122,10 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadsecond-riscv.so:/usr/lib/polyapps/libpolypreloadoverride-riscv.so \
       /usr/bin/polycall \
       /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=2945 \
+      >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadchain-riscv.so \
+      /usr/bin/polycall \
+      /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=3945 \
       >/dev/ttyS0 2>&1
 fi
 
