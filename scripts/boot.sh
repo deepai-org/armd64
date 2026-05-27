@@ -1468,6 +1468,10 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setfsgid.elf" 0xd2807d00 0xd2801308 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getgroups.elf" 0xaa0103e2 0xd2800020 0xaa0203e1 0xd28013c8 0xd4000001 0xb9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setgroups.elf" 0xd2800000 0xd2800001 0xd28013e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-kill.elf" 0xd2800000 0xd2800001 0xd2801028 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-tkill.elf" 0xd2800000 0xd2800001 0xd2801048 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-tgkill.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801068 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sigaltstack.elf" 0xd2800000 0xd2801088 0xd4000001 0xb9400820
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigaction.elf" 0xd2800040 0xd2800001 0xd2800002 0xd2801003 0xd28010c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigprocmask.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801003 0xd28010e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-futex.elf" 0xaa0103e0 0xd2800001 0xd2800002 0xd2800003 0xd2800c48 0xd4000001
@@ -1740,6 +1744,10 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setfsgid.elf" 0x3e800513 0x09800893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getgroups.elf" 0x00058293 0x00100513 0x00028593 0x09e00893 0x00000073 0x0002a503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setgroups.elf" 0x00000513 0x00000593 0x09f00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-kill.elf" 0x00000513 0x00000593 0x08100893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-tkill.elf" 0x00000513 0x00000593 0x08200893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-tgkill.elf" 0x00000513 0x00000593 0x00000613 0x08300893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sigaltstack.elf" 0x00000513 0x08400893 0x00000073 0x0085a503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rt-sigaction.elf" 0x00200513 0x00000593 0x00000613 0x00800693 0x08600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rt-sigprocmask.elf" 0x00000513 0x00000593 0x00000613 0x00800693 0x08700893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-futex.elf" 0x00058513 0x00000593 0x00000613 0x00000693 0x06200893 0x00000073
@@ -2103,6 +2111,10 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-setfsgid.elf=1000 \
     /usr/lib/polyapps/aarch64-getgroups.elf=1000 \
     /usr/lib/polyapps/aarch64-setgroups.elf=0 \
+    /usr/lib/polyapps/aarch64-kill.elf=0 \
+    /usr/lib/polyapps/aarch64-tkill.elf=0 \
+    /usr/lib/polyapps/aarch64-tgkill.elf=0 \
+    /usr/lib/polyapps/aarch64-sigaltstack.elf=2 \
     /usr/lib/polyapps/aarch64-rt-sigaction.elf=0 \
     /usr/lib/polyapps/aarch64-rt-sigprocmask.elf=0 \
     /usr/lib/polyapps/aarch64-futex.elf=0 \
@@ -2348,6 +2360,10 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-setfsgid.elf=1000 \
     /usr/lib/polyapps/riscv-getgroups.elf=1000 \
     /usr/lib/polyapps/riscv-setgroups.elf=0 \
+    /usr/lib/polyapps/riscv-kill.elf=0 \
+    /usr/lib/polyapps/riscv-tkill.elf=0 \
+    /usr/lib/polyapps/riscv-tgkill.elf=0 \
+    /usr/lib/polyapps/riscv-sigaltstack.elf=2 \
     /usr/lib/polyapps/riscv-rt-sigaction.elf=0 \
     /usr/lib/polyapps/riscv-rt-sigprocmask.elf=0 \
     /usr/lib/polyapps/riscv-futex.elf=0 \
@@ -2860,6 +2876,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-setfsgid.elf \
     /usr/lib/polyapps/aarch64-getgroups.elf \
     /usr/lib/polyapps/aarch64-setgroups.elf \
+    /usr/lib/polyapps/aarch64-kill.elf \
+    /usr/lib/polyapps/aarch64-tkill.elf \
+    /usr/lib/polyapps/aarch64-tgkill.elf \
+    /usr/lib/polyapps/aarch64-sigaltstack.elf \
     /usr/lib/polyapps/aarch64-rt-sigaction.elf \
     /usr/lib/polyapps/aarch64-rt-sigprocmask.elf \
     /usr/lib/polyapps/aarch64-futex.elf \
@@ -3105,6 +3125,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-setfsgid.elf \
     /usr/lib/polyapps/riscv-getgroups.elf \
     /usr/lib/polyapps/riscv-setgroups.elf \
+    /usr/lib/polyapps/riscv-kill.elf \
+    /usr/lib/polyapps/riscv-tkill.elf \
+    /usr/lib/polyapps/riscv-tgkill.elf \
+    /usr/lib/polyapps/riscv-sigaltstack.elf \
     /usr/lib/polyapps/riscv-rt-sigaction.elf \
     /usr/lib/polyapps/riscv-rt-sigprocmask.elf \
     /usr/lib/polyapps/riscv-futex.elf \

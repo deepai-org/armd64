@@ -682,7 +682,8 @@ deterministically after recording the architectural trap.  Supported syscall
 numbers currently include:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
-  `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `capget`,
+  `futex`, `set_robust_list`, `kill`, `tkill`, `tgkill`, `sigaltstack`,
+  `rt_sigaction`, `rt_sigprocmask`, `capget`,
   `capset`, `personality`, `waitid`, `wait4`, `setpriority`, `getpriority`, `setpgid`,
   `setsid`, `umask`, `prctl`, `setregid`, `setgid`, `setreuid`, `setuid`,
   `setresuid`, `getresuid`, `setresgid`, `getresgid`, `setfsuid`,
