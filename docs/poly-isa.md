@@ -732,10 +732,12 @@ or an OS/runtime descriptor that names the x86 callable target and ABI metadata.
 When a runtime supplies a descriptor entry for an import ID, the Bochs CPU uses
 that descriptor before any prototype fixed helper.  `polycall` uses this path
 for libc string/memory imports such as `strlen`, `memcpy`, and `memcmp`, and
-also for environment, allocation, teardown, aux-vector/page-size, errno, and
-process-query imports such as `getenv`, `malloc`, `atexit`, `getauxval`,
-`__errno_location`, and `getpid`.  The CPU contract is the descriptor call gate
-and ABI register mapping, not the semantics of those library functions.
+also for environment, allocation, teardown, stack-failure, aux-vector/page-size,
+errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
+`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`.  For that
+OS-sensitive class, a software descriptor is mandatory; the CPU does not
+synthesize fixed fallback results.  The CPU contract is the descriptor call
+gate and ABI register mapping, not the semantics of those library functions.
 The same descriptor path currently provides prototype imports for common GCC
 TLS accessors (`R_AARCH64_TLSDESC`, RISC-V `__tls_get_addr`, and initial-exec
 `R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64`) and common GCC

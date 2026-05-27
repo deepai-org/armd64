@@ -381,6 +381,7 @@ extern uint64_t poly_host_x86_strchrnul(const uint8_t *text, uint64_t needle);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
+extern uint64_t poly_host_x86_stack_chk_fail(void);
 extern uint64_t poly_host_x86_errno_location(void);
 extern uint64_t poly_host_x86_getauxval(uint64_t type);
 extern uint64_t poly_host_x86_getpagesize(void);
@@ -413,11 +414,11 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "strstr", "strcpy", "strncpy", "strnlen", "strcat", "strncat",
     "strspn", "strcspn", "strpbrk", "stpcpy", "stpncpy", "mempcpy",
     "rawmemchr", "strchrnul", "bcmp", "bcopy", "bzero",
-    "__errno_location", "getauxval", "getpagesize", "sysconf", "getenv",
-    "secure_getenv", "malloc", "calloc", "realloc", "free", "strdup",
-    "strndup", "posix_memalign", "aligned_alloc", "memalign", "atexit",
-    "__cxa_atexit", "__cxa_finalize", "getpid", "getppid", "getuid",
-    "geteuid", "getgid", "getegid", "gettid"
+    "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
+    "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
+    "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
+    "memalign", "atexit", "__cxa_atexit", "__cxa_finalize", "getpid",
+    "getppid", "getuid", "geteuid", "getgid", "getegid", "gettid"
   };
 
   for (size_t n = 0; n < sizeof(names) / sizeof(names[0]); n++) {
@@ -510,6 +511,8 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_x86_bcopy;
     case POLY_IMPORT_FUNC_BZERO:
       return (uint64_t) (uintptr_t) poly_host_x86_bzero;
+    case POLY_IMPORT_FUNC_STACK_CHK_FAIL:
+      return (uint64_t) (uintptr_t) poly_host_x86_stack_chk_fail;
     case POLY_IMPORT_FUNC_ERRNO_LOCATION:
       return (uint64_t) (uintptr_t) poly_host_x86_errno_location;
     case POLY_IMPORT_FUNC_GETAUXVAL:

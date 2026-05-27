@@ -742,6 +742,11 @@ uint64_t POLY_HOST_HELPER poly_host_x86_bzero(uint8_t *dest, uint64_t size)
   return (uint64_t) (uintptr_t) dest;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_stack_chk_fail(void)
+{
+  return (uint64_t) -5;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_memrchr(const uint8_t *text,
     uint64_t needle, uint64_t size)
 {
