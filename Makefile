@@ -1,6 +1,6 @@
 IMAGE ?= armd64-bochs
 
-.PHONY: image boot boot-poly boot-poly-arch-traps boot-poly-probe-arch-traps boot-poly-call-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full clean
+.PHONY: image boot boot-poly boot-poly-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-call-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -44,6 +44,21 @@ boot-poly-probe-arch-traps:
 		-e POLY_ENABLED=1 \
 		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_POLY_PROBE=1 \
+		-e EXPECT_POLY_CPUID=1 \
+		$(IMAGE) \
+		./scripts/boot.sh
+
+boot-poly-apps-arch-traps:
+	docker run --rm \
+		--platform=linux/arm64 \
+		-v "$(CURDIR)":/work \
+		-e POLY_ENABLED=1 \
+		-e POLY_COMPAT_TRAPS=0 \
+		-e RUN_POLY_APPS=1 \
+		-e RUN_POLY_EXEC=0 \
+		-e RUN_POLY_CALL=0 \
+		-e RUN_POLY_THREAD=0 \
+		-e RUN_POLY_SIGNAL=0 \
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
 		./scripts/boot.sh

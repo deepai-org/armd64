@@ -60,6 +60,10 @@ Linux ABI passthrough, or equal-speed execution.
   dispatcher and runs `polybench` with a guest-installed architectural trap
   vector, so cross-ISA syscall/libcall benchmark exits are routed through
   userspace packet handling rather than Bochs CPU policy.
+- The `make boot-poly-apps-arch-traps` path disables the compatibility
+  dispatcher and runs the manifest-backed `polyapp` payload suite through a
+  guest-installed trap vector, keeping syscall/libcall policy outside the CPU
+  model.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -69,7 +73,9 @@ Linux ABI passthrough, or equal-speed execution.
 - `tools/polyapp.c` runs manifest-backed generated foreign ELF64 payloads from
   `tools/polyapps/*.poly` by entering raw foreign mode, executing packed
   32-bit foreign instructions, and escaping back to x86_64.  The manifest path
-  accepts variable-size executable segments up to 1 MiB.
+  accepts variable-size executable segments up to 1 MiB.  It installs an x86
+  architectural trap-vector handler for deterministic test syscalls/libcalls,
+  so the Bochs compatibility service is not required for this suite.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
   using the same raw-mode execution path, preserving executable bytes exactly
   so RISC-V compressed 16-bit code does not have to be repacked as 32-bit
@@ -910,6 +916,13 @@ disabled and guest trap-vector packet handling:
 
 ```bash
 make boot-poly-probe-arch-traps
+```
+
+Run the manifest-backed foreign payload suite with Bochs compatibility traps
+disabled and guest-side trap-vector handling:
+
+```bash
+make boot-poly-apps-arch-traps
 ```
 
 Run the disabled-compat trap-vector policy through guest `binfmt_misc` foreign
