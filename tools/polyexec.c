@@ -69,16 +69,12 @@ struct poly_request {
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 
-static inline void write_rax(uint64_t value) {
-  asm volatile("" :: "a"(value) : "memory");
+static inline void poly_trap_vector_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
 }
 
-static inline void poly_trap_vector_set(void) {
-  asm volatile(POLY_OP_TRAP_VECTOR_SET ::: "memory");
-}
-
-static inline void poly_trap_vector_mode_set(void) {
-  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET ::: "memory");
+static inline void poly_trap_vector_mode_set_value(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
 }
 
 static inline uint64_t poly_trap_arg1(void) {
@@ -322,17 +318,13 @@ static void poly_trap_vector_handler(void) {
 }
 
 static void install_poly_trap_vector(void) {
-  write_rax(POLY_MODE_X86);
-  poly_trap_vector_mode_set();
-  write_rax((uint64_t) (void *) poly_trap_vector_handler);
-  poly_trap_vector_set();
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
 }
 
 static void clear_poly_trap_vector(void) {
-  write_rax(0);
-  poly_trap_vector_set();
-  write_rax(POLY_MODE_X86);
-  poly_trap_vector_mode_set();
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
 }
 
 static int parse_u64(const char *text, uint64_t *value) {

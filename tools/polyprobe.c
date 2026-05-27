@@ -11,6 +11,7 @@
 #define POLY_OP_PCALL_A64 ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_PCALL_RV64 ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
+#define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
 
 static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
@@ -45,10 +46,6 @@ static inline uint64_t read_xmm0_u64(void) {
   uint64_t value;
   asm volatile("movq %%xmm0, %0" : "=r"(value));
   return value;
-}
-
-static inline void write_rax(uint64_t value) {
-  asm volatile("" :: "a"(value) : "memory");
 }
 
 static inline void write_xmm0_u64(uint64_t value) {
@@ -363,7 +360,8 @@ static inline void raw_barrier_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
-static inline void raw_mixed_probe(void) {
+static inline uint64_t raw_mixed_probe(uint64_t value) {
+  register uint64_t rax __asm__("rax") = value;
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0x91000400\n"
@@ -372,10 +370,14 @@ static inline void raw_mixed_probe(void) {
     ".long 0x0000002b\n"
     ".long 0x91000400\n"
     ".long 0xd42fffe0\n"
-    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
 }
 
-static inline void raw_switch_stress_step(void) {
+static inline uint64_t raw_switch_stress_step(uint64_t value) {
+  register uint64_t rax __asm__("rax") = value;
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0x91000400\n"
@@ -384,7 +386,10 @@ static inline void raw_switch_stress_step(void) {
     ".long 0x0000002b\n"
     ".long 0x91000400\n"
     ".long 0xd42fffe0\n"
-    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
 }
 
 static inline void raw_aarch64_strlen_probe(uint64_t arg0) {
@@ -670,9 +675,7 @@ int main(void) {
   }
 
   stage("POLY_STAGE: mixed-raw");
-  write_rax(40);
-  raw_mixed_probe();
-  if (read_rax() != 47) {
+  if (raw_mixed_probe(40) != 47) {
     fprintf(stderr, "POLY_PROBE_FAIL: mixed raw instruction stream mismatch\n");
     return 1;
   }
@@ -680,10 +683,10 @@ int main(void) {
   stage("POLY_STAGE: switch-stress");
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  write_rax(0);
+  uint64_t switch_accum = 0;
   for (unsigned n = 0; n < 8; n++)
-    raw_switch_stress_step();
-  if (read_rax() != 56) {
+    switch_accum = raw_switch_stress_step(switch_accum);
+  if (switch_accum != 56) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw switch stress result mismatch\n");
     return 1;
   }
