@@ -622,8 +622,8 @@ dependency `DT_INIT_ARRAY` constructor execution before entering dependent
 foreign code and dependency `DT_FINI_ARRAY` teardown afterward with
 destructor-visible dependency state checks,
 compiler-emitted same-image function-pointer relocations and indirect native
-calls, `DT_INIT_ARRAY` constructor execution before foreign entrypoints,
-`DT_FINI_ARRAY` destructor execution during teardown,
+calls, `DT_INIT`/`DT_INIT_ARRAY` constructor execution before foreign
+entrypoints, `DT_FINI_ARRAY`/`DT_FINI` destructor execution during teardown,
 compiler-emitted AArch64 TLSDESC, AArch64 traditional
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64`, and RISC-V
 `__tls_get_addr` access to `PT_TLS` initial images through the `PCALL`

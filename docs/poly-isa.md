@@ -469,8 +469,10 @@ aggregate return objects (`aarch64-pcall-sret-real.so#poly_entry` and
 `riscv-pcall-tls-ie-real.so#poly_entry`), compiler-produced
 constructor/destructor objects (`aarch64-pcall-ctor-real.so#poly_entry`,
 `riscv-pcall-ctor-real.so#poly_entry`,
-`aarch64-pcall-fini-real.so#poly_entry`, and
-`riscv-pcall-fini-real.so#poly_entry`), compiler-produced conditional objects
+`aarch64-pcall-fini-real.so#poly_entry`,
+`riscv-pcall-fini-real.so#poly_entry`,
+`aarch64-pcall-dt-init-real.so#poly_entry`, and
+`riscv-pcall-dt-init-real.so#poly_entry`), compiler-produced conditional objects
 (`aarch64-pcall-cond-real.so#poly_entry` and
 `riscv-pcall-cond-real.so#poly_entry`), compiler-produced compare-and-branch
 objects (`aarch64-pcall-cbz-real.so#poly_entry` and
@@ -660,11 +662,11 @@ needed-library probes also expose destructor-written dependency state after
 dependency teardown, including the transitive leaf destructor effect. The leaf
 dependency also exports a data object consumed by the intermediate dependency,
 covering cross-library object-symbol relocation. The
-constructor probes execute
-compiler-emitted `DT_INIT_ARRAY` entries before the requested foreign
-entrypoint. The destructor probes execute compiler-emitted `DT_FINI_ARRAY`
-entries during foreign-object teardown and verify their effect on foreign
-static state. The TLS probes exercise compiler-emitted AArch64 TLSDESC with
+constructor probes execute compiler-emitted `DT_INIT_ARRAY` entries and
+linker-selected `DT_INIT` functions before the requested foreign entrypoint.
+The destructor probes execute compiler-emitted `DT_FINI_ARRAY` entries and
+linker-selected `DT_FINI` functions during foreign-object teardown and verify
+their effect on foreign static state. The TLS probes exercise compiler-emitted AArch64 TLSDESC with
 `mrs tpidr_el0`, AArch64 traditional
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and
 RISC-V `__tls_get_addr` against a copied `PT_TLS` initial image supplied
@@ -761,8 +763,9 @@ prototype cap.
 `DT_RUNPATH` is preferred over `DT_RPATH` when present, and `$ORIGIN/...`
 entries are used to resolve same-package dependency subdirectories before a
 missing needed library fails to load.
-Dependency `DT_INIT_ARRAY` constructors run before entering dependent foreign
-code, and dependency `DT_FINI_ARRAY` destructors run during teardown. The
+Dependency `DT_INIT` and `DT_INIT_ARRAY` constructors run before entering
+dependent foreign code, and dependency `DT_FINI_ARRAY` and `DT_FINI`
+destructors run during teardown. The
 `depfini:` harness mode verifies dependency finalizers by calling an exported
 dependency result symbol after dependency teardown and before unmapping.
 Imported function symbols can bind to prototype hardware call-descriptor
