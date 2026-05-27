@@ -172,20 +172,21 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`26` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`27` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, reserved bit `11`, the
-  prototype x86 poly opcode family, and two-float aggregate return packing,
-  two-float aggregate argument unpacking, and
+  prototype x86 poly opcode family, two-float aggregate return packing,
+  two-float aggregate argument unpacking,
   `{u64,double}`/`{double,u64}`/`{u64,float}`/`{float,u64}` heterogeneous
-  aggregate bridging for native ABI `PCALL`, plus RISC-V `{u32,float}` and
-  `{float,u32}` compact aggregate bridges and matching neutral
-  AArch64<->RISC-V compact aggregate cross-calls, and runtime-supplied
-  foreign-to-x86 import descriptor slots, and FP64 overflow stack-argument
-  `PCALL` variants, and neutral AArch64<->RISC-V FP64 overflow stack-argument
-  cross-call variants, the architectural trap vector/trap-return path, and
-  explicit software-selected poly state keys.  The
+  aggregate bridging for native ABI `PCALL`, RISC-V `{u32,float}` and
+  `{float,u32}` compact aggregate bridges, neutral AArch64<->RISC-V compact
+  aggregate cross-calls, runtime-supplied foreign-to-x86 import descriptor
+  slots, FP64 overflow stack-argument `PCALL` variants, neutral
+  AArch64<->RISC-V FP64 overflow stack-argument cross-call variants, the
+  architectural trap vector/trap-return path, explicit software-selected poly
+  state keys, and fixed 128-bit vector ABI bridging for tested AArch64 calls.
+  The
   double-lane bridge forms also cover ABI-compatible `{u32,double}` and
   `{double,u32}` shapes.
 - `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
@@ -284,13 +285,15 @@ discover the experimental hardware contract before emitting poly operations:
   raw alignment, and `EDX=0x19` is the covered frontend mask: x86 bit `0`,
   AArch64 bit `3`, and RISC-V bit `4`.
 - `CPUID.EAX=0x40000009`: native ABI bridge/runtime descriptor discovery.
-  `EAX=1` is the ABI bridge version.  `EBX=0x7ff` reports flags: x86_64 SysV
+  `EAX=1` is the ABI bridge version.  `EBX=0xfff` reports flags: x86_64 SysV
   can enter AAPCS64 and RISC-V psABI, hidden-sret forms are described, scalar
   FP aliases are described, focused aggregate bridge forms are described, FP64
   overflow stack-argument forms are described, imports use descriptor-backed
   foreign-to-x86 calls, TLS base handoff is explicit, descriptor tables are
   runtime-supplied, fixed CPU helper fallbacks are not part of the ABI, and x86
-  helper targets return through ordinary `ret`.  `ECX[7:0]=8` is the native
+  helper targets return through ordinary `ret`, with fixed 128-bit vector
+  register arguments/returns advertised for supported native ABI paths.
+  `ECX[7:0]=8` is the native
   GPR argument lane count, `ECX[15:8]=8` is the scalar FP argument lane count,
   `ECX[31:16]=16` is the foreign stack alignment, `EDX[15:0]=32` is the
   descriptor byte size, and `EDX[31:16]=16` is the descriptor call stride.
@@ -426,8 +429,10 @@ slots `[RSP+8]` and `[RSP+16]` are mapped to AArch64 `x0`-`x7` or RISC-V
 `a0`-`a7`; the foreign stack pointer is a separate 16-byte-aligned window below
 the x86 frame with stack arguments copied from `[RSP+24]` onward so the first
 foreign stack-passed argument is at `[sp]`;
-`XMM0`-`XMM7` remain aliased to AArch64 `d0`-`d7` or RISC-V `fa0`-`fa7`,
-covering scalar FP arguments/returns and two-register homogeneous double
+`XMM0`-`XMM7` remain aliased to AArch64 `v0`-`v7` or RISC-V `fa0`-`fa7`,
+covering scalar FP arguments/returns, tested AArch64 fixed 128-bit SIMD
+arguments/returns through `XMM0`/`XMM1` and `v0`/`v1`, and two-register
+homogeneous double
 aggregate arguments and returns through `XMM0`/`XMM1`, plus two-`float`
 homogeneous aggregate returns packed into `XMM0[63:0]` and two-`float`
 homogeneous aggregate arguments unpacked from `XMM0[63:0]`, including mixed
