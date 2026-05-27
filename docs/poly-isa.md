@@ -759,7 +759,9 @@ The prototype records a unified `POLYTRAP` state before leaving raw execution:
 - Reason `1`: foreign syscall trap (`svc` or `ecall`).
 - Reason `2`: foreign breakpoint trap (`brk` or `ebreak`).
 - Mode records the raw source mode: `3` for AArch64, `4` for RISC-V.
-- Number records the syscall number or breakpoint immediate/id.
+- Number records the syscall number register for syscall traps (`x8` for
+  AArch64, `a7` for RISC-V) or the breakpoint immediate/id for breakpoint
+  traps.
 - Selector records the raw trap selector/immediate where the instruction
   encoding provides one, for example AArch64 `svc #imm` or `brk #imm`; RISC-V
   `ecall`/`ebreak` record selector `0` because their service id comes from

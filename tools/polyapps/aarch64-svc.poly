@@ -1,8 +1,9 @@
 # poly payload v1
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-svc.elf
-expected=0x53000703
+expected=0x53000003
 syscall_expected=3
-syscall_number_expected=7
+syscall_number_expected=0
+syscall_selector_expected=7
 break_id=0
 break_expected=0x4c000300

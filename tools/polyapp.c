@@ -32,6 +32,7 @@ struct payload {
   uint64_t expected;
   uint64_t syscall_expected;
   uint64_t syscall_number_expected;
+  uint64_t syscall_selector_expected;
   uint64_t libcall_expected;
   uint64_t libcall_number_expected;
   char scratch_expected[SCRATCH_CHECK_SIZE + 1];
@@ -42,6 +43,7 @@ struct payload {
   unsigned libcall_id;
   int check_syscall;
   int check_syscall_number;
+  int check_syscall_selector;
   int check_libcall;
   int check_libcall_number;
   int check_scratch;
@@ -56,6 +58,7 @@ static uint64_t polyapp_exit_result;
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x24,0x5a,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
@@ -745,6 +748,13 @@ static int load_payload(const char *path, struct payload *payload) {
         return -1;
       }
       payload->check_syscall_number = 1;
+    } else if (strncmp(line, "syscall_selector_expected=", 26) == 0) {
+      if (parse_u64(line + 26, &payload->syscall_selector_expected) < 0) {
+        fprintf(stderr, "POLYAPP_FAIL: bad syscall selector expected value in %s\n", path);
+        fclose(file);
+        return -1;
+      }
+      payload->check_syscall_selector = 1;
     } else if (strncmp(line, "break_expected=", 15) == 0 ||
                strncmp(line, "libcall_expected=", 17) == 0) {
       const char *value = line[0] == 'b' ? line + 15 : line + 17;
@@ -826,7 +836,12 @@ static void free_payload(struct payload *payload) {
   payload->insn_capacity = 0;
 }
 
-static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_t *syscall_result, uint64_t *syscall_number_result, uint64_t *libcall_result, uint64_t *libcall_number_result, char scratch_result[SCRATCH_CHECK_SIZE + 1], char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
+static int emit_and_run(const struct payload *payload, uint64_t *result,
+    uint64_t *syscall_result, uint64_t *syscall_number_result,
+    uint64_t *syscall_selector_result, uint64_t *libcall_result,
+    uint64_t *libcall_number_result,
+    char scratch_result[SCRATCH_CHECK_SIZE + 1],
+    char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
   const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 1 : 2;
   const size_t code_size = 3 + 8 + (return_setup_insns + payload->insn_count) * 4 + 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -874,6 +889,10 @@ static int emit_and_run(const struct payload *payload, uint64_t *result, uint64_
     poly_syscall_number_status();
     *syscall_number_result = read_rax();
   }
+  if (payload->check_syscall_selector) {
+    poly_trap_selector_status();
+    *syscall_selector_result = read_rax();
+  }
   if (payload->check_libcall) {
     *libcall_result = 0x4c000000ULL | (raw_mode << 8);
   }
@@ -913,11 +932,14 @@ int main(int argc, char **argv) {
     uint64_t result = 0;
     uint64_t syscall_result = 0;
     uint64_t syscall_number_result = 0;
+    uint64_t syscall_selector_result = 0;
     uint64_t libcall_result = 0;
     uint64_t libcall_number_result = 0;
     char scratch_result[SCRATCH_CHECK_SIZE + 1];
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1];
-    if (emit_and_run(&payload, &result, &syscall_result, &syscall_number_result, &libcall_result, &libcall_number_result, scratch_result, scratch_hex_result) < 0) {
+    if (emit_and_run(&payload, &result, &syscall_result,
+          &syscall_number_result, &syscall_selector_result, &libcall_result,
+          &libcall_number_result, scratch_result, scratch_hex_result) < 0) {
       free_payload(&payload);
       return 1;
     }
@@ -946,6 +968,18 @@ int main(int argc, char **argv) {
       if (syscall_number_result != payload.syscall_number_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s syscall number expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.syscall_number_expected, (unsigned long long) syscall_number_result);
+        free_payload(&payload);
+        return 1;
+      }
+    }
+    if (payload.check_syscall_selector) {
+      printf("POLYAPP_SYSCALL_SELECTOR: arch=%s value=%llu path=%s\n",
+        payload.arch_name, (unsigned long long) syscall_selector_result,
+        payload.path);
+      if (syscall_selector_result != payload.syscall_selector_expected) {
+        fprintf(stderr, "POLYAPP_FAIL: %s syscall selector expected %llu got %llu\n",
+          payload.path, (unsigned long long) payload.syscall_selector_expected,
+          (unsigned long long) syscall_selector_result);
         free_payload(&payload);
         return 1;
       }

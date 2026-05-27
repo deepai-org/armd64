@@ -662,9 +662,12 @@ exits.  AArch64 `svc` and RISC-V `ecall` record reason `1`; AArch64 `brk` and
 RISC-V `ebreak` record
 reason `2`.  The record includes source mode, trap number, six ABI arguments,
 the foreign PC, the resume PC, and the raw trap selector/immediate when the
-foreign instruction encoding carries one.  In hardware or FPGA this packet is
-the boundary: firmware, the OS, or a userspace runtime routes it.  Bochs does
-not synthesize Linux syscall or libc-helper results from raw trap instructions.
+foreign instruction encoding carries one.  For syscall traps, the number is
+the native ABI syscall register (`x8` for AArch64, `a7` for RISC-V); AArch64
+`svc #imm` stores `imm` only in the selector field.  In hardware or FPGA this
+packet is the boundary: firmware, the OS, or a userspace runtime routes it.
+Bochs does not synthesize Linux syscall or libc-helper results from raw trap
+instructions.
 
 Software can install an architectural trap
 vector with `0f 24 60 ... POLY!` using `RAX=handler_pc` and can select the

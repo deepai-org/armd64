@@ -68,7 +68,7 @@ case "$path" in
   */aarch64-uname.elf) expected=0 ;;
   */aarch64-exit.elf) expected=7 ;;
   */aarch64-brk.elf) expected=0x4c000305 ;;
-  */aarch64-svc.elf) expected=0x53000703 ;;
+  */aarch64-svc.elf) expected=0x53000003 ;;
   */riscv-add.elf) expected=27 ;;
   */riscv-compressed.elf) expected=27 ;;
   */riscv-compressed-half.elf) expected=27 ;;
