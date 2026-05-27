@@ -13,6 +13,7 @@
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_GET ".byte 0x0f,0x24,0x64,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -48,6 +49,12 @@ static inline void poly_trap_vector_mode_set(void) {
 
 static inline void poly_trap_vector_mode_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "memory");
+}
+
+static inline uint64_t poly_trap_status_reason(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_STATUS_REASON : "=a"(value) :: "memory");
+  return value;
 }
 
 __attribute__((naked, noinline, used))
@@ -187,6 +194,33 @@ static int run_poly_trap_vector_probe(void) {
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 svc trap vector result mismatch got=%llu expected=%llu\n",
       (unsigned long long) result, (unsigned long long) expected_pid);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent trap packet reason mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  pid_t trap_child = fork();
+  if (trap_child < 0) {
+    fputs("NATIVE_CHECK_FAIL: poly trap packet fork failed\n", stderr);
+    return 1;
+  }
+  if (trap_child == 0) {
+    if (poly_trap_status_reason() != 0)
+      _exit(21);
+    _exit(0);
+  }
+  status = 0;
+  if (waitpid(trap_child, &status, 0) != trap_child || !WIFEXITED(status) ||
+      WEXITSTATUS(status) != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly trap packet leaked across address space status=0x%x\n",
+      status);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent trap packet lost after fork got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
     return 1;
   }
 
