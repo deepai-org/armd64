@@ -53,7 +53,9 @@ frontend mode when the saved architectural state requires it.
 ## Bochs Prototype Contract
 
 Bochs now has a fixed 8-byte x86 opcode-family placeholder for hot frontend
-and call operations:
+and call operations.  Both long-mode and non-long-mode x86 decode route the
+`0f 24` opcode to `BX_IA_POLYMODE`; `#UD` handling is not an alternate dispatch
+path for this family:
 
 - `0f 24 00 50 4f 4c 59 21`: prototype `PEXIT`, returning to x86_64 mode.
 - `0f 24 01 50 4f 4c 59 21`: prototype `PENTER.A64`, entering raw AArch64

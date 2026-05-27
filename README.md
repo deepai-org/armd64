@@ -136,8 +136,10 @@ operations when `POLY_ENABLED=1`.  Normal x86_64 instructions are unchanged.
 The preferred prototype hot path decodes a fixed `0f 24 <op> POLY!`
 opcode-family placeholder through the `BX_IA_POLYMODE` handler; the runtime
 tools use this opcode family for hot frontend switches, `PCALL`, and status
-reads.  `UD2` is no longer an alternate polyglot envelope; ordinary `UD2`
-retains standard invalid-opcode behavior.
+reads.  Bochs' 32-bit and 64-bit x86 decoders must route `0f 24` to that
+dedicated handler; the undefined-opcode path is not allowed to recover poly
+opcodes as a fallback.  `UD2` is no longer an alternate polyglot envelope;
+ordinary `UD2` retains standard invalid-opcode behavior.
 The current handler accepts these operations only from guest userspace.
 
 Preferred 8-byte x86 poly opcode-family operations:

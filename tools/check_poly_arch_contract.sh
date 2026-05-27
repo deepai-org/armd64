@@ -5,6 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 BOCHS_EXCEPTION="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/exception.cc"
 BOCHS_CTRL_XFER64="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/ctrl_xfer64.cc"
+BOCHS_FETCHDECODE32="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode32.cc"
+BOCHS_FETCHDECODE64="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode64.cc"
+BOCHS_OPMAP="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode_opmap.h"
+BOCHS_OPCODES="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/ia_opcodes.def"
 BOCHS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs"
 POLYPROBE="$ROOT_DIR/tools/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/polybench.c"
@@ -68,6 +72,28 @@ assert_not_contains() {
     fail "$description"
   fi
 }
+
+assert_contains "BxOpcodeTable0F24\\[\\].*BX_IA_POLYMODE" "$BOCHS_OPMAP" \
+  "x86 poly opcode family must be decoded as BX_IA_POLYMODE, not #UD"
+assert_contains "0F 24.*decoder_creg32.*BxOpcodeTable0F24" "$BOCHS_FETCHDECODE32" \
+  "32-bit x86 decode must route 0f 24 to the POLYMODE opcode table"
+assert_contains "0F 24.*decoder_creg64.*BxOpcodeTable0F24" "$BOCHS_FETCHDECODE64" \
+  "64-bit x86 decode must route 0f 24 to the POLYMODE opcode table"
+assert_contains "BX_IA_POLYMODE.*BX_CPU_C::POLYMODE" "$BOCHS_OPCODES" \
+  "BX_IA_POLYMODE must dispatch to the dedicated POLYMODE handler"
+
+BXERROR_FUNC="$TMP_DIR/BxError.cc"
+UNDEFINED_FUNC="$TMP_DIR/UndefinedOpcode.cc"
+POLYMODE_FUNC="$TMP_DIR/POLYMODE.cc"
+extract_function "BxError" "$BXERROR_FUNC"
+extract_function "UndefinedOpcode" "$UNDEFINED_FUNC"
+extract_function "POLYMODE" "$POLYMODE_FUNC"
+assert_contains "handle_poly_opcode" "$POLYMODE_FUNC" \
+  "POLYMODE must handle x86 poly opcodes through the dedicated decoded path"
+assert_not_contains "handle_poly_(opcode|ud)" "$BXERROR_FUNC" \
+  "BxError must not mask decoder regressions by accepting poly opcodes from #UD"
+assert_not_contains "handle_poly_(opcode|ud)" "$UNDEFINED_FUNC" \
+  "UndefinedOpcode must not mask decoder regressions by accepting poly opcodes from #UD"
 
 SYSCALL_FUNC="$TMP_DIR/handle_poly_foreign_syscall.cc"
 extract_function "handle_poly_foreign_syscall" "$SYSCALL_FUNC"
