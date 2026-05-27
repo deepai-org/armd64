@@ -154,6 +154,10 @@ assert_contains "first eight native foreign ABI argument registers" "$POLY_ISA_D
   "poly ISA doc must describe all eight POLYTRAP argument lanes"
 assert_not_contains "six[[:space:]]+ABI arguments" "$README" \
   "README must not describe the old six-argument POLYTRAP packet"
+assert_contains "pcall-needed-tls-external-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover dependency-exported TLS relocations"
+assert_contains "RELOC_BASE_DEP_TLS_OFFSET" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must have a relocation base for dependency-exported TLS symbols"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

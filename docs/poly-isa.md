@@ -731,7 +731,8 @@ their effect on foreign static state. The TLS probes exercise compiler-emitted A
 RISC-V `__tls_get_addr` against a copied `PT_TLS` initial image supplied
 through the `PCALL` TLS-base register, plus initial-exec
 `R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses against the same
-TLS base. The conditional probes exercise compiler-emitted AArch64
+TLS base, including undefined `STT_TLS` relocations bound to `DT_NEEDED`
+dependencies. The conditional probes exercise compiler-emitted AArch64
 logical-immediate `tst`, `csel`, and conditional-select variants
 `csinc`/`csinv`/`csneg`, plus RISC-V branch/select patterns. The
 compare-and-branch probes exercise compiler-emitted AArch64 `cbz`/`cbnz` on
@@ -925,7 +926,8 @@ dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
 RISC-V `__tls_get_addr`) through runtime x86 helper descriptors that consume
 the `PCALL` TLS-base register.
 Initial-exec `R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64` relocations bind
-directly to that same TLS base. The descriptor path also covers common GCC
+directly to that same TLS base, including dependency-exported `STT_TLS`
+symbols. The descriptor path also covers common GCC
 AArch64 outline atomic helpers: 8-, 16-, 32-, and 64-bit `ldadd`, `swp`,
 `ldclr`, `ldeor`, `ldset`, and `cas` with `relax`, `acq`, `rel`, and `acq_rel`
 suffixes.  The suffixes alias to the same operation descriptors because the

@@ -102,7 +102,8 @@ enum {
   RELOC_BASE_TLS_OFFSET = 5,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
-  RELOC_BASE_DEP_IFUNC = 300
+  RELOC_BASE_DEP_IFUNC = 300,
+  RELOC_BASE_DEP_TLS_OFFSET = 400
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
@@ -2822,6 +2823,39 @@ static int resolve_dependency_object_symbol(const struct poly_program *program,
   return -1;
 }
 
+static int resolve_dependency_tls_symbol(const struct poly_program *program,
+    const char *symbol_name, size_t *dep_index, uint64_t *symbol_value) {
+  size_t best = program->dep_count;
+  size_t best_rank = (size_t) -1;
+  uint64_t best_value = 0;
+
+  for (size_t n = 0; n < program->dep_count; n++) {
+    const struct poly_symbol_table *table = &program->deps[n].dynsym;
+    if (!table->symbols || !table->strings || !symbol_name)
+      continue;
+    for (size_t s = 0; s < table->symbol_count; s++) {
+      const Elf64_Sym *sym = &table->symbols[s];
+      if (sym->st_name >= table->strings_size ||
+          sym->st_shndx == SHN_UNDEF ||
+          ELF64_ST_TYPE(sym->st_info) != STT_TLS ||
+          strcmp(table->strings + sym->st_name, symbol_name) != 0)
+        continue;
+      if (program->deps[n].lookup_rank >= best_rank)
+        continue;
+      best = n;
+      best_rank = program->deps[n].lookup_rank;
+      best_value = sym->st_value;
+    }
+  }
+
+  if (best < program->dep_count) {
+    *dep_index = best;
+    *symbol_value = best_value;
+    return 0;
+  }
+  return -1;
+}
+
 static int resolve_external_reloc_symbol(struct poly_program *program,
     const char *symbol_name, uint64_t *symbol_value, int *base_kind) {
   if (resolve_dependency_symbol(program, symbol_name, symbol_value,
@@ -2904,7 +2938,7 @@ static int resolve_reloc_symbol(struct poly_program *program,
 
 static int resolve_tls_reloc_symbol(struct poly_program *program,
     const struct poly_symbol_table *table, uint64_t symbol_index,
-    uint64_t *tls_offset) {
+    uint64_t *tls_offset, int *base_kind) {
   if (!table->symbols || symbol_index >= table->symbol_count) {
     fprintf(stderr, "POLYCALL_FAIL: TLS relocation symbol table missing: %s\n",
       program->path);
@@ -2912,13 +2946,28 @@ static int resolve_tls_reloc_symbol(struct poly_program *program,
   }
 
   const Elf64_Sym *sym = &table->symbols[symbol_index];
+  if (sym->st_name >= table->strings_size) {
+    fprintf(stderr, "POLYCALL_FAIL: bad TLS relocation symbol name index=%llu path=%s\n",
+      (unsigned long long) symbol_index, program->path);
+    return -1;
+  }
+  const char *symbol_name = table->strings + sym->st_name;
   if (sym->st_shndx == SHN_UNDEF) {
-    if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
-      *tls_offset = 0;
+    size_t dep_index = 0;
+    uint64_t dep_tls_offset = 0;
+    if (resolve_dependency_tls_symbol(program, symbol_name, &dep_index,
+          &dep_tls_offset) == 0) {
+      *tls_offset = dep_tls_offset;
+      *base_kind = RELOC_BASE_DEP_TLS_OFFSET + (int) dep_index;
       return 0;
     }
-    fprintf(stderr, "POLYCALL_FAIL: unresolved external TLS relocation path=%s\n",
-      program->path);
+    if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
+      *tls_offset = 0;
+      *base_kind = RELOC_BASE_ABSOLUTE;
+      return 0;
+    }
+    fprintf(stderr, "POLYCALL_FAIL: unresolved external TLS relocation symbol=%s path=%s\n",
+      symbol_name, program->path);
     return -1;
   }
   if (ELF64_ST_TYPE(sym->st_info) != STT_TLS) {
@@ -2928,6 +2977,7 @@ static int resolve_tls_reloc_symbol(struct poly_program *program,
   }
 
   *tls_offset = sym->st_value;
+  *base_kind = RELOC_BASE_TLS_OFFSET;
   return 0;
 }
 
@@ -3008,8 +3058,9 @@ static int process_rela_table(struct poly_program *program,
         return -1;
       }
       uint64_t tls_offset = 0;
+      int tls_base_kind = RELOC_BASE_TLS_OFFSET;
       if (resolve_tls_reloc_symbol(program, &dynsym, symbol_index,
-            &tls_offset) < 0)
+            &tls_offset, &tls_base_kind) < 0)
         return -1;
 
       size_t relocation_offset = 0;
@@ -3024,7 +3075,7 @@ static int process_rela_table(struct poly_program *program,
             RELOC_BASE_IMPORT_CALL) < 0 ||
           append_dynamic_reloc(program, relocation_offset + 8,
             tls_offset + (uint64_t) rela[n].r_addend,
-            RELOC_BASE_TLS_OFFSET) < 0)
+            tls_base_kind) < 0)
         return -1;
       continue;
     }
@@ -3045,10 +3096,9 @@ static int process_rela_table(struct poly_program *program,
       }
       else {
         if (resolve_tls_reloc_symbol(program, &dynsym, symbol_index,
-              &reloc_value) < 0)
+              &reloc_value, &base_kind) < 0)
           return -1;
         reloc_value += (uint64_t) rela[n].r_addend;
-        base_kind = RELOC_BASE_TLS_OFFSET;
       }
     }
     else if (program->arch == POLY_ARCH_RISCV &&
@@ -3069,10 +3119,9 @@ static int process_rela_table(struct poly_program *program,
       }
       else {
         if (resolve_tls_reloc_symbol(program, &dynsym, symbol_index,
-              &reloc_value) < 0)
+              &reloc_value, &base_kind) < 0)
           return -1;
         reloc_value += (uint64_t) rela[n].r_addend;
-        base_kind = RELOC_BASE_TLS_OFFSET;
       }
     }
     else if (program->arch == POLY_ARCH_AARCH64 &&
@@ -3085,10 +3134,9 @@ static int process_rela_table(struct poly_program *program,
         return -1;
       }
       if (resolve_tls_reloc_symbol(program, &dynsym, symbol_index,
-            &reloc_value) < 0)
+            &reloc_value, &base_kind) < 0)
         return -1;
       reloc_value += (uint64_t) rela[n].r_addend;
-      base_kind = RELOC_BASE_TLS_OFFSET;
     }
     else if (symbol_index == 0 && reloc_type == relative_type) {
       reloc_value = (uint64_t) rela[n].r_addend;
@@ -4265,6 +4313,13 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = import_contract.call_base;
       else if (dep->relocs[r].base_kind == RELOC_BASE_TLS_OFFSET)
         reloc_base = program->deps[d].tls_offset;
+      else if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_TLS_OFFSET &&
+          dep->relocs[r].base_kind <
+            RELOC_BASE_DEP_TLS_OFFSET + (int) program->dep_count) {
+        const size_t dep_index =
+          (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_TLS_OFFSET);
+        reloc_base = program->deps[dep_index].tls_offset;
+      }
       else if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
           dep->relocs[r].base_kind <
             RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {
@@ -4414,6 +4469,13 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       reloc_base = import_contract.call_base;
     else if (program->relocs[n].base_kind == RELOC_BASE_TLS_OFFSET)
       reloc_base = program->tls_offset;
+    else if (program->relocs[n].base_kind >= RELOC_BASE_DEP_TLS_OFFSET &&
+        program->relocs[n].base_kind <
+          RELOC_BASE_DEP_TLS_OFFSET + (int) program->dep_count) {
+      const size_t dep_index =
+        (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_TLS_OFFSET);
+      reloc_base = program->deps[dep_index].tls_offset;
+    }
     else if (program->relocs[n].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
         program->relocs[n].base_kind <
           RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {

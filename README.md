@@ -691,6 +691,7 @@ compiler-emitted AArch64 TLSDESC, AArch64 traditional
 `__tls_get_addr` access to `PT_TLS` initial images through the `PCALL`
 TLS-base register, plus
 initial-exec `R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses,
+including undefined `STT_TLS` relocations bound to `DT_NEEDED` dependencies,
 compiler-emitted conditional select variants and branch patterns
 (`aarch64-pcall-select-variants-real.so`,
 `riscv-pcall-select-variants-real.so`, `aarch64-pcall-import.elf`,
