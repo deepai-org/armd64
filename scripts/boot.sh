@@ -1570,6 +1570,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-lseek.elf" 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001 0xd28000e1 0xd2800002 0xd28007c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-read.elf" 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001 0x91002021 0xd2800082 0xd28007e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat-read-close.elf" 0x91000026 0xd2800000 0x91000021 0xd2800002 0xd2800708 0xd4000001 0xf90000c0 0x910020c1 0xd2800082 0xd28007e8 0xd4000001 0xf94000c0 0xd2800728 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-real-openat-read-close.elf" 0x91000026 0xd2800000 0x91001821 0xd2800002 0xd2800708 0xd4000001 0xf90000c0 0x910020c1 0xd2800082 0xd28007e8 0xd4000001 0xf94000c0 0xd2800728 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clock-gettime.elf" 0xd2800000 0x91000021 0xd2800e28 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clock-getres.elf" 0xd2800000 0x91000021 0xd2800e48 0xd4000001 0xf9400420
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-times.elf" 0x91000020 0xd2801328 0xd4000001 0xf9400020
@@ -1853,6 +1854,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-lseek.elf" 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073 0x00700593 0x00000613 0x03e00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-read.elf" 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073 0x00858593 0x00400613 0x03f00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat-read-close.elf" 0x00058813 0x00000513 0x00058593 0x00000613 0x03800893 0x00000073 0x00a83023 0x00880593 0x00400613 0x03f00893 0x00000073 0x00083503 0x03900893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-real-openat-read-close.elf" 0x00058813 0x00000513 0x00658593 0x00000613 0x03800893 0x00000073 0x00a83023 0x00880593 0x00400613 0x03f00893 0x00000073 0x00083503 0x03900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clock-gettime.elf" 0x00000513 0x00058593 0x07100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clock-getres.elf" 0x00000513 0x00058593 0x07200893 0x00000073 0x0085b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-times.elf" 0x00058513 0x09900893 0x00000073 0x0005b503
@@ -2613,6 +2615,8 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-clock-gettime.elf=0 \
     /usr/lib/polyapps/aarch64-mmap-real-store.elf=77 \
     /usr/lib/polyapps/riscv-mmap-real-store.elf=77 \
+    /usr/lib/polyapps/aarch64-real-openat-read-close.elf=0 \
+    /usr/lib/polyapps/riscv-real-openat-read-close.elf=0 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
     /usr/lib/polyapps/aarch64-memfill.elf=4 \

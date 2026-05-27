@@ -212,6 +212,20 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
 __attribute__((naked, noinline, used))
 static void poly_trap_vector_handler(void) {
   __asm__(
+    "pushq %rbx\n"
+    "pushq %rcx\n"
+    "pushq %rdx\n"
+    "pushq %rsi\n"
+    "pushq %rdi\n"
+    "pushq %r8\n"
+    "pushq %r9\n"
+    "pushq %r10\n"
+    "pushq %r11\n"
+    "pushq %r12\n"
+    "pushq %r13\n"
+    "pushq %r14\n"
+    "pushq %r15\n"
+    "pushq %rbp\n"
     "movq %rdi, %r9\n"
     "movq %rsi, %r8\n"
     "movq %rcx, %r10\n"
@@ -222,6 +236,20 @@ static void poly_trap_vector_handler(void) {
     "subq $8, %rsp\n"
     "call poly_trap_vector_dispatch\n"
     "addq $8, %rsp\n"
+    "popq %rbp\n"
+    "popq %r15\n"
+    "popq %r14\n"
+    "popq %r13\n"
+    "popq %r12\n"
+    "popq %r11\n"
+    "popq %r10\n"
+    "popq %r9\n"
+    "popq %r8\n"
+    "popq %rdi\n"
+    "popq %rsi\n"
+    "popq %rdx\n"
+    "popq %rcx\n"
+    "popq %rbx\n"
     POLY_OP_TRAP_RETURN
     "ud2\n");
 }
@@ -486,7 +514,7 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   emit_u32(code, &offset, escape);
   code[offset++] = 0xc3;
 
-  char scratch[4096] = "poly!";
+  char scratch[4096] = "poly!\0/init";
   uint64_t (*entry)(uint64_t *, uint64_t *) = (uint64_t (*)(uint64_t *, uint64_t *)) code;
   *result = entry((uint64_t *) scratch, (uint64_t *) scratch);
   poly_mode_x86();

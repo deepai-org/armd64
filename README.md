@@ -29,8 +29,8 @@ Linux ABI passthrough, or equal-speed execution.
   selected foreign Linux syscalls into real x86 Linux `syscall` instructions,
   then resumes the original raw frontend with `POLY_TRAP_RETURN`; it also runs
   generated AArch64/RISC-V process-identity, `getcwd`, `uname`,
-  `clock_gettime`, real anonymous `mmap` store, `strlen`, `memfill`, `memcmp`,
-  and `memcpy` ELF payloads through the same
+  `clock_gettime`, real anonymous `mmap` store, `openat`/`read`/`close`,
+  `strlen`, `memfill`, `memcmp`, and `memcpy` ELF payloads through the same
   disabled-compat path.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
@@ -612,7 +612,9 @@ leave the raw frontend and enter x86 at that handler with `RAX=reason`,
 `RDI=arg0`.  The handler can read the full packet with trap-status opcodes,
 apply OS/runtime policy in software, place the result in the shared result
 register, and execute `0f 24 62 ... POLY!` to resume the recorded source
-frontend at the trap resume PC.
+frontend at the trap resume PC.  Trap delivery preserves the source frontend's
+aliased argument registers across the x86 handler and only commits the x86
+result register back to the foreign result register on trap return.
 The `polyexec` trap-vector handler is the current userspace policy example:
 its entry stub only adapts the architectural trap-packet register ABI to a C
 dispatcher, and that dispatcher maps selected generic AArch64/RISC-V Linux
