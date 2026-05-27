@@ -204,7 +204,9 @@ enum {
   POLY_IMPORT_FUNC_ERRNO_LOCATION = 115,
   POLY_IMPORT_FUNC_GETAUXVAL = 116,
   POLY_IMPORT_FUNC_GETPAGESIZE = 117,
-  POLY_IMPORT_FUNC_SYSCONF = 118
+  POLY_IMPORT_FUNC_SYSCONF = 118,
+  POLY_IMPORT_FUNC_GETENV = 119,
+  POLY_IMPORT_FUNC_SECURE_GETENV = 120
 };
 
 struct poly_dynamic_reloc {
@@ -751,6 +753,14 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "sysconf") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_SYSCONF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "getenv") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETENV * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "secure_getenv") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_SECURE_GETENV * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
