@@ -105,6 +105,24 @@ assert_not_contains "write_poly_(aarch64|riscv)_reg|RAX[[:space:]]*=|read_virtua
   "$SYSCALL_FUNC" \
   "foreign syscall handler must not synthesize guest results or decode Linux policy"
 
+IMPORT_CALL_FUNC="$TMP_DIR/handle_poly_import_call.cc"
+extract_function "handle_poly_import_call" "$IMPORT_CALL_FUNC"
+assert_contains "read_poly_aarch64_reg\\(0, &arg0\\)" "$IMPORT_CALL_FUNC" \
+  "AArch64 import call gate must capture native ABI argument lane x0"
+assert_contains "read_poly_aarch64_reg\\(5, &arg5\\)" "$IMPORT_CALL_FUNC" \
+  "AArch64 import call gate must capture native ABI argument lane x5"
+assert_contains "read_poly_riscv_reg\\(10, &arg0\\)" "$IMPORT_CALL_FUNC" \
+  "RISC-V import call gate must capture native ABI argument lane a0"
+assert_contains "read_poly_riscv_reg\\(15, &arg5\\)" "$IMPORT_CALL_FUNC" \
+  "RISC-V import call gate must capture native ABI argument lane a5"
+assert_contains "bx_poly_record_import_trap" "$IMPORT_CALL_FUNC" \
+  "unresolved descriptor imports must record an architectural import trap"
+assert_contains "deliver_poly_architectural_trap" "$IMPORT_CALL_FUNC" \
+  "unresolved descriptor imports must exit through the architectural trap path"
+assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \
+  "$IMPORT_CALL_FUNC" \
+  "import call gate must not encode libc/process/helper-specific argument policy"
+
 assert_not_contains "poly_raw: import x86 call|BX_POLY_IMPORT_X86_ADD_HELPER_SIZE|BX_POLY_IMPORT_FUNC_X86_ADD" \
   "$BOCHS_CPU" \
   "legacy fixed x86 import helper fallback must stay removed"
