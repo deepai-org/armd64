@@ -64,6 +64,11 @@ Linux ABI passthrough, or equal-speed execution.
   dispatcher and runs the manifest-backed `polyapp` payload suite through a
   guest-installed trap vector, keeping syscall/libcall policy outside the CPU
   model.
+- The `make boot-poly-full-arch-traps` path combines the disabled-compat probe,
+  manifest apps, focused direct ELF execution, `PCALL`, thread/signal,
+  benchmark, binfmt, and native CPUID gates in one run. It intentionally uses
+  the real-syscall/trap-vector direct-exec set instead of the legacy
+  deterministic fake-syscall `polyexec` matrix.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -944,6 +949,14 @@ guest-installed trap-vector handler:
 
 ```bash
 make boot-poly-bench-arch-traps
+```
+
+Run the full disabled-compat gate, combining guest trap-vector syscall/libcall
+handling across probe, manifest apps, focused direct ELF execution, PCALL,
+benchmark, thread/signal, and binfmt tests:
+
+```bash
+make boot-poly-full-arch-traps
 ```
 
 Run the fuller legacy compatibility-runtime gate, including direct foreign ELF
