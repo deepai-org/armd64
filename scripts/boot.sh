@@ -3446,7 +3446,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_CALL" = "1" ]; then
-    LD_LIBRARY_PATH='/usr/lib/polyapps/envdeps:/usr/lib/polyapps/envdeps/\$PLATFORM' /usr/bin/polycall \
+    LD_LIBRARY_PATH='/usr/lib/polyapps/missing-envdeps:/usr/lib/polyapps/envdeps:/usr/lib/polyapps/envdeps/\$PLATFORM' /usr/bin/polycall \
     /usr/lib/polyapps/aarch64-pcall-sum.elf=21 \
     /usr/lib/polyapps/riscv-pcall-sum.elf=21 \
     /usr/lib/polyapps/aarch64-pcall-sum8.elf=36 \

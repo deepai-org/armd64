@@ -688,6 +688,7 @@ dependency directories, and absolute `DT_NEEDED` path entries are honored,
 including old-style RPATH-only objects built without
 new dtags, colon-separated RUNPATH fallback directories, and `LD_LIBRARY_PATH`
 lookup for foreign dependencies with the same dynamic-string token expansion.
+Colon-separated `LD_LIBRARY_PATH` entries continue after missing directories.
 `LD_LIBRARY_PATH` is searched before declared RUNPATH/RPATH directories, and
 declared RUNPATH/RPATH directories are searched before the loader's
 compatibility fallback to the caller's directory,
