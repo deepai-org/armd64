@@ -459,7 +459,11 @@ shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 `libpolyneeded-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
 (`aarch64-pcall-needed-tls-real.so#poly_entry` with
 `libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
-with `libpolyneededtls-riscv.so`), compiler-produced copy-relocation executables
+with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
+dependency-IFUNC pairs (`aarch64-pcall-needed-ifunc-real.so#poly_entry` with
+`libpolyneededifunc-aarch64.so`, and
+`riscv-pcall-needed-ifunc-real.so#poly_entry` with
+`libpolyneededifunc-riscv.so`), compiler-produced copy-relocation executables
 (`aarch64-pcall-copy-reloc.elf#poly_entry` and
 `riscv-pcall-copy-reloc.elf#poly_entry`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
@@ -737,9 +741,10 @@ Traditional addend-in-place relative relocation tables are accepted through
 `DT_REL`/`DT_RELSZ`/`DT_RELENT`.
 IFUNC-style resolver relocations are accepted through
 `R_AARCH64_IRELATIVE` and `R_RISCV_IRELATIVE`, and symbolic relocations whose
-dynamic symbol type is `STT_GNU_IFUNC`; the resolver runs in the foreign
-frontend after ordinary relocations are applied, and its return value is written
-to the relocation target.
+dynamic symbol type is `STT_GNU_IFUNC`, including IFUNC symbols exported by
+loaded `DT_NEEDED` dependencies; the resolver runs in the foreign frontend after
+ordinary relocations are applied, and its return value is written to the
+relocation target.
 Copy relocations are accepted through `R_AARCH64_COPY` and `R_RISCV_COPY`; the
 loader resolves the exported object in loaded dependency scope and copies the
 symbol contents into the executable image before foreign constructors or

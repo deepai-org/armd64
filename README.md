@@ -415,8 +415,12 @@ shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 `libpolyneeded-aarch64.so` and its leaf dependency
 `libpolyneeded-leaf-aarch64.so`, and
 `riscv-pcall-needed-real.so#poly_entry` with `libpolyneeded-riscv.so` and its
-leaf dependency `libpolyneeded-leaf-riscv.so`), compiler-built relocated
-function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
+leaf dependency `libpolyneeded-leaf-riscv.so`), compiler-built `DT_NEEDED`
+dependency-IFUNC pairs (`aarch64-pcall-needed-ifunc-real.so#poly_entry` with
+`libpolyneededifunc-aarch64.so`, and
+`riscv-pcall-needed-ifunc-real.so#poly_entry` with
+`libpolyneededifunc-riscv.so`), compiler-built relocated function-pointer
+objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
 `riscv-pcall-funcptr-real.so#poly_entry`), compiler-built two-word aggregate
 return objects (`aarch64-pcall-pair-real.so#poly_entry` and
 `riscv-pcall-pair-real.so#poly_entry`), compiler-built hidden-sret aggregate
@@ -611,9 +615,10 @@ descriptors, real compiler-emitted GOT loads for undefined object-symbol
 imports, weak undefined function/object relocations resolving to zero,
 same-directory `DT_NEEDED` foreign shared-library dependencies with direct
 binding of undefined function and object-symbol relocations to dependency
-text/data, weak undefined relocations binding to dependency exports when
-present, direct-dependency symbol interposition ahead of transitive dependencies
-when symbols collide, recursive loading of dependency libraries' own `DT_NEEDED`
+text/data and dependency-exported symbolic IFUNC resolvers, weak undefined
+relocations binding to dependency exports when present, direct-dependency
+symbol interposition ahead of transitive dependencies when symbols collide,
+recursive loading of dependency libraries' own `DT_NEEDED`
 entries, and dependency sets larger than the original four-library prototype
 limit. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`
 dependency subdirectories,
