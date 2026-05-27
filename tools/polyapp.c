@@ -863,13 +863,44 @@ static void free_payload(struct payload *payload) {
   payload->insn_capacity = 0;
 }
 
+static int read_polyapp_base_contract(void) {
+  const struct poly_cpuid_regs base = poly_read_cpuid(POLY_CPUID_BASE, 0);
+  if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
+    fprintf(stderr,
+      "POLYAPP_FAIL: poly CPUID missing base=(0x%x,0x%x,0x%x,0x%x)\n",
+      base.eax, base.ebx, base.ecx, base.edx);
+    return -1;
+  }
+
+  const uint32_t required_modes = poly_cpuid_expected_mode_mask();
+  const uint32_t required_features =
+    POLY_CPUID_FEATURE_RAW_AARCH64 |
+    POLY_CPUID_FEATURE_RAW_RISCV |
+    POLY_CPUID_FEATURE_NEUTRAL_SWITCH |
+    POLY_CPUID_FEATURE_TRAP_RECORDS |
+    POLY_CPUID_FEATURE_X86_TSO |
+    POLY_CPUID_FEATURE_X86_POLY_OPCODES |
+    POLY_CPUID_FEATURE_TRAP_VECTOR;
+  const struct poly_cpuid_regs features = poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
+  if (features.eax != POLY_CPUID_ABI_VERSION ||
+      (features.ebx & required_modes) != required_modes ||
+      (features.ecx & required_features) != required_features) {
+    fprintf(stderr,
+      "POLYAPP_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
+      features.eax, features.ebx, features.ecx, features.edx);
+    return -1;
+  }
+
+  return 0;
+}
+
 static int emit_and_run(const struct payload *payload, uint64_t *result,
     uint64_t *syscall_result, uint64_t *syscall_number_result,
     uint64_t *syscall_selector_result, uint64_t *break_result,
     uint64_t *break_number_result,
     char scratch_result[SCRATCH_CHECK_SIZE + 1],
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
-  const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 1 : 2;
+  const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 2 : 3;
   const size_t code_size = 3 + 8 + (return_setup_insns + payload->insn_count) * 4 + 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -885,14 +916,16 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
-    emit_u32(code, &offset, aarch64_adr(30, (int64_t) (payload->insn_count + 1) * 4));
+    emit_u32(code, &offset, aarch64_adr(30, (int64_t) (payload->insn_count + 2) * 4));
+    emit_u32(code, &offset, 0xd2800008U);
   } else {
     const uint8_t raw_switch[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
-    int64_t escape_offset = (int64_t) (payload->insn_count + 2) * 4;
+    int64_t escape_offset = (int64_t) (payload->insn_count + 3) * 4;
     emit_u32(code, &offset, riscv_auipc(1, escape_offset));
     emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));
+    emit_u32(code, &offset, 0x00000893U);
   }
   for (size_t n = 0; n < payload->insn_count; n++) {
     emit_u32(code, &offset, payload->insns[n]);
@@ -946,6 +979,8 @@ int main(int argc, char **argv) {
   }
 
   puts("POLYAPP: start");
+  if (read_polyapp_base_contract() < 0)
+    return 1;
   install_polyapp_trap_vector();
   for (int n = 1; n < argc; n++) {
     struct payload payload;
