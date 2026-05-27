@@ -67,6 +67,38 @@ float POLY_HOST_HELPER poly_host_x86_fp32_add(float a, float b)
   return a + b + 200.5f;
 }
 
+unsigned __int128 POLY_HOST_HELPER poly_host_x86_udivti3(
+    unsigned __int128 dividend, unsigned __int128 divisor)
+{
+  if (divisor == 0)
+    return 0;
+  return dividend / divisor;
+}
+
+unsigned __int128 POLY_HOST_HELPER poly_host_x86_umodti3(
+    unsigned __int128 dividend, unsigned __int128 divisor)
+{
+  if (divisor == 0)
+    return 0;
+  return dividend % divisor;
+}
+
+__int128 POLY_HOST_HELPER poly_host_x86_divti3(__int128 dividend,
+    __int128 divisor)
+{
+  if (divisor == 0)
+    return 0;
+  return dividend / divisor;
+}
+
+__int128 POLY_HOST_HELPER poly_host_x86_modti3(__int128 dividend,
+    __int128 divisor)
+{
+  if (divisor == 0)
+    return 0;
+  return dividend % divisor;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_clzdi2(uint64_t value)
 {
   uint64_t count = 0;

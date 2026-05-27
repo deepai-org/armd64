@@ -738,11 +738,12 @@ for libc string/memory imports such as `strlen`, `memcpy`, and `memcmp`, and
 also for environment, allocation, teardown, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
 `__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`.  It also
-uses descriptors for scalar libgcc bit helpers `__clzdi2`, `__ctzdi2`,
-`__paritydi2`, and `__popcountdi2`.  For libc string/memory helpers, that
-OS-sensitive class, and these scalar libgcc bit helpers, a software descriptor
-is mandatory; the CPU does not synthesize fixed fallback results.  The CPU
-contract is the descriptor call gate and ABI register mapping, not the
+uses descriptors for scalar libgcc 128-bit div/mod helpers `__udivti3`,
+`__umodti3`, `__divti3`, and `__modti3`, and bit helpers `__clzdi2`,
+`__ctzdi2`, `__paritydi2`, and `__popcountdi2`.  For libc string/memory
+helpers, that OS-sensitive class, and these scalar libgcc helpers, a software
+descriptor is mandatory; the CPU does not synthesize fixed fallback results.
+The CPU contract is the descriptor call gate and ABI register mapping, not the
 semantics of those library functions.
 The same descriptor path currently provides prototype imports for common GCC
 TLS accessors (`R_AARCH64_TLSDESC`, RISC-V `__tls_get_addr`, and initial-exec

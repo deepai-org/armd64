@@ -405,6 +405,12 @@ extern uint64_t poly_host_x86_getpid(void);
 extern uint64_t poly_host_x86_getppid(void);
 extern uint64_t poly_host_x86_getuid(void);
 extern uint64_t poly_host_x86_gettid(void);
+extern unsigned __int128 poly_host_x86_udivti3(
+    unsigned __int128 dividend, unsigned __int128 divisor);
+extern unsigned __int128 poly_host_x86_umodti3(
+    unsigned __int128 dividend, unsigned __int128 divisor);
+extern __int128 poly_host_x86_divti3(__int128 dividend, __int128 divisor);
+extern __int128 poly_host_x86_modti3(__int128 dividend, __int128 divisor);
 extern uint64_t poly_host_x86_clzdi2(uint64_t value);
 extern uint64_t poly_host_x86_ctzdi2(uint64_t value);
 extern uint64_t poly_host_x86_paritydi2(uint64_t value);
@@ -423,6 +429,7 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
     "memalign", "atexit", "__cxa_atexit", "__cxa_finalize", "getpid",
     "getppid", "getuid", "geteuid", "getgid", "getegid", "gettid",
+    "__udivti3", "__umodti3", "__divti3", "__modti3",
     "__clzdi2", "__ctzdi2", "__paritydi2", "__popcountdi2"
   };
 
@@ -564,6 +571,14 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_x86_getuid;
     case POLY_IMPORT_FUNC_GETTID:
       return (uint64_t) (uintptr_t) poly_host_x86_gettid;
+    case POLY_IMPORT_FUNC_UDIVTI3:
+      return (uint64_t) (uintptr_t) poly_host_x86_udivti3;
+    case POLY_IMPORT_FUNC_UMODTI3:
+      return (uint64_t) (uintptr_t) poly_host_x86_umodti3;
+    case POLY_IMPORT_FUNC_DIVTI3:
+      return (uint64_t) (uintptr_t) poly_host_x86_divti3;
+    case POLY_IMPORT_FUNC_MODTI3:
+      return (uint64_t) (uintptr_t) poly_host_x86_modti3;
     case POLY_IMPORT_FUNC_CLZDI2:
       return (uint64_t) (uintptr_t) poly_host_x86_clzdi2;
     case POLY_IMPORT_FUNC_CTZDI2:
