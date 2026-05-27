@@ -611,11 +611,12 @@ generic descriptor table is now used by `polycall` for compiler-emitted libc
 string/memory imports such as `strlen`, `memcpy`, and `memcmp`, plus
 environment, allocation, teardown-registration, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
-`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`.  For that
-OS-sensitive environment/allocation/teardown/process-query class, a
-software-supplied descriptor is now required; Bochs no longer synthesizes a
-fixed CPU fallback result.
-This makes those library and process-query calls runtime policy rather than CPU semantics.  The
+`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`.  For libc
+string/memory helpers and the OS-sensitive
+environment/allocation/teardown/process-query class, a software-supplied
+descriptor is now required; Bochs no longer synthesizes a fixed CPU fallback
+result.
+This makes those library and process-query calls runtime policy rather than CPU semantics. The
 descriptor call gate maps the first six native foreign integer arguments to
 x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, places seventh and
 eighth integer arguments in the standard x86 stack-argument slots when needed,

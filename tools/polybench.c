@@ -22,11 +22,13 @@ enum {
   POLY_IMPORT_FUNC_MEMCPY = 9,
   POLY_IMPORT_FUNC_MEMSET = 10,
   POLY_IMPORT_FUNC_MEMCMP = 11,
-  POLY_IMPORT_FUNC_STRNLEN = 24
+  POLY_IMPORT_FUNC_STRNLEN = 24,
+  POLY_IMPORT_FUNC_COUNT = 140
 };
 
 #define POLY_IMPORT_CALL_BASE 0xffffffffffffe000ULL
 #define POLY_IMPORT_CALL_STRIDE 0x10ULL
+#define POLY_X86_IMPORT_DESCRIPTOR_SIZE 16ULL
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x24,0x40,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
@@ -198,6 +200,99 @@ static void install_polybench_trap_vector(void) {
   poly_trap_vector_set_value((uint64_t) (void *) polybench_trap_vector_handler);
 }
 
+struct polybench_x86_import_descriptor {
+  uint64_t target;
+  uint64_t trampoline;
+};
+
+static struct polybench_x86_import_descriptor
+  polybench_x86_imports[POLY_IMPORT_FUNC_COUNT];
+static uint8_t *polybench_x86_import_trampoline;
+static const size_t POLYBENCH_X86_IMPORT_TRAMPOLINE_OFFSET = 64;
+
+__attribute__((noinline, used))
+static uint64_t polybench_x86_strlen(const char *text) {
+  uint64_t length = 0;
+  while (length < 4096 && text[length] != '\0')
+    length++;
+  return length;
+}
+
+__attribute__((noinline, used))
+static uint64_t polybench_x86_strnlen(const char *text, uint64_t limit) {
+  uint64_t length = 0;
+  if (limit > 4096)
+    limit = 4096;
+  while (length < limit && text[length] != '\0')
+    length++;
+  return length;
+}
+
+__attribute__((noinline, used))
+static uint64_t polybench_x86_memcpy(uint8_t *dest, const uint8_t *src,
+    uint64_t size) {
+  for (uint64_t n = 0; n < size; n++)
+    dest[n] = src[n];
+  return (uint64_t) (uintptr_t) dest;
+}
+
+__attribute__((noinline, used))
+static uint64_t polybench_x86_memset(uint8_t *dest, uint64_t value,
+    uint64_t size) {
+  for (uint64_t n = 0; n < size; n++)
+    dest[n] = (uint8_t) value;
+  return (uint64_t) (uintptr_t) dest;
+}
+
+__attribute__((noinline, used))
+static uint64_t polybench_x86_memcmp(const uint8_t *left,
+    const uint8_t *right, uint64_t size) {
+  for (uint64_t n = 0; n < size; n++) {
+    if (left[n] != right[n])
+      return (uint64_t) ((int64_t) left[n] - (int64_t) right[n]);
+  }
+  return 0;
+}
+
+static int setup_polybench_x86_imports(void) {
+  if (polybench_x86_import_trampoline != NULL)
+    return 0;
+
+  uint8_t *page = mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (page == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: x86 import trampoline mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  const uint8_t import_return[] = {
+    0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21
+  };
+  memcpy(page + POLYBENCH_X86_IMPORT_TRAMPOLINE_OFFSET, import_return,
+    sizeof(import_return));
+
+  memset(polybench_x86_imports, 0, sizeof(polybench_x86_imports));
+  polybench_x86_imports[POLY_IMPORT_FUNC_STRLEN].target =
+    (uint64_t) (uintptr_t) polybench_x86_strlen;
+  polybench_x86_imports[POLY_IMPORT_FUNC_MEMCPY].target =
+    (uint64_t) (uintptr_t) polybench_x86_memcpy;
+  polybench_x86_imports[POLY_IMPORT_FUNC_MEMSET].target =
+    (uint64_t) (uintptr_t) polybench_x86_memset;
+  polybench_x86_imports[POLY_IMPORT_FUNC_MEMCMP].target =
+    (uint64_t) (uintptr_t) polybench_x86_memcmp;
+  polybench_x86_imports[POLY_IMPORT_FUNC_STRNLEN].target =
+    (uint64_t) (uintptr_t) polybench_x86_strnlen;
+  for (size_t n = 0; n < POLY_IMPORT_FUNC_COUNT; n++) {
+    if (polybench_x86_imports[n].target != 0)
+      polybench_x86_imports[n].trampoline =
+        (uint64_t) (uintptr_t) (page + POLYBENCH_X86_IMPORT_TRAMPOLINE_OFFSET);
+  }
+
+  polybench_x86_import_trampoline = page;
+  return 0;
+}
+
 static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
@@ -233,15 +328,48 @@ static uint64_t call_code_with_rax_arg(const uint8_t *code, const char *payload)
   return rax;
 }
 
+static uint64_t call_code_with_rax_arg_and_imports(const uint8_t *code,
+    const char *payload) {
+  register uint64_t rax asm("rax") = (uint64_t) (uintptr_t) payload;
+  uint64_t import_base = (uint64_t) (uintptr_t) polybench_x86_imports;
+  asm volatile(
+    "pushq %%r12\n"
+    "movq %2, %%r12\n"
+    "call *%1\n"
+    "popq %%r12"
+    : "+a"(rax)
+    : "r"(code), "r"(import_base)
+    : "r12", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "memory");
+  return rax;
+}
+
 static uint64_t call_code_with_poly3_args(const uint8_t *code,
     const void *arg0, const void *arg1, uint64_t arg2) {
-  register uint64_t rax asm("rax") = (uint64_t) (uintptr_t) arg0;
-  register uint64_t rdi asm("rdi") = (uint64_t) (uintptr_t) arg1;
-  register uint64_t rsi asm("rsi") = arg2;
+  uint64_t rax = (uint64_t) (uintptr_t) arg0;
+  uint64_t rdi = (uint64_t) (uintptr_t) arg1;
+  uint64_t rsi = arg2;
   asm volatile("call *%3"
     : "+a"(rax), "+D"(rdi), "+S"(rsi)
     : "r"(code)
     : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+  return rax;
+}
+
+static uint64_t call_code_with_poly3_args_and_imports(const uint8_t *code,
+    const void *arg0, const void *arg1, uint64_t arg2) {
+  uint64_t rax = (uint64_t) (uintptr_t) arg0;
+  uint64_t rdi = (uint64_t) (uintptr_t) arg1;
+  uint64_t rsi = arg2;
+  uint64_t import_base = (uint64_t) (uintptr_t) polybench_x86_imports;
+  asm volatile(
+    "pushq %%r12\n"
+    "movq %4, %%r12\n"
+    "call *%3\n"
+    "popq %%r12"
+    : "+a"(rax), "+D"(rdi), "+S"(rsi)
+    : "r"(code), "r"(import_base)
+    : "r12", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
   return rax;
 }
 
@@ -2101,11 +2229,15 @@ static int run_cross_call_descriptor_aarch64_to_riscv(uint64_t *result,
     (int32_t) descriptor_data_offset - (int32_t) auipc_descriptor_pc));
 
   static const char payload[] = "polyglot";
+  if (setup_polybench_x86_imports() < 0) {
+    munmap(code, code_size);
+    return -1;
+  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_rax_arg(code, payload);
+  *result = call_code_with_rax_arg_and_imports(code, payload);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2171,11 +2303,15 @@ static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   static const char payload[] = "polyglot";
+  if (setup_polybench_x86_imports() < 0) {
+    munmap(code, code_size);
+    return -1;
+  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_rax_arg(code, payload);
+  *result = call_code_with_rax_arg_and_imports(code, payload);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2240,11 +2376,16 @@ static int run_cross_call_descriptor_memcmp_aarch64_to_riscv(uint64_t *result,
 
   static const char left[] = "polyglot";
   static const char right[] = "polyglot";
+  if (setup_polybench_x86_imports() < 0) {
+    munmap(code, code_size);
+    return -1;
+  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_poly3_args(code, left, right, sizeof(left));
+  *result = call_code_with_poly3_args_and_imports(code, left, right,
+    sizeof(left));
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2312,11 +2453,16 @@ static int run_cross_call_descriptor_memcmp_riscv_to_aarch64(uint64_t *result,
 
   static const char left[] = "polyglot";
   static const char right[] = "polyglot";
+  if (setup_polybench_x86_imports() < 0) {
+    munmap(code, code_size);
+    return -1;
+  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_poly3_args(code, left, right, sizeof(left));
+  *result = call_code_with_poly3_args_and_imports(code, left, right,
+    sizeof(left));
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2411,11 +2557,16 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   static const char source[] = "polyglot";
   char dest[sizeof(source)];
   memset(dest, 0, sizeof(dest));
+  if (setup_polybench_x86_imports() < 0) {
+    munmap(code, code_size);
+    return -1;
+  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t raw_result = call_code_with_poly3_args(code, dest, source, sizeof(source));
+  uint64_t raw_result = call_code_with_poly3_args_and_imports(code, dest,
+    source, sizeof(source));
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2501,11 +2652,16 @@ static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
   static const char source[] = "polyglot";
   char dest[sizeof(source)];
   memset(dest, 0, sizeof(dest));
+  if (setup_polybench_x86_imports() < 0) {
+    munmap(code, code_size);
+    return -1;
+  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t raw_result = call_code_with_poly3_args(code, dest, source, sizeof(source));
+  uint64_t raw_result = call_code_with_poly3_args_and_imports(code, dest,
+    source, sizeof(source));
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
