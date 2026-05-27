@@ -24,8 +24,9 @@ Linux ABI passthrough, or equal-speed execution.
   code starts using the deprecated compatibility trap knob again, if foreign
   syscalls stop routing through the OS-neutral architectural trap packet, if the
   removed fixed x86 import helper fallback reappears, if foreign barrier/fence
-  decode stops honoring the x86-TSO no-op contract, or if Bochs' CPUID/XSAVE/trap
-  constants drift from the guest/runtime header.
+  decode stops honoring the x86-TSO no-op contract, if raw-mode interrupt
+  entry/`IRET64`/`SYSRET`/`SYSEXIT` resume hooks drift, or if Bochs'
+  CPUID/XSAVE/trap constants drift from the guest/runtime header.
 - The guest prints `BOOT_OK` on a clean baseline boot.
 - The baseline `make boot` path runs `nativecheck.elf`, proving ordinary x86_64
   userspace still runs and the private poly CPUID leaves are hidden when

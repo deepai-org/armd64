@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
+BOCHS_EXCEPTION="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/exception.cc"
+BOCHS_CTRL_XFER64="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/ctrl_xfer64.cc"
 BOCHS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs"
 POLYPROBE="$ROOT_DIR/tools/polyprobe.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
@@ -15,9 +17,10 @@ fail() {
   exit 1
 }
 
-extract_function() {
+extract_function_from_file() {
   local name="$1"
-  local out="$2"
+  local file="$2"
+  local out="$3"
 
   awk -v name="$name" '
     index($0, "BX_CPU_C::" name "(") {
@@ -36,9 +39,13 @@ extract_function() {
       if ($0 ~ /^}/)
         exit
     }
-  ' "$BOCHS_CPU" > "$out"
+  ' "$file" > "$out"
 
   [[ -s "$out" ]] || fail "could not extract $name"
+}
+
+extract_function() {
+  extract_function_from_file "$1" "$BOCHS_CPU" "$2"
 }
 
 assert_contains() {
@@ -99,6 +106,57 @@ assert_contains "0x0ff0000f" "$POLYPROBE" \
   "polyprobe must exercise RISC-V FENCE decode"
 assert_contains "0x0000100f" "$POLYPROBE" \
   "polyprobe must exercise RISC-V FENCE.I decode"
+
+INTERRUPT_FUNC="$TMP_DIR/poly_interrupt_enter.cc"
+RESTORE_FUNC="$TMP_DIR/poly_restore_raw_return_to_user.cc"
+IRET64_FUNC="$TMP_DIR/IRET64.cc"
+SYSRET_FUNC="$TMP_DIR/SYSRET.cc"
+SYSEXIT_FUNC="$TMP_DIR/SYSEXIT.cc"
+extract_function "poly_interrupt_enter" "$INTERRUPT_FUNC"
+extract_function "poly_restore_raw_return_to_user" "$RESTORE_FUNC"
+extract_function_from_file "IRET64" "$BOCHS_CTRL_XFER64" "$IRET64_FUNC"
+extract_function "SYSRET" "$SYSRET_FUNC"
+extract_function "SYSEXIT" "$SYSEXIT_FUNC"
+assert_contains "CPL[[:space:]]*!=[[:space:]]*3" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must be restricted to userspace foreign execution"
+assert_contains "bx_poly_is_raw_mode\\(bx_poly_current_mode\\)" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must only arm for raw foreign frontends"
+assert_contains "bx_poly_interrupted_raw_valid[[:space:]]*=[[:space:]]*true" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must mark interrupted foreign state valid"
+assert_contains "bx_poly_interrupted_raw_mode[[:space:]]*=[[:space:]]*bx_poly_current_mode" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must save interrupted foreign frontend mode"
+assert_contains "bx_poly_interrupted_raw_rip[[:space:]]*=[[:space:]]*RIP" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must save interrupted foreign RIP"
+assert_contains "bx_poly_save_current_reg_state" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must save synthetic foreign state before x86 kernel entry"
+assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*BX_POLY_MODE_X86" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must route interrupt handling through x86 decode"
+assert_contains "bx_poly_update_raw_owner" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must update the keyed raw owner state"
+assert_contains "CPL[[:space:]]*!=[[:space:]]*3" "$RESTORE_FUNC" \
+  "raw interrupt restore must only run on return to userspace"
+assert_contains "bx_poly_interrupted_raw_valid" "$RESTORE_FUNC" \
+  "raw interrupt restore must require an armed interrupted foreign state"
+assert_contains "bx_poly_is_raw_mode\\(bx_poly_interrupted_raw_mode\\)" "$RESTORE_FUNC" \
+  "raw interrupt restore must require a recorded raw foreign mode"
+assert_contains "bx_poly_interrupted_raw_rip[[:space:]]*!=[[:space:]]*RIP" "$RESTORE_FUNC" \
+  "raw interrupt restore must only resume when IRET/SYSRET reaches the recorded RIP"
+assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*bx_poly_interrupted_raw_mode" "$RESTORE_FUNC" \
+  "raw interrupt restore must switch back to the recorded foreign frontend"
+assert_contains "bx_poly_interrupted_raw_valid[[:space:]]*=[[:space:]]*false" "$RESTORE_FUNC" \
+  "raw interrupt restore must consume the interrupted foreign state"
+assert_contains "bx_poly_commit_reg_state" "$RESTORE_FUNC" \
+  "raw interrupt restore must commit the keyed synthetic bank"
+assert_contains "BX_ASYNC_EVENT_STOP_TRACE" "$RESTORE_FUNC" \
+  "raw interrupt restore must split the current x86 trace before raw fetch resumes"
+assert_contains "poly_interrupt_enter\\(\\)" "$BOCHS_EXCEPTION" \
+  "x86 interrupt delivery must invoke raw foreign interrupt capture"
+assert_contains "poly_iret_return_to_user\\(\\)" "$IRET64_FUNC" \
+  "IRET64 return must invoke raw foreign frontend restore"
+assert_contains "poly_sysret_return_to_user\\(\\)" "$SYSRET_FUNC" \
+  "SYSRET return must invoke raw foreign frontend restore"
+assert_contains "poly_sysexit_return_to_user\\(\\)" "$SYSEXIT_FUNC" \
+  "SYSEXIT return must invoke raw foreign frontend restore"
 
 if grep -R -I -n -E "BXPN_POLY_COMPAT_TRAPS|poly_compat_traps|compat_traps" \
     --exclude=config.cc --exclude=param_names.h "$BOCHS_DIR" \
