@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 HEADER="$ROOT_DIR/tools/polycpuid.h"
+POLYCALL="$ROOT_DIR/tools/polycall.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-cpuid-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -66,6 +67,20 @@ header_const_expr() {
   ' "$HEADER"
 }
 
+polycall_const_expr() {
+  local name="$1"
+  awk -v name="$name" '
+    $0 ~ name "[[:space:]]*=" {
+      line = $0
+      sub(/.*=[[:space:]]*/, "", line)
+      sub(/;.*/, "", line)
+      sub(/,.*/, "", line)
+      print line
+      exit
+    }
+  ' "$POLYCALL"
+}
+
 compare_const() {
   local bochs_name="$1"
   local header_name="$2"
@@ -80,6 +95,23 @@ compare_const() {
   header_value="$(eval_expr "$header_expr")"
   if [[ "$bochs_value" != "$header_value" ]]; then
     fail "$bochs_name=$bochs_value differs from $header_name=$header_value"
+  fi
+}
+
+compare_polycall_const() {
+  local header_name="$1"
+  local polycall_name="${2:-$1}"
+  local header_expr polycall_expr header_value polycall_value
+
+  header_expr="$(header_const_expr "$header_name")"
+  polycall_expr="$(polycall_const_expr "$polycall_name")"
+  [[ -n "$header_expr" ]] || fail "missing header constant $header_name"
+  [[ -n "$polycall_expr" ]] || fail "missing polycall constant $polycall_name"
+
+  header_value="$(eval_expr "$header_expr")"
+  polycall_value="$(eval_expr "$polycall_expr")"
+  if [[ "$header_value" != "$polycall_value" ]]; then
+    fail "$header_name=$header_value differs from $polycall_name=$polycall_value"
   fi
 }
 
@@ -192,6 +224,25 @@ compare_const BX_POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET POLY_ABI_BRIDGE_FLAG_ORDI
 compare_const BX_POLY_ABI_BRIDGE_GPR_ARG_COUNT POLY_ABI_BRIDGE_GPR_ARG_COUNT
 compare_const BX_POLY_ABI_BRIDGE_FP_ARG_COUNT POLY_ABI_BRIDGE_FP_ARG_COUNT
 compare_const BX_POLY_ABI_BRIDGE_STACK_ALIGN POLY_ABI_BRIDGE_STACK_ALIGN
+compare_polycall_const POLY_CPUID_BASE
+compare_polycall_const POLY_IMPORT_CALL_BASE
+compare_polycall_const POLY_IMPORT_CALL_STRIDE
+compare_polycall_const POLY_IMPORT_X86_DESCRIPTOR_SIZE POLY_X86_IMPORT_DESCRIPTOR_SIZE
+compare_polycall_const POLY_ABI_BRIDGE_ABI_VERSION
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_SRET
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_SCALAR_FP
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_FP64_STACK
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_TLS_BASE
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
+compare_polycall_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
+compare_polycall_const POLY_ABI_BRIDGE_FP_ARG_COUNT
+compare_polycall_const POLY_ABI_BRIDGE_STACK_ALIGN
 
 cat > "$TMP_DIR/polycpuid_layout_check.c" <<EOF
 #include "$HEADER"
