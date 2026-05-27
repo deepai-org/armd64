@@ -875,7 +875,7 @@ coverage proving environment-path fallback after a missing directory and
 environment-path precedence over a conflicting declared RUNPATH library.
 Absolute `DT_NEEDED` path strings are accepted directly by the user-space
 loader, and `DT_NEEDED` strings may use dynamic-string tokens such as
-`$ORIGIN/...`.
+`$ORIGIN/...` and `$ORIGIN/${PLATFORM}/...`.
 Declared RUNPATH/RPATH directories are searched before the loader's
 compatibility fallback to the caller's directory, so a colocated same-SONAME
 object does not override explicit dynamic-linker metadata.
