@@ -9,6 +9,29 @@ enum {
   POLYTHREAD_BUSY = 20000
 };
 
+static uint64_t double_to_bits(double value) {
+  union {
+    double d;
+    uint64_t u;
+  } bits;
+  bits.d = value;
+  return bits.u;
+}
+
+static inline uint64_t read_xmm0_u64(void) {
+  uint64_t value;
+  asm volatile("movq %%xmm0, %0" : "=r"(value));
+  return value;
+}
+
+static inline void write_xmm0_u64(uint64_t value) {
+  asm volatile("movq %0, %%xmm0" :: "r"(value) : "xmm0", "memory");
+}
+
+static inline void write_xmm1_u64(uint64_t value) {
+  asm volatile("movq %0, %%xmm1" :: "r"(value) : "xmm1", "memory");
+}
+
 static uint64_t pcall_aarch64_busy(uint64_t seed) {
   uint64_t result;
   uint64_t arg0 = seed;
@@ -91,6 +114,51 @@ static uint64_t pcall_riscv_hidden_busy(uint64_t seed) {
   return result;
 }
 
+static uint64_t pcall_aarch64_hidden_fp_busy(uint64_t left_bits,
+    uint64_t right_bits) {
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    "1:\n"
+    ".long 0x1e604014\n" // fmov d20,d0
+    ".long 0xd289c409\n" // movz x9,#20000
+    ".long 0xf1000529\n" // subs x9,x9,#1
+    ".long 0x54ffffe1\n" // b.ne -4
+    ".long 0x1e612a80\n" // fadd d0,d20,d1
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    :::
+    "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+    "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
+static uint64_t pcall_riscv_hidden_fp_busy(uint64_t left_bits,
+    uint64_t right_bits) {
+  uint64_t arg1 = POLYTHREAD_BUSY;
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+    "1:\n"
+    ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
+    ".long 0xfff58593\n" // addi a1,a1,-1
+    ".long 0xfe059ee3\n" // bnez a1,-4
+    ".long 0x02ba7553\n" // fadd.d fa0,f20,fa1
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    : "+S"(arg1)
+    :
+    : "rax", "rcx", "rdx", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
 static void *worker_main(void *arg) {
   uintptr_t worker_id = (uintptr_t) arg;
   uint64_t base = 0x10000000ULL + worker_id * 0x10000ULL;
@@ -100,12 +168,19 @@ static void *worker_main(void *arg) {
     uint64_t riscv_seed = base + round * 2 + 1;
     uint64_t hidden_aarch64_seed = base + 0x4000ULL + round * 2;
     uint64_t hidden_riscv_seed = base + 0x4000ULL + round * 2 + 1;
+    uint64_t hidden_aarch64_fp_seed = base + 0x8000ULL + round * 2;
+    uint64_t hidden_riscv_fp_seed = base + 0x8000ULL + round * 2 + 1;
+    uint64_t seven_bits = double_to_bits(7.0);
     uint64_t aarch64_result = pcall_aarch64_busy(aarch64_seed);
     uint64_t riscv_result = pcall_riscv_busy(riscv_seed);
     uint64_t hidden_aarch64_result =
       pcall_aarch64_hidden_busy(hidden_aarch64_seed);
     uint64_t hidden_riscv_result =
       pcall_riscv_hidden_busy(hidden_riscv_seed);
+    uint64_t hidden_aarch64_fp_result = pcall_aarch64_hidden_fp_busy(
+      double_to_bits((double) hidden_aarch64_fp_seed), seven_bits);
+    uint64_t hidden_riscv_fp_result = pcall_riscv_hidden_fp_busy(
+      double_to_bits((double) hidden_riscv_fp_seed), seven_bits);
 
     if (aarch64_result != aarch64_seed + 1) {
       fprintf(stderr,
@@ -137,6 +212,26 @@ static void *worker_main(void *arg) {
         (unsigned long) worker_id, round,
         (unsigned long long) hidden_riscv_result,
         (unsigned long long) (hidden_riscv_seed + 7));
+      return (void *) 1;
+    }
+    uint64_t expected_aarch64_fp =
+      double_to_bits((double) hidden_aarch64_fp_seed + 7.0);
+    uint64_t expected_riscv_fp =
+      double_to_bits((double) hidden_riscv_fp_seed + 7.0);
+    if (hidden_aarch64_fp_result != expected_aarch64_fp) {
+      fprintf(stderr,
+        "POLYTHREAD_FAIL: worker=%lu arch=aarch64-hidden-fp round=%u got=0x%llx expected=0x%llx\n",
+        (unsigned long) worker_id, round,
+        (unsigned long long) hidden_aarch64_fp_result,
+        (unsigned long long) expected_aarch64_fp);
+      return (void *) 1;
+    }
+    if (hidden_riscv_fp_result != expected_riscv_fp) {
+      fprintf(stderr,
+        "POLYTHREAD_FAIL: worker=%lu arch=riscv-hidden-fp round=%u got=0x%llx expected=0x%llx\n",
+        (unsigned long) worker_id, round,
+        (unsigned long long) hidden_riscv_fp_result,
+        (unsigned long long) expected_riscv_fp);
       return (void *) 1;
     }
 
