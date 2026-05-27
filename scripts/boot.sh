@@ -52,6 +52,7 @@ POLYCALL_STACK_PROTECTOR_REAL_SRC="$ROOT_DIR/tools/polycall_stack_protector_real
 POLYCALL_ERRNO_REAL_SRC="$ROOT_DIR/tools/polycall_errno_real.c"
 POLYCALL_GETAUXVAL_REAL_SRC="$ROOT_DIR/tools/polycall_getauxval_real.c"
 POLYCALL_GETPAGESIZE_REAL_SRC="$ROOT_DIR/tools/polycall_getpagesize_real.c"
+POLYCALL_SYSCONF_REAL_SRC="$ROOT_DIR/tools/polycall_sysconf_real.c"
 POLYCALL_NEEDED_LEAF_REAL_SRC="$ROOT_DIR/tools/polycall_needed_leaf_real.c"
 POLYCALL_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_dep_real.c"
 POLYCALL_NEEDED_OVERRIDE_REAL_SRC="$ROOT_DIR/tools/polycall_needed_override_real.c"
@@ -369,6 +370,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_GETPAGESIZE_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-getpagesize-real.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_SYSCONF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sysconf-real.so"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyneeded-leaf-aarch64.so -Wl,--hash-style=sysv \
@@ -856,6 +862,12 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_GETPAGESIZE_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-getpagesize-real.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_SYSCONF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-sysconf-real.so"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/polydeps"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
@@ -2516,6 +2528,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-errno-real.so#poly_entry=29 \
     /usr/lib/polyapps/aarch64-pcall-getauxval-real.so#poly_entry=45 \
     /usr/lib/polyapps/aarch64-pcall-getpagesize-real.so#poly_entry=4141 \
+    /usr/lib/polyapps/aarch64-pcall-sysconf-real.so#poly_entry=4141 \
     /usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/aarch64-pcall-funcptr-real.so#poly_entry=124 \
@@ -2620,6 +2633,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-errno-real.so#poly_entry=29 \
     /usr/lib/polyapps/riscv-pcall-getauxval-real.so#poly_entry=45 \
     /usr/lib/polyapps/riscv-pcall-getpagesize-real.so#poly_entry=4141 \
+    /usr/lib/polyapps/riscv-pcall-sysconf-real.so#poly_entry=4141 \
     /usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/riscv-pcall-funcptr-real.so#poly_entry=124 \
