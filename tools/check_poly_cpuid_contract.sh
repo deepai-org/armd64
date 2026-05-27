@@ -7,6 +7,7 @@ BOCHS_CRREGS="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/crregs.h"
 HEADER="$ROOT_DIR/tools/polycpuid.h"
 POLYCALL="$ROOT_DIR/tools/polycall.c"
 POLYBENCH="$ROOT_DIR/tools/polybench.c"
+POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
 TMP_DIR="${TMPDIR:-/tmp}/poly-cpuid-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -15,6 +16,26 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 fail() {
   echo "poly CPUID contract check failed: $*" >&2
   exit 1
+}
+
+assert_contains() {
+  local pattern="$1"
+  local file="$2"
+  local description="$3"
+
+  if ! grep -Eq "$pattern" "$file"; then
+    fail "$description"
+  fi
+}
+
+assert_not_contains() {
+  local pattern="$1"
+  local file="$2"
+  local description="$3"
+
+  if grep -Eq "$pattern" "$file"; then
+    fail "$description"
+  fi
 }
 
 normalize_expr() {
@@ -304,6 +325,11 @@ compare_polybench_const POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
 compare_polybench_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
 compare_polybench_const POLY_ABI_BRIDGE_FP_ARG_COUNT
 compare_polybench_const POLY_ABI_BRIDGE_STACK_ALIGN
+
+assert_contains 'state import layout version is `2`' "$POLY_ISA_DOC" \
+  "poly ISA doc must describe explicit state import with layout version 2"
+assert_not_contains 'state import layout version is `1`' "$POLY_ISA_DOC" \
+  "poly ISA doc must not describe the old state import layout version"
 
 poly_component="$(eval_expr "$(header_const_expr POLY_STATE_XSAVE_COMPONENT_ARCH)")"
 if (( poly_component < 2 || poly_component >= 32 )); then

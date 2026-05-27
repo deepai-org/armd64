@@ -151,8 +151,8 @@ path for this family:
   4096-byte, 64-byte-aligned `struct poly_xsave_state` buffer.  The CPU writes
   the current keyed prototype state in the fixed leaf `0x40000004` layout.
 - `0f 24 68 50 4f 4c 59 21`: explicit state import.  `RAX` points to a
-  `struct poly_xsave_state` buffer with magic `0x31594c50` and layout version
-  `1`.  The CPU imports the state into the current keyed prototype bank and
+  `struct poly_xsave_state` buffer with magic `0x31594c50`; the state import layout version is `2`.
+  The CPU imports the state into the current keyed prototype bank and
   continues execution in x86 mode.  This is a prototype software state operation
   and does not set the active XSAVE-visible bit in leaf `0x40000003`.
 
