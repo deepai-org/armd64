@@ -1461,6 +1461,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-munlock.elf" 0xd2801ca8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mlockall.elf" 0xd2801cc8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-munlockall.elf" 0xd2801ce8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-get-mempolicy.elf" 0xd2801d88 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-mempolicy.elf" 0xd2801da8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-migrate-pages.elf" 0xd2801dc8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-move-pages.elf" 0xd2801de8 0xd4000001
@@ -1713,6 +1714,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-munlock.elf" 0x0e500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mlockall.elf" 0x0e600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-munlockall.elf" 0x0e700893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-get-mempolicy.elf" 0x0ec00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-mempolicy.elf" 0x0ed00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-migrate-pages.elf" 0x0ee00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-move-pages.elf" 0x0ef00893 0x00000073
@@ -2056,6 +2058,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-munlock.elf=0 \
     /usr/lib/polyapps/aarch64-mlockall.elf=0 \
     /usr/lib/polyapps/aarch64-munlockall.elf=0 \
+    /usr/lib/polyapps/aarch64-get-mempolicy.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-set-mempolicy.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-migrate-pages.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-move-pages.elf=0xffffffffffffffda \
@@ -2281,6 +2284,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-munlock.elf=0 \
     /usr/lib/polyapps/riscv-mlockall.elf=0 \
     /usr/lib/polyapps/riscv-munlockall.elf=0 \
+    /usr/lib/polyapps/riscv-get-mempolicy.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-set-mempolicy.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-migrate-pages.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-move-pages.elf=0xffffffffffffffda \
@@ -2773,6 +2777,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-munlock.elf \
     /usr/lib/polyapps/aarch64-mlockall.elf \
     /usr/lib/polyapps/aarch64-munlockall.elf \
+    /usr/lib/polyapps/aarch64-get-mempolicy.elf \
     /usr/lib/polyapps/aarch64-set-mempolicy.elf \
     /usr/lib/polyapps/aarch64-migrate-pages.elf \
     /usr/lib/polyapps/aarch64-move-pages.elf \
@@ -2998,6 +3003,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-munlock.elf \
     /usr/lib/polyapps/riscv-mlockall.elf \
     /usr/lib/polyapps/riscv-munlockall.elf \
+    /usr/lib/polyapps/riscv-get-mempolicy.elf \
     /usr/lib/polyapps/riscv-set-mempolicy.elf \
     /usr/lib/polyapps/riscv-migrate-pages.elf \
     /usr/lib/polyapps/riscv-move-pages.elf \

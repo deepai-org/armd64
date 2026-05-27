@@ -717,7 +717,7 @@ numbers currently include:
 
 The compatibility dispatcher also has deterministic unavailable probes that
 return Linux `-ENOSYS` for syscalls commonly probed by runtimes and libraries:
-`set_mempolicy`, `migrate_pages`, `move_pages`, `seccomp`, `bpf`,
+`get_mempolicy`, `set_mempolicy`, `migrate_pages`, `move_pages`, `seccomp`, `bpf`,
 `userfaultfd`, `pkey_mprotect`, `pkey_alloc`, `pkey_free`,
 `pidfd_send_signal`, `pidfd_open`, `clone3`, `openat2`, `pidfd_getfd`,
 `process_madvise`, `landlock_create_ruleset`, `landlock_add_rule`,
