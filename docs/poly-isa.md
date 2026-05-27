@@ -482,6 +482,9 @@ same-directory foreign shared libraries. Symbolic relocation metadata and `path#
 lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
 `DT_HASH` is used to bound the sectionless dynamic symbol table, and
 `DT_GNU_HASH` is supported for common GNU-hash-only shared objects.
+`DT_VERSYM`/`DT_VERNEED`/`DT_VERDEF` symbol-version metadata is honored when
+binding undefined relocations to dependency exports, so a relocation requiring
+`foo@OLD` does not silently bind to a default `foo@@NEW` export.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
@@ -505,6 +508,10 @@ shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 (`aarch64-pcall-needed-tls-real.so#poly_entry` with
 `libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
 with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
+versioned-symbol pairs (`aarch64-pcall-versioned-real.so#poly_entry` with
+`libpolyversioned-aarch64.so`, and
+`riscv-pcall-versioned-real.so#poly_entry` with
+`libpolyversioned-riscv.so`), compiler-produced `DT_NEEDED`
 dependency-IFUNC pairs (`aarch64-pcall-needed-ifunc-real.so#poly_entry` with
 `libpolyneededifunc-aarch64.so`, and
 `riscv-pcall-needed-ifunc-real.so#poly_entry` with
@@ -808,7 +815,9 @@ ELF optional-symbol semantics; the weak-import probes cover AArch64 weak
 Same-directory `DT_NEEDED` dependencies are loaded as foreign shared libraries,
 and undefined function or object-symbol relocations in the requesting object can
 bind directly to dependency text/data without routing through an x86 import
-descriptor.
+descriptor. GNU symbol versions are matched during dependency binding, with
+unversioned requests preferring default exports and explicit version requests
+requiring the matching dependency version definition.
 Weak undefined foreign relocations first try the loaded dependency scope and
 only resolve to zero when no dependency exports the requested symbol.
 When multiple dependency libraries export the same function/object symbol, the

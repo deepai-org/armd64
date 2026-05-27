@@ -674,6 +674,7 @@ binding of undefined function and object-symbol relocations to dependency
 text/data and dependency-exported symbolic IFUNC resolvers, weak undefined
 relocations binding to dependency exports when present, direct-dependency
 symbol interposition ahead of transitive dependencies when symbols collide,
+GNU symbol-version matching for dependency exports,
 recursive loading of dependency libraries' own `DT_NEEDED`
 entries, and dependency sets larger than the original four-library prototype
 limit. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`
@@ -692,6 +693,8 @@ compiler-emitted AArch64 TLSDESC, AArch64 traditional
 TLS-base register, plus
 initial-exec `R_AARCH64_TLS_TPREL64` and `R_RISCV_TLS_TPREL64` accesses,
 including undefined `STT_TLS` relocations bound to `DT_NEEDED` dependencies,
+versioned `DT_NEEDED` calls that require a non-default dependency symbol
+version,
 compiler-emitted conditional select variants and branch patterns
 (`aarch64-pcall-select-variants-real.so`,
 `riscv-pcall-select-variants-real.so`, `aarch64-pcall-import.elf`,

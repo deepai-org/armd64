@@ -1,0 +1,7 @@
+POLY_1.0 {
+  global: poly_versioned_add;
+};
+
+POLY_2.0 {
+  global: poly_versioned_add;
+} POLY_1.0;
