@@ -37,7 +37,8 @@ Linux ABI passthrough, or equal-speed execution.
   relative-relocation ELF payloads through the same disabled-compat path.
   `nativecheck.elf` also verifies trap return preserves the source frontend's
   live native argument, syscall-number, and scalar FP alias registers while
-  committing only the handler result.
+  committing only the handler result, and that a userspace-installed trap
+  vector does not leak across a `fork()` address-space boundary.
 - The `make boot-poly-binfmt-arch-traps` path also disables the compatibility
   dispatcher, registers `binfmt_misc`, and executes a focused AArch64/RISC-V
   ELF set, including generated `ET_DYN #poly_entry` payloads, through the same
@@ -142,7 +143,7 @@ runtime dispatch:
 | `0x40000002, subleaf 2` | `EAX=106`, `EBX=8`, `ECX=16`, `EDX=16` | Reports the first prototype foreign-to-x86 import descriptor slot id, slot count, descriptor byte size, and import-call stride. |
 | `0x40000002, subleaf 3` | `EAX=0x7ffa`, `EBX=0x0000307b`, `ECX=0`, `EDX=0` | Reports the neutral FP64 overflow stack-argument cross-call encodings: AArch64 `brk #0x7ffa` to RISC-V and RISC-V custom `0x0000307b` to AArch64. |
 | `0x40000002, subleaf 4` | `EAX=0x7ff9`, `EBX=0x0000407b`, `ECX=0x63`, `EDX=0x64` | Reports the native raw-mode trap-return encodings and x86 trap-vector mode set/get opcodes. |
-| `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus hidden synthetic banks keyed by `CR3`, `FSBASE`, and an 8 MiB stack-region key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
+| `0x40000003` | `EAX=state flags`, `EBX=23`, `ECX=0`, `EDX=0` | Reports the prototype foreign-state contract: overlapping x86-visible GPR/FP state plus hidden synthetic banks and trap-vector policy keyed by `CR3`, `FSBASE`, and an 8 MiB stack-region key. `ECX=0`/`EDX=0` means no XCR0 component or XSAVE byte area is assigned yet. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -623,7 +624,10 @@ dispatcher is only a compatibility service layered after the packet is captured.
 When `cpu.poly_compat_traps=0`, software can install an architectural trap
 vector with `0f 24 60 ... POLY!` using `RAX=handler_pc` and can select the
 handler frontend with `0f 24 63 ... POLY!` using `RAX=mode`.  The default
-handler mode is x86_64.  For an x86 handler, trap delivery uses
+handler mode is x86_64.  In the Bochs prototype, the installed trap vector and
+handler frontend mode are part of the same keyed userspace poly state as the
+synthetic foreign registers, so a different guest address space starts with no
+installed vector.  For an x86 handler, trap delivery uses
 `RAX=reason`, `RBX=source mode`, `RCX=trap number`, `RDX=trap PC`,
 `RSI=selector`, and `RDI=arg0`; the remaining packet fields are available
 through trap-status opcodes.  For an AArch64 handler, delivery uses

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "polycpuid.h"
@@ -147,6 +148,32 @@ static int run_poly_trap_vector_probe(void) {
   if (read_rax() != POLY_MODE_X86) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly trap vector mode get mismatch got=%llu\n",
       (unsigned long long) read_rax());
+    return 1;
+  }
+  pid_t child = fork();
+  if (child < 0) {
+    fputs("NATIVE_CHECK_FAIL: poly trap vector fork failed\n", stderr);
+    return 1;
+  }
+  if (child == 0) {
+    poly_trap_vector_get();
+    if (read_rax() != 0)
+      _exit(11);
+    poly_trap_vector_mode_get();
+    if (read_rax() != POLY_MODE_X86)
+      _exit(12);
+    _exit(0);
+  }
+  int status = 0;
+  if (waitpid(child, &status, 0) != child || !WIFEXITED(status) ||
+      WEXITSTATUS(status) != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly trap vector leaked across address space status=0x%x\n",
+      status);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != (uint64_t) handler) {
+    fputs("NATIVE_CHECK_FAIL: poly parent trap vector lost after fork\n", stderr);
     return 1;
   }
 
