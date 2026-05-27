@@ -182,10 +182,14 @@ assert_contains "expand_runpath_entry" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must accept relative DT_RUNPATH dependency directories"
 assert_contains "pcall-lib-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover LIB token expansion in DT_RUNPATH directories"
+assert_contains "pcall-braced-lib-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover braced LIB token expansion in DT_RUNPATH directories"
 assert_contains '\$LIB' "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must expand LIB dynamic-string tokens in DT_RUNPATH entries"
 assert_contains "pcall-platform-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover PLATFORM token expansion in DT_RUNPATH directories"
+assert_contains "pcall-braced-platform-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover braced PLATFORM token expansion in DT_RUNPATH directories"
 assert_contains '\$PLATFORM' "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must expand PLATFORM dynamic-string tokens in DT_RUNPATH entries"
 assert_contains "pcall-ld-library-path-real" "$ROOT_DIR/scripts/boot.sh" \
