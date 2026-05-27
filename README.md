@@ -686,8 +686,9 @@ foreign frontend platform name (`aarch64` or `riscv`), relative dependency
 subdirectories, and absolute dependency directories, and absolute `DT_NEEDED`
 path entries are honored, including old-style RPATH-only objects built without
 new dtags, colon-separated RUNPATH fallback directories, and `LD_LIBRARY_PATH`
-lookup for foreign dependencies. Declared RUNPATH/RPATH directories are
-searched before the loader's compatibility fallback to the caller's directory,
+lookup for foreign dependencies with the same dynamic-string token expansion.
+Declared RUNPATH/RPATH directories are searched before the loader's
+compatibility fallback to the caller's directory,
 so a colocated same-SONAME object does not override the object's explicit
 dynamic linker metadata. Dependency library dynamic relocations are applied
 before those dependency calls

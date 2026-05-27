@@ -868,8 +868,9 @@ absolute dependency directories are used to resolve dependency libraries before
 a missing needed library fails to load. Colon-separated RUNPATH entries
 continue searching after a missing directory. Old-style RPATH-only objects
 built without new dtags are covered, and `LD_LIBRARY_PATH` is searched for
-foreign dependencies before declared RUNPATH/RPATH directories. Absolute
-`DT_NEEDED` path strings are accepted directly by the user-space loader.
+foreign dependencies before declared RUNPATH/RPATH directories using the same
+dynamic-string token expansion. Absolute `DT_NEEDED` path strings are accepted
+directly by the user-space loader.
 Declared RUNPATH/RPATH directories are searched before the loader's
 compatibility fallback to the caller's directory, so a colocated same-SONAME
 object does not override explicit dynamic-linker metadata.
