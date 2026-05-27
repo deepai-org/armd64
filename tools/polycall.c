@@ -3007,7 +3007,12 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
   const char *child_inherited_rpath = inherited_rpath;
   size_t child_inherited_rpath_len = inherited_rpath_len;
   const char *child_inherited_rpath_origin = inherited_rpath_origin;
-  if (runpath_offset == 0 && rpath_offset != 0 && search_path_len != 0) {
+  if (runpath_offset != 0) {
+    child_inherited_rpath = NULL;
+    child_inherited_rpath_len = 0;
+    child_inherited_rpath_origin = NULL;
+  }
+  else if (rpath_offset != 0 && search_path_len != 0) {
     child_inherited_rpath = search_path;
     child_inherited_rpath_len = search_path_len;
     child_inherited_rpath_origin = origin_path;
@@ -3046,7 +3051,7 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
       found_needed = build_runpath_needed_path(origin_path, owner->arch_name,
         search_path, search_path_len, needed, needed_path,
         sizeof(needed_path));
-    if (needed[0] != '/' && inherited_rpath_len != 0 &&
+    if (needed[0] != '/' && runpath_offset == 0 && inherited_rpath_len != 0 &&
         inherited_rpath != search_path && found_needed < 0)
       found_needed = build_runpath_needed_path(
         inherited_rpath_origin ? inherited_rpath_origin : origin_path,

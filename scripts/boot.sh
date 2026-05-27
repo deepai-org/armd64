@@ -503,6 +503,12 @@ build_poly_elf_payloads() {
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathorigin/aarch64/leaf"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathorigin/riscv/mid"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathorigin/riscv/leaf"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/mid"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/rootleaf"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/runleaf"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/mid"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/rootleaf"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/runleaf"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyneeded-leaf-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -737,6 +743,32 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathorigin/aarch64/mid" \
     -Wl,--no-as-needed -l:libpolyrpathorigin-mid-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathorigin/aarch64/aarch64-pcall-rpath-origin-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyrpathrunpath-leaf-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_RPATH_INHERIT_LEAF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/rootleaf/libpolyrpathrunpath-leaf-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -DPOLY_RPATH_INHERIT_VALUE=1700 \
+    -Wl,-soname,libpolyrpathrunpath-leaf-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_RPATH_INHERIT_LEAF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/runleaf/libpolyrpathrunpath-leaf-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyrpathrunpath-mid-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/../runleaf' \
+    "$POLYCALL_RPATH_INHERIT_MID_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/runleaf" \
+    -Wl,--no-as-needed -l:libpolyrpathrunpath-leaf-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/mid/libpolyrpathrunpath-mid-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--disable-new-dtags -Wl,-rpath,'$ORIGIN/mid:$ORIGIN/rootleaf' \
+    "$POLYCALL_RPATH_INHERIT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/mid" \
+    -Wl,--no-as-needed -l:libpolyrpathrunpath-mid-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/aarch64/aarch64-pcall-rpath-runpath-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycolonrunpath-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1848,6 +1880,36 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathorigin/riscv/mid" \
     -Wl,--no-as-needed -l:libpolyrpathorigin-mid-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathorigin/riscv/riscv-pcall-rpath-origin-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyrpathrunpath-leaf-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_RPATH_INHERIT_LEAF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/rootleaf/libpolyrpathrunpath-leaf-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -DPOLY_RPATH_INHERIT_VALUE=1700 \
+    -Wl,-soname,libpolyrpathrunpath-leaf-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_RPATH_INHERIT_LEAF_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/runleaf/libpolyrpathrunpath-leaf-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyrpathrunpath-mid-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/../runleaf' \
+    "$POLYCALL_RPATH_INHERIT_MID_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/runleaf" \
+    -Wl,--no-as-needed -l:libpolyrpathrunpath-leaf-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/mid/libpolyrpathrunpath-mid-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--disable-new-dtags -Wl,-rpath,'$ORIGIN/mid:$ORIGIN/rootleaf' \
+    "$POLYCALL_RPATH_INHERIT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/mid" \
+    -Wl,--no-as-needed -l:libpolyrpathrunpath-mid-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/rpathrunpath/riscv/riscv-pcall-rpath-runpath-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycolonrunpath-riscv.so \
@@ -3980,6 +4042,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-rpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-rpath-inherit-real.so#poly_entry=745 \
     /usr/lib/polyapps/rpathorigin/aarch64/aarch64-pcall-rpath-origin-real.so#poly_entry=745 \
+    /usr/lib/polyapps/rpathrunpath/aarch64/aarch64-pcall-rpath-runpath-real.so#poly_entry=1745 \
     /usr/lib/polyapps/aarch64-pcall-colon-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-braced-origin-real.so#poly_entry=945 \
     /usr/lib/polyapps/aarch64-pcall-lib-runpath-real.so#poly_entry=945 \
@@ -4134,6 +4197,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-rpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-rpath-inherit-real.so#poly_entry=745 \
     /usr/lib/polyapps/rpathorigin/riscv/riscv-pcall-rpath-origin-real.so#poly_entry=745 \
+    /usr/lib/polyapps/rpathrunpath/riscv/riscv-pcall-rpath-runpath-real.so#poly_entry=1745 \
     /usr/lib/polyapps/riscv-pcall-colon-runpath-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-braced-origin-real.so#poly_entry=945 \
     /usr/lib/polyapps/riscv-pcall-lib-runpath-real.so#poly_entry=945 \
