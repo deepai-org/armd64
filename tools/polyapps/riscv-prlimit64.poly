@@ -4,5 +4,5 @@ elf=/usr/lib/polyapps/riscv-prlimit64.elf
 expected=8388608
 syscall_expected=4
 syscall_number_expected=261
-libcall_id=0
-libcall_expected=0x4c000400
+break_id=0
+break_expected=0x4c000400

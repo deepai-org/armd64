@@ -3,5 +3,5 @@ arch=aarch64
 elf=/usr/lib/polyapps/aarch64-condbranch.elf
 expected=91
 syscall_expected=3
-libcall_id=0
-libcall_expected=0x4c000300
+break_id=0
+break_expected=0x4c000300
