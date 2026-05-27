@@ -28,8 +28,8 @@ Linux ABI passthrough, or equal-speed execution.
   through the architectural trap vector.  Its guest x86 handler translates the
   foreign `getpid` syscall into a real x86 Linux `syscall`, then resumes the
   original raw frontend with `POLY_TRAP_RETURN`; it also runs generated
-  AArch64/RISC-V `getpid` and `strlen` ELF payloads through the same
-  disabled-compat path.
+  AArch64/RISC-V `getpid`, `strlen`, `memfill`, `memcmp`, and `memcpy` ELF
+  payloads through the same disabled-compat path.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -799,7 +799,9 @@ descriptors, software thunks, or OS/runtime trap routing.
 - Supported ids are `1=strlen`, `2=memfill`, `3=memcmp`, and `4=memcpy`.
 - `RDI`/AArch64 `x1`/RISC-V `a1` is the implicit left/destination pointer;
   explicit libcall operands use `RSI,RDX` via AArch64 `x2,x3` or RISC-V
-  `a2,a3`.
+  `a2,a3`.  The architectural trap packet also records the aliased
+  result/count register as `arg3` so guest trap-vector software can service
+  count-bearing break traps without Bochs compatibility dispatch.
 
 ## Validation Gates
 
