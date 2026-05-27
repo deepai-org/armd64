@@ -323,6 +323,8 @@ extern uint64_t poly_host_import_add(uint64_t a, uint64_t b);
 extern uint64_t poly_host_import_mul(uint64_t a, uint64_t b);
 extern double poly_host_import_fp64_add(double a, double b);
 extern float poly_host_import_fp32_add(float a, float b);
+extern uint64_t poly_host_x86_aarch64_tlsdesc(uint64_t descriptor);
+extern uint64_t poly_host_x86_riscv_tls_get_addr(uint64_t descriptor);
 extern uint64_t poly_host_x86_sum6(uint64_t a, uint64_t b, uint64_t c,
     uint64_t d, uint64_t e, uint64_t f);
 extern uint64_t poly_host_x86_sum8(uint64_t a, uint64_t b, uint64_t c,
@@ -468,6 +470,7 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "strstr", "strcpy", "strncpy", "strnlen", "strcat", "strncat",
     "strspn", "strcspn", "strpbrk", "stpcpy", "stpncpy", "mempcpy",
     "rawmemchr", "strchrnul", "bcmp", "bcopy", "bzero",
+    "__tls_get_addr",
     "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
     "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
@@ -505,6 +508,10 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_import_fp64_add;
     case POLY_IMPORT_FUNC_FP32_ADD:
       return (uint64_t) (uintptr_t) poly_host_import_fp32_add;
+    case POLY_IMPORT_FUNC_AARCH64_TLSDESC:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_tlsdesc;
+    case POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR:
+      return (uint64_t) (uintptr_t) poly_host_x86_riscv_tls_get_addr;
     case POLY_IMPORT_FUNC_X86_SLOT0:
       return (uint64_t) (uintptr_t) poly_host_x86_add;
     case POLY_IMPORT_FUNC_X86_SLOT1:
@@ -2451,6 +2458,7 @@ static int process_rela_table(struct poly_program *program,
     uint64_t reloc_value = 0;
     int base_kind = RELOC_BASE_LOAD_BIAS;
     if (program->arch == POLY_ARCH_AARCH64 && reloc_type == R_AARCH64_TLSDESC) {
+      program->needs_x86_import = 1;
       if (!dynsym.symbols &&
           load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
           load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {

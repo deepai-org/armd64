@@ -640,7 +640,8 @@ compiler-emitted libc string/memory imports such as
 `strlen`, `memcpy`, and `memcmp`, plus
 environment, allocation, teardown-registration, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
-`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, plus scalar
+`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, plus
+TLS accessor imports for AArch64 TLSDESC and RISC-V `__tls_get_addr`, plus scalar
 libgcc 128-bit div/mod helpers `__udivti3`, `__umodti3`, `__divti3`, and
 `__modti3`, scalar int128/float conversion helpers `__fixdfti`,
 `__fixunsdfti`, `__floattidf`, `__floatuntidf`, `__fixsfti`,
@@ -656,10 +657,11 @@ libgcc 128-bit div/mod helpers `__udivti3`, `__umodti3`, `__divti3`, and
 `__trunctfsf2`, and `__trunctfdf2`.  For `poly_import_add`/`poly_import_mul`,
 `poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory
 helpers, the OS-sensitive environment/allocation/teardown/process-query class,
-these scalar libgcc helpers, these 16-byte libatomic helpers, and these
-quad-precision libgcc helpers, a software-supplied descriptor is now
+these TLS accessor helpers, these scalar libgcc helpers, these 16-byte
+libatomic helpers, and these quad-precision libgcc helpers, a
+software-supplied descriptor is now
 required; Bochs no longer synthesizes a fixed CPU fallback result.
-This makes those library and process-query calls runtime policy rather than CPU semantics. The
+This makes those library, TLS, and process-query calls runtime policy rather than CPU semantics. The
 descriptor call gate maps the first six native foreign integer arguments to
 x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, places seventh and
 eighth integer arguments in the standard x86 stack-argument slots when needed,
@@ -678,7 +680,8 @@ helper also performs a nested compiled x86 helper call before returning, so the
 descriptor path covers ordinary x86 call/return activity inside the imported
 target.
 The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
-`__tls_get_addr` TLS accesses for self-contained foreign shared objects, and
+`__tls_get_addr` TLS accesses for self-contained foreign shared objects through
+runtime x86 helper descriptors that consume the `PCALL` TLS-base register, and
 common GCC AArch64 outline
 atomic helper imports used by default compiler output:
 8-, 16-, 32-, and 64-bit `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`

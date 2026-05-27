@@ -16,6 +16,13 @@ enum {
   POLY_HOST_HEAP_HEADER_SIZE = 16
 };
 
+static uint64_t poly_host_x86_tls_base(void)
+{
+  uint64_t value;
+  __asm__ volatile("movq %%r13,%0" : "=r"(value));
+  return value;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_add(uint64_t a, uint64_t b)
 {
   return a + b + 200;
@@ -44,6 +51,18 @@ double POLY_HOST_HELPER poly_host_import_fp64_add(double a, double b)
 float POLY_HOST_HELPER poly_host_import_fp32_add(float a, float b)
 {
   return a + b + 10.0f;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_tlsdesc(uint64_t descriptor)
+{
+  const uint64_t *words = (const uint64_t *) (uintptr_t) descriptor;
+  return words[1];
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_tls_get_addr(uint64_t descriptor)
+{
+  const uint64_t *words = (const uint64_t *) (uintptr_t) descriptor;
+  return poly_host_x86_tls_base() + words[1];
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_sum6(uint64_t a, uint64_t b,

@@ -787,8 +787,9 @@ that descriptor as the import target.  `polycall` uses this path for
 `strlen`, `memcpy`, and `memcmp`, and also for environment, allocation,
 teardown, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
-`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`.  It also
-uses descriptors for scalar libgcc 128-bit div/mod helpers `__udivti3`,
+`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, for
+AArch64 TLSDESC and RISC-V `__tls_get_addr` TLS accessors, and for scalar
+libgcc 128-bit div/mod helpers `__udivti3`,
 `__umodti3`, `__divti3`, and `__modti3`, scalar int128/float conversion
 helpers `__fixdfti`, `__fixunsdfti`, `__floattidf`, `__floatuntidf`,
 `__fixsfti`, `__fixunssfti`, `__floattisf`, and `__floatuntisf`, and bit
@@ -802,14 +803,17 @@ helpers `__addtf3`, `__subtf3`, `__multf3`, `__divtf3`, `__floatunditf`,
 `__trunctfsf2`, and `__trunctfdf2`.  For
 `poly_import_add`/`poly_import_mul`,
 `poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory helpers, that
-OS-sensitive class, these scalar libgcc helpers, these 16-byte libatomic
-helpers, and these quad-precision libgcc helpers, a software descriptor is
-mandatory; the CPU does not synthesize fixed fallback results.
+OS-sensitive class, these TLS accessor helpers, these scalar libgcc helpers,
+these 16-byte libatomic helpers, and these quad-precision libgcc helpers, a
+software descriptor is mandatory; the CPU does not synthesize fixed fallback
+results.
 The CPU contract is the descriptor call gate and ABI register mapping, not the
 semantics of those library functions.
 The same descriptor path currently provides prototype imports for common GCC
-TLS accessors (`R_AARCH64_TLSDESC`, RISC-V `__tls_get_addr`, and initial-exec
-`R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64`) and common GCC
+dynamic TLS accessors (`R_AARCH64_TLSDESC` and RISC-V `__tls_get_addr`) through
+runtime x86 helper descriptors that consume the `PCALL` TLS-base register.
+Initial-exec `R_AARCH64_TLS_TPREL64`/`R_RISCV_TLS_TPREL64` relocations bind
+directly to that same TLS base. The descriptor path also covers common GCC
 AArch64 outline atomic helpers: 8-, 16-, 32-, and 64-bit `ldadd`, `swp`,
 `ldclr`, `ldeor`, `ldset`, and `cas` with `relax`, `acq`, `rel`, and `acq_rel`
 suffixes.  The suffixes alias to the same operation descriptors because the
