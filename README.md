@@ -178,7 +178,7 @@ runtime dispatch:
 
 | Leaf | Registers | Meaning |
 | --- | --- | --- |
-| `0x40000000` | `EAX=0x40000008`, `EBX:EDX:ECX="PolyglotCPU!"` | Advertises the maximum poly CPUID leaf and the 12-byte poly vendor string. |
+| `0x40000000` | `EAX=0x40000009`, `EBX:EDX:ECX="PolyglotCPU!"` | Advertises the maximum poly CPUID leaf and the 12-byte poly vendor string. |
 | `0x40000001` | `EAX=1`, `EBX=mode mask`, `ECX=feature mask`, `EDX=0` | Reports poly CPUID ABI version 1, supported frontend modes, implemented prototype features, and no architectural XSAVE component yet. |
 | `0x40000002, subleaf 0` | `EAX[15:0]=0x7fff`, `EAX[31:16]=0x7ffe`, `EBX=0x7ffd`, `ECX=0x0000000b`, `EDX=0x0000002b` | Reports native raw-mode escape/cross-switch encodings: AArch64-to-x86, AArch64-to-RISC-V switch, AArch64-to-RISC-V call, RISC-V-to-x86, and RISC-V-to-AArch64 switch. |
 | `0x40000002, subleaf 1` | `EAX=0x0000005b`, `EBX=0x0000107b`, `ECX=0x0000207b`, `EDX=0` | Reports the RISC-V-to-AArch64 native cross-call encoding and compact `{u32,float}`/`{float,u32}` native ABI cross-call variants. |
@@ -192,6 +192,7 @@ runtime dispatch:
 | `0x40000006` | `EAX=1`, `EBX=0x1f`, `ECX=0x0f`, `EDX=0x18` | Defines the raw-mode interrupt/resume ABI: raw fetch is CPL3-only, asynchronous entry uses a standard x86 interrupt frame after saving precise foreign state, raw loops check events between foreign instructions, and `IRET64`/`SYSRET`/`SYSEXIT`/signal-return paths can restore AArch64 or RISC-V raw mode. |
 | `0x40000007` | `EAX=1`, `EBX=1`, `ECX=0x1f`, `EDX=0x18` | Defines the foreign memory-ordering ABI: raw AArch64/RISC-V execute under the x86 TSO model, use the same coherent x86 memory subsystem, decode AArch64 barriers and RISC-V fences as ordering-preserving no-ops, route atomics through coherent memory operations, and do not introduce weak reordering. |
 | `0x40000008` | `EAX=1`, `EBX=0x1ff`, `ECX=0x00020004`, `EDX=0x19` | Defines the cross-frontend transition ABI: x86 transitions use decoded poly opcodes, raw frontends use native escape instructions, each transition flushes the frontend and ends the current block, next PCs are precise, raw instruction fetch is fixed-width/aligned, AArch64/RISC-V can switch or call each other without x86 rendezvous, native returns use hardware cookies, and trap return is architectural. |
+| `0x40000009` | `EAX=1`, `EBX=0x7ff`, `ECX=0x00100808`, `EDX=0x00100010` | Defines the native ABI bridge/runtime descriptor contract: x86 SysV can enter AAPCS64 and RISC-V psABI, sret/scalar-FP/focused aggregate/FP64 overflow forms are hardware-described, imports use user-supplied descriptors with no CPU helper fallback, TLS base is explicit, x86 helpers return with ordinary `ret`, eight GPR and eight FP argument lanes are covered, the foreign stack is 16-byte aligned, and descriptor records/stride are 16 bytes. |
 
 The current `0x40000001.EBX` mode mask sets bits `0`, `3`, and `4` for x86_64,
 raw AArch64, and raw RISC-V.  `0x40000001.ECX` sets bits for raw AArch64, raw
@@ -287,6 +288,17 @@ architectural path.  `ECX[15:0]=4` is the AArch64 raw alignment, and
 `ECX[31:16]=2` is the RISC-V raw alignment to allow RV64C entry points.
 `EDX=0x19` is the covered frontend mask: x86 bit `0`, AArch64 bit `3`, and
 RISC-V bit `4`.
+
+Leaf `0x40000009` makes the native ABI bridge discoverable.  `EAX=1` is the
+ABI bridge version.  `EBX` flags advertise x86_64 SysV to AAPCS64 and RISC-V
+psABI call entry, hidden-sret forms, scalar FP aliases, the currently focused
+aggregate bridge forms, FP64 overflow stack-argument forms, descriptor-backed
+foreign-to-x86 imports, explicit TLS-base handoff, runtime-supplied descriptor
+tables, removal of fixed CPU helper fallback semantics, and x86 helper return
+through ordinary `ret`.  `ECX[7:0]=8` is the covered native GPR argument lane
+count, `ECX[15:8]=8` is the covered scalar FP argument lane count, and
+`ECX[31:16]=16` is the required foreign stack alignment.  `EDX[15:0]=16` is
+the descriptor byte size, and `EDX[31:16]=16` is the descriptor call stride.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
