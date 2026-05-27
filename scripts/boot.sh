@@ -1325,6 +1325,22 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-add-watch.elf" 0xd28001c0 0xd2802002 0xd2800368 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-rm-watch.elf" 0xd28001c0 0xd28003e1 0xd2800388 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dup3.elf" 0xd28000a0 0xd2800101 0xd2800002 0xd2800308 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setxattr.elf" 0xaa0103e0 0xaa0103e1 0xaa0103e2 0xd2800083 0xd2800004 0xd28000a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-lsetxattr.elf" 0xaa0103e0 0xaa0103e1 0xaa0103e2 0xd2800083 0xd2800004 0xd28000c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fsetxattr.elf" 0xd2800060 0xaa0103e1 0xaa0103e2 0xd2800083 0xd2800004 0xd28000e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getxattr.elf" 0xaa0103e0 0xaa0103e1 0xaa0103e2 0xd2800103 0xd2800108 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-lgetxattr.elf" 0xaa0103e0 0xaa0103e1 0xaa0103e2 0xd2800103 0xd2800128 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fgetxattr.elf" 0xd2800060 0xaa0103e1 0xaa0103e2 0xd2800103 0xd2800148 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-listxattr.elf" 0xaa0103e0 0xaa0103e1 0xd2800202 0xd2800168 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-llistxattr.elf" 0xaa0103e0 0xaa0103e1 0xd2800202 0xd2800188 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-flistxattr.elf" 0xd2800060 0xaa0103e1 0xd2800202 0xd28001a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-removexattr.elf" 0xaa0103e0 0xaa0103e1 0xd28001c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-lremovexattr.elf" 0xaa0103e0 0xaa0103e1 0xd28001e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fremovexattr.elf" 0xd2800060 0xaa0103e1 0xd2800208 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ioprio-set.elf" 0xd2800020 0xd2800001 0xd2800002 0xd28003c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ioprio-get.elf" 0xd2800020 0xd2800001 0xd28003e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-flock.elf" 0xd2800060 0xd2800041 0xd2800408 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mknodat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2800003 0xd2800428 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mkdirat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2800448 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-unlinkat.elf" 0xd2800000 0xaa0103e1 0xd2800002 0xd2800468 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-symlinkat.elf" 0xaa0103e0 0xd2800001 0xaa0103e2 0xd2800488 0xd4000001
@@ -1531,6 +1547,22 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-add-watch.elf" 0x00e00513 0x10000613 0x01b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-rm-watch.elf" 0x00e00513 0x01f00593 0x01c00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-dup3.elf" 0x00500513 0x00800593 0x00000613 0x01800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setxattr.elf" 0x00058513 0x00058613 0x00400693 0x00000713 0x00500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-lsetxattr.elf" 0x00058513 0x00058613 0x00400693 0x00000713 0x00600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fsetxattr.elf" 0x00300513 0x00058613 0x00400693 0x00000713 0x00700893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getxattr.elf" 0x00058513 0x00058613 0x00800693 0x00800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-lgetxattr.elf" 0x00058513 0x00058613 0x00800693 0x00900893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fgetxattr.elf" 0x00300513 0x00058613 0x00800693 0x00a00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-listxattr.elf" 0x00058513 0x01000613 0x00b00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-llistxattr.elf" 0x00058513 0x01000613 0x00c00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-flistxattr.elf" 0x00300513 0x01000613 0x00d00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-removexattr.elf" 0x00058513 0x00e00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-lremovexattr.elf" 0x00058513 0x00f00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fremovexattr.elf" 0x00300513 0x01000893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ioprio-set.elf" 0x00100513 0x00000593 0x00000613 0x01e00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ioprio-get.elf" 0x00100513 0x00000593 0x01f00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-flock.elf" 0x00300513 0x00200593 0x02000893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mknodat.elf" 0x00000513 0x00058613 0x00000693 0x02100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mkdirat.elf" 0x00000513 0x00058613 0x02200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-unlinkat.elf" 0x00000513 0x00058613 0x02300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-symlinkat.elf" 0x00058513 0x00000593 0x00058613 0x02400893 0x00000073
@@ -1667,7 +1699,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-uname.elf" 0x00058513 0x0a000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-exit.elf" 0x00700513 0x05d00893 0x00000073 0x06300513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-exit-group.elf" 0x00700513 0x05e00893 0x00000073 0x06400513
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ecall.elf" 0x00700893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ecall.elf" 0x1bc00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-ebreak.elf" 0x00500893 0x00100073
   local -a riscv_long=(0x00000513)
   for _ in $(seq 1 80); do
@@ -1830,6 +1862,22 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-inotify-add-watch.elf=31 \
     /usr/lib/polyapps/aarch64-inotify-rm-watch.elf=0 \
     /usr/lib/polyapps/aarch64-dup3.elf=8 \
+    /usr/lib/polyapps/aarch64-setxattr.elf=0 \
+    /usr/lib/polyapps/aarch64-lsetxattr.elf=0 \
+    /usr/lib/polyapps/aarch64-fsetxattr.elf=0 \
+    /usr/lib/polyapps/aarch64-getxattr.elf=4 \
+    /usr/lib/polyapps/aarch64-lgetxattr.elf=4 \
+    /usr/lib/polyapps/aarch64-fgetxattr.elf=4 \
+    /usr/lib/polyapps/aarch64-listxattr.elf=10 \
+    /usr/lib/polyapps/aarch64-llistxattr.elf=10 \
+    /usr/lib/polyapps/aarch64-flistxattr.elf=10 \
+    /usr/lib/polyapps/aarch64-removexattr.elf=0 \
+    /usr/lib/polyapps/aarch64-lremovexattr.elf=0 \
+    /usr/lib/polyapps/aarch64-fremovexattr.elf=0 \
+    /usr/lib/polyapps/aarch64-ioprio-set.elf=0 \
+    /usr/lib/polyapps/aarch64-ioprio-get.elf=0 \
+    /usr/lib/polyapps/aarch64-flock.elf=0 \
+    /usr/lib/polyapps/aarch64-mknodat.elf=0 \
     /usr/lib/polyapps/aarch64-mkdirat.elf=0 \
     /usr/lib/polyapps/aarch64-unlinkat.elf=0 \
     /usr/lib/polyapps/aarch64-symlinkat.elf=0 \
@@ -2009,6 +2057,22 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-inotify-add-watch.elf=31 \
     /usr/lib/polyapps/riscv-inotify-rm-watch.elf=0 \
     /usr/lib/polyapps/riscv-dup3.elf=8 \
+    /usr/lib/polyapps/riscv-setxattr.elf=0 \
+    /usr/lib/polyapps/riscv-lsetxattr.elf=0 \
+    /usr/lib/polyapps/riscv-fsetxattr.elf=0 \
+    /usr/lib/polyapps/riscv-getxattr.elf=4 \
+    /usr/lib/polyapps/riscv-lgetxattr.elf=4 \
+    /usr/lib/polyapps/riscv-fgetxattr.elf=4 \
+    /usr/lib/polyapps/riscv-listxattr.elf=10 \
+    /usr/lib/polyapps/riscv-llistxattr.elf=10 \
+    /usr/lib/polyapps/riscv-flistxattr.elf=10 \
+    /usr/lib/polyapps/riscv-removexattr.elf=0 \
+    /usr/lib/polyapps/riscv-lremovexattr.elf=0 \
+    /usr/lib/polyapps/riscv-fremovexattr.elf=0 \
+    /usr/lib/polyapps/riscv-ioprio-set.elf=0 \
+    /usr/lib/polyapps/riscv-ioprio-get.elf=0 \
+    /usr/lib/polyapps/riscv-flock.elf=0 \
+    /usr/lib/polyapps/riscv-mknodat.elf=0 \
     /usr/lib/polyapps/riscv-mkdirat.elf=0 \
     /usr/lib/polyapps/riscv-unlinkat.elf=0 \
     /usr/lib/polyapps/riscv-symlinkat.elf=0 \
@@ -2146,7 +2210,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-exit.elf=7 \
     /usr/lib/polyapps/riscv-exit-group.elf=7 \
     /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
-    /usr/lib/polyapps/riscv-ecall.elf=0x53000704 \
+    /usr/lib/polyapps/riscv-ecall.elf=0x5301bc04 \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
 fi
 
@@ -2457,6 +2521,22 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-inotify-add-watch.elf \
     /usr/lib/polyapps/aarch64-inotify-rm-watch.elf \
     /usr/lib/polyapps/aarch64-dup3.elf \
+    /usr/lib/polyapps/aarch64-setxattr.elf \
+    /usr/lib/polyapps/aarch64-lsetxattr.elf \
+    /usr/lib/polyapps/aarch64-fsetxattr.elf \
+    /usr/lib/polyapps/aarch64-getxattr.elf \
+    /usr/lib/polyapps/aarch64-lgetxattr.elf \
+    /usr/lib/polyapps/aarch64-fgetxattr.elf \
+    /usr/lib/polyapps/aarch64-listxattr.elf \
+    /usr/lib/polyapps/aarch64-llistxattr.elf \
+    /usr/lib/polyapps/aarch64-flistxattr.elf \
+    /usr/lib/polyapps/aarch64-removexattr.elf \
+    /usr/lib/polyapps/aarch64-lremovexattr.elf \
+    /usr/lib/polyapps/aarch64-fremovexattr.elf \
+    /usr/lib/polyapps/aarch64-ioprio-set.elf \
+    /usr/lib/polyapps/aarch64-ioprio-get.elf \
+    /usr/lib/polyapps/aarch64-flock.elf \
+    /usr/lib/polyapps/aarch64-mknodat.elf \
     /usr/lib/polyapps/aarch64-mkdirat.elf \
     /usr/lib/polyapps/aarch64-unlinkat.elf \
     /usr/lib/polyapps/aarch64-symlinkat.elf \
@@ -2636,6 +2716,22 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-inotify-add-watch.elf \
     /usr/lib/polyapps/riscv-inotify-rm-watch.elf \
     /usr/lib/polyapps/riscv-dup3.elf \
+    /usr/lib/polyapps/riscv-setxattr.elf \
+    /usr/lib/polyapps/riscv-lsetxattr.elf \
+    /usr/lib/polyapps/riscv-fsetxattr.elf \
+    /usr/lib/polyapps/riscv-getxattr.elf \
+    /usr/lib/polyapps/riscv-lgetxattr.elf \
+    /usr/lib/polyapps/riscv-fgetxattr.elf \
+    /usr/lib/polyapps/riscv-listxattr.elf \
+    /usr/lib/polyapps/riscv-llistxattr.elf \
+    /usr/lib/polyapps/riscv-flistxattr.elf \
+    /usr/lib/polyapps/riscv-removexattr.elf \
+    /usr/lib/polyapps/riscv-lremovexattr.elf \
+    /usr/lib/polyapps/riscv-fremovexattr.elf \
+    /usr/lib/polyapps/riscv-ioprio-set.elf \
+    /usr/lib/polyapps/riscv-ioprio-get.elf \
+    /usr/lib/polyapps/riscv-flock.elf \
+    /usr/lib/polyapps/riscv-mknodat.elf \
     /usr/lib/polyapps/riscv-mkdirat.elf \
     /usr/lib/polyapps/riscv-unlinkat.elf \
     /usr/lib/polyapps/riscv-symlinkat.elf \

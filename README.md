@@ -683,12 +683,16 @@ numbers currently include:
   `write`, `writev`, `pread64`, `pwrite64`, `preadv`, `pwritev`, `fsync`,
   `fdatasync`, `sync_file_range`, `fadvise64`, `statfs`, `fstatfs`,
   `truncate`, `ftruncate`, `fallocate`, `chdir`, `fchdir`, `fchmod`,
-  `fchmodat`, `fchownat`, `fchown`, `mkdirat`, `unlinkat`, `symlinkat`,
-  `linkat`, `renameat`, `renameat2`, `chroot`, `umount2`, `mount`,
-  `pivot_root`, `open_tree`, `move_mount`, `fsopen`, `fsconfig`, `fsmount`,
-  `fspick`, `mount_setattr`, `pselect6`, `ppoll`, `epoll_create1`,
-  `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`, `newfstatat`,
-  `fstat`, `statx`, `close`, `getdents64`, `lseek`, and `uname`.
+  `fchmodat`, `fchownat`, `fchown`, `setxattr`, `lsetxattr`, `fsetxattr`,
+  `getxattr`, `lgetxattr`, `fgetxattr`, `listxattr`, `llistxattr`,
+  `flistxattr`, `removexattr`, `lremovexattr`, `fremovexattr`,
+  `ioprio_set`, `ioprio_get`, `flock`, `mknodat`, `mkdirat`, `unlinkat`,
+  `symlinkat`, `linkat`, `renameat`, `renameat2`, `chroot`, `umount2`,
+  `mount`, `pivot_root`, `open_tree`, `move_mount`, `fsopen`, `fsconfig`,
+  `fsmount`, `fspick`, `mount_setattr`, `pselect6`, `ppoll`,
+  `epoll_create1`, `epoll_ctl`, `epoll_pwait`, `openat`, `readlinkat`,
+  `newfstatat`, `fstat`, `statx`, `close`, `getdents64`, `lseek`, and
+  `uname`.
 - Network-style syscalls: `socket`, `socketpair`, `bind`, `listen`,
   `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.

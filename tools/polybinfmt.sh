@@ -102,7 +102,7 @@ case "$path" in
   */riscv-uname.elf) expected=0 ;;
   */riscv-exit.elf) expected=7 ;;
   */riscv-ebreak.elf) expected=0x4c000405 ;;
-  */riscv-ecall.elf) expected=0x53000704 ;;
+  */riscv-ecall.elf) expected=0x5301bc04 ;;
 esac
 
 echo "POLYBINFMT_EXEC: path=$path expected=${expected:-none}"
