@@ -233,7 +233,9 @@ prototype backs this with a small bounded cross-return stack. Direct RISC-V
 ELF execution preserves raw executable bytes and accepts 2-byte-aligned entry
 segments, so compressed-code compatibility is not dependent on packing
 halfwords into synthetic 32-bit loader words; the gate includes a 6-byte
-compressed RISC-V ELF entry segment to verify the non-4-byte-sized case.
+compressed RISC-V ELF entry segment to verify the non-4-byte-sized case, plus
+a 6-byte mixed compressed/32-bit entry that returns through `jalr` to a
+halfword-aligned escape.
 `polybench`
 covers scalar double FP cross-calls, eight-register double FP argument pressure
 across `d0`-`d7`/`fa0`-`fa7`, FP64 overflow stack-argument cross-calls that sum

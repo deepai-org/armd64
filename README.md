@@ -791,5 +791,6 @@ Expected success markers include:
   `polyapp` and `polyexec` load variable-size executable segments up to 1 MiB.
   `polyexec` preserves raw executable bytes, accepting 4-byte-aligned AArch64
   and 2-byte-aligned RISC-V entry segments for compressed-code compatibility;
-  `riscv-compressed-half.elf` verifies a RISC-V entry size that is not a
-  multiple of 4 bytes.
+  `riscv-compressed-half.elf` and `riscv-compressed-jalr.elf` verify RISC-V
+  entry sizes that are not multiples of 4 bytes, including both compressed
+  `c.jr` and 32-bit `jalr` returns to a halfword-aligned escape.

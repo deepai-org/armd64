@@ -55,6 +55,7 @@ case "$path" in
   */riscv-add.elf) expected=27 ;;
   */riscv-compressed.elf) expected=27 ;;
   */riscv-compressed-half.elf) expected=27 ;;
+  */riscv-compressed-jalr.elf) expected=27 ;;
   */riscv-compressed-word.elf) expected=27 ;;
   */riscv-compressed-alu.elf) expected=42 ;;
   */riscv-compressed-fp.elf) expected=64 ;;
