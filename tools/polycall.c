@@ -76,6 +76,9 @@
 #ifndef STT_GNU_IFUNC
 #define STT_GNU_IFUNC 10
 #endif
+#ifndef STB_GNU_UNIQUE
+#define STB_GNU_UNIQUE 10
+#endif
 #ifndef VER_NDX_LOCAL
 #define VER_NDX_LOCAL 0
 #endif
@@ -2990,7 +2993,8 @@ static int dependency_matches_version_file(const struct poly_dependency *dep,
 static int symbol_is_dependency_export(const Elf64_Sym *sym) {
   const unsigned bind = ELF64_ST_BIND(sym->st_info);
   const unsigned visibility = ELF64_ST_VISIBILITY(sym->st_other);
-  return (bind == STB_GLOBAL || bind == STB_WEAK) &&
+  return (bind == STB_GLOBAL || bind == STB_WEAK ||
+      bind == STB_GNU_UNIQUE) &&
     (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
 }
 

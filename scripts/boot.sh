@@ -52,6 +52,8 @@ POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_import_real.c"
 POLYCALL_LIBC_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_libc_import_real.c"
 POLYCALL_IMPORT_VALUE_REAL_SRC="$ROOT_DIR/tools/polycall_import_value_real.c"
 POLYCALL_WEAK_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_weak_import_real.c"
+POLYCALL_GNU_UNIQUE_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_gnu_unique_dep_real.S"
+POLYCALL_GNU_UNIQUE_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_gnu_unique_main_real.c"
 POLYCALL_IFUNC_REAL_SRC="$ROOT_DIR/tools/polycall_ifunc_real.c"
 POLYCALL_STACK_PROTECTOR_REAL_SRC="$ROOT_DIR/tools/polycall_stack_protector_real.c"
 POLYCALL_ERRNO_REAL_SRC="$ROOT_DIR/tools/polycall_errno_real.c"
@@ -388,6 +390,17 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_WEAK_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-weak-import-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyunique-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_GNU_UNIQUE_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyunique-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_GNU_UNIQUE_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyunique-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-gnu-unique-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_IFUNC_REAL_SRC" \
@@ -1026,6 +1039,19 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_WEAK_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-weak-import-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyunique-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_GNU_UNIQUE_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyunique-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_GNU_UNIQUE_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyunique-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-gnu-unique-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2996,6 +3022,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-libc-import-real.so#poly_entry=171221 \
     /usr/lib/polyapps/aarch64-pcall-import-value-real.so#poly_entry=168 \
     /usr/lib/polyapps/aarch64-pcall-weak-import-real.so#poly_entry=8 \
+    /usr/lib/polyapps/aarch64-pcall-gnu-unique-real.so#poly_entry=745 \
     /usr/lib/polyapps/aarch64-pcall-ifunc-real.so#poly_entry=745 \
     /usr/lib/polyapps/aarch64-pcall-stack-protector-real.so#poly_entry=49 \
     /usr/lib/polyapps/aarch64-pcall-errno-real.so#poly_entry=29 \
@@ -3122,6 +3149,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-libc-import-real.so#poly_entry=171221 \
     /usr/lib/polyapps/riscv-pcall-import-value-real.so#poly_entry=168 \
     /usr/lib/polyapps/riscv-pcall-weak-import-real.so#poly_entry=8 \
+    /usr/lib/polyapps/riscv-pcall-gnu-unique-real.so#poly_entry=745 \
     /usr/lib/polyapps/riscv-pcall-ifunc-real.so#poly_entry=745 \
     /usr/lib/polyapps/riscv-pcall-stack-protector-real.so#poly_entry=49 \
     /usr/lib/polyapps/riscv-pcall-errno-real.so#poly_entry=29 \

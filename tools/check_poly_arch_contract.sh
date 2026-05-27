@@ -192,6 +192,10 @@ assert_contains "pcall-root-weak-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover weak dependency relocations bound to root exports"
 assert_contains "resolve_root_symbol\\(program, symbol_name, &required_version" "$ROOT_DIR/tools/polycall.c" \
   "polycall weak undefined relocations must search root exports before resolving to zero"
+assert_contains "pcall-gnu-unique-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover GNU unique object exports"
+assert_contains "STB_GNU_UNIQUE" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must treat GNU unique object symbols as exportable dynamic symbols"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

@@ -487,7 +487,8 @@ binding undefined relocations to dependency exports, so a relocation requiring
 `foo@OLD` from a specific needed library does not silently bind to a default
 `foo@@NEW` export or to the same version name from a different dependency.
 Dependency binding also requires exportable ELF binding and visibility:
-`STB_GLOBAL`/`STB_WEAK` plus `STV_DEFAULT`/`STV_PROTECTED`.
+`STB_GLOBAL`/`STB_WEAK`/`STB_GNU_UNIQUE` plus
+`STV_DEFAULT`/`STV_PROTECTED`.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
@@ -502,7 +503,11 @@ objects (`aarch64-pcall-import-real.so#poly_entry` and
 objects (`aarch64-pcall-import-value-real.so#poly_entry` and
 `riscv-pcall-import-value-real.so#poly_entry`), compiler-produced weak undefined
 import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
-`riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced symbolic IFUNC
+`riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced GNU-unique
+dependency object-symbol pairs (`aarch64-pcall-gnu-unique-real.so#poly_entry`
+with `libpolyunique-aarch64.so`, and
+`riscv-pcall-gnu-unique-real.so#poly_entry` with
+`libpolyunique-riscv.so`), compiler-produced symbolic IFUNC
 objects (`aarch64-pcall-ifunc-real.so#poly_entry` and
 `riscv-pcall-ifunc-real.so#poly_entry`), compiler-produced `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
