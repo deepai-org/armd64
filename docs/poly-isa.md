@@ -484,7 +484,8 @@ lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
 `DT_GNU_HASH` is supported for common GNU-hash-only shared objects.
 `DT_VERSYM`/`DT_VERNEED`/`DT_VERDEF` symbol-version metadata is honored when
 binding undefined relocations to dependency exports, so a relocation requiring
-`foo@OLD` does not silently bind to a default `foo@@NEW` export.
+`foo@OLD` from a specific needed library does not silently bind to a default
+`foo@@NEW` export or to the same version name from a different dependency.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
@@ -817,7 +818,8 @@ and undefined function or object-symbol relocations in the requesting object can
 bind directly to dependency text/data without routing through an x86 import
 descriptor. GNU symbol versions are matched during dependency binding, with
 unversioned requests preferring default exports and explicit version requests
-requiring the matching dependency version definition.
+requiring both the matching dependency version definition and the matching
+`DT_VERNEED` provider filename/SONAME.
 Weak undefined foreign relocations first try the loaded dependency scope and
 only resolve to zero when no dependency exports the requested symbol.
 When multiple dependency libraries export the same function/object symbol, the

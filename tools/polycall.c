@@ -369,6 +369,7 @@ struct poly_symbol_table {
 
 struct poly_dependency {
   char path[MAX_DEP_PATH];
+  char soname[MAX_DEP_PATH];
   const char *arch_name;
   int arch;
   uint8_t *image;
@@ -393,6 +394,11 @@ struct poly_dependency {
   struct poly_symbol_table dynsym;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
+};
+
+struct poly_version_requirement {
+  const char *name;
+  const char *filename;
 };
 
 struct poly_program {
@@ -2381,6 +2387,61 @@ static int build_needed_path(const char *owner_path, const char *needed,
   return 0;
 }
 
+static const char *path_basename(const char *path) {
+  const char *slash = strrchr(path, '/');
+  return slash ? slash + 1 : path;
+}
+
+static int load_soname_from_dynamic(const struct poly_program *program,
+    const Elf64_Dyn *dyn, size_t dyn_count, char *out, size_t out_size) {
+  uint64_t strtab_vaddr = 0;
+  uint64_t strsz = 0;
+  uint64_t soname_offset = UINT64_MAX;
+
+  if (out_size == 0)
+    return -1;
+  out[0] = '\0';
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_NULL:
+        n = dyn_count;
+        break;
+      case DT_STRTAB:
+        strtab_vaddr = dyn[n].d_un.d_ptr;
+        break;
+      case DT_STRSZ:
+        strsz = dyn[n].d_un.d_val;
+        break;
+      case DT_SONAME:
+        soname_offset = dyn[n].d_un.d_val;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (soname_offset == UINT64_MAX)
+    return 0;
+  if (!strtab_vaddr || strsz == 0 || soname_offset >= strsz)
+    return -1;
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+  const char *strings = (const char *) (program->image + strtab_offset);
+  const void *end = memchr(strings + soname_offset, '\0',
+    (size_t) (strsz - soname_offset));
+  if (!end)
+    return -1;
+  const size_t len = (size_t) ((const char *) end -
+    (strings + soname_offset));
+  if (len >= out_size)
+    return -1;
+  memcpy(out, strings + soname_offset, len);
+  out[len] = '\0';
+  return 0;
+}
+
 static int build_origin_path(const char *owner_path, const char *suffix,
     size_t suffix_len, const char *needed, char *out, size_t out_size) {
   const char *slash = strrchr(owner_path, '/');
@@ -2645,6 +2706,29 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   const Elf64_Dyn *dynamic =
     (const Elf64_Dyn *) (dep->image + dynamic_offset);
   const size_t dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
+  if (load_soname_from_dynamic(&dep_view, dynamic, dynamic_count,
+        dep->soname, sizeof(dep->soname)) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: bad dependency SONAME: %s\n", path);
+    free(dep->image);
+    dep->image = NULL;
+    free(dep_view.relocs);
+    dep_view.relocs = NULL;
+    free(data);
+    return -1;
+  }
+  if (dep->soname[0] == '\0') {
+    const char *basename = path_basename(dep->path);
+    if (strlen(basename) >= sizeof(dep->soname)) {
+      fprintf(stderr, "POLYCALL_FAIL: dependency basename too long: %s\n", path);
+      free(dep->image);
+      dep->image = NULL;
+      free(dep_view.relocs);
+      dep_view.relocs = NULL;
+      free(data);
+      return -1;
+    }
+    strcpy(dep->soname, basename);
+  }
   if (load_needed_dependencies_from_dynamic(owner, dep->path, dep->image,
         dep->image_size, dep->base_vaddr, dynamic, dynamic_count,
         dep->needed_depth + 1) < 0) {
@@ -2801,29 +2885,36 @@ static uint16_t symbol_version_index(const struct poly_symbol_table *table,
   return table->versym[symbol_index] & VERSYM_VERSION;
 }
 
-static const char *symbol_required_version(
+static struct poly_version_requirement symbol_required_version(
     const struct poly_symbol_table *table, size_t symbol_index) {
+  const struct poly_version_requirement none = { NULL, NULL };
   const uint16_t version_index = symbol_version_index(table, symbol_index);
   if (version_index <= VER_NDX_GLOBAL || !table->verneed)
-    return NULL;
+    return none;
 
   size_t need_offset = 0;
   for (size_t need = 0; need < table->verneed_count; need++) {
     if (need_offset > table->verneed_size ||
         sizeof(Elf64_Verneed) > table->verneed_size - need_offset)
-      return NULL;
+      return none;
     const Elf64_Verneed *verneed =
       (const Elf64_Verneed *) (table->verneed + need_offset);
     size_t aux_offset = need_offset + verneed->vn_aux;
     for (size_t aux = 0; aux < verneed->vn_cnt; aux++) {
       if (aux_offset > table->verneed_size ||
           sizeof(Elf64_Vernaux) > table->verneed_size - aux_offset)
-        return NULL;
+        return none;
       const Elf64_Vernaux *vernaux =
         (const Elf64_Vernaux *) (table->verneed + aux_offset);
       if ((vernaux->vna_other & VERSYM_VERSION) == version_index &&
-          vernaux->vna_name < table->strings_size)
-        return table->strings + vernaux->vna_name;
+          vernaux->vna_name < table->strings_size &&
+          verneed->vn_file < table->strings_size) {
+        const struct poly_version_requirement requirement = {
+          table->strings + vernaux->vna_name,
+          table->strings + verneed->vn_file
+        };
+        return requirement;
+      }
       if (vernaux->vna_next == 0)
         break;
       aux_offset += vernaux->vna_next;
@@ -2832,7 +2923,7 @@ static const char *symbol_required_version(
       break;
     need_offset += verneed->vn_next;
   }
-  return NULL;
+  return none;
 }
 
 static const char *symbol_export_version(const struct poly_symbol_table *table,
@@ -2882,6 +2973,14 @@ static int symbol_export_version_matches(
   return export_version && strcmp(export_version, required_version) == 0;
 }
 
+static int dependency_matches_version_file(const struct poly_dependency *dep,
+    const char *required_filename) {
+  if (!required_filename)
+    return 1;
+  return strcmp(dep->soname, required_filename) == 0 ||
+    strcmp(path_basename(dep->path), required_filename) == 0;
+}
+
 static int resolve_symbol_from_table_filtered(const struct poly_symbol_table *table,
     const char *symbol_name, uint64_t *symbol_vaddr, int allow_object) {
   if (!table->symbols || !table->strings || !symbol_name)
@@ -2918,7 +3017,8 @@ static int resolve_dynamic_symbol(const struct poly_program *program,
 }
 
 static int resolve_dependency_symbol(const struct poly_program *program,
-    const char *symbol_name, const char *required_version,
+    const char *symbol_name,
+    const struct poly_version_requirement *required_version,
     uint64_t *symbol_value, int *base_kind) {
   size_t best = program->dep_count;
   size_t best_rank = (size_t) -1;
@@ -2926,6 +3026,10 @@ static int resolve_dependency_symbol(const struct poly_program *program,
   unsigned best_type = STT_NOTYPE;
   for (size_t n = 0; n < program->dep_count; n++) {
     const struct poly_symbol_table *table = &program->deps[n].dynsym;
+    if (required_version &&
+        !dependency_matches_version_file(&program->deps[n],
+          required_version->filename))
+      continue;
     if (!table->symbols || !table->strings || !symbol_name)
       continue;
     for (size_t s = 0; s < table->symbol_count; s++) {
@@ -2936,7 +3040,8 @@ static int resolve_dependency_symbol(const struct poly_program *program,
           (type != STT_FUNC && type != STT_NOTYPE &&
            type != STT_OBJECT && type != STT_GNU_IFUNC) ||
           strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
-          !symbol_export_version_matches(table, s, required_version))
+          !symbol_export_version_matches(table, s,
+            required_version ? required_version->name : NULL))
         continue;
       if (program->deps[n].lookup_rank >= best_rank)
         continue;
@@ -2957,7 +3062,8 @@ static int resolve_dependency_symbol(const struct poly_program *program,
 }
 
 static int resolve_dependency_object_symbol(const struct poly_program *program,
-    const char *symbol_name, const char *required_version, size_t *dep_index,
+    const char *symbol_name,
+    const struct poly_version_requirement *required_version, size_t *dep_index,
     uint64_t *symbol_value, size_t *symbol_size) {
   size_t best = program->dep_count;
   size_t best_rank = (size_t) -1;
@@ -2966,6 +3072,10 @@ static int resolve_dependency_object_symbol(const struct poly_program *program,
 
   for (size_t n = 0; n < program->dep_count; n++) {
     const struct poly_symbol_table *table = &program->deps[n].dynsym;
+    if (required_version &&
+        !dependency_matches_version_file(&program->deps[n],
+          required_version->filename))
+      continue;
     if (!table->symbols || !table->strings || !symbol_name)
       continue;
     for (size_t s = 0; s < table->symbol_count; s++) {
@@ -2975,7 +3085,8 @@ static int resolve_dependency_object_symbol(const struct poly_program *program,
           sym->st_shndx == SHN_UNDEF ||
           (type != STT_OBJECT && type != STT_NOTYPE) ||
           strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
-          !symbol_export_version_matches(table, s, required_version))
+          !symbol_export_version_matches(table, s,
+            required_version ? required_version->name : NULL))
         continue;
       if (program->deps[n].lookup_rank >= best_rank)
         continue;
@@ -2996,7 +3107,8 @@ static int resolve_dependency_object_symbol(const struct poly_program *program,
 }
 
 static int resolve_dependency_tls_symbol(const struct poly_program *program,
-    const char *symbol_name, const char *required_version, size_t *dep_index,
+    const char *symbol_name,
+    const struct poly_version_requirement *required_version, size_t *dep_index,
     uint64_t *symbol_value) {
   size_t best = program->dep_count;
   size_t best_rank = (size_t) -1;
@@ -3004,6 +3116,10 @@ static int resolve_dependency_tls_symbol(const struct poly_program *program,
 
   for (size_t n = 0; n < program->dep_count; n++) {
     const struct poly_symbol_table *table = &program->deps[n].dynsym;
+    if (required_version &&
+        !dependency_matches_version_file(&program->deps[n],
+          required_version->filename))
+      continue;
     if (!table->symbols || !table->strings || !symbol_name)
       continue;
     for (size_t s = 0; s < table->symbol_count; s++) {
@@ -3012,7 +3128,8 @@ static int resolve_dependency_tls_symbol(const struct poly_program *program,
           sym->st_shndx == SHN_UNDEF ||
           ELF64_ST_TYPE(sym->st_info) != STT_TLS ||
           strcmp(table->strings + sym->st_name, symbol_name) != 0 ||
-          !symbol_export_version_matches(table, s, required_version))
+          !symbol_export_version_matches(table, s,
+            required_version ? required_version->name : NULL))
         continue;
       if (program->deps[n].lookup_rank >= best_rank)
         continue;
@@ -3031,7 +3148,8 @@ static int resolve_dependency_tls_symbol(const struct poly_program *program,
 }
 
 static int resolve_external_reloc_symbol(struct poly_program *program,
-    const char *symbol_name, const char *required_version,
+    const char *symbol_name,
+    const struct poly_version_requirement *required_version,
     uint64_t *symbol_value, int *base_kind) {
   if (resolve_dependency_symbol(program, symbol_name, required_version,
         symbol_value,
@@ -3087,9 +3205,10 @@ static int resolve_reloc_symbol(struct poly_program *program,
   }
   const char *symbol_name = table->strings + sym->st_name;
   if (sym->st_shndx == SHN_UNDEF) {
-    const char *required_version = symbol_required_version(table, symbol_index);
+    const struct poly_version_requirement required_version =
+      symbol_required_version(table, symbol_index);
     if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
-      if (resolve_dependency_symbol(program, symbol_name, required_version,
+      if (resolve_dependency_symbol(program, symbol_name, &required_version,
             symbol_value, base_kind) == 0)
         return 0;
       *symbol_value = 0;
@@ -3098,7 +3217,7 @@ static int resolve_reloc_symbol(struct poly_program *program,
     }
     *base_kind = RELOC_BASE_ABSOLUTE;
     return resolve_external_reloc_symbol(program, symbol_name,
-      required_version, symbol_value, base_kind);
+      &required_version, symbol_value, base_kind);
   }
   size_t symbol_offset = 0;
   if (elf_vaddr_to_image_offset(program, sym->st_value, 1, &symbol_offset) < 0) {
@@ -3132,8 +3251,9 @@ static int resolve_tls_reloc_symbol(struct poly_program *program,
   if (sym->st_shndx == SHN_UNDEF) {
     size_t dep_index = 0;
     uint64_t dep_tls_offset = 0;
-    const char *required_version = symbol_required_version(table, symbol_index);
-    if (resolve_dependency_tls_symbol(program, symbol_name, required_version,
+    const struct poly_version_requirement required_version =
+      symbol_required_version(table, symbol_index);
+    if (resolve_dependency_tls_symbol(program, symbol_name, &required_version,
           &dep_index, &dep_tls_offset) == 0) {
       *tls_offset = dep_tls_offset;
       *base_kind = RELOC_BASE_DEP_TLS_OFFSET + (int) dep_index;
@@ -3198,13 +3318,13 @@ static int process_rela_table(struct poly_program *program,
       }
       const Elf64_Sym *sym = &dynsym.symbols[symbol_index];
       const char *symbol_name = dynsym.strings + sym->st_name;
-      const char *required_version =
+      const struct poly_version_requirement required_version =
         symbol_required_version(&dynsym, symbol_index);
       size_t dep_index = 0;
       uint64_t source_vaddr = 0;
       size_t source_size = 0;
       if (resolve_dependency_object_symbol(program, symbol_name,
-            required_version, &dep_index, &source_vaddr, &source_size) < 0) {
+            &required_version, &dep_index, &source_vaddr, &source_size) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: unresolved copy relocation symbol=%s path=%s\n",
           symbol_name, program->path);
         return -1;
@@ -3409,13 +3529,13 @@ static int process_rel_table(struct poly_program *program,
       }
       const Elf64_Sym *sym = &dynsym.symbols[symbol_index];
       const char *symbol_name = dynsym.strings + sym->st_name;
-      const char *required_version =
+      const struct poly_version_requirement required_version =
         symbol_required_version(&dynsym, symbol_index);
       size_t dep_index = 0;
       uint64_t source_vaddr = 0;
       size_t source_size = 0;
       if (resolve_dependency_object_symbol(program, symbol_name,
-            required_version, &dep_index, &source_vaddr, &source_size) < 0) {
+            &required_version, &dep_index, &source_vaddr, &source_size) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: unresolved copy relocation symbol=%s path=%s\n",
           symbol_name, program->path);
         return -1;
