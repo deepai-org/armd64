@@ -615,28 +615,62 @@ extern uint64_t poly_host_x86_ctzdi2(uint64_t value);
 extern uint64_t poly_host_x86_paritydi2(uint64_t value);
 extern uint64_t poly_host_x86_popcountdi2(uint64_t value);
 extern __float128 poly_host_x86_addtf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_riscv_addtf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern __float128 poly_host_x86_subtf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_riscv_subtf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern __float128 poly_host_x86_multf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_riscv_multf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern __float128 poly_host_x86_divtf3(__float128 left, __float128 right);
+extern __float128 poly_host_x86_riscv_divtf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern __float128 poly_host_x86_floatunditf(uint64_t source);
 extern uint64_t poly_host_x86_fixunstfdi(__float128 source);
+extern uint64_t poly_host_x86_riscv_fixunstfdi(uint64_t source_lo,
+    uint64_t source_hi);
 extern __float128 poly_host_x86_floatditf(int64_t source);
 extern __float128 poly_host_x86_floatsitf(int64_t source);
 extern __float128 poly_host_x86_floatunsitf(uint64_t source);
 extern uint64_t poly_host_x86_fixtfdi(__float128 source);
+extern uint64_t poly_host_x86_riscv_fixtfdi(uint64_t source_lo,
+    uint64_t source_hi);
 extern uint64_t poly_host_x86_fixtfsi(__float128 source);
+extern uint64_t poly_host_x86_riscv_fixtfsi(uint64_t source_lo,
+    uint64_t source_hi);
 extern uint64_t poly_host_x86_fixunstfsi(__float128 source);
+extern uint64_t poly_host_x86_riscv_fixunstfsi(uint64_t source_lo,
+    uint64_t source_hi);
 extern uint64_t poly_host_x86_eqtf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_riscv_eqtf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern uint64_t poly_host_x86_lttf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_riscv_lttf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern uint64_t poly_host_x86_letf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_riscv_letf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern uint64_t poly_host_x86_gttf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_riscv_gttf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern uint64_t poly_host_x86_getf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_riscv_getf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern __float128 poly_host_x86_extendsftf2(float source);
 extern __float128 poly_host_x86_extenddftf2(double source);
 extern float poly_host_x86_trunctfsf2(__float128 source);
+extern float poly_host_x86_riscv_trunctfsf2(uint64_t source_lo,
+    uint64_t source_hi);
 extern double poly_host_x86_trunctfdf2(__float128 source);
+extern double poly_host_x86_riscv_trunctfdf2(uint64_t source_lo,
+    uint64_t source_hi);
 extern uint64_t poly_host_x86_netf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_riscv_netf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 extern uint64_t poly_host_x86_unordtf2(__float128 left, __float128 right);
+extern uint64_t poly_host_x86_riscv_unordtf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi);
 
 static int resolve_aarch64_outline_atomic_import(const char *symbol_name,
     uint64_t *symbol_value);
@@ -917,50 +951,84 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
     case POLY_IMPORT_FUNC_POPCOUNTDI2:
       return (uint64_t) (uintptr_t) poly_host_x86_popcountdi2;
     case POLY_IMPORT_FUNC_ADDTF3:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_addtf3;
       return (uint64_t) (uintptr_t) poly_host_x86_addtf3;
     case POLY_IMPORT_FUNC_SUBTF3:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_subtf3;
       return (uint64_t) (uintptr_t) poly_host_x86_subtf3;
     case POLY_IMPORT_FUNC_MULTF3:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_multf3;
       return (uint64_t) (uintptr_t) poly_host_x86_multf3;
     case POLY_IMPORT_FUNC_DIVTF3:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_divtf3;
       return (uint64_t) (uintptr_t) poly_host_x86_divtf3;
     case POLY_IMPORT_FUNC_FLOATUNDITF:
       return (uint64_t) (uintptr_t) poly_host_x86_floatunditf;
     case POLY_IMPORT_FUNC_FIXUNSTFDI:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_fixunstfdi;
       return (uint64_t) (uintptr_t) poly_host_x86_fixunstfdi;
     case POLY_IMPORT_FUNC_FLOATDITF:
       return (uint64_t) (uintptr_t) poly_host_x86_floatditf;
     case POLY_IMPORT_FUNC_FLOATSITF:
       return (uint64_t) (uintptr_t) poly_host_x86_floatsitf;
     case POLY_IMPORT_FUNC_FIXTFDI:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_fixtfdi;
       return (uint64_t) (uintptr_t) poly_host_x86_fixtfdi;
     case POLY_IMPORT_FUNC_EQTF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_eqtf2;
       return (uint64_t) (uintptr_t) poly_host_x86_eqtf2;
     case POLY_IMPORT_FUNC_LTTF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_lttf2;
       return (uint64_t) (uintptr_t) poly_host_x86_lttf2;
     case POLY_IMPORT_FUNC_LETF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_letf2;
       return (uint64_t) (uintptr_t) poly_host_x86_letf2;
     case POLY_IMPORT_FUNC_GTTF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_gttf2;
       return (uint64_t) (uintptr_t) poly_host_x86_gttf2;
     case POLY_IMPORT_FUNC_GETF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_getf2;
       return (uint64_t) (uintptr_t) poly_host_x86_getf2;
     case POLY_IMPORT_FUNC_EXTENDSFTF2:
       return (uint64_t) (uintptr_t) poly_host_x86_extendsftf2;
     case POLY_IMPORT_FUNC_EXTENDDFTF2:
       return (uint64_t) (uintptr_t) poly_host_x86_extenddftf2;
     case POLY_IMPORT_FUNC_TRUNCTFSF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_trunctfsf2;
       return (uint64_t) (uintptr_t) poly_host_x86_trunctfsf2;
     case POLY_IMPORT_FUNC_TRUNCTFDF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_trunctfdf2;
       return (uint64_t) (uintptr_t) poly_host_x86_trunctfdf2;
     case POLY_IMPORT_FUNC_NETF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_netf2;
       return (uint64_t) (uintptr_t) poly_host_x86_netf2;
     case POLY_IMPORT_FUNC_UNORDTF2:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_unordtf2;
       return (uint64_t) (uintptr_t) poly_host_x86_unordtf2;
     case POLY_IMPORT_FUNC_FLOATUNSITF:
       return (uint64_t) (uintptr_t) poly_host_x86_floatunsitf;
     case POLY_IMPORT_FUNC_FIXTFSI:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_fixtfsi;
       return (uint64_t) (uintptr_t) poly_host_x86_fixtfsi;
     case POLY_IMPORT_FUNC_FIXUNSTFSI:
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_riscv_fixunstfsi;
       return (uint64_t) (uintptr_t) poly_host_x86_fixunstfsi;
     default:
       return 0;

@@ -345,10 +345,28 @@ uint64_t POLY_HOST_HELPER poly_host_x86_popcountdi2(uint64_t value)
   return count;
 }
 
+static __float128 poly_host_x86_make_tf(uint64_t lo, uint64_t hi)
+{
+  union {
+    __float128 value;
+    uint64_t words[2];
+  } packed;
+  packed.words[0] = lo;
+  packed.words[1] = hi;
+  return packed.value;
+}
+
 __float128 POLY_HOST_HELPER poly_host_x86_addtf3(__float128 left,
     __float128 right)
 {
   return left + right;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_riscv_addtf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_addtf3(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
 }
 
 __float128 POLY_HOST_HELPER poly_host_x86_subtf3(__float128 left,
@@ -357,16 +375,37 @@ __float128 POLY_HOST_HELPER poly_host_x86_subtf3(__float128 left,
   return left - right;
 }
 
+__float128 POLY_HOST_HELPER poly_host_x86_riscv_subtf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_subtf3(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
+}
+
 __float128 POLY_HOST_HELPER poly_host_x86_multf3(__float128 left,
     __float128 right)
 {
   return left * right;
 }
 
+__float128 POLY_HOST_HELPER poly_host_x86_riscv_multf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_multf3(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
+}
+
 __float128 POLY_HOST_HELPER poly_host_x86_divtf3(__float128 left,
     __float128 right)
 {
   return left / right;
+}
+
+__float128 POLY_HOST_HELPER poly_host_x86_riscv_divtf3(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_divtf3(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
 }
 
 __float128 POLY_HOST_HELPER poly_host_x86_floatunditf(uint64_t source)
@@ -377,6 +416,12 @@ __float128 POLY_HOST_HELPER poly_host_x86_floatunditf(uint64_t source)
 uint64_t POLY_HOST_HELPER poly_host_x86_fixunstfdi(__float128 source)
 {
   return (uint64_t) source;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_fixunstfdi(uint64_t source_lo,
+    uint64_t source_hi)
+{
+  return poly_host_x86_fixunstfdi(poly_host_x86_make_tf(source_lo, source_hi));
 }
 
 __float128 POLY_HOST_HELPER poly_host_x86_floatditf(int64_t source)
@@ -399,14 +444,32 @@ uint64_t POLY_HOST_HELPER poly_host_x86_fixtfdi(__float128 source)
   return (uint64_t) (int64_t) source;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_fixtfdi(uint64_t source_lo,
+    uint64_t source_hi)
+{
+  return poly_host_x86_fixtfdi(poly_host_x86_make_tf(source_lo, source_hi));
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_fixtfsi(__float128 source)
 {
   return (uint64_t) (int64_t) (int32_t) source;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_fixtfsi(uint64_t source_lo,
+    uint64_t source_hi)
+{
+  return poly_host_x86_fixtfsi(poly_host_x86_make_tf(source_lo, source_hi));
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_fixunstfsi(__float128 source)
 {
   return (uint64_t) (uint32_t) source;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_fixunstfsi(uint64_t source_lo,
+    uint64_t source_hi)
+{
+  return poly_host_x86_fixunstfsi(poly_host_x86_make_tf(source_lo, source_hi));
 }
 
 static uint64_t poly_host_x86_tf_compare(__float128 left, __float128 right,
@@ -436,10 +499,24 @@ uint64_t POLY_HOST_HELPER poly_host_x86_eqtf2(__float128 left,
   return poly_host_x86_tf_compare(left, right, 92);
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_eqtf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_eqtf2(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_lttf2(__float128 left,
     __float128 right)
 {
   return poly_host_x86_tf_compare(left, right, 93);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_lttf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_lttf2(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_letf2(__float128 left,
@@ -448,16 +525,37 @@ uint64_t POLY_HOST_HELPER poly_host_x86_letf2(__float128 left,
   return poly_host_x86_tf_compare(left, right, 94);
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_letf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_letf2(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_gttf2(__float128 left,
     __float128 right)
 {
   return poly_host_x86_tf_compare(left, right, 95);
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_gttf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_gttf2(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_getf2(__float128 left,
     __float128 right)
 {
   return poly_host_x86_tf_compare(left, right, 96);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_getf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_getf2(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
 }
 
 __float128 POLY_HOST_HELPER poly_host_x86_extendsftf2(float source)
@@ -475,9 +573,21 @@ float POLY_HOST_HELPER poly_host_x86_trunctfsf2(__float128 source)
   return (float) source;
 }
 
+float POLY_HOST_HELPER poly_host_x86_riscv_trunctfsf2(uint64_t source_lo,
+    uint64_t source_hi)
+{
+  return poly_host_x86_trunctfsf2(poly_host_x86_make_tf(source_lo, source_hi));
+}
+
 double POLY_HOST_HELPER poly_host_x86_trunctfdf2(__float128 source)
 {
   return (double) source;
+}
+
+double POLY_HOST_HELPER poly_host_x86_riscv_trunctfdf2(uint64_t source_lo,
+    uint64_t source_hi)
+{
+  return poly_host_x86_trunctfdf2(poly_host_x86_make_tf(source_lo, source_hi));
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_netf2(__float128 left,
@@ -486,10 +596,24 @@ uint64_t POLY_HOST_HELPER poly_host_x86_netf2(__float128 left,
   return poly_host_x86_tf_compare(left, right, 101);
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_netf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_netf2(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_unordtf2(__float128 left,
     __float128 right)
 {
   return poly_host_x86_tf_compare(left, right, 102);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_riscv_unordtf2(uint64_t left_lo,
+    uint64_t left_hi, uint64_t right_lo, uint64_t right_hi)
+{
+  return poly_host_x86_unordtf2(poly_host_x86_make_tf(left_lo, left_hi),
+    poly_host_x86_make_tf(right_lo, right_hi));
 }
 
 static uint64_t poly_host_bound_4096(uint64_t count)

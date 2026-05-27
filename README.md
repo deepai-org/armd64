@@ -759,7 +759,11 @@ independent SysV GPR and XMM argument counters, synthesize an x86 return address
 accept each helper's ordinary `ret`, and map the x86 `RAX` result back to
 AArch64 `x0` or RISC-V `a0` for integer returns.  ABI-specific details such as
 the AAPCS64 even-register hole before a 16-byte integer argument are handled by
-the runtime descriptor target, not by CPU-side import-ID argument rewrites. The current
+the runtime descriptor target, not by CPU-side import-ID argument rewrites.
+RISC-V quad-precision helper descriptors likewise rebuild `__float128`
+operands from the fixed `a0/a1` and `a2/a3` GPR lane pairs in runtime x86
+wrappers instead of asking the CPU import gate to populate x86 XMM argument
+registers for specific helper IDs. The current
 `polycall` harness points these descriptors at `noinline` x86_64 C functions
 linked from `tools/polycall_x86_helpers.c`, so the path exercises a separately
 compiled x86 helper object with compiler-generated function bodies rather than

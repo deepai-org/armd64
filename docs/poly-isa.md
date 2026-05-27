@@ -908,7 +908,10 @@ The CPU contract is the descriptor call gate and ABI register mapping, not the
 semantics of those library functions. Runtime descriptor targets are
 responsible for ABI-specific details such as AAPCS64 even-register alignment
 holes before 16-byte integer arguments; the CPU import gate always captures and
-maps the fixed native argument lanes.
+maps the fixed native argument lanes. RISC-V quad-precision helper descriptors
+rebuild `__float128` operands from fixed `a0/a1` and `a2/a3` GPR lane pairs in
+runtime x86 wrappers rather than requiring CPU-side XMM argument packing for
+specific helper IDs.
 The same descriptor path currently provides prototype imports for common GCC
 dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and
