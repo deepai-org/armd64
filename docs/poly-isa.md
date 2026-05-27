@@ -40,10 +40,11 @@ frontend, and transfers control to an implementation-defined trap path.  Firmwar
 the OS, a loader, or a userspace runtime decides whether to translate a syscall,
 deliver a signal, invoke a thunk, or reject the operation.
 
-Foreign memory ordering is currently specified as x86_64 TSO for the prototype
-compatibility target.  AArch64 and RISC-V barriers are legal decode points, and
-foreign atomic read-modify-write instructions operate through the same coherent
-virtual-memory path as ordinary x86_64 memory operations.
+Foreign memory ordering is specified as x86_64 TSO for the prototype
+compatibility target, and leaf `0x40000007` is the runtime-discoverable memory
+ABI for that contract.  AArch64 and RISC-V barriers are legal decode points,
+and foreign atomic read-modify-write instructions operate through the same
+coherent virtual-memory path as ordinary x86_64 memory operations.
 
 Interrupts, faults, and debug exceptions taken during foreign fetch must record
 the interrupted foreign mode and PC before entering the x86_64 kernel path.
@@ -165,7 +166,7 @@ ordinary `UD2` retains standard invalid-opcode behavior.
 The prototype exposes private CPUID leaves when `poly_enabled=1` so runtimes can
 discover the experimental hardware contract before emitting poly operations:
 
-- `CPUID.EAX=0x40000000`: `EAX=0x40000006`, `EBX:EDX:ECX="PolyglotCPU!"`.
+- `CPUID.EAX=0x40000000`: `EAX=0x40000007`, `EBX:EDX:ECX="PolyglotCPU!"`.
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
@@ -262,6 +263,13 @@ discover the experimental hardware contract before emitting poly operations:
   reports supported return paths: `IRET64`, `SYSRET`, `SYSEXIT`, and guest
   signal return.  `EDX=0x18` is the covered raw frontend mask: AArch64 bit
   `3` and RISC-V bit `4`.
+- `CPUID.EAX=0x40000007`: foreign memory-ordering ABI discovery.  `EAX=1`
+  is the memory ABI version.  `EBX=1` selects x86 TSO.  `ECX=0x1f` reports
+  flags: raw frontends share the coherent x86 memory subsystem, AArch64
+  barriers are ordering-preserving no-ops, RISC-V fences are
+  ordering-preserving no-ops, foreign atomics use coherent memory operations,
+  and raw frontends do not inject weak AArch64/RISC-V reordering.  `EDX=0x18`
+  is the covered raw frontend mask: AArch64 bit `3` and RISC-V bit `4`.
 
 The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 

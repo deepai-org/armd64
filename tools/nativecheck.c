@@ -978,6 +978,18 @@ int main(void) {
         interrupt.eax, interrupt.ebx, interrupt.ecx, interrupt.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_memory =
+      poly_cpuid_expected_memory_leaf();
+    struct poly_cpuid_regs memory =
+      poly_read_cpuid(POLY_CPUID_BASE + 7, 0);
+    if (memory.eax != expected_memory.eax ||
+        memory.ebx != expected_memory.ebx ||
+        memory.ecx != expected_memory.ecx ||
+        memory.edx != expected_memory.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID memory leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        memory.eax, memory.ebx, memory.ecx, memory.edx);
+      return 1;
+    }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
       return 1;
