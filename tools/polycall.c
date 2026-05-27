@@ -212,7 +212,10 @@ enum {
   POLY_IMPORT_FUNC_REALLOC = 123,
   POLY_IMPORT_FUNC_FREE = 124,
   POLY_IMPORT_FUNC_STRDUP = 125,
-  POLY_IMPORT_FUNC_STRNDUP = 126
+  POLY_IMPORT_FUNC_STRNDUP = 126,
+  POLY_IMPORT_FUNC_POSIX_MEMALIGN = 127,
+  POLY_IMPORT_FUNC_ALIGNED_ALLOC = 128,
+  POLY_IMPORT_FUNC_MEMALIGN = 129
 };
 
 enum {
@@ -822,6 +825,18 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "strndup") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STRNDUP * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "posix_memalign") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_POSIX_MEMALIGN * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "aligned_alloc") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ALIGNED_ALLOC * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "memalign") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MEMALIGN * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
