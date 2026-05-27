@@ -709,7 +709,10 @@ numbers currently include:
   `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.
 - Memory/time-style syscalls: `nanosleep`, `clock_gettime`, `clock_getres`,
-  `clock_nanosleep`, `times`, `sched_getaffinity`, `sched_yield`, `getrusage`,
+  `clock_nanosleep`, `times`, `sched_setparam`, `sched_setscheduler`,
+  `sched_getscheduler`, `sched_getparam`, `sched_setaffinity`,
+  `sched_getaffinity`, `sched_yield`, `sched_get_priority_max`,
+  `sched_get_priority_min`, `getrusage`,
   `getrlimit`, `setrlimit`, `getcpu`, `gettimeofday`, `sysinfo`,
   `prlimit64`, `getrandom`, `brk`,
   `munmap`, `mremap`, `mprotect`, `madvise`, `mlock`, `munlock`,
