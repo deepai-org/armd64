@@ -207,6 +207,34 @@ static int run_poly_trap_vector_probe(void) {
 
   asm volatile(
     POLY_OP_ENTER_A64
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0xaa0803e0\n" // mov x0,x8
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+  result = read_rax();
+  if (result != 172) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved syscall register mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
+    ".long 0x00088513\n" // addi a0,a7,0
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
+  result = read_rax();
+  if (result != 172) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved syscall register mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_A64
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
