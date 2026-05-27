@@ -180,6 +180,10 @@ assert_contains "pcall-relative-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover relative DT_RUNPATH dependency directories"
 assert_contains "build_relative_needed_path" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must accept relative DT_RUNPATH dependency directories"
+assert_contains "pcall-runpath-prefer-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover DT_RUNPATH precedence over fallback directories"
+assert_contains "found_needed" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must prefer declared DT_RUNPATH/DT_RPATH before fallback directories"
 assert_contains "MAX_NEEDED_DEPS[[:space:]]*=[[:space:]]*32" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must support dependency fans larger than eight libraries"
 assert_contains "pcall-many-needed-real" "$ROOT_DIR/scripts/boot.sh" \

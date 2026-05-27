@@ -2862,12 +2862,16 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
       return -1;
     }
 
+    const char *needed = strings + needed_offset;
     char needed_path[MAX_DEP_PATH];
-    if (build_needed_path(origin_path, strings + needed_offset,
-          needed_path, sizeof(needed_path)) < 0 ||
-        (access(needed_path, R_OK) != 0 &&
-         build_runpath_needed_path(origin_path, search_path, search_path_len,
-           strings + needed_offset, needed_path, sizeof(needed_path)) < 0)) {
+    int found_needed = -1;
+    if (needed[0] != '/' && search_path_len != 0)
+      found_needed = build_runpath_needed_path(origin_path, search_path,
+        search_path_len, needed, needed_path, sizeof(needed_path));
+    if (found_needed < 0 &&
+        (build_needed_path(origin_path, needed, needed_path,
+           sizeof(needed_path)) < 0 ||
+         (needed[0] != '/' && access(needed_path, R_OK) != 0))) {
       fprintf(stderr, "POLYCALL_FAIL: bad DT_NEEDED path: %s\n",
         origin_path);
       return -1;
