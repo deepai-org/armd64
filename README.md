@@ -35,6 +35,8 @@ Linux ABI passthrough, or equal-speed execution.
   `openat`/`read`/`close`, `newfstatat`, `fstat`, `statx`, zero-length
   `write`, `strlen`, `memfill`, `memcmp`, `memcpy`, and generated `ET_DYN`
   relative-relocation ELF payloads through the same disabled-compat path.
+  `nativecheck.elf` also verifies trap return preserves the source frontend's
+  live native argument registers while committing only the handler result.
 - The `make boot-poly-binfmt-arch-traps` path also disables the compatibility
   dispatcher, registers `binfmt_misc`, and executes a focused AArch64/RISC-V
   ELF set, including generated `ET_DYN #poly_entry` payloads, through the same
