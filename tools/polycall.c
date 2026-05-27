@@ -68,6 +68,8 @@ enum {
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
+  POLY_ERRNO_TLS_OFFSET = 4096,
+  POLY_ERRNO_TLS_SIZE = 4104,
   MAX_NEEDED_DEPS = 8,
   MAX_DEP_PATH = 192,
   RELOC_BASE_ABSOLUTE = 0,
@@ -198,7 +200,8 @@ enum {
   POLY_IMPORT_FUNC_X86_SLOT5 = 111,
   POLY_IMPORT_FUNC_X86_SLOT6 = 112,
   POLY_IMPORT_FUNC_X86_SLOT7 = 113,
-  POLY_IMPORT_FUNC_STACK_CHK_FAIL = 114
+  POLY_IMPORT_FUNC_STACK_CHK_FAIL = 114,
+  POLY_IMPORT_FUNC_ERRNO_LOCATION = 115
 };
 
 struct poly_dynamic_reloc {
@@ -266,6 +269,7 @@ struct poly_program {
   size_t dep_count;
   size_t direct_dep_count;
   int needs_x86_import;
+  int needs_errno_location;
 };
 
 struct poly_request {
@@ -728,6 +732,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__stack_chk_fail") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STACK_CHK_FAIL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__errno_location") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ERRNO_LOCATION * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
@@ -1782,6 +1790,8 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     return 0;
   }
   if (resolve_import_function(symbol_name, symbol_value) == 0) {
+    if (strcmp(symbol_name, "__errno_location") == 0)
+      program->needs_errno_location = 1;
     if (strcmp(symbol_name, "poly_import_x86_add") == 0 ||
         strcmp(symbol_name, "poly_import_x86_mul") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum6") == 0 ||
@@ -2842,8 +2852,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   uint8_t *tls = NULL;
   size_t tls_size = 0;
-  if (program->tls_memsz != 0) {
+  if (program->tls_memsz != 0 || program->needs_errno_location) {
     tls_size = (size_t) program->tls_memsz;
+    if (program->needs_errno_location && tls_size < POLY_ERRNO_TLS_SIZE)
+      tls_size = POLY_ERRNO_TLS_SIZE;
     tls = mmap(NULL, tls_size, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (tls == MAP_FAILED) {
@@ -3068,7 +3080,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       write_le64(dep_foreign[d] + dep->relocs[r].offset, resolved);
     }
   }
-  if (tls) {
+  if (program->tls_memsz != 0) {
     size_t tls_image_offset = 0;
     if (elf_vaddr_to_image_offset(program, program->tls_vaddr,
           program->tls_filesz, &tls_image_offset) < 0) {
@@ -3082,6 +3094,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       return -1;
     }
     memcpy(tls, foreign + tls_image_offset, (size_t) program->tls_filesz);
+  }
+  if (tls) {
     write_le64(code + tls_imm_offset, (uint64_t) (uintptr_t) tls);
   }
   else {
