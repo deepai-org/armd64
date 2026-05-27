@@ -863,7 +863,8 @@ foreign libraries, covering dependency trees beyond the original four-library
 prototype cap.
 `DT_RUNPATH` is preferred over `DT_RPATH` when present, and `$ORIGIN/...`
 entries are used to resolve same-package dependency subdirectories before a
-missing needed library fails to load.
+missing needed library fails to load. Absolute `DT_NEEDED` path strings are
+accepted directly by the user-space loader.
 Dependency `DT_INIT` and `DT_INIT_ARRAY` constructors run before entering
 dependent foreign code, and dependency `DT_FINI_ARRAY` and `DT_FINI`
 destructors run during teardown. The

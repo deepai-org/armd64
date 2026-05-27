@@ -156,6 +156,10 @@ assert_not_contains "six[[:space:]]+ABI arguments" "$README" \
   "README must not describe the old six-argument POLYTRAP packet"
 assert_contains "pcall-needed-tls-external-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency-exported TLS relocations"
+assert_contains "pcall-abs-needed-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover absolute DT_NEEDED paths"
+assert_contains "needed\\[0\\][[:space:]]*==[[:space:]]*'/'" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must accept absolute DT_NEEDED paths"
 assert_contains "RELOC_BASE_DEP_TLS_OFFSET" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must have a relocation base for dependency-exported TLS symbols"
 assert_contains "pcall-versioned-real" "$ROOT_DIR/scripts/boot.sh" \
