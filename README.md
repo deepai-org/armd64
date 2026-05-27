@@ -708,8 +708,9 @@ numbers currently include:
 - Network-style syscalls: `socket`, `socketpair`, `bind`, `listen`,
   `accept`, `connect`, `getsockname`, `getpeername`, `sendto`, `recvfrom`,
   `setsockopt`, `getsockopt`, `shutdown`, and `accept4`.
-- Memory/time-style syscalls: `nanosleep`, `clock_gettime`, `clock_getres`,
-  `clock_nanosleep`, `times`, `sched_setparam`, `sched_setscheduler`,
+- Memory/time-style syscalls: `nanosleep`, `getitimer`, `setitimer`,
+  `clock_gettime`, `clock_getres`, `clock_nanosleep`, `times`,
+  `sched_setparam`, `sched_setscheduler`,
   `sched_getscheduler`, `sched_getparam`, `sched_setaffinity`,
   `sched_getaffinity`, `sched_yield`, `sched_get_priority_max`,
   `sched_get_priority_min`, `getrusage`,

@@ -1391,6 +1391,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-epoll-ctl.elf" 0xd2800080 0xd2800041 0xd2800062 0xd2800003 0xd28002a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-epoll-pwait.elf" 0xd2800080 0xd2800001 0xd2800002 0xd2800003 0xd2800004 0xd2800005 0xd28002c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-nanosleep.elf" 0xaa0103e0 0xd2800001 0xd2800ca8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getitimer.elf" 0xd2800000 0xd2800cc8 0xd4000001 0xf9400020
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setitimer.elf" 0xd2800000 0xd2800002 0xd2800ce8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clock-nanosleep.elf" 0xaa0103e2 0xd2800020 0xd2800001 0xd2800003 0xd2800e68 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sched-setparam.elf" 0xd2800000 0xd2800ec8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sched-setscheduler.elf" 0xaa0103e2 0xd2800000 0xd2800001 0xd2800ee8 0xd4000001
@@ -1656,6 +1658,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-epoll-ctl.elf" 0x00400513 0x00200593 0x00300613 0x00000693 0x01500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-epoll-pwait.elf" 0x00400513 0x00000593 0x00000613 0x00000693 0x00000713 0x00000793 0x01600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-nanosleep.elf" 0x00058513 0x00000593 0x06500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getitimer.elf" 0x00000513 0x06600893 0x00000073 0x0005b503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setitimer.elf" 0x00000513 0x00000613 0x06700893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clock-nanosleep.elf" 0x00058613 0x00100513 0x00000593 0x00000693 0x07300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sched-setparam.elf" 0x00000513 0x07600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sched-setscheduler.elf" 0x00058613 0x00000513 0x00000593 0x07700893 0x00000073
@@ -2012,6 +2016,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-epoll-ctl.elf=0 \
     /usr/lib/polyapps/aarch64-epoll-pwait.elf=0 \
     /usr/lib/polyapps/aarch64-nanosleep.elf=0 \
+    /usr/lib/polyapps/aarch64-getitimer.elf=0 \
+    /usr/lib/polyapps/aarch64-setitimer.elf=0 \
     /usr/lib/polyapps/aarch64-clock-nanosleep.elf=0 \
     /usr/lib/polyapps/aarch64-sched-setparam.elf=0 \
     /usr/lib/polyapps/aarch64-sched-setscheduler.elf=0 \
@@ -2250,6 +2256,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-epoll-ctl.elf=0 \
     /usr/lib/polyapps/riscv-epoll-pwait.elf=0 \
     /usr/lib/polyapps/riscv-nanosleep.elf=0 \
+    /usr/lib/polyapps/riscv-getitimer.elf=0 \
+    /usr/lib/polyapps/riscv-setitimer.elf=0 \
     /usr/lib/polyapps/riscv-clock-nanosleep.elf=0 \
     /usr/lib/polyapps/riscv-sched-setparam.elf=0 \
     /usr/lib/polyapps/riscv-sched-setscheduler.elf=0 \
@@ -2755,6 +2763,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-epoll-ctl.elf \
     /usr/lib/polyapps/aarch64-epoll-pwait.elf \
     /usr/lib/polyapps/aarch64-nanosleep.elf \
+    /usr/lib/polyapps/aarch64-getitimer.elf \
+    /usr/lib/polyapps/aarch64-setitimer.elf \
     /usr/lib/polyapps/aarch64-clock-nanosleep.elf \
     /usr/lib/polyapps/aarch64-sched-setparam.elf \
     /usr/lib/polyapps/aarch64-sched-setscheduler.elf \
@@ -2993,6 +3003,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-epoll-ctl.elf \
     /usr/lib/polyapps/riscv-epoll-pwait.elf \
     /usr/lib/polyapps/riscv-nanosleep.elf \
+    /usr/lib/polyapps/riscv-getitimer.elf \
+    /usr/lib/polyapps/riscv-setitimer.elf \
     /usr/lib/polyapps/riscv-clock-nanosleep.elf \
     /usr/lib/polyapps/riscv-sched-setparam.elf \
     /usr/lib/polyapps/riscv-sched-setscheduler.elf \
