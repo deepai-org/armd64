@@ -45,6 +45,12 @@ Linux ABI passthrough, or equal-speed execution.
   dispatcher, registers `binfmt_misc`, and executes a focused AArch64/RISC-V
   ELF set, including generated `ET_DYN #poly_entry` payloads, through the same
   userspace trap-vector policy.
+- The `make boot-poly-call-arch-traps` path disables the compatibility
+  dispatcher and runs the generated cross-ISA `PCALL` suite, covering ordinary
+  native AArch64/RISC-V returns, dynamic relocations, dependency loading, TLS,
+  FP/int ABI bridging, x86 import descriptors, libc-style import descriptors,
+  and atomic helper descriptors without relying on Bochs syscall/libcall
+  emulation.
 - With `POLY_ENABLED=1`, Bochs handles the polyglot userspace opcode-family
   operations and raw foreign fetch in `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`.
 - `tools/polyprobe.c` validates raw AArch64 and RISC-V fetch/decode, wide
@@ -892,6 +898,13 @@ ELF execution:
 
 ```bash
 make boot-poly-binfmt-arch-traps
+```
+
+Run the generated cross-ISA `PCALL`/library-interop suite with Bochs
+compatibility traps disabled:
+
+```bash
+make boot-poly-call-arch-traps
 ```
 
 Run the fuller legacy compatibility-runtime gate, including direct foreign ELF
