@@ -1496,6 +1496,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pkey-alloc.elf" 0xd2802428 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pkey-free.elf" 0xd2802448 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pidfd-send-signal.elf" 0xd2803508 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-io-uring-setup.elf" 0xd2803528 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-io-uring-enter.elf" 0xd2803548 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-io-uring-register.elf" 0xd2803568 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pidfd-open.elf" 0xd2803648 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clone3.elf" 0xd2803668 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-close-range.elf" 0xd2803688 0xd4000001
@@ -1773,6 +1776,9 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pkey-alloc.elf" 0x12100893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pkey-free.elf" 0x12200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pidfd-send-signal.elf" 0x1a800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-io-uring-setup.elf" 0x1a900893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-io-uring-enter.elf" 0x1aa00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-io-uring-register.elf" 0x1ab00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pidfd-open.elf" 0x1b200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clone3.elf" 0x1b300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-close-range.elf" 0x1b400893 0x00000073
@@ -2141,6 +2147,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pkey-alloc.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-pkey-free.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-pidfd-send-signal.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-io-uring-setup.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-io-uring-enter.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-io-uring-register.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-pidfd-open.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-clone3.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-close-range.elf=0 \
@@ -2391,6 +2400,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pkey-alloc.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-pkey-free.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-pidfd-send-signal.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-io-uring-setup.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-io-uring-enter.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-io-uring-register.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-pidfd-open.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-clone3.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-close-range.elf=0 \
@@ -2908,6 +2920,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-pkey-alloc.elf \
     /usr/lib/polyapps/aarch64-pkey-free.elf \
     /usr/lib/polyapps/aarch64-pidfd-send-signal.elf \
+    /usr/lib/polyapps/aarch64-io-uring-setup.elf \
+    /usr/lib/polyapps/aarch64-io-uring-enter.elf \
+    /usr/lib/polyapps/aarch64-io-uring-register.elf \
     /usr/lib/polyapps/aarch64-pidfd-open.elf \
     /usr/lib/polyapps/aarch64-clone3.elf \
     /usr/lib/polyapps/aarch64-close-range.elf \
@@ -3158,6 +3173,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-pkey-alloc.elf \
     /usr/lib/polyapps/riscv-pkey-free.elf \
     /usr/lib/polyapps/riscv-pidfd-send-signal.elf \
+    /usr/lib/polyapps/riscv-io-uring-setup.elf \
+    /usr/lib/polyapps/riscv-io-uring-enter.elf \
+    /usr/lib/polyapps/riscv-io-uring-register.elf \
     /usr/lib/polyapps/riscv-pidfd-open.elf \
     /usr/lib/polyapps/riscv-clone3.elf \
     /usr/lib/polyapps/riscv-close-range.elf \

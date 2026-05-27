@@ -726,7 +726,8 @@ The compatibility dispatcher also has deterministic unavailable probes that
 return Linux `-ENOSYS` for syscalls commonly probed by runtimes and libraries:
 `get_mempolicy`, `set_mempolicy`, `migrate_pages`, `move_pages`, `seccomp`, `bpf`,
 `userfaultfd`, `pkey_mprotect`, `pkey_alloc`, `pkey_free`,
-`pidfd_send_signal`, `pidfd_open`, `clone3`, `openat2`, `pidfd_getfd`,
+`pidfd_send_signal`, `io_uring_setup`, `io_uring_enter`,
+`io_uring_register`, `pidfd_open`, `clone3`, `openat2`, `pidfd_getfd`,
 `process_madvise`, `landlock_create_ruleset`, `landlock_add_rule`,
 `landlock_restrict_self`, `process_mrelease`, `futex_waitv`, and
 `set_mempolicy_home_node`.
