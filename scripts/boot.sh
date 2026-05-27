@@ -3028,6 +3028,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-real-write-zero.elf \
       /usr/lib/polyapps/aarch64-real-clock-getres.elf \
       /usr/lib/polyapps/aarch64-real-gettimeofday.elf \
+      /usr/lib/polyapps/aarch64-getpgid.elf \
+      /usr/lib/polyapps/aarch64-getsid.elf \
+      /usr/lib/polyapps/aarch64-getrlimit.elf \
       /usr/lib/polyapps/riscv-add.elf \
       /usr/lib/polyapps/riscv-regadd.elf \
       /usr/lib/polyapps/riscv-mem.elf \
@@ -3049,7 +3052,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-real-statx.elf \
       /usr/lib/polyapps/riscv-real-write-zero.elf \
       /usr/lib/polyapps/riscv-real-clock-getres.elf \
-      /usr/lib/polyapps/riscv-real-gettimeofday.elf
+      /usr/lib/polyapps/riscv-real-gettimeofday.elf \
+      /usr/lib/polyapps/riscv-getpgid.elf \
+      /usr/lib/polyapps/riscv-getsid.elf \
+      /usr/lib/polyapps/riscv-getrlimit.elf
     do
       echo "POLYBINFMT_STEP: \$foreign" >/dev/ttyS0
       "\$foreign" >/dev/ttyS0 2>&1 || {

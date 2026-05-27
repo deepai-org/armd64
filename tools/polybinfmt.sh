@@ -43,8 +43,9 @@ case "$path" in
   */aarch64-clock-gettime.elf) expected=0 ;;
   */aarch64-real-clock-getres.elf) expected=0 ;;
   */aarch64-real-gettimeofday.elf) expected=0 ;;
-  */aarch64-getpgid.elf) expected=4242 ;;
-  */aarch64-getsid.elf) expected=4242 ;;
+  */aarch64-getpgid.elf) expected=pgid ;;
+  */aarch64-getsid.elf) expected=sid ;;
+  */aarch64-getrlimit.elf) expected=stackrlim ;;
   */aarch64-getrusage.elf) expected=321 ;;
   */aarch64-getcpu.elf) expected=12 ;;
   */aarch64-gettimeofday.elf) expected=246 ;;
@@ -115,8 +116,9 @@ case "$path" in
   */riscv-clock-gettime.elf) expected=0 ;;
   */riscv-real-clock-getres.elf) expected=0 ;;
   */riscv-real-gettimeofday.elf) expected=0 ;;
-  */riscv-getpgid.elf) expected=4242 ;;
-  */riscv-getsid.elf) expected=4242 ;;
+  */riscv-getpgid.elf) expected=pgid ;;
+  */riscv-getsid.elf) expected=sid ;;
+  */riscv-getrlimit.elf) expected=stackrlim ;;
   */riscv-getrusage.elf) expected=321 ;;
   */riscv-getcpu.elf) expected=12 ;;
   */riscv-gettimeofday.elf) expected=246 ;;
