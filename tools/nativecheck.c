@@ -102,7 +102,7 @@ __asm__(
   ".globl poly_aarch64_trap_vector_raw\n"
   ".type poly_aarch64_trap_vector_raw,@function\n"
   "poly_aarch64_trap_vector_raw:\n"
-  ".long 0xd2824680\n" // movz x0,#0x1234
+  ".long 0xaa0a03e0\n" // mov x0,x10, return trap arg5
   ".long 0xd42fff20\n" // brk #0x7ff9, architectural trap return
   "ud2\n"
   ".size poly_aarch64_trap_vector_raw, .-poly_aarch64_trap_vector_raw\n"
@@ -110,7 +110,7 @@ __asm__(
   ".globl poly_riscv_trap_vector_raw\n"
   ".type poly_riscv_trap_vector_raw,@function\n"
   "poly_riscv_trap_vector_raw:\n"
-  ".long 0x56700513\n" // addi a0,zero,0x567
+  ".long 0x00038513\n" // addi a0,t2,0, return trap arg5
   ".long 0x0000407b\n" // custom trap return
   "ud2\n"
   ".size poly_riscv_trap_vector_raw, .-poly_riscv_trap_vector_raw\n"
@@ -192,11 +192,18 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_set();
   asm volatile(
     POLY_OP_ENTER_RV64
-    ".long 0x00100073\n" // ebreak
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
   result = read_rax();
-  if (result != 0x1234) {
+  if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
@@ -208,11 +215,18 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_set();
   asm volatile(
     POLY_OP_ENTER_A64
-    ".long 0xd4200000\n" // brk #0
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
   result = read_rax();
-  if (result != 0x567) {
+  if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;

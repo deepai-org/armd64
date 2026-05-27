@@ -614,16 +614,21 @@ vector with `0f 24 60 ... POLY!` using `RAX=handler_pc` and can select the
 handler frontend with `0f 24 63 ... POLY!` using `RAX=mode`.  The default
 handler mode is x86_64.  For an x86 handler, trap delivery uses
 `RAX=reason`, `RBX=source mode`, `RCX=trap number`, `RDX=trap PC`,
-`RSI=selector`, and `RDI=arg0`.  For an AArch64 handler, delivery uses
+`RSI=selector`, and `RDI=arg0`; the remaining packet fields are available
+through trap-status opcodes.  For an AArch64 handler, delivery uses
 `x0=reason`, `x1=source mode`, `x2=trap number`, `x3=trap PC`, `x4=selector`,
-and `x5=arg0`; for a RISC-V handler, it uses `a0`-`a5` for the same fields.
+and `x5`-`x10` for trap arguments `0`-`5`; for a RISC-V handler, it uses
+`a0=reason`, `a1=source mode`, `a2=trap number`, `a3=trap PC`,
+`a4=selector`, `a5`-`a7` for trap arguments `0`-`2`, and `t0`-`t2` for trap
+arguments `3`-`5`.
 The handler can read the full packet with trap-status opcodes, apply
 OS/runtime policy in software, place the result in the shared result register,
 and execute the native trap-return instruction for its frontend:
 `0f 24 62 ... POLY!` from x86, AArch64 `brk #0x7ff9`, or RISC-V custom
 `0x0000407b`.  Trap delivery preserves the source frontend's aliased argument
-registers across the handler and only commits the handler result register back
-to the source result register on trap return.
+registers and the extra same-frontend packet registers across the handler, and
+only commits the handler result register back to the source result register on
+trap return.
 The `polyexec` trap-vector handler is the current userspace policy example:
 its entry stub only adapts the architectural trap-packet register ABI to a C
 dispatcher, and that dispatcher maps selected generic AArch64/RISC-V Linux
