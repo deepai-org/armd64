@@ -164,6 +164,8 @@ assert_contains "pcall-origin-needed-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover ORIGIN token expansion in DT_NEEDED strings"
 assert_contains "pcall-platform-needed-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover PLATFORM token expansion in DT_NEEDED strings"
+assert_contains "pcall-lib-needed-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover LIB token expansion in DT_NEEDED strings"
 assert_contains "expanded_needed" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must expand dynamic-string tokens in DT_NEEDED entries"
 assert_contains "pcall-abs-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
