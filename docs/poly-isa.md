@@ -860,7 +860,7 @@ ordinary PLT/GOT relocations. Dependency library dynamic relocations are applied
 before those dependency calls execute.
 The harness builds direct plus transitive dependency sets with five loaded
 foreign libraries, covering dependency trees beyond the original four-library
-prototype cap.
+prototype cap, and direct dependency fans larger than eight libraries.
 `DT_RUNPATH` is preferred over `DT_RPATH` when present, and `$ORIGIN/...`
 entries are used to resolve same-package dependency subdirectories before a
 missing needed library fails to load. Absolute `DT_NEEDED` path strings are

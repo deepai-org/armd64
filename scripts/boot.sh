@@ -73,6 +73,8 @@ POLYCALL_NEEDED_EXTRA_REAL_SRC="$ROOT_DIR/tools/polycall_needed_extra_real.c"
 POLYCALL_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_main_real.c"
 POLYCALL_ABS_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_abs_needed_dep_real.c"
 POLYCALL_ABS_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_abs_needed_main_real.c"
+POLYCALL_MANY_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_many_needed_dep_real.c"
+POLYCALL_MANY_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_many_needed_main_real.c"
 POLYCALL_ROOT_EXPORT_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_root_export_dep_real.c"
 POLYCALL_ROOT_EXPORT_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_root_export_main_real.c"
 POLYCALL_ROOT_TLS_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_root_tls_dep_real.c"
@@ -512,6 +514,28 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyabsneeded-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-abs-needed-real.so"
+  for idx in 1 2 3 4 5 6 7 8 9; do
+    aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+      -DPOLY_MANY_NEEDED_INDEX="$idx" \
+      -Wl,-soname,libpolymanyneeded"$idx"-aarch64.so \
+      -Wl,--hash-style=sysv -Wl,--build-id=none \
+      "$POLYCALL_MANY_NEEDED_DEP_REAL_SRC" \
+      -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolymanyneeded$idx-aarch64.so"
+  done
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_MANY_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolymanyneeded1-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded2-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded3-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded4-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded5-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded6-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded7-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded8-aarch64.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded9-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-many-needed-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyrootdep-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -1194,6 +1218,30 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyabsneeded-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-abs-needed-real.so"
+  for idx in 1 2 3 4 5 6 7 8 9; do
+    riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+      -march=rv64g -mabi=lp64d \
+      -DPOLY_MANY_NEEDED_INDEX="$idx" \
+      -Wl,-soname,libpolymanyneeded"$idx"-riscv.so \
+      -Wl,--hash-style=sysv -Wl,--build-id=none \
+      "$POLYCALL_MANY_NEEDED_DEP_REAL_SRC" \
+      -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolymanyneeded$idx-riscv.so"
+  done
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_MANY_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolymanyneeded1-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded2-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded3-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded4-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded5-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded6-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded7-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded8-riscv.so \
+    -Wl,--no-as-needed -l:libpolymanyneeded9-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-many-needed-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolyrootdep-riscv.so -Wl,--hash-style=sysv \
@@ -3064,6 +3112,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/aarch64-pcall-abs-needed-real.so#poly_entry=945 \
+    /usr/lib/polyapps/aarch64-pcall-many-needed-real.so#poly_entry=4545 \
     /usr/lib/polyapps/aarch64-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/aarch64-pcall-root-tls-real.so#poly_entry=2348 \
     /usr/lib/polyapps/aarch64-pcall-root-ifunc-real.so#poly_entry=2045 \
@@ -3192,6 +3241,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=103 \
     /usr/lib/polyapps/riscv-pcall-abs-needed-real.so#poly_entry=945 \
+    /usr/lib/polyapps/riscv-pcall-many-needed-real.so#poly_entry=4545 \
     /usr/lib/polyapps/riscv-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/riscv-pcall-root-tls-real.so#poly_entry=2348 \
     /usr/lib/polyapps/riscv-pcall-root-ifunc-real.so#poly_entry=2045 \

@@ -679,7 +679,8 @@ ELF binding/visibility filtering for dependency exports including
 `STB_GNU_UNIQUE` object symbols,
 recursive loading of dependency libraries' own `DT_NEEDED`
 entries, and dependency sets larger than the original four-library prototype
-limit. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`
+limit, with boot coverage for direct dependency fans larger than eight
+libraries. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`
 dependency subdirectories, and absolute `DT_NEEDED` path entries are honored,
 plus dependency library dynamic relocations before those dependency calls
 execute, dependency-local TLS blocks in the shared `PCALL` TLS image,
