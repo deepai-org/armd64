@@ -766,8 +766,10 @@ and `x5`-`x10` for trap arguments `0`-`5`.  For a RISC-V handler, delivery uses
 arguments `3`-`5`.  The handler can inspect the full packet with trap-status
 opcodes, place a result in the shared result register, and execute the native
 trap-return instruction for its frontend: `0f 24 62 ... POLY!` from x86,
-AArch64 `brk #0x7ff9`, or RISC-V custom `0x0000407b`.  `0f 24 61 ... POLY!`
-reads the current trap vector into `RAX`.
+AArch64 `brk #0x7ff9`, or RISC-V custom `0x0000407b`.  Trap return restores
+the source frontend's integer and scalar/vector FP state and commits only the
+handler result register back to the source result register.  `0f 24 61 ...
+POLY!` reads the current trap vector into `RAX`.
 In the Bochs prototype, the installed trap vector, legacy syscall/libcall status
 registers, recorded trap-packet/status state, and trap-return save frame are
 keyed with the userspace poly state, so a different guest address space starts
