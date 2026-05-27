@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "polycpuid.h"
 
@@ -39,7 +40,8 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "cmpq $7, %rsi\n"
     "jne 9f\n"
-    "movq $4242, %rax\n"
+    "movq $39, %rax\n"
+    "syscall\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "1:\n"
@@ -49,7 +51,8 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "cmpq $0, %rsi\n"
     "jne 9f\n"
-    "movq $4343, %rax\n"
+    "movq $39, %rax\n"
+    "syscall\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "3:\n"
@@ -82,6 +85,7 @@ static void poly_trap_vector_handler(void) {
 
 static int run_poly_trap_vector_probe(void) {
   void *handler = (void *) poly_trap_vector_handler;
+  uint64_t expected_pid = (uint64_t) getpid();
   write_rax((uint64_t) handler);
   poly_trap_vector_set();
   poly_trap_vector_get();
@@ -96,9 +100,10 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
-  if (read_rax() != 4242) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 svc trap vector result mismatch got=%llu\n",
-      (unsigned long long) read_rax());
+  uint64_t result = read_rax();
+  if (result != expected_pid) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 svc trap vector result mismatch got=%llu expected=%llu\n",
+      (unsigned long long) result, (unsigned long long) expected_pid);
     return 1;
   }
 
@@ -108,9 +113,10 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
-  if (read_rax() != 4343) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ecall trap vector result mismatch got=%llu\n",
-      (unsigned long long) read_rax());
+  result = read_rax();
+  if (result != expected_pid) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ecall trap vector result mismatch got=%llu expected=%llu\n",
+      (unsigned long long) result, (unsigned long long) expected_pid);
     return 1;
   }
 
@@ -119,9 +125,10 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
-  if (read_rax() != 4444) {
+  result = read_rax();
+  if (result != 4444) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 brk trap vector result mismatch got=%llu\n",
-      (unsigned long long) read_rax());
+      (unsigned long long) result);
     return 1;
   }
 
@@ -131,9 +138,10 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00100073\n" // ebreak
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "memory");
-  if (read_rax() != 4545) {
+  result = read_rax();
+  if (result != 4545) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ebreak trap vector result mismatch got=%llu\n",
-      (unsigned long long) read_rax());
+      (unsigned long long) result);
     return 1;
   }
 
