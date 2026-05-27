@@ -1,5 +1,13 @@
+static unsigned long poly_preload_chain_leaf_state;
+
+__attribute__((visibility("default")))
+void poly_preload_chain_leaf_init(void)
+{
+  poly_preload_chain_leaf_state = 3900;
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_preload_add(unsigned long a, unsigned long b)
 {
-  return a + b + 3900;
+  return a + b + poly_preload_chain_leaf_state;
 }

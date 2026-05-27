@@ -562,6 +562,7 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadsecond-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolypreloadchainleaf-aarch64.so \
+    -Wl,-init,poly_preload_chain_leaf_init \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_CHAIN_LEAF_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchainleaf-aarch64.so"
@@ -1560,6 +1561,7 @@ build_poly_elf_payloads() {
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolypreloadchainleaf-riscv.so \
+    -Wl,-init,poly_preload_chain_leaf_init \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_CHAIN_LEAF_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchainleaf-riscv.so"
