@@ -804,9 +804,9 @@ helpers `__addtf3`, `__subtf3`, `__multf3`, `__divtf3`, `__floatunditf`,
 `poly_import_add`/`poly_import_mul`,
 `poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory helpers, that
 OS-sensitive class, these TLS accessor helpers, these scalar libgcc helpers,
-these 16-byte libatomic helpers, and these quad-precision libgcc helpers, a
-software descriptor is mandatory; the CPU does not synthesize fixed fallback
-results.
+these 16-byte libatomic helpers, common AArch64 outline atomic helper symbols,
+and these quad-precision libgcc helpers, a software descriptor is mandatory;
+the CPU does not synthesize fixed fallback results.
 The CPU contract is the descriptor call gate and ABI register mapping, not the
 semantics of those library functions.
 The same descriptor path currently provides prototype imports for common GCC
@@ -819,7 +819,8 @@ AArch64 outline atomic helpers: 8-, 16-, 32-, and 64-bit `ldadd`, `swp`,
 suffixes.  The suffixes alias to the same operation descriptors because the
 prototype defines foreign atomic memory ordering in terms of the x86-TSO
 execution model.  These are compatibility descriptors for observed compiler
-output, not a general libgcc or libc implementation.  Raw LSE additionally
+output, not CPU-recognized helper names and not a general libgcc or libc
+implementation.  Raw LSE additionally
 covers signed/unsigned min/max RMW opcodes.
 
 The prototype records a unified `POLYTRAP` state before leaving raw execution:

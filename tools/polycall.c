@@ -432,6 +432,34 @@ extern unsigned __int128 poly_host_x86_atomic_load_16(uint64_t *ptr,
     uint64_t order);
 extern uint64_t poly_host_x86_atomic_store_16(uint64_t *ptr,
     uint64_t value_lo, uint64_t value_hi, uint64_t order);
+extern uint64_t poly_host_x86_aarch64_ldadd1(uint64_t source, uint8_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldadd2(uint64_t source, uint16_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldadd4(uint64_t source, uint32_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldadd8(uint64_t source, uint64_t *ptr);
+extern uint64_t poly_host_x86_aarch64_swp1(uint64_t source, uint8_t *ptr);
+extern uint64_t poly_host_x86_aarch64_swp2(uint64_t source, uint16_t *ptr);
+extern uint64_t poly_host_x86_aarch64_swp4(uint64_t source, uint32_t *ptr);
+extern uint64_t poly_host_x86_aarch64_swp8(uint64_t source, uint64_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldclr1(uint64_t source, uint8_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldclr2(uint64_t source, uint16_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldclr4(uint64_t source, uint32_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldclr8(uint64_t source, uint64_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldeor1(uint64_t source, uint8_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldeor2(uint64_t source, uint16_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldeor4(uint64_t source, uint32_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldeor8(uint64_t source, uint64_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldset1(uint64_t source, uint8_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldset2(uint64_t source, uint16_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldset4(uint64_t source, uint32_t *ptr);
+extern uint64_t poly_host_x86_aarch64_ldset8(uint64_t source, uint64_t *ptr);
+extern uint64_t poly_host_x86_aarch64_cas1(uint64_t expected_value,
+    uint64_t desired, uint8_t *ptr);
+extern uint64_t poly_host_x86_aarch64_cas2(uint64_t expected_value,
+    uint64_t desired, uint16_t *ptr);
+extern uint64_t poly_host_x86_aarch64_cas4(uint64_t expected_value,
+    uint64_t desired, uint32_t *ptr);
+extern uint64_t poly_host_x86_aarch64_cas8(uint64_t expected_value,
+    uint64_t desired, uint64_t *ptr);
 extern uint64_t poly_host_x86_clzdi2(uint64_t value);
 extern uint64_t poly_host_x86_ctzdi2(uint64_t value);
 extern uint64_t poly_host_x86_paritydi2(uint64_t value);
@@ -459,6 +487,9 @@ extern float poly_host_x86_trunctfsf2(__float128 source);
 extern double poly_host_x86_trunctfdf2(__float128 source);
 extern uint64_t poly_host_x86_netf2(__float128 left, __float128 right);
 extern uint64_t poly_host_x86_unordtf2(__float128 left, __float128 right);
+
+static int resolve_aarch64_outline_atomic_import(const char *symbol_name,
+    uint64_t *symbol_value);
 
 static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
   static const char *const names[] = {
@@ -494,6 +525,10 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     if (strcmp(symbol_name, names[n]) == 0)
       return 1;
   }
+
+  uint64_t ignored = 0;
+  if (resolve_aarch64_outline_atomic_import(symbol_name, &ignored) == 0)
+    return 1;
 
   return 0;
 }
@@ -670,6 +705,55 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
       return (uint64_t) (uintptr_t) poly_host_x86_atomic_load_16;
     case POLY_IMPORT_FUNC_ATOMIC_STORE_16:
       return (uint64_t) (uintptr_t) poly_host_x86_atomic_store_16;
+    case POLY_IMPORT_FUNC_AARCH64_LDADD1_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldadd1;
+    case POLY_IMPORT_FUNC_AARCH64_LDADD2_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldadd2;
+    case POLY_IMPORT_FUNC_AARCH64_LDADD4_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldadd4;
+    case POLY_IMPORT_FUNC_AARCH64_LDADD8_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldadd8;
+    case POLY_IMPORT_FUNC_AARCH64_SWP1_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_swp1;
+    case POLY_IMPORT_FUNC_AARCH64_SWP2_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_swp2;
+    case POLY_IMPORT_FUNC_AARCH64_SWP4_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_swp4;
+    case POLY_IMPORT_FUNC_AARCH64_SWP8_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_swp8;
+    case POLY_IMPORT_FUNC_AARCH64_LDCLR1_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldclr1;
+    case POLY_IMPORT_FUNC_AARCH64_LDCLR2_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldclr2;
+    case POLY_IMPORT_FUNC_AARCH64_LDCLR4_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldclr4;
+    case POLY_IMPORT_FUNC_AARCH64_LDCLR8_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldclr8;
+    case POLY_IMPORT_FUNC_AARCH64_LDEOR1_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldeor1;
+    case POLY_IMPORT_FUNC_AARCH64_LDEOR2_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldeor2;
+    case POLY_IMPORT_FUNC_AARCH64_LDEOR4_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldeor4;
+    case POLY_IMPORT_FUNC_AARCH64_LDEOR8_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldeor8;
+    case POLY_IMPORT_FUNC_AARCH64_LDSET1_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldset1;
+    case POLY_IMPORT_FUNC_AARCH64_LDSET2_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldset2;
+    case POLY_IMPORT_FUNC_AARCH64_LDSET4_RELAX:
+    case POLY_IMPORT_FUNC_AARCH64_LDSET4_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldset4;
+    case POLY_IMPORT_FUNC_AARCH64_LDSET8_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldset8;
+    case POLY_IMPORT_FUNC_AARCH64_CAS1_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_cas1;
+    case POLY_IMPORT_FUNC_AARCH64_CAS2_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_cas2;
+    case POLY_IMPORT_FUNC_AARCH64_CAS4_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_cas4;
+    case POLY_IMPORT_FUNC_AARCH64_CAS8_ACQ_REL:
+      return (uint64_t) (uintptr_t) poly_host_x86_aarch64_cas8;
     case POLY_IMPORT_FUNC_CLZDI2:
       return (uint64_t) (uintptr_t) poly_host_x86_clzdi2;
     case POLY_IMPORT_FUNC_CTZDI2:

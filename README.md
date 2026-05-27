@@ -286,12 +286,13 @@ The hybrid CPU currently defines foreign-mode memory ordering as x86_64 TSO.
 AArch64 `dmb`, `dsb`, and `isb` barriers and RISC-V `fence` and `fence.i`
 instructions are decoded as ordering-preserving no-ops instead of introducing
 weaker AArch64/RISC-V reordering inside Bochs.
-Foreign atomic operations use the same Bochs virtual-memory path as ordinary
+Foreign atomic instructions use the same Bochs virtual-memory path as ordinary
 foreign loads and stores.  The current prototype covers compiler-emitted
-AArch64 exclusive and LSE atomics, GCC AArch64 outline atomic helper imports,
-RISC-V A-extension word/dword AMOs including signed and unsigned min/max, and
-the LR.W/SC.W loops GCC emits for RISC-V byte and halfword atomics, including
-compiler-emitted subtract and NAND loops.
+AArch64 exclusive and LSE atomics, RISC-V A-extension word/dword AMOs including
+signed and unsigned min/max, and the LR.W/SC.W loops GCC emits for RISC-V byte
+and halfword atomics, including compiler-emitted subtract and NAND loops.  GCC
+AArch64 outline atomic helper symbols are compatibility imports resolved through
+the descriptor call gate, not fixed CPU-side helper semantics.
 
 The current register bridge aliases the overlapping caller-visible integer ABI:
 
@@ -682,8 +683,8 @@ target.
 The same descriptor mechanism currently resolves AArch64 TLSDESC and RISC-V
 `__tls_get_addr` TLS accesses for self-contained foreign shared objects through
 runtime x86 helper descriptors that consume the `PCALL` TLS-base register, and
-common GCC AArch64 outline
-atomic helper imports used by default compiler output:
+common GCC AArch64 outline atomic helper imports used by default compiler
+output:
 8-, 16-, 32-, and 64-bit `ldadd`, `swp`, `ldclr`, `ldeor`, `ldset`, and `cas`
 helpers with `relax`, `acq`, `rel`, and `acq_rel` suffixes.  The loader
 aliases these suffixes to the same operation descriptor because the prototype

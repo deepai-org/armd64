@@ -218,6 +218,83 @@ uint64_t POLY_HOST_HELPER poly_host_x86_atomic_store_16(uint64_t *ptr,
   return 0;
 }
 
+#define DEFINE_AARCH64_ATOMIC_LOAD_OP(name, op) \
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_##name##1( \
+    uint64_t source, uint8_t *ptr) \
+{ \
+  return __atomic_fetch_##op(ptr, (uint8_t) source, __ATOMIC_SEQ_CST); \
+} \
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_##name##2( \
+    uint64_t source, uint16_t *ptr) \
+{ \
+  return __atomic_fetch_##op(ptr, (uint16_t) source, __ATOMIC_SEQ_CST); \
+} \
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_##name##4( \
+    uint64_t source, uint32_t *ptr) \
+{ \
+  return __atomic_fetch_##op(ptr, (uint32_t) source, __ATOMIC_SEQ_CST); \
+} \
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_##name##8( \
+    uint64_t source, uint64_t *ptr) \
+{ \
+  return __atomic_fetch_##op(ptr, source, __ATOMIC_SEQ_CST); \
+}
+
+DEFINE_AARCH64_ATOMIC_LOAD_OP(ldadd, add)
+DEFINE_AARCH64_ATOMIC_LOAD_OP(ldeor, xor)
+DEFINE_AARCH64_ATOMIC_LOAD_OP(ldset, or)
+
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_ldclr1(uint64_t source,
+    uint8_t *ptr)
+{
+  return __atomic_fetch_and(ptr, (uint8_t) ~source, __ATOMIC_SEQ_CST);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_ldclr2(uint64_t source,
+    uint16_t *ptr)
+{
+  return __atomic_fetch_and(ptr, (uint16_t) ~source, __ATOMIC_SEQ_CST);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_ldclr4(uint64_t source,
+    uint32_t *ptr)
+{
+  return __atomic_fetch_and(ptr, (uint32_t) ~source, __ATOMIC_SEQ_CST);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_ldclr8(uint64_t source,
+    uint64_t *ptr)
+{
+  return __atomic_fetch_and(ptr, ~source, __ATOMIC_SEQ_CST);
+}
+
+#define DEFINE_AARCH64_ATOMIC_SWP(width, type) \
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_swp##width( \
+    uint64_t source, type *ptr) \
+{ \
+  return __atomic_exchange_n(ptr, (type) source, __ATOMIC_SEQ_CST); \
+}
+
+DEFINE_AARCH64_ATOMIC_SWP(1, uint8_t)
+DEFINE_AARCH64_ATOMIC_SWP(2, uint16_t)
+DEFINE_AARCH64_ATOMIC_SWP(4, uint32_t)
+DEFINE_AARCH64_ATOMIC_SWP(8, uint64_t)
+
+#define DEFINE_AARCH64_ATOMIC_CAS(width, type) \
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_cas##width( \
+    uint64_t expected_value, uint64_t desired, type *ptr) \
+{ \
+  type expected = (type) expected_value; \
+  __atomic_compare_exchange_n(ptr, &expected, (type) desired, false, \
+    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); \
+  return expected; \
+}
+
+DEFINE_AARCH64_ATOMIC_CAS(1, uint8_t)
+DEFINE_AARCH64_ATOMIC_CAS(2, uint16_t)
+DEFINE_AARCH64_ATOMIC_CAS(4, uint32_t)
+DEFINE_AARCH64_ATOMIC_CAS(8, uint64_t)
+
 uint64_t POLY_HOST_HELPER poly_host_x86_clzdi2(uint64_t value)
 {
   uint64_t count = 0;
