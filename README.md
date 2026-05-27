@@ -288,7 +288,9 @@ objects (`aarch64-pcall-getpagesize-real.so#poly_entry` and
 page-size query objects (`aarch64-pcall-sysconf-real.so#poly_entry` and
 `riscv-pcall-sysconf-real.so#poly_entry`) and compiler-built environment-query
 objects (`aarch64-pcall-env-real.so#poly_entry` and
-`riscv-pcall-env-real.so#poly_entry`), compiler-built `DT_NEEDED`
+`riscv-pcall-env-real.so#poly_entry`), compiler-built allocator objects
+(`aarch64-pcall-alloc-real.so#poly_entry` and
+`riscv-pcall-alloc-real.so#poly_entry`), compiler-built `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 `libpolyneeded-aarch64.so` and its leaf dependency
 `libpolyneeded-leaf-aarch64.so`, and
@@ -524,7 +526,7 @@ post-import continuations that fold in a ninth foreign stack argument
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`, `bcmp`,
 `bcopy`, `bzero`, `strcasecmp`, `strncasecmp`, `strcasestr`, `index`, `rindex`,
-`__stack_chk_guard`, `__stack_chk_fail`, `__errno_location`, `getauxval`, `getpagesize`, `sysconf`, `getenv`, and `secure_getenv`, and teardown
+`__stack_chk_guard`, `__stack_chk_fail`, `__errno_location`, `getauxval`, `getpagesize`, `sysconf`, `getenv`, `secure_getenv`, `malloc`, `calloc`, `realloc`, and `free`, and teardown
 before returning.
 The `poly_import_x86_add`, `poly_import_x86_mul`,
 `poly_import_x86_sum6`, `poly_import_x86_sum8`,

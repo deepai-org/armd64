@@ -206,7 +206,20 @@ enum {
   POLY_IMPORT_FUNC_GETPAGESIZE = 117,
   POLY_IMPORT_FUNC_SYSCONF = 118,
   POLY_IMPORT_FUNC_GETENV = 119,
-  POLY_IMPORT_FUNC_SECURE_GETENV = 120
+  POLY_IMPORT_FUNC_SECURE_GETENV = 120,
+  POLY_IMPORT_FUNC_MALLOC = 121,
+  POLY_IMPORT_FUNC_CALLOC = 122,
+  POLY_IMPORT_FUNC_REALLOC = 123,
+  POLY_IMPORT_FUNC_FREE = 124
+};
+
+enum {
+  POLY_IMPORT_PAGE_VALUE_OFFSET = 0,
+  POLY_IMPORT_PAGE_STACK_GUARD_OFFSET = 8,
+  POLY_IMPORT_PAGE_HEAP_BASE_OFFSET = 16,
+  POLY_IMPORT_PAGE_HEAP_SIZE_OFFSET = 24,
+  POLY_IMPORT_PAGE_HEAP_CURSOR_OFFSET = 32,
+  POLY_IMPORT_HEAP_SIZE = 64 * 1024
 };
 
 struct poly_dynamic_reloc {
@@ -513,6 +526,12 @@ static void emit_movabs_r13(uint8_t *code, size_t *offset, uint64_t value) {
   emit_u64(code, offset, value);
 }
 
+static void emit_movabs_r14(uint8_t *code, size_t *offset, uint64_t value) {
+  code[(*offset)++] = 0x49;
+  code[(*offset)++] = 0xbe;
+  emit_u64(code, offset, value);
+}
+
 static void emit_save_import_regs(uint8_t *code, size_t *offset) {
   const uint8_t save[] = {
     0x4c, 0x89, 0x64, 0x24, 0xf8 // mov [rsp-8],r12
@@ -540,6 +559,22 @@ static void emit_save_tls_reg(uint8_t *code, size_t *offset) {
 static void emit_restore_tls_reg(uint8_t *code, size_t *offset) {
   const uint8_t restore[] = {
     0x4c, 0x8b, 0x6c, 0x24, 0xf0 // mov r13,[rsp-16]
+  };
+  memcpy(code + *offset, restore, sizeof(restore));
+  *offset += sizeof(restore);
+}
+
+static void emit_save_heap_reg(uint8_t *code, size_t *offset) {
+  const uint8_t save[] = {
+    0x4c, 0x89, 0x74, 0x24, 0xe8 // mov [rsp-24],r14
+  };
+  memcpy(code + *offset, save, sizeof(save));
+  *offset += sizeof(save);
+}
+
+static void emit_restore_heap_reg(uint8_t *code, size_t *offset) {
+  const uint8_t restore[] = {
+    0x4c, 0x8b, 0x74, 0x24, 0xe8 // mov r14,[rsp-24]
   };
   memcpy(code + *offset, restore, sizeof(restore));
   *offset += sizeof(restore);
@@ -761,6 +796,22 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "secure_getenv") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_SECURE_GETENV * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "malloc") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_MALLOC * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "calloc") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CALLOC * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "realloc") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_REALLOC * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "free") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FREE * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
@@ -2836,11 +2887,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t save_tls_size = 5;
   const size_t restore_tls_size = 5;
+  const size_t save_heap_size = 5;
+  const size_t restore_heap_size = 5;
   const size_t tls_setup_size = 10;
+  const size_t heap_setup_size = 10;
   const size_t pcall_return_offset = save_regs_size + save_tls_size +
-    10 + 10 + tls_setup_size + import_setup_size + 8;
+    save_heap_size + 10 + 10 + tls_setup_size + heap_setup_size +
+    import_setup_size + 8;
   const size_t main_stub_size = pcall_return_offset + restore_regs_size +
-    restore_tls_size + 1;
+    restore_tls_size + restore_heap_size + 1;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
   const size_t import_descriptor_size = needs_x86_import ?
     8 * POLY_X86_IMPORT_DESCRIPTOR_SIZE : 0;
@@ -2875,6 +2930,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     munmap(code, code_size);
     return -1;
   }
+  uint8_t *heap = mmap(NULL, POLY_IMPORT_HEAP_SIZE, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (heap == MAP_FAILED) {
+    fprintf(stderr, "POLYCALL_FAIL: heap mmap failed: %s\n", strerror(errno));
+    munmap(import_page, 4096);
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
+  }
   uint8_t *tls = NULL;
   size_t tls_size = 0;
   if (program->tls_memsz != 0 || program->needs_errno_location) {
@@ -2885,14 +2949,21 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (tls == MAP_FAILED) {
       fprintf(stderr, "POLYCALL_FAIL: TLS mmap failed: %s\n", strerror(errno));
+      munmap(heap, POLY_IMPORT_HEAP_SIZE);
       munmap(import_page, 4096);
       munmap(foreign, foreign_size);
       munmap(code, code_size);
       return -1;
     }
   }
-  write_le64(import_page, poly_import_value);
-  write_le64(import_page + 8, poly_stack_chk_guard);
+  write_le64(import_page + POLY_IMPORT_PAGE_VALUE_OFFSET, poly_import_value);
+  write_le64(import_page + POLY_IMPORT_PAGE_STACK_GUARD_OFFSET,
+    poly_stack_chk_guard);
+  write_le64(import_page + POLY_IMPORT_PAGE_HEAP_BASE_OFFSET,
+    (uint64_t) (uintptr_t) heap);
+  write_le64(import_page + POLY_IMPORT_PAGE_HEAP_SIZE_OFFSET,
+    POLY_IMPORT_HEAP_SIZE);
+  write_le64(import_page + POLY_IMPORT_PAGE_HEAP_CURSOR_OFFSET, 0);
 
   size_t offset = 0;
   const uint64_t return_rip = (uint64_t) (uintptr_t) (code + pcall_return_offset);
@@ -2918,11 +2989,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (needs_x86_import)
     emit_save_import_regs(code, &offset);
   emit_save_tls_reg(code, &offset);
+  emit_save_heap_reg(code, &offset);
   const size_t target_imm_offset = offset + 2;
   emit_movabs_r10(code, &offset, 0);
   emit_movabs_r11(code, &offset, return_rip);
   const size_t tls_imm_offset = offset + 2;
   emit_movabs_r13(code, &offset, 0);
+  const size_t heap_imm_offset = offset + 2;
+  emit_movabs_r14(code, &offset, 0);
   if (needs_x86_import) {
     emit_movabs_r12(code, &offset, import_x86_table);
   }
@@ -2974,6 +3048,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (needs_x86_import)
     emit_restore_import_regs(code, &offset);
   emit_restore_tls_reg(code, &offset);
+  emit_restore_heap_reg(code, &offset);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
     const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
@@ -3126,6 +3201,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   else {
     write_le64(code + tls_imm_offset, 0);
   }
+  write_le64(code + heap_imm_offset, (uint64_t) (uintptr_t) import_page);
   const uint64_t load_bias = (uint64_t) (uintptr_t) foreign - program->base_vaddr;
   for (size_t n = 0; n < program->reloc_count; n++) {
     if (program->relocs[n].base_kind == RELOC_BASE_IRELATIVE)
@@ -3426,6 +3502,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (tls)
     munmap(tls, tls_size);
   unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+  munmap(heap, POLY_IMPORT_HEAP_SIZE);
   munmap(import_page, 4096);
   munmap(foreign, foreign_size);
   munmap(code, code_size);
