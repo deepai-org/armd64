@@ -48,8 +48,9 @@ Linux ABI passthrough, or equal-speed execution.
   registers live, exercising guest thread-bank isolation and interrupt/`IRET64`
   raw-mode restoration across many foreign transitions.
 - `tools/polysignal.c` arms real guest `SIGALRM` delivery while executing long
-  raw AArch64 and RISC-V `PCALL` loops, checking that the x86_64 signal handler
-  and `rt_sigreturn` path resume the interrupted foreign frontend correctly.
+  raw AArch64 and RISC-V `PCALL` loops with hidden integer and FP foreign
+  registers live, checking that the x86_64 signal handler and `rt_sigreturn`
+  path resume the interrupted foreign frontend and synthetic bank correctly.
 - `tools/polybench.c` executes long raw AArch64 and RISC-V loops inside the
   guest, verifies that raw instruction counters advance across multiple
   fetch/decode bursts, and checks mixed raw AArch64-to-RISC-V and
