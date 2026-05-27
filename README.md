@@ -617,7 +617,7 @@ entries, and dependency sets larger than the original four-library prototype
 limit. Foreign `DT_RUNPATH`/`DT_RPATH` entries support `$ORIGIN/...`
 dependency subdirectories,
 plus dependency library dynamic relocations before those dependency calls
-execute,
+execute, dependency-local TLS blocks in the shared `PCALL` TLS image,
 dependency `DT_INIT_ARRAY` constructor execution before entering dependent
 foreign code and dependency `DT_FINI_ARRAY` teardown afterward with
 destructor-visible dependency state checks,

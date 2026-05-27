@@ -86,6 +86,7 @@ enum {
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
+  MAX_TOTAL_TLS_BYTES = 64 * 1024,
   POLY_ERRNO_TLS_OFFSET = 4096,
   POLY_ERRNO_TLS_SIZE = 4104,
   MAX_NEEDED_DEPS = 8,
@@ -304,6 +305,11 @@ struct poly_dependency {
   uint64_t fini_array_vaddr;
   uint64_t fini_array_size;
   size_t fini_count;
+  uint64_t tls_vaddr;
+  uint64_t tls_filesz;
+  uint64_t tls_memsz;
+  uint64_t tls_align;
+  size_t tls_offset;
   size_t needed_depth;
   size_t lookup_rank;
   struct poly_symbol_table dynsym;
@@ -325,6 +331,8 @@ struct poly_program {
   uint64_t tls_filesz;
   uint64_t tls_memsz;
   uint64_t tls_align;
+  size_t tls_offset;
+  size_t tls_total_size;
   uint64_t init_vaddr;
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
@@ -1060,6 +1068,38 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
 
 static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
   return value & ~(alignment - 1);
+}
+
+static int align_up_size(size_t value, size_t alignment, size_t *result) {
+  if (alignment <= 1) {
+    *result = value;
+    return 0;
+  }
+  if ((alignment & (alignment - 1)) != 0 ||
+      value > SIZE_MAX - (alignment - 1))
+    return -1;
+  *result = (value + alignment - 1) & ~(alignment - 1);
+  return 0;
+}
+
+static int reserve_tls_range(size_t *total_size, uint64_t memsz,
+    uint64_t alignment, size_t *offset) {
+  if (memsz == 0) {
+    *offset = 0;
+    return 0;
+  }
+  if (memsz > MAX_TLS_BYTES || alignment > MAX_TOTAL_TLS_BYTES)
+    return -1;
+
+  size_t aligned = 0;
+  const size_t tls_alignment = alignment ? (size_t) alignment : 1;
+  if (align_up_size(*total_size, tls_alignment, &aligned) < 0 ||
+      aligned > MAX_TOTAL_TLS_BYTES ||
+      memsz > MAX_TOTAL_TLS_BYTES - aligned)
+    return -1;
+  *offset = aligned;
+  *total_size = aligned + (size_t) memsz;
+  return 0;
 }
 
 static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
@@ -2212,6 +2252,21 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
       dynamic_size = phdr->p_filesz;
       continue;
     }
+    if (phdr->p_type == PT_TLS) {
+      if (phdr->p_filesz > phdr->p_memsz ||
+          phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+          phdr->p_memsz > MAX_TLS_BYTES) {
+        fprintf(stderr, "POLYCALL_FAIL: bad dependency TLS segment: %s\n",
+          path);
+        free(data);
+        return -1;
+      }
+      dep->tls_vaddr = phdr->p_vaddr;
+      dep->tls_filesz = phdr->p_filesz;
+      dep->tls_memsz = phdr->p_memsz;
+      dep->tls_align = phdr->p_align;
+      continue;
+    }
     if (phdr->p_type != PT_LOAD)
       continue;
     if (phdr->p_filesz > phdr->p_memsz ||
@@ -2241,6 +2296,13 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
 
   dep->base_vaddr = base_vaddr;
   dep->image_size = (size_t) (limit_vaddr - base_vaddr + 4);
+  if (reserve_tls_range(&owner->tls_total_size, dep->tls_memsz,
+        dep->tls_align, &dep->tls_offset) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: unsupported dependency TLS layout: %s\n",
+      path);
+    free(data);
+    return -1;
+  }
   dep->image = calloc(1, dep->image_size);
   if (!dep->image) {
     fprintf(stderr, "POLYCALL_FAIL: out of memory loading dependency %s\n",
@@ -2298,6 +2360,11 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   dep_view.fini_array_vaddr = dep->fini_array_vaddr;
   dep_view.fini_array_size = dep->fini_array_size;
   dep_view.fini_count = dep->fini_count;
+  dep_view.tls_vaddr = dep->tls_vaddr;
+  dep_view.tls_filesz = dep->tls_filesz;
+  dep_view.tls_memsz = dep->tls_memsz;
+  dep_view.tls_align = dep->tls_align;
+  dep_view.tls_offset = dep->tls_offset;
 
   size_t dynamic_offset = 0;
   if (elf_vaddr_to_image_offset(&dep_view, dynamic_vaddr, dynamic_size,
@@ -3274,6 +3341,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
     free(data);
     return -1;
   }
+  program->tls_offset = 0;
+  program->tls_total_size = (size_t) program->tls_memsz;
 
   program->base_vaddr = base_vaddr;
   program->image_size = (size_t) (limit_vaddr - base_vaddr + 4);
@@ -3794,8 +3863,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   uint8_t *tls = NULL;
   size_t tls_size = 0;
-  if (program->tls_memsz != 0 || program->needs_errno_location) {
-    tls_size = (size_t) program->tls_memsz;
+  if (program->tls_total_size != 0 || program->needs_errno_location) {
+    tls_size = program->tls_total_size;
     if (program->needs_errno_location && tls_size < POLY_ERRNO_TLS_SIZE)
       tls_size = POLY_ERRNO_TLS_SIZE;
     tls = mmap(NULL, tls_size, PROT_READ | PROT_WRITE,
@@ -3997,6 +4066,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = (uint64_t) (uintptr_t) import_page;
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_CALL)
         reloc_base = import_contract.call_base;
+      else if (dep->relocs[r].base_kind == RELOC_BASE_TLS_OFFSET)
+        reloc_base = program->deps[d].tls_offset;
       else if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
           dep->relocs[r].base_kind <
             RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {
@@ -4055,7 +4126,30 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       munmap(code, code_size);
       return -1;
     }
-    memcpy(tls, foreign + tls_image_offset, (size_t) program->tls_filesz);
+    memcpy(tls + program->tls_offset, foreign + tls_image_offset,
+      (size_t) program->tls_filesz);
+  }
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_dependency *dep = &program->deps[d];
+    if (dep->tls_memsz == 0)
+      continue;
+    size_t tls_image_offset = 0;
+    if (image_vaddr_to_offset(dep->base_vaddr, dep_sizes[d],
+          dep->tls_vaddr, dep->tls_filesz, &tls_image_offset) < 0 ||
+        dep->tls_offset > tls_size ||
+        dep->tls_filesz > tls_size - dep->tls_offset) {
+      fprintf(stderr, "POLYCALL_FAIL: dependency TLS image escaped loaded image: %s\n",
+        dep->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    memcpy(tls + dep->tls_offset, dep_foreign[d] + tls_image_offset,
+      (size_t) dep->tls_filesz);
   }
   if (tls) {
     write_le64(code + tls_imm_offset, (uint64_t) (uintptr_t) tls);
@@ -4115,7 +4209,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_CALL)
       reloc_base = import_contract.call_base;
     else if (program->relocs[n].base_kind == RELOC_BASE_TLS_OFFSET)
-      reloc_base = 0;
+      reloc_base = program->tls_offset;
     else if (program->relocs[n].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
         program->relocs[n].base_kind <
           RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {

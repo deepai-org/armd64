@@ -454,7 +454,10 @@ import objects (`aarch64-pcall-weak-import-real.so#poly_entry` and
 `riscv-pcall-weak-import-real.so#poly_entry`), compiler-produced `DT_NEEDED`
 shared-library pairs (`aarch64-pcall-needed-real.so#poly_entry` with
 `libpolyneeded-aarch64.so`, and `riscv-pcall-needed-real.so#poly_entry` with
-`libpolyneeded-riscv.so`), compiler-produced copy-relocation executables
+`libpolyneeded-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
+(`aarch64-pcall-needed-tls-real.so#poly_entry` with
+`libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
+with `libpolyneededtls-riscv.so`), compiler-produced copy-relocation executables
 (`aarch64-pcall-copy-reloc.elf#poly_entry` and
 `riscv-pcall-copy-reloc.elf#poly_entry`), compiler-produced relocated
 function-pointer objects (`aarch64-pcall-funcptr-real.so#poly_entry` and
@@ -768,6 +771,9 @@ dependent foreign code, and dependency `DT_FINI_ARRAY` and `DT_FINI`
 destructors run during teardown. The
 `depfini:` harness mode verifies dependency finalizers by calling an exported
 dependency result symbol after dependency teardown and before unmapping.
+Dependency `PT_TLS` images are laid out in the same software-allocated TLS
+block as the entry object, with each dependency's TLS relocations resolved to a
+distinct offset under the `PCALL` TLS-base register.
 Imported function symbols can bind to prototype hardware call-descriptor
 slots. AArch64 `blr` or RISC-V `jalr` to a descriptor address maps the native
 foreign argument registers through an x86/runtime import target, writes the
