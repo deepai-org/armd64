@@ -195,6 +195,20 @@ static void child_expect_riscv_ebreak_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_riscv_compressed_ebreak_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00500893\n" // addi a7,zero,5
+    ".short 0x9002\n" // c.ebreak
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_aarch64_import_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -306,6 +320,9 @@ static int run_poly_no_vector_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly riscv ebreak no-vector", SIGTRAP,
         child_expect_riscv_ebreak_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv compressed ebreak no-vector", SIGTRAP,
+        child_expect_riscv_compressed_ebreak_signal) != 0)
     return 1;
   if (expect_child_signal("poly aarch64 import no-vector", SIGILL,
         child_expect_aarch64_import_signal) != 0)
@@ -800,6 +817,38 @@ static int run_poly_trap_vector_probe(void) {
   if (poly_break_status_number() != 5 ||
       poly_break_status_mode() != POLY_MODE_RAW_RISCV) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv break status mismatch number=%llu mode=%llu\n",
+      (unsigned long long) poly_break_status_number(),
+      (unsigned long long) poly_break_status_mode());
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x01500513\n" // addi a0,zero,21
+    ".long 0x01600593\n" // addi a1,zero,22
+    ".long 0x01700613\n" // addi a2,zero,23
+    ".long 0x01800693\n" // addi a3,zero,24
+    ".long 0x01900713\n" // addi a4,zero,25
+    ".long 0x01a00793\n" // addi a5,zero,26
+    ".long 0x00500893\n" // addi x17,x0,5
+    ".short 0x9002\n" // c.ebreak
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 4545) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed ebreak trap vector result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_BREAK) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed break packet reason mismatch got=%llu\n",
+      (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  if (poly_break_status_number() != 5 ||
+      poly_break_status_mode() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed break status mismatch number=%llu mode=%llu\n",
       (unsigned long long) poly_break_status_number(),
       (unsigned long long) poly_break_status_mode());
     return 1;
