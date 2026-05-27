@@ -563,6 +563,7 @@ build_poly_elf_payloads() {
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolypreloadchainleaf-aarch64.so \
     -Wl,-init,poly_preload_chain_leaf_init \
+    -Wl,-fini,poly_preload_chain_leaf_fini \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_CHAIN_LEAF_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchainleaf-aarch64.so"
@@ -1562,6 +1563,7 @@ build_poly_elf_payloads() {
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolypreloadchainleaf-riscv.so \
     -Wl,-init,poly_preload_chain_leaf_init \
+    -Wl,-fini,poly_preload_chain_leaf_fini \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PRELOAD_CHAIN_LEAF_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolypreloadchainleaf-riscv.so"
@@ -4113,6 +4115,10 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
       /usr/bin/polycall \
       /usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=3945 \
       >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadchain-aarch64.so \
+      /usr/bin/polycall \
+      depfini:/usr/lib/polyapps/aarch64-pcall-preload-needed-real.so#poly_entry=4900 \
+      >/dev/ttyS0 2>&1
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadoverride-riscv.so \
       /usr/bin/polycall \
       /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=1945 \
@@ -4128,6 +4134,10 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadchain-riscv.so \
       /usr/bin/polycall \
       /usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=3945 \
+      >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolypreloadchain-riscv.so \
+      /usr/bin/polycall \
+      depfini:/usr/lib/polyapps/riscv-pcall-preload-needed-real.so#poly_entry=4900 \
       >/dev/ttyS0 2>&1
 fi
 
