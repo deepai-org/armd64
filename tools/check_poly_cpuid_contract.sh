@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 HEADER="$ROOT_DIR/tools/polycpuid.h"
 POLYCALL="$ROOT_DIR/tools/polycall.c"
+POLYBENCH="$ROOT_DIR/tools/polybench.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-cpuid-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -81,6 +82,20 @@ polycall_const_expr() {
   ' "$POLYCALL"
 }
 
+polybench_const_expr() {
+  local name="$1"
+  awk -v name="$name" '
+    $0 ~ name "[[:space:]]*=" {
+      line = $0
+      sub(/.*=[[:space:]]*/, "", line)
+      sub(/;.*/, "", line)
+      sub(/,.*/, "", line)
+      print line
+      exit
+    }
+  ' "$POLYBENCH"
+}
+
 compare_const() {
   local bochs_name="$1"
   local header_name="$2"
@@ -112,6 +127,23 @@ compare_polycall_const() {
   polycall_value="$(eval_expr "$polycall_expr")"
   if [[ "$header_value" != "$polycall_value" ]]; then
     fail "$header_name=$header_value differs from $polycall_name=$polycall_value"
+  fi
+}
+
+compare_polybench_const() {
+  local header_name="$1"
+  local polybench_name="${2:-$1}"
+  local header_expr polybench_expr header_value polybench_value
+
+  header_expr="$(header_const_expr "$header_name")"
+  polybench_expr="$(polybench_const_expr "$polybench_name")"
+  [[ -n "$header_expr" ]] || fail "missing header constant $header_name"
+  [[ -n "$polybench_expr" ]] || fail "missing polybench constant $polybench_name"
+
+  header_value="$(eval_expr "$header_expr")"
+  polybench_value="$(eval_expr "$polybench_expr")"
+  if [[ "$header_value" != "$polybench_value" ]]; then
+    fail "$header_name=$header_value differs from $polybench_name=$polybench_value"
   fi
 }
 
@@ -243,6 +275,25 @@ compare_polycall_const POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
 compare_polycall_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
 compare_polycall_const POLY_ABI_BRIDGE_FP_ARG_COUNT
 compare_polycall_const POLY_ABI_BRIDGE_STACK_ALIGN
+compare_polybench_const POLY_CPUID_BASE
+compare_polybench_const POLY_IMPORT_CALL_BASE
+compare_polybench_const POLY_IMPORT_CALL_STRIDE
+compare_polybench_const POLY_IMPORT_X86_DESCRIPTOR_SIZE POLY_X86_IMPORT_DESCRIPTOR_SIZE
+compare_polybench_const POLY_ABI_BRIDGE_ABI_VERSION
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_SRET
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_SCALAR_FP
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_FP64_STACK
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_TLS_BASE
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK
+compare_polybench_const POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
+compare_polybench_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
+compare_polybench_const POLY_ABI_BRIDGE_FP_ARG_COUNT
+compare_polybench_const POLY_ABI_BRIDGE_STACK_ALIGN
 
 cat > "$TMP_DIR/polycpuid_layout_check.c" <<EOF
 #include "$HEADER"

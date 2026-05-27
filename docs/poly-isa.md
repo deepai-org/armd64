@@ -291,8 +291,8 @@ discover the experimental hardware contract before emitting poly operations:
   GPR argument lane count, `ECX[15:8]=8` is the scalar FP argument lane count,
   `ECX[31:16]=16` is the foreign stack alignment, `EDX[15:0]=16` is the
   descriptor byte size, and `EDX[31:16]=16` is the descriptor call stride.
-  The `polycall` loader validates this leaf before it installs
-  descriptor-backed foreign-to-x86 import tables.
+  The `polycall` loader and `polybench` descriptor benchmarks validate this
+  leaf before they install descriptor-backed foreign-to-x86 import tables.
 
 The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 

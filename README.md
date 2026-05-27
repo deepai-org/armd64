@@ -299,10 +299,10 @@ through ordinary `ret`.  `ECX[7:0]=8` is the covered native GPR argument lane
 count, `ECX[15:8]=8` is the covered scalar FP argument lane count, and
 `ECX[31:16]=16` is the required foreign stack alignment.  `EDX[15:0]=16` is
 the descriptor byte size, and `EDX[31:16]=16` is the descriptor call stride.
-The `polycall` loader validates this leaf before installing descriptor-backed
-foreign-to-x86 imports, so runtime import tables are only used when the CPU
-advertises user descriptors, ordinary x86 `ret` helper return, and no fixed CPU
-helper fallback.
+The `polycall` loader and `polybench` descriptor benchmarks validate this leaf
+before installing descriptor-backed foreign-to-x86 imports, so runtime import
+tables are only used when the CPU advertises user descriptors, ordinary x86
+`ret` helper return, and no fixed CPU helper fallback.
 
 Foreign execution always uses raw direct fetch.  Bochs enters raw mode through
 the x86_64 poly opcode, bypasses x86 decode, and fetches foreign
