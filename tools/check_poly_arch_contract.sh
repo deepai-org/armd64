@@ -12,6 +12,7 @@ BOCHS_OPCODES="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/ia_opcodes.def"
 BOCHS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs"
 POLYPROBE="$ROOT_DIR/tools/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/polybench.c"
+NATIVECHECK="$ROOT_DIR/tools/nativecheck.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -129,6 +130,14 @@ assert_contains "arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7" "$IMPORT_CALL_F
   "unresolved descriptor imports must record all eight native ABI argument lanes"
 assert_contains "deliver_poly_architectural_trap" "$IMPORT_CALL_FUNC" \
   "unresolved descriptor imports must exit through the architectural trap path"
+assert_contains "POLY_OP_TRAP_STATUS_ARG6" "$NATIVECHECK" \
+  "nativecheck must exercise trap-status access for trap argument lane 6"
+assert_contains "POLY_OP_TRAP_STATUS_ARG7" "$NATIVECHECK" \
+  "nativecheck must exercise trap-status access for trap argument lane 7"
+assert_contains 'cmpq \$88, %r13' "$NATIVECHECK" \
+  "nativecheck x86 trap vector must verify delivered trap argument lane 6"
+assert_contains 'cmpq \$99, %r14' "$NATIVECHECK" \
+  "nativecheck x86 trap vector must verify delivered trap argument lane 7"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \

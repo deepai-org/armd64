@@ -19,6 +19,8 @@
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_STATE_IMPORT ".byte 0x0f,0x24,0x68,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x24,0x5c,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x24,0x5d,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x24,0x32,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_BREAK_STATUS_NUMBER ".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -80,6 +82,18 @@ static inline uint64_t poly_trap_status_reason(void) {
   return value;
 }
 
+static inline uint64_t poly_trap_status_arg6(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_STATUS_ARG6 : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_status_arg7(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_STATUS_ARG7 : "=a"(value) :: "memory");
+  return value;
+}
+
 static inline uint64_t poly_syscall_status_number(void) {
   uint64_t value;
   asm volatile(POLY_OP_SYSCALL_STATUS_NUMBER : "=a"(value) :: "memory");
@@ -114,7 +128,7 @@ static void child_expect_aarch64_svc_signal(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
 }
 
@@ -128,7 +142,7 @@ static void child_expect_riscv_ecall_signal(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
 }
 
@@ -141,7 +155,7 @@ static void child_expect_aarch64_brk_signal(void) {
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
 }
 
@@ -155,7 +169,7 @@ static void child_expect_riscv_ebreak_signal(void) {
     ".long 0x00100073\n" // ebreak
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
 }
 
@@ -174,7 +188,7 @@ static void child_expect_aarch64_import_signal(void) {
     ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
   _exit(99);
 }
 
@@ -262,6 +276,10 @@ static void poly_trap_vector_handler(void) {
     "cmpq $0, %rsi\n"
     "jne 9f\n"
     "cmpq $77, %rdi\n"
+    "jne 9f\n"
+    "cmpq $88, %r13\n"
+    "jne 9f\n"
+    "cmpq $99, %r14\n"
     "jne 9f\n"
     "movq $5555, %rax\n"
     "pxor %xmm0, %xmm0\n"
@@ -394,7 +412,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   uint64_t result = read_rax();
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 svc trap vector result mismatch got=%llu expected=%llu\n",
@@ -453,7 +471,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ecall trap vector result mismatch got=%llu expected=%llu\n",
@@ -476,7 +494,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x8b050000\n" // add x0,x0,x5
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 20) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved args mismatch got=%llu\n",
@@ -499,7 +517,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00f50533\n" // add a0,a0,a5
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 20) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved args mismatch got=%llu\n",
@@ -514,7 +532,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xaa0803e0\n" // mov x0,x8
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 172) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved syscall register mismatch got=%llu\n",
@@ -529,7 +547,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00088513\n" // addi a0,a7,0
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 172) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved syscall register mismatch got=%llu\n",
@@ -544,7 +562,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   uint64_t fp_result = read_xmm0_u64();
   if (fp_result != 0x4008000000000000ULL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved fp register mismatch got=0x%llx\n",
@@ -559,7 +577,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   fp_result = read_xmm0_u64();
   if (fp_result != 0x4010000000000000ULL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved fp register mismatch got=0x%llx\n",
@@ -578,7 +596,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 4444) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 brk trap vector result mismatch got=%llu\n",
@@ -643,7 +661,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00100073\n" // ebreak
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 4545) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ebreak trap vector result mismatch got=%llu\n",
@@ -666,10 +684,12 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
     ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd2800b06\n" // movz x6,#88
+    ".long 0xd2800c67\n" // movz x7,#99
     ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
   result = read_rax();
   if (result != 5555) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import trap result mismatch got=%llu\n",
@@ -679,6 +699,12 @@ static int run_poly_trap_vector_probe(void) {
   if (poly_trap_status_reason() != POLY_TRAP_IMPORT) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly import packet reason mismatch got=%llu\n",
       (unsigned long long) poly_trap_status_reason());
+    return 1;
+  }
+  if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly import packet extended args mismatch arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
 
@@ -696,7 +722,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 trap vector result mismatch got=%llu\n",
@@ -718,7 +744,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv trap vector result mismatch got=%llu\n",
@@ -742,7 +768,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x8b0b0000\n" // add x0,x0,x11
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 83) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved synthetic register mismatch got=%llu\n",
@@ -766,7 +792,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01250533\n" // add a0,a0,s2
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
   if (result != 83) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved synthetic register mismatch got=%llu\n",
