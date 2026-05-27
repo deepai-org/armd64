@@ -699,7 +699,13 @@ numbers currently include:
 - Memory/time-style syscalls: `nanosleep`, `clock_gettime`,
   `clock_nanosleep`, `sched_getaffinity`, `sched_yield`, `getrusage`,
   `getcpu`, `gettimeofday`, `sysinfo`, `prlimit64`, `getrandom`, `brk`,
-  `munmap`, `mremap`, `mprotect`, `madvise`, `membarrier`, and `mmap`.
+  `munmap`, `mremap`, `mprotect`, `madvise`, `mlock`, `munlock`,
+  `mlockall`, `munlockall`, `mlock2`, `set_mempolicy`, `migrate_pages`,
+  `move_pages`, `seccomp`, `bpf`, `userfaultfd`, `pkey_mprotect`,
+  `pkey_alloc`, `pkey_free`, `pidfd_send_signal`, `pidfd_open`, `clone3`,
+  `close_range`, `openat2`, `pidfd_getfd`, `process_madvise`,
+  `process_mrelease`, `futex_waitv`, `set_mempolicy_home_node`,
+  `membarrier`, and `mmap`.
 
 The shared syscall dispatcher carries six foreign Linux ABI arguments for both
 foreign architectures; current `mmap6` payloads verify argument registers beyond

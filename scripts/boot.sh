@@ -1456,6 +1456,30 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-membarrier-query.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2802368 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-membarrier-cmd.elf" 0xd2800020 0xd2800001 0xd2800002 0xd2802368 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rseq.elf" 0xaa0103e0 0xd2800401 0xd2800002 0xd2800003 0xd28024a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mlock.elf" 0xd2801c88 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-munlock.elf" 0xd2801ca8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mlockall.elf" 0xd2801cc8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-munlockall.elf" 0xd2801ce8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-mempolicy.elf" 0xd2801da8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-migrate-pages.elf" 0xd2801dc8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-move-pages.elf" 0xd2801de8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-seccomp.elf" 0xd28022a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-bpf.elf" 0xd2802308 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-userfaultfd.elf" 0xd2802348 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mlock2.elf" 0xd2802388 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pkey-mprotect.elf" 0xd2802408 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pkey-alloc.elf" 0xd2802428 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pkey-free.elf" 0xd2802448 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pidfd-send-signal.elf" 0xd2803508 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pidfd-open.elf" 0xd2803648 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-clone3.elf" 0xd2803668 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-close-range.elf" 0xd2803688 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-openat2.elf" 0xd28036a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pidfd-getfd.elf" 0xd28036c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-madvise.elf" 0xd2803708 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-mrelease.elf" 0xd2803808 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-futex-waitv.elf" 0xd2803828 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf" 0xd2803848 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-tid-address.elf" 0xaa0103e0 0xd2800c08 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-set-robust-list.elf" 0xaa0103e0 0xd2800301 0xd2800c68 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prlimit64.elf" 0xaa0103e3 0xd2800000 0xd2800061 0xd2800002 0xd28020a8 0xd4000001 0xf9400060
@@ -1678,6 +1702,30 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-membarrier-query.elf" 0x00000513 0x00000593 0x00000613 0x11b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-membarrier-cmd.elf" 0x00100513 0x00000593 0x00000613 0x11b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-rseq.elf" 0x00058513 0x02000593 0x00000613 0x00000693 0x12500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mlock.elf" 0x0e400893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-munlock.elf" 0x0e500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mlockall.elf" 0x0e600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-munlockall.elf" 0x0e700893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-mempolicy.elf" 0x0ed00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-migrate-pages.elf" 0x0ee00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-move-pages.elf" 0x0ef00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-seccomp.elf" 0x11500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-bpf.elf" 0x11800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-userfaultfd.elf" 0x11a00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mlock2.elf" 0x11c00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pkey-mprotect.elf" 0x12000893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pkey-alloc.elf" 0x12100893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pkey-free.elf" 0x12200893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pidfd-send-signal.elf" 0x1a800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pidfd-open.elf" 0x1b200893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-clone3.elf" 0x1b300893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-close-range.elf" 0x1b400893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-openat2.elf" 0x1b500893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pidfd-getfd.elf" 0x1b600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-madvise.elf" 0x1b800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-mrelease.elf" 0x1c000893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-futex-waitv.elf" 0x1c100893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-mempolicy-home-node.elf" 0x1c200893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-tid-address.elf" 0x00058513 0x06000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-set-robust-list.elf" 0x00058513 0x01800593 0x06300893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-prlimit64.elf" 0x00058693 0x00000513 0x00300593 0x00000613 0x10500893 0x00000073 0x0006b503
@@ -1993,6 +2041,30 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-membarrier-query.elf=1 \
     /usr/lib/polyapps/aarch64-membarrier-cmd.elf=0 \
     /usr/lib/polyapps/aarch64-rseq.elf=0 \
+    /usr/lib/polyapps/aarch64-mlock.elf=0 \
+    /usr/lib/polyapps/aarch64-munlock.elf=0 \
+    /usr/lib/polyapps/aarch64-mlockall.elf=0 \
+    /usr/lib/polyapps/aarch64-munlockall.elf=0 \
+    /usr/lib/polyapps/aarch64-set-mempolicy.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-migrate-pages.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-move-pages.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-seccomp.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-bpf.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-userfaultfd.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-mlock2.elf=0 \
+    /usr/lib/polyapps/aarch64-pkey-mprotect.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-pkey-alloc.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-pkey-free.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-pidfd-send-signal.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-pidfd-open.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-clone3.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-close-range.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-openat2.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-pidfd-getfd.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-process-madvise.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-process-mrelease.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-futex-waitv.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-set-tid-address.elf=4243 \
     /usr/lib/polyapps/aarch64-set-robust-list.elf=0 \
     /usr/lib/polyapps/aarch64-prlimit64.elf=8388608 \
@@ -2188,6 +2260,30 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-membarrier-query.elf=1 \
     /usr/lib/polyapps/riscv-membarrier-cmd.elf=0 \
     /usr/lib/polyapps/riscv-rseq.elf=0 \
+    /usr/lib/polyapps/riscv-mlock.elf=0 \
+    /usr/lib/polyapps/riscv-munlock.elf=0 \
+    /usr/lib/polyapps/riscv-mlockall.elf=0 \
+    /usr/lib/polyapps/riscv-munlockall.elf=0 \
+    /usr/lib/polyapps/riscv-set-mempolicy.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-migrate-pages.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-move-pages.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-seccomp.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-bpf.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-userfaultfd.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-mlock2.elf=0 \
+    /usr/lib/polyapps/riscv-pkey-mprotect.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-pkey-alloc.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-pkey-free.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-pidfd-send-signal.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-pidfd-open.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-clone3.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-close-range.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-openat2.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-pidfd-getfd.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-process-madvise.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-process-mrelease.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-futex-waitv.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-set-mempolicy-home-node.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-set-tid-address.elf=4243 \
     /usr/lib/polyapps/riscv-set-robust-list.elf=0 \
     /usr/lib/polyapps/riscv-prlimit64.elf=8388608 \
@@ -2652,6 +2748,30 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-membarrier-query.elf \
     /usr/lib/polyapps/aarch64-membarrier-cmd.elf \
     /usr/lib/polyapps/aarch64-rseq.elf \
+    /usr/lib/polyapps/aarch64-mlock.elf \
+    /usr/lib/polyapps/aarch64-munlock.elf \
+    /usr/lib/polyapps/aarch64-mlockall.elf \
+    /usr/lib/polyapps/aarch64-munlockall.elf \
+    /usr/lib/polyapps/aarch64-set-mempolicy.elf \
+    /usr/lib/polyapps/aarch64-migrate-pages.elf \
+    /usr/lib/polyapps/aarch64-move-pages.elf \
+    /usr/lib/polyapps/aarch64-seccomp.elf \
+    /usr/lib/polyapps/aarch64-bpf.elf \
+    /usr/lib/polyapps/aarch64-userfaultfd.elf \
+    /usr/lib/polyapps/aarch64-mlock2.elf \
+    /usr/lib/polyapps/aarch64-pkey-mprotect.elf \
+    /usr/lib/polyapps/aarch64-pkey-alloc.elf \
+    /usr/lib/polyapps/aarch64-pkey-free.elf \
+    /usr/lib/polyapps/aarch64-pidfd-send-signal.elf \
+    /usr/lib/polyapps/aarch64-pidfd-open.elf \
+    /usr/lib/polyapps/aarch64-clone3.elf \
+    /usr/lib/polyapps/aarch64-close-range.elf \
+    /usr/lib/polyapps/aarch64-openat2.elf \
+    /usr/lib/polyapps/aarch64-pidfd-getfd.elf \
+    /usr/lib/polyapps/aarch64-process-madvise.elf \
+    /usr/lib/polyapps/aarch64-process-mrelease.elf \
+    /usr/lib/polyapps/aarch64-futex-waitv.elf \
+    /usr/lib/polyapps/aarch64-set-mempolicy-home-node.elf \
     /usr/lib/polyapps/aarch64-set-tid-address.elf \
     /usr/lib/polyapps/aarch64-set-robust-list.elf \
     /usr/lib/polyapps/aarch64-prlimit64.elf \
@@ -2847,6 +2967,30 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-membarrier-query.elf \
     /usr/lib/polyapps/riscv-membarrier-cmd.elf \
     /usr/lib/polyapps/riscv-rseq.elf \
+    /usr/lib/polyapps/riscv-mlock.elf \
+    /usr/lib/polyapps/riscv-munlock.elf \
+    /usr/lib/polyapps/riscv-mlockall.elf \
+    /usr/lib/polyapps/riscv-munlockall.elf \
+    /usr/lib/polyapps/riscv-set-mempolicy.elf \
+    /usr/lib/polyapps/riscv-migrate-pages.elf \
+    /usr/lib/polyapps/riscv-move-pages.elf \
+    /usr/lib/polyapps/riscv-seccomp.elf \
+    /usr/lib/polyapps/riscv-bpf.elf \
+    /usr/lib/polyapps/riscv-userfaultfd.elf \
+    /usr/lib/polyapps/riscv-mlock2.elf \
+    /usr/lib/polyapps/riscv-pkey-mprotect.elf \
+    /usr/lib/polyapps/riscv-pkey-alloc.elf \
+    /usr/lib/polyapps/riscv-pkey-free.elf \
+    /usr/lib/polyapps/riscv-pidfd-send-signal.elf \
+    /usr/lib/polyapps/riscv-pidfd-open.elf \
+    /usr/lib/polyapps/riscv-clone3.elf \
+    /usr/lib/polyapps/riscv-close-range.elf \
+    /usr/lib/polyapps/riscv-openat2.elf \
+    /usr/lib/polyapps/riscv-pidfd-getfd.elf \
+    /usr/lib/polyapps/riscv-process-madvise.elf \
+    /usr/lib/polyapps/riscv-process-mrelease.elf \
+    /usr/lib/polyapps/riscv-futex-waitv.elf \
+    /usr/lib/polyapps/riscv-set-mempolicy-home-node.elf \
     /usr/lib/polyapps/riscv-set-tid-address.elf \
     /usr/lib/polyapps/riscv-set-robust-list.elf \
     /usr/lib/polyapps/riscv-prlimit64.elf \
