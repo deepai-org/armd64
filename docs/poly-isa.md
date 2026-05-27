@@ -130,7 +130,8 @@ and call operations:
   libcalls.
 - `0f 24 50+id 50 4f 4c 59 21`: trap status read.  `id=0` returns the reason,
   `id=1` returns the source mode, `id=2` returns the trap number, `id=3`-`8`
-  return trap arguments, and `id=9` returns the trap PC.
+  return trap arguments, `id=9` returns the trap PC, and `id=10` returns the
+  trap selector/immediate where the foreign instruction encoding provides one.
 
 Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
 handler and validates the trailing `POLY!` magic before changing frontend
@@ -724,6 +725,10 @@ compatibility dispatcher:
 - Reason `2`: foreign breakpoint trap (`brk` or `ebreak`).
 - Mode records the raw source mode: `3` for AArch64, `4` for RISC-V.
 - Number records the syscall number or breakpoint immediate/id.
+- Selector records the raw trap selector/immediate where the instruction
+  encoding provides one, for example AArch64 `svc #imm` or `brk #imm`; RISC-V
+  `ecall`/`ebreak` record selector `0` because their service id comes from
+  register state.
 - Arguments record the native foreign ABI argument registers.
 - PC records the foreign instruction address that raised the trap.
 

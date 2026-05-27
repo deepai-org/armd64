@@ -106,7 +106,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
 | Libcall status | `0f 24 38+id 50 4f 4c 59 21` | Returns libcall state in `RAX`: `id=1` last libcall number, `id=2` last libcall mode. |
 | Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign libcalls. |
-| Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC. |
+| Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate. |
 
 When `POLY_ENABLED=1`, the prototype exposes a private CPUID discovery leaf for
 runtime dispatch:
@@ -586,9 +586,10 @@ Foreign traps are now recorded as explicit, operating-system-neutral
 architectural exits before any compatibility behavior runs.  AArch64 `svc` and
 RISC-V `ecall` record reason `1`; AArch64 `brk` and RISC-V `ebreak` record
 reason `2`.  The record includes source mode, trap number, six ABI arguments,
-and the foreign PC.  In hardware or FPGA this packet is the boundary: firmware,
-the OS, or a userspace runtime routes it.  The current Bochs dispatcher is only
-a compatibility service layered after the packet is captured.
+the foreign PC, and the raw trap selector/immediate when the foreign instruction
+encoding carries one.  In hardware or FPGA this packet is the boundary:
+firmware, the OS, or a userspace runtime routes it.  The current Bochs
+dispatcher is only a compatibility service layered after the packet is captured.
 
 ## Supported Foreign Subset
 

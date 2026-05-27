@@ -25,6 +25,7 @@ static inline void poly_trap_reason_status(void) { asm volatile(".byte 0x0f,0x24
 static inline void poly_trap_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x51,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_trap_number_status(void) { asm volatile(".byte 0x0f,0x24,0x52,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_trap_arg0_status(void) { asm volatile(".byte 0x0f,0x24,0x53,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x24,0x5a,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -694,6 +695,11 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 libcall mode mismatch\n");
     return 1;
   }
+  poly_trap_selector_status();
+  if (read_rax() != 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap selector mismatch\n");
+    return 1;
+  }
   write_rdi((uint64_t) libcall_string);
   raw_riscv_strlen_probe();
   if (read_rax() != 8) {
@@ -723,6 +729,11 @@ int main(void) {
   poly_trap_number_status();
   if (read_rax() != 1) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw break trap number mismatch\n");
+    return 1;
+  }
+  poly_trap_selector_status();
+  if (read_rax() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap selector mismatch\n");
     return 1;
   }
   poly_trap_arg0_status();
