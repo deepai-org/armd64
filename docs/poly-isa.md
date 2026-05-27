@@ -863,7 +863,8 @@ foreign libraries, covering dependency trees beyond the original four-library
 prototype cap, and direct dependency fans larger than eight libraries.
 `DT_RUNPATH` is preferred over `DT_RPATH` when present, and `$ORIGIN/...`
 entries plus absolute dependency directories are used to resolve dependency
-libraries before a missing needed library fails to load. Old-style
+libraries before a missing needed library fails to load; colon-separated
+RUNPATH entries continue searching after a missing directory. Old-style
 RPATH-only objects built without new dtags are covered. Absolute `DT_NEEDED`
 path strings are accepted directly by the user-space loader.
 Dependency `DT_INIT` and `DT_INIT_ARRAY` constructors run before entering

@@ -168,6 +168,10 @@ assert_contains "pcall-rpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover old-style DT_RPATH dependency directories"
 assert_contains "DT_RPATH" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must parse old-style DT_RPATH dependency directories"
+assert_contains "pcall-colon-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
+  "polycall boot matrix must cover colon-separated DT_RUNPATH fallback directories"
+assert_contains "runpath\\[end\\][[:space:]]*!=[[:space:]]*':'" "$ROOT_DIR/tools/polycall.c" \
+  "polycall loader must tokenize colon-separated DT_RUNPATH entries"
 assert_contains "MAX_NEEDED_DEPS[[:space:]]*=[[:space:]]*32" "$ROOT_DIR/tools/polycall.c" \
   "polycall loader must support dependency fans larger than eight libraries"
 assert_contains "pcall-many-needed-real" "$ROOT_DIR/scripts/boot.sh" \
