@@ -31,6 +31,7 @@ boot-poly-arch-traps:
 		-e POLY_ENABLED=1 \
 		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_NATIVE_CHECK=1 \
+		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
 		./scripts/boot.sh

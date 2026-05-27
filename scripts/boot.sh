@@ -160,6 +160,7 @@ POLY_COMPAT_TRAPS="${POLY_COMPAT_TRAPS:-1}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
+RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
 RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
 RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
@@ -2586,6 +2587,12 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
 fi
 
+if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
+    /usr/bin/polyexec \
+    /usr/lib/polyapps/aarch64-getpid.elf=pid \
+    /usr/lib/polyapps/riscv-getpid.elf=pid >/dev/ttyS0 2>&1
+fi
+
 if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/bin/polycall \
     /usr/lib/polyapps/aarch64-pcall-sum.elf=21 \
@@ -3533,6 +3540,12 @@ EOF
         fi
       fi
       if [[ "$RUN_POLY_EXEC" == "1" ]]; then
+        if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_ARCH_TRAP_EXEC" == "1" ]]; then
         if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
           sleep 1
           continue

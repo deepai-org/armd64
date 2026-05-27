@@ -7,6 +7,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
@@ -28,6 +31,46 @@ struct poly_request {
 };
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+
+static inline void write_rax(uint64_t value) {
+  asm volatile("" :: "a"(value) : "memory");
+}
+
+static inline void poly_trap_vector_set(void) {
+  asm volatile(POLY_OP_TRAP_VECTOR_SET ::: "memory");
+}
+
+__attribute__((naked, noinline, used))
+static void poly_trap_vector_handler(void) {
+  __asm__(
+    "cmpq $1, %rax\n"
+    "jne 9f\n"
+    "cmpq $172, %rcx\n"
+    "jne 9f\n"
+    "cmpq $3, %rbx\n"
+    "je 1f\n"
+    "cmpq $4, %rbx\n"
+    "jne 9f\n"
+    "1:\n"
+    "movq $39, %rax\n"
+    "syscall\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n"
+    "9:\n"
+    "movq $-38, %rax\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n");
+}
+
+static void install_poly_trap_vector(void) {
+  write_rax((uint64_t) (void *) poly_trap_vector_handler);
+  poly_trap_vector_set();
+}
+
+static void clear_poly_trap_vector(void) {
+  write_rax(0);
+  poly_trap_vector_set();
+}
 
 static int parse_u64(const char *text, uint64_t *value) {
   char *end = NULL;
@@ -51,7 +94,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   memcpy(request->path, arg, path_len);
   request->path[path_len] = '\0';
   if (expected) {
-    if (parse_u64(expected + 1, &request->expected) < 0) {
+    if (strcmp(expected + 1, "pid") == 0) {
+      request->expected = (uint64_t) getpid();
+    }
+    else if (parse_u64(expected + 1, &request->expected) < 0) {
       fprintf(stderr, "POLYEXEC_FAIL: bad expected value: %s\n", arg);
       return -1;
     }
@@ -269,6 +315,7 @@ int main(int argc, char **argv) {
   }
 
   puts("POLYEXEC: start");
+  install_poly_trap_vector();
   for (int n = 1; n < argc; n++) {
     struct poly_request request;
     if (parse_request(argv[n], &request) < 0)
@@ -302,6 +349,7 @@ int main(int argc, char **argv) {
     free_program(&program);
   }
 
+  clear_poly_trap_vector();
   puts("POLYEXEC_OK");
   return 0;
 }
