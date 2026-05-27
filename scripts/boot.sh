@@ -1383,6 +1383,15 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getcpu.elf" 0x91000020 0x91002021 0xd2801508 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-gettimeofday.elf" 0x91000020 0xd2800001 0xd2801528 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sysinfo.elf" 0x91000020 0xd2801668 0xd4000001 0xf9400040
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-capget.elf" 0xaa0103e2 0xaa0203e0 0x91002041 0xd2800b48 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-capset.elf" 0xaa0103e2 0xaa0203e0 0x91002041 0xd2800b68 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-personality.elf" 0x92800000 0xd2800b88 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setpriority.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801188 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getpriority.elf" 0xd2800000 0xd2800001 0xd28011a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setpgid.elf" 0xd2800000 0xd2800001 0xd2801348 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setsid.elf" 0xd28013a8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-umask.elf" 0xd2800240 0xd28014c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prctl-set-name.elf" 0xd28001e0 0xd28014e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setregid.elf" 0xd2807d00 0xd2807d01 0xd28011e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setgid.elf" 0xd2807d00 0xd2801208 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setreuid.elf" 0xd2807d00 0xd2807d01 0xd2801228 0xd4000001
@@ -1552,6 +1561,15 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getcpu.elf" 0x00058513 0x00858593 0x0a800893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-gettimeofday.elf" 0x00058513 0x00000593 0x0a900893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sysinfo.elf" 0x00058513 0x0b300893 0x00000073 0x00063503
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-capget.elf" 0x00058293 0x00028513 0x00828593 0x05a00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-capset.elf" 0x00058293 0x00028513 0x00828593 0x05b00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-personality.elf" 0xfff00513 0x05c00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setpriority.elf" 0x00000513 0x00000593 0x00000613 0x08c00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getpriority.elf" 0x00000513 0x00000593 0x08d00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setpgid.elf" 0x00000513 0x00000593 0x09a00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setsid.elf" 0x09d00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-umask.elf" 0x01200513 0x0a600893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-prctl-set-name.elf" 0x00f00513 0x0a700893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setregid.elf" 0x3e800513 0x3e800593 0x08f00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setgid.elf" 0x3e800513 0x09000893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setreuid.elf" 0x3e800513 0x3e800593 0x09100893 0x00000073
@@ -1814,6 +1832,15 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-getcpu.elf=12 \
     /usr/lib/polyapps/aarch64-gettimeofday.elf=246 \
     /usr/lib/polyapps/aarch64-sysinfo.elf=98765 \
+    /usr/lib/polyapps/aarch64-capget.elf=0 \
+    /usr/lib/polyapps/aarch64-capset.elf=0 \
+    /usr/lib/polyapps/aarch64-personality.elf=0 \
+    /usr/lib/polyapps/aarch64-setpriority.elf=0 \
+    /usr/lib/polyapps/aarch64-getpriority.elf=20 \
+    /usr/lib/polyapps/aarch64-setpgid.elf=0 \
+    /usr/lib/polyapps/aarch64-setsid.elf=4242 \
+    /usr/lib/polyapps/aarch64-umask.elf=18 \
+    /usr/lib/polyapps/aarch64-prctl-set-name.elf=0 \
     /usr/lib/polyapps/aarch64-setregid.elf=0 \
     /usr/lib/polyapps/aarch64-setgid.elf=0 \
     /usr/lib/polyapps/aarch64-setreuid.elf=0 \
@@ -1956,6 +1983,15 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-getcpu.elf=12 \
     /usr/lib/polyapps/riscv-gettimeofday.elf=246 \
     /usr/lib/polyapps/riscv-sysinfo.elf=98765 \
+    /usr/lib/polyapps/riscv-capget.elf=0 \
+    /usr/lib/polyapps/riscv-capset.elf=0 \
+    /usr/lib/polyapps/riscv-personality.elf=0 \
+    /usr/lib/polyapps/riscv-setpriority.elf=0 \
+    /usr/lib/polyapps/riscv-getpriority.elf=20 \
+    /usr/lib/polyapps/riscv-setpgid.elf=0 \
+    /usr/lib/polyapps/riscv-setsid.elf=4242 \
+    /usr/lib/polyapps/riscv-umask.elf=18 \
+    /usr/lib/polyapps/riscv-prctl-set-name.elf=0 \
     /usr/lib/polyapps/riscv-setregid.elf=0 \
     /usr/lib/polyapps/riscv-setgid.elf=0 \
     /usr/lib/polyapps/riscv-setreuid.elf=0 \
@@ -2367,6 +2403,15 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-getcpu.elf \
     /usr/lib/polyapps/aarch64-gettimeofday.elf \
     /usr/lib/polyapps/aarch64-sysinfo.elf \
+    /usr/lib/polyapps/aarch64-capget.elf \
+    /usr/lib/polyapps/aarch64-capset.elf \
+    /usr/lib/polyapps/aarch64-personality.elf \
+    /usr/lib/polyapps/aarch64-setpriority.elf \
+    /usr/lib/polyapps/aarch64-getpriority.elf \
+    /usr/lib/polyapps/aarch64-setpgid.elf \
+    /usr/lib/polyapps/aarch64-setsid.elf \
+    /usr/lib/polyapps/aarch64-umask.elf \
+    /usr/lib/polyapps/aarch64-prctl-set-name.elf \
     /usr/lib/polyapps/aarch64-setregid.elf \
     /usr/lib/polyapps/aarch64-setgid.elf \
     /usr/lib/polyapps/aarch64-setreuid.elf \
@@ -2509,6 +2554,15 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-getcpu.elf \
     /usr/lib/polyapps/riscv-gettimeofday.elf \
     /usr/lib/polyapps/riscv-sysinfo.elf \
+    /usr/lib/polyapps/riscv-capget.elf \
+    /usr/lib/polyapps/riscv-capset.elf \
+    /usr/lib/polyapps/riscv-personality.elf \
+    /usr/lib/polyapps/riscv-setpriority.elf \
+    /usr/lib/polyapps/riscv-getpriority.elf \
+    /usr/lib/polyapps/riscv-setpgid.elf \
+    /usr/lib/polyapps/riscv-setsid.elf \
+    /usr/lib/polyapps/riscv-umask.elf \
+    /usr/lib/polyapps/riscv-prctl-set-name.elf \
     /usr/lib/polyapps/riscv-setregid.elf \
     /usr/lib/polyapps/riscv-setgid.elf \
     /usr/lib/polyapps/riscv-setreuid.elf \

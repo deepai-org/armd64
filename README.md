@@ -670,11 +670,13 @@ deterministically after recording the architectural trap.  Supported syscall
 numbers currently include:
 
 - Scalar/process syscalls: `fcntl`, `ioctl`, `faccessat`, `set_tid_address`,
-  `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `setregid`,
-  `setgid`, `setreuid`, `setuid`, `setresuid`, `getresuid`, `setresgid`,
-  `getresgid`, `setfsuid`, `setfsgid`, `getgroups`, `setgroups`, `getpid`,
-  `getppid`, `getuid`, `geteuid`, `getgid`, `getegid`, `gettid`,
-  `getpgid(0)`, `getsid(0)`, `rseq`, `exit`, and `exit_group`.
+  `futex`, `set_robust_list`, `rt_sigaction`, `rt_sigprocmask`, `capget`,
+  `capset`, `personality`, `setpriority`, `getpriority`, `setpgid`,
+  `setsid`, `umask`, `prctl`, `setregid`, `setgid`, `setreuid`, `setuid`,
+  `setresuid`, `getresuid`, `setresgid`, `getresgid`, `setfsuid`,
+  `setfsgid`, `getgroups`, `setgroups`, `getpid`, `getppid`, `getuid`,
+  `geteuid`, `getgid`, `getegid`, `gettid`, `getpgid(0)`, `getsid(0)`,
+  `rseq`, `exit`, and `exit_group`.
 - File-style syscalls: `getcwd`, `eventfd2`, `inotify_init1`,
   `inotify_add_watch`, `inotify_rm_watch`, `dup3`, `pipe2`,
   `timerfd_create`, `timerfd_settime`, `timerfd_gettime`, `read`, `readv`,
