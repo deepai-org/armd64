@@ -1385,49 +1385,27 @@ static void emit_movabs_r14(uint8_t *code, size_t *offset, uint64_t value) {
   emit_u64(code, offset, value);
 }
 
-static void emit_save_import_regs(uint8_t *code, size_t *offset) {
+static void emit_save_callee_regs(uint8_t *code, size_t *offset) {
   const uint8_t save[] = {
-    0x4c, 0x89, 0x64, 0x24, 0xf8 // mov [rsp-8],r12
+    0x48, 0x89, 0x5c, 0x24, 0xf8, // mov [rsp-8],rbx
+    0x48, 0x89, 0x6c, 0x24, 0xf0, // mov [rsp-16],rbp
+    0x4c, 0x89, 0x64, 0x24, 0xe8, // mov [rsp-24],r12
+    0x4c, 0x89, 0x6c, 0x24, 0xe0, // mov [rsp-32],r13
+    0x4c, 0x89, 0x74, 0x24, 0xd8, // mov [rsp-40],r14
+    0x4c, 0x89, 0x7c, 0x24, 0xd0  // mov [rsp-48],r15
   };
   memcpy(code + *offset, save, sizeof(save));
   *offset += sizeof(save);
 }
 
-static void emit_restore_import_regs(uint8_t *code, size_t *offset) {
+static void emit_restore_callee_regs(uint8_t *code, size_t *offset) {
   const uint8_t restore[] = {
-    0x4c, 0x8b, 0x64, 0x24, 0xf8 // mov r12,[rsp-8]
-  };
-  memcpy(code + *offset, restore, sizeof(restore));
-  *offset += sizeof(restore);
-}
-
-static void emit_save_tls_reg(uint8_t *code, size_t *offset) {
-  const uint8_t save[] = {
-    0x4c, 0x89, 0x6c, 0x24, 0xf0 // mov [rsp-16],r13
-  };
-  memcpy(code + *offset, save, sizeof(save));
-  *offset += sizeof(save);
-}
-
-static void emit_restore_tls_reg(uint8_t *code, size_t *offset) {
-  const uint8_t restore[] = {
-    0x4c, 0x8b, 0x6c, 0x24, 0xf0 // mov r13,[rsp-16]
-  };
-  memcpy(code + *offset, restore, sizeof(restore));
-  *offset += sizeof(restore);
-}
-
-static void emit_save_heap_reg(uint8_t *code, size_t *offset) {
-  const uint8_t save[] = {
-    0x4c, 0x89, 0x74, 0x24, 0xe8 // mov [rsp-24],r14
-  };
-  memcpy(code + *offset, save, sizeof(save));
-  *offset += sizeof(save);
-}
-
-static void emit_restore_heap_reg(uint8_t *code, size_t *offset) {
-  const uint8_t restore[] = {
-    0x4c, 0x8b, 0x74, 0x24, 0xe8 // mov r14,[rsp-24]
+    0x48, 0x8b, 0x5c, 0x24, 0xf8, // mov rbx,[rsp-8]
+    0x48, 0x8b, 0x6c, 0x24, 0xf0, // mov rbp,[rsp-16]
+    0x4c, 0x8b, 0x64, 0x24, 0xe8, // mov r12,[rsp-24]
+    0x4c, 0x8b, 0x6c, 0x24, 0xe0, // mov r13,[rsp-32]
+    0x4c, 0x8b, 0x74, 0x24, 0xd8, // mov r14,[rsp-40]
+    0x4c, 0x8b, 0x7c, 0x24, 0xd0  // mov r15,[rsp-48]
   };
   memcpy(code + *offset, restore, sizeof(restore));
   *offset += sizeof(restore);
@@ -4581,20 +4559,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (needs_x86_import &&
       read_poly_import_contract(&import_contract) < 0)
     return -1;
-  const size_t save_regs_size = needs_x86_import ? 5 : 0;
-  const size_t restore_regs_size = needs_x86_import ? 5 : 0;
+  const size_t callee_save_size = 30;
+  const size_t callee_restore_size = 30;
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
-  const size_t save_tls_size = 5;
-  const size_t restore_tls_size = 5;
-  const size_t save_heap_size = 5;
-  const size_t restore_heap_size = 5;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
-  const size_t pcall_return_offset = save_regs_size + save_tls_size +
-    save_heap_size + 10 + 10 + tls_setup_size + heap_setup_size +
-    import_setup_size + 8;
-  const size_t main_stub_size = pcall_return_offset + restore_regs_size +
-    restore_tls_size + restore_heap_size + 1;
+  const size_t pcall_return_offset = callee_save_size + 10 + 10 +
+    tls_setup_size + heap_setup_size + import_setup_size + 8;
+  const size_t main_stub_size = pcall_return_offset + callee_restore_size + 1;
   const size_t import_return_size = needs_x86_import ? 8 : 0;
   const size_t import_descriptor_count = needs_x86_import ?
     import_contract.import_count : 0;
@@ -4671,10 +4643,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint64_t import_x86_table = import_x86_return + import_return_size;
   const size_t import_x86_table_offset = main_stub_size + import_return_size;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
-  if (needs_x86_import)
-    emit_save_import_regs(code, &offset);
-  emit_save_tls_reg(code, &offset);
-  emit_save_heap_reg(code, &offset);
+  emit_save_callee_regs(code, &offset);
   const size_t target_imm_offset = offset + 2;
   emit_movabs_r10(code, &offset, 0);
   emit_movabs_r11(code, &offset, return_rip);
@@ -4730,10 +4699,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
-  if (needs_x86_import)
-    emit_restore_import_regs(code, &offset);
-  emit_restore_tls_reg(code, &offset);
-  emit_restore_heap_reg(code, &offset);
+  emit_restore_callee_regs(code, &offset);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
     const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
