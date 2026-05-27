@@ -145,6 +145,7 @@ POLYCALL_FPAIR_REAL_SRC="$ROOT_DIR/tools/polycall_fpair_real.c"
 POLYCALL_FPAIR32_REAL_SRC="$ROOT_DIR/tools/polycall_fpair32_real.c"
 POLYCALL_FPAIR_ARG_REAL_SRC="$ROOT_DIR/tools/polycall_fpair_arg_real.c"
 POLYCALL_FPAIR32_ARG_REAL_SRC="$ROOT_DIR/tools/polycall_fpair32_arg_real.c"
+POLYCALL_VEC128_AARCH64_REAL_SRC="$ROOT_DIR/tools/polycall_vec128_aarch64_real.c"
 POLYCALL_HETERO_REAL_SRC="$ROOT_DIR/tools/polycall_hetero_real.c"
 POLYCALL_HETERO_REV_REAL_SRC="$ROOT_DIR/tools/polycall_hetero_rev_real.c"
 POLYCALL_HETERO32_REAL_SRC="$ROOT_DIR/tools/polycall_hetero32_real.c"
@@ -1088,6 +1089,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_FPAIR32_ARG_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-fpair32-arg-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_VEC128_AARCH64_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-vec128-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_MIXED_ARGS_REAL_SRC" \
@@ -3747,6 +3752,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fpair32:/usr/lib/polyapps/aarch64-pcall-fpair32-real.so#poly_entry=0x40d8000040700000 \
     fpairarg:/usr/lib/polyapps/aarch64-pcall-fpair-arg-real.so#poly_entry=0x4026800000000000 \
     fpair32arg:/usr/lib/polyapps/aarch64-pcall-fpair32-arg-real.so#poly_entry=0x41340000 \
+    vec128u32:/usr/lib/polyapps/aarch64-pcall-vec128-real.so#poly_entry=0x002c00210016000b \
     mixedargs:/usr/lib/polyapps/aarch64-pcall-mixed-args-real.so#poly_entry=0x40a9320000000000 \
     hetero:/usr/lib/polyapps/aarch64-pcall-hetero-real.so#poly_entry=0x0008401d00000000 \
     heterorev:/usr/lib/polyapps/aarch64-pcall-hetero-rev-real.so#poly_entry=0x0008401d00000000 \

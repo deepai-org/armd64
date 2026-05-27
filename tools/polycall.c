@@ -125,6 +125,7 @@ enum {
   POLY_CALL_COMPACT_F32_U32 = 18,
   POLY_CALL_FP64_STACK = 19,
   POLY_CALL_DEP_FINI_RESULT = 20,
+  POLY_CALL_VEC128_U32 = 21,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -1155,6 +1156,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   }
   else if (strncmp(arg, "fp64stack:", 10) == 0) {
     request->call_kind = POLY_CALL_FP64_STACK;
+    arg += 10;
+  }
+  else if (strncmp(arg, "vec128u32:", 10) == 0) {
+    request->call_kind = POLY_CALL_VEC128_U32;
     arg += 10;
   }
   else if (strncmp(arg, "pair:", 5) == 0) {
@@ -4347,6 +4352,11 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     float f;
     uint32_t i;
   };
+  typedef uint32_t vec128_u32 __attribute__((vector_size(16)));
+  union vec128_u32_bits {
+    vec128_u32 v;
+    uint32_t u[4];
+  };
   if (call_kind == POLY_CALL_FP64) {
     union {
       double d;
@@ -4382,6 +4392,18 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
       6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
       13.0, 14.0, 15.0, 16.0);
     return fp_result.u;
+  }
+  if (call_kind == POLY_CALL_VEC128_U32) {
+    vec128_u32 (*entry)(vec128_u32, vec128_u32) =
+      (vec128_u32 (*)(vec128_u32, vec128_u32)) code;
+    union vec128_u32_bits arg0 = { .u = { 1, 2, 3, 4 } };
+    union vec128_u32_bits arg1 = { .u = { 10, 20, 30, 40 } };
+    union vec128_u32_bits result;
+    result.v = entry(arg0.v, arg1.v);
+    return ((uint64_t) (result.u[3] & 0xffffU) << 48) |
+      ((uint64_t) (result.u[2] & 0xffffU) << 32) |
+      ((uint64_t) (result.u[1] & 0xffffU) << 16) |
+      (uint64_t) (result.u[0] & 0xffffU);
   }
   if (call_kind == POLY_CALL_PAIR_U64) {
     struct pair_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
@@ -5519,6 +5541,10 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_COMPACT_F32_U32) {
       printf("POLYCALL_RESULT_COMPACT_F32_U32: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_VEC128_U32) {
+      printf("POLYCALL_RESULT_VEC128_U32: arch=%s packed=0x%016llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.check_expected) {
