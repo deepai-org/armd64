@@ -22,12 +22,12 @@ static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory")
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x24,0x30,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_syscall_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x32,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
-static inline void poly_libcall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
-static inline void poly_libcall_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x3a,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_break_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x3a,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x24,0x40,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x24,0x42,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x0f,0x24,0x43,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
-static inline void poly_foreign_libcall_count_status(void) { asm volatile(".byte 0x0f,0x24,0x44,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_foreign_break_count_status(void) { asm volatile(".byte 0x0f,0x24,0x44,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_trap_reason_status(void) { asm volatile(".byte 0x0f,0x24,0x50,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_trap_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x51,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_trap_number_status(void) { asm volatile(".byte 0x0f,0x24,0x52,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
@@ -797,21 +797,21 @@ int main(void) {
     return 1;
   }
 
-  stage("POLY_STAGE: raw-libcall");
-  const char libcall_string[] = "polyglot";
-  raw_aarch64_strlen_probe((uint64_t) libcall_string);
+  stage("POLY_STAGE: raw-break");
+  const char break_string[] = "polyglot";
+  raw_aarch64_strlen_probe((uint64_t) break_string);
   if (read_rax() != 8) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 libcall mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break helper mismatch\n");
     return 1;
   }
-  poly_libcall_number_status();
+  poly_break_number_status();
   if (read_rax() != 1) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 libcall number mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break number mismatch\n");
     return 1;
   }
-  poly_libcall_mode_status();
+  poly_break_mode_status();
   if (read_rax() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 libcall mode mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break mode mismatch\n");
     return 1;
   }
   poly_trap_selector_status();
@@ -819,19 +819,19 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap selector mismatch\n");
     return 1;
   }
-  raw_riscv_strlen_probe((uint64_t) libcall_string);
+  raw_riscv_strlen_probe((uint64_t) break_string);
   if (read_rax() != 8) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv libcall mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break helper mismatch\n");
     return 1;
   }
-  poly_libcall_number_status();
+  poly_break_number_status();
   if (read_rax() != 1) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv libcall number mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break number mismatch\n");
     return 1;
   }
-  poly_libcall_mode_status();
+  poly_break_mode_status();
   if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv libcall mode mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break mode mismatch\n");
     return 1;
   }
   poly_trap_reason_status();
@@ -855,7 +855,7 @@ int main(void) {
     return 1;
   }
   poly_trap_arg0_status();
-  if (read_rax() != (uint64_t) libcall_string) {
+  if (read_rax() != (uint64_t) break_string) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw break trap arg0 mismatch\n");
     return 1;
   }
@@ -926,12 +926,12 @@ int main(void) {
     return 1;
   }
 
-  poly_foreign_libcall_count_status();
-  uint64_t libcalls_before = read_rax();
-  raw_aarch64_strlen_probe((uint64_t) libcall_string);
-  poly_foreign_libcall_count_status();
-  if (read_rax() != libcalls_before + 1) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw foreign libcall count mismatch\n");
+  poly_foreign_break_count_status();
+  uint64_t breaks_before = read_rax();
+  raw_aarch64_strlen_probe((uint64_t) break_string);
+  poly_foreign_break_count_status();
+  if (read_rax() != breaks_before + 1) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw foreign break count mismatch\n");
     return 1;
   }
 

@@ -48,7 +48,7 @@ Linux ABI passthrough, or equal-speed execution.
   status do not leak across a `fork()` address-space boundary.
 - The `make boot-poly-probe-arch-traps` path disables the compatibility
   dispatcher and runs `polyprobe` with its own guest trap-vector handler, so the
-  low-level raw syscall/libcall probe now exercises packet delivery without
+  low-level raw syscall/break probe now exercises packet delivery without
   Bochs synthesizing Linux or libc behavior.
 - The `make boot-poly-binfmt-arch-traps` path also disables the compatibility
   dispatcher, registers `binfmt_misc`, and executes a focused AArch64/RISC-V
