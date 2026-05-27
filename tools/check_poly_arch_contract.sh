@@ -119,6 +119,8 @@ assert_contains "bx_poly_record_import_trap" "$IMPORT_CALL_FUNC" \
   "unresolved descriptor imports must record an architectural import trap"
 assert_contains "deliver_poly_architectural_trap" "$IMPORT_CALL_FUNC" \
   "unresolved descriptor imports must exit through the architectural trap path"
+assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
+  "import descriptor/trap routing must not use CPU-side helper classification"
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \
   "$IMPORT_CALL_FUNC" \
   "import call gate must not encode libc/process/helper-specific argument policy"

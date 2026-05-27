@@ -740,13 +740,13 @@ libgcc 128-bit div/mod helpers `__udivti3`, `__umodti3`, `__divti3`, and
 `__floatditf`, `__floatsitf`, `__floatunsitf`, `__fixtfdi`, `__fixtfsi`,
 `__fixunstfsi`, `__eqtf2`, `__lttf2`, `__letf2`, `__gttf2`, `__getf2`,
 `__netf2`, `__unordtf2`, `__extendsftf2`, `__extenddftf2`,
-`__trunctfsf2`, and `__trunctfdf2`.  For `poly_import_add`/`poly_import_mul`,
-`poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory
-helpers, the OS-sensitive environment/allocation/teardown/process-query class,
-these TLS accessor helpers, these scalar libgcc helpers, these 16-byte
-libatomic helpers, and these quad-precision libgcc helpers, a
-software-supplied descriptor is now
-required; Bochs no longer synthesizes a fixed CPU fallback result.
+`__trunctfsf2`, and `__trunctfdf2`.  Every valid import-window slot is now
+descriptor-backed or trap-backed: if the runtime supplies a descriptor, Bochs
+performs the generic cross-frontend x86 call gate; otherwise Bochs records an
+architectural import trap with the fixed native ABI argument lanes.  Bochs no
+longer classifies individual libc, TLS, process-query, libatomic, or libgcc
+helper IDs to decide whether a software descriptor is required, and it does not
+synthesize fixed CPU fallback results.
 This makes those library, TLS, and process-query calls runtime policy rather than CPU semantics. The
 descriptor call gate maps the first six native foreign integer arguments to
 x86_64 SysV `RDI`, `RSI`, `RDX`, `RCX`, `R8`, and `R9`, places seventh and

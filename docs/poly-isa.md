@@ -897,13 +897,13 @@ helpers `__addtf3`, `__subtf3`, `__multf3`, `__divtf3`, `__floatunditf`,
 `__fixunstfdi`, `__floatditf`, `__floatsitf`, `__floatunsitf`, `__fixtfdi`,
 `__fixtfsi`, `__fixunstfsi`, `__eqtf2`, `__lttf2`, `__letf2`, `__gttf2`,
 `__getf2`, `__netf2`, `__unordtf2`, `__extendsftf2`, `__extenddftf2`,
-`__trunctfsf2`, and `__trunctfdf2`.  For
-`poly_import_add`/`poly_import_mul`,
-`poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory helpers, that
-OS-sensitive class, these TLS accessor helpers, these scalar libgcc helpers,
-these 16-byte libatomic helpers, common AArch64 outline atomic helper symbols,
-and these quad-precision libgcc helpers, a software descriptor is mandatory;
-the CPU does not synthesize fixed fallback results.
+`__trunctfsf2`, and `__trunctfdf2`. Every valid import-window slot is
+descriptor-backed or trap-backed: if the runtime supplies a descriptor, the CPU
+uses the generic cross-frontend x86 call gate; otherwise it records an
+architectural import trap with the fixed native ABI argument lanes. The CPU no
+longer classifies individual libc, TLS, process-query, libatomic, or libgcc
+helper IDs to decide whether a software descriptor is mandatory, and it does
+not synthesize fixed fallback results.
 The CPU contract is the descriptor call gate and ABI register mapping, not the
 semantics of those library functions.
 The same descriptor path currently provides prototype imports for common GCC
