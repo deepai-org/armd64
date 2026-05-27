@@ -124,6 +124,8 @@ assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU
 assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STACK_CHK|ERRNO|GET[A-Z]|MALLOC|CALLOC|REALLOC|FREE|ATEXIT|CXA|POSIX|ALIGNED)" \
   "$IMPORT_CALL_FUNC" \
   "import call gate must not encode libc/process/helper-specific argument policy"
+assert_not_contains "BX_POLY_IMPORT_FUNC_ATOMIC_STORE_16" "$IMPORT_CALL_FUNC" \
+  "AArch64 __int128 argument alignment must be handled by runtime descriptors, not CPU import mapping"
 
 assert_not_contains "poly_raw: import x86 call|BX_POLY_IMPORT_X86_ADD_HELPER_SIZE|BX_POLY_IMPORT_FUNC_X86_ADD" \
   "$BOCHS_CPU" \

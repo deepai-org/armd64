@@ -579,6 +579,9 @@ extern unsigned __int128 poly_host_x86_atomic_load_16(uint64_t *ptr,
     uint64_t order);
 extern uint64_t poly_host_x86_atomic_store_16(uint64_t *ptr,
     uint64_t value_lo, uint64_t value_hi, uint64_t order);
+extern uint64_t poly_host_x86_aarch64_atomic_store_16(uint64_t *ptr,
+    uint64_t unused_aapcs64_x1, uint64_t value_lo, uint64_t value_hi,
+    uint64_t order);
 extern uint64_t poly_host_x86_aarch64_ldadd1(uint64_t source, uint8_t *ptr);
 extern uint64_t poly_host_x86_aarch64_ldadd2(uint64_t source, uint16_t *ptr);
 extern uint64_t poly_host_x86_aarch64_ldadd4(uint64_t source, uint32_t *ptr);
@@ -680,7 +683,8 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
   return 0;
 }
 
-static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
+static uint64_t x86_descriptor_target_for_import_id(int arch,
+    uint64_t import_id) {
   switch (import_id) {
     case POLY_IMPORT_FUNC_ADD:
       return (uint64_t) (uintptr_t) poly_host_import_add;
@@ -851,6 +855,9 @@ static uint64_t x86_descriptor_target_for_import_id(uint64_t import_id) {
     case POLY_IMPORT_FUNC_ATOMIC_LOAD_16:
       return (uint64_t) (uintptr_t) poly_host_x86_atomic_load_16;
     case POLY_IMPORT_FUNC_ATOMIC_STORE_16:
+      if (arch == POLY_ARCH_AARCH64)
+        return (uint64_t) (uintptr_t)
+          poly_host_x86_aarch64_atomic_store_16;
       return (uint64_t) (uintptr_t) poly_host_x86_atomic_store_16;
     case POLY_IMPORT_FUNC_AARCH64_LDADD1_ACQ_REL:
       return (uint64_t) (uintptr_t) poly_host_x86_aarch64_ldadd1;
@@ -4052,7 +4059,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     for (uint64_t import_id = 0; import_id < import_contract.import_count;
          import_id++) {
       const uint64_t target =
-        x86_descriptor_target_for_import_id(import_id);
+        x86_descriptor_target_for_import_id(program->arch, import_id);
       if (target == 0)
         continue;
       const size_t descriptor_offset = import_x86_table_offset +

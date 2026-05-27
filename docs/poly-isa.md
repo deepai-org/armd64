@@ -905,7 +905,10 @@ longer classifies individual libc, TLS, process-query, libatomic, or libgcc
 helper IDs to decide whether a software descriptor is mandatory, and it does
 not synthesize fixed fallback results.
 The CPU contract is the descriptor call gate and ABI register mapping, not the
-semantics of those library functions.
+semantics of those library functions. Runtime descriptor targets are
+responsible for ABI-specific details such as AAPCS64 even-register alignment
+holes before 16-byte integer arguments; the CPU import gate always captures and
+maps the fixed native argument lanes.
 The same descriptor path currently provides prototype imports for common GCC
 dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and

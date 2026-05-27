@@ -218,6 +218,14 @@ uint64_t POLY_HOST_HELPER poly_host_x86_atomic_store_16(uint64_t *ptr,
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_atomic_store_16(
+    uint64_t *ptr, uint64_t unused_aapcs64_x1, uint64_t value_lo,
+    uint64_t value_hi, uint64_t order)
+{
+  (void) unused_aapcs64_x1;
+  return poly_host_x86_atomic_store_16(ptr, value_lo, value_hi, order);
+}
+
 #define DEFINE_AARCH64_ATOMIC_LOAD_OP(name, op) \
 uint64_t POLY_HOST_HELPER poly_host_x86_aarch64_##name##1( \
     uint64_t source, uint8_t *ptr) \

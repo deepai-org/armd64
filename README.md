@@ -757,7 +757,9 @@ returns, including an eight-double x86 SysV import that exercises every scalar
 FP argument register and a mixed integer/double import that exercises the
 independent SysV GPR and XMM argument counters, synthesize an x86 return address to the dedicated `0f 24` `PIRET`,
 accept each helper's ordinary `ret`, and map the x86 `RAX` result back to
-AArch64 `x0` or RISC-V `a0` for integer returns.  The current
+AArch64 `x0` or RISC-V `a0` for integer returns.  ABI-specific details such as
+the AAPCS64 even-register hole before a 16-byte integer argument are handled by
+the runtime descriptor target, not by CPU-side import-ID argument rewrites. The current
 `polycall` harness points these descriptors at `noinline` x86_64 C functions
 linked from `tools/polycall_x86_helpers.c`, so the path exercises a separately
 compiled x86 helper object with compiler-generated function bodies rather than
