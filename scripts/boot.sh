@@ -1612,8 +1612,8 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-tkill.elf" 0xd2800000 0xd2800001 0xd2801048 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-tgkill.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801068 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-sigaltstack.elf" 0xd2800000 0xd2801088 0xd4000001 0xb9400820
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigaction.elf" 0xd2800040 0xd2800001 0xd2800002 0xd2801003 0xd28010c8 0xd4000001
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigprocmask.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2801003 0xd28010e8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigaction.elf" 0xd2800040 0xd2800001 0xd2800002 0xd2800103 0xd28010c8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-rt-sigprocmask.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2800103 0xd28010e8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-futex.elf" 0xaa0103e0 0xd2800001 0xd2800002 0xd2800003 0xd2800c48 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-madvise.elf" 0xaa0103e0 0xd2820001 0xd2800002 0xd2801d28 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mremap.elf" 0xaa0103e9 0xaa0903e0 0xd2800801 0xd2801002 0xd2800003 0xd2800004 0xd2801b08 0xd4000001 0xcb090000
@@ -2617,12 +2617,24 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-getegid.elf=egid \
     /usr/lib/polyapps/aarch64-gettid.elf=tid \
     /usr/lib/polyapps/riscv-gettid.elf=tid \
+    /usr/lib/polyapps/aarch64-set-tid-address.elf=tid \
+    /usr/lib/polyapps/riscv-set-tid-address.elf=tid \
     /usr/lib/polyapps/aarch64-getcwd.elf=cwd \
     /usr/lib/polyapps/riscv-getcwd.elf=cwd \
     /usr/lib/polyapps/aarch64-uname.elf=0 \
     /usr/lib/polyapps/riscv-uname.elf=0 \
     /usr/lib/polyapps/aarch64-clock-gettime.elf=0 \
     /usr/lib/polyapps/riscv-clock-gettime.elf=0 \
+    /usr/lib/polyapps/aarch64-rt-sigprocmask.elf=0 \
+    /usr/lib/polyapps/riscv-rt-sigprocmask.elf=0 \
+    /usr/lib/polyapps/aarch64-set-robust-list.elf=0 \
+    /usr/lib/polyapps/riscv-set-robust-list.elf=0 \
+    /usr/lib/polyapps/aarch64-get-robust-list.elf=24 \
+    /usr/lib/polyapps/riscv-get-robust-list.elf=24 \
+    /usr/lib/polyapps/aarch64-prlimit64.elf=8388608 \
+    /usr/lib/polyapps/riscv-prlimit64.elf=8388608 \
+    /usr/lib/polyapps/aarch64-getrandom.elf=4 \
+    /usr/lib/polyapps/riscv-getrandom.elf=4 \
     /usr/lib/polyapps/aarch64-mmap-real-store.elf=77 \
     /usr/lib/polyapps/riscv-mmap-real-store.elf=77 \
     /usr/lib/polyapps/aarch64-real-mprotect.elf=0 \
