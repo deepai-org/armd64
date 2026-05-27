@@ -2358,11 +2358,11 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memfill.elf" 0xd2800821 0xd2800082 0xd4200040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcmp.elf" 0x91000401 0xd2800082 0xd4200060
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcpy.elf" 0x91000401 0xd2800082 0xd4200080
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-eventfd2.elf" 0xd2800060 0xd2800001 0xd2800268 0xd4000001
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-init1.elf" 0xd2800000 0xd2800348 0xd4000001
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-add-watch.elf" 0xd28001c0 0xd2802002 0xd2800368 0xd4000001
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-rm-watch.elf" 0xd28001c0 0xd28003e1 0xd2800388 0xd4000001
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dup3.elf" 0xd28000a0 0xd2800101 0xd2800002 0xd2800308 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-eventfd2.elf" 0xd2800060 0xd2800001 0xd2800268 0xd4000001 0xd2800728 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-init1.elf" 0xd2800000 0xd2800348 0xd4000001 0xd2800728 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-add-watch.elf" 0xd2800000 0xd2800348 0xd4000001 0xaa0003e3 0x91001821 0xd2802002 0xd2800368 0xd4000001 0xaa0003e4 0xaa0303e0 0xd2800728 0xd4000001 0xaa0403e0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-inotify-rm-watch.elf" 0xd2800000 0xd2800348 0xd4000001 0xaa0003e3 0x91001821 0xd2802002 0xd2800368 0xd4000001 0xaa0003e1 0xaa0303e0 0xd2800388 0xd4000001 0xaa0003e4 0xaa0303e0 0xd2800728 0xd4000001 0xaa0403e0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dup3.elf" 0xd2800060 0xd2800001 0xd2800268 0xd4000001 0xaa0003e3 0xd2800101 0xd2800002 0xd2800308 0xd4000001 0xaa0003e4 0xaa0403e0 0xd2800728 0xd4000001 0xaa0303e0 0xd2800728 0xd4000001 0xaa0403e0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-setxattr.elf" 0xaa0103e0 0xaa0103e1 0xaa0103e2 0xd2800083 0xd2800004 0xd28000a8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-lsetxattr.elf" 0xaa0103e0 0xaa0103e1 0xaa0103e2 0xd2800083 0xd2800004 0xd28000c8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fsetxattr.elf" 0xd2800060 0xaa0103e1 0xaa0103e2 0xd2800083 0xd2800004 0xd28000e8 0xd4000001
@@ -2651,11 +2651,11 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memfill.elf" 0x05200593 0x00400613 0x00200893 0x00100073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memcmp.elf" 0x00150593 0x00400613 0x00300893 0x00100073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-memcpy.elf" 0x00150593 0x00400613 0x00400893 0x00100073
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-eventfd2.elf" 0x00300513 0x00000593 0x01300893 0x00000073
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-init1.elf" 0x00000513 0x01a00893 0x00000073
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-add-watch.elf" 0x00e00513 0x10000613 0x01b00893 0x00000073
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-rm-watch.elf" 0x00e00513 0x01f00593 0x01c00893 0x00000073
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-dup3.elf" 0x00500513 0x00800593 0x00000613 0x01800893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-eventfd2.elf" 0x00300513 0x00000593 0x01300893 0x00000073 0x03900893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-init1.elf" 0x00000513 0x01a00893 0x00000073 0x03900893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-add-watch.elf" 0x00000513 0x01a00893 0x00000073 0x00050293 0x00658593 0x10000613 0x01b00893 0x00000073 0x00050313 0x00028513 0x03900893 0x00000073 0x00030513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-inotify-rm-watch.elf" 0x00000513 0x01a00893 0x00000073 0x00050293 0x00658593 0x10000613 0x01b00893 0x00000073 0x00050593 0x00028513 0x01c00893 0x00000073 0x00050313 0x00028513 0x03900893 0x00000073 0x00030513
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-dup3.elf" 0x00300513 0x00000593 0x01300893 0x00000073 0x00050293 0x00800593 0x00000613 0x01800893 0x00000073 0x00050313 0x00030513 0x03900893 0x00000073 0x00028513 0x03900893 0x00000073 0x00030513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-setxattr.elf" 0x00058513 0x00058613 0x00400693 0x00000713 0x00500893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-lsetxattr.elf" 0x00058513 0x00058613 0x00400693 0x00000713 0x00600893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fsetxattr.elf" 0x00300513 0x00058613 0x00400693 0x00000713 0x00700893 0x00000073
@@ -3043,9 +3043,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-memfill.elf=4 \
     /usr/lib/polyapps/aarch64-memcmp.elf=1 \
     /usr/lib/polyapps/aarch64-memcpy.elf=4 \
-    /usr/lib/polyapps/aarch64-eventfd2.elf=7 \
-    /usr/lib/polyapps/aarch64-inotify-init1.elf=14 \
-    /usr/lib/polyapps/aarch64-inotify-add-watch.elf=31 \
+    /usr/lib/polyapps/aarch64-eventfd2.elf=0 \
+    /usr/lib/polyapps/aarch64-inotify-init1.elf=0 \
+    /usr/lib/polyapps/aarch64-inotify-add-watch.elf=1 \
     /usr/lib/polyapps/aarch64-inotify-rm-watch.elf=0 \
     /usr/lib/polyapps/aarch64-dup3.elf=8 \
     /usr/lib/polyapps/aarch64-setxattr.elf=0 \
@@ -3304,9 +3304,9 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-memfill.elf=4 \
     /usr/lib/polyapps/riscv-memcmp.elf=1 \
     /usr/lib/polyapps/riscv-memcpy.elf=4 \
-    /usr/lib/polyapps/riscv-eventfd2.elf=7 \
-    /usr/lib/polyapps/riscv-inotify-init1.elf=14 \
-    /usr/lib/polyapps/riscv-inotify-add-watch.elf=31 \
+    /usr/lib/polyapps/riscv-eventfd2.elf=0 \
+    /usr/lib/polyapps/riscv-inotify-init1.elf=0 \
+    /usr/lib/polyapps/riscv-inotify-add-watch.elf=1 \
     /usr/lib/polyapps/riscv-inotify-rm-watch.elf=0 \
     /usr/lib/polyapps/riscv-dup3.elf=8 \
     /usr/lib/polyapps/riscv-setxattr.elf=0 \
@@ -3587,6 +3587,16 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-real-clock-getres.elf=0 \
     /usr/lib/polyapps/aarch64-real-gettimeofday.elf=0 \
     /usr/lib/polyapps/riscv-real-gettimeofday.elf=0 \
+    /usr/lib/polyapps/aarch64-eventfd2.elf=0 \
+    /usr/lib/polyapps/riscv-eventfd2.elf=0 \
+    /usr/lib/polyapps/aarch64-inotify-init1.elf=0 \
+    /usr/lib/polyapps/riscv-inotify-init1.elf=0 \
+    /usr/lib/polyapps/aarch64-inotify-add-watch.elf=1 \
+    /usr/lib/polyapps/riscv-inotify-add-watch.elf=1 \
+    /usr/lib/polyapps/aarch64-inotify-rm-watch.elf=0 \
+    /usr/lib/polyapps/riscv-inotify-rm-watch.elf=0 \
+    /usr/lib/polyapps/aarch64-dup3.elf=8 \
+    /usr/lib/polyapps/riscv-dup3.elf=8 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
     /usr/lib/polyapps/aarch64-memfill.elf=4 \
