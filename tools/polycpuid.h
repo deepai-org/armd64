@@ -37,6 +37,7 @@ enum {
   POLY_IMPORT_FUNC_X86_SLOT5 = 111,
   POLY_IMPORT_FUNC_X86_SLOT6 = 112,
   POLY_IMPORT_FUNC_X86_SLOT7 = 113,
+  POLY_IMPORT_FUNC_COUNT = 140,
   POLY_IMPORT_X86_DESCRIPTOR_SIZE = 16,
   POLY_IMPORT_CALL_STRIDE = 16,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
@@ -121,6 +122,8 @@ enum {
   POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS = (1U << 3),
   POLY_TRAP_PACKET_FLAG_STATUS_OPS = (1U << 4)
 };
+
+static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 
 struct poly_cpuid_regs {
   uint32_t eax;
@@ -358,6 +361,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf4(void) {
   regs.ebx = POLY_RISCV_TRAP_RETURN;
   regs.ecx = 0x63;
   regs.edx = 0x64;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf5(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_IMPORT_FUNC_COUNT;
+  regs.ebx = (uint32_t) POLY_IMPORT_CALL_BASE;
+  regs.ecx = (uint32_t) (POLY_IMPORT_CALL_BASE >> 32);
+  regs.edx = POLY_IMPORT_CALL_STRIDE;
   return regs;
 }
 

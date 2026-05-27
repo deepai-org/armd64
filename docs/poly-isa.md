@@ -206,6 +206,13 @@ discover the experimental hardware contract before emitting poly operations:
   FP64 overflow stack-argument RISC-V cross-call encoding, and `EBX=0x0000307b`
   reports the matching RISC-V AArch64 cross-call encoding.  Other registers
   are reserved zero.
+- `CPUID.EAX=0x40000002, ECX=4`: `EAX=0x7ff9` reports the AArch64
+  trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
+  instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
+  set/get opcode selectors.
+- `CPUID.EAX=0x40000002, ECX=5`: `EAX=140` reports the foreign import ID
+  count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
+  base, and `EDX=16` reports the import-call stride.
 - `CPUID.EAX=0x40000003`: prototype foreign-state contract discovery.
   `EAX` reports state flags.  Bits `0`-`6` mean overlapping x86-visible
   GPR/FP state, prototype synthetic banks, `CR3` keying, `FSBASE` keying,

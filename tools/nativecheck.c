@@ -919,6 +919,19 @@ int main(void) {
         expected_features);
       return 1;
     }
+    struct poly_cpuid_regs expected_import_manifest =
+      poly_cpuid_expected_escape_leaf5();
+    struct poly_cpuid_regs import_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
+    if (import_manifest.eax != expected_import_manifest.eax ||
+        import_manifest.ebx != expected_import_manifest.ebx ||
+        import_manifest.ecx != expected_import_manifest.ecx ||
+        import_manifest.edx != expected_import_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID import manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        import_manifest.eax, import_manifest.ebx, import_manifest.ecx,
+        import_manifest.edx);
+      return 1;
+    }
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
     if (state.eax != expected_state.eax ||
