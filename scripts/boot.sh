@@ -169,7 +169,6 @@ POLY_APP_PAYLOAD_DIR="$ROOT_DIR/tools/polyapps"
 POLY_ELF_GEN_SRC="$ROOT_DIR/tools/mkpolyelf.c"
 POLY_ELF_GEN_BIN="$OUT_DIR/mkpolyelf"
 POLY_ENABLED="${POLY_ENABLED:-0}"
-POLY_COMPAT_TRAPS="${POLY_COMPAT_TRAPS:-0}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
@@ -3809,7 +3808,7 @@ vgaromimage: file=$vga_romimage
 boot: cdrom
 ata0-master: type=cdrom, path="$ISO_IMAGE", status=inserted
 com1: enabled=1, mode=file, dev="$SERIAL_LOG"
-cpu: poly_enabled=$POLY_ENABLED, poly_compat_traps=$POLY_COMPAT_TRAPS
+cpu: poly_enabled=$POLY_ENABLED
 log: "$BOCHS_LOG"
 panic: action=report
 error: action=report

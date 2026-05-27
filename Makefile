@@ -1,6 +1,6 @@
 IMAGE ?= armd64-bochs
 
-.PHONY: image check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract boot boot-poly boot-poly-compat boot-poly-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-call-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full boot-poly-full-compat clean
+.PHONY: image check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract boot boot-poly boot-poly-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-call-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -28,7 +28,6 @@ boot-poly:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
@@ -38,26 +37,11 @@ boot-poly:
 		$(IMAGE) \
 		./scripts/boot.sh
 
-boot-poly-compat:
-	docker run --rm \
-		--platform=linux/arm64 \
-		-v "$(CURDIR)":/work \
-		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=1 \
-		-e RUN_NATIVE_CHECK=1 \
-		-e EXPECT_POLY_CPUID=1 \
-		-e RUN_POLY_PROBE=1 \
-		-e RUN_POLY_APPS=1 \
-		-e RUN_POLY_EXEC=0 \
-		$(IMAGE) \
-		./scripts/boot.sh
-
 boot-poly-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e EXPECT_POLY_CPUID=1 \
@@ -69,7 +53,6 @@ boot-poly-probe-arch-traps:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_POLY_PROBE=1 \
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
@@ -80,7 +63,6 @@ boot-poly-apps-arch-traps:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_EXEC=0 \
 		-e RUN_POLY_CALL=0 \
@@ -95,7 +77,6 @@ boot-poly-call-arch-traps:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_POLY_CALL=1 \
 		-e RUN_POLY_THREAD=1 \
 		-e RUN_POLY_SIGNAL=1 \
@@ -108,7 +89,6 @@ boot-poly-bench-arch-traps:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_POLY_BENCH=1 \
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
@@ -119,7 +99,6 @@ boot-poly-binfmt-arch-traps:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_BINFMT=1 \
 		-e RUN_POLY_BINFMT_ARCH_TRAPS=1 \
@@ -132,7 +111,6 @@ boot-poly-full-arch-traps:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
@@ -150,7 +128,6 @@ boot-poly-full:
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=0 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
@@ -160,24 +137,6 @@ boot-poly-full:
 		-e RUN_POLY_BINFMT=1 \
 		-e RUN_POLY_BINFMT_ARCH_TRAPS=1 \
 		-e EXPECT_POLY_CPUID=1 \
-		$(IMAGE) \
-		./scripts/boot.sh
-
-boot-poly-full-compat:
-	docker run --rm \
-		--platform=linux/arm64 \
-		-v "$(CURDIR)":/work \
-		-e POLY_ENABLED=1 \
-		-e POLY_COMPAT_TRAPS=1 \
-		-e RUN_NATIVE_CHECK=1 \
-		-e EXPECT_POLY_CPUID=1 \
-		-e RUN_POLY_PROBE=1 \
-		-e RUN_POLY_APPS=1 \
-		-e RUN_POLY_EXEC=0 \
-		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
-		-e RUN_POLY_BENCH=1 \
-		-e RUN_POLY_BINFMT=1 \
-		-e RUN_POLY_BINFMT_ARCH_TRAPS=1 \
 		$(IMAGE) \
 		./scripts/boot.sh
 

@@ -125,8 +125,7 @@ path for this family:
   current mode, `id=1` returns the last foreign syscall number, and `id=2`
   returns the last foreign syscall mode.
 - `0f 24 38+id 50 4f 4c 59 21`: break-trap status read.  `id=1` returns the
-  last break number and `id=2` returns the last break source mode.  Legacy
-  tools may still call this libcall status.
+  last break number and `id=2` returns the last break source mode.
 - `0f 24 40+id 50 4f 4c 59 21`: mode/counter status read.  `id=0` returns
   frontend switches, `id=1` returns the current mode, `id=2` returns raw foreign
   instructions, `id=3` returns foreign syscalls, and `id=4` returns foreign
@@ -903,10 +902,9 @@ The prototype records a unified `POLYTRAP` state before leaving raw execution:
   import traps, it records the native link-register return address.
 
 Bochs no longer treats Linux syscalls or libc helpers as architectural CPU
-behavior.  The deprecated `cpu.poly_compat_traps` option is retained as a
-configuration no-op for old command lines, but foreign traps always use the
-OS-neutral architectural path.  The contract is the precise trap exit plus
-explicit state that software can save, restore, inspect, and route.
+behavior.  Foreign traps always use the OS-neutral architectural path.  The
+contract is the precise trap exit plus explicit state that software can save,
+restore, inspect, and route.
 
 If an architectural trap vector was installed with `0f 24 60 ... POLY!`
 (`RAX=handler_pc`), control transfers to that handler.  `0f 24 63 ... POLY!`

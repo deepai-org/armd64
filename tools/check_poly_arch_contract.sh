@@ -256,11 +256,18 @@ assert_contains "riscv-to-aarch64" "$POLYBENCH" \
 assert_contains "POLYBENCH_CROSS_CALL_RESULT" "$POLYBENCH" \
   "polybench must cover native cross-frontend call/return"
 
-if grep -R -I -n -E "BXPN_POLY_COMPAT_TRAPS|poly_compat_traps|compat_traps" \
-    --exclude=config.cc --exclude=param_names.h "$BOCHS_DIR" \
+if grep -R -I -n -E "BXPN_POLY_COMPAT_TRAPS|poly_compat_traps|compat_traps" "$BOCHS_DIR" \
     > "$TMP_DIR/compat-uses"; then
   cat "$TMP_DIR/compat-uses" >&2
-  fail "deprecated compat trap knob must not be used by CPU execution code"
+  fail "deprecated compat trap knob must not exist in the Bochs prototype"
 fi
+assert_not_contains "POLY_COMPAT_TRAPS|boot-poly-compat|boot-poly-full-compat" "$ROOT_DIR/Makefile" \
+  "root make targets must not expose the removed compat trap knob"
+assert_not_contains "POLY_COMPAT_TRAPS|poly_compat_traps" "$ROOT_DIR/scripts/boot.sh" \
+  "boot configuration must not emit the removed compat trap knob"
+assert_not_contains "poly_cpuid_expected_feature_mask_for_compat" "$ROOT_DIR/tools/polycpuid.h" \
+  "CPUID checks must not carry compat-trap feature variants"
+assert_not_contains "libcall_(expected|number_expected|id)" "$ROOT_DIR/tools/polyapp.c" \
+  "polyapp manifests must use neutral break-trap keys, not legacy libcall aliases"
 
 echo "poly architecture contract OK"

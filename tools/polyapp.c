@@ -754,19 +754,15 @@ static int load_payload(const char *path, struct payload *payload) {
         return -1;
       }
       payload->check_syscall_selector = 1;
-    } else if (strncmp(line, "break_expected=", 15) == 0 ||
-               strncmp(line, "libcall_expected=", 17) == 0) {
-      const char *value = line[0] == 'b' ? line + 15 : line + 17;
-      if (parse_u64(value, &payload->break_expected) < 0) {
+    } else if (strncmp(line, "break_expected=", 15) == 0) {
+      if (parse_u64(line + 15, &payload->break_expected) < 0) {
         fprintf(stderr, "POLYAPP_FAIL: bad break expected value in %s\n", path);
         fclose(file);
         return -1;
       }
       payload->check_break = 1;
-    } else if (strncmp(line, "break_number_expected=", 22) == 0 ||
-               strncmp(line, "libcall_number_expected=", 24) == 0) {
-      const char *value = line[0] == 'b' ? line + 22 : line + 24;
-      if (parse_u64(value, &payload->break_number_expected) < 0) {
+    } else if (strncmp(line, "break_number_expected=", 22) == 0) {
+      if (parse_u64(line + 22, &payload->break_number_expected) < 0) {
         fprintf(stderr, "POLYAPP_FAIL: bad break number expected value in %s\n", path);
         fclose(file);
         return -1;
@@ -789,11 +785,9 @@ static int load_payload(const char *path, struct payload *payload) {
       }
       strcpy(payload->scratch_hex_expected, line + 21);
       payload->check_scratch_hex = 1;
-    } else if (strncmp(line, "break_id=", 9) == 0 ||
-               strncmp(line, "libcall_id=", 11) == 0) {
-      const char *value = line[0] == 'b' ? line + 9 : line + 11;
+    } else if (strncmp(line, "break_id=", 9) == 0) {
       uint64_t break_id = 0;
-      if (parse_u64(value, &break_id) < 0 || break_id != POLY_BREAK_STATUS) {
+      if (parse_u64(line + 9, &break_id) < 0 || break_id != POLY_BREAK_STATUS) {
         fprintf(stderr, "POLYAPP_FAIL: unsupported break id in %s\n", path);
         fclose(file);
         return -1;

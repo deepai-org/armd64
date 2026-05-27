@@ -284,8 +284,7 @@ static inline uint32_t poly_cpuid_expected_mode_mask(void) {
     (1U << POLY_MODE_RAW_RISCV);
 }
 
-static inline uint32_t poly_cpuid_expected_feature_mask_for_compat(int compat_traps) {
-  (void) compat_traps;
+static inline uint32_t poly_cpuid_expected_feature_mask(void) {
   uint32_t mask = POLY_CPUID_FEATURE_RAW_AARCH64 |
     POLY_CPUID_FEATURE_RAW_RISCV |
     POLY_CPUID_FEATURE_NEUTRAL_SWITCH |
@@ -313,10 +312,6 @@ static inline uint32_t poly_cpuid_expected_feature_mask_for_compat(int compat_tr
     POLY_CPUID_FEATURE_TRAP_VECTOR |
     POLY_CPUID_FEATURE_STATE_KEY;
   return mask;
-}
-
-static inline uint32_t poly_cpuid_expected_feature_mask(void) {
-  return poly_cpuid_expected_feature_mask_for_compat(1);
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {

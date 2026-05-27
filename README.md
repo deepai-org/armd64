@@ -90,8 +90,7 @@ Linux ABI passthrough, or equal-speed execution.
   accepts variable-size executable segments up to 1 MiB.  It installs an x86
   architectural trap-vector handler for deterministic test syscalls/breaks,
   so no Bochs CPU syscall/string helper policy is required.  Breakpoint
-  trap manifests accept neutral `break_*` keys; old `libcall_*` keys are still
-  accepted for existing generated payloads.
+  trap manifests use neutral `break_*` keys.
 - `tools/polyexec.c` runs generated foreign ELF64 payloads directly by path
   using the same raw-mode execution path, preserving executable bytes exactly
   so RISC-V compressed 16-bit code does not have to be repacked as 32-bit
@@ -167,7 +166,7 @@ Preferred 8-byte x86 poly opcode-family operations:
 | x86 SysV FP-overflow call to RISC-V | `0f 24 1f 50 4f 4c 59 21` | Prototype `PCALL.RV64.SYSV.FP64STACK`: same scalar FP register aliases as `PCALL.RV64.SYSV`, but maps up to eight x86_64 SysV FP overflow stack arguments from `[RSP+8]` onward into RISC-V `a0`-`a7` as required by psABI once `fa0`-`fa7` are consumed. |
 | x86 import return | `0f 24 20 50 4f 4c 59 21` | Prototype `PIRET`: resumes the saved foreign return PC after an x86 helper returns normally from a descriptor-driven import call. |
 | Syscall status | `0f 24 30+id 50 4f 4c 59 21` | Returns syscall state in `RAX`: `id=0` current mode, `id=1` last foreign syscall number, `id=2` last foreign syscall mode. |
-| Break status | `0f 24 38+id 50 4f 4c 59 21` | Returns breakpoint-trap state in `RAX`: `id=1` last break number, `id=2` last break source mode. Legacy tools may still call this libcall status. |
+| Break status | `0f 24 38+id 50 4f 4c 59 21` | Returns breakpoint-trap state in `RAX`: `id=1` last break number, `id=2` last break source mode. |
 | Switch/status counters | `0f 24 40+id 50 4f 4c 59 21` | Returns mode/counter state in `RAX`: `id=0` switches, `id=1` current mode, `id=2` foreign raw instructions, `id=3` foreign syscalls, `id=4` foreign breakpoint traps. |
 | Trap status | `0f 24 50+id 50 4f 4c 59 21` | Returns last foreign trap state in `RAX`: `id=0` reason, `id=1` source mode, `id=2` number, `id=3`-`8` args, `id=9` trap PC, `id=10` trap selector/immediate, `id=11` resume PC. |
 | Trap vector | `0f 24 60-64 50 4f 4c 59 21` | `0x60` sets the architectural trap vector PC from `RAX`, `0x61` reads it into `RAX`, `0x62` resumes the recorded source frontend at the trap resume PC, `0x63` sets the trap-handler frontend mode from `RAX`, and `0x64` reads the handler mode into `RAX`. |
@@ -917,9 +916,8 @@ After the OS-neutral trap packet is recorded, Bochs now always uses the same
 architectural trap path that silicon or FPGA logic would expose.  It either
 enters the configured architectural trap vector or raises an x86 `#UD` for
 foreign syscall/import traps / `#BP` for foreign breakpoint traps if no vector
-is installed.  The deprecated `cpu.poly_compat_traps`/`POLY_COMPAT_TRAPS`
-switch is retained only so old configs still parse; it no longer enables Linux
-syscall emulation or string-helper libcalls inside the CPU model.
+is installed.  There is no compatibility switch that re-enables Linux syscall
+emulation or string-helper libcalls inside the CPU model.
 `nativecheck.elf` verifies the no-vector signal behavior with `SIGILL` for
 foreign syscall/import traps and `SIGTRAP` for foreign breakpoint traps.
 Syscall translation, breakpoint handling, dynamic-linker binding, and libc
@@ -954,16 +952,6 @@ handling:
 
 ```bash
 make boot-poly
-```
-
-Run the deprecated-knob regression.  This deliberately sets
-`POLY_COMPAT_TRAPS=1`, then verifies native no-vector signals plus the
-trap-vector probe and manifest-backed generated foreign payloads.  The knob is
-accepted for old configs but must not re-enable Bochs CPU syscall/libcall
-policy:
-
-```bash
-make boot-poly-compat
 ```
 
 Run the OS-neutral architectural trap-vector gate:
@@ -1013,14 +1001,6 @@ make boot-poly-full-arch-traps
 ```
 
 `make boot-poly-full` is the unsuffixed alias for the same full gate.
-
-Run the full legacy-named deprecated-knob gate, including direct foreign ELF
-execution and guest `binfmt_misc` registration.  The target name is retained for
-old scripts; the Bochs compatibility dispatcher is no longer used:
-
-```bash
-make boot-poly-full-compat
-```
 
 Expected success markers include:
 
