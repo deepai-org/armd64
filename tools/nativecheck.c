@@ -66,6 +66,16 @@ static inline void poly_trap_vector_mode_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "memory");
 }
 
+static inline void poly_trap_vector_clear(void) {
+  asm volatile(
+    "xor %%eax,%%eax\n"
+    POLY_OP_TRAP_VECTOR_SET
+    "xor %%eax,%%eax\n"
+    POLY_OP_TRAP_VECTOR_MODE_SET
+    :::
+    "rax", "memory");
+}
+
 static inline void poly_state_key_set_value(uint64_t value) {
   asm volatile(POLY_OP_STATE_KEY_SET :: "a"(value) : "memory");
 }
@@ -1441,6 +1451,7 @@ static int run_poly_state_key_probe(void) {
 
 static int run_poly_state_save_restore_probe(void) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
+  struct poly_xsave_state trap_snapshot __attribute__((aligned(64)));
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
 
   memset(&snapshot, 0, sizeof(snapshot));
@@ -1465,8 +1476,64 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   }
 
-  poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(trap_vector);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800366\n" // movz x6,#27
+    ".long 0xd28000a7\n" // movz x7,#5
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  memset(&trap_snapshot, 0, sizeof(trap_snapshot));
+  poly_state_export(&trap_snapshot);
+  if (trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
+      trap_snapshot.trap.source_mode != POLY_MODE_RAW_AARCH64 ||
+      trap_snapshot.trap.number != 172 ||
+      trap_snapshot.trap.selector != 7 ||
+      trap_snapshot.trap_args[6] != 27 ||
+      trap_snapshot.trap_args[7] != 5) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state export aarch64 syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu\n",
+      trap_snapshot.trap.reason,
+      trap_snapshot.trap.source_mode,
+      (unsigned long long) trap_snapshot.trap.number,
+      (unsigned long long) trap_snapshot.trap.selector,
+      (unsigned long long) trap_snapshot.trap_args[6],
+      (unsigned long long) trap_snapshot.trap_args[7]);
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x01b00813\n" // addi a6,zero,27
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  memset(&trap_snapshot, 0, sizeof(trap_snapshot));
+  poly_state_export(&trap_snapshot);
+  if (trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
+      trap_snapshot.trap.source_mode != POLY_MODE_RAW_RISCV ||
+      trap_snapshot.trap.number != 172 ||
+      trap_snapshot.trap.selector != 0 ||
+      trap_snapshot.trap_args[6] != 27 ||
+      trap_snapshot.trap_args[7] != 172) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state export riscv syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu\n",
+      trap_snapshot.trap.reason,
+      trap_snapshot.trap.source_mode,
+      (unsigned long long) trap_snapshot.trap.number,
+      (unsigned long long) trap_snapshot.trap.selector,
+      (unsigned long long) trap_snapshot.trap_args[6],
+      (unsigned long long) trap_snapshot.trap_args[7]);
+    return 1;
+  }
+
+  poly_trap_vector_clear();
   poly_state_import(&snapshot);
 
   poly_trap_vector_get();
@@ -1482,8 +1549,7 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   }
 
-  poly_trap_vector_set_value(0);
-  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_clear();
   puts("NATIVE_POLY_STATE_SAVE_RESTORE_OK");
   return 0;
 }
