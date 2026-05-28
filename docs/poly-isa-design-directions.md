@@ -201,6 +201,11 @@ Foreign generic `PCALL` adds one scratch continuation register: AArch64
 `x18=return PC`; RISC-V `x7=return PC`. The callee still returns with its
 ordinary native return instruction through the hardware return cookie.
 
+The frontend ID space includes x86_64 as frontend `0`; it should not be a
+privileged special case. In the prototype, foreign `PCALL frontend=0` is
+accepted for descriptor-backed x86 import targets, so software thunks still own
+ABI and loader policy while the CPU control path stays frontend-neutral.
+
 ## Register Exchange Window
 
 Fully separate register files are clean but force every cross-ISA call to spill

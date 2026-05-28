@@ -110,6 +110,12 @@ simple hardware decode without consuming multiple custom opcode pages.
 Native return instructions may cross frontends when the link register or stack
 return slot contains a hardware return cookie installed by `PCALL`.
 
+Foreign generic `PCALL` can name x86_64 as frontend `0`. In the Bochs
+prototype this is currently restricted to descriptor-backed x86 import targets
+in the reserved import-call range. That keeps arbitrary x86 ABI policy in
+loader/runtime thunks while making the control transfer itself use the same
+frontend-neutral `PCALL` path as AArch64-to-RISC-V and RISC-V-to-AArch64.
+
 ## ABI Bridge
 
 The hardware provides a baseline integer exchange window for fast
