@@ -107,6 +107,17 @@ __asm__(".symver poly_process_versioned_add_v1, "
 __asm__(".symver poly_process_versioned_add_v2, "
         "poly_process_versioned_add@@POLYPROC_2.0");
 
+#elif defined(POLY_PROCESS_TLS_DEP)
+
+__thread uint64_t poly_process_tls_dep_counter
+    __attribute__((tls_model("initial-exec"), visibility("default"))) = 0x70;
+
+__attribute__((visibility("default")))
+uint64_t poly_process_tls_dep_add(uint64_t left, uint64_t right) {
+  poly_process_tls_dep_counter += left + right;
+  return poly_process_tls_dep_counter;
+}
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
@@ -128,6 +139,10 @@ extern uint64_t poly_process_dt_init_dep(void);
 extern uint64_t poly_process_versioned_add_v1(uint64_t, uint64_t);
 __asm__(".symver poly_process_versioned_add_v1, "
         "poly_process_versioned_add@POLYPROC_1.0");
+#elif defined(POLY_PROCESS_TLS_DEP_MAIN)
+extern __thread uint64_t poly_process_tls_dep_counter
+    __attribute__((tls_model("initial-exec")));
+extern uint64_t poly_process_tls_dep_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #else
@@ -249,6 +264,13 @@ uint64_t poly_process_main(void) {
   if (poly_process_tls_counter != 0x42)
     return 34;
   static const char marker[] = "POLY_PROCESS_TLS_OK\n";
+#elif defined(POLY_PROCESS_TLS_DEP_MAIN)
+  const uint64_t before = poly_process_tls_dep_counter;
+  const uint64_t after = poly_process_tls_dep_add(0x12, 0x13);
+  if (before != 0x70 || after != 0x95 ||
+      poly_process_tls_dep_counter != 0x95)
+    return 35;
+  static const char marker[] = "POLY_PROCESS_DEP_TLS_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;
