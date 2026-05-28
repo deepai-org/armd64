@@ -79,6 +79,19 @@ uint64_t poly_process_init_dep(void) {
   return poly_process_init_dep_value;
 }
 
+#elif defined(POLY_PROCESS_DT_INIT_DEP)
+
+uint64_t poly_process_dt_init_dep_value;
+
+void poly_process_dt_init_dep_ctor(void) {
+  poly_process_dt_init_dep_value = 0x6c;
+}
+
+__attribute__((visibility("default")))
+uint64_t poly_process_dt_init_dep(void) {
+  return poly_process_dt_init_dep_value;
+}
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
@@ -94,6 +107,8 @@ extern uint64_t poly_process_missing_weak_add(uint64_t) __attribute__((weak));
 extern uint64_t poly_process_weak_dep(void);
 #elif defined(POLY_PROCESS_INIT_DEP_MAIN)
 extern uint64_t poly_process_init_dep(void);
+#elif defined(POLY_PROCESS_DT_INIT_DEP_MAIN)
+extern uint64_t poly_process_dt_init_dep(void);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #else
@@ -156,6 +171,14 @@ static void poly_process_init_ctor(void) {
 }
 #endif
 
+#if defined(POLY_PROCESS_DT_INIT_MAIN)
+static uint64_t poly_process_dt_init_value;
+
+void poly_process_dt_init_root(void) {
+  poly_process_dt_init_value = 0x8d;
+}
+#endif
+
 uint64_t poly_process_main(void) {
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
   if (poly_process_needed_leaf(0x12, 0x23) != 0x46)
@@ -185,6 +208,14 @@ uint64_t poly_process_main(void) {
   if (poly_process_init_dep() != 0x5a)
     return 30;
   static const char marker[] = "POLY_PROCESS_DEP_INIT_ARRAY_OK\n";
+#elif defined(POLY_PROCESS_DT_INIT_MAIN)
+  if (poly_process_dt_init_value != 0x8d)
+    return 31;
+  static const char marker[] = "POLY_PROCESS_DT_INIT_OK\n";
+#elif defined(POLY_PROCESS_DT_INIT_DEP_MAIN)
+  if (poly_process_dt_init_dep() != 0x6c)
+    return 32;
+  static const char marker[] = "POLY_PROCESS_DEP_DT_INIT_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;
