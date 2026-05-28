@@ -6,13 +6,13 @@ image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
 
 check-poly-import-ids:
-	./tools/contracts/check_poly_import_ids.sh
+	./scripts/checks/check_poly_import_ids.sh
 
 check-poly-arch-contract:
-	./tools/contracts/check_poly_arch_contract.sh
+	./scripts/checks/check_poly_arch_contract.sh
 
 check-poly-cpuid-contract:
-	./tools/contracts/check_poly_cpuid_contract.sh
+	./scripts/checks/check_poly_cpuid_contract.sh
 
 boot:
 	docker run --rm \

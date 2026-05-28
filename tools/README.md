@@ -14,7 +14,6 @@ and temporary build products belong under `out/`.
 | `fixtures/polycall/` | Native-ABI shared-object fixtures for `polycall` compatibility tests. |
 | `fixtures/polyexec/` | Process-mode foreign ELF fixtures for `polyexec` tests. |
 | `build/` | Host-side source for build helpers. |
-| `contracts/` | Coarse consistency checks. Keep runnable, but do not treat as primary validation. |
 
 ## Primary Runtime Pieces
 
@@ -34,4 +33,5 @@ Prefer real boot tests over contract-script expansion:
 - `make boot-poly-full-arch-traps`
 
 Use `make check-poly-import-ids` and related contract checks only as quick
-consistency smoke tests.
+consistency smoke tests. Those scripts live under `scripts/checks/`, not
+`tools/`, because real boot tests are the primary validation path.
