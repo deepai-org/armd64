@@ -267,6 +267,17 @@ struct poly_linux_generic_statfs {
   int64_t spare[4];
 };
 
+struct poly_linux_generic_epoll_event {
+  uint32_t events;
+  uint32_t pad;
+  uint64_t data;
+};
+
+struct poly_x86_epoll_event {
+  uint32_t events;
+  uint64_t data;
+} __attribute__((packed));
+
 struct poly_utsname {
   char sysname[65];
   char nodename[65];
@@ -529,14 +540,75 @@ static void poly_store_fixed_string(char *target, size_t target_size,
   memcpy(target, value, value_len);
 }
 
+static void poly_load_x86_epoll_event(struct poly_x86_epoll_event *target,
+    uint64_t source) {
+  const struct poly_linux_generic_epoll_event *event =
+    (const struct poly_linux_generic_epoll_event *) (uintptr_t) source;
+  target->events = event->events;
+  target->data = event->data;
+}
+
+static void poly_store_linux_generic_epoll_event(uint64_t destination,
+    const struct poly_x86_epoll_event *source) {
+  struct poly_linux_generic_epoll_event *event =
+    (struct poly_linux_generic_epoll_event *) (uintptr_t) destination;
+  event->events = source->events;
+  event->pad = 0;
+  event->data = source->data;
+}
+
 static int poly_handle_structured_foreign_syscall(uint64_t number,
     uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
-    uint64_t arg3, uint64_t *result) {
+    uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t *result) {
   struct stat stat_result;
   struct statfs statfs_result;
   long status;
 
   switch (number) {
+    case 21: {
+      struct poly_x86_epoll_event x86_event;
+      uint64_t x86_event_ptr = 0;
+      if (arg3 != 0) {
+        poly_load_x86_epoll_event(&x86_event, arg3);
+        x86_event_ptr = (uint64_t) (uintptr_t) &x86_event;
+      }
+      *result = (uint64_t) poly_x86_syscall6(SYS_epoll_ctl, arg0, arg1,
+        arg2, x86_event_ptr, 0, 0);
+      return 1;
+    }
+    case 22: {
+      if (arg2 == 0) {
+        *result = (uint64_t) -EINVAL;
+        return 1;
+      }
+      if (arg1 == 0) {
+        *result = (uint64_t) -EFAULT;
+        return 1;
+      }
+      if (arg2 > SIZE_MAX / sizeof(struct poly_x86_epoll_event)) {
+        *result = (uint64_t) -EINVAL;
+        return 1;
+      }
+      size_t event_count = (size_t) arg2;
+      size_t event_bytes = event_count * sizeof(struct poly_x86_epoll_event);
+      struct poly_x86_epoll_event *x86_events = malloc(event_bytes);
+      if (x86_events == NULL) {
+        *result = (uint64_t) -ENOMEM;
+        return 1;
+      }
+      status = poly_x86_syscall6(SYS_epoll_pwait, arg0,
+        (uint64_t) (uintptr_t) x86_events, arg2, arg3, arg4, arg5);
+      if (status > 0) {
+        for (long i = 0; i < status; i++) {
+          poly_store_linux_generic_epoll_event(arg1 +
+            (uint64_t) i * sizeof(struct poly_linux_generic_epoll_event),
+            &x86_events[i]);
+        }
+      }
+      free(x86_events);
+      *result = (uint64_t) status;
+      return 1;
+    }
     case 43:
       status = poly_x86_syscall6(SYS_statfs, arg0,
         (uint64_t) (uintptr_t) &statfs_result, 0, 0, 0, 0);
@@ -825,7 +897,7 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
   if (reason == POLY_TRAP_SYSCALL) {
     uint64_t structured_result = 0;
     if (poly_handle_structured_foreign_syscall(number, mode, arg0, arg1, arg2,
-          arg3, &structured_result))
+          arg3, arg4, arg5, &structured_result))
       return structured_result;
 
     long x86_number = -1;

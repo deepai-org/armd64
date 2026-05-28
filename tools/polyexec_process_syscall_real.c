@@ -11,6 +11,8 @@ enum {
   POLY_MREMAP_MAYMOVE = 1,
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
+  POLY_EPOLLIN = 1,
+  POLY_EPOLL_CTL_ADD = 1,
   POLY_O_DIRECTORY = 0200000,
   POLY_O_CLOEXEC = 02000000,
   POLY_F_GETFD = 1,
@@ -26,6 +28,9 @@ enum {
 
   POLY_SYS_GETCWD = 17,
   POLY_SYS_EVENTFD2 = 19,
+  POLY_SYS_EPOLL_CREATE1 = 20,
+  POLY_SYS_EPOLL_CTL = 21,
+  POLY_SYS_EPOLL_PWAIT = 22,
   POLY_SYS_DUP3 = 24,
   POLY_SYS_FCNTL = 25,
   POLY_SYS_STATFS = 43,
@@ -116,6 +121,12 @@ struct poly_linux_generic_statfs {
 struct poly_iovec {
   uint64_t base;
   uint64_t len;
+};
+
+struct poly_epoll_event {
+  uint32_t events;
+  uint32_t pad;
+  uint64_t data;
 };
 
 struct poly_open_how {
@@ -646,6 +657,48 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 117;
   if (event_value != 7)
     return 118;
+
+  long event_fd = poly_syscall2(POLY_SYS_EVENTFD2, 0, 0);
+  if (event_fd < 0)
+    return 126;
+  long epoll_fd = poly_syscall2(POLY_SYS_EPOLL_CREATE1, 0, 0);
+  if (epoll_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 127;
+  }
+  struct poly_epoll_event event;
+  event.events = POLY_EPOLLIN;
+  event.pad = 0;
+  event.data = 0x1122334455667788ULL;
+  if (poly_syscall4(POLY_SYS_EPOLL_CTL, epoll_fd, POLY_EPOLL_CTL_ADD,
+        event_fd, (long) &event) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 128;
+  }
+  event_value = 9;
+  if (poly_syscall3(POLY_SYS_WRITE, event_fd, (long) &event_value,
+        sizeof(event_value)) != (long) sizeof(event_value)) {
+    poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 129;
+  }
+  struct poly_epoll_event ready_event;
+  ready_event.events = 0;
+  ready_event.pad = 0;
+  ready_event.data = 0;
+  if (poly_syscall6(POLY_SYS_EPOLL_PWAIT, epoll_fd,
+        (long) &ready_event, 1, 0, 0, 0) != 1) {
+    poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 130;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, event_fd, 0) != 0)
+    return 131;
+  if ((ready_event.events & POLY_EPOLLIN) == 0 ||
+      ready_event.data != 0x1122334455667788ULL)
+    return 132;
 
   fd = poly_syscall2(POLY_SYS_TIMERFD_CREATE, POLY_CLOCK_MONOTONIC, 0);
   if (fd < 0)
