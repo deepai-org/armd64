@@ -452,7 +452,8 @@ enum {
   POLY_IMPORT_FUNC_X86_SRET_U64 = 149,
   POLY_IMPORT_FUNC_X86_SRET_U64_STACK = 150,
   POLY_IMPORT_FUNC_X86_SRET_U64_STACK10 = 151,
-  POLY_IMPORT_FUNC_COUNT = 152
+  POLY_IMPORT_FUNC_X86_SUM14 = 152,
+  POLY_IMPORT_FUNC_COUNT = 153
 };
 
 enum {
@@ -775,6 +776,9 @@ extern uint64_t poly_host_x86_sum8(uint64_t a, uint64_t b, uint64_t c,
 extern uint64_t poly_host_x86_sum10(uint64_t a, uint64_t b, uint64_t c,
     uint64_t d, uint64_t e, uint64_t f, uint64_t g, uint64_t h, uint64_t i,
     uint64_t j);
+extern uint64_t poly_host_x86_sum14(uint64_t a, uint64_t b, uint64_t c,
+    uint64_t d, uint64_t e, uint64_t f, uint64_t g, uint64_t h, uint64_t i,
+    uint64_t j, uint64_t k, uint64_t l, uint64_t m, uint64_t n);
 extern double poly_host_x86_fp64_add(double a, double b);
 extern double poly_host_x86_fp64_sum8(double a, double b, double c,
     double d, double e, double f, double g, double h);
@@ -1081,6 +1085,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_sum8;
     case POLY_IMPORT_FUNC_X86_SUM10:
       return (uint64_t) (uintptr_t) poly_host_x86_sum10;
+    case POLY_IMPORT_FUNC_X86_SUM14:
+      return (uint64_t) (uintptr_t) poly_host_x86_sum14;
     case POLY_IMPORT_FUNC_X86_SLOT6:
       return (uint64_t) (uintptr_t) poly_host_x86_fp64_sum8;
     case POLY_IMPORT_FUNC_X86_FP64_SUM10:
@@ -1400,6 +1406,7 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
     case POLY_IMPORT_FUNC_X86_SLOT5:
     case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
     case POLY_IMPORT_FUNC_X86_SUM10:
+    case POLY_IMPORT_FUNC_X86_SUM14:
       return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS;
     case POLY_IMPORT_FUNC_X86_FP64_SUM10:
       if (arch == POLY_ARCH_RISCV)
@@ -1461,6 +1468,8 @@ static uint64_t x86_descriptor_stack_arg_count_for_import_id(
   switch (import_id) {
     case POLY_IMPORT_FUNC_X86_SUM10:
       return 4;
+    case POLY_IMPORT_FUNC_X86_SUM14:
+      return 8;
     case POLY_IMPORT_FUNC_X86_FP64_SUM10:
       return 2;
     case POLY_IMPORT_FUNC_X86_SRET_U64_STACK:
@@ -2862,6 +2871,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_sum10") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_X86_SUM10 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_sum14") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_X86_SUM14 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_fp64_add") == 0) {
@@ -4685,6 +4698,7 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_sum6") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum8") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum10") == 0 ||
+        strcmp(symbol_name, "poly_import_x86_sum14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_add") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum8") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
