@@ -162,6 +162,8 @@ enum {
   POLY_SYS_GETRANDOM = 278,
   POLY_SYS_MEMFD_CREATE = 279,
   POLY_SYS_STATX = 291,
+  POLY_SYS_PIDFD_OPEN = 434,
+  POLY_SYS_CLOSE_RANGE = 436,
   POLY_SYS_OPENAT2 = 437
 };
 
@@ -952,6 +954,35 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0 ||
       poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0) != 0)
     return 104;
+
+  long pid_fd = poly_syscall2(POLY_SYS_PIDFD_OPEN, pid0, 0);
+  if (pid_fd < 0)
+    return 277;
+  if (poly_syscall2(POLY_SYS_CLOSE, pid_fd, 0) != 0)
+    return 278;
+
+  if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
+    return 279;
+  long close_range_fd0 = poly_syscall3(POLY_SYS_DUP3, pipe_fds[0], 101, 0);
+  long close_range_fd1 = poly_syscall3(POLY_SYS_DUP3, pipe_fds[1], 102, 0);
+  if (poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0 ||
+      close_range_fd0 != 101 || close_range_fd1 != 102) {
+    if (close_range_fd0 == 101)
+      poly_syscall2(POLY_SYS_CLOSE, close_range_fd0, 0);
+    if (close_range_fd1 == 102)
+      poly_syscall2(POLY_SYS_CLOSE, close_range_fd1, 0);
+    return 280;
+  }
+  if (poly_syscall3(POLY_SYS_CLOSE_RANGE, close_range_fd0,
+        close_range_fd1, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, close_range_fd0, 0);
+    poly_syscall2(POLY_SYS_CLOSE, close_range_fd1, 0);
+    return 281;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, close_range_fd0, 0) != -9 ||
+      poly_syscall2(POLY_SYS_CLOSE, close_range_fd1, 0) != -9)
+    return 282;
 
   int socket_fds[2];
   if (poly_syscall4(POLY_SYS_SOCKETPAIR, POLY_AF_UNIX,
