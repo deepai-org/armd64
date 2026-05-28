@@ -149,6 +149,7 @@ enum {
   POLY_SYS_RECVMSG = 212,
   POLY_SYS_RECVMMSG = 243,
   POLY_SYS_SENDMMSG = 269,
+  POLY_SYS_PIDFD_SEND_SIGNAL = 424,
   POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_UNAME = 160,
   POLY_SYS_GETRUSAGE = 165,
@@ -1492,10 +1493,32 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 144;
   }
-  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
-    return 145;
   if (signal_info.signo != POLY_SIGUSR1 || signal_info.pid != (uint32_t) pid0)
     return 146;
+  long pid_signal_fd = poly_syscall2(POLY_SYS_PIDFD_OPEN, pid0, 0);
+  if (pid_signal_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 283;
+  }
+  if (poly_syscall4(POLY_SYS_PIDFD_SEND_SIGNAL, pid_signal_fd,
+        POLY_SIGUSR1, 0, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, pid_signal_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 284;
+  }
+  struct poly_signalfd_siginfo pidfd_signal_info;
+  if (poly_syscall3(POLY_SYS_READ, fd, (long) &pidfd_signal_info,
+        sizeof(pidfd_signal_info)) != (long) sizeof(pidfd_signal_info)) {
+    poly_syscall2(POLY_SYS_CLOSE, pid_signal_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 285;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, pid_signal_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 145;
+  if (pidfd_signal_info.signo != POLY_SIGUSR1 ||
+      pidfd_signal_info.pid != (uint32_t) pid0)
+    return 286;
   if (poly_syscall4(POLY_SYS_RT_SIGPROCMASK, POLY_SIG_SETMASK,
         (long) &old_signal_mask, 0, POLY_KERNEL_SIGSET_SIZE) != 0)
     return 147;
