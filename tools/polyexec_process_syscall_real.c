@@ -47,6 +47,7 @@ enum {
   POLY_SYS_UNAME = 160,
   POLY_SYS_GETRUSAGE = 165,
   POLY_SYS_SYSINFO = 179,
+  POLY_SYS_BRK = 214,
   POLY_SYS_MUNMAP = 215,
   POLY_SYS_MMAP = 222,
   POLY_SYS_MPROTECT = 226,
@@ -402,6 +403,20 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (info.uptime < 0 || info.totalram == 0 || info.mem_unit == 0 ||
       info.procs == 0)
     return 76;
+
+  long program_break = poly_syscall2(POLY_SYS_BRK, 0, 0);
+  if (program_break <= 0)
+    return 83;
+  long grown_break = program_break + 4096;
+  if (poly_syscall2(POLY_SYS_BRK, grown_break, 0) != grown_break)
+    return 84;
+  unsigned char *heap_byte = (unsigned char *) (uintptr_t) program_break;
+  heap_byte[0] = 0xa5;
+  heap_byte[4095] = 0x5a;
+  if (heap_byte[0] != 0xa5 || heap_byte[4095] != 0x5a)
+    return 85;
+  if (poly_syscall2(POLY_SYS_BRK, program_break, 0) != program_break)
+    return 86;
 
   unsigned char affinity[128];
   long affinity_len = poly_syscall3(POLY_SYS_SCHED_GETAFFINITY, 0,
