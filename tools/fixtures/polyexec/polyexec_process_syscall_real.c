@@ -29,6 +29,7 @@ enum {
   POLY_F_GETFD = 1,
   POLY_F_SETFD = 2,
   POLY_FD_CLOEXEC = 1,
+  POLY_FUTEX_32 = 2,
   POLY_FUTEX_WAIT_PRIVATE = 128,
   POLY_FUTEX_WAKE_PRIVATE = 129,
   POLY_PRIO_PROCESS = 0,
@@ -166,7 +167,8 @@ enum {
   POLY_SYS_PIDFD_OPEN = 434,
   POLY_SYS_CLOSE_RANGE = 436,
   POLY_SYS_OPENAT2 = 437,
-  POLY_SYS_PIDFD_GETFD = 438
+  POLY_SYS_PIDFD_GETFD = 438,
+  POLY_SYS_FUTEX_WAITV = 449,
 };
 
 struct poly_linux_generic_stat {
@@ -216,6 +218,13 @@ struct poly_pollfd {
   int32_t fd;
   int16_t events;
   int16_t revents;
+};
+
+struct poly_futex_waitv {
+  uint64_t val;
+  uint64_t uaddr;
+  uint32_t flags;
+  uint32_t reserved;
 };
 
 struct poly_sockaddr_un {
@@ -600,6 +609,14 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall6(POLY_SYS_FUTEX, (long) &futex_word,
         POLY_FUTEX_WAKE_PRIVATE, 1, 0, 0, 0) != 0)
     return 150;
+  struct poly_futex_waitv futex_waiters[1];
+  futex_waiters[0].val = 2;
+  futex_waiters[0].uaddr = (uint64_t) (uintptr_t) &futex_word;
+  futex_waiters[0].flags = POLY_FUTEX_32;
+  futex_waiters[0].reserved = 0;
+  if (poly_syscall5(POLY_SYS_FUTEX_WAITV, (long) futex_waiters, 1, 0,
+        (long) &futex_timeout, POLY_CLOCK_MONOTONIC) != -11)
+    return 291;
 
   long cwd_len = poly_syscall2(POLY_SYS_GETCWD, (long) cwd, sizeof(cwd));
   if (cwd_len <= 1 || cwd[0] != '/')
