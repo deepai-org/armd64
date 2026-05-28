@@ -58,6 +58,7 @@ enum {
   POLY_SYS_WRITEV = 66,
   POLY_SYS_PREAD64 = 67,
   POLY_SYS_PWRITE64 = 68,
+  POLY_SYS_PSELECT6 = 72,
   POLY_SYS_PPOLL = 73,
   POLY_SYS_SIGNALFD4 = 74,
   POLY_SYS_READLINKAT = 78,
@@ -392,6 +393,7 @@ static int poly_any_byte_set(const unsigned char *bytes, long length) {
   return 0;
 }
 
+__attribute__((visibility("hidden")))
 uint64_t poly_process_main(uint64_t *initial_sp) {
   uint64_t argc = initial_sp[0];
   char **argv = (char **) &initial_sp[1];
@@ -762,6 +764,38 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0) != 0 ||
       poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0)
     return 160;
+
+  if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
+    return 161;
+  static const char select_message[] = "S";
+  if (poly_syscall3(POLY_SYS_WRITE, pipe_fds[1],
+        (long) select_message, sizeof(select_message) - 1) !=
+      (long) sizeof(select_message) - 1) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 162;
+  }
+  if (pipe_fds[0] < 0 || pipe_fds[0] >= 64) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 163;
+  }
+  uint64_t select_readfds = 1ull << (uint32_t) pipe_fds[0];
+  struct poly_timespec select_timeout = { 0, 0 };
+  if (poly_syscall6(POLY_SYS_PSELECT6, pipe_fds[0] + 1,
+        (long) &select_readfds, 0, 0, (long) &select_timeout, 0) != 1) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 164;
+  }
+  if ((select_readfds & (1ull << (uint32_t) pipe_fds[0])) == 0) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 165;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0)
+    return 166;
 
   fd = poly_syscall2(POLY_SYS_EVENTFD2, 0, 0);
   if (fd < 0)
