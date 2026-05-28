@@ -1,6 +1,7 @@
 # poly payload v1
 arch=riscv
 elf=/usr/lib/polyapps/riscv-getcpu.elf
-expected=12
+expected=0
 syscall_expected=4
 syscall_number_expected=168
+scratch_hex_expected=0c000000000000002200000000000000

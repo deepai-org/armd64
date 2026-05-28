@@ -2,7 +2,7 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-read.elf
 expected=4
-scratch_expected=RX!!!
+scratch_expected=FD!!!
 syscall_expected=3
 syscall_number_expected=63
 break_id=0

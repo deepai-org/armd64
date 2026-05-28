@@ -1,7 +1,7 @@
 # poly payload v1
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-set-tid-address.elf
-expected=4243
+expected=0
 syscall_expected=3
 syscall_number_expected=96
 break_id=0

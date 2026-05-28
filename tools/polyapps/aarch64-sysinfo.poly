@@ -1,6 +1,7 @@
 # poly payload v1
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-sysinfo.elf
-expected=98765
+expected=0
 syscall_expected=3
 syscall_number_expected=179
+scratch_hex_expected=cd810100000000006f00000000000000

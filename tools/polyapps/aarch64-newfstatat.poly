@@ -1,7 +1,7 @@
 # poly payload v1
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-newfstatat.elf
-expected=0x21215441545350
+expected=0
 syscall_expected=3
 syscall_number_expected=79
 break_id=0

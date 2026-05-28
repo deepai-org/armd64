@@ -4,5 +4,6 @@ elf=/usr/lib/polyapps/aarch64-prlimit64.elf
 expected=8388608
 syscall_expected=3
 syscall_number_expected=261
+scratch_hex_expected=0000800000000000ffffffffffffffff
 break_id=0
 break_expected=0x4c000300

@@ -315,6 +315,12 @@ static uint64_t polyapp_memory_syscall(uint64_t number, uint64_t arg0,
         return 0;
       break;
     case 222:
+      if (arg0 == 0 && arg1 >= 4096 && arg2 == (PROT_READ | PROT_WRITE) &&
+          arg3 == (MAP_PRIVATE | MAP_ANONYMOUS) && (int64_t) arg4 == -1 &&
+          arg5 == 0) {
+        void *mapping = mmap(NULL, (size_t) arg1, (int) arg2, (int) arg3, -1, 0);
+        return mapping == MAP_FAILED ? (uint64_t) -errno : (uint64_t) (uintptr_t) mapping;
+      }
       if (arg0 == 0)
         return (arg3 == 34 && arg4 == 5 && arg5 == 7) ?
           arg1 + arg2 + arg3 + arg4 + arg5 : arg1;
