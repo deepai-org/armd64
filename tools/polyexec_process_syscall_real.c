@@ -31,6 +31,9 @@ enum {
   POLY_SYS_NEWFSTATAT = 79,
   POLY_SYS_FSTAT = 80,
   POLY_SYS_EXIT = 93,
+  POLY_SYS_SET_TID_ADDRESS = 96,
+  POLY_SYS_SET_ROBUST_LIST = 99,
+  POLY_SYS_GET_ROBUST_LIST = 100,
   POLY_SYS_CLOCK_GETTIME = 113,
   POLY_SYS_SCHED_GETAFFINITY = 123,
   POLY_SYS_GETPID = 172,
@@ -152,6 +155,12 @@ struct poly_sysinfo {
   uint64_t totalhigh;
   uint64_t freehigh;
   uint32_t mem_unit;
+};
+
+struct poly_robust_list_head {
+  uint64_t list_next;
+  int64_t futex_offset;
+  uint64_t list_op_pending;
 };
 
 struct poly_statx_timestamp {
@@ -299,7 +308,8 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 21;
   if (poly_syscall0(POLY_SYS_GETPPID) <= 0)
     return 22;
-  if (poly_syscall0(POLY_SYS_GETTID) <= 0)
+  long tid = poly_syscall0(POLY_SYS_GETTID);
+  if (tid <= 0)
     return 23;
   if (poly_syscall0(POLY_SYS_GETUID) < 0)
     return 24;
@@ -309,6 +319,27 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 26;
   if (poly_syscall0(POLY_SYS_GETEGID) < 0)
     return 27;
+
+  int clear_child_tid = 0;
+  if (poly_syscall2(POLY_SYS_SET_TID_ADDRESS,
+        (long) &clear_child_tid, 0) != tid)
+    return 79;
+
+  struct poly_robust_list_head robust_head;
+  robust_head.list_next = (uint64_t) (uintptr_t) &robust_head;
+  robust_head.futex_offset = 0;
+  robust_head.list_op_pending = 0;
+  if (poly_syscall2(POLY_SYS_SET_ROBUST_LIST,
+        (long) &robust_head, sizeof(robust_head)) != 0)
+    return 80;
+  uint64_t robust_head_ptr = 0;
+  uint64_t robust_len = 0;
+  if (poly_syscall3(POLY_SYS_GET_ROBUST_LIST, 0,
+        (long) &robust_head_ptr, (long) &robust_len) != 0)
+    return 81;
+  if (robust_head_ptr != (uint64_t) (uintptr_t) &robust_head ||
+      robust_len != sizeof(robust_head))
+    return 82;
 
   long cwd_len = poly_syscall2(POLY_SYS_GETCWD, (long) cwd, sizeof(cwd));
   if (cwd_len <= 1 || cwd[0] != '/')
