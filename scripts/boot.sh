@@ -5794,6 +5794,27 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-cxa-guard-real.so \
       /usr/lib/polyapps/aarch64-pcall-cxx-static-guard-real.so \
       /usr/lib/polyapps/aarch64-pcall-cxx-virtual-real.so \
+      /usr/lib/polyapps/aarch64-pcall-fp64-real.so \
+      /usr/lib/polyapps/aarch64-pcall-fp64-stack-real.so \
+      /usr/lib/polyapps/aarch64-pcall-fpair-real.so \
+      /usr/lib/polyapps/aarch64-pcall-fpair32-real.so \
+      /usr/lib/polyapps/aarch64-pcall-fpair-arg-real.so \
+      /usr/lib/polyapps/aarch64-pcall-fpair32-arg-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hfa3-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hfa4-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hfa3-f32-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hfa4-f32-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hfa-arg-real.so \
+      /usr/lib/polyapps/aarch64-pcall-vec128-real.so \
+      /usr/lib/polyapps/aarch64-pcall-mixed-args-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero-rev-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero32-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero32-rev-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero-u32-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero-u32-rev-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero-u32-f32-real.so \
+      /usr/lib/polyapps/aarch64-pcall-hetero-f32-u32-real.so \
       /usr/lib/polyapps/aarch64-pcall-cross-needed-real.so \
       /usr/lib/polyapps/aarch64-pcall-cross-needed-transitive-real.so \
       /usr/lib/polyapps/aarch64-pcall-cross-compact-real.so \
@@ -5930,6 +5951,21 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-cxa-guard-real.so \
       /usr/lib/polyapps/riscv-pcall-cxx-static-guard-real.so \
       /usr/lib/polyapps/riscv-pcall-cxx-virtual-real.so \
+      /usr/lib/polyapps/riscv-pcall-fp64-real.so \
+      /usr/lib/polyapps/riscv-pcall-fp64-stack-real.so \
+      /usr/lib/polyapps/riscv-pcall-fpair-real.so \
+      /usr/lib/polyapps/riscv-pcall-fpair32-real.so \
+      /usr/lib/polyapps/riscv-pcall-fpair-arg-real.so \
+      /usr/lib/polyapps/riscv-pcall-fpair32-arg-real.so \
+      /usr/lib/polyapps/riscv-pcall-mixed-args-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero-rev-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero32-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero32-rev-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero-u32-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero-u32-rev-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero-u32-f32-real.so \
+      /usr/lib/polyapps/riscv-pcall-hetero-f32-u32-real.so \
       /usr/lib/polyapps/riscv-pcall-cross-needed-real.so \
       /usr/lib/polyapps/riscv-pcall-cross-needed-transitive-real.so \
       /usr/lib/polyapps/riscv-pcall-cross-compact-real.so \
