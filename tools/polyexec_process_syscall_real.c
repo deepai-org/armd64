@@ -7,6 +7,8 @@ enum {
   POLY_MAP_ANONYMOUS = 0x20,
   POLY_S_IFMT = 0170000,
   POLY_S_IFREG = 0100000,
+  POLY_AT_FDCWD = -100,
+  POLY_STATX_BASIC_STATS = 0x7ff,
 
   POLY_SYS_GETCWD = 17,
   POLY_SYS_OPENAT = 56,
@@ -15,9 +17,11 @@ enum {
   POLY_SYS_WRITE = 64,
   POLY_SYS_READV = 65,
   POLY_SYS_WRITEV = 66,
+  POLY_SYS_READLINKAT = 78,
   POLY_SYS_NEWFSTATAT = 79,
   POLY_SYS_FSTAT = 80,
   POLY_SYS_EXIT = 93,
+  POLY_SYS_CLOCK_GETTIME = 113,
   POLY_SYS_GETPID = 172,
   POLY_SYS_GETPPID = 173,
   POLY_SYS_GETUID = 174,
@@ -25,9 +29,11 @@ enum {
   POLY_SYS_GETGID = 176,
   POLY_SYS_GETEGID = 177,
   POLY_SYS_GETTID = 178,
+  POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_MUNMAP = 215,
   POLY_SYS_MMAP = 222,
-  POLY_SYS_MPROTECT = 226
+  POLY_SYS_MPROTECT = 226,
+  POLY_SYS_STATX = 291
 };
 
 struct poly_linux_generic_stat {
@@ -56,6 +62,49 @@ struct poly_linux_generic_stat {
 struct poly_iovec {
   uint64_t base;
   uint64_t len;
+};
+
+struct poly_timespec {
+  int64_t sec;
+  int64_t nsec;
+};
+
+struct poly_timeval {
+  int64_t sec;
+  int64_t usec;
+};
+
+struct poly_statx_timestamp {
+  int64_t sec;
+  uint32_t nsec;
+  int32_t reserved;
+};
+
+struct poly_statx {
+  uint32_t mask;
+  uint32_t blksize;
+  uint64_t attributes;
+  uint32_t nlink;
+  uint32_t uid;
+  uint32_t gid;
+  uint16_t mode;
+  uint16_t reserved0;
+  uint64_t ino;
+  uint64_t size;
+  uint64_t blocks;
+  uint64_t attributes_mask;
+  struct poly_statx_timestamp atime;
+  struct poly_statx_timestamp btime;
+  struct poly_statx_timestamp ctime;
+  struct poly_statx_timestamp mtime;
+  uint32_t rdev_major;
+  uint32_t rdev_minor;
+  uint32_t dev_major;
+  uint32_t dev_minor;
+  uint64_t mnt_id;
+  uint32_t dio_mem_align;
+  uint32_t dio_offset_align;
+  uint64_t spare3[12];
 };
 
 static long poly_syscall6(long number, long arg0, long arg1, long arg2,
@@ -116,6 +165,23 @@ static int poly_streq(const char *left, const char *right) {
   return *left == '\0' && *right == '\0';
 }
 
+static int poly_contains_len(const char *text, long text_len,
+    const char *needle) {
+  if (!*needle)
+    return 1;
+  for (long offset = 0; offset < text_len; offset++) {
+    long t = offset;
+    const char *n = needle;
+    while (t < text_len && *n && text[t] == *n) {
+      t++;
+      n++;
+    }
+    if (!*n)
+      return 1;
+  }
+  return 0;
+}
+
 uint64_t poly_process_main(uint64_t *initial_sp) {
   uint64_t argc = initial_sp[0];
   char **argv = (char **) &initial_sp[1];
@@ -147,8 +213,29 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (cwd_len <= 1 || cwd[0] != '/')
     return 28;
 
+  struct poly_timespec mono_time;
+  if (poly_syscall2(POLY_SYS_CLOCK_GETTIME, 1, (long) &mono_time) != 0)
+    return 51;
+  if (mono_time.sec < 0 || mono_time.nsec < 0 ||
+      mono_time.nsec >= 1000000000)
+    return 52;
+
+  struct poly_timeval wall_time;
+  if (poly_syscall2(POLY_SYS_GETTIMEOFDAY, (long) &wall_time, 0) != 0)
+    return 53;
+  if (wall_time.sec <= 0 || wall_time.usec < 0 || wall_time.usec >= 1000000)
+    return 54;
+
+  char exe_path[128];
+  long exe_len = poly_syscall4(POLY_SYS_READLINKAT, POLY_AT_FDCWD,
+    (long) "/proc/self/exe", (long) exe_path, sizeof(exe_path));
+  if (exe_len <= 0 || exe_len >= (long) sizeof(exe_path))
+    return 55;
+  if (!poly_contains_len(exe_path, exe_len, "polyexec"))
+    return 56;
+
   char file_bytes[4];
-  long fd = poly_syscall3(POLY_SYS_OPENAT, -100,
+  long fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD,
     (long) "/usr/bin/polyexec", 0);
   if (fd < 0)
     return 29;
@@ -170,6 +257,17 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if ((fd_stat.mode & POLY_S_IFMT) != POLY_S_IFREG ||
       fd_stat.ino != path_stat.ino || fd_stat.size != path_stat.size)
     return 36;
+
+  struct poly_statx statx_result;
+  if (poly_syscall6(POLY_SYS_STATX, POLY_AT_FDCWD,
+        (long) "/usr/bin/polyexec", 0, POLY_STATX_BASIC_STATS,
+        (long) &statx_result, 0) != 0)
+    return 57;
+  if ((statx_result.mode & POLY_S_IFMT) != POLY_S_IFREG ||
+      statx_result.ino != path_stat.ino ||
+      (int64_t) statx_result.size != path_stat.size)
+    return 58;
+
   if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
     return 31;
   if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
@@ -182,7 +280,8 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     { (uint64_t) (uintptr_t) vec0, sizeof(vec0) },
     { (uint64_t) (uintptr_t) vec1, sizeof(vec1) }
   };
-  fd = poly_syscall3(POLY_SYS_OPENAT, -100, (long) "/usr/bin/polyexec", 0);
+  fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD,
+    (long) "/usr/bin/polyexec", 0);
   if (fd < 0)
     return 41;
   if (poly_syscall3(POLY_SYS_READV, fd, (long) read_iov, 2) != 4) {
