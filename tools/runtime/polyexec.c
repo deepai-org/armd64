@@ -176,6 +176,9 @@ struct poly_program {
   size_t load_segment_count;
   uint64_t relro_vaddr;
   uint64_t relro_size;
+  uint64_t init_vaddr;
+  uint64_t init_array_vaddr;
+  uint64_t init_array_size;
   uint8_t *code_bytes;
   size_t code_size;
   struct poly_process_dependency deps[MAX_PROCESS_DEPS];
@@ -2641,6 +2644,62 @@ static int apply_relative_relocations(const struct poly_program *program,
   return 0;
 }
 
+static int call_process_initializer(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint64_t target_pc, uint8_t *scratch,
+    const char *kind) {
+  if (emit_poly_trampoline(program, trampoline_code, prefix_size, return_pc,
+        target_pc) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unsupported %s initializer branch: %s\n",
+      kind, program->path);
+    return -1;
+  }
+  (void) run_poly_entry(trampoline_code, scratch);
+  poly_mode_x86();
+  (void) loaded_image;
+  return 0;
+}
+
+static int run_process_initializers(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch, const char *kind_prefix) {
+  const uint64_t load_bias =
+    (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
+  if (program->init_vaddr != 0) {
+    if (call_process_initializer(program, loaded_image, trampoline_code,
+          prefix_size, return_pc, load_bias + program->init_vaddr, scratch,
+          kind_prefix) < 0)
+      return -1;
+  }
+
+  if (program->init_array_size == 0)
+    return 0;
+  if (program->init_array_vaddr == 0 ||
+      program->init_array_size % sizeof(uint64_t) != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: bad %s INIT_ARRAY: %s\n", kind_prefix,
+      program->path);
+    return -1;
+  }
+  size_t init_array_offset = 0;
+  if (elf_vaddr_to_image_offset(program, program->init_array_vaddr,
+        program->init_array_size, &init_array_offset) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: %s INIT_ARRAY escaped image: %s\n",
+      kind_prefix, program->path);
+    return -1;
+  }
+  const size_t init_count =
+    (size_t) (program->init_array_size / sizeof(uint64_t));
+  for (size_t n = 0; n < init_count; n++) {
+    const uint64_t init_target =
+      read_u64_le(loaded_image + init_array_offset + n * sizeof(uint64_t));
+    if (init_target != 0 &&
+        call_process_initializer(program, loaded_image, trampoline_code,
+          prefix_size, return_pc, init_target, scratch, kind_prefix) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static int detect_arch(uint16_t machine, struct poly_program *program) {
   if (machine == EM_AARCH64) {
     program->arch = POLY_ARCH_AARCH64;
@@ -3010,6 +3069,35 @@ static int load_elf_program(const char *path, const char *symbol_name,
       return -1;
     }
     program->dynamic_size = (size_t) dynamic_size;
+    const Elf64_Dyn *dyn =
+      (const Elf64_Dyn *) (program->code_bytes + program->dynamic_offset);
+    const size_t dyn_count = program->dynamic_size / sizeof(Elf64_Dyn);
+    for (size_t n = 0; n < dyn_count; n++) {
+      switch (dyn[n].d_tag) {
+        case DT_INIT:
+          program->init_vaddr = dyn[n].d_un.d_ptr;
+          break;
+        case DT_INIT_ARRAY:
+          program->init_array_vaddr = dyn[n].d_un.d_ptr;
+          break;
+        case DT_INIT_ARRAYSZ:
+          program->init_array_size = dyn[n].d_un.d_val;
+          break;
+        default:
+          break;
+      }
+    }
+    if (program->init_array_size != 0 &&
+        (program->init_array_vaddr == 0 ||
+         program->init_array_size % sizeof(uint64_t) != 0)) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad INIT_ARRAY dynamic table: %s\n",
+        path);
+      free(program->code_bytes);
+      program->code_bytes = NULL;
+      program->code_size = 0;
+      free(data);
+      return -1;
+    }
   }
 
   free(data);
@@ -3311,6 +3399,10 @@ static int map_process_dependencies(struct poly_program *program,
           dep->program->relro_vaddr, dep->program->relro_size, PROT_READ,
           "dependency PT_GNU_RELRO") < 0)
       return -1;
+    if (run_process_initializers(dep->program, dep->loaded_image,
+          trampoline_code, prefix_size, return_pc, scratch,
+          "dependency") < 0)
+      return -1;
   }
   return 0;
 }
@@ -3494,6 +3586,19 @@ static int emit_and_run_process(struct poly_program *program,
   if (protect_image_range(program, mapping + load_base_offset,
         program->relro_vaddr, program->relro_size, PROT_READ,
         "PT_GNU_RELRO") < 0) {
+    unmap_process_dependencies(program);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (run_process_initializers(program, mapping + load_base_offset, code,
+        prefix_size, return_pc, scratch, "root") < 0) {
+    unmap_process_dependencies(program);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
