@@ -238,6 +238,7 @@ POLYCALL_X86_SRET_STACK10_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_sret_sta
 POLYCALL_X86_SRET_CALLEE_STACK_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_sret_callee_stack_import_real.c"
 POLYCALL_X86_SRET_FP64_CALLEE_STACK_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_sret_fp64_callee_stack_import_real.c"
 POLYCALL_X86_MIXED_U64_FP64_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_mixed_u64_fp64_import_real.c"
+POLYCALL_X86_MIXED_U64_FP64_CALLEE_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_mixed_u64_fp64_callee_import_real.c"
 POLYCALL_X86_FP32_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_fp32_import_real.c"
 POLYCALL_X86_SUM8_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_sum8_import_real.c"
 POLYCALL_X86_SUM10_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_x86_sum10_import_real.c"
@@ -1867,6 +1868,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_X86_MIXED_U64_FP64_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-x86-mixed-u64-fp64-import-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_X86_MIXED_U64_FP64_CALLEE_IMPORT_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-x86-mixed-u64-fp64-callee-import-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -3634,6 +3639,11 @@ build_poly_elf_payloads() {
     "$POLYCALL_X86_MIXED_U64_FP64_IMPORT_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-x86-mixed-u64-fp64-import-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_X86_MIXED_U64_FP64_CALLEE_IMPORT_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-x86-mixed-u64-fp64-callee-import-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_X86_FP32_IMPORT_REAL_SRC" \
@@ -5312,6 +5322,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-x86-sret-callee-stack-import-real.so#poly_entry=7356 \
     fp64:/usr/lib/polyapps/aarch64-pcall-x86-sret-fp64-callee-stack-import-real.so#poly_entry=0x4099450000000000 \
     mixedargs:/usr/lib/polyapps/aarch64-pcall-x86-mixed-u64-fp64-import-real.so#poly_entry=0x406aa80000000000 \
+    mixedargs:/usr/lib/polyapps/aarch64-pcall-x86-mixed-u64-fp64-callee-import-real.so#poly_entry=0x40b2f1c000000000 \
     fp32:/usr/lib/polyapps/aarch64-pcall-x86-fp32-import-real.so#poly_entry=0x434f4000 \
     /usr/lib/polyapps/aarch64-pcall-x86-sum8-import-real.so#poly_entry=236 \
     /usr/lib/polyapps/aarch64-pcall-x86-sum10-import-real.so#poly_entry=255 \
@@ -5516,6 +5527,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-x86-sret-callee-stack-import-real.so#poly_entry=7356 \
     fp64:/usr/lib/polyapps/riscv-pcall-x86-sret-fp64-callee-stack-import-real.so#poly_entry=0x4099450000000000 \
     mixedargs:/usr/lib/polyapps/riscv-pcall-x86-mixed-u64-fp64-import-real.so#poly_entry=0x406aa80000000000 \
+    mixedargs:/usr/lib/polyapps/riscv-pcall-x86-mixed-u64-fp64-callee-import-real.so#poly_entry=0x40b2f1c000000000 \
     fp32:/usr/lib/polyapps/riscv-pcall-x86-fp32-import-real.so#poly_entry=0x434f4000 \
     /usr/lib/polyapps/riscv-pcall-x86-sum8-import-real.so#poly_entry=236 \
     /usr/lib/polyapps/riscv-pcall-x86-sum10-import-real.so#poly_entry=255 \
