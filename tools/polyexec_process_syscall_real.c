@@ -13,6 +13,7 @@ enum {
   POLY_MAP_ANONYMOUS = 0x20,
   POLY_EPOLLIN = 1,
   POLY_EPOLL_CTL_ADD = 1,
+  POLY_IN_OPEN = 0x20,
   POLY_O_DIRECTORY = 0200000,
   POLY_O_CLOEXEC = 02000000,
   POLY_F_GETFD = 1,
@@ -33,6 +34,9 @@ enum {
   POLY_SYS_EPOLL_PWAIT = 22,
   POLY_SYS_DUP3 = 24,
   POLY_SYS_FCNTL = 25,
+  POLY_SYS_INOTIFY_INIT1 = 26,
+  POLY_SYS_INOTIFY_ADD_WATCH = 27,
+  POLY_SYS_INOTIFY_RM_WATCH = 28,
   POLY_SYS_STATFS = 43,
   POLY_SYS_FSTATFS = 44,
   POLY_SYS_OPENAT = 56,
@@ -127,6 +131,13 @@ struct poly_epoll_event {
   uint32_t events;
   uint32_t pad;
   uint64_t data;
+};
+
+struct poly_inotify_event {
+  int32_t wd;
+  uint32_t mask;
+  uint32_t cookie;
+  uint32_t len;
 };
 
 struct poly_open_how {
@@ -699,6 +710,42 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if ((ready_event.events & POLY_EPOLLIN) == 0 ||
       ready_event.data != 0x1122334455667788ULL)
     return 132;
+
+  long inotify_fd = poly_syscall2(POLY_SYS_INOTIFY_INIT1, 0, 0);
+  if (inotify_fd < 0)
+    return 133;
+  long watch_id = poly_syscall3(POLY_SYS_INOTIFY_ADD_WATCH, inotify_fd,
+    (long) "/usr/bin/polyexec", POLY_IN_OPEN);
+  if (watch_id < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, inotify_fd, 0);
+    return 134;
+  }
+  long watched_fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD,
+    (long) "/usr/bin/polyexec", 0);
+  if (watched_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, inotify_fd, 0);
+    return 135;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, watched_fd, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, inotify_fd, 0);
+    return 136;
+  }
+  struct poly_inotify_event notify_event;
+  if (poly_syscall3(POLY_SYS_READ, inotify_fd, (long) &notify_event,
+        sizeof(notify_event)) < (long) sizeof(notify_event)) {
+    poly_syscall2(POLY_SYS_CLOSE, inotify_fd, 0);
+    return 137;
+  }
+  if (poly_syscall2(POLY_SYS_INOTIFY_RM_WATCH, inotify_fd,
+        watch_id) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, inotify_fd, 0);
+    return 138;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, inotify_fd, 0) != 0)
+    return 139;
+  if (notify_event.wd != (int32_t) watch_id ||
+      (notify_event.mask & POLY_IN_OPEN) == 0)
+    return 140;
 
   fd = poly_syscall2(POLY_SYS_TIMERFD_CREATE, POLY_CLOCK_MONOTONIC, 0);
   if (fd < 0)
