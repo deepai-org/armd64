@@ -92,10 +92,17 @@ programmable ABI signature slots. A signature is register-only: it lets `PCALL`
 remap source architectural registers onto destination architectural registers
 through rename/RAT state, without moving data and without reading memory.
 
-This makes ordinary all-register calls fast while preserving a simple hardware
-contract. FP/vector arguments, stack arguments, aggregate returns, variadics,
-callbacks, PLT/GOT lazy binding, and helper imports remain software-thunk
-responsibilities.
+These slots are semi-persistent hardware control state, typically programmed by
+the loader or runtime and reused by many call sites. A `PCALL` names the target
+frontend, target PC, and signature slot; the CPU applies the cached register map
+in the rename path instead of executing move instructions.
+
+This is intentionally limited to register renaming. Hardware does not repack
+stack arguments, copy by-value structs, interpret variadic call layouts, or read
+ABI descriptors from user memory. Those cases remain software-thunk
+responsibilities. The result is a small silicon mechanism that makes ordinary
+all-register calls fast while keeping complex ABI policy outside the CPU
+pipeline.
 
 Large memory returns follow the callee ABI. AArch64 uses `x8`; RISC-V uses `a0`
 and shifts user arguments; x86_64 returns the hidden pointer in `RAX`.

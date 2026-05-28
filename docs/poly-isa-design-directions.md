@@ -71,6 +71,15 @@ cached signature slot and applies those mappings in or near the rename stage.
 The data does not move; only architectural names are rebound to physical
 registers.
 
+This is the only kind of semi-persistent, reconfigurable ABI hardware that
+belongs on the fast path. Register renaming fits the existing OoO machinery: the
+runtime programs a small control state block, and later transitions consume that
+state by updating rename mappings. Trying to extend the same mechanism to
+memory, stack slots, or aggregate layouts would require page-walking loads,
+variable-latency microcode, partial writes, and precise fault recovery inside
+the transition instruction. That crosses the boundary from an ISA switch into a
+general ABI-marshalling engine and should be kept out of hardware.
+
 For example, a SysV-to-AAPCS64 signature can map:
 
 - x86_64 `RDI` to AArch64 `x0`
@@ -86,6 +95,14 @@ frontend, target PC, and signature slot. The common case stays fixed-latency:
 decode the transition, select the signature, update rename mappings, install
 the return cookie, and branch.
 
+Slot programming should happen at load time, lazy binding time, or runtime
+setup time, not on every call. A typical system can reserve one slot for
+SysV-to-AAPCS64, one for AAPCS64-to-SysV, one for SysV-to-RISC-V psABI, and one
+for the reverse direction. Additional slots can cover hot callbacks or
+specialized return-value conventions. If a call site does not match a cached
+slot, software can either program a less-used slot before entering a hot loop or
+fall back to a thunk.
+
 This mechanism must be strictly limited to registers:
 
 - No hardware parsing of descriptors.
@@ -99,6 +116,15 @@ Stack arguments, split aggregates, variadics, unusual FP/vector ABI cases, and
 all loader policy still go through software thunks. The thunk performs memory
 layout work and then uses a null, identity, or simple register signature for the
 final frontend transition.
+
+This creates a deliberate hybrid boundary:
+
+- Hardware handles the common all-register case by applying a cached signature
+  with no data movement.
+- Software handles stack layout, by-value aggregates, variadics, lazy binding,
+  and unusual vector cases before making the final fixed-latency transition.
+- The null signature is the exchange-window ABI, so every implementation has a
+  simple fallback even without RAT remapping.
 
 ## Register Exchange Window
 
