@@ -1,42 +1,41 @@
 # armd64
 
 Bochs prototype for running precompiled AArch64 and RISC-V userspace code inside
-an ordinary x86-64 Linux guest.
+a normal x86-64 Linux guest.
 
 ## Run
 
-Requires Docker with `linux/arm64` support.
+Requirements: Docker, including `linux/arm64` image support.
 
 ```bash
 make image
 make boot-poly-full-arch-traps
 ```
 
-Common targets:
+Useful targets:
 
-- `make boot`: x86-64 guest smoke test, poly disabled.
-- `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
-- `make boot-poly-binfmt-arch-traps`: foreign executable/binfmt path.
-- `make boot-poly-full-arch-traps`: broad regression run.
+- `make boot`: boot the x86-64 guest with poly disabled.
+- `make boot-poly-call-arch-traps`: run cross-ISA call/thread/signal tests.
+- `make boot-poly-binfmt-arch-traps`: run foreign executable/binfmt tests.
+- `make boot-poly-full-arch-traps`: run the broad polyglot regression set.
 
-Logs are written to `out/serial.log` for guest output and `out/bochs.log` for
-Bochs trace/debug output.
+Guest output is in `out/serial.log`. Bochs trace output is in `out/bochs.log`.
 
-## ISA Delta From x86-64
+## ISA Delta
 
-The system still boots and runs as x86-64: paging, privilege, interrupts,
-virtual memory, and the Linux syscall ABI remain x86-64.
+The base machine is still x86-64. Paging, privilege, interrupts, exceptions,
+virtual memory, TSO ordering, and the Linux syscall ABI remain x86-64.
 
-The polyglot extension adds only the cross-ISA pieces:
+The extension adds:
 
-- `CPUID 0x40000000+` discovery for the experimental contract.
-- Prototype x86 poly opcodes: `0f 24 <op> "POLY!"`.
-- `PENTER.A64` / `PENTER.RV64` raw fetch modes for AArch64 and RISC-V code.
-- Native foreign escapes: AArch64 `brk #0x7fff`, RISC-V `0x0000000b`.
+- `CPUID 0x40000000+` leaves for polyglot feature discovery.
+- Prototype x86 entry/call opcodes: `0f 24 <op> "POLY!"`.
+- Raw 32-bit fetch modes for AArch64 and RISC-V: `PENTER.A64`, `PENTER.RV64`.
+- Native escapes back to x86 control: AArch64 `brk #0x7fff`, RISC-V `0x0000000b`.
 - `PCALL.*.SYSV` bridges from x86-64 SysV into AAPCS64 or RISC-V psABI code.
-- Shared x86-64 memory translation, page faults, permissions, and TSO ordering.
-- OS-neutral trap packets instead of CPU-side Linux/libc emulation.
-- Non-x86 state exposed through XSAVE component 20.
+- Shared x86-64 address translation, page faults, and memory permissions.
+- OS-neutral trap packets rather than CPU-side Linux/libc emulation.
+- XSAVE component 20 for non-x86 architectural state.
 
-The compatibility target is existing precompiled cross-ISA objects, not a new
-compiler-only ABI. Full details: `docs/poly-isa.md`.
+The target is compatibility with existing precompiled cross-ISA objects, not a
+new compiler-only ABI. See `docs/poly-isa.md` for the full ISA contract.
