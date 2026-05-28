@@ -106,6 +106,38 @@ uint64_t POLY_HOST_HELPER poly_host_x86_sum14(uint64_t a, uint64_t b,
   return result + poly_host_x86_zero;
 }
 
+__asm__(
+  ".text\n"
+  ".globl poly_host_x86_align14\n"
+  ".type poly_host_x86_align14,@function\n"
+  "poly_host_x86_align14:\n"
+  "  movq %rsp, %rax\n"
+  "  andq $15, %rax\n"
+  "  cmpq $8, %rax\n"
+  "  jne 1f\n"
+  "  movq %rdi, %rax\n"
+  "  addq %rsi, %rax\n"
+  "  addq %rdx, %rax\n"
+  "  addq %rcx, %rax\n"
+  "  addq %r8, %rax\n"
+  "  addq %r9, %rax\n"
+  "  addq 8(%rsp), %rax\n"
+  "  addq 16(%rsp), %rax\n"
+  "  addq 24(%rsp), %rax\n"
+  "  addq 32(%rsp), %rax\n"
+  "  addq 40(%rsp), %rax\n"
+  "  addq 48(%rsp), %rax\n"
+  "  addq 56(%rsp), %rax\n"
+  "  addq 64(%rsp), %rax\n"
+  "  addq $200, %rax\n"
+  "  ret\n"
+  "1:\n"
+  "  movabsq $0x8000000000000000, %rdx\n"
+  "  orq %rdx, %rax\n"
+  "  ret\n"
+  ".size poly_host_x86_align14, .-poly_host_x86_align14\n"
+);
+
 double POLY_HOST_HELPER poly_host_x86_fp64_add(double a, double b)
 {
   return a + b + 200.5;
