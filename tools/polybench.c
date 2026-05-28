@@ -24,7 +24,12 @@ enum {
   POLY_IMPORT_FUNC_MEMSET = 10,
   POLY_IMPORT_FUNC_MEMCMP = 11,
   POLY_IMPORT_FUNC_STRNLEN = 24,
-  POLY_IMPORT_FUNC_COUNT = 144
+  POLY_IMPORT_FUNC_COUNT = 144,
+  POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
+  POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
+  POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
+  POLYBENCH_DESCRIPTOR_MAX_SWITCH_DELTA = 7,
+  POLYBENCH_DESCRIPTOR_MEMOPS_MAX_SWITCH_DELTA = 11
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
@@ -2900,6 +2905,17 @@ static int check_loop(const char *name, int arch) {
   return 0;
 }
 
+static int check_switch_delta_max(const char *kind, const char *name,
+    uint64_t switch_delta, uint64_t max_switch_delta) {
+  if (switch_delta > max_switch_delta) {
+    fprintf(stderr, "POLYBENCH_FAIL: %s %s switch delta expected at most %llu got %llu\n",
+      kind, name, (unsigned long long) max_switch_delta,
+      (unsigned long long) switch_delta);
+    return -1;
+  }
+  return 0;
+}
+
 static int check_mixed_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
@@ -2927,6 +2943,9 @@ static int check_mixed_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("mixed", name, switch_delta,
+        POLYBENCH_MIXED_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -2942,7 +2961,8 @@ static int check_mixed(void) {
 }
 
 static int check_cross_call_direction(const char *name,
-    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *),
+    uint64_t max_switch_delta) {
   uint64_t result = 0;
   uint64_t insn_delta = 0;
   uint64_t switch_delta = 0;
@@ -2968,6 +2988,9 @@ static int check_cross_call_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call", name, switch_delta,
+        max_switch_delta) < 0)
+    return -1;
   return 0;
 }
 
@@ -2998,6 +3021,9 @@ static int check_cross_call_fp_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call FP", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3028,6 +3054,9 @@ static int check_cross_call_fp8_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call FP8", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3058,6 +3087,9 @@ static int check_cross_call_fp64_stack_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call FP64 stack", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3088,6 +3120,9 @@ static int check_cross_call_mixed_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call mixed", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3118,6 +3153,9 @@ static int check_cross_call_stack_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call stack", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3148,6 +3186,9 @@ static int check_cross_call_saved_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call saved", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3178,6 +3219,9 @@ static int check_cross_call_saved_fp_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call saved-fp", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3208,6 +3252,9 @@ static int check_cross_call_pair_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call pair", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3238,6 +3285,9 @@ static int check_cross_call_compact_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call compact", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3268,6 +3318,9 @@ static int check_cross_call_syscall_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call syscall", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3299,6 +3352,9 @@ static int check_cross_call_break_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call break", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3329,6 +3385,9 @@ static int check_cross_call_string_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call string", name, switch_delta,
+        POLYBENCH_DESCRIPTOR_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3359,6 +3418,9 @@ static int check_cross_call_descriptor_memcmp_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call descriptor memcmp", name,
+        switch_delta, POLYBENCH_DESCRIPTOR_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
@@ -3389,18 +3451,24 @@ static int check_cross_call_descriptor_memops_direction(const char *name,
       name, (unsigned long long) switch_delta);
     return -1;
   }
+  if (check_switch_delta_max("cross call descriptor memops", name,
+        switch_delta, POLYBENCH_DESCRIPTOR_MEMOPS_MAX_SWITCH_DELTA) < 0)
+    return -1;
   return 0;
 }
 
 static int check_cross_calls(void) {
   if (check_cross_call_direction("aarch64-calls-riscv",
-        run_cross_call_aarch64_to_riscv) < 0)
+        run_cross_call_aarch64_to_riscv,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_direction("riscv-calls-aarch64",
-        run_cross_call_riscv_to_aarch64) < 0)
+        run_cross_call_riscv_to_aarch64,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_direction("nested-aarch64-riscv-aarch64",
-        run_nested_cross_call) < 0)
+        run_nested_cross_call,
+        POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_fp_direction("aarch64-calls-riscv-fp",
         run_cross_call_fp_aarch64_to_riscv) < 0)
