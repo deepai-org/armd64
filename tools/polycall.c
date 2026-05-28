@@ -2014,6 +2014,56 @@ static uint32_t read_note_u32(const unsigned char *data) {
   return value;
 }
 
+static int parse_bridge_specs_notes(const char *source,
+    const unsigned char *data, size_t size, size_t offset, size_t note_size,
+    struct poly_bridge_spec *specs, size_t *spec_count) {
+  if (offset > size || note_size > size - offset)
+    return -1;
+  const size_t end = offset + note_size;
+  while (offset < end) {
+    if (end - offset < 12)
+      return -1;
+    const uint32_t namesz = read_note_u32(data + offset);
+    const uint32_t descsz = read_note_u32(data + offset + 4);
+    offset += 12;
+    if (namesz > end - offset)
+      return -1;
+    const char *note_name = (const char *) (data + offset);
+    offset += (namesz + 3U) & ~3U;
+    if (offset > end || descsz > end - offset)
+      return -1;
+    const char *desc = (const char *) (data + offset);
+    offset += (descsz + 3U) & ~3U;
+    if (offset > end)
+      return -1;
+    if (namesz == 8 && memcmp(note_name, "POLYABI", 8) == 0 &&
+        parse_bridge_specs_text(source, desc, descsz, specs, spec_count) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int load_bridge_specs_from_program_headers(const char *path,
+    const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
+    struct poly_bridge_spec *specs, size_t *spec_count) {
+  if (ehdr->e_phentsize < sizeof(Elf64_Phdr) ||
+      check_elf_table(ehdr->e_phoff, ehdr->e_phnum, ehdr->e_phentsize, size) < 0)
+    return 0;
+
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *phdr = (const Elf64_Phdr *)
+      (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type != PT_NOTE)
+      continue;
+    if (phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset)
+      return -1;
+    if (parse_bridge_specs_notes(path, data, size, (size_t) phdr->p_offset,
+          (size_t) phdr->p_filesz, specs, spec_count) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static int section_name(const unsigned char *data, size_t size,
     const Elf64_Ehdr *ehdr, const Elf64_Shdr *sections, uint16_t index,
     const char **name) {
@@ -2060,29 +2110,9 @@ static int load_bridge_specs_from_sections(const char *path,
     }
     if (section->sh_type != SHT_NOTE)
       continue;
-
-    size_t offset = (size_t) section->sh_offset;
-    const size_t end = offset + (size_t) section->sh_size;
-    while (offset < end) {
-      if (end - offset < 12)
-        return -1;
-      const uint32_t namesz = read_note_u32(data + offset);
-      const uint32_t descsz = read_note_u32(data + offset + 4);
-      offset += 12;
-      if (namesz > end - offset)
-        return -1;
-      const char *note_name = (const char *) (data + offset);
-      offset += (namesz + 3U) & ~3U;
-      if (offset > end || descsz > end - offset)
-        return -1;
-      const char *desc = (const char *) (data + offset);
-      offset += (descsz + 3U) & ~3U;
-      if (offset > end)
-        return -1;
-      if (namesz == 8 && memcmp(note_name, "POLYABI", 8) == 0 &&
-          parse_bridge_specs_text(path, desc, descsz, specs, spec_count) < 0)
-        return -1;
-    }
+    if (parse_bridge_specs_notes(path, data, size, (size_t) section->sh_offset,
+          (size_t) section->sh_size, specs, spec_count) < 0)
+      return -1;
   }
   return 0;
 }
@@ -2143,6 +2173,9 @@ static int load_bridge_specs(const char *path, const unsigned char *data,
     size_t size, const Elf64_Ehdr *ehdr, struct poly_bridge_spec *specs,
     size_t *spec_count) {
   *spec_count = 0;
+  if (load_bridge_specs_from_program_headers(path, data, size, ehdr, specs,
+        spec_count) < 0)
+    return -1;
   if (load_bridge_specs_from_sections(path, data, size, ehdr, specs,
         spec_count) < 0)
     return -1;

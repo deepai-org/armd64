@@ -1,7 +1,7 @@
 typedef unsigned int u32x4 __attribute__((vector_size(16)));
 
 __asm__(
-  ".section .note.polyabi,\"\",%note\n"
+  ".section .note.polyabi,\"a\",%note\n"
   ".balign 4\n"
   ".long 8\n"
   ".long 2f-1f\n"
