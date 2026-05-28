@@ -72,6 +72,18 @@
 #define DT_GNU_HASH 0x6ffffef5
 #endif
 
+#ifndef DT_PLTRELSZ
+#define DT_PLTRELSZ 2
+#endif
+
+#ifndef DT_PLTREL
+#define DT_PLTREL 20
+#endif
+
+#ifndef DT_JMPREL
+#define DT_JMPREL 23
+#endif
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
@@ -1626,6 +1638,7 @@ static int apply_relative_relocations(const struct poly_program *program,
   uint64_t rela_vaddr = 0, rela_size = 0, rela_ent = sizeof(Elf64_Rela);
   uint64_t rel_vaddr = 0, rel_size = 0, rel_ent = sizeof(Elf64_Rel);
   uint64_t relr_vaddr = 0, relr_size = 0, relr_ent = sizeof(uint64_t);
+  uint64_t jmprel_vaddr = 0, pltrel_size = 0, pltrel_type = 0;
   uint64_t symtab_vaddr = 0, syment = sizeof(Elf64_Sym);
   uint64_t hash_vaddr = 0, gnu_hash_vaddr = 0;
   for (size_t n = 0; n < dyn_count; n++) {
@@ -1639,6 +1652,9 @@ static int apply_relative_relocations(const struct poly_program *program,
       case DT_RELR: relr_vaddr = dyn[n].d_un.d_ptr; break;
       case DT_RELRSZ: relr_size = dyn[n].d_un.d_val; break;
       case DT_RELRENT: relr_ent = dyn[n].d_un.d_val; break;
+      case DT_JMPREL: jmprel_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_PLTRELSZ: pltrel_size = dyn[n].d_un.d_val; break;
+      case DT_PLTREL: pltrel_type = dyn[n].d_un.d_val; break;
       case DT_SYMTAB: symtab_vaddr = dyn[n].d_un.d_ptr; break;
       case DT_SYMENT: syment = dyn[n].d_un.d_val; break;
       case DT_HASH: hash_vaddr = dyn[n].d_un.d_ptr; break;
@@ -1746,6 +1762,71 @@ static int apply_relative_relocations(const struct poly_program *program,
           }
         }
         where += 63 * 8;
+      }
+    }
+  }
+
+  if (pltrel_size) {
+    if (!jmprel_vaddr || (pltrel_type != DT_RELA && pltrel_type != DT_REL))
+      return -1;
+    if (pltrel_type == DT_RELA) {
+      if (pltrel_size % sizeof(Elf64_Rela))
+        return -1;
+      size_t rela_offset = 0;
+      if (elf_vaddr_to_image_offset(program, jmprel_vaddr, pltrel_size,
+            &rela_offset) < 0)
+        return -1;
+      for (size_t offset = 0; offset < pltrel_size;
+          offset += sizeof(Elf64_Rela)) {
+        const Elf64_Rela *rela =
+          (const Elf64_Rela *) (loaded_image + rela_offset + offset);
+        const uint64_t symbol_index = ELF64_R_SYM(rela->r_info);
+        const uint32_t reloc_type = ELF64_R_TYPE(rela->r_info);
+        if (reloc_type == none_type)
+          continue;
+        if (symbol_index == 0 ||
+            !symbolic_64_reloc_type_for_arch(program->arch, reloc_type))
+          return -1;
+        uint64_t reloc_value = 0;
+        if (resolve_same_image_reloc_symbol(program, loaded_image,
+              symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
+              symbol_index, &reloc_value) < 0)
+          return -1;
+        size_t target = 0;
+        if (elf_vaddr_to_image_offset(program, rela->r_offset, 8, &target) < 0)
+          return -1;
+        write_u64_le(loaded_image + target,
+          load_bias + reloc_value + (uint64_t) rela->r_addend);
+      }
+    }
+    else {
+      if (pltrel_size % sizeof(Elf64_Rel))
+        return -1;
+      size_t rel_offset = 0;
+      if (elf_vaddr_to_image_offset(program, jmprel_vaddr, pltrel_size,
+            &rel_offset) < 0)
+        return -1;
+      for (size_t offset = 0; offset < pltrel_size;
+          offset += sizeof(Elf64_Rel)) {
+        const Elf64_Rel *rel =
+          (const Elf64_Rel *) (loaded_image + rel_offset + offset);
+        const uint64_t symbol_index = ELF64_R_SYM(rel->r_info);
+        const uint32_t reloc_type = ELF64_R_TYPE(rel->r_info);
+        if (reloc_type == none_type)
+          continue;
+        if (symbol_index == 0 ||
+            !symbolic_64_reloc_type_for_arch(program->arch, reloc_type))
+          return -1;
+        size_t target = 0;
+        if (elf_vaddr_to_image_offset(program, rel->r_offset, 8, &target) < 0)
+          return -1;
+        uint64_t symbol_value = 0;
+        if (resolve_same_image_reloc_symbol(program, loaded_image,
+              symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
+              symbol_index, &symbol_value) < 0)
+          return -1;
+        write_u64_le(loaded_image + target,
+          load_bias + symbol_value + read_u64_le(loaded_image + target));
       }
     }
   }

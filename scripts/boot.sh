@@ -3550,6 +3550,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/aarch64-pcall-jumprel.elf=123 \
+    /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
     /usr/lib/polyapps/aarch64-memfill.elf=4 \
     /usr/lib/polyapps/aarch64-memcmp.elf=1 \
@@ -3812,6 +3814,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
+    /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
     /usr/lib/polyapps/riscv-memfill.elf=4 \
     /usr/lib/polyapps/riscv-memcmp.elf=1 \
@@ -4123,6 +4127,8 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/aarch64-pcall-jumprel.elf=123 \
+    /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so#poly_entry=45 \
     /usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so#poly_entry=45 \
     /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
@@ -4131,6 +4137,8 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
+    /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-compressed-ebreak.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-memcpy.elf=4 >/dev/ttyS0 2>&1
 fi
@@ -4622,6 +4630,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-rel.elf \
       /usr/lib/polyapps/aarch64-pcall-relr.elf \
       /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf \
+      /usr/lib/polyapps/aarch64-pcall-jumprel.elf \
+      /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf \
       /usr/lib/polyapps/aarch64-strlen.elf \
       /usr/lib/polyapps/aarch64-memfill.elf \
       /usr/lib/polyapps/aarch64-memcmp.elf \
@@ -4654,6 +4664,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-rel.elf \
       /usr/lib/polyapps/riscv-pcall-relr.elf \
       /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf \
+      /usr/lib/polyapps/riscv-pcall-jumprel.elf \
+      /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf \
       /usr/lib/polyapps/riscv-strlen.elf \
       /usr/lib/polyapps/riscv-memfill.elf \
       /usr/lib/polyapps/riscv-memcmp.elf \
