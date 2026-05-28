@@ -703,6 +703,24 @@ int main(void) {
       poly_arch_state.edx);
     return 1;
   }
+  struct poly_cpuid_regs xsave_leaf0 =
+    poly_read_cpuid(0x0000000d, 0);
+  if ((xsave_leaf0.eax & (1U << POLY_STATE_XSAVE_COMPONENT_ARCH)) == 0 ||
+      xsave_leaf0.ecx < POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH) {
+    fprintf(stderr, "POLY_PROBE_FAIL: standard XSAVE poly component missing eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      xsave_leaf0.eax, xsave_leaf0.ebx, xsave_leaf0.ecx, xsave_leaf0.edx);
+    return 1;
+  }
+  struct poly_cpuid_regs xsave_poly =
+    poly_read_cpuid(0x0000000d, POLY_STATE_XSAVE_COMPONENT_ARCH);
+  if (xsave_poly.eax != POLY_STATE_XSAVE_BYTES_ARCH ||
+      xsave_poly.ebx != POLY_STATE_XSAVE_OFFSET_ARCH ||
+      xsave_poly.ecx != 0x2 ||
+      xsave_poly.edx != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: standard XSAVE poly leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      xsave_poly.eax, xsave_poly.ebx, xsave_poly.ecx, xsave_poly.edx);
+    return 1;
+  }
   struct poly_cpuid_regs expected_trap =
     poly_cpuid_expected_trap_leaf();
   struct poly_cpuid_regs poly_trap =
