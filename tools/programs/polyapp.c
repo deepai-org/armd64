@@ -10,9 +10,9 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60\n"
+#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63\n"
+#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62\n"
 
 enum {
   POLY_ARCH_AARCH64 = 1,
@@ -56,10 +56,10 @@ static jmp_buf polyapp_exit_env;
 static int polyapp_exit_env_valid;
 static uint64_t polyapp_exit_result;
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
-static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
-static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
-static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x24,0x5a,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00" ::: "memory"); }
+static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x31" ::: "memory"); }
+static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39" ::: "memory"); }
+static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x24,0x5a" ::: "memory"); }
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
@@ -888,13 +888,13 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   code[2] = 0x90;
   size_t offset = 3;
   if (payload->arch == POLY_ARCH_AARCH64) {
-    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, aarch64_adr(30, (int64_t) (payload->insn_count + 2) * 4));
     emit_u32(code, &offset, 0xd2800008U);
   } else {
-    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x02 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     int64_t escape_offset = (int64_t) (payload->insn_count + 3) * 4;

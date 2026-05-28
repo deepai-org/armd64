@@ -104,7 +104,7 @@ case "$path" in
   */aarch64-pcall-needed-tls-real.so) expected=545; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-needed-ifunc-real.so) expected=845; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-needed-dt-init-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
-  */aarch64-pcall-libc-import-real.so) expected=171221; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-libc-import-real.so) expected=201721; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-qsort-real.so) set_polycall 128 ;;
   */aarch64-pcall-bsearch-real.so) set_polycall 136 ;;
   */aarch64-pcall-qsort-r-real.so) set_polycall 194 ;;
@@ -300,7 +300,7 @@ case "$path" in
   */riscv-pcall-needed-tls-real.so) expected=545; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-needed-ifunc-real.so) expected=845; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-needed-dt-init-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
-  */riscv-pcall-libc-import-real.so) expected=171221; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-libc-import-real.so) expected=201721; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-qsort-real.so) set_polycall 128 ;;
   */riscv-pcall-bsearch-real.so) set_polycall 136 ;;
   */riscv-pcall-qsort-r-real.so) set_polycall 194 ;;

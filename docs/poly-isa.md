@@ -33,14 +33,18 @@ Every transition ends the current decode block and records precise source and
 destination PCs. AArch64 fetch is 4-byte aligned. RISC-V fetch is 2-byte aligned
 so compressed instructions remain valid.
 
-The Bochs prototype temporarily encodes these as:
+The Bochs prototype models this with a compact decoded x86 control page:
 
 ```text
-0f 24 <selector> 50 4f 4c 59 21
+0f 24 <subop>
 ```
 
-The trailer is ASCII `POLY!`. The prototype encoding is not the intended
-silicon opcode allocation.
+`0f 24` is the Poly Control Opcode Page and `<subop>` selects the operation.
+This is a normal decoded instruction family: no `#UD` exception path, no magic
+trailer, no variable-length envelope, and no following payload bytes. Future
+silicon may allocate a different reserved x86 opcode page, but it should keep
+the same hardware contract: one deterministic frontend-control decode that
+flushes or terminates the current decode block before switching fetch mode.
 
 ## Foreign Escapes
 

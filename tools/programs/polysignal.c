@@ -9,7 +9,7 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67\n"
 
 enum {
   POLYSIGNAL_LOOP_COUNT = 200000,
@@ -151,7 +151,7 @@ static uint64_t pcall_aarch64_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".byte 0x0f,0x24,0x10\n"
     "1:\n"
     ".long 0xf1000421\n" // subs x1,x1,#1
     ".long 0x54ffffe1\n" // b.ne -4
@@ -169,7 +169,7 @@ static uint64_t pcall_aarch64_hidden_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".byte 0x0f,0x24,0x10\n"
     "1:\n"
     ".long 0x91000014\n" // add x20,x0,#0
     ".long 0xf1000421\n" // subs x1,x1,#1
@@ -188,7 +188,7 @@ static uint64_t pcall_riscv_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".byte 0x0f,0x24,0x11\n"
     "1:\n"
     ".long 0xfff58593\n" // addi a1,a1,-1
     ".long 0xfe059ee3\n" // bnez a1,-4
@@ -206,7 +206,7 @@ static uint64_t pcall_riscv_hidden_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".byte 0x0f,0x24,0x11\n"
     "1:\n"
     ".long 0x00050a13\n" // addi s4,a0,0
     ".long 0xfff58593\n" // addi a1,a1,-1
@@ -227,7 +227,7 @@ static uint64_t pcall_aarch64_hidden_fp_signal(uint64_t left_bits,
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".byte 0x0f,0x24,0x10\n"
     "1:\n"
     ".long 0x1e604014\n" // fmov d20,d0
     ".long 0xf1000421\n" // subs x1,x1,#1
@@ -249,7 +249,7 @@ static uint64_t pcall_riscv_hidden_fp_signal(uint64_t left_bits,
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+    ".byte 0x0f,0x24,0x11\n"
     "1:\n"
     ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
     ".long 0xfff58593\n" // addi a1,a1,-1
@@ -281,7 +281,7 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
   code[offset++] = 0x90;
 
   const uint8_t raw_aarch64[] = {
-    0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21
+    0x0f, 0x24, 0x01
   };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
@@ -331,7 +331,7 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
   code[offset++] = 0x90;
 
   const uint8_t raw_riscv[] = {
-    0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21
+    0x0f, 0x24, 0x02
   };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 

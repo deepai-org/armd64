@@ -19,9 +19,9 @@
 
 extern char **environ;
 
-#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
-#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60\n"
+#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63\n"
+#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62\n"
 
 #ifndef R_AARCH64_NONE
 #define R_AARCH64_NONE 0
@@ -106,6 +106,7 @@ extern char **environ;
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
+  POLY_X86_CONTROL_OPCODE_SIZE = 3,
   POLY_MODE_X86 = 0,
   POLY_MODE_RAW_AARCH64 = 3,
   POLY_MODE_RAW_RISCV = 4,
@@ -165,7 +166,7 @@ struct poly_request {
   int check_expected;
 };
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
+static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00" ::: "memory"); }
 
 static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
   struct poly_cpuid_regs regs;
@@ -2005,7 +2006,7 @@ static int emit_poly_trampoline(const struct poly_program *program,
   size_t offset = 0;
   if (program->arch == POLY_ARCH_AARCH64) {
     const uint8_t raw_switch[] = {
-      0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21
+      0x0f, 0x24, 0x01
     };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
@@ -2022,7 +2023,7 @@ static int emit_poly_trampoline(const struct poly_program *program,
   }
   else {
     const uint8_t raw_switch[] = {
-      0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21
+      0x0f, 0x24, 0x02
     };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
@@ -2696,7 +2697,7 @@ static int load_elf_program(const char *path, const char *symbol_name,
 static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
   const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
-  const size_t raw_switch_size = 8;
+  const size_t raw_switch_size = POLY_X86_CONTROL_OPCODE_SIZE;
   const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
   const size_t load_base_offset = 4096;
   const size_t branch_offset = load_base_offset - branch_size;
@@ -2793,7 +2794,7 @@ static int emit_and_run_process(const struct poly_program *program,
     uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
   const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
-  const size_t raw_switch_size = 8;
+  const size_t raw_switch_size = POLY_X86_CONTROL_OPCODE_SIZE;
   const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
   const size_t load_base_offset = 4096;
   const size_t branch_offset = load_base_offset - branch_size;

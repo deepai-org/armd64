@@ -1888,6 +1888,107 @@ uint64_t POLY_HOST_HELPER poly_host_x86_strchrnul(const uint8_t *text,
   return (uint64_t) (uintptr_t) text;
 }
 
+static int poly_host_x86_is_space(uint8_t value)
+{
+  return value == ' ' || value == '\f' || value == '\n' ||
+    value == '\r' || value == '\t' || value == '\v';
+}
+
+static int poly_host_x86_digit_value(uint8_t value)
+{
+  if (value >= '0' && value <= '9')
+    return (int) (value - '0');
+  if (value >= 'a' && value <= 'z')
+    return (int) (value - 'a') + 10;
+  if (value >= 'A' && value <= 'Z')
+    return (int) (value - 'A') + 10;
+  return -1;
+}
+
+static uint64_t poly_host_x86_parse_integer(const uint8_t *text,
+    uint8_t **endptr, uint64_t base, bool *negative)
+{
+  const uint8_t *start = text;
+  const uint8_t *cursor = text;
+  uint64_t value = 0;
+  bool neg = false;
+  bool any = false;
+
+  while (poly_host_x86_is_space(*cursor))
+    cursor++;
+
+  if (*cursor == '-' || *cursor == '+') {
+    neg = *cursor == '-';
+    cursor++;
+  }
+
+  if (base == 0) {
+    if (cursor[0] == '0' && (cursor[1] == 'x' || cursor[1] == 'X')) {
+      base = 16;
+      cursor += 2;
+    }
+    else if (cursor[0] == '0')
+      base = 8;
+    else
+      base = 10;
+  }
+  else if (base == 16 && cursor[0] == '0' &&
+      (cursor[1] == 'x' || cursor[1] == 'X')) {
+    cursor += 2;
+  }
+
+  for (;;) {
+    int digit = poly_host_x86_digit_value(*cursor);
+    if (digit < 0 || (uint64_t) digit >= base)
+      break;
+    any = true;
+    value = value * base + (uint64_t) digit;
+    cursor++;
+  }
+
+  if (endptr != 0)
+    *endptr = (uint8_t *) (any ? cursor : start);
+  if (negative != 0)
+    *negative = neg && any;
+  return value;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_atoi(const uint8_t *text)
+{
+  bool negative = false;
+  uint64_t value = poly_host_x86_parse_integer(text, 0, 10, &negative);
+  int32_t result = negative ? -(int32_t) value : (int32_t) value;
+  return (uint64_t) (int64_t) result;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strtol(const uint8_t *text,
+    uint8_t **endptr, uint64_t base)
+{
+  bool negative = false;
+  uint64_t value = poly_host_x86_parse_integer(text, endptr, base, &negative);
+  return negative ? (uint64_t) -(int64_t) value : value;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strtoul(const uint8_t *text,
+    uint8_t **endptr, uint64_t base)
+{
+  bool negative = false;
+  uint64_t value = poly_host_x86_parse_integer(text, endptr, base, &negative);
+  return negative ? (uint64_t) -value : value;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strtoll(const uint8_t *text,
+    uint8_t **endptr, uint64_t base)
+{
+  return poly_host_x86_strtol(text, endptr, base);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_strtoull(const uint8_t *text,
+    uint8_t **endptr, uint64_t base)
+{
+  return poly_host_x86_strtoul(text, endptr, base);
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_bcopy(const uint8_t *src,
     uint8_t *dest, uint64_t size)
 {

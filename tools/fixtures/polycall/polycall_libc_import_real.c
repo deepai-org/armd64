@@ -34,11 +34,21 @@ extern void bcopy(const void *, void *, size_t);
 extern void bzero(void *, size_t);
 extern char *index(const char *, int);
 extern char *rindex(const char *, int);
+extern int atoi(const char *);
+extern long strtol(const char *, char **, int);
+extern unsigned long strtoul(const char *, char **, int);
+extern long long strtoll(const char *, char **, int);
+extern unsigned long long strtoull(const char *, char **, int);
 
 static const char source[] = "poly-libc";
 static const char expected[] = "poly-libc";
 static const char overlap_source[] = "abcdef";
 static const char overlap_expected[] = "ababcde";
+static const char atoi_text[] = "42x";
+static const char strtol_text[] = "-123z";
+static const char strtoul_text[] = "377z";
+static const char strtoll_text[] = "-9223372036854775807q";
+static const char strtoull_text[] = "0xffz";
 
 __attribute__((noinline))
 static int call_strcmp(const char *left, const char *right)
@@ -215,6 +225,37 @@ static char *call_rindex(const char *base, int needle)
   return rindex(base, needle);
 }
 
+__attribute__((noinline))
+static int call_atoi(const char *text)
+{
+  return atoi(text);
+}
+
+__attribute__((noinline))
+static long call_strtol(const char *text, char **endptr, int base)
+{
+  return strtol(text, endptr, base);
+}
+
+__attribute__((noinline))
+static unsigned long call_strtoul(const char *text, char **endptr, int base)
+{
+  return strtoul(text, endptr, base);
+}
+
+__attribute__((noinline))
+static long long call_strtoll(const char *text, char **endptr, int base)
+{
+  return strtoll(text, endptr, base);
+}
+
+__attribute__((noinline))
+static unsigned long long call_strtoull(const char *text, char **endptr,
+    int base)
+{
+  return strtoull(text, endptr, base);
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -304,6 +345,18 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   void *last_mem_not_found = call_memrchr(buffer, 'z', len);
   void *memory_substring_found = call_memmem(buffer, len, "y-l", 3);
   void *empty_memory_found = call_memmem(buffer, len, "", 0);
+  char *parse_end = 0;
+  int atoi_value = call_atoi(atoi_text);
+  long strtol_value = call_strtol(strtol_text, &parse_end, 10);
+  int strtol_end_ok = parse_end == strtol_text + 4;
+  unsigned long strtoul_value = call_strtoul(strtoul_text, &parse_end, 8);
+  int strtoul_end_ok = parse_end == strtoul_text + 3;
+  long long strtoll_value =
+    call_strtoll(strtoll_text, &parse_end, 10);
+  int strtoll_end_ok = parse_end == strtoll_text + 20;
+  unsigned long long strtoull_value =
+    call_strtoull(strtoull_text, &parse_end, 0);
+  int strtoull_end_ok = parse_end == strtoull_text + 4;
   int same = memcmp(buffer, expected, sizeof(expected));
   int moved = memcmp(overlap, overlap_expected, sizeof(overlap_expected));
   int copied_same = memcmp(copied, expected, sizeof(expected));
@@ -375,5 +428,11 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     (case_prefix_same == 0 ? 5600 : 56000) +
     (case_substring_found == buffer + 2 ? 5700 : 57000) +
     (case_substring_not_found == 0 ? 5800 : 58000) +
+    (atoi_value == 42 ? 5900 : 59000) +
+    (strtol_value == -123 && strtol_end_ok ? 6000 : 60000) +
+    (strtoul_value == 255 && strtoul_end_ok ? 6100 : 61000) +
+    (strtoll_value == -9223372036854775807LL && strtoll_end_ok ?
+      6200 : 62000) +
+    (strtoull_value == 255 && strtoull_end_ok ? 6300 : 63000) +
     (unsigned char) buffer[0];
 }

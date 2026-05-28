@@ -116,6 +116,7 @@ enum {
   POLY_MODE_RAW_RISCV = 4,
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
+  POLY_X86_CONTROL_OPCODE_SIZE = 3,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -495,7 +496,12 @@ enum {
   POLY_IMPORT_FUNC_TIME = 192,
   POLY_IMPORT_FUNC_GETTIMEOFDAY = 193,
   POLY_IMPORT_FUNC_CLOCK = 194,
-  POLY_IMPORT_FUNC_COUNT = 195
+  POLY_IMPORT_FUNC_ATOI = 195,
+  POLY_IMPORT_FUNC_STRTOL = 196,
+  POLY_IMPORT_FUNC_STRTOUL = 197,
+  POLY_IMPORT_FUNC_STRTOLL = 198,
+  POLY_IMPORT_FUNC_STRTOULL = 199,
+  POLY_IMPORT_FUNC_COUNT = 200
 };
 
 enum {
@@ -910,6 +916,15 @@ extern uint64_t poly_host_x86_mempcpy(uint8_t *dest, const uint8_t *src,
     uint64_t size);
 extern uint64_t poly_host_x86_rawmemchr(const uint8_t *text, uint64_t needle);
 extern uint64_t poly_host_x86_strchrnul(const uint8_t *text, uint64_t needle);
+extern uint64_t poly_host_x86_atoi(const uint8_t *text);
+extern uint64_t poly_host_x86_strtol(const uint8_t *text, uint8_t **endptr,
+    uint64_t base);
+extern uint64_t poly_host_x86_strtoul(const uint8_t *text, uint8_t **endptr,
+    uint64_t base);
+extern uint64_t poly_host_x86_strtoll(const uint8_t *text, uint8_t **endptr,
+    uint64_t base);
+extern uint64_t poly_host_x86_strtoull(const uint8_t *text, uint8_t **endptr,
+    uint64_t base);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1120,6 +1135,7 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "strstr", "strcpy", "strncpy", "strnlen", "strcat", "strncat",
     "strspn", "strcspn", "strpbrk", "stpcpy", "stpncpy", "mempcpy",
     "rawmemchr", "strchrnul", "bcmp", "bcopy", "bzero",
+    "atoi", "strtol", "strtoul", "strtoll", "strtoull",
     "__tls_get_addr",
     "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
     "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
@@ -1282,6 +1298,16 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_rawmemchr;
     case POLY_IMPORT_FUNC_STRCHRNUL:
       return (uint64_t) (uintptr_t) poly_host_x86_strchrnul;
+    case POLY_IMPORT_FUNC_ATOI:
+      return (uint64_t) (uintptr_t) poly_host_x86_atoi;
+    case POLY_IMPORT_FUNC_STRTOL:
+      return (uint64_t) (uintptr_t) poly_host_x86_strtol;
+    case POLY_IMPORT_FUNC_STRTOUL:
+      return (uint64_t) (uintptr_t) poly_host_x86_strtoul;
+    case POLY_IMPORT_FUNC_STRTOLL:
+      return (uint64_t) (uintptr_t) poly_host_x86_strtoll;
+    case POLY_IMPORT_FUNC_STRTOULL:
+      return (uint64_t) (uintptr_t) poly_host_x86_strtoull;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -2994,6 +3020,26 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "memalign") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_MEMALIGN * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "atoi") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ATOI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strtol") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRTOL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strtoul") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRTOUL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strtoll") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRTOLL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strtoull") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRTOULL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
@@ -7046,9 +7092,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
-    tls_setup_size + heap_setup_size + import_setup_size + 8;
+    tls_setup_size + heap_setup_size + import_setup_size +
+    POLY_X86_CONTROL_OPCODE_SIZE;
   const size_t main_stub_size = pcall_return_offset + callee_restore_size + 1;
-  const size_t import_return_size = needs_x86_import ? 8 : 0;
+  const size_t import_return_size = needs_x86_import ?
+    POLY_X86_CONTROL_OPCODE_SIZE : 0;
   const size_t import_descriptor_count = needs_x86_import ?
     import_contract.import_count : 0;
   const size_t import_descriptor_size = needs_x86_import ?
@@ -7179,8 +7227,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     else if (call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG)
       pcall_op = 0x2a;
     const uint8_t pcall[] = {
-      0x0f, 0x24, pcall_op,
-      0x50, 0x4f, 0x4c, 0x59, 0x21
+      0x0f, 0x24, pcall_op
     };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
@@ -7200,8 +7247,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     else if (call_kind == POLY_CALL_VEC128_U32)
       pcall_op = 0x22;
     const uint8_t pcall[] = {
-      0x0f, 0x24, pcall_op,
-      0x50, 0x4f, 0x4c, 0x59, 0x21
+      0x0f, 0x24, pcall_op
     };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
@@ -7209,7 +7255,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   emit_restore_callee_regs(code, &offset, callee_save_area);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
-    const uint8_t import_return[] = { 0x0f, 0x24, 0x20, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+    const uint8_t import_return[] = { 0x0f, 0x24, 0x20 };
     memcpy(code + offset, import_return, sizeof(import_return));
     offset += sizeof(import_return);
     for (size_t n = 0; n < import_descriptor_count; n++) {
@@ -7885,11 +7931,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   if (call_kind == POLY_CALL_SRET_U64) {
     if (program->arch == POLY_ARCH_AARCH64) {
-      const uint8_t pcall[] = { 0x0f, 0x24, 0x12, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+      const uint8_t pcall[] = { 0x0f, 0x24, 0x12 };
       memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
     }
     else {
-      const uint8_t pcall[] = { 0x0f, 0x24, 0x13, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+      const uint8_t pcall[] = { 0x0f, 0x24, 0x13 };
       memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
     }
   }
