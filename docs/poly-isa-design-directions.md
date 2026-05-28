@@ -109,6 +109,16 @@ transition path small: `PCALL` selects a slot, applies register-name aliases,
 installs native return-cookie state, and redirects fetch to the target frontend.
 No operand data moves through the integer execution pipes.
 
+The architectural contract for applying a signature must be as strict as a
+branch-class operation:
+
+- It performs no user-memory reads or writes.
+- It cannot fault because of stack, descriptor, or aggregate layout access.
+- It does not allocate temporary architectural registers.
+- It only changes frontend mode, PC, return-cookie state, and register aliases.
+- Its slot state is explicit poly architectural state, saved/restored by the
+  poly state component, not hidden CR3 or emulator bookkeeping.
+
 Architecturally, the mechanism should look like:
 
 - `PABI_SIG_SET slot, kind`: program a small register-only mapping slot.

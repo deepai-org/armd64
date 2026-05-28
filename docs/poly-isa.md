@@ -142,6 +142,12 @@ state setup. The hot `PCALL` path selects a cached slot, rebinds architectural
 source names to destination names in rename/RAT state, installs the return
 cookie, and branches.
 
+Applying a signature is a fixed-latency control operation. It does not read a
+descriptor, touch the user stack, allocate temporary architectural registers, or
+perform ABI memory conversion. Invalid slot use should trap before changing
+frontends; valid slot use should be no more complex than selecting cached
+rename mappings plus the normal transition-stack update.
+
 This is intentionally limited to register renaming. Hardware does not repack
 stack arguments, copy by-value structs, interpret variadic call layouts, or read
 ABI descriptors from user memory. Those cases remain software-thunk
