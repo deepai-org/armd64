@@ -138,6 +138,13 @@ __asm__(
   ".size poly_host_x86_align14, .-poly_host_x86_align14\n"
 );
 
+unsigned __int128 POLY_HOST_HELPER poly_host_x86_i128(uint64_t a, uint64_t b)
+{
+  uint64_t lo = a + 0x10;
+  uint64_t hi = b + 0x20;
+  return ((unsigned __int128) hi << 64) | lo;
+}
+
 double POLY_HOST_HELPER poly_host_x86_fp64_add(double a, double b)
 {
   return a + b + 200.5;
