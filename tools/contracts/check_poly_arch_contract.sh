@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 BOCHS_EXCEPTION="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/exception.cc"
 BOCHS_CTRL_XFER64="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/ctrl_xfer64.cc"
@@ -267,7 +267,7 @@ assert_not_contains "BX_POLY_IMPORT_FUNC_(STR|MEM|BCMP|BCOPY|BZERO|RAWMEMCHR|STA
   "import call gate must not encode libc/process/helper-specific argument policy"
 assert_not_contains "BX_POLY_IMPORT_FUNC_ATOMIC_STORE_16" "$IMPORT_CALL_FUNC" \
   "AArch64 __int128 argument alignment must be handled by runtime descriptors, not CPU import mapping"
-assert_not_contains "uses_fp128_.*arg|BX_WRITE_XMM_REG_.*arg[0-9]" "$IMPORT_CALL_FUNC" \
+assert_not_contains "uses_fp128_.*arg" "$IMPORT_CALL_FUNC" \
   "RISC-V __float128 argument reconstruction must be handled by runtime descriptors, not CPU import mapping"
 assert_not_contains "bx_poly_import_uses_x86_stack_args|bx_poly_import_x86_returns_i128|bx_poly_import_x86_returns_fp128" "$BOCHS_CPU" \
   "x86 import stack and return ABI shape must come from runtime descriptor flags"

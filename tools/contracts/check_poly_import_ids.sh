@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOCHS_SRC="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 TOOLS_SRC="$ROOT_DIR/tools/polycall.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-import-ids.$$"

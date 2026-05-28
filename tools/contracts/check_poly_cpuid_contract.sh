@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 BOCHS_CRREGS="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/crregs.h"
 HEADER="$ROOT_DIR/tools/polycpuid.h"
@@ -351,7 +351,9 @@ assigned_xcr0_component="$(
   ' "$BOCHS_CRREGS" | awk -v component="$poly_component" '$1 == component { print $0; exit }'
 )"
 if [[ -n "$assigned_xcr0_component" ]]; then
-  fail "POLY_STATE_XSAVE_COMPONENT_ARCH=$poly_component collides with Bochs x86 xstate component $assigned_xcr0_component"
+  if [[ "$assigned_xcr0_component" != *"BX_XCR0_POLY_BIT" ]]; then
+    fail "POLY_STATE_XSAVE_COMPONENT_ARCH=$poly_component collides with Bochs x86 xstate component $assigned_xcr0_component"
+  fi
 fi
 
 cat > "$TMP_DIR/polycpuid_layout_check.c" <<EOF

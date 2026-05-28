@@ -34,7 +34,8 @@ Other useful targets:
 - Cross-ISA calls bridge real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
   psABI. This is compatibility glue, not a new `PolyFast` ABI.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
-  OS-neutral trap records for runtime or OS policy.
+  OS-neutral trap records carrying eight ABI arguments for runtime or OS
+  policy.
 - Foreign register state is intended to be explicit XSAVE-style architectural
   state. Hidden CR3-scoped emulator state is not the hardware contract.
 - The Bochs prototype currently uses temporary `0f 24 ... "POLY!"` encodings.
