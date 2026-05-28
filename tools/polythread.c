@@ -7,6 +7,7 @@
 
 #define POLY_OP_ENTER_A64 ".byte 0x0f,0x24,0x01,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_PIRET ".byte 0x0f,0x24,0x20,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -21,11 +22,22 @@ enum {
   POLYTHREAD_ROUNDS = 12,
   POLYTHREAD_BUSY = 20000,
   POLYTHREAD_ATOMIC_ITERS = 16,
-  POLYTHREAD_YIELDS = 8
+  POLYTHREAD_YIELDS = 8,
+  POLYTHREAD_IMPORT_FUNC_STRLEN = 8
 };
 
 static pthread_barrier_t start_barrier;
 static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
+
+struct polythread_import_descriptor {
+  uint64_t target;
+  uint64_t trampoline;
+  uint64_t flags;
+  uint64_t stack_arg_qwords;
+};
+
+static struct polythread_import_descriptor
+  polythread_imports[POLY_IMPORT_FUNC_COUNT];
 
 static inline void poly_state_key_set(uint64_t value) {
   asm volatile(
@@ -100,6 +112,28 @@ static void polythread_trap_vector_handler(void) {
     "movq $0xffffffffffffffff, %rax\n"
     POLY_OP_TRAP_RETURN
     "ud2\n");
+}
+
+__attribute__((naked, noinline, used))
+static void polythread_import_return_trampoline(void) {
+  __asm__(
+    POLY_OP_PIRET
+    "ud2\n");
+}
+
+__attribute__((noinline, used))
+static uint64_t polythread_x86_import_sum6(uint64_t a0, uint64_t a1,
+    uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+  return a0 + a1 + a2 + a3 + a4 + a5;
+}
+
+static void setup_polythread_imports(void) {
+  polythread_imports[POLYTHREAD_IMPORT_FUNC_STRLEN].target =
+    (uint64_t) (uintptr_t) polythread_x86_import_sum6;
+  polythread_imports[POLYTHREAD_IMPORT_FUNC_STRLEN].trampoline =
+    (uint64_t) (uintptr_t) polythread_import_return_trampoline;
 }
 
 static int wait_for_workers(uintptr_t worker_id, const char *phase) {
@@ -352,6 +386,42 @@ static uint64_t trap_riscv_import(uint64_t arg0, uint64_t arg6,
     : "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13",
       "r14", "memory");
   return result;
+}
+
+static uint64_t descriptor_aarch64_import_sum6(uint64_t a0, uint64_t a1,
+    uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  register uint64_t r8_arg asm("r8") = a5;
+  asm volatile(
+    "movq %[imports], %%r12\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd29c1010\n" // movz x16,#0xe080
+    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
+    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
+    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0xd63f0200\n" // blr x16, descriptor-backed import
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+      "+r"(r8_arg)
+    : [imports] "r"((uint64_t) (uintptr_t) polythread_imports)
+    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+  return a0;
+}
+
+static uint64_t descriptor_riscv_import_sum6(uint64_t a0, uint64_t a1,
+    uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  register uint64_t r8_arg asm("r8") = a5;
+  asm volatile(
+    "movq %[imports], %%r12\n"
+    POLY_OP_ENTER_RV64
+    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> descriptor-backed import
+    ".long 0x000280e7\n" // jalr ra,0(t0)
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+      "+r"(r8_arg)
+    : [imports] "r"((uint64_t) (uintptr_t) polythread_imports)
+    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+  return a0;
 }
 
 static uint64_t pcall_aarch64_hidden_set(uint64_t value) {
@@ -670,6 +740,41 @@ static void *worker_main(void *arg) {
   if (wait_for_workers(worker_id, "default-hidden-checked") != 0)
     return (void *) 1;
 
+  if (wait_for_workers(worker_id, "descriptor-import-start") != 0)
+    return (void *) 1;
+  uint64_t descriptor_aarch64_base = base + 0xd0000ULL;
+  uint64_t descriptor_aarch64_result = descriptor_aarch64_import_sum6(
+    descriptor_aarch64_base + 1, descriptor_aarch64_base + 2,
+    descriptor_aarch64_base + 3, descriptor_aarch64_base + 4,
+    descriptor_aarch64_base + 5, descriptor_aarch64_base + 6);
+  uint64_t descriptor_aarch64_expected =
+    descriptor_aarch64_base * 6 + 21;
+  if (descriptor_aarch64_result != descriptor_aarch64_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu descriptor aarch64 import got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) descriptor_aarch64_result,
+      (unsigned long long) descriptor_aarch64_expected);
+    return (void *) 1;
+  }
+
+  uint64_t descriptor_riscv_base = base + 0xe0000ULL;
+  uint64_t descriptor_riscv_result = descriptor_riscv_import_sum6(
+    descriptor_riscv_base + 1, descriptor_riscv_base + 2,
+    descriptor_riscv_base + 3, descriptor_riscv_base + 4,
+    descriptor_riscv_base + 5, descriptor_riscv_base + 6);
+  uint64_t descriptor_riscv_expected = descriptor_riscv_base * 6 + 21;
+  if (descriptor_riscv_result != descriptor_riscv_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu descriptor riscv import got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) descriptor_riscv_result,
+      (unsigned long long) descriptor_riscv_expected);
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "descriptor-import-done") != 0)
+    return (void *) 1;
+
   poly_state_key_set(state_key);
   if (wait_for_workers(worker_id, "state-key-set") != 0)
     return (void *) 1;
@@ -782,6 +887,7 @@ int main(void) {
   pthread_t threads[POLYTHREAD_THREADS];
 
   printf("POLYTHREAD_START\n");
+  setup_polythread_imports();
   if (pthread_barrier_init(&start_barrier, 0, POLYTHREAD_THREADS) != 0) {
     fprintf(stderr, "POLYTHREAD_FAIL: pthread_barrier_init\n");
     return 1;
