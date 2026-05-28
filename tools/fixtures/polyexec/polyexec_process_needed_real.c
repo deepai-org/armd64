@@ -167,6 +167,11 @@ uint64_t poly_process_root_export(uint64_t value) {
 }
 #endif
 
+#if defined(POLY_PROCESS_TLS_MAIN)
+__thread uint64_t poly_process_tls_counter
+    __attribute__((tls_model("initial-exec"))) = 0x31;
+#endif
+
 #if defined(POLY_PROCESS_ROOT_IFUNC_MAIN)
 static uint64_t poly_process_root_ifunc_impl(uint64_t value) {
   return value + 0x66;
@@ -239,6 +244,11 @@ uint64_t poly_process_main(void) {
   if (poly_process_versioned_add_v1(0x20, 0x30) != 0x150)
     return 33;
   static const char marker[] = "POLY_PROCESS_VERSIONED_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_TLS_MAIN)
+  poly_process_tls_counter += 0x11;
+  if (poly_process_tls_counter != 0x42)
+    return 34;
+  static const char marker[] = "POLY_PROCESS_TLS_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;

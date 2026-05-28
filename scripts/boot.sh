@@ -675,6 +675,11 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessversioned-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-versioned-needed-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_TLS_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-tls-real.elf"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_STATE_SRC" \
@@ -2518,6 +2523,12 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessversioned-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-versioned-needed-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_TLS_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-tls-real.elf"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -5700,6 +5711,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-versioned-needed-real.elf=42 \
       versioned-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-tls-real.elf=42 \
+      tls >/dev/ttyS0 2>&1
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
       alpha beta >/dev/ttyS0 2>&1
@@ -5751,6 +5765,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-versioned-needed-real.elf=42 \
       versioned-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-tls-real.elf=42 \
+      tls >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_CALL" = "1" ]; then
@@ -6469,6 +6486,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 process versioned needed" >/dev/ttyS0
       exit 1
     }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-tls-real.elf=42 \
+      tls >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process tls" >/dev/ttyS0
+      exit 1
+    }
     POLY_PROCESS_ENV=present \
       /usr/lib/polyapps/aarch64-process-argv-envp-real.elf \
       alpha beta >/dev/ttyS0 2>&1 || {
@@ -6585,6 +6608,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-versioned-needed-real.elf=42 \
       versioned-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process versioned needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-tls-real.elf=42 \
+      tls >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process tls" >/dev/ttyS0
       exit 1
     }
     POLY_PROCESS_ENV=present \

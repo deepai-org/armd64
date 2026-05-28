@@ -47,6 +47,10 @@ extern char **environ;
 #define R_AARCH64_IRELATIVE 1032
 #endif
 
+#ifndef R_AARCH64_TLS_TPREL64
+#define R_AARCH64_TLS_TPREL64 1030
+#endif
+
 #ifndef R_RISCV_NONE
 #define R_RISCV_NONE 0
 #endif
@@ -65,6 +69,10 @@ extern char **environ;
 
 #ifndef R_RISCV_IRELATIVE
 #define R_RISCV_IRELATIVE 58
+#endif
+
+#ifndef R_RISCV_TLS_TPREL64
+#define R_RISCV_TLS_TPREL64 11
 #endif
 
 #ifndef DT_RELR
@@ -159,6 +167,7 @@ enum {
   MAX_PROCESS_DEPS = 4,
   MAX_PROCESS_DEP_DEPTH = 4,
   MAX_DEP_PATH = 160,
+  MAX_PROCESS_TLS_BYTES = 64 * 1024,
   SCRATCH_SECOND_PATH_OFFSET = 128
 };
 
@@ -200,6 +209,12 @@ struct poly_program {
   size_t load_segment_count;
   uint64_t relro_vaddr;
   uint64_t relro_size;
+  uint64_t tls_vaddr;
+  uint64_t tls_filesz;
+  uint64_t tls_memsz;
+  uint64_t tls_align;
+  size_t tls_offset;
+  size_t tls_total_size;
   uint64_t init_vaddr;
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
@@ -353,6 +368,38 @@ static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
 
+static int align_up_size(size_t value, size_t alignment, size_t *result) {
+  if (alignment <= 1) {
+    *result = value;
+    return 0;
+  }
+  if ((alignment & (alignment - 1)) != 0 ||
+      value > SIZE_MAX - (alignment - 1))
+    return -1;
+  *result = (value + alignment - 1) & ~(alignment - 1);
+  return 0;
+}
+
+static int reserve_process_tls_range(size_t *total_size, uint64_t memsz,
+    uint64_t alignment, size_t *offset) {
+  if (memsz == 0) {
+    *offset = 0;
+    return 0;
+  }
+  if (memsz > MAX_PROCESS_TLS_BYTES || alignment > MAX_PROCESS_TLS_BYTES)
+    return -1;
+
+  size_t aligned = 0;
+  const size_t tls_alignment = alignment ? (size_t) alignment : 1;
+  if (align_up_size(*total_size, tls_alignment, &aligned) < 0 ||
+      aligned > MAX_PROCESS_TLS_BYTES ||
+      memsz > MAX_PROCESS_TLS_BYTES - aligned)
+    return -1;
+  *offset = aligned;
+  *total_size = aligned + (size_t) memsz;
+  return 0;
+}
+
 static int record_load_segment(struct poly_program *program,
     const Elf64_Phdr *phdr) {
   if (program->load_segment_count >= MAX_LOAD_SEGMENTS) {
@@ -415,6 +462,14 @@ static uint32_t irelative_reloc_type_for_arch(int arch) {
     return R_AARCH64_IRELATIVE;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_IRELATIVE;
+  return UINT32_MAX;
+}
+
+static uint32_t tls_tprel_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_TLS_TPREL64;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_TLS_TPREL64;
   return UINT32_MAX;
 }
 
@@ -859,6 +914,51 @@ static int resolve_loaded_program_symbol_ex(const struct poly_program *program,
   return -1;
 }
 
+static int resolve_loaded_program_tls_symbol_ex(
+    const struct poly_program *program, const uint8_t *loaded_image,
+    const char *symbol_name, const char *requested_version,
+    uint64_t *tls_offset) {
+  uint64_t symtab_vaddr = 0, strtab_vaddr = 0, strsz = 0;
+  uint64_t syment = sizeof(Elf64_Sym), hash_vaddr = 0, gnu_hash_vaddr = 0;
+  if (dynamic_symbol_table_info(program, loaded_image, &symtab_vaddr,
+        &strtab_vaddr, &strsz, &syment, &hash_vaddr, &gnu_hash_vaddr) < 0)
+    return -1;
+
+  size_t symbol_count = 0;
+  if (dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
+        syment, hash_vaddr, gnu_hash_vaddr, &symbol_count) < 0)
+    return -1;
+
+  size_t symtab_offset = 0;
+  const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, symtab_size,
+        &symtab_offset) < 0)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+
+  for (size_t index = 0; index < symbol_count; index++) {
+    const Elf64_Sym *sym = (const Elf64_Sym *) (loaded_image +
+      symtab_offset + (uint64_t) index * syment);
+    if (sym->st_name >= strsz || !symbol_is_dependency_export(sym) ||
+        ELF64_ST_TYPE(sym->st_info) != STT_TLS)
+      continue;
+    const char *name = (const char *) (loaded_image + strtab_offset +
+      sym->st_name);
+    if (strcmp(name, symbol_name) != 0)
+      continue;
+    if (!symbol_definition_matches_version(program, loaded_image, strtab_vaddr,
+          strsz, index, requested_version))
+      continue;
+    *tls_offset = (uint64_t) program->tls_offset + sym->st_value;
+    return 0;
+  }
+  return -1;
+}
+
 static int resolve_loaded_dependency_symbol_at_depth(
     const struct poly_program *program, const char *symbol_name,
     const char *requested_version, uint64_t *symbol_value,
@@ -889,6 +989,34 @@ static int resolve_loaded_dependency_symbol(const struct poly_program *program,
     requested_version, symbol_value, symbol_type, 0);
 }
 
+static int resolve_loaded_dependency_tls_symbol_at_depth(
+    const struct poly_program *program, const char *symbol_name,
+    const char *requested_version, uint64_t *tls_offset, size_t depth) {
+  if (depth >= MAX_PROCESS_DEP_DEPTH)
+    return -1;
+
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_process_dependency *dep = &program->deps[d];
+    if (!dep->program || !dep->loaded_image)
+      continue;
+
+    if (resolve_loaded_program_tls_symbol_ex(dep->program, dep->loaded_image,
+          symbol_name, requested_version, tls_offset) == 0)
+      return 0;
+    if (resolve_loaded_dependency_tls_symbol_at_depth(dep->program,
+          symbol_name, requested_version, tls_offset, depth + 1) == 0)
+      return 0;
+  }
+  return -1;
+}
+
+static int resolve_loaded_dependency_tls_symbol(
+    const struct poly_program *program, const char *symbol_name,
+    const char *requested_version, uint64_t *tls_offset) {
+  return resolve_loaded_dependency_tls_symbol_at_depth(program, symbol_name,
+    requested_version, tls_offset, 0);
+}
+
 static int resolve_root_scope_symbol(const struct poly_program *program,
     const char *symbol_name, const char *requested_version,
     uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
@@ -911,6 +1039,17 @@ static int resolve_root_scope_symbol(const struct poly_program *program,
   if (symbol_type)
     *symbol_type = resolved_type;
   return 0;
+}
+
+static int resolve_root_scope_tls_symbol(const struct poly_program *program,
+    const char *symbol_name, const char *requested_version,
+    uint64_t *tls_offset) {
+  if (!program->scope_root_program || !program->scope_root_loaded_image ||
+      program == program->scope_root_program)
+    return -1;
+  return resolve_loaded_program_tls_symbol_ex(program->scope_root_program,
+    program->scope_root_loaded_image, symbol_name, requested_version,
+    tls_offset);
 }
 
 static int resolve_dependency_reloc_symbol(const struct poly_program *program,
@@ -943,6 +1082,60 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
     return 0;
   }
   return -1;
+}
+
+static int resolve_process_tls_reloc_symbol(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
+    uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
+    uint64_t gnu_hash_vaddr, uint64_t symbol_index, uint64_t *tls_offset) {
+  size_t symbol_count = 0;
+  if (!symtab_vaddr || !strtab_vaddr || !strsz ||
+      syment < sizeof(Elf64_Sym) ||
+      dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
+        syment, hash_vaddr, gnu_hash_vaddr, &symbol_count) < 0 ||
+      symbol_index >= symbol_count)
+    return -1;
+
+  size_t symtab_offset = 0;
+  const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, symtab_size,
+        &symtab_offset) < 0)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+
+  const Elf64_Sym *sym = (const Elf64_Sym *) (loaded_image + symtab_offset +
+    symbol_index * syment);
+  if (sym->st_name >= strsz)
+    return -1;
+  const char *symbol_name =
+    (const char *) (loaded_image + strtab_offset + sym->st_name);
+  const char *requested_version = NULL;
+  if (relocation_requested_version_name(program, loaded_image, strtab_vaddr,
+        strsz, symbol_index, &requested_version) < 0)
+    return -1;
+
+  if (sym->st_shndx == SHN_UNDEF) {
+    if (resolve_root_scope_tls_symbol(program, symbol_name, requested_version,
+          tls_offset) == 0)
+      return 0;
+    if (resolve_loaded_dependency_tls_symbol(program, symbol_name,
+          requested_version, tls_offset) == 0)
+      return 0;
+    if (ELF64_ST_BIND(sym->st_info) == STB_WEAK) {
+      *tls_offset = 0;
+      return 0;
+    }
+    return -1;
+  }
+
+  if (ELF64_ST_TYPE(sym->st_info) != STT_TLS)
+    return -1;
+  *tls_offset = (uint64_t) program->tls_offset + sym->st_value;
+  return 0;
 }
 
 static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,
@@ -2302,13 +2495,14 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
 
 __attribute__((noreturn))
 static void run_poly_process_entry(const uint8_t *code,
-    uint64_t initial_sp) {
+    uint64_t initial_sp, uint64_t tls_base) {
   asm volatile(
+      "movq %2, %%r13\n"
       "movq %1, %%rsp\n"
       "jmp *%0\n"
       :
-      : "r"(code), "r"(initial_sp)
-      : "memory");
+      : "r"(code), "r"(initial_sp), "r"(tls_base)
+      : "r13", "memory");
   __builtin_unreachable();
 }
 
@@ -2608,6 +2802,7 @@ static int apply_relative_relocations(const struct poly_program *program,
 
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
   const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
+  const uint32_t tls_tprel_type = tls_tprel_reloc_type_for_arch(program->arch);
   const uint32_t none_type = none_reloc_type_for_arch(program->arch);
   const uint64_t load_bias = (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   if (rela_vaddr && rela_size) {
@@ -2635,6 +2830,14 @@ static int apply_relative_relocations(const struct poly_program *program,
               prefix_size, return_pc, scratch, (uint64_t) rela->r_addend,
               &reloc_value) < 0)
           return -1;
+        reloc_value_is_absolute = 1;
+      }
+      else if (symbol_index != 0 && reloc_type == tls_tprel_type) {
+        if (resolve_process_tls_reloc_symbol(program, loaded_image,
+              symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+              gnu_hash_vaddr, symbol_index, &reloc_value) < 0)
+          return -1;
+        reloc_value += (uint64_t) rela->r_addend;
         reloc_value_is_absolute = 1;
       }
       else if (symbol_index != 0 &&
@@ -2694,6 +2897,15 @@ static int apply_relative_relocations(const struct poly_program *program,
         if (run_irelative_resolver(program, loaded_image, trampoline_code,
               prefix_size, return_pc, scratch, reloc_value, &reloc_value) < 0)
           return -1;
+        reloc_value_is_absolute = 1;
+      }
+      else if (symbol_index != 0 && reloc_type == tls_tprel_type) {
+        uint64_t symbol_value = 0;
+        if (resolve_process_tls_reloc_symbol(program, loaded_image,
+              symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+              gnu_hash_vaddr, symbol_index, &symbol_value) < 0)
+          return -1;
+        reloc_value += symbol_value;
         reloc_value_is_absolute = 1;
       }
       else if (symbol_index != 0 &&
@@ -3160,6 +3372,21 @@ static int load_elf_program(const char *path, const char *symbol_name,
       program->relro_size = phdr->p_memsz;
       continue;
     }
+    if (phdr->p_type == PT_TLS) {
+      if (phdr->p_filesz > phdr->p_memsz ||
+          phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+          phdr->p_memsz > MAX_PROCESS_TLS_BYTES ||
+          phdr->p_align > MAX_PROCESS_TLS_BYTES) {
+        fprintf(stderr, "POLYEXEC_FAIL: bad ELF TLS segment: %s\n", path);
+        free(data);
+        return -1;
+      }
+      program->tls_vaddr = phdr->p_vaddr;
+      program->tls_filesz = phdr->p_filesz;
+      program->tls_memsz = phdr->p_memsz;
+      program->tls_align = phdr->p_align;
+      continue;
+    }
     if (phdr->p_type != PT_LOAD)
       continue;
 
@@ -3588,6 +3815,55 @@ static void set_process_dependency_root_scope(struct poly_program *program,
   }
 }
 
+static int reserve_process_tls_tree(struct poly_program *program,
+    size_t *total_size) {
+  if (reserve_process_tls_range(total_size, program->tls_memsz,
+        program->tls_align, &program->tls_offset) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unsupported process TLS layout: %s\n",
+      program->path);
+    return -1;
+  }
+  for (size_t d = 0; d < program->dep_count; d++) {
+    if (program->deps[d].program &&
+        reserve_process_tls_tree(program->deps[d].program, total_size) < 0)
+      return -1;
+  }
+  program->tls_total_size = *total_size;
+  return 0;
+}
+
+static int copy_process_tls_image(const struct poly_program *program,
+    const uint8_t *loaded_image, uint8_t *tls, size_t tls_size) {
+  if (program->tls_memsz == 0)
+    return 0;
+  size_t tls_image_offset = 0;
+  if (elf_vaddr_to_image_offset(program, program->tls_vaddr,
+        program->tls_filesz, &tls_image_offset) < 0 ||
+      program->tls_offset > tls_size ||
+      program->tls_filesz > tls_size - program->tls_offset) {
+    fprintf(stderr, "POLYEXEC_FAIL: process TLS image escaped image: %s\n",
+      program->path);
+    return -1;
+  }
+  memcpy(tls + program->tls_offset, loaded_image + tls_image_offset,
+    (size_t) program->tls_filesz);
+  return 0;
+}
+
+static int copy_process_dependency_tls_images(const struct poly_program *program,
+    uint8_t *tls, size_t tls_size) {
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_process_dependency *dep = &program->deps[d];
+    if (!dep->program || !dep->loaded_image)
+      continue;
+    if (copy_process_dependency_tls_images(dep->program, tls, tls_size) < 0 ||
+        copy_process_tls_image(dep->program, dep->loaded_image, tls,
+          tls_size) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static int map_process_dependencies(struct poly_program *program,
     uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
     uint8_t *scratch) {
@@ -3784,6 +4060,12 @@ static int emit_and_run_process(struct poly_program *program,
     return -1;
   }
   set_process_dependency_root_scope(program, program, mapping + load_base_offset);
+  size_t process_tls_size = 0;
+  if (reserve_process_tls_tree(program, &process_tls_size) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
   if (map_process_dependencies(program, code,
         prefix_size, return_pc, scratch) < 0) {
     unmap_process_dependencies(program);
@@ -3806,7 +4088,32 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
+  uint8_t *process_tls = NULL;
+  if (process_tls_size != 0) {
+    process_tls = mmap(NULL, process_tls_size, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (process_tls == MAP_FAILED) {
+      fprintf(stderr, "POLYEXEC_FAIL: process TLS mmap failed: %s\n",
+        strerror(errno));
+      unmap_process_dependencies(program);
+      munmap(scratch, scratch_size);
+      munmap(mapping, mapping_size);
+      return -1;
+    }
+    if (copy_process_tls_image(program, mapping + load_base_offset,
+          process_tls, process_tls_size) < 0 ||
+        copy_process_dependency_tls_images(program, process_tls,
+          process_tls_size) < 0) {
+      munmap(process_tls, process_tls_size);
+      unmap_process_dependencies(program);
+      munmap(scratch, scratch_size);
+      munmap(mapping, mapping_size);
+      return -1;
+    }
+  }
   if (protect_load_segments(program, mapping + load_base_offset) < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
@@ -3815,6 +4122,8 @@ static int emit_and_run_process(struct poly_program *program,
   if (protect_image_range(program, mapping + load_base_offset,
         program->relro_vaddr, program->relro_size, PROT_READ,
         "PT_GNU_RELRO") < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
@@ -3822,12 +4131,16 @@ static int emit_and_run_process(struct poly_program *program,
   }
   if (run_process_initializers(program, mapping + load_base_offset, code,
         prefix_size, return_pc, scratch, "root") < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
   }
   if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
@@ -3836,6 +4149,8 @@ static int emit_and_run_process(struct poly_program *program,
 
   if (prepare_program_scratch(program->path, (char *) scratch,
         scratch_size) < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
@@ -3848,6 +4163,8 @@ static int emit_and_run_process(struct poly_program *program,
   if (build_process_stack(program, request, mapping + load_base_offset,
         extra_argc, extra_argv, &process_stack, &process_stack_size,
         &initial_sp) < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
@@ -3855,7 +4172,8 @@ static int emit_and_run_process(struct poly_program *program,
   }
 
   (void) result;
-  run_poly_process_entry(code, initial_sp);
+  run_poly_process_entry(code, initial_sp,
+    (uint64_t) (uintptr_t) process_tls);
 }
 
 static int program_exits_process(const char *path) {
