@@ -28,6 +28,7 @@ enum {
   POLY_FD_CLOEXEC = 1,
   POLY_FUTEX_WAIT_PRIVATE = 128,
   POLY_FUTEX_WAKE_PRIVATE = 129,
+  POLY_PRIO_PROCESS = 0,
   POLY_RLIMIT_STACK = 3,
   POLY_RUSAGE_SELF = 0,
   POLY_SIG_BLOCK = 0,
@@ -95,6 +96,15 @@ enum {
   POLY_SYS_SCHED_YIELD = 124,
   POLY_SYS_KILL = 129,
   POLY_SYS_RT_SIGPROCMASK = 135,
+  POLY_SYS_GETPRIORITY = 141,
+  POLY_SYS_GETRESUID = 148,
+  POLY_SYS_GETRESGID = 150,
+  POLY_SYS_TIMES = 153,
+  POLY_SYS_GETPGID = 155,
+  POLY_SYS_GETSID = 156,
+  POLY_SYS_GETGROUPS = 158,
+  POLY_SYS_UMASK = 166,
+  POLY_SYS_GETCPU = 168,
   POLY_SYS_GETPID = 172,
   POLY_SYS_GETPPID = 173,
   POLY_SYS_GETUID = 174,
@@ -265,6 +275,13 @@ struct poly_timeval {
 struct poly_itimerval {
   struct poly_timeval interval;
   struct poly_timeval value;
+};
+
+struct poly_tms {
+  int64_t utime;
+  int64_t stime;
+  int64_t cutime;
+  int64_t cstime;
 };
 
 struct poly_rlimit64 {
@@ -476,14 +493,54 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   long tid = poly_syscall0(POLY_SYS_GETTID);
   if (tid <= 0)
     return 23;
-  if (poly_syscall0(POLY_SYS_GETUID) < 0)
+  long uid = poly_syscall0(POLY_SYS_GETUID);
+  if (uid < 0)
     return 24;
-  if (poly_syscall0(POLY_SYS_GETEUID) < 0)
+  long euid = poly_syscall0(POLY_SYS_GETEUID);
+  if (euid < 0)
     return 25;
-  if (poly_syscall0(POLY_SYS_GETGID) < 0)
+  long gid = poly_syscall0(POLY_SYS_GETGID);
+  if (gid < 0)
     return 26;
-  if (poly_syscall0(POLY_SYS_GETEGID) < 0)
+  long egid = poly_syscall0(POLY_SYS_GETEGID);
+  if (egid < 0)
     return 27;
+  if (poly_syscall2(POLY_SYS_GETPGID, 0, 0) < 0)
+    return 229;
+  if (poly_syscall2(POLY_SYS_GETSID, 0, 0) < 0)
+    return 230;
+  uint32_t resuid[3];
+  if (poly_syscall3(POLY_SYS_GETRESUID, (long) &resuid[0],
+        (long) &resuid[1], (long) &resuid[2]) != 0)
+    return 231;
+  if (resuid[0] != (uint32_t) uid || resuid[1] != (uint32_t) euid)
+    return 232;
+  uint32_t resgid[3];
+  if (poly_syscall3(POLY_SYS_GETRESGID, (long) &resgid[0],
+        (long) &resgid[1], (long) &resgid[2]) != 0)
+    return 233;
+  if (resgid[0] != (uint32_t) gid || resgid[1] != (uint32_t) egid)
+    return 234;
+  if (poly_syscall2(POLY_SYS_GETGROUPS, 0, 0) < 0)
+    return 235;
+  if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
+    return 236;
+  uint32_t cpu = UINT32_MAX;
+  uint32_t node = UINT32_MAX;
+  if (poly_syscall3(POLY_SYS_GETCPU, (long) &cpu, (long) &node, 0) != 0)
+    return 237;
+  if (cpu == UINT32_MAX)
+    return 238;
+  struct poly_tms tms;
+  if (poly_syscall2(POLY_SYS_TIMES, (long) &tms, 0) < 0)
+    return 239;
+  if (tms.utime < 0 || tms.stime < 0 || tms.cutime < 0 || tms.cstime < 0)
+    return 240;
+  long old_umask = poly_syscall2(POLY_SYS_UMASK, 077, 0);
+  if (old_umask < 0)
+    return 241;
+  if (poly_syscall2(POLY_SYS_UMASK, old_umask, 0) != 077)
+    return 242;
 
   int clear_child_tid = 0;
   if (poly_syscall2(POLY_SYS_SET_TID_ADDRESS,
