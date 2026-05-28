@@ -3,9 +3,11 @@
 #define POLY_RLIM_INFINITY UINT64_MAX
 
 enum {
+  POLY_AF_UNIX = 1,
   POLY_CLOCK_MONOTONIC = 1,
   POLY_PROT_READ = 1,
   POLY_PROT_WRITE = 2,
+  POLY_SOCK_STREAM = 1,
   POLY_GRND_NONBLOCK = 1,
   POLY_MFD_CLOEXEC = 1,
   POLY_MREMAP_MAYMOVE = 1,
@@ -78,6 +80,7 @@ enum {
   POLY_SYS_GETGID = 176,
   POLY_SYS_GETEGID = 177,
   POLY_SYS_GETTID = 178,
+  POLY_SYS_SOCKETPAIR = 199,
   POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_UNAME = 160,
   POLY_SYS_GETRUSAGE = 165,
@@ -693,6 +696,32 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0 ||
       poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0) != 0)
     return 104;
+
+  int socket_fds[2];
+  if (poly_syscall4(POLY_SYS_SOCKETPAIR, POLY_AF_UNIX,
+        POLY_SOCK_STREAM, 0, (long) socket_fds) != 0)
+    return 151;
+  static const char socket_message[] = "SOCK";
+  char socket_buffer[4];
+  if (poly_syscall3(POLY_SYS_WRITE, socket_fds[0],
+        (long) socket_message, sizeof(socket_buffer)) !=
+      (long) sizeof(socket_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 152;
+  }
+  if (poly_syscall3(POLY_SYS_READ, socket_fds[1], (long) socket_buffer,
+        sizeof(socket_buffer)) != (long) sizeof(socket_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 153;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0) != 0)
+    return 154;
+  if (socket_buffer[0] != 'S' || socket_buffer[1] != 'O' ||
+      socket_buffer[2] != 'C' || socket_buffer[3] != 'K')
+    return 155;
 
   fd = poly_syscall2(POLY_SYS_EVENTFD2, 0, 0);
   if (fd < 0)
