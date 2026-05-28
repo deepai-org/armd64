@@ -6,8 +6,11 @@
 enum {
   POLYTHREAD_THREADS = 4,
   POLYTHREAD_ROUNDS = 12,
-  POLYTHREAD_BUSY = 20000
+  POLYTHREAD_BUSY = 20000,
+  POLYTHREAD_YIELDS = 8
 };
+
+static pthread_barrier_t start_barrier;
 
 static uint64_t double_to_bits(double value) {
   union {
@@ -162,6 +165,12 @@ static uint64_t pcall_riscv_hidden_fp_busy(uint64_t left_bits,
 static void *worker_main(void *arg) {
   uintptr_t worker_id = (uintptr_t) arg;
   uint64_t base = 0x10000000ULL + worker_id * 0x10000ULL;
+  int barrier_status = pthread_barrier_wait(&start_barrier);
+  if (barrier_status != 0 && barrier_status != PTHREAD_BARRIER_SERIAL_THREAD) {
+    fprintf(stderr, "POLYTHREAD_FAIL: barrier worker=%lu status=%d\n",
+      (unsigned long) worker_id, barrier_status);
+    return (void *) 1;
+  }
 
   for (unsigned round = 0; round < POLYTHREAD_ROUNDS; round++) {
     uint64_t aarch64_seed = base + round * 2;
@@ -235,7 +244,8 @@ static void *worker_main(void *arg) {
       return (void *) 1;
     }
 
-    sched_yield();
+    for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+      sched_yield();
   }
 
   return 0;
@@ -245,9 +255,14 @@ int main(void) {
   pthread_t threads[POLYTHREAD_THREADS];
 
   printf("POLYTHREAD_START\n");
+  if (pthread_barrier_init(&start_barrier, 0, POLYTHREAD_THREADS) != 0) {
+    fprintf(stderr, "POLYTHREAD_FAIL: pthread_barrier_init\n");
+    return 1;
+  }
   for (uintptr_t n = 0; n < POLYTHREAD_THREADS; n++) {
     if (pthread_create(&threads[n], 0, worker_main, (void *) n) != 0) {
       fprintf(stderr, "POLYTHREAD_FAIL: pthread_create %lu\n", (unsigned long) n);
+      pthread_barrier_destroy(&start_barrier);
       return 1;
     }
   }
@@ -256,10 +271,12 @@ int main(void) {
     void *status = 0;
     if (pthread_join(threads[n], &status) != 0 || status != 0) {
       fprintf(stderr, "POLYTHREAD_FAIL: pthread_join %u\n", n);
+      pthread_barrier_destroy(&start_barrier);
       return 1;
     }
   }
 
+  pthread_barrier_destroy(&start_barrier);
   printf("POLYTHREAD_OK\n");
   return 0;
 }
