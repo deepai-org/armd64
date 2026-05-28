@@ -351,10 +351,10 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)

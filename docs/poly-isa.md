@@ -54,14 +54,16 @@ flushes or terminates the current decode block before switching fetch mode.
 | AArch64 | `HINT #0x71` / `0xd5032e3f` | switch to RISC-V |
 | AArch64 | `HINT #0x72` / `0xd5032e5f` | call RISC-V target in `x16`, continuation in `x17` |
 | AArch64 | `HINT #0x76` / `0xd5032edf` | trap return |
-| RISC-V | custom-0 subop 0 / `0x0000000b` | exit to x86_64 |
-| RISC-V | custom-0 subop 1 / `0x0200000b` | switch to AArch64 |
-| RISC-V | custom-0 subop 2 / `0x0400000b` | call AArch64 target in `x5`, continuation in `x6` |
-| RISC-V | custom-0 subop 6 / `0x0c00000b` | trap return |
+| RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
+| RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
+| RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | call AArch64 target in `x5`, continuation in `x6` |
+| RISC-V | custom-0, funct3=7, subop 6 / `0x0c00700b` | trap return |
 
 These are decoded frontend-control instructions, not breakpoint or undefined
 instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
-debuggers or OS/user trap handling.
+debuggers or OS/user trap handling. The RISC-V encoding reserves one fixed
+custom-0 funct3 signature and uses funct7 as the control subop, which gives a
+simple hardware decode without consuming multiple custom opcode pages.
 
 Native return instructions may cross frontends when the link register or stack
 return slot contains a hardware return cookie.

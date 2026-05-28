@@ -612,7 +612,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
     emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
     emit_u32(code, &offset, 0xfff50513U); // addi a0,a0,-1
     emit_u32(code, &offset, 0xfe051ee3U); // bne a0,zero, previous instruction
-    emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+    emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   }
   code[offset++] = 0xc3;
 
@@ -649,7 +649,7 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   emit_u32(code, &offset, 0xd5032e3fU); // aarch64 polyctrl riscv switch, switch directly to RISC-V
 
   emit_u32(code, &offset, 0x01b50513U); // addi a0,a0,27
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   poly_foreign_insn_count_status();
@@ -689,7 +689,7 @@ static int run_compressed_mixed_program(uint64_t *result,
   emit_u32(code, &offset, 0xd5032e3fU); // aarch64 polyctrl riscv switch, switch directly to RISC-V
 
   emit_u16(code, &offset, 0x056dU); // c.addi a0,27
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   poly_foreign_insn_count_status();
@@ -725,7 +725,7 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
   const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u16(code, &offset, 0x451dU); // c.li a0,7
-  emit_u32(code, &offset, 0x0200000bU); // riscv polyctrl switch directly to AArch64
+  emit_u32(code, &offset, 0x0200700bU); // riscv polyctrl switch directly to AArch64
   emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -762,7 +762,7 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   const uint8_t raw_riscv[] = { 0x0f, 0x24, 0x02 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, 0x00700513U); // addi a0,zero,7
-  emit_u32(code, &offset, 0x0200000bU); // riscv polyctrl switch directly to AArch64
+  emit_u32(code, &offset, 0x0200700bU); // riscv polyctrl switch directly to AArch64
   emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -863,10 +863,10 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -984,10 +984,10 @@ static int run_cross_call_fp_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -1106,9 +1106,9 @@ static int run_cross_call_fp8_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -1246,10 +1246,10 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0a00000bU); // riscv polyctrl FP64-stack call AArch64
+  emit_u32(code, &offset, 0x0a00700bU); // riscv polyctrl FP64-stack call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_addi(2, 2, 64));
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -1405,7 +1405,7 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0e00000bU); // riscv polyctrl vec128 call AArch64
+  emit_u32(code, &offset, 0x0e00700bU); // riscv polyctrl vec128 call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00008067U); // ret to x86 PCALL return cookie
 
@@ -1531,10 +1531,10 @@ static int run_cross_call_mixed_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -1661,11 +1661,11 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
   emit_u32(code, &offset, 0x00d50513U); // addi a0,a0,13
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -1785,10 +1785,10 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00850533U); // add a0,a0,s0
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -1910,10 +1910,10 @@ static int run_cross_call_saved_fp_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_fadd_d(10, 10, 8));
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2031,10 +2031,10 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00b50533U); // add a0,a0,a1
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2210,12 +2210,12 @@ static int run_cross_call_compact_u32_f32_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0600000bU); // riscv polyctrl compact {u32,float}, call AArch64
+  emit_u32(code, &offset, 0x0600700bU); // riscv polyctrl compact {u32,float}, call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0xe0050653U); // fmv.x.w a2,fa0
   emit_u32(code, &offset, 0x02061613U); // slli a2,a2,32
   emit_u32(code, &offset, 0x00c56533U); // or a0,a0,a2
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2281,12 +2281,12 @@ static int run_cross_call_compact_f32_u32_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0800000bU); // riscv polyctrl compact {float,u32}, call AArch64
+  emit_u32(code, &offset, 0x0800700bU); // riscv polyctrl compact {float,u32}, call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0xe0050653U); // fmv.x.w a2,fa0
   emit_u32(code, &offset, 0x02051513U); // slli a0,a0,32
   emit_u32(code, &offset, 0x00c56533U); // or a0,a0,a2
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2403,9 +2403,9 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2521,9 +2521,9 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2657,9 +2657,9 @@ static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2805,9 +2805,9 @@ static int run_cross_call_descriptor_memcmp_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2988,9 +2988,9 @@ static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3100,7 +3100,7 @@ static int run_nested_cross_call(uint64_t *result,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x00008067U); // ret

@@ -905,7 +905,7 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   for (size_t n = 0; n < payload->insn_count; n++) {
     emit_u32(code, &offset, payload->insns[n]);
   }
-  const uint32_t escape = payload->final_arch == POLY_ARCH_AARCH64 ? 0xd5032e1fU : 0x0000000bU;
+  const uint32_t escape = payload->final_arch == POLY_ARCH_AARCH64 ? 0xd5032e1fU : 0x0000700bU;
   emit_u32(code, &offset, escape);
   code[offset++] = 0xc3;
 

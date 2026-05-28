@@ -8,7 +8,7 @@
 #define POLY_AARCH64_CTRL_ENCODING(subop) \
   (0xd503201fU | (((uint32_t) (subop) & 0x7fU) << 5))
 #define POLY_RISCV_CTRL_ENCODING(subop) \
-  (0x0000000bU | (((uint32_t) (subop) & 0x7fU) << 25))
+  (0x0000700bU | (((uint32_t) (subop) & 0x7fU) << 25))
 
 #define POLY_AARCH64_CTRL_X86_ESCAPE \
   POLY_AARCH64_CTRL_ENCODING(POLY_AARCH64_CTRL_SUBOP_X86_ESCAPE)

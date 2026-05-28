@@ -184,7 +184,7 @@ static inline void raw_riscv_arith_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x01100513\n" // addi a0,zero,17
     ".long 0x00550513\n" // addi a0,a0,5
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -202,7 +202,7 @@ static inline void poly_opcode_riscv_arith_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x01100513\n" // addi a0,zero,17
     ".long 0x00550513\n" // addi a0,a0,5
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -232,7 +232,7 @@ static inline void raw_riscv_sp_probe(void) {
     ".long 0x00813683\n" // ld a3,8(sp)
     ".long 0x00d60533\n" // add a0,a2,a3
     ".long 0x01010113\n" // addi sp,sp,16
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -254,7 +254,7 @@ static inline void raw_riscv_wide_regs_probe(void) {
     ".long 0x02100913\n" // addi x18,zero,33
     ".long 0x012809b3\n" // add x19,x16,x18
     ".long 0x01098533\n" // add a0,x19,x16
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -272,7 +272,7 @@ static inline void raw_riscv_state_seed_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x32100993\n" // addi x19,zero,0x321
     ".long 0xf2098953\n" // fmv.d.x f18,x19
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -296,7 +296,7 @@ static inline void raw_riscv_state_gpr_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00098533\n" // add a0,x19,zero
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -304,7 +304,7 @@ static inline void raw_riscv_state_fp_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0xe2090553\n" // fmv.x.d a0,f18
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -323,7 +323,7 @@ static inline void raw_riscv_imm_regs_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0xffd00293\n" // addi x5,zero,-3
     ".long 0x03628513\n" // addi a0,x5,54
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -359,7 +359,7 @@ static inline void raw_riscv_abi_args_probe(void) {
     ".long 0x00e50533\n"
     ".long 0x00f50533\n"
     ".long 0x01050533\n"
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "memory");
 }
 
@@ -467,7 +467,7 @@ static inline void raw_fp64_riscv_probe(void) {
     ".long 0x02b50553\n"
     ".long 0x0ab50553\n"
     ".long 0x12b50553\n"
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: "xmm0", "memory");
 }
 
@@ -513,7 +513,7 @@ static inline void raw_barrier_probe(void) {
     ".long 0x0ff0000f\n"
     ".long 0x0000100f\n"
     ".long 0x00250513\n"
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -524,7 +524,7 @@ static inline uint64_t raw_mixed_probe(uint64_t value) {
     ".long 0x91000400\n"
     ".long 0xd5032e3f\n"
     ".long 0x00550513\n"
-    ".long 0x0200000b\n"
+    ".long 0x0200700b\n"
     ".long 0x91000400\n"
     ".long 0xd5032e1f\n"
     : "+a"(rax)
@@ -540,7 +540,7 @@ static inline uint64_t raw_switch_stress_step(uint64_t value) {
     ".long 0x91000400\n"
     ".long 0xd5032e3f\n"
     ".long 0x00550513\n"
-    ".long 0x0200000b\n"
+    ".long 0x0200700b\n"
     ".long 0x91000400\n"
     ".long 0xd5032e1f\n"
     : "+a"(rax)
@@ -568,7 +568,7 @@ static inline void raw_riscv_break_probe(uint64_t arg0) {
     POLY_OP_ENTER_RV64
     ".long 0x00100893\n"
     ".long 0x00100073\n"
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     : "+a"(rax), "+D"(rdi)
     :
     : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
@@ -588,7 +588,7 @@ static inline void raw_riscv_getpid_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x0ac00893\n"
     ".long 0x00000073\n"
-    ".long 0x0000000b\n"
+    ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 

@@ -237,7 +237,7 @@ static void child_expect_riscv_ecall_signal(void) {
     POLY_OP_ENTER_RV64
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
@@ -282,7 +282,7 @@ static void child_expect_riscv_ebreak_signal(void) {
     POLY_OP_ENTER_RV64
     ".long 0x00500893\n" // addi a7,zero,5
     ".long 0x00100073\n" // ebreak
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
@@ -299,7 +299,7 @@ static void child_expect_riscv_ebreak1_signal(void) {
     POLY_OP_ENTER_RV64
     ".long 0x00100893\n" // addi a7,zero,1
     ".long 0x00100073\n" // ebreak
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(rax), "+D"(rdi)
     :
     : "rbx", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11",
@@ -315,7 +315,7 @@ static void child_expect_riscv_compressed_ebreak_signal(void) {
     POLY_OP_ENTER_RV64
     ".long 0x00500893\n" // addi a7,zero,5
     ".short 0x9002\n" // c.ebreak
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
@@ -353,7 +353,7 @@ static void child_expect_riscv_import_signal(void) {
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
     ".long 0x000280e7\n" // jalr ra,0(t0)
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
   _exit(99);
@@ -379,7 +379,7 @@ static void child_expect_riscv_illegal_signal(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
@@ -392,7 +392,7 @@ static void child_expect_riscv_compressed_illegal_signal(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".short 0x0000\n" // reserved 16-bit compressed encoding
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   _exit(99);
@@ -678,7 +678,7 @@ __asm__(
   "poly_riscv_trap_vector_raw:\n"
   ".long 0x00038513\n" // addi a0,t2,0, return trap arg5
   ".long 0x07b00913\n" // addi s2,zero,123, deliberate handler clobber
-  ".long 0x0c00000b\n" // riscv polyctrl trap return
+  ".long 0x0c00700b\n" // riscv polyctrl trap return
   "ud2\n"
   ".size poly_riscv_trap_vector_raw, .-poly_riscv_trap_vector_raw\n"
   ".balign 4\n"
@@ -686,7 +686,7 @@ __asm__(
   ".type poly_riscv_trap_vector_ext_raw,@function\n"
   "poly_riscv_trap_vector_ext_raw:\n"
   ".long 0x01de0533\n" // add a0,t3,t4, return trap arg6+arg7
-  ".long 0x0c00000b\n" // riscv polyctrl trap return
+  ".long 0x0c00700b\n" // riscv polyctrl trap return
   "ud2\n"
   ".size poly_riscv_trap_vector_ext_raw, .-poly_riscv_trap_vector_ext_raw\n"
   ".popsection\n");
@@ -806,7 +806,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x0ac00893\n" // addi x17,x0,172
     ".long 0x00000073\n" // ecall
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -865,7 +865,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00d50533\n" // add a0,a0,a3
     ".long 0x00e50533\n" // add a0,a0,a4
     ".long 0x00f50533\n" // add a0,a0,a5
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -895,7 +895,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
     ".long 0x00088513\n" // addi a0,a7,0
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -925,7 +925,7 @@ static int run_poly_trap_vector_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   fp_result = read_xmm0_u64();
@@ -1018,7 +1018,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x00500893\n" // addi x17,x0,5
     ".long 0x00100073\n" // ebreak
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -1052,7 +1052,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x00500893\n" // addi x17,x0,5
     ".short 0x9002\n" // c.ebreak
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -1126,7 +1126,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
     ".long 0x000280e7\n" // jalr ra,0(t0)
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
   result = read_rax();
@@ -1161,7 +1161,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
     ".short 0x9282\n" // c.jalr t0
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
   result = read_rax();
@@ -1214,7 +1214,7 @@ static int run_poly_trap_vector_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -1238,7 +1238,7 @@ static int run_poly_trap_vector_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".short 0x0000\n" // reserved 16-bit compressed encoding
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -1271,7 +1271,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00600793\n" // addi a5,zero,6
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -1316,7 +1316,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x00500893\n" // addi a7,zero,5
     ".long 0x00100073\n" // ebreak
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -1365,7 +1365,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x00500893\n" // addi a7,zero,5
     ".long 0x000280e7\n" // jalr ra,0(t0)
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
   result = read_rax();
@@ -1461,7 +1461,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
     ".long 0x01250533\n" // add a0,a0,s2
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   result = read_rax();
@@ -1678,7 +1678,7 @@ static int run_poly_state_save_restore_probe(void) {
     ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   memset(&trap_snapshot, 0, sizeof(trap_snapshot));
@@ -1737,6 +1737,7 @@ static int run_poly_state_save_restore_probe(void) {
   return 0;
 }
 
+__attribute__((noinline, noipa))
 static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   register uint64_t r8_arg asm("r8") = a5;
@@ -1756,6 +1757,7 @@ static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
   return a0;
 }
 
+__attribute__((noinline, noipa))
 static uint64_t nativecheck_descriptor_riscv_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   register uint64_t r8_arg asm("r8") = a5;
@@ -1765,7 +1767,7 @@ static uint64_t nativecheck_descriptor_riscv_import_sum6(uint64_t a0,
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
     ".long 0x08028293\n" // addi t0,t0,0x80 -> import id 8
     ".long 0x000280e7\n" // jalr ra,0(t0), descriptor-backed import
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
       "+r"(r8_arg)
     : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
@@ -1878,7 +1880,7 @@ static int run_poly_state_register_bank_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x05800a13\n" // addi s4,zero,88
     ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
 
@@ -1911,7 +1913,7 @@ static int run_poly_state_register_bank_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x00b00a13\n" // addi s4,zero,11
     ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
 
@@ -1947,7 +1949,7 @@ static int run_poly_state_register_bank_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x000a0513\n" // addi a0,s4,0
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
   if (read_rax() != 88) {
@@ -1961,7 +1963,7 @@ static int run_poly_state_register_bank_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x02ba7553\n" // fadd.d fa0,f20,fa1
-    ".long 0x0000000b\n" // riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
   if (read_xmm0_u64() != twelve_bits) {

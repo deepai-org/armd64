@@ -2754,14 +2754,14 @@ static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
 
 static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
-    return 0x0600000bU;
+    return 0x0600700bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
-    return 0x0800000bU;
+    return 0x0800700bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
-    return 0x0a00000bU;
+    return 0x0a00700bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
-    return 0x0e00000bU;
-  return 0x0400000bU;
+    return 0x0e00700bU;
+  return 0x0400700bU;
 }
 
 static uint32_t fallback_ret_for_arch(int arch) {
