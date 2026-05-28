@@ -180,6 +180,9 @@ uses the same frontend ID and target registers but does not install a return
 cookie.
 Foreign generic `PSWITCH` controls use the existing scratch branch registers:
 AArch64 `x16=target, x17=frontend ID`; RISC-V `x5=target, x6=frontend ID`.
+Foreign generic `PCALL` adds one scratch continuation register: AArch64
+`x18=return PC`; RISC-V `x7=return PC`. The callee still returns with its
+ordinary native return instruction through the hardware return cookie.
 
 ## Register Exchange Window
 

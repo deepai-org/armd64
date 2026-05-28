@@ -72,10 +72,11 @@ enter controls.
 `0x04` is `PSWITCH_MODE`: frontend ID in `R15`, target PC in `RBX`. It is a
 non-call branch and does not install a return cookie.
 
-CPUID leaf `0x40000002`, subleaf `6` reports the foreign generic `PSWITCH`
-encodings. CPUID leaf `0x40000008`, subleaf `1` reports the architectural
-frontend IDs: `EAX=x86_64`, `EBX=AArch64`, `ECX=RISC-V64`, and `EDX` as the
-supported frontend-ID bitmask.
+CPUID leaf `0x40000002`, subleaf `6` reports foreign generic frontend controls:
+`EAX=AArch64 PSWITCH`, `EBX=RISC-V PSWITCH`, `ECX=AArch64 PCALL`, and
+`EDX=RISC-V PCALL`. CPUID leaf `0x40000008`, subleaf `1` reports the
+architectural frontend IDs: `EAX=x86_64`, `EBX=AArch64`, `ECX=RISC-V64`, and
+`EDX` as the supported frontend-ID bitmask.
 CPUID leaf `0x40000002`, subleaf `7` reports the preferred x86 immediate-slot
 generic `PCALL` subop in `EAX` and the ABI signature-slot count in `EBX`.
 
@@ -88,11 +89,13 @@ generic `PCALL` subop in `EAX` and the ABI signature-slot count in `EBX`.
 | AArch64 | `HINT #0x72` / `0xd5032e5f` | call RISC-V target in `x16`, continuation in `x17` |
 | AArch64 | `HINT #0x76` / `0xd5032edf` | trap return |
 | AArch64 | `HINT #0x78` / `0xd5032f1f` | `PSWITCH`: target in `x16`, frontend ID in `x17` |
+| AArch64 | `HINT #0x79` / `0xd5032f3f` | `PCALL`: target in `x16`, frontend ID in `x17`, continuation in `x18` |
 | RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
 | RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
 | RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | call AArch64 target in `x5`, continuation in `x6` |
 | RISC-V | custom-0, funct3=7, subop 6 / `0x0c00700b` | trap return |
 | RISC-V | custom-0, funct3=7, subop 8 / `0x1000700b` | `PSWITCH`: target in `x5`, frontend ID in `x6` |
+| RISC-V | custom-0, funct3=7, subop 9 / `0x1200700b` | `PCALL`: target in `x5`, frontend ID in `x6`, continuation in `x7` |
 
 These are decoded frontend-control instructions, not breakpoint or undefined
 instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for

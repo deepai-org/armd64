@@ -449,6 +449,36 @@ static inline void riscv_generic_switch_aarch64_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void aarch64_generic_call_riscv_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800500\n" // movz x0,#40
+    ".long 0x10000090\n" // adr x16,target
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0x10000092\n" // adr x18,return
+    ".long 0xd5032f3f\n" // aarch64 generic poly call
+    ".long 0x00550513\n" // target: addi a0,a0,5
+    ".long 0x00008067\n" // riscv ret through return cookie
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void riscv_generic_call_aarch64_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x02800513\n" // addi a0,zero,40
+    ".long 0x00000297\n" // auipc x5,0
+    ".long 0x01828293\n" // addi x5,x5,24
+    ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
+    ".long 0x00000397\n" // auipc x7,0
+    ".long 0x01438393\n" // addi x7,x7,20
+    ".long 0x1200700b\n" // riscv generic poly call
+    ".long 0x91001400\n" // target: add x0,x0,#5
+    ".long 0xd65f03c0\n" // aarch64 ret through return cookie
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 static inline void raw_aarch64_abi_args_probe(void) {
   asm volatile(
     "movq $1, %%rdx\n"
@@ -1291,6 +1321,16 @@ int main(void) {
   riscv_generic_switch_aarch64_probe();
   if (read_rax() != 45) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv generic switch to aarch64 mismatch\n");
+    return 1;
+  }
+  aarch64_generic_call_riscv_probe();
+  if (read_rax() != 45) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 generic call to riscv mismatch\n");
+    return 1;
+  }
+  riscv_generic_call_aarch64_probe();
+  if (read_rax() != 45) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv generic call to aarch64 mismatch\n");
     return 1;
   }
 
