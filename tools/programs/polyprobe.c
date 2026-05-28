@@ -979,6 +979,16 @@ int main(void) {
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
+  expected_escapes = poly_cpuid_expected_escape_leaf6();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 6);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID generic switch manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
   struct poly_cpuid_regs expected_state =
     poly_cpuid_expected_state_leaf();
   struct poly_cpuid_regs poly_state =
@@ -1032,6 +1042,19 @@ int main(void) {
       poly_trap.edx != expected_trap.edx) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID trap leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_trap.eax, poly_trap.ebx, poly_trap.ecx, poly_trap.edx);
+    return 1;
+  }
+  struct poly_cpuid_regs expected_frontends =
+    poly_cpuid_expected_frontend_leaf();
+  struct poly_cpuid_regs poly_frontends =
+    poly_read_cpuid(POLY_CPUID_BASE + 8, 1);
+  if (poly_frontends.eax != expected_frontends.eax ||
+      poly_frontends.ebx != expected_frontends.ebx ||
+      poly_frontends.ecx != expected_frontends.ecx ||
+      poly_frontends.edx != expected_frontends.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID frontend leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_frontends.eax, poly_frontends.ebx, poly_frontends.ecx,
+      poly_frontends.edx);
     return 1;
   }
 

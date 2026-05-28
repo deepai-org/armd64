@@ -52,6 +52,7 @@ enum {
   POLY_FRONTEND_X86 = 0,
   POLY_FRONTEND_AARCH64 = 1,
   POLY_FRONTEND_RISCV = 2,
+  POLY_FRONTEND_COUNT = 3,
   POLY_MODE_X86 = 0,
   POLY_MODE_RAW_AARCH64 = 3,
   POLY_MODE_RAW_RISCV = 4,
@@ -493,6 +494,12 @@ static inline uint32_t poly_cpuid_expected_mode_mask(void) {
     (1U << POLY_MODE_RAW_RISCV);
 }
 
+static inline uint32_t poly_cpuid_expected_frontend_mask(void) {
+  return (1U << POLY_FRONTEND_X86) |
+    (1U << POLY_FRONTEND_AARCH64) |
+    (1U << POLY_FRONTEND_RISCV);
+}
+
 static inline uint32_t poly_cpuid_expected_feature_mask(void) {
   uint32_t mask = POLY_CPUID_FEATURE_RAW_AARCH64 |
     POLY_CPUID_FEATURE_RAW_RISCV |
@@ -579,6 +586,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf5(void) {
   regs.ebx = (uint32_t) POLY_IMPORT_CALL_BASE;
   regs.ecx = (uint32_t) (POLY_IMPORT_CALL_BASE >> 32);
   regs.edx = POLY_IMPORT_CALL_STRIDE;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf6(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_AARCH64_CTRL_SWITCH_MODE;
+  regs.ebx = POLY_RISCV_CTRL_SWITCH_MODE;
+  regs.ecx = 0;
+  regs.edx = 0;
   return regs;
 }
 
@@ -679,6 +695,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_transition_leaf(void) {
   regs.ecx = POLY_TRANSITION_AARCH64_ALIGN |
     (POLY_TRANSITION_RISCV_ALIGN << 16);
   regs.edx = poly_cpuid_expected_mode_mask();
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_frontend_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_FRONTEND_X86;
+  regs.ebx = POLY_FRONTEND_AARCH64;
+  regs.ecx = POLY_FRONTEND_RISCV;
+  regs.edx = poly_cpuid_expected_frontend_mask();
   return regs;
 }
 

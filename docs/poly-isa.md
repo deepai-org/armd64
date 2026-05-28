@@ -24,9 +24,9 @@ Hardware or FPGA should allocate real decoded x86 opcodes for:
 
 | Operation | Purpose |
 | --- | --- |
-| `PENTER mode` | Enter a raw frontend from x86_64/system code. |
-| `PSWITCH mode, target` | Fixed-latency branch to another frontend. |
-| `PCALL mode, target[, sig_imm]` | Apply an optional cached register-only ABI signature, push a hardware transition-stack entry, install a native return cookie, and branch to another frontend. |
+| `PENTER frontend` | Enter a raw frontend from x86_64/system code. |
+| `PSWITCH frontend, target` | Fixed-latency branch to another frontend. |
+| `PCALL frontend, target[, sig_imm]` | Apply an optional cached register-only ABI signature, push a hardware transition-stack entry, install a native return cookie, and branch to another frontend. |
 | `PIRET` | Restore a previously interrupted frontend after trap handling. |
 
 Every transition ends the current decode block and records precise source and
@@ -56,7 +56,7 @@ temporary control encoding is still evolving:
 | --- | --- | --- |
 | `0x2b` | `PCALL_SIG_A64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2c` | `PCALL_SIG_RV64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
-| `0x2d` | `PCALL_SIG_MODE` | mode in `R15`, target in `RBX`, return PC in `R11`, signature slot in `R12` |
+| `0x2d` | `PCALL_SIG_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
 | `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
 
@@ -70,6 +70,11 @@ enter controls.
 
 `0x04` is `PSWITCH_MODE`: frontend ID in `R15`, target PC in `RBX`. It is a
 non-call branch and does not install a return cookie.
+
+CPUID leaf `0x40000002`, subleaf `6` reports the foreign generic `PSWITCH`
+encodings. CPUID leaf `0x40000008`, subleaf `1` reports the architectural
+frontend IDs: `EAX=x86_64`, `EBX=AArch64`, `ECX=RISC-V64`, and `EDX` as the
+supported frontend-ID bitmask.
 
 ## Foreign Escapes
 

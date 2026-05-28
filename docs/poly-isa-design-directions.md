@@ -29,9 +29,9 @@ operations. Define architectural frontend IDs instead:
 
 The architectural operations should be mode-generic and fixed-latency:
 
-- `PENTER mode`: enter a frontend from x86_64/system code.
-- `PSWITCH mode, target`: branch to a target in another frontend.
-- `PCALL mode, target`: push a hardware transition-stack entry, install a
+- `PENTER frontend`: enter a frontend from x86_64/system code.
+- `PSWITCH frontend, target`: branch to a target in another frontend.
+- `PCALL frontend, target`: push a hardware transition-stack entry, install a
   return cookie, and branch to a target in another frontend.
 - `PTRAPRET`: resume after a precise poly trap.
 
@@ -102,12 +102,19 @@ layouts, or inspect call descriptors in memory. A realistic OoO implementation
 can treat the signature as extra control input to rename/RAT update logic,
 which is much closer to ordinary register renaming than to an ABI interpreter.
 
+The signature slot is semi-persistent reconfigurable hardware state, not part of
+the dynamic call payload. Runtime code can program a slot once for a common
+source/target ABI pair, and many call sites can reuse it. This keeps the hot
+transition path small: `PCALL` selects a slot, applies register-name aliases,
+installs native return-cookie state, and redirects fetch to the target frontend.
+No operand data moves through the integer execution pipes.
+
 Architecturally, the mechanism should look like:
 
 - `PABI_SIG_SET slot, kind`: program a small register-only mapping slot.
 - `PABI_SIG_GET slot`: report the active slot kind for discovery/debugging.
-- `PCALL mode, target, sig_imm`: branch to another frontend while applying the
-  selected cached mapping.
+- `PCALL frontend, target, sig_imm`: branch to another frontend while applying
+  the selected cached mapping.
 
 The final encoding can differ, but `PCALL` must name an already-programmed slot
 directly. It must not point at a user-memory descriptor that hardware has to
@@ -134,6 +141,13 @@ Stack arguments, split aggregates, variadics, unusual FP/vector ABI cases, and
 all loader policy still go through software thunks. The thunk performs memory
 layout work and then uses a null, identity, or simple register signature for the
 final frontend transition.
+
+This limit is the silicon boundary. Register renaming is small and predictable
+because it reuses machinery an OoO core already needs. Stack and aggregate
+translation is not the same class of problem: it needs memory accesses, endian
+and layout policy, page-fault recovery, and variable amounts of work. Putting
+that into `PCALL` would make frontend switching an ABI interpreter rather than
+a fast architectural branch.
 
 This creates a deliberate hybrid boundary:
 

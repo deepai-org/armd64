@@ -2162,6 +2162,19 @@ int main(void) {
         import_manifest.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_switch_manifest =
+      poly_cpuid_expected_escape_leaf6();
+    struct poly_cpuid_regs switch_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 6);
+    if (switch_manifest.eax != expected_switch_manifest.eax ||
+        switch_manifest.ebx != expected_switch_manifest.ebx ||
+        switch_manifest.ecx != expected_switch_manifest.ecx ||
+        switch_manifest.edx != expected_switch_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID generic switch manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        switch_manifest.eax, switch_manifest.ebx, switch_manifest.ecx,
+        switch_manifest.edx);
+      return 1;
+    }
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
     if (state.eax != expected_state.eax ||
@@ -2258,6 +2271,18 @@ int main(void) {
         transition.edx != expected_transition.edx) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID transition leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         transition.eax, transition.ebx, transition.ecx, transition.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_frontends =
+      poly_cpuid_expected_frontend_leaf();
+    struct poly_cpuid_regs frontends =
+      poly_read_cpuid(POLY_CPUID_BASE + 8, 1);
+    if (frontends.eax != expected_frontends.eax ||
+        frontends.ebx != expected_frontends.ebx ||
+        frontends.ecx != expected_frontends.ecx ||
+        frontends.edx != expected_frontends.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID frontend leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        frontends.eax, frontends.ebx, frontends.ecx, frontends.edx);
       return 1;
     }
     struct poly_cpuid_regs expected_abi_bridge =
