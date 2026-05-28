@@ -1,11 +1,11 @@
 # armd64
 
-Bochs prototype for running precompiled AArch64 and RISC-V userspace code inside
-a normal x86-64 Linux guest.
+Bochs prototype for running precompiled AArch64 and RISC-V userspace code in a
+normal x86-64 Linux guest.
 
 ## Run
 
-Requirements: Docker, including `linux/arm64` image support.
+Requirement: Docker with `linux/arm64` image support.
 
 ```bash
 make image
@@ -21,21 +21,24 @@ Useful targets:
 
 Guest output is in `out/serial.log`. Bochs trace output is in `out/bochs.log`.
 
-## ISA Delta
+## How The ISA Differs From x86-64
 
-The base machine is still x86-64. Paging, privilege, interrupts, exceptions,
-virtual memory, TSO ordering, and the Linux syscall ABI remain x86-64.
+The base machine remains x86-64:
 
-The extension adds:
+- Paging, privilege, interrupts, exceptions, and virtual memory are x86-64.
+- Memory ordering follows x86 TSO.
+- Syscalls enter the x86-64 Linux syscall ABI.
+- Foreign code uses the same guest address space and page permissions.
+
+The prototype adds:
 
 - `CPUID 0x40000000+` leaves for polyglot feature discovery.
-- Prototype x86 entry/call opcodes: `0f 24 <op> "POLY!"`.
-- Raw 32-bit fetch modes for AArch64 and RISC-V: `PENTER.A64`, `PENTER.RV64`.
-- Native escapes back to x86 control: AArch64 `brk #0x7fff`, RISC-V `0x0000000b`.
+- Prototype x86 poly opcodes using `0f 24 <op> "POLY!"`.
+- `PENTER.A64` and `PENTER.RV64` to switch into raw 32-bit foreign fetch.
+- AArch64 `brk #0x7fff` and RISC-V `0x0000000b` to escape back to x86 control.
 - `PCALL.*.SYSV` bridges from x86-64 SysV into AAPCS64 or RISC-V psABI code.
-- Shared x86-64 address translation, page faults, and memory permissions.
-- OS-neutral trap packets rather than CPU-side Linux/libc emulation.
+- OS-neutral trap packets instead of CPU-side Linux or libc emulation.
 - XSAVE component 20 for non-x86 architectural state.
 
-The target is compatibility with existing precompiled cross-ISA objects, not a
-new compiler-only ABI. See `docs/poly-isa.md` for the full ISA contract.
+The goal is compatibility with existing precompiled cross-ISA objects, not a new
+compiler-only ABI. Full ISA details are in `docs/poly-isa.md`.
