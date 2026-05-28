@@ -537,7 +537,9 @@ foreign ISA, the user-space loader writes the PLT/GOT target to a generated
 caller-ISA trampoline.  The trampoline loads the callee address and continuation
 into the architectural cross-call registers and uses the neutral AArch64/RISC-V
 cross-call opcode, so ordinary `bl`/`jalr` call sites and native return
-instructions still work without routing through x86.  Cross-ISA object, TLS,
+instructions still work without routing through x86.  The mixed `DT_NEEDED`
+gate covers both integer arguments/results and scalar FP64 arguments/results
+through the same generated trampoline.  Cross-ISA object, TLS,
 constructor, and IFUNC interposition remain explicit future compatibility
 items rather than hidden emulator behavior.
 Section tables are kept as a fallback for synthetic test payloads. The gate
