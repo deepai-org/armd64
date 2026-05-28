@@ -52,22 +52,31 @@ enum {
   POLY_SYS_INOTIFY_RM_WATCH = 28,
   POLY_SYS_STATFS = 43,
   POLY_SYS_FSTATFS = 44,
+  POLY_SYS_FTRUNCATE = 46,
+  POLY_SYS_FALLOCATE = 47,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
   POLY_SYS_PIPE2 = 59,
   POLY_SYS_GETDENTS64 = 61,
+  POLY_SYS_LSEEK = 62,
   POLY_SYS_READ = 63,
   POLY_SYS_WRITE = 64,
   POLY_SYS_READV = 65,
   POLY_SYS_WRITEV = 66,
   POLY_SYS_PREAD64 = 67,
   POLY_SYS_PWRITE64 = 68,
+  POLY_SYS_PREADV = 69,
+  POLY_SYS_PWRITEV = 70,
   POLY_SYS_PSELECT6 = 72,
   POLY_SYS_PPOLL = 73,
   POLY_SYS_SIGNALFD4 = 74,
   POLY_SYS_READLINKAT = 78,
   POLY_SYS_NEWFSTATAT = 79,
   POLY_SYS_FSTAT = 80,
+  POLY_SYS_SYNC = 81,
+  POLY_SYS_FSYNC = 82,
+  POLY_SYS_FDATASYNC = 83,
+  POLY_SYS_SYNC_FILE_RANGE = 84,
   POLY_SYS_TIMERFD_CREATE = 85,
   POLY_SYS_TIMERFD_SETTIME = 86,
   POLY_SYS_TIMERFD_GETTIME = 87,
@@ -697,6 +706,74 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       read_offset_message[2] != 'F' || read_offset_message[3] != 'S' ||
       read_offset_message[4] != 'E' || read_offset_message[5] != 'T')
     return 113;
+
+  fd = poly_syscall2(POLY_SYS_MEMFD_CREATE, (long) "poly-vectored",
+    POLY_MFD_CLOEXEC);
+  if (fd < 0)
+    return 208;
+  if (poly_syscall4(POLY_SYS_FALLOCATE, fd, 0, 0, 4096) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 209;
+  }
+  if (poly_syscall2(POLY_SYS_FTRUNCATE, fd, 8192) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 210;
+  }
+  static const char vec_write0[] = "V0";
+  static const char vec_write1[] = "V1";
+  struct poly_iovec write_offset_iov[2] = {
+    { (uint64_t) (uintptr_t) vec_write0, sizeof(vec_write0) - 1 },
+    { (uint64_t) (uintptr_t) vec_write1, sizeof(vec_write1) - 1 }
+  };
+  if (poly_syscall4(POLY_SYS_PWRITEV, fd, (long) write_offset_iov, 2,
+        128) != 4) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 211;
+  }
+  if (poly_syscall4(POLY_SYS_SYNC_FILE_RANGE, fd, 128, 4, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 212;
+  }
+  if (poly_syscall2(POLY_SYS_FDATASYNC, fd, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 213;
+  }
+  if (poly_syscall2(POLY_SYS_FSYNC, fd, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 214;
+  }
+  char vec_read0[2];
+  char vec_read1[2];
+  struct poly_iovec read_offset_iov[2] = {
+    { (uint64_t) (uintptr_t) vec_read0, sizeof(vec_read0) },
+    { (uint64_t) (uintptr_t) vec_read1, sizeof(vec_read1) }
+  };
+  if (poly_syscall4(POLY_SYS_PREADV, fd, (long) read_offset_iov, 2,
+        128) != 4) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 215;
+  }
+  if (poly_syscall3(POLY_SYS_LSEEK, fd, 128, 0) != 128) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 216;
+  }
+  char seek_bytes[4];
+  if (poly_syscall3(POLY_SYS_READ, fd, (long) seek_bytes,
+        sizeof(seek_bytes)) != 4) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 217;
+  }
+  if (poly_syscall2(POLY_SYS_SYNC, 0, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 218;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 219;
+  if (vec_read0[0] != 'V' || vec_read0[1] != '0' ||
+      vec_read1[0] != 'V' || vec_read1[1] != '1' ||
+      seek_bytes[0] != 'V' || seek_bytes[1] != '0' ||
+      seek_bytes[2] != 'V' || seek_bytes[3] != '1')
+    return 220;
 
   struct poly_open_how open_how;
   open_how.flags = 0;
