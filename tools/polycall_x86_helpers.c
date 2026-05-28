@@ -147,6 +147,21 @@ poly_host_vec128_u32 POLY_HOST_HELPER poly_host_x86_vec128_u32(
   return a + b + bias;
 }
 
+struct poly_host_sret_u64 {
+  uint64_t a;
+  uint64_t b;
+  uint64_t c;
+  uint64_t d;
+};
+
+struct poly_host_sret_u64 POLY_HOST_HELPER poly_host_x86_sret_u64(
+    uint64_t a, uint64_t b, uint64_t c)
+{
+  struct poly_host_sret_u64 result = { a + 10, b + 20, c + 30,
+    a + b + c + 40 };
+  return result;
+}
+
 double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64(uint64_t a, double b,
     uint64_t c, double d, uint64_t e, double f)
 {

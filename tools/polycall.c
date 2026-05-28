@@ -237,6 +237,7 @@ enum {
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_FPAIR32 = (1U << 6),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_VEC128 = (1U << 7),
   POLY_IMPORT_X86_DESCRIPTOR_VEC128_FROM_GPR_PAIRS = (1U << 8),
+  POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8 = (1U << 9),
   POLY_ABI_BRIDGE_ABI_VERSION = 1,
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64 = (1U << 0),
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV = (1U << 1),
@@ -448,7 +449,8 @@ enum {
   POLY_IMPORT_FUNC_X86_FPAIR64 = 146,
   POLY_IMPORT_FUNC_X86_FPAIR32 = 147,
   POLY_IMPORT_FUNC_X86_VEC128_U32 = 148,
-  POLY_IMPORT_FUNC_COUNT = 149
+  POLY_IMPORT_FUNC_X86_SRET_U64 = 149,
+  POLY_IMPORT_FUNC_COUNT = 150
 };
 
 enum {
@@ -791,6 +793,14 @@ extern struct poly_host_pair_fp32 poly_host_x86_fpair32(float a, float b,
 typedef uint32_t poly_host_vec128_u32 __attribute__((vector_size(16)));
 extern poly_host_vec128_u32 poly_host_x86_vec128_u32(
     poly_host_vec128_u32 a, poly_host_vec128_u32 b);
+struct poly_host_sret_u64 {
+  uint64_t a;
+  uint64_t b;
+  uint64_t c;
+  uint64_t d;
+};
+extern struct poly_host_sret_u64 poly_host_x86_sret_u64(uint64_t a,
+    uint64_t b, uint64_t c);
 extern double poly_host_x86_mixed_u64_fp64(uint64_t a, double b, uint64_t c,
     double d, uint64_t e, double f);
 extern float poly_host_x86_fp32_add(float a, float b);
@@ -1074,6 +1084,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_fpair32;
     case POLY_IMPORT_FUNC_X86_VEC128_U32:
       return (uint64_t) (uintptr_t) poly_host_x86_vec128_u32;
+    case POLY_IMPORT_FUNC_X86_SRET_U64:
+      return (uint64_t) (uintptr_t) poly_host_x86_sret_u64;
     case POLY_IMPORT_FUNC_X86_SLOT7:
       return (uint64_t) (uintptr_t) poly_host_x86_mixed_u64_fp64;
     case POLY_IMPORT_FUNC_STRLEN:
@@ -1414,6 +1426,10 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
         return POLY_IMPORT_X86_DESCRIPTOR_RETURN_VEC128 |
           POLY_IMPORT_X86_DESCRIPTOR_VEC128_FROM_GPR_PAIRS;
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_VEC128;
+    case POLY_IMPORT_FUNC_X86_SRET_U64:
+      if (arch == POLY_ARCH_AARCH64)
+        return POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8;
+      return 0;
     default:
       return 0;
   }
@@ -2841,6 +2857,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_X86_VEC128_U32 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_sret_u64") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_X86_SRET_U64 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
@@ -4632,6 +4652,7 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_fpair64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fpair32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
+        strcmp(symbol_name, "poly_import_x86_sret_u64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp32_add") == 0 ||
         import_symbol_uses_x86_descriptor(symbol_name))
