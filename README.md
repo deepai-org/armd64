@@ -1,7 +1,7 @@
 # armd64
 
-Bochs prototype for running precompiled AArch64 and RISC-V userspace code inside
-an ordinary x86_64 Linux guest.
+Bochs prototype for running precompiled AArch64 and RISC-V userspace code in an
+ordinary x86_64 Linux guest.
 
 ## Run
 
@@ -12,26 +12,41 @@ make image
 make boot-poly-full-arch-traps
 ```
 
-Other useful targets: `make boot`, `make boot-poly`,
-`make boot-poly-call-arch-traps`, `make boot-poly-binfmt-arch-traps`.
+Useful targets:
 
-Logs: `out/serial.log` for guest output, `out/bochs.log` for Bochs output.
+- `make boot`: x86_64 guest smoke test, poly disabled.
+- `make boot-poly`: basic polyglot boot gate.
+- `make boot-poly-call-arch-traps`: cross-ISA call, thread, and signal tests.
+- `make boot-poly-binfmt-arch-traps`: foreign executable/binfmt path.
+- `make boot-poly-full-arch-traps`: broad regression run.
 
-## ISA Delta
+Logs:
 
-The guest remains x86_64 Linux: boot, paging, privilege levels, virtual memory,
-ordinary x86_64 code, and the Linux syscall ABI stay x86_64. Added pieces:
+- `out/serial.log`: guest output.
+- `out/bochs.log`: Bochs output.
 
-- `CPUID 0x40000000+`: polyglot feature discovery.
-- `0f 24 <op> "POLY!"`: prototype x86 opcode slot.
-- `PENTER.A64` / `PENTER.RV64`: enter raw AArch64/RISC-V fetch.
-- AArch64 `brk #0x7fff` / RISC-V custom-0 `0x0000000b`: exit raw mode.
-- Direct AArch64<->RISC-V switch/call escapes.
-- `PCALL.*.SYSV`: calls into precompiled AAPCS64/RISC-V psABI code.
-- Shared x86_64 virtual memory, page faults, permissions, and x86-TSO behavior.
-- OS-neutral trap packets for syscalls, breakpoints, illegal instructions,
-  imports, and unsupported operations.
-- XSAVE component 20 for foreign state. Stock guest Linux enumerates it but
-  does not enable `XCR0[20]`.
+## ISA vs x86_64
+
+The machine is still x86_64. Boot, paging, privilege levels, virtual memory,
+ordinary x86_64 code, and the Linux syscall ABI remain x86_64.
+
+The prototype adds:
+
+- Polyglot feature discovery under `CPUID 0x40000000+`.
+- A prototype x86 opcode family: `0f 24 <op> "POLY!"`.
+- `PENTER.A64` and `PENTER.RV64` to enter raw AArch64 or RISC-V fetch.
+- Native exits back to x86_64: AArch64 `brk #0x7fff` and RISC-V custom-0
+  `0x0000000b`.
+- `PCALL.*.SYSV` instructions that bridge x86_64 SysV calls to precompiled
+  AArch64 AAPCS64 or RISC-V psABI functions.
+- Shared x86_64 virtual memory, page faults, permissions, and TSO memory
+  ordering for foreign code.
+- OS-neutral trap packets for foreign syscalls, breakpoints, illegal
+  instructions, imports, and unsupported operations.
+- XSAVE component 20 for non-x86 foreign state. Stock guest Linux enumerates it
+  but does not enable `XCR0[20]`.
+
+This is not a new compiler-only ABI. The goal is fast compatibility with real
+precompiled AArch64 and RISC-V objects linked into x86_64 processes.
 
 Full ISA details live in `docs/poly-isa.md`.
