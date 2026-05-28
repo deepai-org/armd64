@@ -673,8 +673,6 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_VEC128_ROOT_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootvec-aarch64.so"
-  printf 'poly_cross_root_vec128_call vec128_u32\n' \
-    > "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootvec-aarch64.so.polyabi"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycrossleaf-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -731,8 +729,6 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/aarch64" \
     -Wl,--no-as-needed -l:libpolycrossrootvec-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-root-vec128-real.so"
-  printf 'poly_root_vec128_u32 vec128_u32\n' \
-    > "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-root-vec128-real.so.polyabi"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolysymbolic-override-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2055,8 +2051,6 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_VEC128_ROOT_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootvec-riscv.so"
-  printf 'poly_cross_root_vec128_call vec128_u32\n' \
-    > "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootvec-riscv.so.polyabi"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycrossleaf-riscv.so -Wl,--hash-style=sysv \
@@ -2123,8 +2117,6 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/riscv" \
     -Wl,--no-as-needed -l:libpolycrossrootvec-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-root-vec128-real.so"
-  printf 'poly_root_vec128_u32 vec128_u32\n' \
-    > "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-root-vec128-real.so.polyabi"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolysymbolic-override-riscv.so \
