@@ -1312,6 +1312,44 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_spin_unlock(uint32_t *lock)
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_cond_init(uint32_t *cond,
+    const void *attr)
+{
+  (void) attr;
+  if (cond == 0)
+    return 22;
+  cond[0] = 1;
+  cond[1] = 0;
+  cond[2] = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_cond_destroy(uint32_t *cond)
+{
+  if (cond == 0)
+    return 22;
+  cond[0] = 0;
+  cond[1] = 0;
+  cond[2] = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_cond_signal(uint32_t *cond)
+{
+  if (cond == 0)
+    return 22;
+  ++cond[1];
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_cond_broadcast(uint32_t *cond)
+{
+  if (cond == 0)
+    return 22;
+  ++cond[2];
+  return 0;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_abort(uint64_t *guard)
 {
   uint8_t *bytes = (uint8_t *) guard;

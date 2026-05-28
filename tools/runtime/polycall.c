@@ -486,7 +486,11 @@ enum {
   POLY_IMPORT_FUNC_PTHREAD_SPIN_LOCK = 183,
   POLY_IMPORT_FUNC_PTHREAD_SPIN_TRYLOCK = 184,
   POLY_IMPORT_FUNC_PTHREAD_SPIN_UNLOCK = 185,
-  POLY_IMPORT_FUNC_COUNT = 186
+  POLY_IMPORT_FUNC_PTHREAD_COND_INIT = 186,
+  POLY_IMPORT_FUNC_PTHREAD_COND_DESTROY = 187,
+  POLY_IMPORT_FUNC_PTHREAD_COND_SIGNAL = 188,
+  POLY_IMPORT_FUNC_PTHREAD_COND_BROADCAST = 189,
+  POLY_IMPORT_FUNC_COUNT = 190
 };
 
 enum {
@@ -962,6 +966,11 @@ extern uint64_t poly_host_x86_pthread_spin_destroy(uint32_t *lock);
 extern uint64_t poly_host_x86_pthread_spin_lock(uint32_t *lock);
 extern uint64_t poly_host_x86_pthread_spin_trylock(uint32_t *lock);
 extern uint64_t poly_host_x86_pthread_spin_unlock(uint32_t *lock);
+extern uint64_t poly_host_x86_pthread_cond_init(uint32_t *cond,
+    const void *attr);
+extern uint64_t poly_host_x86_pthread_cond_destroy(uint32_t *cond);
+extern uint64_t poly_host_x86_pthread_cond_signal(uint32_t *cond);
+extern uint64_t poly_host_x86_pthread_cond_broadcast(uint32_t *cond);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1117,7 +1126,9 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "pthread_mutexattr_destroy", "pthread_mutexattr_settype",
     "pthread_mutexattr_gettype", "pthread_spin_init",
     "pthread_spin_destroy", "pthread_spin_lock", "pthread_spin_trylock",
-    "pthread_spin_unlock", "getpid", "getppid", "getuid", "geteuid",
+    "pthread_spin_unlock", "pthread_cond_init", "pthread_cond_destroy",
+    "pthread_cond_signal", "pthread_cond_broadcast",
+    "getpid", "getppid", "getuid", "geteuid",
     "getgid", "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
     "__cxa_guard_abort",
@@ -1357,6 +1368,14 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_spin_trylock;
     case POLY_IMPORT_FUNC_PTHREAD_SPIN_UNLOCK:
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_spin_unlock;
+    case POLY_IMPORT_FUNC_PTHREAD_COND_INIT:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_cond_init;
+    case POLY_IMPORT_FUNC_PTHREAD_COND_DESTROY:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_cond_destroy;
+    case POLY_IMPORT_FUNC_PTHREAD_COND_SIGNAL:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_cond_signal;
+    case POLY_IMPORT_FUNC_PTHREAD_COND_BROADCAST:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_cond_broadcast;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -3101,6 +3120,26 @@ static int resolve_import_function(const char *symbol_name,
   if (strcmp(symbol_name, "pthread_spin_unlock") == 0) {
     *symbol_value =
       POLY_IMPORT_FUNC_PTHREAD_SPIN_UNLOCK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_cond_init") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_COND_INIT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_cond_destroy") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_COND_DESTROY * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_cond_signal") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_COND_SIGNAL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_cond_broadcast") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_COND_BROADCAST * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {
