@@ -171,6 +171,17 @@ struct poly_host_sret_u64 POLY_HOST_HELPER poly_host_x86_sret_u64_stack(
   return result;
 }
 
+struct poly_host_sret_u64 POLY_HOST_HELPER poly_host_x86_sret_u64_stack10(
+    uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f,
+    uint64_t g, uint64_t h, uint64_t i, uint64_t j)
+{
+  (void) d;
+  (void) e;
+  struct poly_host_sret_u64 result = { a + 10, b + 20, c + 30,
+    f + g + h + i + j + 100 };
+  return result;
+}
+
 double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64(uint64_t a, double b,
     uint64_t c, double d, uint64_t e, double f)
 {
