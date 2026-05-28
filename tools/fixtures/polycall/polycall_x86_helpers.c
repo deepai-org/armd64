@@ -1271,6 +1271,47 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutexattr_gettype(
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_spin_init(uint32_t *lock,
+    uint32_t pshared)
+{
+  (void) pshared;
+  if (lock == 0)
+    return 22;
+  *lock = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_spin_destroy(uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  return *lock == 0 ? 0 : 16;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_spin_trylock(uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  return __sync_lock_test_and_set(lock, 1) == 0 ? 0 : 16;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_spin_lock(uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  while (poly_host_x86_pthread_spin_trylock(lock) == 16) {
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_spin_unlock(uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  __sync_lock_release(lock);
+  return 0;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_abort(uint64_t *guard)
 {
   uint8_t *bytes = (uint8_t *) guard;
