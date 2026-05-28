@@ -128,6 +128,8 @@ enum {
   POLY_CPUID_FEATURE_TRAP_VECTOR = (1U << 25),
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
+  MAX_PROCESS_DEPS = 4,
+  MAX_DEP_PATH = 160,
   SCRATCH_SECOND_PATH_OFFSET = 128
 };
 
@@ -142,6 +144,16 @@ struct poly_load_segment {
   uint64_t vaddr;
   uint64_t memsz;
   uint32_t flags;
+};
+
+struct poly_program;
+
+struct poly_process_dependency {
+  char path[MAX_DEP_PATH];
+  struct poly_program *program;
+  uint8_t *mapping;
+  size_t mapping_size;
+  uint8_t *loaded_image;
 };
 
 struct poly_program {
@@ -161,6 +173,8 @@ struct poly_program {
   uint64_t relro_size;
   uint8_t *code_bytes;
   size_t code_size;
+  struct poly_process_dependency deps[MAX_PROCESS_DEPS];
+  size_t dep_count;
 };
 
 struct poly_request {
@@ -477,6 +491,143 @@ static int resolve_same_image_reloc_symbol(const struct poly_program *program,
   if (symbol_type)
     *symbol_type = ELF64_ST_TYPE(sym->st_info);
   return 0;
+}
+
+static int dynamic_symbol_name_by_index(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
+    uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
+    uint64_t gnu_hash_vaddr, uint64_t symbol_index, const char **symbol_name) {
+  size_t symbol_count = 0;
+  if (!symtab_vaddr || !strtab_vaddr || !strsz ||
+      syment < sizeof(Elf64_Sym) ||
+      dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
+        syment, hash_vaddr, gnu_hash_vaddr, &symbol_count) < 0 ||
+      symbol_index >= symbol_count)
+    return -1;
+
+  size_t symtab_offset = 0;
+  const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, symtab_size,
+        &symtab_offset) < 0)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+
+  const Elf64_Sym *sym = (const Elf64_Sym *) (loaded_image + symtab_offset +
+    symbol_index * syment);
+  if (sym->st_name >= strsz)
+    return -1;
+  *symbol_name = (const char *) (loaded_image + strtab_offset + sym->st_name);
+  return 0;
+}
+
+static int dynamic_symbol_table_info(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t *symtab_vaddr,
+    uint64_t *strtab_vaddr, uint64_t *strsz, uint64_t *syment,
+    uint64_t *hash_vaddr, uint64_t *gnu_hash_vaddr) {
+  *symtab_vaddr = 0;
+  *strtab_vaddr = 0;
+  *strsz = 0;
+  *syment = sizeof(Elf64_Sym);
+  *hash_vaddr = 0;
+  *gnu_hash_vaddr = 0;
+  if (!program->dynamic_size)
+    return -1;
+
+  const Elf64_Dyn *dyn =
+    (const Elf64_Dyn *) (loaded_image + program->dynamic_offset);
+  const size_t dyn_count = program->dynamic_size / sizeof(Elf64_Dyn);
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_SYMTAB: *symtab_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_STRTAB: *strtab_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_STRSZ: *strsz = dyn[n].d_un.d_val; break;
+      case DT_SYMENT: *syment = dyn[n].d_un.d_val; break;
+      case DT_HASH: *hash_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_GNU_HASH: *gnu_hash_vaddr = dyn[n].d_un.d_ptr; break;
+      default: break;
+    }
+  }
+
+  return *symtab_vaddr && *strtab_vaddr && *strsz &&
+    *syment >= sizeof(Elf64_Sym) ? 0 : -1;
+}
+
+static int symbol_is_dependency_export(const Elf64_Sym *sym) {
+  const unsigned bind = ELF64_ST_BIND(sym->st_info);
+  const unsigned visibility = ELF64_ST_VISIBILITY(sym->st_other);
+  return sym->st_shndx != SHN_UNDEF &&
+    (bind == STB_GLOBAL || bind == STB_WEAK) &&
+    (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
+}
+
+static int resolve_loaded_dependency_symbol(const struct poly_program *program,
+    const char *symbol_name, uint64_t *symbol_value, uint8_t *symbol_type) {
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_process_dependency *dep = &program->deps[d];
+    if (!dep->program || !dep->loaded_image)
+      continue;
+
+    uint64_t symtab_vaddr = 0, strtab_vaddr = 0, strsz = 0;
+    uint64_t syment = sizeof(Elf64_Sym), hash_vaddr = 0, gnu_hash_vaddr = 0;
+    if (dynamic_symbol_table_info(dep->program, dep->loaded_image,
+          &symtab_vaddr, &strtab_vaddr, &strsz, &syment, &hash_vaddr,
+          &gnu_hash_vaddr) < 0)
+      continue;
+
+    size_t symbol_count = 0;
+    if (dynamic_symbol_count_from_hash(dep->program, dep->loaded_image,
+          symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
+          &symbol_count) < 0)
+      continue;
+
+    size_t symtab_offset = 0;
+    const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+    if (elf_vaddr_to_image_offset(dep->program, symtab_vaddr, symtab_size,
+          &symtab_offset) < 0)
+      continue;
+
+    size_t strtab_offset = 0;
+    if (elf_vaddr_to_image_offset(dep->program, strtab_vaddr, strsz,
+          &strtab_offset) < 0)
+      continue;
+
+    for (size_t index = 0; index < symbol_count; index++) {
+      const Elf64_Sym *sym = (const Elf64_Sym *) (dep->loaded_image +
+        symtab_offset + (uint64_t) index * syment);
+      if (sym->st_name >= strsz || !symbol_is_dependency_export(sym))
+        continue;
+      const char *name =
+        (const char *) (dep->loaded_image + strtab_offset + sym->st_name);
+      if (strcmp(name, symbol_name) != 0)
+        continue;
+      if (ELF64_ST_TYPE(sym->st_info) == STT_GNU_IFUNC)
+        return -1;
+      *symbol_value = (uint64_t) (uintptr_t) dep->loaded_image -
+        dep->program->base_vaddr + sym->st_value;
+      if (symbol_type)
+        *symbol_type = ELF64_ST_TYPE(sym->st_info);
+      return 0;
+    }
+  }
+  return -1;
+}
+
+static int resolve_dependency_reloc_symbol(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
+    uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
+    uint64_t gnu_hash_vaddr, uint64_t symbol_index, uint64_t *symbol_value,
+    uint8_t *symbol_type) {
+  const char *symbol_name = NULL;
+  if (dynamic_symbol_name_by_index(program, loaded_image, symtab_vaddr,
+        strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
+        symbol_index, &symbol_name) < 0)
+    return -1;
+  return resolve_loaded_dependency_symbol(program, symbol_name, symbol_value,
+    symbol_type);
 }
 
 static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,
@@ -2114,6 +2265,7 @@ static int apply_relative_relocations(const struct poly_program *program,
   uint64_t relr_vaddr = 0, relr_size = 0, relr_ent = sizeof(uint64_t);
   uint64_t jmprel_vaddr = 0, pltrel_size = 0, pltrel_type = 0;
   uint64_t symtab_vaddr = 0, syment = sizeof(Elf64_Sym);
+  uint64_t strtab_vaddr = 0, strsz = 0;
   uint64_t hash_vaddr = 0, gnu_hash_vaddr = 0;
   for (size_t n = 0; n < dyn_count; n++) {
     switch (dyn[n].d_tag) {
@@ -2130,6 +2282,8 @@ static int apply_relative_relocations(const struct poly_program *program,
       case DT_PLTRELSZ: pltrel_size = dyn[n].d_un.d_val; break;
       case DT_PLTREL: pltrel_type = dyn[n].d_un.d_val; break;
       case DT_SYMTAB: symtab_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_STRTAB: strtab_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_STRSZ: strsz = dyn[n].d_un.d_val; break;
       case DT_SYMENT: syment = dyn[n].d_un.d_val; break;
       case DT_HASH: hash_vaddr = dyn[n].d_un.d_ptr; break;
       case DT_GNU_HASH: gnu_hash_vaddr = dyn[n].d_un.d_ptr; break;
@@ -2171,11 +2325,19 @@ static int apply_relative_relocations(const struct poly_program *program,
       else if (symbol_index != 0 &&
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
         uint8_t symbol_type = 0;
+        int from_dependency = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &reloc_value, &symbol_type) < 0)
-          return -1;
-        if (symbol_type == STT_GNU_IFUNC) {
+              symbol_index, &reloc_value, &symbol_type) < 0) {
+          if (resolve_dependency_reloc_symbol(program, loaded_image,
+                symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+                gnu_hash_vaddr, symbol_index, &reloc_value,
+                &symbol_type) < 0)
+            return -1;
+          from_dependency = 1;
+          reloc_value_is_absolute = 1;
+        }
+        if (!from_dependency && symbol_type == STT_GNU_IFUNC) {
           if (run_irelative_resolver(program, loaded_image, trampoline_code,
                 prefix_size, return_pc, scratch, reloc_value,
                 &reloc_value) < 0)
@@ -2222,11 +2384,19 @@ static int apply_relative_relocations(const struct poly_program *program,
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
         uint64_t symbol_value = 0;
         uint8_t symbol_type = 0;
+        int from_dependency = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &symbol_value, &symbol_type) < 0)
-          return -1;
-        if (symbol_type == STT_GNU_IFUNC) {
+              symbol_index, &symbol_value, &symbol_type) < 0) {
+          if (resolve_dependency_reloc_symbol(program, loaded_image,
+                symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+                gnu_hash_vaddr, symbol_index, &symbol_value,
+                &symbol_type) < 0)
+            return -1;
+          from_dependency = 1;
+          reloc_value_is_absolute = 1;
+        }
+        if (!from_dependency && symbol_type == STT_GNU_IFUNC) {
           if (run_irelative_resolver(program, loaded_image, trampoline_code,
                 prefix_size, return_pc, scratch, symbol_value,
                 &symbol_value) < 0)
@@ -2300,12 +2470,19 @@ static int apply_relative_relocations(const struct poly_program *program,
           return -1;
         uint64_t reloc_value = 0;
         uint8_t symbol_type = 0;
+        int from_dependency = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &reloc_value, &symbol_type) < 0)
-          return -1;
-        int reloc_value_is_absolute = 0;
-        if (symbol_type == STT_GNU_IFUNC) {
+              symbol_index, &reloc_value, &symbol_type) < 0) {
+          if (resolve_dependency_reloc_symbol(program, loaded_image,
+                symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+                gnu_hash_vaddr, symbol_index, &reloc_value,
+                &symbol_type) < 0)
+            return -1;
+          from_dependency = 1;
+        }
+        int reloc_value_is_absolute = from_dependency;
+        if (!from_dependency && symbol_type == STT_GNU_IFUNC) {
           if (run_irelative_resolver(program, loaded_image, trampoline_code,
                 prefix_size, return_pc, scratch, reloc_value,
                 &reloc_value) < 0)
@@ -2343,12 +2520,19 @@ static int apply_relative_relocations(const struct poly_program *program,
           return -1;
         uint64_t symbol_value = 0;
         uint8_t symbol_type = 0;
+        int from_dependency = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &symbol_value, &symbol_type) < 0)
-          return -1;
-        int symbol_value_is_absolute = 0;
-        if (symbol_type == STT_GNU_IFUNC) {
+              symbol_index, &symbol_value, &symbol_type) < 0) {
+          if (resolve_dependency_reloc_symbol(program, loaded_image,
+                symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+                gnu_hash_vaddr, symbol_index, &symbol_value,
+                &symbol_type) < 0)
+            return -1;
+          from_dependency = 1;
+        }
+        int symbol_value_is_absolute = from_dependency;
+        if (!from_dependency && symbol_type == STT_GNU_IFUNC) {
           if (run_irelative_resolver(program, loaded_image, trampoline_code,
                 prefix_size, return_pc, scratch, symbol_value,
                 &symbol_value) < 0)
@@ -2739,6 +2923,163 @@ static int load_elf_program(const char *path, const char *symbol_name,
   return 0;
 }
 
+static void free_program(struct poly_program *program);
+
+static int build_needed_path(const char *owner_path, const char *needed,
+    char *out, size_t out_size) {
+  if (!needed || needed[0] == '\0')
+    return -1;
+  if (needed[0] == '/') {
+    if (strlen(needed) >= out_size)
+      return -1;
+    strcpy(out, needed);
+    return 0;
+  }
+
+  const char *slash = strrchr(owner_path, '/');
+  if (!slash) {
+    if (strlen(needed) >= out_size)
+      return -1;
+    strcpy(out, needed);
+    return 0;
+  }
+
+  const size_t dir_len = (size_t) (slash + 1 - owner_path);
+  const size_t needed_len = strlen(needed);
+  if (dir_len + needed_len >= out_size)
+    return -1;
+  memcpy(out, owner_path, dir_len);
+  memcpy(out + dir_len, needed, needed_len + 1);
+  return 0;
+}
+
+static int load_process_dependencies(struct poly_program *program) {
+  if (!program->dynamic_size)
+    return 0;
+
+  const Elf64_Dyn *dyn =
+    (const Elf64_Dyn *) (program->code_bytes + program->dynamic_offset);
+  const size_t dyn_count = program->dynamic_size / sizeof(Elf64_Dyn);
+  uint64_t strtab_vaddr = 0, strsz = 0;
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_STRTAB: strtab_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_STRSZ: strsz = dyn[n].d_un.d_val; break;
+      default: break;
+    }
+  }
+  if (!strtab_vaddr || !strsz)
+    return 0;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+  const char *strings = (const char *) (program->code_bytes + strtab_offset);
+
+  for (size_t n = 0; n < dyn_count; n++) {
+    if (dyn[n].d_tag != DT_NEEDED)
+      continue;
+    const uint64_t needed_offset = dyn[n].d_un.d_val;
+    if (needed_offset >= strsz ||
+        memchr(strings + needed_offset, '\0',
+          (size_t) (strsz - needed_offset)) == NULL) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad DT_NEEDED string: %s\n",
+        program->path);
+      return -1;
+    }
+    if (program->dep_count >= MAX_PROCESS_DEPS) {
+      fprintf(stderr, "POLYEXEC_FAIL: too many DT_NEEDED dependencies: %s\n",
+        program->path);
+      return -1;
+    }
+
+    const char *needed = strings + needed_offset;
+    struct poly_process_dependency *dep = &program->deps[program->dep_count];
+    if (build_needed_path(program->path, needed, dep->path,
+          sizeof(dep->path)) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad DT_NEEDED path: %s: %s\n",
+        program->path, needed);
+      return -1;
+    }
+
+    dep->program = calloc(1, sizeof(*dep->program));
+    if (!dep->program) {
+      fprintf(stderr, "POLYEXEC_FAIL: out of memory loading dependency: %s\n",
+        dep->path);
+      return -1;
+    }
+    if (load_elf_program(dep->path, "", dep->program) < 0) {
+      free(dep->program);
+      dep->program = NULL;
+      return -1;
+    }
+    if (dep->program->arch != program->arch) {
+      fprintf(stderr, "POLYEXEC_FAIL: cross-arch DT_NEEDED not supported yet: %s\n",
+        dep->path);
+      free_program(dep->program);
+      free(dep->program);
+      dep->program = NULL;
+      return -1;
+    }
+    program->dep_count++;
+  }
+
+  return 0;
+}
+
+static void unmap_process_dependencies(struct poly_program *program) {
+  for (size_t d = 0; d < program->dep_count; d++) {
+    struct poly_process_dependency *dep = &program->deps[d];
+    if (dep->mapping && dep->mapping_size)
+      munmap(dep->mapping, dep->mapping_size);
+    dep->mapping = NULL;
+    dep->mapping_size = 0;
+    dep->loaded_image = NULL;
+  }
+}
+
+static int map_process_dependencies(struct poly_program *program,
+    uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
+    uint8_t *scratch) {
+  for (size_t d = 0; d < program->dep_count; d++) {
+    struct poly_process_dependency *dep = &program->deps[d];
+    const uint64_t mapping_size_u64 =
+      align_up_u64((uint64_t) dep->program->code_size, 0x1000);
+    if (mapping_size_u64 == 0 || mapping_size_u64 > SIZE_MAX) {
+      fprintf(stderr, "POLYEXEC_FAIL: dependency mapping is too large: %s\n",
+        dep->path);
+      return -1;
+    }
+    dep->mapping_size = (size_t) mapping_size_u64;
+    dep->mapping = mmap(NULL, dep->mapping_size,
+      PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (dep->mapping == MAP_FAILED) {
+      fprintf(stderr, "POLYEXEC_FAIL: dependency mmap failed: %s: %s\n",
+        dep->path, strerror(errno));
+      dep->mapping = NULL;
+      return -1;
+    }
+    dep->loaded_image = dep->mapping;
+    memcpy(dep->loaded_image, dep->program->code_bytes,
+      dep->program->code_size);
+
+    if (apply_relative_relocations(dep->program, dep->loaded_image,
+          trampoline_code, prefix_size, return_pc, scratch) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unsupported dependency relocations: %s\n",
+        dep->path);
+      return -1;
+    }
+    if (protect_load_segments(dep->program, dep->loaded_image) < 0)
+      return -1;
+    if (protect_image_range(dep->program, dep->loaded_image,
+          dep->program->relro_vaddr, dep->program->relro_size, PROT_READ,
+          "dependency PT_GNU_RELRO") < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
   const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
@@ -2834,7 +3175,7 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   return 0;
 }
 
-static int emit_and_run_process(const struct poly_program *program,
+static int emit_and_run_process(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
@@ -2886,20 +3227,30 @@ static int emit_and_run_process(const struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
+  if (map_process_dependencies(program, code,
+        prefix_size, return_pc, scratch) < 0) {
+    unmap_process_dependencies(program);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
   if (apply_relative_relocations(program, mapping + load_base_offset, code,
         prefix_size, return_pc, scratch) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
       program->path);
+    unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
   }
   if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
+    unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
   }
   if (protect_load_segments(program, mapping + load_base_offset) < 0) {
+    unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
@@ -2907,6 +3258,7 @@ static int emit_and_run_process(const struct poly_program *program,
   if (protect_image_range(program, mapping + load_base_offset,
         program->relro_vaddr, program->relro_size, PROT_READ,
         "PT_GNU_RELRO") < 0) {
+    unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
@@ -2914,6 +3266,7 @@ static int emit_and_run_process(const struct poly_program *program,
 
   if (prepare_program_scratch(program->path, (char *) scratch,
         scratch_size) < 0) {
+    unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
@@ -2925,6 +3278,7 @@ static int emit_and_run_process(const struct poly_program *program,
   if (build_process_stack(program, request, mapping + load_base_offset,
         extra_argc, extra_argv, &process_stack, &process_stack_size,
         &initial_sp) < 0) {
+    unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
@@ -2979,7 +3333,7 @@ static int emit_and_run_exit_child(const struct poly_program *program,
   return -1;
 }
 
-static int emit_and_run_process_child(const struct poly_program *program,
+static int emit_and_run_process_child(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result, int use_trap_vector) {
   fflush(NULL);
@@ -3022,6 +3376,15 @@ static int emit_and_run_process_child(const struct poly_program *program,
 }
 
 static void free_program(struct poly_program *program) {
+  unmap_process_dependencies(program);
+  for (size_t d = 0; d < program->dep_count; d++) {
+    if (program->deps[d].program) {
+      free_program(program->deps[d].program);
+      free(program->deps[d].program);
+      program->deps[d].program = NULL;
+    }
+  }
+  program->dep_count = 0;
   free(program->code_bytes);
   program->code_bytes = NULL;
   program->code_size = 0;
@@ -3057,6 +3420,10 @@ int main(int argc, char **argv) {
     struct poly_program program;
     if (load_elf_program(request.path, request.symbol, &program) < 0)
       return 1;
+    if (load_process_dependencies(&program) < 0) {
+      free_program(&program);
+      return 1;
+    }
 
     printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u process=1 path=%s%s%s\n",
       program.arch_name, program.code_size, program.entry_offset,
