@@ -192,7 +192,8 @@ discover the experimental hardware contract before emitting poly operations:
   slots, FP64 overflow stack-argument `PCALL` variants, neutral
   AArch64<->RISC-V FP64 overflow stack-argument cross-call variants, the
   architectural trap vector/trap-return path, explicit software-selected poly
-  state keys, and fixed 128-bit vector ABI bridging for tested AArch64 calls.
+  state keys, fixed 128-bit vector ABI bridging for tested x86-to-foreign
+  calls, and neutral AArch64<->RISC-V fixed 128-bit vector cross-calls.
   The
   double-lane bridge forms also cover ABI-compatible `{u32,double}` and
   `{double,u32}` shapes.
@@ -215,8 +216,10 @@ discover the experimental hardware contract before emitting poly operations:
   import-call stride.
 - `CPUID.EAX=0x40000002, ECX=3`: `EAX=0x7ffa` reports the AArch64
   FP64 overflow stack-argument RISC-V cross-call encoding, and `EBX=0x0000307b`
-  reports the matching RISC-V AArch64 cross-call encoding.  Other registers
-  are reserved zero.
+  reports the matching RISC-V AArch64 cross-call encoding.  `ECX=0x7ff8`
+  reports the AArch64 fixed-128-bit vector RISC-V cross-call encoding, and
+  `EDX=0x0000507b` reports the matching RISC-V AArch64 vector cross-call
+  encoding.
 - `CPUID.EAX=0x40000002, ECX=4`: `EAX=0x7ff9` reports the AArch64
   trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
   instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
@@ -352,6 +355,9 @@ only routing hub:
 - AArch64 `brk #0x7ffa`: call a raw RISC-V target with an FP64 overflow
   stack-argument bridge, mapping eight AArch64 stack double slots into RISC-V
   `a0`-`a7` after the shared `d0`-`d7`/`fa0`-`fa7` lanes are consumed.
+- AArch64 `brk #0x7ff8`: call a raw RISC-V target with a fixed 128-bit
+  vector bridge, mapping `v0`/`v1` into RISC-V `a0:a1`/`a2:a3` GPR pairs and
+  mapping the returned `a0:a1` pair back to `v0`.
 - RISC-V custom-0 `0x0000000b`: exit raw RISC-V and resume x86_64 decode.
 - RISC-V custom-1 `0x0000002b`: switch directly from raw RISC-V to raw
   AArch64 at the next byte.
@@ -364,11 +370,17 @@ only routing hub:
 - RISC-V custom `0x0000307b`: call a raw AArch64 target with an FP64 overflow
   stack-argument bridge, mapping RISC-V `a0`-`a7` into eight AArch64 stack
   double slots after the shared `fa0`-`fa7`/`d0`-`d7` lanes are consumed.
+- RISC-V custom `0x0000507b`: call a raw AArch64 target with a fixed 128-bit
+  vector bridge, mapping RISC-V `a0:a1`/`a2:a3` GPR pairs into AArch64
+  `v0`/`v1` and mapping the returned `v0` back to `a0:a1`.
 
 These native switches preserve the shared low integer register aliases, so
 `x0`/`a0`/`RAX` can carry a value through AArch64-to-RISC-V or
 RISC-V-to-AArch64 code without an x86 trampoline.  The shared scalar FP aliases
 similarly carry `d0`-`d7`/`fa0`-`fa7` through neutral cross-calls.
+Fixed 128-bit vector cross-calls use explicit ABI bridge encodings because
+AAPCS64 returns these values in `v0` while RV64 psABI lowers them through GPR
+pairs.
 The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.

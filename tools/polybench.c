@@ -32,6 +32,13 @@ enum {
   POLYBENCH_DESCRIPTOR_MEMOPS_MAX_SWITCH_DELTA = 11
 };
 
+typedef uint32_t polybench_vec128_u32 __attribute__((vector_size(16)));
+
+union polybench_vec128_u32_bits {
+  polybench_vec128_u32 v;
+  uint32_t u[4];
+};
+
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10ULL;
@@ -125,6 +132,11 @@ static void store_u32(uint8_t *code, size_t offset, uint32_t value) {
   code[offset + 3] = (uint8_t) ((value >> 24) & 0xff);
 }
 
+static void store_u64(uint8_t *code, size_t offset, uint64_t value) {
+  for (unsigned n = 0; n < 8; n++)
+    code[offset + n] = (uint8_t) (value >> (n * 8));
+}
+
 static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
   for (unsigned n = 0; n < 8; n++)
     code[(*offset)++] = (uint8_t) (value >> (n * 8));
@@ -141,6 +153,24 @@ static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
   emit_u32(code, offset, 0xf2a00000U | ((((uint32_t) (value >> 16)) & 0xffffU) << 5) | rd);
   emit_u32(code, offset, 0xf2c00000U | ((((uint32_t) (value >> 32)) & 0xffffU) << 5) | rd);
   emit_u32(code, offset, 0xf2e00000U | ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | rd);
+}
+
+static size_t emit_x86_movabs_r10(uint8_t *code, size_t *offset,
+    uint64_t value) {
+  code[(*offset)++] = 0x49;
+  code[(*offset)++] = 0xba;
+  size_t imm_offset = *offset;
+  emit_u64(code, offset, value);
+  return imm_offset;
+}
+
+static size_t emit_x86_movabs_r11(uint8_t *code, size_t *offset,
+    uint64_t value) {
+  code[(*offset)++] = 0x49;
+  code[(*offset)++] = 0xbb;
+  size_t imm_offset = *offset;
+  emit_u64(code, offset, value);
+  return imm_offset;
 }
 
 static uint32_t aarch64_mov_reg(uint32_t rd, uint32_t rn) {
@@ -379,6 +409,26 @@ static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
     (rs1 << 15) | (rd << 7) | 0x13U;
 }
 
+static uint32_t riscv_addw(uint32_t rd, uint32_t rs1, uint32_t rs2) {
+  return ((rs2 & 0x1fU) << 20) | ((rs1 & 0x1fU) << 15) |
+    ((rd & 0x1fU) << 7) | 0x3bU;
+}
+
+static uint32_t riscv_or(uint32_t rd, uint32_t rs1, uint32_t rs2) {
+  return ((rs2 & 0x1fU) << 20) | ((rs1 & 0x1fU) << 15) |
+    (0x6U << 12) | ((rd & 0x1fU) << 7) | 0x33U;
+}
+
+static uint32_t riscv_slli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
+  return ((shamt & 0x3fU) << 20) | ((rs1 & 0x1fU) << 15) |
+    (0x1U << 12) | ((rd & 0x1fU) << 7) | 0x13U;
+}
+
+static uint32_t riscv_srli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
+  return ((shamt & 0x3fU) << 20) | ((rs1 & 0x1fU) << 15) |
+    (0x5U << 12) | ((rd & 0x1fU) << 7) | 0x13U;
+}
+
 static uint32_t riscv_fadd_d(uint32_t rd, uint32_t rs1, uint32_t rs2) {
   return (0x01U << 25) | ((rs2 & 0x1fU) << 20) |
     ((rs1 & 0x1fU) << 15) | (0x7U << 12) |
@@ -515,6 +565,22 @@ static uint64_t call_code_with_poly3_args_and_imports(const uint8_t *code,
     : "r"(code), "r"(import_base)
     : "r12", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
   return rax;
+}
+
+static uint64_t call_code_vec128_u32(const uint8_t *code) {
+  union polybench_vec128_u32_bits arg0 = { .u = { 1, 2, 3, 4 } };
+  union polybench_vec128_u32_bits arg1 = { .u = { 10, 20, 30, 40 } };
+  union polybench_vec128_u32_bits result;
+  polybench_vec128_u32 (*entry)(polybench_vec128_u32,
+    polybench_vec128_u32) =
+    (polybench_vec128_u32 (*)(polybench_vec128_u32,
+      polybench_vec128_u32)) code;
+
+  result.v = entry(arg0.v, arg1.v);
+  return ((uint64_t) (result.u[3] & 0xffffU) << 48) |
+    ((uint64_t) (result.u[2] & 0xffffU) << 32) |
+    ((uint64_t) (result.u[1] & 0xffffU) << 16) |
+    (uint64_t) (result.u[0] & 0xffffU);
 }
 
 static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
@@ -1180,6 +1246,156 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
       double)) code;
   *result_bits = fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
     9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0));
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static void emit_riscv_vec128_u32_pair_add(uint8_t *code, size_t *offset,
+    uint32_t rd_lo, uint32_t rd_hi, uint32_t left_lo, uint32_t left_hi,
+    uint32_t right_lo, uint32_t right_hi) {
+  emit_u32(code, offset, riscv_addw(5, left_lo, right_lo));
+  emit_u32(code, offset, riscv_srli(6, left_lo, 32));
+  emit_u32(code, offset, riscv_srli(7, right_lo, 32));
+  emit_u32(code, offset, riscv_addw(6, 6, 7));
+  emit_u32(code, offset, riscv_slli(6, 6, 32));
+  emit_u32(code, offset, riscv_or(rd_lo, 5, 6));
+
+  emit_u32(code, offset, riscv_addw(5, left_hi, right_hi));
+  emit_u32(code, offset, riscv_srli(6, left_hi, 32));
+  emit_u32(code, offset, riscv_srli(7, right_hi, 32));
+  emit_u32(code, offset, riscv_addw(6, 6, 7));
+  emit_u32(code, offset, riscv_slli(6, 6, 32));
+  emit_u32(code, offset, riscv_or(rd_hi, 5, 6));
+}
+
+static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv vec128 call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  const size_t r10_imm_offset = emit_x86_movabs_r10(code, &offset, 0);
+  const size_t r11_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  const uint8_t pcall[] = {
+    0x0f, 0x24, 0x21, 0x50, 0x4f, 0x4c, 0x59, 0x21
+  };
+  emit_bytes(code, &offset, pcall, sizeof(pcall));
+  const size_t pcall_return_offset = offset;
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_body_offset = offset;
+  const size_t aarch64_return_offset = aarch64_body_offset + 16 + 16 + 4;
+  const size_t riscv_target_offset = aarch64_return_offset + 4;
+
+  emit_aarch64_movabs(code, &offset, 16,
+    (uint64_t) (uintptr_t) (code + riscv_target_offset));
+  emit_aarch64_movabs(code, &offset, 17,
+    (uint64_t) (uintptr_t) (code + aarch64_return_offset));
+  emit_u32(code, &offset, 0xd42fff00U); // brk #0x7ff8, vec128 call RISC-V
+  emit_u32(code, &offset, 0xd65f03c0U); // ret to x86 PCALL return cookie
+
+  while (offset < riscv_target_offset)
+    code[offset++] = 0x90;
+  emit_riscv_vec128_u32_pair_add(code, &offset, 10, 11, 10, 11, 12, 13);
+  emit_u32(code, &offset, 0x00008067U); // ret
+
+  store_u64(code, r10_imm_offset,
+    (uint64_t) (uintptr_t) (code + aarch64_body_offset));
+  store_u64(code, r11_imm_offset,
+    (uint64_t) (uintptr_t) (code + pcall_return_offset));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_vec128_u32(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 vec128 call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  const size_t r10_imm_offset = emit_x86_movabs_r10(code, &offset, 0);
+  const size_t r11_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  const uint8_t pcall[] = {
+    0x0f, 0x24, 0x22, 0x50, 0x4f, 0x4c, 0x59, 0x21
+  };
+  emit_bytes(code, &offset, pcall, sizeof(pcall));
+  const size_t pcall_return_offset = offset;
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t riscv_body_offset = offset;
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0x0000507bU); // custom vec128 call AArch64
+  const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, 0x00008067U); // ret to x86 PCALL return cookie
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  emit_u32(code, &offset, 0x4ea18400U); // add v0.4s,v0.4s,v1.4s
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
+
+  store_u64(code, r10_imm_offset,
+    (uint64_t) (uintptr_t) (code + riscv_body_offset));
+  store_u64(code, r11_imm_offset,
+    (uint64_t) (uintptr_t) (code + pcall_return_offset));
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_vec128_u32(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -3093,6 +3309,39 @@ static int check_cross_call_fp64_stack_direction(const char *name,
   return 0;
 }
 
+static int check_cross_call_vec128_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+  uint64_t result = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  printf("POLYBENCH_CROSS_CALL_VEC128_RESULT: direction=%s packed=0x%016llx raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta);
+
+  if (result != UINT64_C(0x002c00210016000b)) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call vec128 %s expected 0x002c00210016000b got 0x%016llx\n",
+      name, (unsigned long long) result);
+    return -1;
+  }
+  if (insn_delta < 8) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call vec128 %s raw instruction delta expected at least 8 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (switch_delta < 4) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call vec128 %s switch delta expected at least 4 got %llu\n",
+      name, (unsigned long long) switch_delta);
+    return -1;
+  }
+  if (check_switch_delta_max("cross call vec128", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  return 0;
+}
+
 static int check_cross_call_mixed_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result_bits = 0;
@@ -3487,6 +3736,12 @@ static int check_cross_calls(void) {
     return -1;
   if (check_cross_call_fp64_stack_direction("riscv-calls-aarch64-fp64-stack",
         run_cross_call_fp64_stack_riscv_to_aarch64) < 0)
+    return -1;
+  if (check_cross_call_vec128_direction("aarch64-calls-riscv-vec128",
+        run_cross_call_vec128_aarch64_to_riscv) < 0)
+    return -1;
+  if (check_cross_call_vec128_direction("riscv-calls-aarch64-vec128",
+        run_cross_call_vec128_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_mixed_direction("aarch64-calls-riscv-mixed",
         run_cross_call_mixed_aarch64_to_riscv) < 0)
