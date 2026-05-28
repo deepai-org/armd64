@@ -645,12 +645,14 @@ where a needed DSO binds an undefined relocation back to a root IFUNC resolver
 (`aarch64-pcall-cross-root-ifunc-real.so#poly_entry` with
 `libpolyrootifunc-riscv.so`, and
 `riscv-pcall-cross-root-ifunc-real.so#poly_entry` with
-`libpolyrootifunc-aarch64.so`) plus compact aggregate and FP64 stack-argument
-IFUNC bridge variants
+`libpolyrootifunc-aarch64.so`) plus compact aggregate, FP64 stack-argument,
+and fixed 128-bit vector IFUNC bridge variants
 (`aarch64-pcall-cross-root-ifunc-compact-real.so#poly_entry`,
 `riscv-pcall-cross-root-ifunc-compact-real.so#poly_entry`,
-`aarch64-pcall-cross-root-ifunc-fp64-stack-real.so#poly_entry`, and
-`riscv-pcall-cross-root-ifunc-fp64-stack-real.so#poly_entry`),
+`aarch64-pcall-cross-root-ifunc-fp64-stack-real.so#poly_entry`,
+`riscv-pcall-cross-root-ifunc-fp64-stack-real.so#poly_entry`,
+`aarch64-pcall-cross-root-ifunc-vec128-real.so#poly_entry`, and
+`riscv-pcall-cross-root-ifunc-vec128-real.so#poly_entry`),
 compiler-produced opposite-ISA
 dependency-to-root TLS pairs
 (`aarch64-pcall-cross-root-tls-real.so#poly_entry` with
@@ -672,12 +674,14 @@ versioned-symbol pairs (`aarch64-pcall-versioned-real.so#poly_entry` with
 dependency-IFUNC pairs (`aarch64-pcall-needed-ifunc-real.so#poly_entry` with
 `libpolyneededifunc-aarch64.so`, and
 `riscv-pcall-needed-ifunc-real.so#poly_entry` with
-`libpolyneededifunc-riscv.so`) plus opposite-ISA compact aggregate and FP64
-stack-argument IFUNC bridge pairs
+`libpolyneededifunc-riscv.so`) plus opposite-ISA compact aggregate, FP64
+stack-argument, and fixed 128-bit vector IFUNC bridge pairs
 (`aarch64-pcall-cross-ifunc-compact-real.so#poly_entry`,
 `riscv-pcall-cross-ifunc-compact-real.so#poly_entry`,
-`aarch64-pcall-cross-ifunc-fp64-stack-real.so#poly_entry`, and
-`riscv-pcall-cross-ifunc-fp64-stack-real.so#poly_entry`),
+`aarch64-pcall-cross-ifunc-fp64-stack-real.so#poly_entry`,
+`riscv-pcall-cross-ifunc-fp64-stack-real.so#poly_entry`,
+`aarch64-pcall-cross-ifunc-vec128-real.so#poly_entry`, and
+`riscv-pcall-cross-ifunc-vec128-real.so#poly_entry`),
 compiler-produced `DT_NEEDED`
 dependency-`DT_INIT`/`DT_FINI` pairs
 (`aarch64-pcall-needed-dt-init-real.so#poly_entry` with
