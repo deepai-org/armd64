@@ -14,9 +14,13 @@
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_STATE_IMPORT ".byte 0x0f,0x24,0x68,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
+
+static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 
 static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x24,0x30,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
@@ -40,6 +44,17 @@ static inline void poly_trap_vector_set_value(uint64_t value) {
 
 static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
+}
+
+static inline void poly_state_export(struct poly_xsave_state *state) {
+  uint64_t rax = (uint64_t) (uintptr_t) state;
+  asm volatile(POLY_OP_STATE_EXPORT : "+a"(rax) :: "memory");
+}
+
+static inline void poly_state_import(struct poly_xsave_state *state) {
+  uint64_t rax = (uint64_t) (uintptr_t) state;
+  asm volatile(POLY_OP_STATE_IMPORT : "+a"(rax)
+      :: POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
 }
 
 static inline uint64_t read_rax(void) {
@@ -239,6 +254,56 @@ static inline void raw_riscv_wide_regs_probe(void) {
     ".long 0x02100913\n" // addi x18,zero,33
     ".long 0x012809b3\n" // add x19,x16,x18
     ".long 0x01098533\n" // add a0,x19,x16
+    ".long 0x0000000b\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_aarch64_state_seed_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2824693\n" // movz x19,#0x1234
+    ".long 0x9e670268\n" // fmov d8,x19
+    ".long 0xd42fffe0\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_state_seed_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x32100993\n" // addi x19,zero,0x321
+    ".long 0xf2098953\n" // fmv.d.x f18,x19
+    ".long 0x0000000b\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_aarch64_state_gpr_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1303e0\n" // mov x0,x19
+    ".long 0xd42fffe0\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_aarch64_state_fp_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x9e660100\n" // fmov x0,d8
+    ".long 0xd42fffe0\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_state_gpr_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00098533\n" // add a0,x19,zero
+    ".long 0x0000000b\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_state_fp_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0xe2090553\n" // fmv.x.d a0,f18
     ".long 0x0000000b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
@@ -712,6 +777,67 @@ int main(void) {
   raw_riscv_wide_regs_probe();
   if (read_rax() != 51) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv wide register stream mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: state-export-import");
+  memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
+  raw_aarch64_state_seed_probe();
+  raw_riscv_state_seed_probe();
+  poly_state_export(&polyprobe_state);
+  if (polyprobe_state.header.magic != POLY_STATE_XSAVE_MAGIC ||
+      polyprobe_state.header.layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      polyprobe_state.header.header_bytes != POLY_STATE_XSAVE_HEADER_BYTES ||
+      polyprobe_state.header.total_bytes != sizeof(polyprobe_state) ||
+      (polyprobe_state.header.flags & POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS) == 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly state export header mismatch magic=0x%x version=%u header=%u bytes=%u flags=0x%llx\n",
+      polyprobe_state.header.magic, polyprobe_state.header.layout_version,
+      polyprobe_state.header.header_bytes, polyprobe_state.header.total_bytes,
+      (unsigned long long) polyprobe_state.header.flags);
+    return 1;
+  }
+  if (polyprobe_state.aarch64_gpr[19] != 0x1234 ||
+      polyprobe_state.aarch64_fp[8].lo != 0x1234 ||
+      polyprobe_state.aarch64_fp[8].hi != 0 ||
+      polyprobe_state.riscv_gpr[19] != 0x321 ||
+      polyprobe_state.riscv_fp[18].lo != 0x321 ||
+      polyprobe_state.riscv_fp[18].hi != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly state export register mismatch a19=0x%llx d8=0x%llx:%llx r19=0x%llx f18=0x%llx:%llx\n",
+      (unsigned long long) polyprobe_state.aarch64_gpr[19],
+      (unsigned long long) polyprobe_state.aarch64_fp[8].hi,
+      (unsigned long long) polyprobe_state.aarch64_fp[8].lo,
+      (unsigned long long) polyprobe_state.riscv_gpr[19],
+      (unsigned long long) polyprobe_state.riscv_fp[18].hi,
+      (unsigned long long) polyprobe_state.riscv_fp[18].lo);
+    return 1;
+  }
+  polyprobe_state.aarch64_gpr[19] = 0x2468;
+  polyprobe_state.aarch64_fp[8].lo = 0x3579;
+  polyprobe_state.riscv_gpr[19] = 0x432;
+  polyprobe_state.riscv_fp[18].lo = 0x543;
+  poly_state_import(&polyprobe_state);
+  raw_aarch64_state_gpr_probe();
+  if (read_rax() != 0x2468) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly state import aarch64 gpr mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  raw_aarch64_state_fp_probe();
+  if (read_rax() != 0x3579) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly state import aarch64 fp mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  raw_riscv_state_gpr_probe();
+  if (read_rax() != 0x432) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly state import riscv gpr mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  raw_riscv_state_fp_probe();
+  if (read_rax() != 0x543) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly state import riscv fp mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
     return 1;
   }
 
