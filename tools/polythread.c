@@ -87,13 +87,16 @@ __attribute__((naked, noinline, used))
 static void polythread_trap_vector_handler(void) {
   __asm__(
     "cmpq $1, %rax\n"
-    "jne 1f\n"
+    "je 1f\n"
+    "cmpq $3, %rax\n"
+    "jne 2f\n"
+    "1:\n"
     "movq %rcx, %rax\n"
     "addq %r13, %rax\n"
     "addq %r14, %rax\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
-    "1:\n"
+    "2:\n"
     "movq $0xffffffffffffffff, %rax\n"
     POLY_OP_TRAP_RETURN
     "ud2\n");
@@ -305,6 +308,48 @@ static uint64_t trap_riscv_syscall(uint64_t number, uint64_t arg6) {
     : "+a"(result), "+D"(arg6)
     :
     : "rbx", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "r13",
+      "r14", "memory");
+  return result;
+}
+
+static uint64_t trap_aarch64_import(uint64_t arg0, uint64_t arg6,
+    uint64_t arg7) {
+  uint64_t result = arg0;
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd29c1010\n" // movz x16,#0xe080
+    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
+    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
+    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0x91000006\n" // add x6,x0,#0
+    ".long 0x91000027\n" // add x7,x1,#0
+    ".long 0x91000040\n" // add x0,x2,#0
+    ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    : "+a"(arg6), "+D"(arg7), "+S"(result)
+    :
+    : "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13",
+      "r14", "memory");
+  return arg6;
+}
+
+static uint64_t trap_riscv_import(uint64_t arg0, uint64_t arg6,
+    uint64_t arg7) {
+  uint64_t result = arg0;
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_RV64
+    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x00058813\n" // addi a6,a1,0
+    ".long 0x00060893\n" // addi a7,a2,0
+    ".long 0x00050513\n" // addi a0,a0,0
+    ".long 0x000280e7\n" // jalr ra,0(t0)
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    : "+a"(result), "+D"(arg6), "+S"(arg7)
+    :
+    : "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13",
       "r14", "memory");
   return result;
 }
@@ -542,6 +587,77 @@ static void *worker_main(void *arg) {
       poly_trap_status_arg7() != riscv_trap_number) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default riscv trap packet reason=%llu mode=%llu number=%llu arg6=%llu arg7=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) poly_trap_status_reason(),
+      (unsigned long long) poly_trap_status_mode(),
+      (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
+    return (void *) 1;
+  }
+
+  uint64_t import_id = 8;
+  uint64_t aarch64_import_arg6 = base + 0x70000ULL;
+  uint64_t aarch64_import_arg7 = base + 0x80000ULL;
+  uint64_t aarch64_import_arg0 = base + 0x90000ULL;
+  uint64_t aarch64_import_result = trap_aarch64_import(
+    aarch64_import_arg0, aarch64_import_arg6, aarch64_import_arg7);
+  if (aarch64_import_result !=
+      import_id + aarch64_import_arg6 + aarch64_import_arg7) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 import result got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) aarch64_import_result,
+      (unsigned long long) (import_id + aarch64_import_arg6 +
+        aarch64_import_arg7));
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "default-aarch64-import") != 0)
+    return (void *) 1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+  if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
+      poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
+      poly_trap_status_number() != import_id ||
+      poly_trap_status_arg6() != aarch64_import_arg6 ||
+      poly_trap_status_arg7() != aarch64_import_arg7) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 import packet reason=%llu mode=%llu number=%llu arg6=%llu arg7=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) poly_trap_status_reason(),
+      (unsigned long long) poly_trap_status_mode(),
+      (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
+    return (void *) 1;
+  }
+
+  uint64_t riscv_import_arg6 = base + 0xa0000ULL;
+  uint64_t riscv_import_arg7 = base + 0xb0000ULL;
+  uint64_t riscv_import_arg0 = base + 0xc0000ULL;
+  uint64_t riscv_import_result = trap_riscv_import(riscv_import_arg0,
+    riscv_import_arg6, riscv_import_arg7);
+  if (riscv_import_result !=
+      import_id + riscv_import_arg6 + riscv_import_arg7) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default riscv import result got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) riscv_import_result,
+      (unsigned long long) (import_id + riscv_import_arg6 +
+        riscv_import_arg7));
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "default-riscv-import") != 0)
+    return (void *) 1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+  if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
+      poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
+      poly_trap_status_number() != import_id ||
+      poly_trap_status_arg6() != riscv_import_arg6 ||
+      poly_trap_status_arg7() != riscv_import_arg7) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default riscv import packet reason=%llu mode=%llu number=%llu arg6=%llu arg7=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) poly_trap_status_reason(),
       (unsigned long long) poly_trap_status_mode(),
