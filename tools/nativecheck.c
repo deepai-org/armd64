@@ -399,6 +399,32 @@ static void child_expect_malformed_import_return_xsave_signal(void) {
   _exit(99);
 }
 
+__attribute__((noreturn, noinline))
+static void child_expect_bad_import_return_mode_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].source_mode = POLY_MODE_X86;
+  bad.import_return.frames[0].import_id = 8;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_import_return_id_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].source_mode = POLY_MODE_RAW_AARCH64;
+  bad.import_return.frames[0].import_id = POLY_IMPORT_FUNC_COUNT;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
 static int expect_child_signal(const char *name, int expected_signal,
     void (*child_func)(void)) {
   pid_t child = fork();
@@ -1511,6 +1537,12 @@ static int run_poly_state_save_restore_probe(void) {
 
   if (expect_child_signal("poly malformed import-return xstate", SIGILL,
         child_expect_malformed_import_return_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad import-return mode xstate", SIGILL,
+        child_expect_bad_import_return_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad import-return id xstate", SIGILL,
+        child_expect_bad_import_return_id_xsave_signal) != 0)
     return 1;
 
   memset(&snapshot, 0, sizeof(snapshot));
