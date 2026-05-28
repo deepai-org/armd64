@@ -5,12 +5,16 @@ enum {
   POLY_PROT_WRITE = 2,
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
+  POLY_S_IFMT = 0170000,
+  POLY_S_IFREG = 0100000,
 
   POLY_SYS_GETCWD = 17,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
   POLY_SYS_READ = 63,
   POLY_SYS_WRITE = 64,
+  POLY_SYS_NEWFSTATAT = 79,
+  POLY_SYS_FSTAT = 80,
   POLY_SYS_EXIT = 93,
   POLY_SYS_GETPID = 172,
   POLY_SYS_GETPPID = 173,
@@ -22,6 +26,29 @@ enum {
   POLY_SYS_MUNMAP = 215,
   POLY_SYS_MMAP = 222,
   POLY_SYS_MPROTECT = 226
+};
+
+struct poly_linux_generic_stat {
+  uint64_t dev;
+  uint64_t ino;
+  uint32_t mode;
+  uint32_t nlink;
+  uint32_t uid;
+  uint32_t gid;
+  uint64_t rdev;
+  uint64_t pad1;
+  int64_t size;
+  int32_t blksize;
+  int32_t pad2;
+  int64_t blocks;
+  int64_t atime_sec;
+  uint64_t atime_nsec;
+  int64_t mtime_sec;
+  uint64_t mtime_nsec;
+  int64_t ctime_sec;
+  uint64_t ctime_nsec;
+  uint32_t unused4;
+  uint32_t unused5;
 };
 
 static long poly_syscall6(long number, long arg0, long arg1, long arg2,
@@ -67,6 +94,11 @@ static long poly_syscall2(long number, long arg0, long arg1) {
 
 static long poly_syscall3(long number, long arg0, long arg1, long arg2) {
   return poly_syscall6(number, arg0, arg1, arg2, 0, 0, 0);
+}
+
+static long poly_syscall4(long number, long arg0, long arg1, long arg2,
+    long arg3) {
+  return poly_syscall6(number, arg0, arg1, arg2, arg3, 0, 0);
 }
 
 static int poly_streq(const char *left, const char *right) {
@@ -118,6 +150,19 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 30;
   }
+  struct poly_linux_generic_stat path_stat;
+  struct poly_linux_generic_stat fd_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, -100,
+        (long) "/usr/bin/polyexec", (long) &path_stat, 0) != 0)
+    return 33;
+  if ((path_stat.mode & POLY_S_IFMT) != POLY_S_IFREG ||
+      path_stat.ino == 0 || path_stat.size <= 0)
+    return 34;
+  if (poly_syscall2(POLY_SYS_FSTAT, fd, (long) &fd_stat) != 0)
+    return 35;
+  if ((fd_stat.mode & POLY_S_IFMT) != POLY_S_IFREG ||
+      fd_stat.ino != path_stat.ino || fd_stat.size != path_stat.size)
+    return 36;
   if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
     return 31;
   if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
@@ -128,7 +173,7 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     POLY_PROT_READ | POLY_PROT_WRITE,
     POLY_MAP_PRIVATE | POLY_MAP_ANONYMOUS, -1, 0);
   if (page < 0)
-    return 33;
+    return 37;
 
   unsigned char *mapped = (unsigned char *) page;
   mapped[0] = 0x50;
@@ -137,20 +182,20 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   mapped[3] = 0x59;
   if (poly_syscall3(POLY_SYS_MPROTECT, page, 4096, POLY_PROT_READ) != 0) {
     poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
-    return 34;
+    return 38;
   }
   if (mapped[0] != 0x50 || mapped[1] != 0x4f ||
       mapped[2] != 0x4c || mapped[3] != 0x59) {
     poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
-    return 35;
+    return 39;
   }
   if (poly_syscall2(POLY_SYS_MUNMAP, page, 4096) != 0)
-    return 36;
+    return 40;
 
   static const char marker[] = "POLY_PROCESS_SYSCALL_OK\n";
   if (poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
         sizeof(marker) - 1) != (long) sizeof(marker) - 1)
-    return 37;
+    return 41;
 
   return 42;
 }

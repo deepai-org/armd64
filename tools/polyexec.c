@@ -228,6 +228,29 @@ static int poly_is_raw_foreign_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
 }
 
+struct poly_linux_generic_stat {
+  uint64_t dev;
+  uint64_t ino;
+  uint32_t mode;
+  uint32_t nlink;
+  uint32_t uid;
+  uint32_t gid;
+  uint64_t rdev;
+  uint64_t pad1;
+  int64_t size;
+  int32_t blksize;
+  int32_t pad2;
+  int64_t blocks;
+  int64_t atime_sec;
+  uint64_t atime_nsec;
+  int64_t mtime_sec;
+  uint64_t mtime_nsec;
+  int64_t ctime_sec;
+  uint64_t ctime_nsec;
+  uint32_t unused4;
+  uint32_t unused5;
+};
+
 static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
   return value & ~(alignment - 1);
 }
@@ -427,6 +450,55 @@ static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,
       : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
       : "rcx", "r11", "memory");
   return rax;
+}
+
+static void poly_store_linux_generic_stat(uint64_t destination,
+    const struct stat *source) {
+  struct poly_linux_generic_stat *target =
+    (struct poly_linux_generic_stat *) (uintptr_t) destination;
+  memset(target, 0, sizeof(*target));
+  target->dev = (uint64_t) source->st_dev;
+  target->ino = (uint64_t) source->st_ino;
+  target->mode = (uint32_t) source->st_mode;
+  target->nlink = (uint32_t) source->st_nlink;
+  target->uid = (uint32_t) source->st_uid;
+  target->gid = (uint32_t) source->st_gid;
+  target->rdev = (uint64_t) source->st_rdev;
+  target->size = (int64_t) source->st_size;
+  target->blksize = (int32_t) source->st_blksize;
+  target->blocks = (int64_t) source->st_blocks;
+  target->atime_sec = (int64_t) source->st_atim.tv_sec;
+  target->atime_nsec = (uint64_t) source->st_atim.tv_nsec;
+  target->mtime_sec = (int64_t) source->st_mtim.tv_sec;
+  target->mtime_nsec = (uint64_t) source->st_mtim.tv_nsec;
+  target->ctime_sec = (int64_t) source->st_ctim.tv_sec;
+  target->ctime_nsec = (uint64_t) source->st_ctim.tv_nsec;
+}
+
+static int poly_handle_structured_foreign_syscall(uint64_t number,
+    uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3,
+    uint64_t *result) {
+  struct stat stat_result;
+  long status;
+
+  switch (number) {
+    case 79:
+      status = poly_x86_syscall6(SYS_newfstatat, arg0, arg1,
+        (uint64_t) (uintptr_t) &stat_result, arg3, 0, 0);
+      if (status == 0)
+        poly_store_linux_generic_stat(arg2, &stat_result);
+      *result = (uint64_t) status;
+      return 1;
+    case 80:
+      status = poly_x86_syscall6(SYS_fstat, arg0,
+        (uint64_t) (uintptr_t) &stat_result, 0, 0, 0, 0);
+      if (status == 0)
+        poly_store_linux_generic_stat(arg1, &stat_result);
+      *result = (uint64_t) status;
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) {
@@ -672,6 +744,11 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return (uint64_t) -ENOSYS;
 
   if (reason == POLY_TRAP_SYSCALL) {
+    uint64_t structured_result = 0;
+    if (poly_handle_structured_foreign_syscall(number, arg0, arg1, arg2,
+          arg3, &structured_result))
+      return structured_result;
+
     long x86_number = -1;
     if (!poly_generic_linux_syscall_to_x86(number, &x86_number))
       return (uint64_t) -ENOSYS;
