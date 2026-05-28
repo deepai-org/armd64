@@ -17,12 +17,19 @@ static void poly_cross_needed_dtor(void) {
   poly_cross_needed_lifecycle += 29 + poly_cross_needed_tls_counter;
 }
 
-__attribute__((visibility("default")))
-unsigned long poly_cross_needed_add(unsigned long a, unsigned long b) {
+static unsigned long poly_cross_needed_add_impl(unsigned long a,
+    unsigned long b) {
   poly_cross_needed_tls_counter += a + b;
   return a + b + 300 + poly_cross_root_callback(a) + poly_cross_root_bias +
     poly_cross_needed_lifecycle + poly_cross_needed_tls_counter;
 }
+
+static void *poly_cross_needed_add_resolver(void) {
+  return poly_cross_needed_add_impl;
+}
+
+unsigned long poly_cross_needed_add(unsigned long, unsigned long)
+  __attribute__((ifunc("poly_cross_needed_add_resolver")));
 
 __attribute__((visibility("default")))
 double poly_cross_needed_fp64(double a, double b) {

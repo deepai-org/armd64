@@ -163,7 +163,8 @@ enum {
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
   RELOC_BASE_DEP_TLS_OFFSET = 400,
-  RELOC_BASE_DEP_CROSS_STUB = 500
+  RELOC_BASE_DEP_CROSS_STUB = 500,
+  RELOC_BASE_DEP_CROSS_IFUNC = 600
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
@@ -1841,12 +1842,19 @@ static int reloc_base_is_resolver(int base_kind) {
   return base_kind == RELOC_BASE_IRELATIVE ||
     base_kind == RELOC_BASE_ROOT_IFUNC ||
     (base_kind >= RELOC_BASE_DEP_IFUNC &&
-     base_kind < RELOC_BASE_DEP_IFUNC + MAX_NEEDED_DEPS);
+     base_kind < RELOC_BASE_DEP_IFUNC + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC &&
+     base_kind < RELOC_BASE_DEP_CROSS_IFUNC + MAX_NEEDED_DEPS);
 }
 
 static int reloc_base_is_dep_cross_stub(int base_kind) {
   return base_kind >= RELOC_BASE_DEP_CROSS_STUB &&
     base_kind < RELOC_BASE_DEP_CROSS_STUB + MAX_NEEDED_DEPS;
+}
+
+static int reloc_base_is_dep_cross_ifunc(int base_kind) {
+  return base_kind >= RELOC_BASE_DEP_CROSS_IFUNC &&
+    base_kind < RELOC_BASE_DEP_CROSS_IFUNC + MAX_NEEDED_DEPS;
 }
 
 static uint32_t fallback_ret_for_arch(int arch) {
@@ -3774,9 +3782,8 @@ static int resolve_dependency_symbol(const struct poly_program *program,
         return 0;
       }
       if (best_type == STT_GNU_IFUNC) {
-        fprintf(stderr, "POLYCALL_FAIL: cross-ISA IFUNC dependency unsupported symbol=%s path=%s\n",
-          symbol_name, program->path);
-        return -1;
+        *base_kind = RELOC_BASE_DEP_CROSS_IFUNC + (int) best;
+        return 0;
       }
     }
     *base_kind = best_type == STT_GNU_IFUNC ?
@@ -5909,18 +5916,48 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         return -1;
       }
       uint64_t resolver = 0;
+      int resolver_arch = dep->arch;
       if (dep->relocs[r].base_kind == RELOC_BASE_IRELATIVE)
         resolver = dep_load_bias[d] + dep->relocs[r].value;
       else if (dep->relocs[r].base_kind == RELOC_BASE_ROOT_IFUNC)
         continue;
       else {
-        const size_t resolver_dep =
+        const size_t resolver_dep = reloc_base_is_dep_cross_ifunc(
+            dep->relocs[r].base_kind) ?
+          (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_CROSS_IFUNC) :
           (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_IFUNC);
+        resolver_arch = program->deps[resolver_dep].arch;
         resolver = dep_load_bias[resolver_dep] + dep->relocs[r].value;
       }
-      const uint64_t resolved = call_poly_stub(code, target_imm_offset,
-        resolver, POLY_CALL_U64);
-      write_le64(dep_foreign[d] + dep->relocs[r].offset, resolved);
+      uint64_t resolved = 0;
+      if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+            cross_stub_size, &cross_stub_offset, program->arch,
+            resolver_arch, resolver, POLY_CALL_U64, dep->path,
+            "dependency IFUNC resolver", &resolved) < 0) {
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      uint64_t reloc_value = resolved;
+      if (dep->arch != resolver_arch &&
+          emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+            &cross_stub_offset, dep->arch, resolver_arch, resolved,
+            &reloc_value) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: dependency IFUNC cross-ISA stub overflow: %s\n",
+          dep->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      write_le64(dep_foreign[d] + dep->relocs[r].offset, reloc_value);
     }
   }
   if (program->tls_memsz != 0) {
@@ -6225,6 +6262,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       return -1;
     }
     uint64_t resolver = 0;
+    int resolver_arch = program->arch;
     if (program->relocs[n].base_kind == RELOC_BASE_IRELATIVE) {
       size_t resolver_offset = 0;
       if (elf_vaddr_to_image_offset(program, program->relocs[n].value, 4,
@@ -6245,13 +6283,42 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       resolver = root_load_bias + program->relocs[n].value;
     }
     else {
-      const size_t resolver_dep =
+      const size_t resolver_dep = reloc_base_is_dep_cross_ifunc(
+          program->relocs[n].base_kind) ?
+        (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_CROSS_IFUNC) :
         (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_IFUNC);
+      resolver_arch = program->deps[resolver_dep].arch;
       resolver = dep_load_bias[resolver_dep] + program->relocs[n].value;
     }
-    const uint64_t resolved = call_poly_stub(code, target_imm_offset,
-      resolver, POLY_CALL_U64);
-    write_le64(foreign + program->relocs[n].offset, resolved);
+    uint64_t resolved = 0;
+    if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+          cross_stub_size, &cross_stub_offset, program->arch, resolver_arch,
+          resolver, POLY_CALL_U64, program->path, "IFUNC resolver",
+          &resolved) < 0) {
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    uint64_t reloc_value = resolved;
+    if (program->arch != resolver_arch &&
+        emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+          &cross_stub_offset, program->arch, resolver_arch, resolved,
+          &reloc_value) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: IFUNC cross-ISA stub overflow: %s\n",
+        program->path);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    write_le64(foreign + program->relocs[n].offset, reloc_value);
   }
 
   if (program->init_vaddr != 0) {
