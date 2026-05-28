@@ -500,6 +500,11 @@ same-image `R_AARCH64_IRELATIVE`/`R_RISCV_IRELATIVE` resolvers through the
 foreign frontend before applying final page protections, while still
 rejecting unresolved external dynamic symbols in the standalone application
 path.
+The binfmt wrapper still uses `polyexec` for standalone foreign images, but
+routes dependency-backed shared-object entrypoints through `polycall` so
+`DT_NEEDED` dependency loading, PLT/GOT binding, TLS, IFUNC, and constructor
+paths are exercised by the binfmt boot matrix without embedding a second full
+dynamic linker in `polyexec`.
 `DT_VERSYM`/`DT_VERNEED`/`DT_VERDEF` symbol-version metadata is honored when
 binding undefined relocations to dependency exports, so a relocation requiring
 `foo@OLD` from a specific needed library does not silently bind to a default

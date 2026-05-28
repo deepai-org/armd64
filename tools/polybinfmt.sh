@@ -9,6 +9,7 @@ fi
 
 expected=""
 entry=""
+runner="polyexec"
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
@@ -78,6 +79,12 @@ case "$path" in
   */aarch64-exit.elf) expected=7 ;;
   */aarch64-brk.elf) expected=0x4c000305 ;;
   */aarch64-svc.elf) expected=0x53000003 ;;
+  */aarch64-pcall-needed-real.so) expected=397; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-lib-needed-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-many-needed-real.so) expected=4545; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-needed-tls-real.so) expected=545; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-needed-ifunc-real.so) expected=845; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-needed-dt-init-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */riscv-add.elf) expected=27 ;;
   */riscv-compressed.elf) expected=27 ;;
   */riscv-compressed-half.elf) expected=27 ;;
@@ -161,11 +168,17 @@ case "$path" in
   */riscv-exit.elf) expected=7 ;;
   */riscv-ebreak.elf) expected=0x4c000405 ;;
   */riscv-ecall.elf) expected=0x5303ff04 ;;
+  */riscv-pcall-needed-real.so) expected=397; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-lib-needed-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-many-needed-real.so) expected=4545; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-needed-tls-real.so) expected=545; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-needed-ifunc-real.so) expected=845; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-needed-dt-init-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
 esac
 
 target="${path}${entry}"
-echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none}"
+echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none} runner=$runner"
 if [ -n "$expected" ]; then
-  exec /usr/bin/polyexec "$target=$expected"
+  exec "/usr/bin/$runner" "$target=$expected"
 fi
-exec /usr/bin/polyexec "$target"
+exec "/usr/bin/$runner" "$target"
