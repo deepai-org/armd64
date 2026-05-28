@@ -5794,6 +5794,15 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-cxa-guard-real.so \
       /usr/lib/polyapps/aarch64-pcall-cxx-static-guard-real.so \
       /usr/lib/polyapps/aarch64-pcall-cxx-virtual-real.so \
+      /usr/lib/polyapps/aarch64-pcall-abs-runpath-real.so \
+      /usr/lib/polyapps/aarch64-pcall-rpath-real.so \
+      /usr/lib/polyapps/aarch64-pcall-rpath-inherit-real.so \
+      /usr/lib/polyapps/aarch64-pcall-colon-runpath-real.so \
+      /usr/lib/polyapps/aarch64-pcall-lib-runpath-real.so \
+      /usr/lib/polyapps/aarch64-pcall-platform-runpath-real.so \
+      /usr/lib/polyapps/aarch64-pcall-runpath-prefer-real.so \
+      /usr/lib/polyapps/aarch64-pcall-needed-relro-real.so \
+      /usr/lib/polyapps/aarch64-pcall-relro-real.so \
       /usr/lib/polyapps/riscv-add.elf \
       /usr/lib/polyapps/riscv-compressed.elf \
       /usr/lib/polyapps/riscv-compressed-half.elf \
@@ -5875,7 +5884,16 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-atexit-real.so \
       /usr/lib/polyapps/riscv-pcall-cxa-guard-real.so \
       /usr/lib/polyapps/riscv-pcall-cxx-static-guard-real.so \
-      /usr/lib/polyapps/riscv-pcall-cxx-virtual-real.so
+      /usr/lib/polyapps/riscv-pcall-cxx-virtual-real.so \
+      /usr/lib/polyapps/riscv-pcall-abs-runpath-real.so \
+      /usr/lib/polyapps/riscv-pcall-rpath-real.so \
+      /usr/lib/polyapps/riscv-pcall-rpath-inherit-real.so \
+      /usr/lib/polyapps/riscv-pcall-colon-runpath-real.so \
+      /usr/lib/polyapps/riscv-pcall-lib-runpath-real.so \
+      /usr/lib/polyapps/riscv-pcall-platform-runpath-real.so \
+      /usr/lib/polyapps/riscv-pcall-runpath-prefer-real.so \
+      /usr/lib/polyapps/riscv-pcall-needed-relro-real.so \
+      /usr/lib/polyapps/riscv-pcall-relro-real.so
     do
       echo "POLYBINFMT_STEP: \$foreign" >/dev/ttyS0
       "\$foreign" >/dev/ttyS0 2>&1 || {

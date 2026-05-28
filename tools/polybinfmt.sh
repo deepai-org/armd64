@@ -101,6 +101,15 @@ case "$path" in
   */aarch64-pcall-cxa-guard-real.so) expected=101; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-cxx-static-guard-real.so) expected=113; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-cxx-virtual-real.so) expected=246; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-abs-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-rpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-rpath-inherit-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-colon-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-lib-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-platform-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-runpath-prefer-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-needed-relro-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-relro-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
   */riscv-add.elf) expected=27 ;;
   */riscv-compressed.elf) expected=27 ;;
   */riscv-compressed-half.elf) expected=27 ;;
@@ -207,6 +216,15 @@ case "$path" in
   */riscv-pcall-cxa-guard-real.so) expected=101; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-cxx-static-guard-real.so) expected=113; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-cxx-virtual-real.so) expected=246; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-abs-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-rpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-rpath-inherit-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-colon-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-lib-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-platform-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-runpath-prefer-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-needed-relro-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-relro-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
 esac
 
 target="${path}${entry}"
