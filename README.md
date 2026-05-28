@@ -1,8 +1,8 @@
 # armd64
 
-Bochs prototype for running precompiled AArch64 and RISC-V code inside an
-x86_64 Linux process. The guest still boots as normal x86_64 Linux; polyglot
-execution is entered explicitly by userspace code.
+Bochs-based prototype for running precompiled AArch64 and RISC-V code inside an
+x86_64 Linux process. The guest OS is still ordinary x86_64 Linux; userspace
+enters foreign code through explicit polyglot ISA instructions.
 
 ## Run
 
@@ -13,36 +13,29 @@ make image
 make boot-poly-full-arch-traps
 ```
 
-Useful targets:
+Other useful targets:
 
 - `make boot`: baseline x86_64 guest.
-- `make boot-poly`: polyglot CPU smoke test.
-- `make boot-poly-call-arch-traps`: cross-ISA calls, imports, TLS, ctors/dtors, and signals.
-- `make boot-poly-binfmt-arch-traps`: foreign executable/binfmt path.
-- `make boot-poly-full-arch-traps`: broadest current test run.
+- `make boot-poly`: quick polyglot smoke test.
+- `make boot-poly-call-arch-traps`: cross-ISA calls/imports/signals.
+- `make boot-poly-binfmt-arch-traps`: foreign executable path.
 
-Logs: `out/serial.log` and `out/bochs.log`.
+Logs are written to `out/serial.log` and `out/bochs.log`.
 
-## ISA Delta From x86_64
+## ISA Differences
 
-Normal x86_64 instructions, Linux boot, paging, and userspace execution are
-unchanged. The extension adds explicit polyglot entry, call, trap, and state
-operations.
+Normal x86_64 execution, Linux boot, paging, privilege levels, and virtual
+memory stay unchanged. The prototype adds:
 
-- Discovery: private CPUID leaves at `0x40000000+`.
-- x86 opcodes: prototype `0f 24 <op> "POLY!"` encodings; no `UD2` envelopes.
-- Raw entry: `PENTER.A64` and `PENTER.RV64` switch fetch/decode to 32-bit
-  AArch64 or RISC-V instructions at the current guest virtual address.
-- Raw exit: AArch64 uses `brk #0x7fff`; RISC-V uses custom-0 `0x0000000b`.
-- Cross-ISA calls: `PCALL.*.SYSV` maps x86_64 SysV callers to native AAPCS64 or
-  RISC-V psABI callees for existing compiled objects.
-- Memory: all modes share x86_64 virtual memory, page faults, permissions, and
-  the prototype's x86-style TSO ordering.
-- Traps/syscalls: foreign syscalls, breakpoints, illegal instructions, and
-  unsupported ops exit architecturally for OS or userspace policy.
-- State: non-x86 architectural state is explicit and discoverable through a
-  prototype CPUID/XCR0/XSAVE component; Bochs also provides direct save/restore
-  opcodes for tests. The stock guest Linux enumerates this component but does
-  not yet enable `XCR0[20]`.
+- Discovery through private `CPUID` leaves at `0x40000000+`.
+- Dedicated prototype x86 opcodes: `0f 24 <op> "POLY!"`, not `UD2` envelopes.
+- Raw AArch64/RISC-V entry with `PENTER.A64` and `PENTER.RV64`.
+- Raw exit with AArch64 `brk #0x7fff` or RISC-V custom-0 `0x0000000b`.
+- ABI-aware `PCALL.*.SYSV` calls into precompiled AAPCS64/RISC-V psABI code.
+- Shared x86_64 virtual memory, faults, permissions, and prototype TSO ordering.
+- Architectural traps for foreign syscalls, breakpoints, illegal instructions,
+  and unsupported operations.
+- Prototype foreign state component 20 via `CPUID`/`XCR0`/`XSAVE`; stock guest
+  Linux enumerates it but does not enable `XCR0[20]`.
 
-Detailed design notes are in `docs/poly-isa.md`.
+Detailed design notes live in `docs/poly-isa.md`.
