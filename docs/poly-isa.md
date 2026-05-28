@@ -24,10 +24,9 @@ Hardware or FPGA should allocate real decoded x86 opcodes for:
 
 | Operation | Purpose |
 | --- | --- |
-| `PENTER.A64`, `PENTER.RV64` | Switch from x86_64 fetch to raw foreign fetch. |
-| `PEXIT` | Return to x86_64 fetch. |
-| `PCALL.A64.SYSV`, `PCALL.RV64.SYSV` | Fast fixed-shape native ABI calls. |
-| Descriptor `PCALL` | Stack args, aggregate returns, variadics, vectors, callbacks, PLT/GOT, lazy binding, and helper imports. |
+| `PENTER mode` | Enter a raw frontend from x86_64/system code. |
+| `PSWITCH mode, target` | Fixed-latency branch to another frontend. |
+| `PCALL mode, target` | Push a hardware transition-stack entry, install a native return cookie, and branch to another frontend. |
 | `PIRET` | Restore a previously interrupted frontend after trap handling. |
 
 Every transition ends the current decode block and records precise source and
@@ -46,6 +45,7 @@ trailer, no variable-length envelope, and no following payload bytes. Future
 silicon may allocate a different reserved x86 opcode page, but it should keep
 the same hardware contract: one deterministic frontend-control decode that
 flushes or terminates the current decode block before switching fetch mode.
+The control instruction does not parse user-memory call descriptors.
 
 ## Foreign Escapes
 
@@ -67,19 +67,32 @@ custom-0 funct3 signature and uses funct7 as the control subop, which gives a
 simple hardware decode without consuming multiple custom opcode pages.
 
 Native return instructions may cross frontends when the link register or stack
-return slot contains a hardware return cookie.
+return slot contains a hardware return cookie installed by `PCALL`.
 
 ## ABI Bridge
 
-Fixed x86-to-foreign calls map x86_64 SysV integer arguments from `RDI`, `RSI`,
-`RDX`, `RCX`, `R8`, `R9`, plus stack slots, to AArch64 `x0`-`x7` or RISC-V
-`a0`-`a7`. FP args and results map through `XMM0`-`XMM7`, AArch64 `v0`-`v7`,
-and RISC-V `fa0`-`fa7`. Return lane 0 maps to `RAX`; return lane 1 maps to
-`RDX`.
+The hardware provides a small integer exchange window for fast argument/result
+handoff:
+
+| Window | x86_64 | AArch64 | RISC-V64 |
+| --- | --- | --- | --- |
+| `P0` | `RAX` | `x0` | `a0` |
+| `P1` | `RDX` | `x1` | `a1` |
+| `P2` | `RCX` | `x2` | `a2` |
+| `P3` | `RDI` | `x3` | `a3` |
+| `P4` | `RSI` | `x4` | `a4` |
+| `P5` | `R8` | `x5` | `a5` |
+| `P6` | `R9` | `x6` | `a6` |
+| `P7` | `R10` | `x7` | `a7` |
+
+Loader/runtime thunks translate native ABI argument order into this window
+before issuing `PSWITCH` or `PCALL`. This keeps the CPU transition fixed
+latency while still allowing SysV, AAPCS64, and RISC-V psABI compatibility.
+FP/vector arguments, stack arguments, aggregate returns, variadics, callbacks,
+PLT/GOT lazy binding, and helper imports are software-thunk responsibilities.
 
 Large memory returns follow the callee ABI. AArch64 uses `x8`; RISC-V uses `a0`
 and shifts user arguments; x86_64 returns the hidden pointer in `RAX`.
-Descriptor calls carry metadata for everything the fixed call cannot describe.
 
 ## Traps And Syscalls
 
@@ -89,8 +102,10 @@ illegal instructions, and unsupported instructions.
 
 A `POLYTRAP` record contains the reason, source mode, selector/immediate, trap
 PC, resume PC, all eight POLYTRAP argument lanes, and the first eight native foreign ABI argument registers.
-If a trap vector is installed, control transfers there. Otherwise syscall/import
-traps surface as x86 `#UD`, and breakpoint traps surface as x86 `#BP`.
+If a per-thread user-space poly monitor is installed, hardware writes the trap
+packet to the registered user address and transfers to the monitor in Ring 3.
+Otherwise syscall/import traps surface as x86 `#UD`, and breakpoint traps
+surface as x86 `#BP`.
 
 Runtime or OS code decides syscall translation, signal delivery, lazy binding,
 debugger handling, and failure policy.
@@ -105,7 +120,7 @@ frontend on `IRET64`, `SYSRET`, `SYSEXIT`, or signal return when required.
 The prototype CPUID contract exposes poly state as XCR0 component `20`.
 Component layout version `3` is 4096 bytes and contains the mode header, trap
 packet, active transition record, AArch64 GPR/FP state, RISC-V GPR/FP state,
-and descriptor import return stack.
+hardware transition-stack state, and user-space monitor registers.
 
 Private CPUID leaves start at `0x40000000` and extend through `0x40000009`. The
 prototype software state import layout version is `3`; it is a Bochs fallback,
@@ -113,12 +128,14 @@ not the silicon context-switch contract.
 
 ## Runtime Boundary
 
-Hardware provides frontend transitions, trap packets, explicit state, native
-return cookies, and descriptor call gates.
+Hardware provides frontend transitions, the exchange window, trap packets,
+explicit state, native return cookies, the hardware transition stack, and
+optional user-space monitor delivery.
 
 Userspace runtime code provides ELF loading, relocations, PLT/GOT binding,
-IFUNC, TLS, dependency search policy, generated thunks, syscall translation for
-a chosen OS ABI, and libc/libgcc/libatomic helper semantics.
+IFUNC, TLS, dependency search policy, generated thunks, all ABI metadata
+parsing, syscall translation for a chosen OS ABI, and libc/libgcc/libatomic
+helper semantics.
 
 ## Validation
 
