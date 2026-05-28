@@ -19,7 +19,10 @@ unsigned long long poly_entry(unsigned long long a0, unsigned long long a1,
   register unsigned long long keep7 asm("x26") = a7 + 80;
   register unsigned long long keep8 asm("x27") = a8 + 90;
   register unsigned long long keep9 asm("x28") = a0 + a8 + 100;
+  unsigned long long keep10 = a1 + a8 + 110;
+  unsigned long long keep11 = a0 + a1 + a8 + 120;
 #elif defined(__riscv)
+  register unsigned long long keep10 asm("s0") = a1 + a8 + 110;
   register unsigned long long keep0 asm("s1") = a0 + 10;
   register unsigned long long keep1 asm("s2") = a1 + 20;
   register unsigned long long keep2 asm("s3") = a2 + 30;
@@ -30,6 +33,7 @@ unsigned long long poly_entry(unsigned long long a0, unsigned long long a1,
   register unsigned long long keep7 asm("s8") = a7 + 80;
   register unsigned long long keep8 asm("s9") = a8 + 90;
   register unsigned long long keep9 asm("s10") = a0 + a8 + 100;
+  register unsigned long long keep11 asm("s11") = a0 + a1 + a8 + 120;
 #else
   unsigned long long keep0 = a0 + 10;
   unsigned long long keep1 = a1 + 20;
@@ -41,18 +45,22 @@ unsigned long long poly_entry(unsigned long long a0, unsigned long long a1,
   unsigned long long keep7 = a7 + 80;
   unsigned long long keep8 = a8 + 90;
   unsigned long long keep9 = a0 + a8 + 100;
+  unsigned long long keep10 = a1 + a8 + 110;
+  unsigned long long keep11 = a0 + a1 + a8 + 120;
 #endif
 
   asm volatile("" : "+r"(keep0), "+r"(keep1), "+r"(keep2),
       "+r"(keep3), "+r"(keep4), "+r"(keep5), "+r"(keep6),
-      "+r"(keep7), "+r"(keep8), "+r"(keep9));
+      "+r"(keep7), "+r"(keep8), "+r"(keep9), "+r"(keep10),
+      "+r"(keep11));
   unsigned long long imported =
     poly_import_x86_sum8(a0, a1, a2, a3, a4, a5, a6, a7);
   asm volatile("" : "+r"(keep0), "+r"(keep1), "+r"(keep2),
       "+r"(keep3), "+r"(keep4), "+r"(keep5), "+r"(keep6),
-      "+r"(keep7), "+r"(keep8), "+r"(keep9));
+      "+r"(keep7), "+r"(keep8), "+r"(keep9), "+r"(keep10),
+      "+r"(keep11));
 
   return imported + keep0 + keep1 * 2 + keep2 * 3 + keep3 * 4 +
     keep4 * 5 + keep5 * 6 + keep6 * 7 + keep7 * 8 + keep8 * 9 +
-    keep9 * 10;
+    keep9 * 10 + keep10 * 11 + keep11 * 12;
 }
