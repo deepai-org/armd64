@@ -947,6 +947,30 @@ uint64_t POLY_HOST_HELPER poly_host_x86_qsort(void *base, uint64_t nmemb,
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_bsearch(const void *key,
+    const void *base, uint64_t nmemb, uint64_t size, void *compar)
+{
+  if (key == 0 || base == 0 || compar == 0 || size == 0)
+    return 0;
+
+  const uint8_t *items = (const uint8_t *) base;
+  uint64_t low = 0;
+  uint64_t high = nmemb;
+  while (low < high) {
+    uint64_t mid = low + (high - low) / 2;
+    const uint8_t *item = items + mid * size;
+    int64_t order = poly_runtime_call_foreign_comparator(compar, key, item);
+    if (order < 0)
+      high = mid;
+    else if (order > 0)
+      low = mid + 1;
+    else
+      return (uint64_t) (uintptr_t) item;
+  }
+
+  return 0;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)
 {
   return poly_runtime_register_atexit_callback(callback, 0, 0);

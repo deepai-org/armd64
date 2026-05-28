@@ -456,7 +456,8 @@ enum {
   POLY_IMPORT_FUNC_X86_ALIGN14 = 153,
   POLY_IMPORT_FUNC_X86_I128 = 154,
   POLY_IMPORT_FUNC_QSORT = 155,
-  POLY_IMPORT_FUNC_COUNT = 156
+  POLY_IMPORT_FUNC_BSEARCH = 156,
+  POLY_IMPORT_FUNC_COUNT = 157
 };
 
 enum {
@@ -892,6 +893,8 @@ extern uint64_t poly_host_x86_aligned_alloc(uint64_t alignment, uint64_t size);
 extern uint64_t poly_host_x86_memalign(uint64_t alignment, uint64_t size);
 extern uint64_t poly_host_x86_qsort(void *base, uint64_t nmemb,
     uint64_t size, void *compar);
+extern uint64_t poly_host_x86_bsearch(const void *key, const void *base,
+    uint64_t nmemb, uint64_t size, void *compar);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1035,8 +1038,9 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
     "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
-    "memalign", "qsort", "atexit", "__cxa_atexit", "__cxa_finalize", "getpid",
-    "getppid", "getuid", "geteuid", "getgid", "getegid", "gettid",
+    "memalign", "qsort", "bsearch", "atexit", "__cxa_atexit",
+    "__cxa_finalize", "getpid", "getppid", "getuid", "geteuid", "getgid",
+    "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
     "__cxa_guard_abort",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
@@ -1215,6 +1219,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_memalign;
     case POLY_IMPORT_FUNC_QSORT:
       return (uint64_t) (uintptr_t) poly_host_x86_qsort;
+    case POLY_IMPORT_FUNC_BSEARCH:
+      return (uint64_t) (uintptr_t) poly_host_x86_bsearch;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -2814,6 +2820,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "qsort") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_QSORT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "bsearch") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_BSEARCH * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {
