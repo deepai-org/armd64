@@ -129,6 +129,7 @@ enum {
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
   MAX_PROCESS_DEPS = 4,
+  MAX_PROCESS_DEP_DEPTH = 4,
   MAX_DEP_PATH = 160,
   SCRATCH_SECOND_PATH_OFFSET = 128
 };
@@ -2953,9 +2954,15 @@ static int build_needed_path(const char *owner_path, const char *needed,
   return 0;
 }
 
-static int load_process_dependencies(struct poly_program *program) {
+static int load_process_dependencies_at_depth(struct poly_program *program,
+    size_t depth) {
   if (!program->dynamic_size)
     return 0;
+  if (depth >= MAX_PROCESS_DEP_DEPTH) {
+    fprintf(stderr, "POLYEXEC_FAIL: DT_NEEDED dependency depth exceeded: %s\n",
+      program->path);
+    return -1;
+  }
 
   const Elf64_Dyn *dyn =
     (const Elf64_Dyn *) (program->code_bytes + program->dynamic_offset);
@@ -3023,14 +3030,22 @@ static int load_process_dependencies(struct poly_program *program) {
       return -1;
     }
     program->dep_count++;
+    if (load_process_dependencies_at_depth(dep->program, depth + 1) < 0)
+      return -1;
   }
 
   return 0;
 }
 
+static int load_process_dependencies(struct poly_program *program) {
+  return load_process_dependencies_at_depth(program, 0);
+}
+
 static void unmap_process_dependencies(struct poly_program *program) {
   for (size_t d = 0; d < program->dep_count; d++) {
     struct poly_process_dependency *dep = &program->deps[d];
+    if (dep->program)
+      unmap_process_dependencies(dep->program);
     if (dep->mapping && dep->mapping_size)
       munmap(dep->mapping, dep->mapping_size);
     dep->mapping = NULL;
@@ -3044,6 +3059,9 @@ static int map_process_dependencies(struct poly_program *program,
     uint8_t *scratch) {
   for (size_t d = 0; d < program->dep_count; d++) {
     struct poly_process_dependency *dep = &program->deps[d];
+    if (map_process_dependencies(dep->program, trampoline_code, prefix_size,
+          return_pc, scratch) < 0)
+      return -1;
     const uint64_t mapping_size_u64 =
       align_up_u64((uint64_t) dep->program->code_size, 0x1000);
     if (mapping_size_u64 == 0 || mapping_size_u64 > SIZE_MAX) {
