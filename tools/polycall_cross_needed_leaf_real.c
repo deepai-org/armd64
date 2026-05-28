@@ -1,4 +1,7 @@
 __attribute__((visibility("default")))
+unsigned long poly_cross_leaf_bias = 13;
+
+__attribute__((visibility("default")))
 unsigned long poly_cross_leaf_add(unsigned long a, unsigned long b) {
   return a + b + 700;
 }

@@ -541,9 +541,11 @@ instructions still work without routing through x86.  The mixed `DT_NEEDED`
 gate covers both integer arguments/results and scalar FP64 arguments/results
 through the same generated trampoline, including a transitive case where a
 same-ISA dependency binds one of its own `DT_NEEDED` relocations to an
-opposite-ISA leaf dependency.  Cross-ISA object, TLS,
-constructor, and IFUNC interposition remain explicit future compatibility
-items rather than hidden emulator behavior.
+opposite-ISA leaf dependency.  The same mixed-link tests also import writable
+data symbols across the ISA boundary; object relocations bind directly to the
+shared virtual address rather than to a code trampoline.  Cross-ISA TLS,
+constructor, and IFUNC interposition remain explicit future compatibility items
+rather than hidden emulator behavior.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
