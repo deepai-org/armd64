@@ -3,6 +3,7 @@
 Contract for running existing precompiled x86_64, AArch64, and RISC-V userspace
 objects in one x86_64 virtual address space. This is native ABI compatibility,
 not a new compiler-only ABI. Constants live in `tools/include/polycpuid.h`.
+Forward-looking design directions live in `docs/poly-isa-design-directions.md`.
 
 ## Differences From x86_64
 
