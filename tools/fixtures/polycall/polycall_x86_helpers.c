@@ -1050,13 +1050,23 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_setspecific(uint32_t key,
   return 0;
 }
 
+static uint32_t poly_host_pthread_self32(void)
+{
+  uint64_t self = poly_host_x86_tls_base();
+  if (self == 0)
+    self = 1;
+  return (uint32_t) self;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_init(uint32_t *mutex,
     const void *attr)
 {
-  (void) attr;
   if (mutex == 0)
     return 22;
-  *mutex = 0;
+  mutex[0] = 0;
+  mutex[1] = 0;
+  mutex[2] = 0;
+  mutex[3] = attr != 0 ? *(const uint32_t *) attr : 0;
   return 0;
 }
 
@@ -1064,14 +1074,16 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_destroy(uint32_t *mutex)
 {
   if (mutex == 0)
     return 22;
-  return *mutex == 0 ? 0 : 16;
+  return mutex[0] == 0 ? 0 : 16;
 }
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_trylock(uint32_t *mutex);
 
 uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_lock(uint32_t *mutex)
 {
   if (mutex == 0)
     return 22;
-  while (__sync_lock_test_and_set(mutex, 1) != 0) {
+  while (poly_host_x86_pthread_mutex_trylock(mutex) == 16) {
   }
   return 0;
 }
@@ -1080,14 +1092,34 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_trylock(uint32_t *mutex)
 {
   if (mutex == 0)
     return 22;
-  return __sync_lock_test_and_set(mutex, 1) == 0 ? 0 : 16;
+  uint32_t self = poly_host_pthread_self32();
+  if (mutex[3] == 1 && mutex[0] != 0 && mutex[1] == self) {
+    ++mutex[2];
+    return 0;
+  }
+  if (__sync_lock_test_and_set(&mutex[0], 1) != 0)
+    return 16;
+  mutex[1] = self;
+  mutex[2] = 1;
+  return 0;
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_unlock(uint32_t *mutex)
 {
   if (mutex == 0)
     return 22;
-  __sync_lock_release(mutex);
+  if (mutex[0] == 0)
+    return 22;
+  uint32_t self = poly_host_pthread_self32();
+  if (mutex[1] != 0 && mutex[1] != self)
+    return 1;
+  if (mutex[3] == 1 && mutex[2] > 1) {
+    --mutex[2];
+    return 0;
+  }
+  mutex[1] = 0;
+  mutex[2] = 0;
+  __sync_lock_release(&mutex[0]);
   return 0;
 }
 
@@ -1199,6 +1231,43 @@ uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_release(uint64_t *guard)
   uint8_t *bytes = (uint8_t *) guard;
   bytes[0] = 1;
   bytes[1] = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutexattr_init(uint32_t *attr)
+{
+  if (attr == 0)
+    return 22;
+  *attr = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutexattr_destroy(
+    uint32_t *attr)
+{
+  if (attr == 0)
+    return 22;
+  *attr = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutexattr_settype(
+    uint32_t *attr, uint32_t type)
+{
+  if (attr == 0)
+    return 22;
+  if (type > 2)
+    return 22;
+  *attr = type;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutexattr_gettype(
+    const uint32_t *attr, uint32_t *type)
+{
+  if (attr == 0 || type == 0)
+    return 22;
+  *type = *attr;
   return 0;
 }
 

@@ -477,7 +477,11 @@ enum {
   POLY_IMPORT_FUNC_PTHREAD_RWLOCK_WRLOCK = 174,
   POLY_IMPORT_FUNC_PTHREAD_RWLOCK_TRYWRLOCK = 175,
   POLY_IMPORT_FUNC_PTHREAD_RWLOCK_UNLOCK = 176,
-  POLY_IMPORT_FUNC_COUNT = 177
+  POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_INIT = 177,
+  POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_DESTROY = 178,
+  POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_SETTYPE = 179,
+  POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_GETTYPE = 180,
+  POLY_IMPORT_FUNC_COUNT = 181
 };
 
 enum {
@@ -941,6 +945,12 @@ extern uint64_t poly_host_x86_pthread_rwlock_tryrdlock(uint32_t *lock);
 extern uint64_t poly_host_x86_pthread_rwlock_wrlock(uint32_t *lock);
 extern uint64_t poly_host_x86_pthread_rwlock_trywrlock(uint32_t *lock);
 extern uint64_t poly_host_x86_pthread_rwlock_unlock(uint32_t *lock);
+extern uint64_t poly_host_x86_pthread_mutexattr_init(uint32_t *attr);
+extern uint64_t poly_host_x86_pthread_mutexattr_destroy(uint32_t *attr);
+extern uint64_t poly_host_x86_pthread_mutexattr_settype(uint32_t *attr,
+    uint32_t type);
+extern uint64_t poly_host_x86_pthread_mutexattr_gettype(const uint32_t *attr,
+    uint32_t *type);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1092,7 +1102,9 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "__cxa_finalize", "pthread_rwlock_init", "pthread_rwlock_destroy",
     "pthread_rwlock_rdlock", "pthread_rwlock_tryrdlock",
     "pthread_rwlock_wrlock", "pthread_rwlock_trywrlock",
-    "pthread_rwlock_unlock", "getpid", "getppid", "getuid", "geteuid",
+    "pthread_rwlock_unlock", "pthread_mutexattr_init",
+    "pthread_mutexattr_destroy", "pthread_mutexattr_settype",
+    "pthread_mutexattr_gettype", "getpid", "getppid", "getuid", "geteuid",
     "getgid", "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
     "__cxa_guard_abort",
@@ -1314,6 +1326,14 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_trywrlock;
     case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_UNLOCK:
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_unlock;
+    case POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_INIT:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_mutexattr_init;
+    case POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_DESTROY:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_mutexattr_destroy;
+    case POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_SETTYPE:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_mutexattr_settype;
+    case POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_GETTYPE:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_mutexattr_gettype;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -3013,6 +3033,26 @@ static int resolve_import_function(const char *symbol_name,
   if (strcmp(symbol_name, "pthread_rwlock_unlock") == 0) {
     *symbol_value =
       POLY_IMPORT_FUNC_PTHREAD_RWLOCK_UNLOCK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_mutexattr_init") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_INIT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_mutexattr_destroy") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_DESTROY * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_mutexattr_settype") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_SETTYPE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_mutexattr_gettype") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_MUTEXATTR_GETTYPE * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {

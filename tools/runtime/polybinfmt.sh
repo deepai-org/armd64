@@ -113,6 +113,7 @@ case "$path" in
   */aarch64-pcall-pthread-mutex-real.so) set_polycall 98 ;;
   */aarch64-pcall-pthread-self-real.so) set_polycall 109 ;;
   */aarch64-pcall-pthread-rwlock-real.so) set_polycall 123 ;;
+  */aarch64-pcall-pthread-mutexattr-real.so) set_polycall 132 ;;
   */aarch64-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
@@ -305,6 +306,7 @@ case "$path" in
   */riscv-pcall-pthread-mutex-real.so) set_polycall 98 ;;
   */riscv-pcall-pthread-self-real.so) set_polycall 109 ;;
   */riscv-pcall-pthread-rwlock-real.so) set_polycall 123 ;;
+  */riscv-pcall-pthread-mutexattr-real.so) set_polycall 132 ;;
   */riscv-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
