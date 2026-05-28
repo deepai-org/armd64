@@ -1,10 +1,14 @@
 #include <stdint.h>
 
+#define POLY_RLIM_INFINITY UINT64_MAX
+
 enum {
   POLY_PROT_READ = 1,
   POLY_PROT_WRITE = 2,
+  POLY_GRND_NONBLOCK = 1,
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
+  POLY_RLIMIT_STACK = 3,
   POLY_S_IFMT = 0170000,
   POLY_S_IFREG = 0100000,
   POLY_AT_FDCWD = -100,
@@ -33,6 +37,8 @@ enum {
   POLY_SYS_MUNMAP = 215,
   POLY_SYS_MMAP = 222,
   POLY_SYS_MPROTECT = 226,
+  POLY_SYS_PRLIMIT64 = 261,
+  POLY_SYS_GETRANDOM = 278,
   POLY_SYS_STATX = 291
 };
 
@@ -72,6 +78,11 @@ struct poly_timespec {
 struct poly_timeval {
   int64_t sec;
   int64_t usec;
+};
+
+struct poly_rlimit64 {
+  uint64_t cur;
+  uint64_t max;
 };
 
 struct poly_statx_timestamp {
@@ -225,6 +236,23 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 53;
   if (wall_time.sec <= 0 || wall_time.usec < 0 || wall_time.usec >= 1000000)
     return 54;
+
+  struct poly_rlimit64 stack_limit;
+  if (poly_syscall4(POLY_SYS_PRLIMIT64, 0, POLY_RLIMIT_STACK, 0,
+        (long) &stack_limit) != 0)
+    return 59;
+  if (stack_limit.cur == 0 ||
+      (stack_limit.max != POLY_RLIM_INFINITY &&
+       stack_limit.max < stack_limit.cur))
+    return 60;
+
+  unsigned char random_bytes[16];
+  if (poly_syscall3(POLY_SYS_GETRANDOM, 0, 0, 0) != 0)
+    return 61;
+  long random_len = poly_syscall3(POLY_SYS_GETRANDOM, (long) random_bytes,
+    sizeof(random_bytes), POLY_GRND_NONBLOCK);
+  if (random_len != (long) sizeof(random_bytes) && random_len != -11)
+    return 62;
 
   char exe_path[128];
   long exe_len = poly_syscall4(POLY_SYS_READLINKAT, POLY_AT_FDCWD,
