@@ -116,7 +116,7 @@ enum {
   POLY_MODE_RAW_RISCV = 4,
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
-  POLY_X86_CONTROL_OPCODE_SIZE = 3,
+  POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -7227,7 +7227,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     else if (call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG)
       pcall_op = 0x2a;
     const uint8_t pcall[] = {
-      0x0f, 0x24, pcall_op
+      0x0f, 0x3a, 0xfc, pcall_op
     };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
@@ -7247,7 +7247,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     else if (call_kind == POLY_CALL_VEC128_U32)
       pcall_op = 0x22;
     const uint8_t pcall[] = {
-      0x0f, 0x24, pcall_op
+      0x0f, 0x3a, 0xfc, pcall_op
     };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
@@ -7255,7 +7255,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   emit_restore_callee_regs(code, &offset, callee_save_area);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
-    const uint8_t import_return[] = { 0x0f, 0x24, 0x20 };
+    const uint8_t import_return[] = { 0x0f, 0x3a, 0xfc, 0x20 };
     memcpy(code + offset, import_return, sizeof(import_return));
     offset += sizeof(import_return);
     for (size_t n = 0; n < import_descriptor_count; n++) {
@@ -7931,11 +7931,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   if (call_kind == POLY_CALL_SRET_U64) {
     if (program->arch == POLY_ARCH_AARCH64) {
-      const uint8_t pcall[] = { 0x0f, 0x24, 0x12 };
+      const uint8_t pcall[] = { 0x0f, 0x3a, 0xfc, 0x12 };
       memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
     }
     else {
-      const uint8_t pcall[] = { 0x0f, 0x24, 0x13 };
+      const uint8_t pcall[] = { 0x0f, 0x3a, 0xfc, 0x13 };
       memcpy(code + pcall_opcode_offset, pcall, sizeof(pcall));
     }
   }
@@ -7995,12 +7995,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         fini_result_target, POLY_CALL_U64);
     const int result_call_kind = call_kind_for_bridge_result(program->arch,
       POLY_CALL_U64, program->fini_result_bridge_kind);
-    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 2];
-    code[pcall_opcode_offset + 2] =
+    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 3];
+    code[pcall_opcode_offset + 3] =
       pcall_opcode_for_call_kind(program->arch, result_call_kind);
     *result = call_poly_stub(code, target_imm_offset, fini_result_target,
       result_call_kind);
-    code[pcall_opcode_offset + 2] = saved_pcall_op;
+    code[pcall_opcode_offset + 3] = saved_pcall_op;
   }
   for (size_t fini_depth = 0; fini_depth <= max_dep_depth; fini_depth++) {
     for (size_t d = program->dep_count; d > 0; d--) {
@@ -8128,15 +8128,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
     const int result_call_kind = call_kind_for_bridge_result(program->arch,
       POLY_CALL_U64, bridge_kind);
-    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 2];
-    code[pcall_opcode_offset + 2] =
+    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 3];
+    code[pcall_opcode_offset + 3] =
       pcall_opcode_for_call_kind(program->arch, result_call_kind);
     const int call_status = call_target_from_root_arch(code,
       target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
       program->arch, program->deps[dep_index].arch, fini_result_target,
       result_call_kind, bridge_kind, program->deps[dep_index].path,
       "dependency fini result", result);
-    code[pcall_opcode_offset + 2] = saved_pcall_op;
+    code[pcall_opcode_offset + 3] = saved_pcall_op;
     if (call_status < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)

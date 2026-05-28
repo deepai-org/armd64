@@ -6,16 +6,16 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_EXIT ".byte 0x0f,0x24,0x00\n"
-#define POLY_OP_ENTER_A64 ".byte 0x0f,0x24,0x01\n"
-#define POLY_OP_ENTER_RV64 ".byte 0x0f,0x24,0x02\n"
-#define POLY_OP_PCALL_A64 ".byte 0x0f,0x24,0x10\n"
-#define POLY_OP_PCALL_RV64 ".byte 0x0f,0x24,0x11\n"
-#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60\n"
-#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63\n"
-#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62\n"
-#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67\n"
-#define POLY_OP_STATE_IMPORT ".byte 0x0f,0x24,0x68\n"
+#define POLY_OP_EXIT ".byte 0x0f,0x3a,0xfc,0x00\n"
+#define POLY_OP_ENTER_A64 ".byte 0x0f,0x3a,0xfc,0x01\n"
+#define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
+#define POLY_OP_PCALL_A64 ".byte 0x0f,0x3a,0xfc,0x10\n"
+#define POLY_OP_PCALL_RV64 ".byte 0x0f,0x3a,0xfc,0x11\n"
+#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
+#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
+#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
+#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
+#define POLY_OP_STATE_IMPORT ".byte 0x0f,0x3a,0xfc,0x68\n"
 #define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
@@ -23,20 +23,20 @@
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 
 static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
-static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x24,0x30" ::: "memory"); }
-static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x31" ::: "memory"); }
-static inline void poly_syscall_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x32" ::: "memory"); }
-static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x24,0x39" ::: "memory"); }
-static inline void poly_break_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x3a" ::: "memory"); }
-static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x24,0x40" ::: "memory"); }
-static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x24,0x42" ::: "memory"); }
-static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x0f,0x24,0x43" ::: "memory"); }
-static inline void poly_foreign_break_count_status(void) { asm volatile(".byte 0x0f,0x24,0x44" ::: "memory"); }
-static inline void poly_trap_reason_status(void) { asm volatile(".byte 0x0f,0x24,0x50" ::: "memory"); }
-static inline void poly_trap_mode_status(void) { asm volatile(".byte 0x0f,0x24,0x51" ::: "memory"); }
-static inline void poly_trap_number_status(void) { asm volatile(".byte 0x0f,0x24,0x52" ::: "memory"); }
-static inline void poly_trap_arg0_status(void) { asm volatile(".byte 0x0f,0x24,0x53" ::: "memory"); }
-static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x24,0x5a" ::: "memory"); }
+static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x30" ::: "memory"); }
+static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x31" ::: "memory"); }
+static inline void poly_syscall_mode_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x32" ::: "memory"); }
+static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x39" ::: "memory"); }
+static inline void poly_break_mode_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x3a" ::: "memory"); }
+static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
+static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x42" ::: "memory"); }
+static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x43" ::: "memory"); }
+static inline void poly_foreign_break_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x44" ::: "memory"); }
+static inline void poly_trap_reason_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x50" ::: "memory"); }
+static inline void poly_trap_mode_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x51" ::: "memory"); }
+static inline void poly_trap_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x52" ::: "memory"); }
+static inline void poly_trap_arg0_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x53" ::: "memory"); }
+static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x5a" ::: "memory"); }
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");

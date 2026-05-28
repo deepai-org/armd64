@@ -36,10 +36,10 @@ so compressed instructions remain valid.
 The Bochs prototype models this with a compact decoded x86 control page:
 
 ```text
-0f 24 <subop>
+0f 3a fc <subop>
 ```
 
-`0f 24` is the Poly Control Opcode Page and `<subop>` selects the operation.
+`0f 3a fc` is the Poly Control Opcode Page and `<subop>` selects the operation.
 This is a normal decoded instruction family: no `#UD` exception path, no magic
 trailer, no variable-length envelope, and no following payload bytes. Future
 silicon may allocate a different reserved x86 opcode page, but it should keep

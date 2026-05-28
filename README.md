@@ -39,7 +39,7 @@ Other useful targets:
 - Foreign register state is intended to be explicit XSAVE-style architectural
   state. Hidden CR3-scoped emulator state is not the hardware contract.
 - The Bochs prototype models hardware control instructions as a compact
-  decoded `0f 24 <subop>` Poly Control Opcode Page. There is no magic trailer
+  decoded `0f 3a fc <subop>` Poly Control Opcode Page. There is no magic trailer
   and no `#UD` envelope in the fast path.
 - Foreign-to-foreign and foreign-to-x86 transitions are also decoded control
   instructions: AArch64 uses a reserved HINT subspace and RISC-V uses one
