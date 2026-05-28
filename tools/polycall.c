@@ -173,6 +173,10 @@ enum {
   RELOC_BASE_ROOT_CROSS_STUB_COMPACT_U32_F32 = 11,
   RELOC_BASE_ROOT_CROSS_STUB_COMPACT_F32_U32 = 12,
   RELOC_BASE_ROOT_CROSS_STUB_FP64_STACK = 13,
+  RELOC_BASE_ROOT_IFUNC_VEC128 = 14,
+  RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32 = 15,
+  RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 = 16,
+  RELOC_BASE_ROOT_IFUNC_FP64_STACK = 17,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
@@ -183,6 +187,10 @@ enum {
   RELOC_BASE_DEP_CROSS_STUB_COMPACT_U32_F32 = 800,
   RELOC_BASE_DEP_CROSS_STUB_COMPACT_F32_U32 = 900,
   RELOC_BASE_DEP_CROSS_STUB_FP64_STACK = 1000,
+  RELOC_BASE_DEP_CROSS_IFUNC_VEC128 = 1100,
+  RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 = 1200,
+  RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 = 1300,
+  RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK = 1400,
   POLY_CROSS_BRIDGE_DEFAULT = 0,
   POLY_CROSS_BRIDGE_COMPACT_U32_F32 = 1,
   POLY_CROSS_BRIDGE_COMPACT_F32_U32 = 2,
@@ -1928,10 +1936,24 @@ static uint32_t none_reloc_type_for_arch(int arch) {
 static int reloc_base_is_resolver(int base_kind) {
   return base_kind == RELOC_BASE_IRELATIVE ||
     base_kind == RELOC_BASE_ROOT_IFUNC ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_VEC128 ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32 ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_FP64_STACK ||
     (base_kind >= RELOC_BASE_DEP_IFUNC &&
      base_kind < RELOC_BASE_DEP_IFUNC + MAX_NEEDED_DEPS) ||
     (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC &&
-     base_kind < RELOC_BASE_DEP_CROSS_IFUNC + MAX_NEEDED_DEPS);
+     base_kind < RELOC_BASE_DEP_CROSS_IFUNC + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_VEC128 &&
+     base_kind < RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 &&
+     base_kind <
+       RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 &&
+     base_kind <
+       RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
+     base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS);
 }
 
 static int reloc_base_is_dep_cross_stub(int base_kind) {
@@ -1950,8 +1972,18 @@ static int reloc_base_is_dep_cross_stub(int base_kind) {
 }
 
 static int reloc_base_is_dep_cross_ifunc(int base_kind) {
-  return base_kind >= RELOC_BASE_DEP_CROSS_IFUNC &&
-    base_kind < RELOC_BASE_DEP_CROSS_IFUNC + MAX_NEEDED_DEPS;
+  return (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC &&
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_VEC128 &&
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 &&
+      base_kind <
+        RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 &&
+      base_kind <
+        RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS);
 }
 
 static int cross_bridge_kind_from_name(const char *name) {
@@ -2222,6 +2254,18 @@ static int dep_cross_stub_base_kind(size_t dep_index, int bridge_kind) {
   return RELOC_BASE_DEP_CROSS_STUB + (int) dep_index;
 }
 
+static int dep_cross_ifunc_base_kind(size_t dep_index, int bridge_kind) {
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
+    return RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 + (int) dep_index;
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
+    return RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + (int) dep_index;
+  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
+    return RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + (int) dep_index;
+  if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
+    return RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + (int) dep_index;
+  return RELOC_BASE_DEP_CROSS_IFUNC + (int) dep_index;
+}
+
 static size_t dep_cross_stub_index(int base_kind) {
   if (base_kind >= RELOC_BASE_DEP_CROSS_STUB_COMPACT_U32_F32 &&
       base_kind <
@@ -2238,6 +2282,24 @@ static size_t dep_cross_stub_index(int base_kind) {
       base_kind < RELOC_BASE_DEP_CROSS_STUB_VEC128 + MAX_NEEDED_DEPS)
     return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_STUB_VEC128);
   return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_STUB);
+}
+
+static size_t dep_cross_ifunc_index(int base_kind) {
+  if (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 &&
+      base_kind <
+        RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 + MAX_NEEDED_DEPS)
+    return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32);
+  if (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 &&
+      base_kind <
+        RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + MAX_NEEDED_DEPS)
+    return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32);
+  if (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS)
+    return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK);
+  if (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_VEC128 &&
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + MAX_NEEDED_DEPS)
+    return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC_VEC128);
+  return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC);
 }
 
 static int cross_bridge_kind_for_base(int base_kind) {
@@ -2262,6 +2324,28 @@ static int cross_bridge_kind_for_base(int base_kind) {
   return POLY_CROSS_BRIDGE_DEFAULT;
 }
 
+static int cross_bridge_kind_for_ifunc_base(int base_kind) {
+  if (base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32 ||
+      (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 &&
+        base_kind <
+          RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 + MAX_NEEDED_DEPS))
+    return POLY_CROSS_BRIDGE_COMPACT_U32_F32;
+  if (base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 ||
+      (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 &&
+        base_kind <
+          RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + MAX_NEEDED_DEPS))
+    return POLY_CROSS_BRIDGE_COMPACT_F32_U32;
+  if (base_kind == RELOC_BASE_ROOT_IFUNC_FP64_STACK ||
+      (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
+        base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS))
+    return POLY_CROSS_BRIDGE_FP64_STACK;
+  if (base_kind == RELOC_BASE_ROOT_IFUNC_VEC128 ||
+      (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_VEC128 &&
+        base_kind < RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + MAX_NEEDED_DEPS))
+    return POLY_CROSS_BRIDGE_VEC128_U32;
+  return POLY_CROSS_BRIDGE_DEFAULT;
+}
+
 static int root_cross_stub_base_kind(int bridge_kind) {
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
     return RELOC_BASE_ROOT_CROSS_STUB_COMPACT_U32_F32;
@@ -2274,12 +2358,32 @@ static int root_cross_stub_base_kind(int bridge_kind) {
   return RELOC_BASE_ROOT_CROSS_STUB;
 }
 
+static int root_ifunc_base_kind(int bridge_kind) {
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
+    return RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32;
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
+    return RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32;
+  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
+    return RELOC_BASE_ROOT_IFUNC_FP64_STACK;
+  if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
+    return RELOC_BASE_ROOT_IFUNC_VEC128;
+  return RELOC_BASE_ROOT_IFUNC;
+}
+
 static int reloc_base_is_root_cross_stub(int base_kind) {
   return base_kind == RELOC_BASE_ROOT_CROSS_STUB ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_VEC128 ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_COMPACT_U32_F32 ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_COMPACT_F32_U32 ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_FP64_STACK;
+}
+
+static int reloc_base_is_root_ifunc(int base_kind) {
+  return base_kind == RELOC_BASE_ROOT_IFUNC ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_VEC128 ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32 ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_FP64_STACK;
 }
 
 static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
@@ -4214,8 +4318,15 @@ static int resolve_root_symbol(const struct poly_program *program,
           required_version ? required_version->name : NULL))
       continue;
     *symbol_value = sym->st_value;
-    if (type == STT_GNU_IFUNC)
-      *base_kind = RELOC_BASE_ROOT_IFUNC;
+    if (type == STT_GNU_IFUNC) {
+      int bridge_kind = POLY_CROSS_BRIDGE_DEFAULT;
+      if (program->dependency_view && program->root_arch != 0 &&
+          program->root_arch != program->arch)
+        bridge_kind = cross_bridge_kind_for_specs(
+          program->root_bridge_specs, program->root_bridge_spec_count,
+          symbol_name);
+      *base_kind = root_ifunc_base_kind(bridge_kind);
+    }
     else if (program->dependency_view &&
         (type == STT_FUNC || type == STT_NOTYPE) &&
         program->root_arch != 0 &&
@@ -4276,7 +4387,9 @@ static int resolve_dependency_symbol(const struct poly_program *program,
         return 0;
       }
       if (best_type == STT_GNU_IFUNC) {
-        *base_kind = RELOC_BASE_DEP_CROSS_IFUNC + (int) best;
+        *base_kind = dep_cross_ifunc_base_kind(best,
+          cross_bridge_kind_for_specs(program->deps[best].bridge_specs,
+            program->deps[best].bridge_spec_count, symbol_name));
         return 0;
       }
     }
@@ -6561,12 +6674,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       int resolver_arch = dep->arch;
       if (dep->relocs[r].base_kind == RELOC_BASE_IRELATIVE)
         resolver = dep_load_bias[d] + dep->relocs[r].value;
-      else if (dep->relocs[r].base_kind == RELOC_BASE_ROOT_IFUNC)
+      else if (reloc_base_is_root_ifunc(dep->relocs[r].base_kind))
         continue;
       else {
         const size_t resolver_dep = reloc_base_is_dep_cross_ifunc(
             dep->relocs[r].base_kind) ?
-          (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_CROSS_IFUNC) :
+          dep_cross_ifunc_index(dep->relocs[r].base_kind) :
           (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_IFUNC);
         resolver_arch = program->deps[resolver_dep].arch;
         resolver = dep_load_bias[resolver_dep] + dep->relocs[r].value;
@@ -6588,7 +6701,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       if (dep->arch != resolver_arch &&
           emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, dep->arch, resolver_arch, resolved,
-            POLY_CROSS_BRIDGE_DEFAULT, &reloc_value) < 0) {
+            cross_bridge_kind_for_ifunc_base(dep->relocs[r].base_kind),
+            &reloc_value) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: dependency IFUNC cross-ISA stub overflow: %s\n",
           dep->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -6753,7 +6867,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   for (size_t d = 0; d < program->dep_count; d++) {
     const struct poly_dependency *dep = &program->deps[d];
     for (size_t r = 0; r < dep->reloc_count; r++) {
-      if (dep->relocs[r].base_kind != RELOC_BASE_ROOT_IFUNC)
+      if (!reloc_base_is_root_ifunc(dep->relocs[r].base_kind))
         continue;
       if (dep->relocs[r].offset > dep_sizes[d] ||
           dep_sizes[d] - dep->relocs[r].offset < 8) {
@@ -6785,7 +6899,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       if (dep->arch != program->arch &&
           emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, dep->arch, program->arch, resolved,
-            POLY_CROSS_BRIDGE_DEFAULT, &reloc_value) < 0) {
+            cross_bridge_kind_for_ifunc_base(dep->relocs[r].base_kind),
+            &reloc_value) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: dependency root IFUNC cross-ISA stub overflow: %s\n",
           dep->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -6947,13 +7062,13 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       }
       resolver = load_bias + program->relocs[n].value;
     }
-    else if (program->relocs[n].base_kind == RELOC_BASE_ROOT_IFUNC) {
+    else if (reloc_base_is_root_ifunc(program->relocs[n].base_kind)) {
       resolver = root_load_bias + program->relocs[n].value;
     }
     else {
       const size_t resolver_dep = reloc_base_is_dep_cross_ifunc(
           program->relocs[n].base_kind) ?
-        (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_CROSS_IFUNC) :
+        dep_cross_ifunc_index(program->relocs[n].base_kind) :
         (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_IFUNC);
       resolver_arch = program->deps[resolver_dep].arch;
       resolver = dep_load_bias[resolver_dep] + program->relocs[n].value;
@@ -6975,7 +7090,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (program->arch != resolver_arch &&
         emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
           &cross_stub_offset, program->arch, resolver_arch, resolved,
-          POLY_CROSS_BRIDGE_DEFAULT, &reloc_value) < 0) {
+          cross_bridge_kind_for_ifunc_base(program->relocs[n].base_kind),
+          &reloc_value) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: IFUNC cross-ISA stub overflow: %s\n",
         program->path);
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);

@@ -90,6 +90,10 @@ POLYCALL_CROSS_NEEDED_MID_REAL_SRC="$ROOT_DIR/tools/polycall_cross_needed_mid_re
 POLYCALL_CROSS_NEEDED_TRANSITIVE_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cross_needed_transitive_main_real.c"
 POLYCALL_CROSS_COMPACT_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cross_compact_dep_real.c"
 POLYCALL_CROSS_COMPACT_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cross_compact_main_real.c"
+POLYCALL_CROSS_IFUNC_COMPACT_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cross_ifunc_compact_dep_real.c"
+POLYCALL_CROSS_IFUNC_COMPACT_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cross_ifunc_compact_main_real.c"
+POLYCALL_CROSS_IFUNC_COMPACT_ROOT_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cross_ifunc_compact_root_dep_real.c"
+POLYCALL_CROSS_IFUNC_COMPACT_ROOT_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cross_ifunc_compact_root_main_real.c"
 POLYCALL_CROSS_COMPACT_ROOT_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cross_compact_root_dep_real.c"
 POLYCALL_CROSS_COMPACT_ROOT_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cross_compact_root_main_real.c"
 POLYCALL_CROSS_FP64_STACK_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cross_fp64_stack_dep_real.c"
@@ -682,6 +686,11 @@ build_poly_elf_payloads() {
     "$POLYCALL_CROSS_COMPACT_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrosscompact-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolycrossifunccompact-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossifunccompact-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycrossfp64stack-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_FP64_STACK_DEP_REAL_SRC" \
@@ -696,6 +705,11 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_COMPACT_ROOT_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootcompact-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolycrossrootifunccompact-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_ROOT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootifunccompact-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycrossrootfp64stack-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -740,6 +754,11 @@ build_poly_elf_payloads() {
     "$POLYCALL_CROSS_COMPACT_DEP_REAL_SRC" \
     -o "$TMP_DIR/poly-link/aarch64/libpolycrosscompact-riscv.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolycrossifunccompact-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/aarch64/libpolycrossifunccompact-riscv.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycrossfp64stack-riscv.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_FP64_STACK_DEP_REAL_SRC" \
@@ -754,6 +773,11 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_COMPACT_ROOT_DEP_REAL_SRC" \
     -o "$TMP_DIR/poly-link/aarch64/libpolycrossrootcompact-riscv.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolycrossrootifunccompact-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_ROOT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/aarch64/libpolycrossrootifunccompact-riscv.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycrossrootfp64stack-riscv.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -779,6 +803,12 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-compact-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/aarch64" \
+    -Wl,--no-as-needed -l:libpolycrossifunccompact-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-ifunc-compact-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_CROSS_FP64_STACK_MAIN_REAL_SRC" \
     -L"$TMP_DIR/poly-link/aarch64" \
     -Wl,--no-as-needed -l:libpolycrossfp64stack-riscv.so \
@@ -795,6 +825,12 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/aarch64" \
     -Wl,--no-as-needed -l:libpolycrossrootcompact-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-root-compact-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_ROOT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/aarch64" \
+    -Wl,--no-as-needed -l:libpolycrossrootifunccompact-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-root-ifunc-compact-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_CROSS_FP64_STACK_ROOT_MAIN_REAL_SRC" \
@@ -2125,6 +2161,12 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrosscompact-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolycrossifunccompact-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossifunccompact-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycrossfp64stack-riscv.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_FP64_STACK_DEP_REAL_SRC" \
@@ -2141,6 +2183,12 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_COMPACT_ROOT_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootcompact-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolycrossrootifunccompact-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_ROOT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossrootifunccompact-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycrossrootfp64stack-riscv.so -Wl,--hash-style=sysv \
@@ -2194,6 +2242,12 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/poly-link/riscv/libpolycrosscompact-aarch64.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolycrossifunccompact-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/riscv/libpolycrossifunccompact-aarch64.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycrossfp64stack-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_FP64_STACK_DEP_REAL_SRC" \
@@ -2210,6 +2264,12 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_COMPACT_ROOT_DEP_REAL_SRC" \
     -o "$TMP_DIR/poly-link/riscv/libpolycrossrootcompact-aarch64.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolycrossrootifunccompact-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_ROOT_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/riscv/libpolycrossrootifunccompact-aarch64.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycrossrootfp64stack-aarch64.so -Wl,--hash-style=sysv \
@@ -2240,6 +2300,13 @@ build_poly_elf_payloads() {
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/riscv" \
+    -Wl,--no-as-needed -l:libpolycrossifunccompact-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-ifunc-compact-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_CROSS_FP64_STACK_MAIN_REAL_SRC" \
     -L"$TMP_DIR/poly-link/riscv" \
     -Wl,--no-as-needed -l:libpolycrossfp64stack-aarch64.so \
@@ -2258,6 +2325,13 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/riscv" \
     -Wl,--no-as-needed -l:libpolycrossrootcompact-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-root-compact-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CROSS_IFUNC_COMPACT_ROOT_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/riscv" \
+    -Wl,--no-as-needed -l:libpolycrossrootifunccompact-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-root-ifunc-compact-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -4787,9 +4861,11 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     depfini:/usr/lib/polyapps/aarch64-pcall-cross-needed-real.so#poly_entry=86 \
     /usr/lib/polyapps/aarch64-pcall-cross-needed-transitive-real.so#poly_entry=1770 \
     /usr/lib/polyapps/aarch64-pcall-cross-compact-real.so#poly_entry=0x426d00d642020070 \
+    /usr/lib/polyapps/aarch64-pcall-cross-ifunc-compact-real.so#poly_entry=0x42a5000000000138 \
     /usr/lib/polyapps/aarch64-pcall-cross-fp64-stack-real.so#poly_entry=0x4061100000000000 \
     /usr/lib/polyapps/aarch64-pcall-cross-vec128-real.so#poly_entry=0x01bc014d00de006f \
     /usr/lib/polyapps/aarch64-pcall-cross-root-compact-real.so#poly_entry=0x415c019d41b0013d \
+    /usr/lib/polyapps/aarch64-pcall-cross-root-ifunc-compact-real.so#poly_entry=0x42d700000000019f \
     /usr/lib/polyapps/aarch64-pcall-cross-root-fp64-stack-real.so#poly_entry=0x4061100000000000 \
     /usr/lib/polyapps/aarch64-pcall-cross-root-vec128-real.so#poly_entry=0x01bc014d00de006f \
     /usr/lib/polyapps/aarch64-pcall-symbolic-preempt-real.so#poly_entry=1005 \
@@ -4983,9 +5059,11 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     depfini:/usr/lib/polyapps/riscv-pcall-cross-needed-real.so#poly_entry=86 \
     /usr/lib/polyapps/riscv-pcall-cross-needed-transitive-real.so#poly_entry=1770 \
     /usr/lib/polyapps/riscv-pcall-cross-compact-real.so#poly_entry=0x426d00d642020070 \
+    /usr/lib/polyapps/riscv-pcall-cross-ifunc-compact-real.so#poly_entry=0x42a5000000000138 \
     /usr/lib/polyapps/riscv-pcall-cross-fp64-stack-real.so#poly_entry=0x4061100000000000 \
     /usr/lib/polyapps/riscv-pcall-cross-vec128-real.so#poly_entry=0x01bc014d00de006f \
     /usr/lib/polyapps/riscv-pcall-cross-root-compact-real.so#poly_entry=0x415c019d41b0013d \
+    /usr/lib/polyapps/riscv-pcall-cross-root-ifunc-compact-real.so#poly_entry=0x42d700000000019f \
     /usr/lib/polyapps/riscv-pcall-cross-root-fp64-stack-real.so#poly_entry=0x4061100000000000 \
     /usr/lib/polyapps/riscv-pcall-cross-root-vec128-real.so#poly_entry=0x01bc014d00de006f \
     /usr/lib/polyapps/riscv-pcall-symbolic-preempt-real.so#poly_entry=1005 \

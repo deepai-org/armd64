@@ -590,7 +590,10 @@ symbols across the ISA boundary bind directly to the shared virtual address
 rather than to a code trampoline.  Mixed dependency `STT_GNU_IFUNC` exports are
 resolved by running the resolver in the exporting dependency ISA; if the
 resolved implementation is in the opposite ISA, the relocation receives a
-generated caller-ISA trampoline.  Mixed TLS interposition is covered in both
+generated caller-ISA trampoline.  IFUNC cross-ISA trampolines preserve the same
+`POLYABI` bridge metadata used for ordinary function symbols, so compact
+aggregate, FP64 stack-argument, and vector bridge selections are not lost after
+resolver execution.  Mixed TLS interposition is covered in both
 directions: roots can import opposite-ISA dependency TLS symbols, and
 opposite-ISA dependencies can bind TLS relocations back to root-exported TLS.
 Section tables are kept as a fallback for synthetic test payloads. The gate
@@ -642,7 +645,10 @@ where a needed DSO binds an undefined relocation back to a root IFUNC resolver
 (`aarch64-pcall-cross-root-ifunc-real.so#poly_entry` with
 `libpolyrootifunc-riscv.so`, and
 `riscv-pcall-cross-root-ifunc-real.so#poly_entry` with
-`libpolyrootifunc-aarch64.so`), compiler-produced opposite-ISA
+`libpolyrootifunc-aarch64.so`) plus compact aggregate IFUNC bridge variants
+(`aarch64-pcall-cross-root-ifunc-compact-real.so#poly_entry` and
+`riscv-pcall-cross-root-ifunc-compact-real.so#poly_entry`),
+compiler-produced opposite-ISA
 dependency-to-root TLS pairs
 (`aarch64-pcall-cross-root-tls-real.so#poly_entry` with
 `libpolyroottls-riscv.so`, and
@@ -663,7 +669,10 @@ versioned-symbol pairs (`aarch64-pcall-versioned-real.so#poly_entry` with
 dependency-IFUNC pairs (`aarch64-pcall-needed-ifunc-real.so#poly_entry` with
 `libpolyneededifunc-aarch64.so`, and
 `riscv-pcall-needed-ifunc-real.so#poly_entry` with
-`libpolyneededifunc-riscv.so`), compiler-produced `DT_NEEDED`
+`libpolyneededifunc-riscv.so`) plus opposite-ISA compact aggregate IFUNC
+bridge pairs (`aarch64-pcall-cross-ifunc-compact-real.so#poly_entry` and
+`riscv-pcall-cross-ifunc-compact-real.so#poly_entry`),
+compiler-produced `DT_NEEDED`
 dependency-`DT_INIT`/`DT_FINI` pairs
 (`aarch64-pcall-needed-dt-init-real.so#poly_entry` with
 `libpolyneededdtinit-aarch64.so`, and
