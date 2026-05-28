@@ -362,7 +362,7 @@ static inline void generic_enter_aarch64_probe(void) {
     ".long 0xd5032e1f\n"
     "popq %%r15\n"
     :
-    : "i"(POLY_MODE_RAW_AARCH64)
+    : "i"(POLY_FRONTEND_AARCH64)
     : POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -375,7 +375,7 @@ static inline void generic_enter_riscv_probe(void) {
     ".long 0x0000700b\n"
     "popq %%r15\n"
     :
-    : "i"(POLY_MODE_RAW_RISCV)
+    : "i"(POLY_FRONTEND_RISCV)
     : POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -398,7 +398,7 @@ static inline void generic_switch_aarch64_probe(void) {
     "movq $0xbad, %%rax\n"
     "4:\n"
     :
-    : "i"(POLY_MODE_RAW_AARCH64)
+    : "i"(POLY_FRONTEND_AARCH64)
     : POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -421,8 +421,31 @@ static inline void generic_switch_riscv_probe(void) {
     "movq $0xbad, %%rax\n"
     "4:\n"
     :
-    : "i"(POLY_MODE_RAW_RISCV)
+    : "i"(POLY_FRONTEND_RISCV)
     : POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void aarch64_generic_switch_riscv_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x10000070\n" // adr x16, target
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xd5032f1f\n" // aarch64 generic poly switch
+    ".long 0x02d00513\n" // target: addi a0,zero,45
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void riscv_generic_switch_aarch64_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000297\n" // auipc x5,0
+    ".long 0x01028293\n" // addi x5,x5,16
+    ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
+    ".long 0x1000700b\n" // riscv generic poly switch
+    ".long 0xd28005a0\n" // target: movz x0,#45
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void raw_aarch64_abi_args_probe(void) {
@@ -693,7 +716,7 @@ static inline void pcall_signature_mode_aarch64_sysv_args_probe(void) {
     "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_MODE_RAW_AARCH64)
+    : "i"(POLY_FRONTEND_AARCH64)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
@@ -725,7 +748,7 @@ static inline void pcall_signature_mode_riscv_sysv_args_probe(void) {
     "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_MODE_RAW_RISCV)
+    : "i"(POLY_FRONTEND_RISCV)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
@@ -1166,6 +1189,16 @@ int main(void) {
   generic_switch_riscv_probe();
   if (read_rax() != 33) {
     fprintf(stderr, "POLY_PROBE_FAIL: generic riscv frontend switch mismatch\n");
+    return 1;
+  }
+  aarch64_generic_switch_riscv_probe();
+  if (read_rax() != 45) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 generic switch to riscv mismatch\n");
+    return 1;
+  }
+  riscv_generic_switch_aarch64_probe();
+  if (read_rax() != 45) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv generic switch to aarch64 mismatch\n");
     return 1;
   }
 

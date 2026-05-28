@@ -91,26 +91,27 @@ For example, a SysV-to-AAPCS64 signature can map:
 
 The runtime or loader programs a small number of semi-persistent slots, for
 example 4 to 8 per thread or address space. `PCALL` then names the target
-frontend, target PC, and signature slot. The common case stays fixed-latency:
-decode the transition, select the signature, update rename mappings, install
-the return cookie, and branch.
+frontend, target PC, and signature slot, ideally with a small immediate slot
+operand in the final encoding. The common case stays fixed-latency: decode the
+transition, select the signature, update rename mappings, install the return
+cookie, and branch.
 
 The design point is speed and area efficiency: the hardware only changes
-register aliases. It does not execute moves, copy stack slots, or inspect call
-descriptors in memory. A realistic OoO implementation can treat the signature
-as extra control input to rename/RAT update logic, which is much closer to
-ordinary register renaming than to an ABI interpreter.
+register aliases. It does not execute moves, copy stack slots, reformat memory
+layouts, or inspect call descriptors in memory. A realistic OoO implementation
+can treat the signature as extra control input to rename/RAT update logic,
+which is much closer to ordinary register renaming than to an ABI interpreter.
 
 Architecturally, the mechanism should look like:
 
 - `PABI_SIG_SET slot, kind`: program a small register-only mapping slot.
 - `PABI_SIG_GET slot`: report the active slot kind for discovery/debugging.
-- `PCALL mode, target, slot`: branch to another frontend while applying the
+- `PCALL mode, target, sig_imm`: branch to another frontend while applying the
   selected cached mapping.
 
-The final encoding can differ, but `PCALL` must name an already-programmed
-slot. It must not point at a user-memory descriptor that hardware has to load
-or parse.
+The final encoding can differ, but `PCALL` must name an already-programmed slot
+directly. It must not point at a user-memory descriptor that hardware has to
+load or parse.
 
 Slot programming should happen at load time, lazy binding time, or runtime
 setup time, not on every call. A typical system can reserve one slot for
@@ -146,10 +147,14 @@ This creates a deliberate hybrid boundary:
 
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, and slot kind `1` is x86_64 SysV source
-argument order. Generic frontend-ID prototype opcodes pass mode in `R15`,
-target PC in `RBX`, return PC in `R11`, and slot number in `R12` so the
-exchange-window lanes remain free for call arguments. `PSWITCH_MODE` uses the
-same mode and target registers but does not install a return cookie.
+argument order. The final silicon-oriented encoding should use a compact slot
+immediate. The current generic frontend-ID prototype opcodes pass the frontend
+ID in `R15`, target PC in `RBX`, return PC in `R11`, and slot number in `R12`
+only so the experiment can evolve without reworking Bochs' temporary control
+encoding. `PSWITCH_MODE` uses the same frontend ID and target registers but
+does not install a return cookie.
+Foreign generic `PSWITCH` controls use the existing scratch branch registers:
+AArch64 `x16=target, x17=frontend ID`; RISC-V `x5=target, x6=frontend ID`.
 
 ## Register Exchange Window
 

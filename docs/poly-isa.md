@@ -26,7 +26,7 @@ Hardware or FPGA should allocate real decoded x86 opcodes for:
 | --- | --- |
 | `PENTER mode` | Enter a raw frontend from x86_64/system code. |
 | `PSWITCH mode, target` | Fixed-latency branch to another frontend. |
-| `PCALL mode, target[, abi_sig]` | Apply an optional register-only ABI signature, push a hardware transition-stack entry, install a native return cookie, and branch to another frontend. |
+| `PCALL mode, target[, sig_imm]` | Apply an optional cached register-only ABI signature, push a hardware transition-stack entry, install a native return cookie, and branch to another frontend. |
 | `PIRET` | Restore a previously interrupted frontend after trap handling. |
 
 Every transition ends the current decode block and records precise source and
@@ -48,7 +48,9 @@ flushes or terminates the current decode block before switching fetch mode.
 The control instruction does not parse user-memory call descriptors or rewrite
 stack layouts.
 
-Current Bochs prototype subops for register-signature ABI calls are:
+Final silicon-oriented `PCALL` encodings should name the signature slot with a
+small immediate. Current Bochs prototype subops use registers while the
+temporary control encoding is still evolving:
 
 | Subop | Operation | Register convention |
 | --- | --- | --- |
@@ -77,10 +79,12 @@ non-call branch and does not install a return cookie.
 | AArch64 | `HINT #0x71` / `0xd5032e3f` | switch to RISC-V |
 | AArch64 | `HINT #0x72` / `0xd5032e5f` | call RISC-V target in `x16`, continuation in `x17` |
 | AArch64 | `HINT #0x76` / `0xd5032edf` | trap return |
+| AArch64 | `HINT #0x78` / `0xd5032f1f` | `PSWITCH`: target in `x16`, frontend ID in `x17` |
 | RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
 | RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
 | RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | call AArch64 target in `x5`, continuation in `x6` |
 | RISC-V | custom-0, funct3=7, subop 6 / `0x0c00700b` | trap return |
+| RISC-V | custom-0, funct3=7, subop 8 / `0x1000700b` | `PSWITCH`: target in `x5`, frontend ID in `x6` |
 
 These are decoded frontend-control instructions, not breakpoint or undefined
 instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
@@ -114,9 +118,10 @@ remap source architectural registers onto destination architectural registers
 through rename/RAT state, without moving data and without reading memory.
 
 These slots are semi-persistent hardware control state, typically programmed by
-the loader or runtime and reused by many call sites. A `PCALL` names the target
-frontend, target PC, and signature slot; the CPU applies the cached register map
-in the rename path instead of executing move instructions.
+the loader or runtime and reused by many call sites. A final `PCALL` names the
+target frontend, target PC, and signature slot, preferably as an immediate; the
+CPU applies the cached register map in the rename path instead of executing
+move instructions.
 
 This is a programmable RAT mechanism, not a descriptor parser. The hot
 transition path selects an already-programmed slot; it does not fetch a call
