@@ -1380,6 +1380,21 @@ uint64_t POLY_HOST_HELPER poly_host_x86_time(int64_t *out)
   return (uint64_t) now;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_gettimeofday(int64_t *tv, void *tz)
+{
+  (void) tz;
+  if (tv == 0)
+    return (uint64_t) -1;
+  tv[0] = 1712345678;
+  tv[1] = 654321;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_clock(void)
+{
+  return 123456;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_abort(uint64_t *guard)
 {
   uint8_t *bytes = (uint8_t *) guard;

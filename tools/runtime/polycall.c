@@ -493,7 +493,9 @@ enum {
   POLY_IMPORT_FUNC_CLOCK_GETTIME = 190,
   POLY_IMPORT_FUNC_CLOCK_GETRES = 191,
   POLY_IMPORT_FUNC_TIME = 192,
-  POLY_IMPORT_FUNC_COUNT = 193
+  POLY_IMPORT_FUNC_GETTIMEOFDAY = 193,
+  POLY_IMPORT_FUNC_CLOCK = 194,
+  POLY_IMPORT_FUNC_COUNT = 195
 };
 
 enum {
@@ -977,6 +979,8 @@ extern uint64_t poly_host_x86_pthread_cond_broadcast(uint32_t *cond);
 extern uint64_t poly_host_x86_clock_gettime(uint64_t clock_id, int64_t *tp);
 extern uint64_t poly_host_x86_clock_getres(uint64_t clock_id, int64_t *tp);
 extern uint64_t poly_host_x86_time(int64_t *out);
+extern uint64_t poly_host_x86_gettimeofday(int64_t *tv, void *tz);
+extern uint64_t poly_host_x86_clock(void);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1135,7 +1139,8 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "pthread_spin_unlock", "pthread_cond_init", "pthread_cond_destroy",
     "pthread_cond_signal", "pthread_cond_broadcast",
     "clock_gettime", "__clock_gettime64", "clock_getres",
-    "__clock_getres_time64", "time", "__time64",
+    "__clock_getres_time64", "time", "__time64", "gettimeofday",
+    "__gettimeofday", "clock",
     "getpid", "getppid", "getuid", "geteuid",
     "getgid", "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
@@ -1390,6 +1395,10 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_clock_getres;
     case POLY_IMPORT_FUNC_TIME:
       return (uint64_t) (uintptr_t) poly_host_x86_time;
+    case POLY_IMPORT_FUNC_GETTIMEOFDAY:
+      return (uint64_t) (uintptr_t) poly_host_x86_gettimeofday;
+    case POLY_IMPORT_FUNC_CLOCK:
+      return (uint64_t) (uintptr_t) poly_host_x86_clock;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -3169,6 +3178,15 @@ static int resolve_import_function(const char *symbol_name,
   if (strcmp(symbol_name, "time") == 0 ||
       strcmp(symbol_name, "__time64") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_TIME * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "gettimeofday") == 0 ||
+      strcmp(symbol_name, "__gettimeofday") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_GETTIMEOFDAY * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "clock") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CLOCK * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {
