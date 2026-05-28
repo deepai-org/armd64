@@ -61,9 +61,13 @@ coverage, but the preferred generic form is `PCALL_SIG_IMM_MODE`.
 | `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
 | `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
 
-Prototype signature kinds are `0` for the baseline exchange window and `1` for
-x86_64 SysV source argument registers. They are a model of cached hardware
-control state, not a final x86 opcode allocation.
+Prototype signature kinds are `0` for the baseline exchange window, `1` for the
+older x86_64 SysV compatibility mapping, and `2` for the hardware-oriented
+x86_64 SysV register-only mapping. Fast `PCALL_SIG_*` code should use kind `2`
+when it wants RAT-style behavior: `RDI,RSI,RDX,RCX,R8,R9` are rebound to the
+target argument registers and stack arguments are left to software thunks.
+These kinds are a model of cached hardware control state, not a final x86
+opcode allocation.
 
 The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
 `R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V

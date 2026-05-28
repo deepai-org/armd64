@@ -1369,8 +1369,8 @@ int main(void) {
   }
 
   stage("POLY_STAGE: abi-signatures");
-  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV) != 0 ||
-      poly_abi_signature_get(3) != POLY_ABI_SIGNATURE_KIND_X86_SYSV ||
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
+      poly_abi_signature_get(3) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
       poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0 ||
       poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr, "POLY_PROBE_FAIL: ABI signature slot programming mismatch\n");
