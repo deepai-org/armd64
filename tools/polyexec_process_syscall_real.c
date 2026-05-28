@@ -16,6 +16,7 @@ enum {
   POLY_EPOLLIN = 1,
   POLY_EPOLL_CTL_ADD = 1,
   POLY_IN_OPEN = 0x20,
+  POLY_POLLIN = 1,
   POLY_O_DIRECTORY = 0200000,
   POLY_O_CLOEXEC = 02000000,
   POLY_F_GETFD = 1,
@@ -57,6 +58,7 @@ enum {
   POLY_SYS_WRITEV = 66,
   POLY_SYS_PREAD64 = 67,
   POLY_SYS_PWRITE64 = 68,
+  POLY_SYS_PPOLL = 73,
   POLY_SYS_SIGNALFD4 = 74,
   POLY_SYS_READLINKAT = 78,
   POLY_SYS_NEWFSTATAT = 79,
@@ -138,6 +140,12 @@ struct poly_linux_generic_statfs {
 struct poly_iovec {
   uint64_t base;
   uint64_t len;
+};
+
+struct poly_pollfd {
+  int32_t fd;
+  int16_t events;
+  int16_t revents;
 };
 
 struct poly_epoll_event {
@@ -331,6 +339,11 @@ static long poly_syscall3(long number, long arg0, long arg1, long arg2) {
 static long poly_syscall4(long number, long arg0, long arg1, long arg2,
     long arg3) {
   return poly_syscall6(number, arg0, arg1, arg2, arg3, 0, 0);
+}
+
+static long poly_syscall5(long number, long arg0, long arg1, long arg2,
+    long arg3, long arg4) {
+  return poly_syscall6(number, arg0, arg1, arg2, arg3, arg4, 0);
 }
 
 static int poly_streq(const char *left, const char *right) {
@@ -722,6 +735,33 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (socket_buffer[0] != 'S' || socket_buffer[1] != 'O' ||
       socket_buffer[2] != 'C' || socket_buffer[3] != 'K')
     return 155;
+
+  if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
+    return 156;
+  static const char poll_message[] = "P";
+  if (poly_syscall3(POLY_SYS_WRITE, pipe_fds[1],
+        (long) poll_message, sizeof(poll_message) - 1) !=
+      (long) sizeof(poll_message) - 1) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 157;
+  }
+  struct poly_pollfd poll_fd = { pipe_fds[0], POLY_POLLIN, 0 };
+  struct poly_timespec poll_timeout = { 0, 0 };
+  if (poly_syscall5(POLY_SYS_PPOLL, (long) &poll_fd, 1,
+        (long) &poll_timeout, 0, 0) != 1) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 158;
+  }
+  if ((poll_fd.revents & POLY_POLLIN) == 0) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 159;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0)
+    return 160;
 
   fd = poly_syscall2(POLY_SYS_EVENTFD2, 0, 0);
   if (fd < 0)
