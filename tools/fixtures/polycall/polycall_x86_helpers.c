@@ -1350,6 +1350,36 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_cond_broadcast(uint32_t *cond)
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_clock_gettime(uint64_t clock_id,
+    int64_t *tp)
+{
+  (void) clock_id;
+  if (tp == 0)
+    return (uint64_t) -1;
+  tp[0] = 1712345678;
+  tp[1] = 123456789;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_clock_getres(uint64_t clock_id,
+    int64_t *tp)
+{
+  (void) clock_id;
+  if (tp == 0)
+    return (uint64_t) -1;
+  tp[0] = 0;
+  tp[1] = 1;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_time(int64_t *out)
+{
+  const int64_t now = 1712345678;
+  if (out != 0)
+    *out = now;
+  return (uint64_t) now;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_abort(uint64_t *guard)
 {
   uint8_t *bytes = (uint8_t *) guard;

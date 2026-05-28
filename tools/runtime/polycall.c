@@ -490,7 +490,10 @@ enum {
   POLY_IMPORT_FUNC_PTHREAD_COND_DESTROY = 187,
   POLY_IMPORT_FUNC_PTHREAD_COND_SIGNAL = 188,
   POLY_IMPORT_FUNC_PTHREAD_COND_BROADCAST = 189,
-  POLY_IMPORT_FUNC_COUNT = 190
+  POLY_IMPORT_FUNC_CLOCK_GETTIME = 190,
+  POLY_IMPORT_FUNC_CLOCK_GETRES = 191,
+  POLY_IMPORT_FUNC_TIME = 192,
+  POLY_IMPORT_FUNC_COUNT = 193
 };
 
 enum {
@@ -971,6 +974,9 @@ extern uint64_t poly_host_x86_pthread_cond_init(uint32_t *cond,
 extern uint64_t poly_host_x86_pthread_cond_destroy(uint32_t *cond);
 extern uint64_t poly_host_x86_pthread_cond_signal(uint32_t *cond);
 extern uint64_t poly_host_x86_pthread_cond_broadcast(uint32_t *cond);
+extern uint64_t poly_host_x86_clock_gettime(uint64_t clock_id, int64_t *tp);
+extern uint64_t poly_host_x86_clock_getres(uint64_t clock_id, int64_t *tp);
+extern uint64_t poly_host_x86_time(int64_t *out);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1128,6 +1134,8 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "pthread_spin_destroy", "pthread_spin_lock", "pthread_spin_trylock",
     "pthread_spin_unlock", "pthread_cond_init", "pthread_cond_destroy",
     "pthread_cond_signal", "pthread_cond_broadcast",
+    "clock_gettime", "__clock_gettime64", "clock_getres",
+    "__clock_getres_time64", "time", "__time64",
     "getpid", "getppid", "getuid", "geteuid",
     "getgid", "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
@@ -1376,6 +1384,12 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_cond_signal;
     case POLY_IMPORT_FUNC_PTHREAD_COND_BROADCAST:
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_cond_broadcast;
+    case POLY_IMPORT_FUNC_CLOCK_GETTIME:
+      return (uint64_t) (uintptr_t) poly_host_x86_clock_gettime;
+    case POLY_IMPORT_FUNC_CLOCK_GETRES:
+      return (uint64_t) (uintptr_t) poly_host_x86_clock_getres;
+    case POLY_IMPORT_FUNC_TIME:
+      return (uint64_t) (uintptr_t) poly_host_x86_time;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -3140,6 +3154,21 @@ static int resolve_import_function(const char *symbol_name,
   if (strcmp(symbol_name, "pthread_cond_broadcast") == 0) {
     *symbol_value =
       POLY_IMPORT_FUNC_PTHREAD_COND_BROADCAST * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "clock_gettime") == 0 ||
+      strcmp(symbol_name, "__clock_gettime64") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CLOCK_GETTIME * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "clock_getres") == 0 ||
+      strcmp(symbol_name, "__clock_getres_time64") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CLOCK_GETRES * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "time") == 0 ||
+      strcmp(symbol_name, "__time64") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_TIME * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {

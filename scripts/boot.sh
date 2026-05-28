@@ -80,6 +80,7 @@ POLYCALL_PTHREAD_RWLOCK_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_pth
 POLYCALL_PTHREAD_MUTEXATTR_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_pthread_mutexattr_real.c"
 POLYCALL_PTHREAD_SPIN_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_pthread_spin_real.c"
 POLYCALL_PTHREAD_COND_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_pthread_cond_real.c"
+POLYCALL_TIME_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_time_real.c"
 POLYCALL_ATEXIT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_atexit_real.c"
 POLYCALL_CXA_GUARD_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_cxa_guard_real.c"
 POLYCALL_CXX_STATIC_GUARD_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_cxx_static_guard_real.cc"
@@ -559,6 +560,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PTHREAD_COND_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-pthread-cond-real.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_TIME_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-time-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_IMPORT_VALUE_REAL_SRC" \
@@ -2227,6 +2232,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_PTHREAD_COND_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-pthread-cond-real.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_TIME_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-time-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -5321,6 +5331,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-pthread-mutexattr-real.so#poly_entry=132 \
     /usr/lib/polyapps/aarch64-pcall-pthread-spin-real.so#poly_entry=141 \
     /usr/lib/polyapps/aarch64-pcall-pthread-cond-real.so#poly_entry=152 \
+    /usr/lib/polyapps/aarch64-pcall-time-real.so#poly_entry=164 \
     /usr/lib/polyapps/aarch64-pcall-import-value-real.so#poly_entry=168 \
     /usr/lib/polyapps/aarch64-pcall-weak-import-real.so#poly_entry=8 \
     /usr/lib/polyapps/aarch64-pcall-gnu-unique-real.so#poly_entry=745 \
@@ -5551,6 +5562,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-pthread-mutexattr-real.so#poly_entry=132 \
     /usr/lib/polyapps/riscv-pcall-pthread-spin-real.so#poly_entry=141 \
     /usr/lib/polyapps/riscv-pcall-pthread-cond-real.so#poly_entry=152 \
+    /usr/lib/polyapps/riscv-pcall-time-real.so#poly_entry=164 \
     /usr/lib/polyapps/riscv-pcall-import-value-real.so#poly_entry=168 \
     /usr/lib/polyapps/riscv-pcall-weak-import-real.so#poly_entry=8 \
     /usr/lib/polyapps/riscv-pcall-gnu-unique-real.so#poly_entry=745 \
@@ -6046,6 +6058,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-pthread-mutexattr-real.so \
       /usr/lib/polyapps/aarch64-pcall-pthread-spin-real.so \
       /usr/lib/polyapps/aarch64-pcall-pthread-cond-real.so \
+      /usr/lib/polyapps/aarch64-pcall-time-real.so \
       /usr/lib/polyapps/aarch64-pcall-stack-protector-real.so \
       /usr/lib/polyapps/aarch64-pcall-getauxval-real.so \
       /usr/lib/polyapps/aarch64-pcall-errno-real.so \
@@ -6214,6 +6227,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-pthread-mutexattr-real.so \
       /usr/lib/polyapps/riscv-pcall-pthread-spin-real.so \
       /usr/lib/polyapps/riscv-pcall-pthread-cond-real.so \
+      /usr/lib/polyapps/riscv-pcall-time-real.so \
       /usr/lib/polyapps/riscv-pcall-stack-protector-real.so \
       /usr/lib/polyapps/riscv-pcall-getauxval-real.so \
       /usr/lib/polyapps/riscv-pcall-errno-real.so \
