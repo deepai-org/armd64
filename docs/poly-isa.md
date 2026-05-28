@@ -1187,7 +1187,9 @@ the native foreign vector return location. Bit `8` maps the first two
 GPR-pair 128-bit vector arguments into x86 `XMM0/XMM1`, currently for RISC-V
 `vector_size(16)` objects that the psABI lowers through `a0/a1` and `a2/a3`.
 Bit `9` maps the AAPCS64 hidden large-aggregate result pointer in AArch64 `x8`
-to x86 SysV `RDI` and shifts AArch64 `x0`-`x4` to x86 `RSI`/`RDX`/`RCX`/`R8`/`R9`.
+to x86 SysV `RDI` and shifts AArch64 `x0`-`x4` to x86 `RSI`/`RDX`/`RCX`/`R8`/`R9`;
+when bit `0` also requests x86 stack arguments, the first stack qword comes
+from AArch64 `x5`, then `x6`, then `x7`, before reading the foreign stack.
 These fields are runtime metadata, not CPU-side helper-ID policy.
 The same descriptor path currently provides prototype imports for common GCC
 dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64

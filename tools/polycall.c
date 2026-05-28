@@ -450,7 +450,8 @@ enum {
   POLY_IMPORT_FUNC_X86_FPAIR32 = 147,
   POLY_IMPORT_FUNC_X86_VEC128_U32 = 148,
   POLY_IMPORT_FUNC_X86_SRET_U64 = 149,
-  POLY_IMPORT_FUNC_COUNT = 150
+  POLY_IMPORT_FUNC_X86_SRET_U64_STACK = 150,
+  POLY_IMPORT_FUNC_COUNT = 151
 };
 
 enum {
@@ -801,6 +802,8 @@ struct poly_host_sret_u64 {
 };
 extern struct poly_host_sret_u64 poly_host_x86_sret_u64(uint64_t a,
     uint64_t b, uint64_t c);
+extern struct poly_host_sret_u64 poly_host_x86_sret_u64_stack(uint64_t a,
+    uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f);
 extern double poly_host_x86_mixed_u64_fp64(uint64_t a, double b, uint64_t c,
     double d, uint64_t e, double f);
 extern float poly_host_x86_fp32_add(float a, float b);
@@ -1086,6 +1089,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_vec128_u32;
     case POLY_IMPORT_FUNC_X86_SRET_U64:
       return (uint64_t) (uintptr_t) poly_host_x86_sret_u64;
+    case POLY_IMPORT_FUNC_X86_SRET_U64_STACK:
+      return (uint64_t) (uintptr_t) poly_host_x86_sret_u64_stack;
     case POLY_IMPORT_FUNC_X86_SLOT7:
       return (uint64_t) (uintptr_t) poly_host_x86_mixed_u64_fp64;
     case POLY_IMPORT_FUNC_STRLEN:
@@ -1430,6 +1435,11 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
       if (arch == POLY_ARCH_AARCH64)
         return POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8;
       return 0;
+    case POLY_IMPORT_FUNC_X86_SRET_U64_STACK:
+      if (arch == POLY_ARCH_AARCH64)
+        return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS |
+          POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8;
+      return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS;
     default:
       return 0;
   }
@@ -1442,6 +1452,8 @@ static uint64_t x86_descriptor_stack_arg_count_for_import_id(
       return 4;
     case POLY_IMPORT_FUNC_X86_FP64_SUM10:
       return 2;
+    case POLY_IMPORT_FUNC_X86_SRET_U64_STACK:
+      return 1;
     case POLY_IMPORT_FUNC_X86_SLOT5:
     case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
       return 2;
@@ -2861,6 +2873,11 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_sret_u64") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_X86_SRET_U64 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_sret_u64_stack") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_X86_SRET_U64_STACK * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
@@ -4653,6 +4670,7 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_fpair32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64") == 0 ||
+        strcmp(symbol_name, "poly_import_x86_sret_u64_stack") == 0 ||
         strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp32_add") == 0 ||
         import_symbol_uses_x86_descriptor(symbol_name))
