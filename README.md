@@ -1,58 +1,53 @@
 # armd64
 
-Bochs prototype for running existing precompiled AArch64 and RISC-V userspace
-code inside an x86_64 Linux guest process.
+Prototype x86_64 machine with ISA extensions for running existing precompiled
+AArch64 and RISC-V userspace code in the same virtual address space.
 
-- Modified Bochs tree: `bochs-prepoly-src/`
-- Detailed ISA notes: `docs/poly-isa.md`
+- Bochs CPU implementation: `bochs-prepoly-src/`
+- Full ISA details: `docs/poly-isa.md`
 
-## Run
+## Build And Run
 
 Requires Docker with `linux/arm64` container support.
 
 ```bash
 make image
-```
-
-Common boot targets:
-
-```bash
 make boot                         # baseline x86_64 guest
-make boot-poly-arch-traps         # CPUID, xstate, traps, native checks
-make boot-poly-call-arch-traps    # cross-ISA calls, pthreads, signals
+make boot-poly-arch-traps         # CPUID, xstate, traps
+make boot-poly-call-arch-traps    # cross-ISA calls, threads, signals
 make boot-poly-binfmt-arch-traps  # foreign ELF/binfmt execution
-make boot-poly-full-arch-traps    # all poly checks
+make boot-poly-full-arch-traps    # full poly test set
 ```
 
-Check the serial log:
+Useful serial-log check:
 
 ```bash
 grep -a -E 'BOOT_OK|NATIVE_CHECK_OK|POLYCALL_OK|POLYTHREAD_OK|POLYSIGNAL_OK|POLYBINFMT_OK|FAIL|Kernel panic' out/serial.log
 ```
 
-Run `make image` again after changing Bochs or guest test sources.
+Run `make image` again after changing Bochs, tools, or guest test sources.
 
-## ISA Delta From x86_64
+## How The ISA Differs From x86_64
 
-The base CPU is still x86_64. Long mode, paging, privilege levels, interrupts,
+The base architecture is still x86_64: paging, privilege levels, interrupts,
 exceptions, syscall entry, atomics, and memory ordering use x86_64 rules.
 
-The polyglot extension adds:
+The extension adds:
 
-- Raw AArch64 and RISC-V frontend modes that fetch native instructions from the
-  same guest virtual address space.
-- CPUID-gated x86 poly operations. The Bochs prototype encodes them as
-  `0f 24 <op> 50 4f 4c 59 21`; production hardware would use real allocated
-  opcodes, not `UD2` traps.
-- Native ABI call bridges for existing code, not a new compiler-only ABI:
-  x86_64 SysV calls can enter AArch64 AAPCS64 or RISC-V psABI code and return
-  through normal foreign return instructions.
-- Architectural foreign state for registers that do not alias x86_64 state.
-  The prototype exposes export/import operations using the same fixed xstate
-  layout that hardware should make OS-saveable.
-- OS-neutral trap records for foreign syscalls, breakpoints, illegal
-  instructions, and faults. Software decides how to translate those events;
-  the CPU path does not implement Linux or libc policy.
+- Raw AArch64 and RISC-V frontend modes. The CPU fetches native 32-bit foreign
+  instructions from `RIP` in the same guest virtual address space.
+- x86 poly instructions for entering foreign modes, cross-ISA calls, state
+  export/import, and trap return. The prototype uses temporary Bochs-only
+  encodings; hardware should use allocated opcodes.
+- Native ABI interop. x86_64 SysV code can call AArch64 AAPCS64 and RISC-V
+  psABI code, and foreign code can return with ordinary native return
+  instructions.
+- Architectural foreign register state. Registers that cannot alias x86_64
+  state use a fixed xstate-style layout so an OS or runtime can save/restore
+  them explicitly.
+- OS-neutral trap records. Foreign syscalls, breakpoints, illegal instructions,
+  and faults exit to x86 with structured state. The CPU does not implement
+  Linux, libc, or loader policy.
 
-See `docs/poly-isa.md` for opcode IDs, CPUID leaves, trap-frame layout, and the
+See `docs/poly-isa.md` for the exact encodings, CPUID leaves, trap records, and
 current ABI bridge coverage.
