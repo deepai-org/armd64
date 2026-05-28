@@ -437,6 +437,16 @@ static inline void aarch64_generic_switch_riscv_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void aarch64_generic_switch_x86_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x10000070\n" // adr x16, target
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0xd5032f1f\n" // aarch64 generic poly switch
+    "movq $57, %%rax\n" // target: ordinary x86 after frontend switch
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 static inline void riscv_generic_switch_aarch64_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
@@ -446,6 +456,17 @@ static inline void riscv_generic_switch_aarch64_probe(void) {
     ".long 0x1000700b\n" // riscv generic poly switch
     ".long 0xd28005a0\n" // target: movz x0,#45
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void riscv_generic_switch_x86_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000297\n" // auipc x5,0
+    ".long 0x01028293\n" // addi x5,x5,16
+    ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
+    ".long 0x1000700b\n" // riscv generic poly switch
+    "movq $58, %%rax\n" // target: ordinary x86 after frontend switch
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
@@ -1318,9 +1339,19 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 generic switch to riscv mismatch\n");
     return 1;
   }
+  aarch64_generic_switch_x86_probe();
+  if (read_rax() != 57) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 generic switch to x86 mismatch\n");
+    return 1;
+  }
   riscv_generic_switch_aarch64_probe();
   if (read_rax() != 45) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv generic switch to aarch64 mismatch\n");
+    return 1;
+  }
+  riscv_generic_switch_x86_probe();
+  if (read_rax() != 58) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv generic switch to x86 mismatch\n");
     return 1;
   }
   aarch64_generic_call_riscv_probe();
