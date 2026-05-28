@@ -31,7 +31,7 @@ boot-poly:
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
-		-e RUN_POLY_EXEC=0 \
+		-e RUN_POLY_EXEC=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
@@ -114,7 +114,7 @@ boot-poly-full-arch-traps:
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
-		-e RUN_POLY_EXEC=0 \
+		-e RUN_POLY_EXEC=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e RUN_POLY_CALL=1 \
 		-e RUN_POLY_THREAD=1 \
@@ -134,7 +134,7 @@ boot-poly-full:
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
-		-e RUN_POLY_EXEC=0 \
+		-e RUN_POLY_EXEC=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e RUN_POLY_CALL=1 \
 		-e RUN_POLY_THREAD=1 \
