@@ -13,6 +13,8 @@ enum {
   POLY_SYS_CLOSE = 57,
   POLY_SYS_READ = 63,
   POLY_SYS_WRITE = 64,
+  POLY_SYS_READV = 65,
+  POLY_SYS_WRITEV = 66,
   POLY_SYS_NEWFSTATAT = 79,
   POLY_SYS_FSTAT = 80,
   POLY_SYS_EXIT = 93,
@@ -49,6 +51,11 @@ struct poly_linux_generic_stat {
   uint64_t ctime_nsec;
   uint32_t unused4;
   uint32_t unused5;
+};
+
+struct poly_iovec {
+  uint64_t base;
+  uint64_t len;
 };
 
 static long poly_syscall6(long number, long arg0, long arg1, long arg2,
@@ -169,11 +176,30 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       file_bytes[2] != 'L' || file_bytes[3] != 'F')
     return 32;
 
+  char vec0[2];
+  char vec1[2];
+  struct poly_iovec read_iov[2] = {
+    { (uint64_t) (uintptr_t) vec0, sizeof(vec0) },
+    { (uint64_t) (uintptr_t) vec1, sizeof(vec1) }
+  };
+  fd = poly_syscall3(POLY_SYS_OPENAT, -100, (long) "/usr/bin/polyexec", 0);
+  if (fd < 0)
+    return 41;
+  if (poly_syscall3(POLY_SYS_READV, fd, (long) read_iov, 2) != 4) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 43;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 44;
+  if (vec0[0] != 0x7f || vec0[1] != 'E' || vec1[0] != 'L' ||
+      vec1[1] != 'F')
+    return 45;
+
   long page = poly_syscall6(POLY_SYS_MMAP, 0, 4096,
     POLY_PROT_READ | POLY_PROT_WRITE,
     POLY_MAP_PRIVATE | POLY_MAP_ANONYMOUS, -1, 0);
   if (page < 0)
-    return 37;
+    return 46;
 
   unsigned char *mapped = (unsigned char *) page;
   mapped[0] = 0x50;
@@ -182,20 +208,25 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   mapped[3] = 0x59;
   if (poly_syscall3(POLY_SYS_MPROTECT, page, 4096, POLY_PROT_READ) != 0) {
     poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
-    return 38;
+    return 47;
   }
   if (mapped[0] != 0x50 || mapped[1] != 0x4f ||
       mapped[2] != 0x4c || mapped[3] != 0x59) {
     poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
-    return 39;
+    return 48;
   }
   if (poly_syscall2(POLY_SYS_MUNMAP, page, 4096) != 0)
-    return 40;
+    return 49;
 
-  static const char marker[] = "POLY_PROCESS_SYSCALL_OK\n";
-  if (poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
-        sizeof(marker) - 1) != (long) sizeof(marker) - 1)
-    return 41;
+  static const char marker0[] = "POLY_PROCESS_";
+  static const char marker1[] = "SYSCALL_OK\n";
+  struct poly_iovec write_iov[2] = {
+    { (uint64_t) (uintptr_t) marker0, sizeof(marker0) - 1 },
+    { (uint64_t) (uintptr_t) marker1, sizeof(marker1) - 1 }
+  };
+  if (poly_syscall3(POLY_SYS_WRITEV, 1, (long) write_iov, 2) !=
+      (long) (sizeof(marker0) + sizeof(marker1) - 2))
+    return 50;
 
   return 42;
 }
