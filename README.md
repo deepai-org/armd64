@@ -1,25 +1,22 @@
 # armd64
 
-Bochs x86_64 VM prototype for running existing precompiled AArch64/RISC-V
-userspace code alongside x86_64 code. Detailed ISA notes are in
-`docs/poly-isa.md`.
+Bochs x86_64 VM prototype for running precompiled AArch64 and RISC-V userspace
+code in the same virtual address space as x86_64 code.
 
 ## Run
 
-Requires Docker with `linux/arm64` support. Re-run `make image` after changing
-Bochs, guest tools, or guest tests.
+Requires Docker with `linux/arm64` support.
 
 ```bash
 make image
-make boot                         # baseline x86_64 guest
-make boot-poly-arch-traps         # CPUID, xstate, trap ABI
-make boot-poly-call-arch-traps    # cross-ISA calls, threads, signals
-make boot-poly-binfmt-arch-traps  # foreign ELF/binfmt path
-make boot-poly-bench-arch-traps   # interop benchmarks
-make boot-poly-full-arch-traps    # full test set
+make boot                       # baseline x86_64 Linux guest
+make boot-poly-full-arch-traps  # broad poly regression run
 ```
 
-Check the serial log:
+Focused targets: `boot-poly-arch-traps`, `boot-poly-call-arch-traps`,
+`boot-poly-binfmt-arch-traps`, and `boot-poly-bench-arch-traps`.
+
+Rebuild the image after changing Bochs, guest tools, or guest tests. Check the log:
 
 ```bash
 grep -a -E 'OK|FAIL|Kernel panic|Oops' out/serial.log
@@ -27,15 +24,15 @@ grep -a -E 'OK|FAIL|Kernel panic|Oops' out/serial.log
 
 ## ISA Differences From x64
 
-- x64 stays in charge of page tables, privilege, interrupts, exceptions, syscall
-  entry, atomics, virtual memory, and TSO memory ordering.
-- Explicit x64 poly operations switch to raw AArch64/RISC-V frontends; foreign
-  instructions are fetched directly, not wrapped in one `#UD` envelope each.
-- Foreign code shares the x64 virtual address space, permissions, and memory model.
-- Cross-ISA calls bridge real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI.
-- Non-x64 registers are architectural XSAVE-style state, not hidden emulator state.
-- Foreign syscalls, imports, breakpoints, illegal instructions, and faults produce
-  OS-neutral trap records; software decides policy.
-- Bochs currently uses temporary `0f 24 ... "POLY!"` encodings. Hardware would need
-  assigned opcodes.
+- x86_64 owns page tables, privilege, interrupts, exceptions, syscalls, atomics,
+  virtual memory, and TSO ordering.
+- Poly enter/call instructions switch to raw AArch64 or RISC-V fetch. There are no
+  per-instruction `#UD` envelopes.
+- Foreign code shares the x86_64 virtual address space, permissions, and memory model.
+- Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, RISC-V psABI.
+- Foreign state is XSAVE-style CPU state, not hidden CR3-scoped emulator state.
+- Foreign syscalls, imports, breakpoints, illegal instructions, and faults become
+  OS-neutral trap records.
+- Prototype encodings use temporary `0f 24 ... "POLY!"`; hardware needs real opcodes.
+
+Full ISA notes: `docs/poly-isa.md`.
