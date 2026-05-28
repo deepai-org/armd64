@@ -1,51 +1,49 @@
 # Tools
 
-`tools/` is source-only. Generated ELFs, initramfs contents, disk images, logs,
-and temporary build products belong under `out/`.
+`tools/` is source-only. Build outputs, initramfs contents, disk images, logs,
+and scratch files belong under `out/`.
 
 ## Layout
 
-| Path | Contents |
+| Path | Purpose |
 | --- | --- |
-| `include/` | Shared userspace constants for CPUID leaves, traps, imports, and poly XSAVE state. |
+| `include/` | Shared CPUID, mode, trap, import, and XSAVE-style state constants. |
 | `runtime/` | Guest loaders and wrappers: `polycall`, `polyexec`, and binfmt glue. |
-| `programs/` | x86_64 guest programs for probes, raw payloads, threads, signals, benchmarks, and native checks. |
-| `build/` | Host-side helper sources, currently `mkpolyelf`. |
-| `fixtures/polyapps/` | Hand-authored raw AArch64/RISC-V `.poly` payload descriptions. |
-| `fixtures/polycall/` | Native-ABI shared-object fixtures for `polycall` compatibility tests. |
-| `fixtures/polyexec/` | Process-mode foreign ELF fixtures for `polyexec` tests. |
+| `programs/` | x86_64 guest probes, smoke tests, thread/signal tests, and benchmarks. |
+| `build/` | Host-side build helpers. |
+| `fixtures/polyapps/` | Hand-authored raw frontend/syscall/trap `.poly` payloads. |
+| `fixtures/polycall/` | Native-ABI shared-object fixtures for linked-library compatibility. |
+| `fixtures/polyexec/` | Foreign process-mode ELF fixtures. |
 
-## Runtime Pieces
+The large fixture directories are intentional test coverage. Do not reorganize
+fixture paths without updating `scripts/boot.sh`.
 
-- `runtime/polycall.c`: shared-object loader, dynamic-linker subset, ABI bridge,
-  generated thunks, descriptor imports, and runtime compatibility helpers.
-- `runtime/polyexec.c`: process-style runner for foreign ELF tests.
-- `runtime/polybinfmt.sh`: guest-side wrapper used by binfmt boot tests.
-- `build/mkpolyelf.c`: converts `fixtures/polyapps/*.poly` descriptions into
-  guest ELFs during image construction.
+## Main Files
 
-## Fixture Naming
+- `runtime/polycall.c`: shared-object loader, ABI bridge, thunks, relocations,
+  TLS, IFUNC, descriptor imports, and helper imports.
+- `runtime/polyexec.c`: process-style foreign ELF runner.
+- `runtime/polybinfmt.sh`: guest binfmt wrapper.
+- `build/mkpolyelf.c`: converts `fixtures/polyapps/*.poly` into guest ELFs.
 
-- `*_main_real.*`: primary shared object for a dependency-chain test.
-- `*_dep_real.*`, `*_leaf_real.*`, `*_mid_real.*`: dependency objects.
-- `*_import_real.*`: fixture that expects a runtime or x86 helper import.
-- `*_cross_*`: cross-ISA dependency or callback fixture.
-- `*_x86_*_import_real.*`: foreign fixture calling back into an x86 helper.
-- `*_fp*`, `*_hfa*`, `*_hetero*`, `*_vec128*`, `*_sret*`: ABI shape fixtures.
-- `*_pthread_*`, `*_alloc_*`, `*_env_*`, `*_process_*`, `*_tls_*`: runtime and
-  libc-compatibility fixtures.
+## Fixture Taxonomy
 
-`fixtures/polyapps/*.poly` files are focused raw frontend, instruction-subset,
-syscall, trap, and memory tests. Compatibility with precompiled shared
-libraries is covered mainly by `fixtures/polycall/`.
+- `fixtures/polyapps/*.poly`: frontend, instruction, memory, syscall, and trap
+  tests.
+- `fixtures/polycall/*_real.*`: precompiled shared-object compatibility tests.
+- `*_main_real.*`, `*_dep_real.*`, `*_leaf_real.*`, `*_mid_real.*`: dependency tests.
+- `*_import_real.*`, `*_x86_*_import_real.*`: helper and x86 callback imports.
+- `*_fp*`, `*_hfa*`, `*_hetero*`, `*_vec128*`, `*_sret*`, `*_longdouble*`, `*_int128*`: ABI shape coverage.
+- `*_cross_*`: AArch64/RISC-V mixed dependency and callback coverage.
+- `*_pthread_*`, `*_alloc_*`, `*_env_*`, `*_process_*`, `*_tls_*`: libc/runtime
+  compatibility coverage.
 
 ## Validation
 
-Prefer real boot tests over contract-script expansion:
+Prefer real boot tests:
 
 - `make boot-poly-binfmt-arch-traps`
 - `make boot-poly-call-arch-traps`
 - `make boot-poly-full-arch-traps`
 
-Use `make check-poly-import-ids` and related checks only as quick consistency
-smoke tests. Those scripts live under `scripts/checks/`, not `tools/`.
+Use `scripts/checks/` only for quick consistency checks such as import ID drift.
