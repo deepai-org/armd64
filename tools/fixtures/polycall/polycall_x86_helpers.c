@@ -20,6 +20,9 @@ static volatile uint64_t poly_host_x86_zero;
 static int poly_host_errno_value;
 static uint8_t poly_host_heap[64 * 1024];
 static uint64_t poly_host_heap_cursor;
+static uint8_t poly_host_pthread_key_used[32];
+static void *poly_host_pthread_key_values[32];
+static void *poly_host_pthread_key_destructors[32];
 
 enum {
   POLY_HOST_HEAP_HEADER_SIZE = 16
@@ -1002,6 +1005,49 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_once(uint32_t *once_control,
   if (!__sync_bool_compare_and_swap(once_control, 0, 1))
     return 0;
   return poly_runtime_call_foreign_void(init_routine);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_key_create(uint32_t *key,
+    void *destructor)
+{
+  if (key == 0)
+    return 22;
+  for (uint32_t n = 0; n < 32; n++) {
+    if (poly_host_pthread_key_used[n] == 0) {
+      poly_host_pthread_key_used[n] = 1;
+      poly_host_pthread_key_values[n] = 0;
+      poly_host_pthread_key_destructors[n] = destructor;
+      *key = n;
+      return 0;
+    }
+  }
+  return 11;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_key_delete(uint32_t key)
+{
+  if (key >= 32 || poly_host_pthread_key_used[key] == 0)
+    return 22;
+  poly_host_pthread_key_used[key] = 0;
+  poly_host_pthread_key_values[key] = 0;
+  poly_host_pthread_key_destructors[key] = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_getspecific(uint32_t key)
+{
+  if (key >= 32 || poly_host_pthread_key_used[key] == 0)
+    return 0;
+  return (uint64_t) (uintptr_t) poly_host_pthread_key_values[key];
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_setspecific(uint32_t key,
+    const void *value)
+{
+  if (key >= 32 || poly_host_pthread_key_used[key] == 0)
+    return 22;
+  poly_host_pthread_key_values[key] = (void *) value;
+  return 0;
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)

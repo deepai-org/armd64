@@ -459,7 +459,11 @@ enum {
   POLY_IMPORT_FUNC_BSEARCH = 156,
   POLY_IMPORT_FUNC_QSORT_R = 157,
   POLY_IMPORT_FUNC_PTHREAD_ONCE = 158,
-  POLY_IMPORT_FUNC_COUNT = 159
+  POLY_IMPORT_FUNC_PTHREAD_KEY_CREATE = 159,
+  POLY_IMPORT_FUNC_PTHREAD_KEY_DELETE = 160,
+  POLY_IMPORT_FUNC_PTHREAD_GETSPECIFIC = 161,
+  POLY_IMPORT_FUNC_PTHREAD_SETSPECIFIC = 162,
+  POLY_IMPORT_FUNC_COUNT = 163
 };
 
 enum {
@@ -901,6 +905,12 @@ extern uint64_t poly_host_x86_qsort_r(void *base, uint64_t nmemb,
     uint64_t size, void *compar, void *arg);
 extern uint64_t poly_host_x86_pthread_once(uint32_t *once_control,
     void *init_routine);
+extern uint64_t poly_host_x86_pthread_key_create(uint32_t *key,
+    void *destructor);
+extern uint64_t poly_host_x86_pthread_key_delete(uint32_t key);
+extern uint64_t poly_host_x86_pthread_getspecific(uint32_t key);
+extern uint64_t poly_host_x86_pthread_setspecific(uint32_t key,
+    const void *value);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1044,9 +1054,10 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
     "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
-    "memalign", "qsort", "bsearch", "qsort_r", "pthread_once", "atexit",
-    "__cxa_atexit", "__cxa_finalize", "getpid", "getppid", "getuid",
-    "geteuid", "getgid", "getegid", "gettid",
+    "memalign", "qsort", "bsearch", "qsort_r", "pthread_once",
+    "pthread_key_create", "pthread_key_delete", "pthread_getspecific",
+    "pthread_setspecific", "atexit", "__cxa_atexit", "__cxa_finalize",
+    "getpid", "getppid", "getuid", "geteuid", "getgid", "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
     "__cxa_guard_abort",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
@@ -1231,6 +1242,14 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_qsort_r;
     case POLY_IMPORT_FUNC_PTHREAD_ONCE:
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_once;
+    case POLY_IMPORT_FUNC_PTHREAD_KEY_CREATE:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_key_create;
+    case POLY_IMPORT_FUNC_PTHREAD_KEY_DELETE:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_key_delete;
+    case POLY_IMPORT_FUNC_PTHREAD_GETSPECIFIC:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_getspecific;
+    case POLY_IMPORT_FUNC_PTHREAD_SETSPECIFIC:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_setspecific;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -2842,6 +2861,26 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "pthread_once") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_PTHREAD_ONCE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_key_create") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_KEY_CREATE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_key_delete") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_KEY_DELETE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_getspecific") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_GETSPECIFIC * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_setspecific") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_SETSPECIFIC * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {

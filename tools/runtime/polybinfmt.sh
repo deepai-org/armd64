@@ -109,6 +109,7 @@ case "$path" in
   */aarch64-pcall-bsearch-real.so) set_polycall 136 ;;
   */aarch64-pcall-qsort-r-real.so) set_polycall 194 ;;
   */aarch64-pcall-pthread-once-real.so) set_polycall 77 ;;
+  */aarch64-pcall-pthread-key-real.so) set_polycall 91 ;;
   */aarch64-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
@@ -297,6 +298,7 @@ case "$path" in
   */riscv-pcall-bsearch-real.so) set_polycall 136 ;;
   */riscv-pcall-qsort-r-real.so) set_polycall 194 ;;
   */riscv-pcall-pthread-once-real.so) set_polycall 77 ;;
+  */riscv-pcall-pthread-key-real.so) set_polycall 91 ;;
   */riscv-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
