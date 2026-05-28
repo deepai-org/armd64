@@ -86,6 +86,14 @@ static uint64_t *poly_auxv_after_env(char **envp) {
   return (uint64_t *) (envp + 1);
 }
 
+static int poly_auxv_terminates(uint64_t *auxv) {
+  for (unsigned n = 0; n < 64; n++, auxv += 2) {
+    if (auxv[0] == POLY_AT_NULL)
+      return auxv[1] == 0;
+  }
+  return 0;
+}
+
 static uint64_t poly_aux_get(uint64_t *auxv, uint64_t type) {
   for (; auxv[0] != POLY_AT_NULL; auxv += 2) {
     if (auxv[0] == type)
@@ -123,6 +131,14 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     "";
 #endif
 
+  if (((uintptr_t) initial_sp & 15U) != 0)
+    return 44;
+  if (((uintptr_t) argv & 7U) != 0 ||
+      ((uintptr_t) envp & 7U) != 0 ||
+      ((uintptr_t) auxv & 7U) != 0)
+    return 45;
+  if (!poly_auxv_terminates(auxv))
+    return 46;
   if (argc != 3)
     return 10 + argc;
   if (!argv[0] || !poly_contains(argv[0], "process-argv-envp"))
