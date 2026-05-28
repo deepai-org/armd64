@@ -48,6 +48,14 @@ enum {
   POLY_AT_REMOVEDIR = 0x200,
   POLY_STATX_BASIC_STATS = 0x7ff,
 
+  POLY_SYS_SETXATTR = 5,
+  POLY_SYS_FSETXATTR = 7,
+  POLY_SYS_GETXATTR = 8,
+  POLY_SYS_FGETXATTR = 10,
+  POLY_SYS_LISTXATTR = 11,
+  POLY_SYS_FLISTXATTR = 13,
+  POLY_SYS_REMOVEXATTR = 14,
+  POLY_SYS_FREMOVEXATTR = 16,
   POLY_SYS_GETCWD = 17,
   POLY_SYS_EVENTFD2 = 19,
   POLY_SYS_EPOLL_CREATE1 = 20,
@@ -1548,6 +1556,72 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       (long) sizeof(namespace_message) - 1) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 247;
+  }
+  static const char xattr_name[] = "user.poly";
+  static const char xattr_value_path[] = "PXA";
+  if (poly_syscall5(POLY_SYS_SETXATTR, (long) namespace_file,
+        (long) xattr_name, (long) xattr_value_path,
+        sizeof(xattr_value_path) - 1, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 266;
+  }
+  char xattr_read[4];
+  if (poly_syscall4(POLY_SYS_GETXATTR, (long) namespace_file,
+        (long) xattr_name, (long) xattr_read, sizeof(xattr_read)) !=
+      (long) sizeof(xattr_value_path) - 1) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 267;
+  }
+  if (xattr_read[0] != 'P' || xattr_read[1] != 'X' ||
+      xattr_read[2] != 'A') {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 268;
+  }
+  static const char xattr_value_fd[] = "FXA";
+  if (poly_syscall5(POLY_SYS_FSETXATTR, fd, (long) xattr_name,
+        (long) xattr_value_fd, sizeof(xattr_value_fd) - 1, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 269;
+  }
+  if (poly_syscall4(POLY_SYS_FGETXATTR, fd, (long) xattr_name,
+        (long) xattr_read, sizeof(xattr_read)) !=
+      (long) sizeof(xattr_value_fd) - 1) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 270;
+  }
+  if (xattr_read[0] != 'F' || xattr_read[1] != 'X' ||
+      xattr_read[2] != 'A') {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 271;
+  }
+  char xattr_list[64];
+  long xattr_list_len = poly_syscall3(POLY_SYS_LISTXATTR,
+    (long) namespace_file, (long) xattr_list, sizeof(xattr_list));
+  if (xattr_list_len <= 0 ||
+      !poly_contains_len(xattr_list, xattr_list_len, xattr_name)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 272;
+  }
+  xattr_list_len = poly_syscall3(POLY_SYS_FLISTXATTR, fd,
+    (long) xattr_list, sizeof(xattr_list));
+  if (xattr_list_len <= 0 ||
+      !poly_contains_len(xattr_list, xattr_list_len, xattr_name)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 273;
+  }
+  if (poly_syscall2(POLY_SYS_REMOVEXATTR, (long) namespace_file,
+        (long) xattr_name) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 274;
+  }
+  if (poly_syscall5(POLY_SYS_FSETXATTR, fd, (long) xattr_name,
+        (long) xattr_value_fd, sizeof(xattr_value_fd) - 1, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 275;
+  }
+  if (poly_syscall2(POLY_SYS_FREMOVEXATTR, fd, (long) xattr_name) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 276;
   }
   if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
     return 248;
