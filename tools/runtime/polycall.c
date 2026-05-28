@@ -458,7 +458,8 @@ enum {
   POLY_IMPORT_FUNC_QSORT = 155,
   POLY_IMPORT_FUNC_BSEARCH = 156,
   POLY_IMPORT_FUNC_QSORT_R = 157,
-  POLY_IMPORT_FUNC_COUNT = 158
+  POLY_IMPORT_FUNC_PTHREAD_ONCE = 158,
+  POLY_IMPORT_FUNC_COUNT = 159
 };
 
 enum {
@@ -898,6 +899,8 @@ extern uint64_t poly_host_x86_bsearch(const void *key, const void *base,
     uint64_t nmemb, uint64_t size, void *compar);
 extern uint64_t poly_host_x86_qsort_r(void *base, uint64_t nmemb,
     uint64_t size, void *compar, void *arg);
+extern uint64_t poly_host_x86_pthread_once(uint32_t *once_control,
+    void *init_routine);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1041,9 +1044,9 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
     "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
-    "memalign", "qsort", "bsearch", "qsort_r", "atexit", "__cxa_atexit",
-    "__cxa_finalize", "getpid", "getppid", "getuid", "geteuid", "getgid",
-    "getegid", "gettid",
+    "memalign", "qsort", "bsearch", "qsort_r", "pthread_once", "atexit",
+    "__cxa_atexit", "__cxa_finalize", "getpid", "getppid", "getuid",
+    "geteuid", "getgid", "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
     "__cxa_guard_abort",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
@@ -1226,6 +1229,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_bsearch;
     case POLY_IMPORT_FUNC_QSORT_R:
       return (uint64_t) (uintptr_t) poly_host_x86_qsort_r;
+    case POLY_IMPORT_FUNC_PTHREAD_ONCE:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_once;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -2833,6 +2838,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "qsort_r") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_QSORT_R * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_once") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_PTHREAD_ONCE * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {
@@ -6460,6 +6469,20 @@ int64_t poly_runtime_call_foreign_comparator_arg(void *callback,
   if (bad_mask != 0)
     fail_callee_save_guard(bad_mask);
   return (int32_t) result;
+}
+
+uint64_t poly_runtime_call_foreign_void(void *callback)
+{
+  if (poly_atexit_call_code == NULL || callback == NULL)
+    return 1;
+
+  uint64_t bad_mask = 0;
+  write_le64(poly_atexit_call_code + poly_atexit_target_imm_offset,
+    (uint64_t) (uintptr_t) callback);
+  (void) polycall_guarded_call_one_u64(poly_atexit_call_code, 0, &bad_mask);
+  if (bad_mask != 0)
+    fail_callee_save_guard(bad_mask);
+  return 0;
 }
 
 uint64_t poly_runtime_finalize_atexit_callbacks(void *dso_handle)

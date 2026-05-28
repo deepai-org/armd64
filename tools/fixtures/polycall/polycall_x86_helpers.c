@@ -14,6 +14,7 @@ extern int64_t poly_runtime_call_foreign_comparator(void *callback,
   const void *left, const void *right);
 extern int64_t poly_runtime_call_foreign_comparator_arg(void *callback,
   const void *left, const void *right, void *arg);
+extern uint64_t poly_runtime_call_foreign_void(void *callback);
 
 static volatile uint64_t poly_host_x86_zero;
 static int poly_host_errno_value;
@@ -991,6 +992,16 @@ uint64_t POLY_HOST_HELPER poly_host_x86_qsort_r(void *base, uint64_t nmemb,
   }
 
   return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_once(uint32_t *once_control,
+    void *init_routine)
+{
+  if (once_control == 0 || init_routine == 0)
+    return 22;
+  if (!__sync_bool_compare_and_swap(once_control, 0, 1))
+    return 0;
+  return poly_runtime_call_foreign_void(init_routine);
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)

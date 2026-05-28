@@ -151,6 +151,9 @@ packet, active transition record, AArch64 GPR/FP state, RISC-V GPR/FP state,
 and descriptor import return stack. Normal x86 state remains in the standard
 x86 save locations.
 
+The prototype software state import layout version is `3`; it is a Bochs
+fallback path, not the silicon context-switch contract.
+
 Private CPUID leaves start at `0x40000000` and currently extend through
 `0x40000009`. They advertise vendor, ABI version, frontend support, native
 escape encodings, trap layout, interrupt/resume behavior, memory ordering,
