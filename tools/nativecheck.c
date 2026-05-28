@@ -106,6 +106,8 @@ static struct nativecheck_import_descriptor
   nativecheck_imports[POLY_IMPORT_FUNC_COUNT];
 static struct poly_xsave_state
   nativecheck_import_live_state __attribute__((aligned(64)));
+static struct poly_xsave_state
+  nativecheck_import_restore_state __attribute__((aligned(64)));
 static unsigned nativecheck_import_helper_calls;
 
 __attribute__((naked, noinline, used))
@@ -120,6 +122,11 @@ static uint64_t nativecheck_import_x86_sum6(uint64_t a0, uint64_t a1,
     uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   nativecheck_import_helper_calls++;
   poly_state_export(&nativecheck_import_live_state);
+  memcpy(&nativecheck_import_restore_state, &nativecheck_import_live_state,
+    sizeof(nativecheck_import_restore_state));
+  nativecheck_import_restore_state.import_return.top = 0;
+  poly_state_import(&nativecheck_import_restore_state);
+  poly_state_import(&nativecheck_import_live_state);
   return a0 + a1 + a2 + a3 + a4 + a5;
 }
 
@@ -1685,6 +1692,8 @@ static int run_poly_import_return_xsave_probe(void) {
   const uint64_t expected = 21;
   memset(&nativecheck_import_live_state, 0,
     sizeof(nativecheck_import_live_state));
+  memset(&nativecheck_import_restore_state, 0,
+    sizeof(nativecheck_import_restore_state));
   nativecheck_import_helper_calls = 0;
   nativecheck_setup_import_descriptors();
 
@@ -1701,6 +1710,8 @@ static int run_poly_import_return_xsave_probe(void) {
 
   memset(&nativecheck_import_live_state, 0,
     sizeof(nativecheck_import_live_state));
+  memset(&nativecheck_import_restore_state, 0,
+    sizeof(nativecheck_import_restore_state));
   nativecheck_import_helper_calls = 0;
 
   result = nativecheck_descriptor_riscv_import_sum6(1, 2, 3, 4, 5, 6);
