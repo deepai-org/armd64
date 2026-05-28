@@ -13,14 +13,11 @@ make image
 make boot-poly-full-arch-traps
 ```
 
-Other useful targets: `make boot`, `make boot-poly`,
-`make boot-poly-call-arch-traps`, `make boot-poly-binfmt-arch-traps`,
-`make clean`.
+Shorter targets: `make boot`, `make boot-poly`,
+`make boot-poly-call-arch-traps`, `make boot-poly-binfmt-arch-traps`.
+Logs: `out/serial.log` and `out/bochs.log`.
 
-Logs: `out/serial.log` has guest pass/fail markers; `out/bochs.log` has Bochs
-CPU/device output.
-
-## ISA Delta
+## ISA vs x64
 
 x64 remains the boot ISA, kernel ISA, and default userspace ISA. Ordinary x64
 code is unchanged unless it executes a polyglot instruction.
@@ -30,13 +27,13 @@ code is unchanged unless it executes a polyglot instruction.
 - Entry: `PENTER.A64`/`PENTER.RV64` switch to raw foreign fetch in the same
   guest virtual address space.
 - Exit: AArch64 `brk #0x7fff`; RISC-V custom-0 opcode `0x0000000b`.
-- Calls: `PCALL.*.SYSV` maps x64 SysV call state to native AAPCS64 or RISC-V
-  psABI.
+- Calls: `PCALL.*.SYSV` maps ordinary x64 SysV call state to native AAPCS64 or
+  RISC-V psABI state so precompiled foreign functions can run.
 - Memory: same virtual memory/page-fault path as x64; prototype foreign memory
   ordering is x64 TSO.
 - Traps: foreign syscalls, breakpoints, illegal instructions, and unsupported
   ops produce architectural records for OS/userspace policy.
-- State: Bochs uses synthetic extra foreign registers; hardware should expose
-  them through CPUID/XCR0/XSAVE-style context switching.
+- State: Bochs stores extra foreign registers internally; hardware should expose
+  that state through CPUID/XCR0/XSAVE-style context switching.
 
-Full details are in `docs/poly-isa.md`.
+More detail: `docs/poly-isa.md`.
