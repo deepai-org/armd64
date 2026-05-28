@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     m4 \
     pkg-config \
     grub-common \
+    g++-riscv64-linux-gnu \
     gcc-riscv64-linux-gnu \
     gcc-x86-64-linux-gnu \
     isolinux \
