@@ -10,6 +10,7 @@ enum {
   POLY_MAP_ANONYMOUS = 0x20,
   POLY_O_DIRECTORY = 0200000,
   POLY_RLIMIT_STACK = 3,
+  POLY_RUSAGE_SELF = 0,
   POLY_S_IFMT = 0170000,
   POLY_S_IFREG = 0100000,
   POLY_DIRENT64_NAME_OFFSET = 19,
@@ -40,6 +41,8 @@ enum {
   POLY_SYS_GETTID = 178,
   POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_UNAME = 160,
+  POLY_SYS_GETRUSAGE = 165,
+  POLY_SYS_SYSINFO = 179,
   POLY_SYS_MUNMAP = 215,
   POLY_SYS_MMAP = 222,
   POLY_SYS_MPROTECT = 226,
@@ -113,6 +116,41 @@ struct poly_utsname {
   char version[65];
   char machine[65];
   char domainname[65];
+};
+
+struct poly_rusage {
+  struct poly_timeval utime;
+  struct poly_timeval stime;
+  int64_t maxrss;
+  int64_t ixrss;
+  int64_t idrss;
+  int64_t isrss;
+  int64_t minflt;
+  int64_t majflt;
+  int64_t nswap;
+  int64_t inblock;
+  int64_t oublock;
+  int64_t msgsnd;
+  int64_t msgrcv;
+  int64_t nsignals;
+  int64_t nvcsw;
+  int64_t nivcsw;
+};
+
+struct poly_sysinfo {
+  int64_t uptime;
+  uint64_t loads[3];
+  uint64_t totalram;
+  uint64_t freeram;
+  uint64_t sharedram;
+  uint64_t bufferram;
+  uint64_t totalswap;
+  uint64_t freeswap;
+  uint16_t procs;
+  uint16_t pad;
+  uint64_t totalhigh;
+  uint64_t freehigh;
+  uint32_t mem_unit;
 };
 
 struct poly_statx_timestamp {
@@ -307,6 +345,23 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (!poly_streq(uts.sysname, "Linux") || !poly_streq(uts.machine, "riscv64"))
     return 64;
 #endif
+
+  struct poly_rusage usage;
+  if (poly_syscall2(POLY_SYS_GETRUSAGE, POLY_RUSAGE_SELF,
+        (long) &usage) != 0)
+    return 73;
+  if (usage.utime.sec < 0 || usage.utime.usec < 0 ||
+      usage.utime.usec >= 1000000 || usage.stime.sec < 0 ||
+      usage.stime.usec < 0 || usage.stime.usec >= 1000000 ||
+      usage.maxrss < 0 || usage.minflt < 0 || usage.majflt < 0)
+    return 74;
+
+  struct poly_sysinfo info;
+  if (poly_syscall2(POLY_SYS_SYSINFO, (long) &info, 0) != 0)
+    return 75;
+  if (info.uptime < 0 || info.totalram == 0 || info.mem_unit == 0 ||
+      info.procs == 0)
+    return 76;
 
   char exe_path[128];
   long exe_len = poly_syscall4(POLY_SYS_READLINKAT, POLY_AT_FDCWD,
