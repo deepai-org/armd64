@@ -9,6 +9,7 @@ enum {
   POLY_PROT_READ = 1,
   POLY_PROT_WRITE = 2,
   POLY_SO_REUSEADDR = 2,
+  POLY_SHUT_WR = 1,
   POLY_SOCK_STREAM = 1,
   POLY_GRND_NONBLOCK = 1,
   POLY_MFD_CLOEXEC = 1,
@@ -91,6 +92,7 @@ enum {
   POLY_SYS_RECVFROM = 207,
   POLY_SYS_SETSOCKOPT = 208,
   POLY_SYS_GETSOCKOPT = 209,
+  POLY_SYS_SHUTDOWN = 210,
   POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_UNAME = 160,
   POLY_SYS_GETRUSAGE = 165,
@@ -793,6 +795,24 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 175;
   if (socket_option == 0 || socket_option_len != sizeof(socket_option))
     return 176;
+
+  if (poly_syscall4(POLY_SYS_SOCKETPAIR, POLY_AF_UNIX,
+        POLY_SOCK_STREAM, 0, (long) socket_fds) != 0)
+    return 177;
+  if (poly_syscall2(POLY_SYS_SHUTDOWN, socket_fds[0], POLY_SHUT_WR) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 178;
+  }
+  char eof_byte = 0;
+  if (poly_syscall3(POLY_SYS_READ, socket_fds[1], (long) &eof_byte, 1) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 179;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0) != 0)
+    return 180;
 
   if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
     return 156;
