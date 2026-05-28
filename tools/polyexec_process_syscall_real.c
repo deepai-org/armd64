@@ -15,6 +15,8 @@ enum {
   POLY_STATX_BASIC_STATS = 0x7ff,
 
   POLY_SYS_GETCWD = 17,
+  POLY_SYS_STATFS = 43,
+  POLY_SYS_FSTATFS = 44,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
   POLY_SYS_READ = 63,
@@ -64,6 +66,21 @@ struct poly_linux_generic_stat {
   uint64_t ctime_nsec;
   uint32_t unused4;
   uint32_t unused5;
+};
+
+struct poly_linux_generic_statfs {
+  int64_t type;
+  int64_t bsize;
+  uint64_t blocks;
+  uint64_t bfree;
+  uint64_t bavail;
+  uint64_t files;
+  uint64_t ffree;
+  int32_t fsid[2];
+  int64_t namelen;
+  int64_t frsize;
+  int64_t flags;
+  int64_t spare[4];
 };
 
 struct poly_iovec {
@@ -306,6 +323,21 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if ((fd_stat.mode & POLY_S_IFMT) != POLY_S_IFREG ||
       fd_stat.ino != path_stat.ino || fd_stat.size != path_stat.size)
     return 36;
+
+  struct poly_linux_generic_statfs path_statfs;
+  struct poly_linux_generic_statfs fd_statfs;
+  if (poly_syscall2(POLY_SYS_STATFS, (long) "/usr/bin/polyexec",
+        (long) &path_statfs) != 0)
+    return 65;
+  if (path_statfs.type == 0 || path_statfs.bsize <= 0 ||
+      path_statfs.namelen <= 0)
+    return 66;
+  if (poly_syscall2(POLY_SYS_FSTATFS, fd, (long) &fd_statfs) != 0)
+    return 67;
+  if (fd_statfs.type != path_statfs.type ||
+      fd_statfs.bsize != path_statfs.bsize ||
+      fd_statfs.namelen != path_statfs.namelen)
+    return 68;
 
   struct poly_statx statx_result;
   if (poly_syscall6(POLY_SYS_STATX, POLY_AT_FDCWD,

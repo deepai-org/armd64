@@ -12,6 +12,7 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -251,6 +252,21 @@ struct poly_linux_generic_stat {
   uint32_t unused5;
 };
 
+struct poly_linux_generic_statfs {
+  int64_t type;
+  int64_t bsize;
+  uint64_t blocks;
+  uint64_t bfree;
+  uint64_t bavail;
+  uint64_t files;
+  uint64_t ffree;
+  int32_t fsid[2];
+  int64_t namelen;
+  int64_t frsize;
+  int64_t flags;
+  int64_t spare[4];
+};
+
 struct poly_utsname {
   char sysname[65];
   char nodename[65];
@@ -484,6 +500,24 @@ static void poly_store_linux_generic_stat(uint64_t destination,
   target->ctime_nsec = (uint64_t) source->st_ctim.tv_nsec;
 }
 
+static void poly_store_linux_generic_statfs(uint64_t destination,
+    const struct statfs *source) {
+  struct poly_linux_generic_statfs *target =
+    (struct poly_linux_generic_statfs *) (uintptr_t) destination;
+  memset(target, 0, sizeof(*target));
+  target->type = (int64_t) source->f_type;
+  target->bsize = (int64_t) source->f_bsize;
+  target->blocks = (uint64_t) source->f_blocks;
+  target->bfree = (uint64_t) source->f_bfree;
+  target->bavail = (uint64_t) source->f_bavail;
+  target->files = (uint64_t) source->f_files;
+  target->ffree = (uint64_t) source->f_ffree;
+  memcpy(target->fsid, &source->f_fsid, sizeof(target->fsid));
+  target->namelen = (int64_t) source->f_namelen;
+  target->frsize = (int64_t) source->f_frsize;
+  target->flags = (int64_t) source->f_flags;
+}
+
 static void poly_store_fixed_string(char *target, size_t target_size,
     const char *value) {
   memset(target, 0, target_size);
@@ -499,9 +533,24 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
     uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
     uint64_t arg3, uint64_t *result) {
   struct stat stat_result;
+  struct statfs statfs_result;
   long status;
 
   switch (number) {
+    case 43:
+      status = poly_x86_syscall6(SYS_statfs, arg0,
+        (uint64_t) (uintptr_t) &statfs_result, 0, 0, 0, 0);
+      if (status == 0)
+        poly_store_linux_generic_statfs(arg1, &statfs_result);
+      *result = (uint64_t) status;
+      return 1;
+    case 44:
+      status = poly_x86_syscall6(SYS_fstatfs, arg0,
+        (uint64_t) (uintptr_t) &statfs_result, 0, 0, 0, 0);
+      if (status == 0)
+        poly_store_linux_generic_statfs(arg1, &statfs_result);
+      *result = (uint64_t) status;
+      return 1;
     case 79:
       status = poly_x86_syscall6(SYS_newfstatat, arg0, arg1,
         (uint64_t) (uintptr_t) &stat_result, arg3, 0, 0);
