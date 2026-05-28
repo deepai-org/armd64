@@ -180,6 +180,8 @@ struct poly_program {
   size_t code_size;
   struct poly_process_dependency deps[MAX_PROCESS_DEPS];
   size_t dep_count;
+  const struct poly_program *scope_root_program;
+  const uint8_t *scope_root_loaded_image;
 };
 
 struct poly_request {
@@ -641,6 +643,15 @@ static int resolve_loaded_dependency_symbol(const struct poly_program *program,
     symbol_value, symbol_type, 0);
 }
 
+static int resolve_root_scope_symbol(const struct poly_program *program,
+    const char *symbol_name, uint64_t *symbol_value, uint8_t *symbol_type) {
+  if (!program->scope_root_program || !program->scope_root_loaded_image ||
+      program == program->scope_root_program)
+    return -1;
+  return resolve_loaded_program_symbol(program->scope_root_program,
+    program->scope_root_loaded_image, symbol_name, symbol_value, symbol_type);
+}
+
 static int resolve_dependency_reloc_symbol(const struct poly_program *program,
     const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
     uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
@@ -651,6 +662,9 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
         strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
         symbol_index, &symbol_name) < 0)
     return -1;
+  if (resolve_root_scope_symbol(program, symbol_name, symbol_value,
+        symbol_type) == 0)
+    return 0;
   return resolve_loaded_dependency_symbol(program, symbol_name, symbol_value,
     symbol_type);
 }
@@ -3191,6 +3205,18 @@ static void unmap_process_dependencies(struct poly_program *program) {
   }
 }
 
+static void set_process_dependency_root_scope(struct poly_program *program,
+    const struct poly_program *root_program, const uint8_t *root_loaded_image) {
+  program->scope_root_program = root_program;
+  program->scope_root_loaded_image = root_loaded_image;
+  for (size_t d = 0; d < program->dep_count; d++) {
+    struct poly_process_dependency *dep = &program->deps[d];
+    if (dep->program)
+      set_process_dependency_root_scope(dep->program, root_program,
+        root_loaded_image);
+  }
+}
+
 static int map_process_dependencies(struct poly_program *program,
     uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
     uint8_t *scratch) {
@@ -3382,6 +3408,7 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
+  set_process_dependency_root_scope(program, program, mapping + load_base_offset);
   if (map_process_dependencies(program, code,
         prefix_size, return_pc, scratch) < 0) {
     unmap_process_dependencies(program);
