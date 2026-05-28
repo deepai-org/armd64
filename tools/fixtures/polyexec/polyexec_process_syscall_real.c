@@ -9,7 +9,9 @@ enum {
   POLY_PROT_READ = 1,
   POLY_PROT_WRITE = 2,
   POLY_SO_REUSEADDR = 2,
+  POLY_RENAME_NOREPLACE = 1,
   POLY_SHUT_WR = 1,
+  POLY_SOCK_CLOEXEC = 02000000,
   POLY_SOCK_DGRAM = 2,
   POLY_SOCK_STREAM = 1,
   POLY_GRND_NONBLOCK = 1,
@@ -150,6 +152,8 @@ enum {
   POLY_SYS_RECVMSG = 212,
   POLY_SYS_RECVMMSG = 243,
   POLY_SYS_SENDMMSG = 269,
+  POLY_SYS_ACCEPT4 = 242,
+  POLY_SYS_RENAMEAT2 = 276,
   POLY_SYS_PIDFD_SEND_SIGNAL = 424,
   POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_UNAME = 160,
@@ -1219,6 +1223,84 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       accept_buffer[2] != 'N' || accept_buffer[3] != 'N')
     return 196;
 
+  server_fd = poly_syscall3(POLY_SYS_SOCKET, POLY_AF_UNIX,
+    POLY_SOCK_STREAM, 0);
+  if (server_fd < 0)
+    return 292;
+  for (unsigned n = 0; n < sizeof(server_name.path); n++)
+    server_name.path[n] = 0;
+  server_name.family = POLY_AF_UNIX;
+  server_name.path[0] = 0;
+  server_name.path[1] = 'p';
+  server_name.path[2] = 'o';
+  server_name.path[3] = 'l';
+  server_name.path[4] = 'y';
+  server_name.path[5] = 'p';
+  server_name.path[6] = 'r';
+  server_name.path[7] = 'o';
+  server_name.path[8] = 'c';
+  server_name.path[9] = '4';
+  server_name_len = sizeof(server_name.family) + 10;
+  if (poly_syscall3(POLY_SYS_BIND, server_fd, (long) &server_name,
+        server_name_len) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 293;
+  }
+  if (poly_syscall2(POLY_SYS_LISTEN, server_fd, 1) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 294;
+  }
+  client_fd = poly_syscall3(POLY_SYS_SOCKET, POLY_AF_UNIX,
+    POLY_SOCK_STREAM, 0);
+  if (client_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 295;
+  }
+  if (poly_syscall3(POLY_SYS_CONNECT, client_fd, (long) &server_name,
+        server_name_len) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 296;
+  }
+  accepted_fd = poly_syscall4(POLY_SYS_ACCEPT4, server_fd, 0, 0,
+    POLY_SOCK_CLOEXEC);
+  if (accepted_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 297;
+  }
+  fd_flags = poly_syscall3(POLY_SYS_FCNTL, accepted_fd, POLY_F_GETFD, 0);
+  if ((fd_flags & POLY_FD_CLOEXEC) == 0) {
+    poly_syscall2(POLY_SYS_CLOSE, accepted_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 298;
+  }
+  static const char accept4_message[] = "AC4!";
+  char accept4_buffer[4];
+  if (poly_syscall3(POLY_SYS_WRITE, client_fd,
+        (long) accept4_message, sizeof(accept4_buffer)) !=
+      (long) sizeof(accept4_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, accepted_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 299;
+  }
+  if (poly_syscall3(POLY_SYS_READ, accepted_fd, (long) accept4_buffer,
+        sizeof(accept4_buffer)) != (long) sizeof(accept4_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, accepted_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 300;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, accepted_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, client_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, server_fd, 0) != 0)
+    return 301;
+  if (accept4_buffer[0] != 'A' || accept4_buffer[1] != 'C' ||
+      accept4_buffer[2] != '4' || accept4_buffer[3] != '!')
+    return 302;
+
   if (poly_syscall4(POLY_SYS_SOCKETPAIR, POLY_AF_UNIX,
         POLY_SOCK_STREAM, 0, (long) socket_fds) != 0)
     return 197;
@@ -1627,10 +1709,12 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   static const char namespace_dir[] = "/polyproc-syscall-real";
   static const char namespace_file[] = "/polyproc-syscall-real/file";
   static const char namespace_renamed[] = "/polyproc-syscall-real/renamed";
+  static const char namespace_temp[] = "/polyproc-syscall-real/temp";
   static const char namespace_hard[] = "/polyproc-syscall-real/hard";
   static const char namespace_symlink[] = "/polyproc-syscall-real/symlink";
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_hard, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_symlink, 0);
+  poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_temp, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_renamed, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_file, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_dir,
@@ -1724,6 +1808,13 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   }
   if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
     return 248;
+  if (poly_syscall5(POLY_SYS_RENAMEAT2, POLY_AT_FDCWD,
+        (long) namespace_file, POLY_AT_FDCWD, (long) namespace_temp,
+        POLY_RENAME_NOREPLACE) != 0)
+    return 303;
+  if (poly_syscall5(POLY_SYS_RENAMEAT2, POLY_AT_FDCWD,
+        (long) namespace_temp, POLY_AT_FDCWD, (long) namespace_file, 0) != 0)
+    return 304;
   if (poly_syscall4(POLY_SYS_RENAMEAT, POLY_AT_FDCWD,
         (long) namespace_file, POLY_AT_FDCWD,
         (long) namespace_renamed) != 0)
