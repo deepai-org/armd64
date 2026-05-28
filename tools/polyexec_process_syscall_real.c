@@ -24,6 +24,7 @@ enum {
   POLY_STATX_BASIC_STATS = 0x7ff,
 
   POLY_SYS_GETCWD = 17,
+  POLY_SYS_EVENTFD2 = 19,
   POLY_SYS_DUP3 = 24,
   POLY_SYS_FCNTL = 25,
   POLY_SYS_STATFS = 43,
@@ -616,6 +617,26 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0 ||
       poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0) != 0)
     return 104;
+
+  fd = poly_syscall2(POLY_SYS_EVENTFD2, 0, 0);
+  if (fd < 0)
+    return 114;
+  uint64_t event_value = 7;
+  if (poly_syscall3(POLY_SYS_WRITE, fd, (long) &event_value,
+        sizeof(event_value)) != (long) sizeof(event_value)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 115;
+  }
+  event_value = 0;
+  if (poly_syscall3(POLY_SYS_READ, fd, (long) &event_value,
+        sizeof(event_value)) != (long) sizeof(event_value)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 116;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 117;
+  if (event_value != 7)
+    return 118;
 
   char dirents[4096];
   fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD, (long) "/usr/bin",
