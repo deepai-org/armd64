@@ -29,6 +29,7 @@ case "$path" in
   */aarch64-memwidth.elf) expected=0x100001324 ;;
   */aarch64-pcall-split-load.elf) expected=123 ;;
   */aarch64-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-syscall-real.elf) expected=42; process_mode=1 ;;
   */aarch64-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */aarch64-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
@@ -212,6 +213,7 @@ case "$path" in
   */riscv-memwidth.elf) expected=0x1000000e0 ;;
   */riscv-pcall-split-load.elf) expected=123 ;;
   */riscv-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-syscall-real.elf) expected=42; process_mode=1 ;;
   */riscv-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */riscv-polyexec-gnu-hash-rv64gc.so) expected=45; entry="#poly_entry" ;;
   */riscv-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
