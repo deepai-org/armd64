@@ -508,7 +508,8 @@ static int resolve_same_image_reloc_symbol(const struct poly_program *program,
 static int dynamic_symbol_name_by_index(const struct poly_program *program,
     const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
     uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
-    uint64_t gnu_hash_vaddr, uint64_t symbol_index, const char **symbol_name) {
+    uint64_t gnu_hash_vaddr, uint64_t symbol_index, const char **symbol_name,
+    uint8_t *symbol_info) {
   size_t symbol_count = 0;
   if (!symtab_vaddr || !strtab_vaddr || !strsz ||
       syment < sizeof(Elf64_Sym) ||
@@ -533,6 +534,8 @@ static int dynamic_symbol_name_by_index(const struct poly_program *program,
   if (sym->st_name >= strsz)
     return -1;
   *symbol_name = (const char *) (loaded_image + strtab_offset + sym->st_name);
+  if (symbol_info)
+    *symbol_info = sym->st_info;
   return 0;
 }
 
@@ -696,15 +699,24 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
     uint8_t *symbol_type, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch) {
   const char *symbol_name = NULL;
+  uint8_t unresolved_info = 0;
   if (dynamic_symbol_name_by_index(program, loaded_image, symtab_vaddr,
         strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
-        symbol_index, &symbol_name) < 0)
+        symbol_index, &symbol_name, &unresolved_info) < 0)
     return -1;
   if (resolve_root_scope_symbol(program, symbol_name, trampoline_code,
         prefix_size, return_pc, scratch, symbol_value, symbol_type) == 0)
     return 0;
-  return resolve_loaded_dependency_symbol(program, symbol_name, symbol_value,
-    symbol_type);
+  if (resolve_loaded_dependency_symbol(program, symbol_name, symbol_value,
+        symbol_type) == 0)
+    return 0;
+  if (ELF64_ST_BIND(unresolved_info) == STB_WEAK) {
+    *symbol_value = 0;
+    if (symbol_type)
+      *symbol_type = ELF64_ST_TYPE(unresolved_info);
+    return 0;
+  }
+  return -1;
 }
 
 static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,

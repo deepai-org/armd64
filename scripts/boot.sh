@@ -590,6 +590,24 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessrootifunc-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-needed-root-ifunc-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_WEAK_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-weak-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_WEAK_DEP \
+    -Wl,-soname,libpolyprocessweak-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocessweak-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_WEAK_DEP_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyprocessweak-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-weak-needed-real.elf"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_STATE_SRC" \
@@ -2337,6 +2355,27 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessrootifunc-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-needed-root-ifunc-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_WEAK_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-weak-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_WEAK_DEP \
+    -Wl,-soname,libpolyprocessweak-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocessweak-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_WEAK_DEP_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyprocessweak-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-weak-needed-real.elf"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -5495,6 +5534,12 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-root-ifunc-real.elf=42 \
       root-ifunc-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-weak-real.elf=42 \
+      weak-unresolved >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-weak-needed-real.elf=42 \
+      weak-needed-unresolved >/dev/ttyS0 2>&1
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
       alpha beta >/dev/ttyS0 2>&1
@@ -5522,6 +5567,12 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-root-ifunc-real.elf=42 \
       root-ifunc-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-weak-real.elf=42 \
+      weak-unresolved >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-weak-needed-real.elf=42 \
+      weak-needed-unresolved >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_CALL" = "1" ]; then
@@ -6192,6 +6243,18 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 process root ifunc needed" >/dev/ttyS0
       exit 1
     }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-weak-real.elf=42 \
+      weak-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process weak unresolved" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-weak-needed-real.elf=42 \
+      weak-needed-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process weak needed unresolved" >/dev/ttyS0
+      exit 1
+    }
     POLY_PROCESS_ENV=present \
       /usr/lib/polyapps/aarch64-process-argv-envp-real.elf \
       alpha beta >/dev/ttyS0 2>&1 || {
@@ -6260,6 +6323,18 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-needed-root-ifunc-real.elf=42 \
       root-ifunc-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process root ifunc needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-weak-real.elf=42 \
+      weak-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process weak unresolved" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-weak-needed-real.elf=42 \
+      weak-needed-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process weak needed unresolved" >/dev/ttyS0
       exit 1
     }
     POLY_PROCESS_ENV=present \

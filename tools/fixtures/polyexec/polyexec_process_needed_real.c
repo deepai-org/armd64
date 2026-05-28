@@ -50,6 +50,21 @@ uint64_t poly_process_root_ifunc_dep(uint64_t value) {
   return poly_process_root_ifunc(value) + 0x55;
 }
 
+#elif defined(POLY_PROCESS_WEAK_DEP)
+
+extern uint64_t poly_process_missing_weak_value __attribute__((weak));
+extern uint64_t poly_process_missing_weak_add(uint64_t) __attribute__((weak));
+
+__attribute__((visibility("default")))
+uint64_t poly_process_weak_dep(void) {
+  uint64_t result = 0x88;
+  if (&poly_process_missing_weak_value)
+    result += poly_process_missing_weak_value;
+  if (poly_process_missing_weak_add)
+    result += poly_process_missing_weak_add(0x10);
+  return result;
+}
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
@@ -58,6 +73,11 @@ extern uint64_t poly_process_needed_leaf(uint64_t, uint64_t);
 extern uint64_t poly_process_root_export_dep(uint64_t);
 #elif defined(POLY_PROCESS_ROOT_IFUNC_MAIN)
 extern uint64_t poly_process_root_ifunc_dep(uint64_t);
+#elif defined(POLY_PROCESS_WEAK_MAIN)
+extern uint64_t poly_process_missing_weak_value __attribute__((weak));
+extern uint64_t poly_process_missing_weak_add(uint64_t) __attribute__((weak));
+#elif defined(POLY_PROCESS_WEAK_DEP_MAIN)
+extern uint64_t poly_process_weak_dep(void);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #else
@@ -124,6 +144,14 @@ uint64_t poly_process_main(void) {
   if (poly_process_root_ifunc_dep(0x11) != 0xcc)
     return 26;
   static const char marker[] = "POLY_PROCESS_ROOT_IFUNC_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_WEAK_MAIN)
+  if (&poly_process_missing_weak_value || poly_process_missing_weak_add)
+    return 27;
+  static const char marker[] = "POLY_PROCESS_WEAK_UNRESOLVED_OK\n";
+#elif defined(POLY_PROCESS_WEAK_DEP_MAIN)
+  if (poly_process_weak_dep() != 0x88)
+    return 28;
+  static const char marker[] = "POLY_PROCESS_WEAK_DEP_UNRESOLVED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;
