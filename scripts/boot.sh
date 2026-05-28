@@ -5783,6 +5783,9 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-needed-tls-real.so \
       /usr/lib/polyapps/aarch64-pcall-needed-ifunc-real.so \
       /usr/lib/polyapps/aarch64-pcall-needed-dt-init-real.so \
+      /usr/lib/polyapps/aarch64-pcall-libc-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-stack-protector-real.so \
+      /usr/lib/polyapps/aarch64-pcall-getauxval-real.so \
       /usr/lib/polyapps/riscv-add.elf \
       /usr/lib/polyapps/riscv-compressed.elf \
       /usr/lib/polyapps/riscv-compressed-half.elf \
@@ -5853,7 +5856,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-many-needed-real.so \
       /usr/lib/polyapps/riscv-pcall-needed-tls-real.so \
       /usr/lib/polyapps/riscv-pcall-needed-ifunc-real.so \
-      /usr/lib/polyapps/riscv-pcall-needed-dt-init-real.so
+      /usr/lib/polyapps/riscv-pcall-needed-dt-init-real.so \
+      /usr/lib/polyapps/riscv-pcall-libc-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-stack-protector-real.so \
+      /usr/lib/polyapps/riscv-pcall-getauxval-real.so
     do
       echo "POLYBINFMT_STEP: \$foreign" >/dev/ttyS0
       "\$foreign" >/dev/ttyS0 2>&1 || {
