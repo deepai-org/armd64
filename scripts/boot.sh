@@ -5796,6 +5796,22 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 process relocations" >/dev/ttyS0
       exit 1
     }
+    POLY_PROCESS_ENV=present \
+      /usr/lib/polyapps/aarch64-process-argv-envp-real.elf \
+      alpha beta >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process argv/env" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-syscall-real.elf \
+      probe >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process syscalls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-reloc-real.elf \
+      reloc >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process relocations" >/dev/ttyS0
+      exit 1
+    }
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
       alpha beta >/dev/ttyS0 2>&1 || {
@@ -5812,6 +5828,22 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-reloc-real.elf=42 \
       reloc >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process relocations" >/dev/ttyS0
+      exit 1
+    }
+    POLY_PROCESS_ENV=present \
+      /usr/lib/polyapps/riscv-process-argv-envp-real.elf \
+      alpha beta >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process argv/env" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-syscall-real.elf \
+      probe >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process syscalls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-reloc-real.elf \
+      reloc >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process relocations" >/dev/ttyS0
       exit 1
     }
     for foreign in \
