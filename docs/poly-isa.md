@@ -161,6 +161,12 @@ state setup. The hot `PCALL` path selects a cached slot, rebinds architectural
 source names to destination names in rename/RAT state, installs the return
 cookie, and branches.
 
+The slot bank is the hardware-visible Poly ABI Signature Register model. A
+runtime can program, for example, one slot for SysV-to-AAPCS64 and another for
+AAPCS64-to-SysV, then many call sites reuse those slots by immediate number.
+This is semi-persistent reconfigurable hardware state, not a per-call memory
+descriptor.
+
 Applying a signature is a fixed-latency control operation. It does not read a
 descriptor, touch the user stack, allocate temporary architectural registers, or
 perform ABI memory conversion. Invalid slot use should trap before changing
@@ -173,6 +179,10 @@ ABI descriptors from user memory. Those cases remain software-thunk
 responsibilities. The result is a small silicon mechanism that makes ordinary
 all-register calls fast while keeping complex ABI policy outside the CPU
 pipeline.
+
+The intended split is simple: hardware handles all-register calls with cached
+RAT remaps; software thunks handle stack and aggregate ABI conversion, then use
+a null, identity, or simple signature for the final `PCALL`.
 
 Large memory returns follow the callee ABI. AArch64 uses `x8`; RISC-V uses `a0`
 and shifts user arguments; x86_64 returns the hidden pointer in `RAX`.

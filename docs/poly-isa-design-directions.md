@@ -71,6 +71,13 @@ paths. On `PCALL`, hardware selects a cached signature slot and applies those
 mappings in or near the rename stage. The data does not move; only
 architectural names are rebound to physical registers.
 
+The architectural abstraction is a semi-persistent Poly ABI Signature Register
+bank, implemented as a small set of slots rather than one large dynamic call
+descriptor. The runtime programs a slot with a register-only mapping such as
+SysV `RDI,RSI,RDX` to AAPCS64 `x0,x1,x2`; a hot `PCALL` names only the slot.
+That keeps transition latency close to a branch plus rename-table update, with
+no operand movement through integer execution pipes.
+
 This is hardware-assisted thunk elision, not hardware ABI interpretation. For
 register-only calls, a signature can replace a sequence of software moves such
 as `RDI,RSI,RDX` to `x0,x1,x2` with a rename-table update. For calls whose ABI
@@ -182,6 +189,10 @@ This creates a deliberate hybrid boundary:
   transition.
 - The null signature is the exchange-window ABI, so every implementation has a
   simple fallback even without RAT remapping.
+
+This is the highest-performance silicon-realistic point: reconfigurable
+hardware is used only where modern CPUs already have indirection, namely
+register renaming. Memory layout remains software policy.
 
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
