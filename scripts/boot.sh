@@ -5523,7 +5523,7 @@ EOF
   local bochs_pid=$!
   local deadline=$((SECONDS + 120))
   local success=0
-  local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|POLY[A-Z_]*_FAIL'
+  local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|NATIVE_CHECK_FAIL|POLY[A-Z_]*_FAIL'
   while (( SECONDS < deadline )); do
     if grep -Eiq "$fatal_pattern" "$SERIAL_LOG" "$BOCHS_LOG" 2>/dev/null; then
       success=-1
