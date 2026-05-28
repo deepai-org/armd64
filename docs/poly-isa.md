@@ -532,6 +532,14 @@ binding undefined relocations to dependency exports, so a relocation requiring
 Dependency binding also requires exportable ELF binding and visibility:
 `STB_GLOBAL`/`STB_WEAK`/`STB_GNU_UNIQUE` plus
 `STV_DEFAULT`/`STV_PROTECTED`.
+When a function relocation binds to a `DT_NEEDED` object with a different
+foreign ISA, the user-space loader writes the PLT/GOT target to a generated
+caller-ISA trampoline.  The trampoline loads the callee address and continuation
+into the architectural cross-call registers and uses the neutral AArch64/RISC-V
+cross-call opcode, so ordinary `bl`/`jalr` call sites and native return
+instructions still work without routing through x86.  Cross-ISA object, TLS,
+constructor, and IFUNC interposition remain explicit future compatibility
+items rather than hidden emulator behavior.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,

@@ -161,7 +161,8 @@ enum {
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
-  RELOC_BASE_DEP_TLS_OFFSET = 400
+  RELOC_BASE_DEP_TLS_OFFSET = 400,
+  RELOC_BASE_DEP_CROSS_STUB = 500
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
@@ -1555,6 +1556,13 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
 }
 
+static void store_u32(uint8_t *code, size_t offset, uint32_t value) {
+  code[offset] = (uint8_t) (value & 0xff);
+  code[offset + 1] = (uint8_t) ((value >> 8) & 0xff);
+  code[offset + 2] = (uint8_t) ((value >> 16) & 0xff);
+  code[offset + 3] = (uint8_t) ((value >> 24) & 0xff);
+}
+
 static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
   return value & ~(alignment - 1);
 }
@@ -1653,6 +1661,23 @@ static void emit_movabs_r14(uint8_t *code, size_t *offset, uint64_t value) {
   code[(*offset)++] = 0x49;
   code[(*offset)++] = 0xbe;
   emit_u64(code, offset, value);
+}
+
+static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
+    uint64_t value) {
+  emit_u32(code, offset, 0xd2800000U |
+    (((uint32_t) value & 0xffffU) << 5) | rd);
+  emit_u32(code, offset, 0xf2a00000U |
+    ((((uint32_t) (value >> 16)) & 0xffffU) << 5) | rd);
+  emit_u32(code, offset, 0xf2c00000U |
+    ((((uint32_t) (value >> 32)) & 0xffffU) << 5) | rd);
+  emit_u32(code, offset, 0xf2e00000U |
+    ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | rd);
+}
+
+static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
+  return (((uint32_t) imm & 0xfffU) << 20) |
+    (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
 }
 
 static void emit_save_callee_regs(uint8_t *code, size_t *offset,
@@ -1815,6 +1840,85 @@ static int reloc_base_is_resolver(int base_kind) {
     base_kind == RELOC_BASE_ROOT_IFUNC ||
     (base_kind >= RELOC_BASE_DEP_IFUNC &&
      base_kind < RELOC_BASE_DEP_IFUNC + MAX_NEEDED_DEPS);
+}
+
+static int reloc_base_is_dep_cross_stub(int base_kind) {
+  return base_kind >= RELOC_BASE_DEP_CROSS_STUB &&
+    base_kind < RELOC_BASE_DEP_CROSS_STUB + MAX_NEEDED_DEPS;
+}
+
+static uint32_t fallback_ret_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return 0xd65f03c0U;
+  if (arch == POLY_ARCH_RISCV)
+    return 0x00008067U;
+  return 0;
+}
+
+static int align_stub_offset(size_t *offset, size_t alignment,
+    size_t limit) {
+  size_t aligned = 0;
+  if (align_up_size(*offset, alignment, &aligned) < 0 || aligned > limit)
+    return -1;
+  *offset = aligned;
+  return 0;
+}
+
+static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
+    size_t *stub_offset, int caller_arch, int callee_arch, uint64_t target,
+    uint64_t *stub_addr) {
+  if (caller_arch == callee_arch) {
+    *stub_addr = target;
+    return 0;
+  }
+
+  if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
+    return -1;
+  const size_t start = *stub_offset;
+  const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
+
+  if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
+    if (stub_limit - start < 40)
+      return -1;
+    const uint64_t return_addr = start_addr + 36;
+    emit_aarch64_movabs(stubs, stub_offset, 16, target);
+    emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
+    emit_u32(stubs, stub_offset, 0xd42fffa0U); // brk #0x7ffd, call RISC-V
+    emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
+    *stub_addr = start_addr;
+    return 0;
+  }
+
+  if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64) {
+    if (stub_limit - start < 48)
+      return -1;
+    const size_t auipc_target_pc = *stub_offset;
+    emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
+    const size_t ld_target_offset = *stub_offset;
+    emit_u32(stubs, stub_offset, 0);
+    const size_t auipc_return_pc = *stub_offset;
+    emit_u32(stubs, stub_offset, 0x00000317U); // auipc x6,0
+    const size_t ld_return_offset = *stub_offset;
+    emit_u32(stubs, stub_offset, 0);
+    emit_u32(stubs, stub_offset, 0x0000005bU); // custom-2, call AArch64
+    const size_t return_pc = *stub_offset;
+    emit_u32(stubs, stub_offset, 0x00008067U); // ret
+    if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
+      return -1;
+    const size_t target_data_offset = *stub_offset;
+    emit_u64(stubs, stub_offset, target);
+    const size_t return_data_offset = *stub_offset;
+    emit_u64(stubs, stub_offset,
+      (uint64_t) (uintptr_t) (stubs + return_pc));
+    store_u32(stubs, ld_target_offset, riscv_ld(5, 5,
+      (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+    store_u32(stubs, ld_return_offset, riscv_ld(6, 6,
+      (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+    *stub_addr = start_addr;
+    return 0;
+  }
+
+  return -1;
 }
 
 static const uint64_t poly_import_value = 123;
@@ -2925,7 +3029,7 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
       ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
       (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) ||
       detect_arch(ehdr->e_machine, &arch_probe) < 0 ||
-      arch_probe.arch != expected_arch) {
+      (expected_arch != 0 && arch_probe.arch != expected_arch)) {
     fprintf(stderr, "POLYCALL_FAIL: unsupported dependency ELF header: %s\n",
       path);
     free(data);
@@ -3297,7 +3401,7 @@ static int load_needed_dependencies_from_dynamic(struct poly_program *owner,
       return -1;
     }
     const size_t dep_index = owner->dep_count++;
-    if (load_dependency_object(owner, dep_index, needed_path, owner->arch,
+    if (load_dependency_object(owner, dep_index, needed_path, 0,
           needed_depth, child_inherited_rpath, child_inherited_rpath_len,
           child_inherited_rpath_origin) < 0)
       return -1;
@@ -3648,6 +3752,17 @@ static int resolve_dependency_symbol(const struct poly_program *program,
   }
   if (best < program->dep_count) {
     *symbol_value = best_value;
+    if (program->deps[best].arch != program->arch) {
+      if (best_type == STT_FUNC || best_type == STT_NOTYPE) {
+        *base_kind = RELOC_BASE_DEP_CROSS_STUB + (int) best;
+        return 0;
+      }
+      if (best_type == STT_GNU_IFUNC) {
+        fprintf(stderr, "POLYCALL_FAIL: cross-ISA IFUNC dependency unsupported symbol=%s path=%s\n",
+          symbol_name, program->path);
+        return -1;
+      }
+    }
     *base_kind = best_type == STT_GNU_IFUNC ?
       RELOC_BASE_DEP_IFUNC + (int) best :
       RELOC_BASE_DEP_LOAD_BIAS + (int) best;
@@ -5373,7 +5488,7 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
 
 static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t *result) {
-  const uint32_t fallback_ret = program->arch == POLY_ARCH_AARCH64 ? 0xd65f03c0U : 0x00008067U;
+  const uint32_t fallback_ret = fallback_ret_for_arch(program->arch);
   const int needs_x86_import = program->needs_x86_import;
   struct poly_import_contract import_contract = {
     .call_base = POLY_IMPORT_CALL_BASE,
@@ -5405,7 +5520,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     import_descriptor_count * import_contract.x86_descriptor_size : 0;
   const size_t stub_size = main_stub_size + import_return_size +
     import_descriptor_size;
-  const size_t code_size = stub_size + callee_save_area_size;
+  const size_t cross_stub_size = 4096;
+  const size_t cross_stub_base_offset =
+    (stub_size + callee_save_area_size + 7U) & ~((size_t) 7U);
+  const size_t code_size = cross_stub_base_offset + cross_stub_size;
   const size_t foreign_size = program->image_size;
   uint8_t *dep_foreign[MAX_NEEDED_DEPS];
   uint64_t dep_load_bias[MAX_NEEDED_DEPS];
@@ -5474,6 +5592,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint64_t import_x86_table = import_x86_return + import_return_size;
   const size_t import_x86_table_offset = main_stub_size + import_return_size;
   const uint64_t callee_save_area = (uint64_t) (uintptr_t) (code + stub_size);
+  uint8_t *cross_stubs = code + cross_stub_base_offset;
+  size_t cross_stub_offset = 0;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   emit_save_callee_regs(code, &offset, callee_save_area);
   const size_t target_imm_offset = offset + 2;
@@ -5594,7 +5714,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     memcpy(dep_foreign[n], program->deps[n].image,
       program->deps[n].image_size);
     size_t dep_offset = program->deps[n].image_size - 4;
-    emit_u32(dep_foreign[n], &dep_offset, fallback_ret);
+    emit_u32(dep_foreign[n], &dep_offset,
+      fallback_ret_for_arch(program->deps[n].arch));
     dep_load_bias[n] = (uint64_t) (uintptr_t) dep_foreign[n] -
       program->deps[n].base_vaddr;
   }
@@ -5666,6 +5787,27 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         const size_t dep_index =
           (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_TLS_OFFSET);
         reloc_base = program->deps[dep_index].tls_offset;
+      }
+      else if (reloc_base_is_dep_cross_stub(dep->relocs[r].base_kind)) {
+        const size_t dep_index =
+          (size_t) (dep->relocs[r].base_kind - RELOC_BASE_DEP_CROSS_STUB);
+        uint64_t stub_addr = 0;
+        if (emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+              &cross_stub_offset, dep->arch, program->deps[dep_index].arch,
+              dep_load_bias[dep_index] + dep->relocs[r].value,
+              &stub_addr) < 0) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency cross-ISA stub overflow: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        write_le64(dep_foreign[d] + dep->relocs[r].offset, stub_addr);
+        continue;
       }
       else if (dep->relocs[r].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
           dep->relocs[r].base_kind <
@@ -5826,6 +5968,27 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       const size_t dep_index =
         (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_TLS_OFFSET);
       reloc_base = program->deps[dep_index].tls_offset;
+    }
+    else if (reloc_base_is_dep_cross_stub(program->relocs[n].base_kind)) {
+      const size_t dep_index =
+        (size_t) (program->relocs[n].base_kind - RELOC_BASE_DEP_CROSS_STUB);
+      uint64_t stub_addr = 0;
+      if (emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+            &cross_stub_offset, program->arch, program->deps[dep_index].arch,
+            dep_load_bias[dep_index] + program->relocs[n].value,
+            &stub_addr) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: cross-ISA stub overflow: %s\n",
+          program->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      write_le64(foreign + program->relocs[n].offset, stub_addr);
+      continue;
     }
     else if (program->relocs[n].base_kind >= RELOC_BASE_DEP_LOAD_BIAS &&
         program->relocs[n].base_kind <

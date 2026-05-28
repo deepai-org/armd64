@@ -83,6 +83,8 @@ POLYCALL_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_dep_real.c"
 POLYCALL_NEEDED_OVERRIDE_REAL_SRC="$ROOT_DIR/tools/polycall_needed_override_real.c"
 POLYCALL_NEEDED_EXTRA_REAL_SRC="$ROOT_DIR/tools/polycall_needed_extra_real.c"
 POLYCALL_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_needed_main_real.c"
+POLYCALL_CROSS_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cross_needed_dep_real.c"
+POLYCALL_CROSS_NEEDED_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cross_needed_main_real.c"
 POLYCALL_SYMBOLIC_OVERRIDE_REAL_SRC="$ROOT_DIR/tools/polycall_symbolic_override_real.c"
 POLYCALL_SYMBOLIC_TARGET_REAL_SRC="$ROOT_DIR/tools/polycall_symbolic_target_real.c"
 POLYCALL_PROTECTED_TARGET_REAL_SRC="$ROOT_DIR/tools/polycall_protected_target_real.c"
@@ -581,6 +583,8 @@ build_poly_elf_payloads() {
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/lib/polydeps"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64/polydeps"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv/polydeps"
+  mkdir -p "$TMP_DIR/poly-link/aarch64"
+  mkdir -p "$TMP_DIR/poly-link/riscv"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps/aarch64"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/envdeps/riscv"
@@ -642,6 +646,22 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolyneeded-extra-a-aarch64.so \
     -Wl,--no-as-needed -l:libpolyneeded-extra-b-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-needed-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolycrossneeded-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossneeded-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolycrossneeded-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/aarch64/libpolycrossneeded-riscv.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CROSS_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/aarch64" \
+    -Wl,--no-as-needed -l:libpolycrossneeded-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-needed-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolysymbolic-override-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -1893,6 +1913,25 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolyneeded-extra-a-riscv.so \
     -Wl,--no-as-needed -l:libpolyneeded-extra-b-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-needed-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolycrossneeded-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossneeded-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolycrossneeded-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_CROSS_NEEDED_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/riscv/libpolycrossneeded-aarch64.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CROSS_NEEDED_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/riscv" \
+    -Wl,--no-as-needed -l:libpolycrossneeded-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-needed-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolysymbolic-override-riscv.so \
@@ -4372,6 +4411,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-process-real.so#poly_entry=16771 \
     /usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=103 \
+    /usr/lib/polyapps/aarch64-pcall-cross-needed-real.so#poly_entry=345 \
     /usr/lib/polyapps/aarch64-pcall-symbolic-preempt-real.so#poly_entry=1005 \
     /usr/lib/polyapps/aarch64-pcall-symbolic-bind-real.so#poly_entry=15 \
     /usr/lib/polyapps/aarch64-pcall-symbolic-protected-real.so#poly_entry=15 \
@@ -4544,6 +4584,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-process-real.so#poly_entry=16771 \
     /usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=397 \
     depfini:/usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=103 \
+    /usr/lib/polyapps/riscv-pcall-cross-needed-real.so#poly_entry=345 \
     /usr/lib/polyapps/riscv-pcall-symbolic-preempt-real.so#poly_entry=1005 \
     /usr/lib/polyapps/riscv-pcall-symbolic-bind-real.so#poly_entry=15 \
     /usr/lib/polyapps/riscv-pcall-symbolic-protected-real.so#poly_entry=15 \
