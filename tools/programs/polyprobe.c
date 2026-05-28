@@ -11,11 +11,15 @@
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
 #define POLY_OP_PCALL_A64 ".byte 0x0f,0x3a,0xfc,0x10\n"
 #define POLY_OP_PCALL_RV64 ".byte 0x0f,0x3a,0xfc,0x11\n"
+#define POLY_OP_PCALL_SIG_A64 ".byte 0x0f,0x3a,0xfc,0x2b\n"
+#define POLY_OP_PCALL_SIG_RV64 ".byte 0x0f,0x3a,0xfc,0x2c\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_STATE_IMPORT ".byte 0x0f,0x3a,0xfc,0x68\n"
+#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
+#define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 #define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
@@ -55,6 +59,25 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
   uint64_t rax = (uint64_t) (uintptr_t) state;
   asm volatile(POLY_OP_STATE_IMPORT : "+a"(rax)
       :: POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+}
+
+static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t rax = slot;
+  uint64_t rdx = kind;
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+      : "+a"(rax), "+d"(rdx)
+      :
+      : "memory");
+  return rax;
+}
+
+static inline uint64_t poly_abi_signature_get(uint64_t slot) {
+  uint64_t rax = slot;
+  asm volatile(POLY_OP_ABI_SIGNATURE_GET
+      : "+a"(rax)
+      :
+      : "memory");
+  return rax;
 }
 
 static inline uint64_t read_rax(void) {
@@ -448,6 +471,122 @@ static inline void poly_opcode_pcall_riscv_sysv_args_probe(void) {
     ".long 0x00f50533\n" // add a0,a0,a5
     ".long 0x00008067\n" // ret
     "2:\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void pcall_signature_aarch64_sysv_args_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r12\n"
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "movq $3, %%r12\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_A64
+    "1:\n"
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0x8b020000\n" // add x0,x0,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r12\n"
+    "popq %%rbx\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void pcall_signature_riscv_sysv_args_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r12\n"
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "movq $3, %%r12\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_RV64
+    "1:\n"
+    ".long 0x00b50533\n" // add a0,a0,a1
+    ".long 0x00c50533\n" // add a0,a0,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    "popq %%r12\n"
+    "popq %%rbx\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void pcall_signature_aarch64_exchange_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r12\n"
+    "movq $1, %%rax\n"
+    "movq $2, %%rdx\n"
+    "movq $3, %%rcx\n"
+    "movq $4, %%rdi\n"
+    "movq $5, %%rsi\n"
+    "movq $6, %%r8\n"
+    "movq $7, %%r9\n"
+    "movq $8, %%r10\n"
+    "movq $4, %%r12\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_A64
+    "1:\n"
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0x8b020000\n" // add x0,x0,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0x8b060000\n" // add x0,x0,x6
+    ".long 0x8b070000\n" // add x0,x0,x7
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r12\n"
+    "popq %%rbx\n"
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void pcall_signature_riscv_exchange_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r12\n"
+    "movq $1, %%rax\n"
+    "movq $2, %%rdx\n"
+    "movq $3, %%rcx\n"
+    "movq $4, %%rdi\n"
+    "movq $5, %%rsi\n"
+    "movq $6, %%r8\n"
+    "movq $7, %%r9\n"
+    "movq $8, %%r10\n"
+    "movq $4, %%r12\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_RV64
+    "1:\n"
+    ".long 0x00b50533\n" // add a0,a0,a1
+    ".long 0x00c50533\n" // add a0,a0,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x01050533\n" // add a0,a0,a6
+    ".long 0x01150533\n" // add a0,a0,a7
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    "popq %%r12\n"
+    "popq %%rbx\n"
     ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
@@ -902,6 +1041,35 @@ int main(void) {
   poly_opcode_pcall_riscv_sysv_args_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 poly opcode pcall riscv SysV argument bridge mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: abi-signatures");
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV) != 0 ||
+      poly_abi_signature_get(3) != POLY_ABI_SIGNATURE_KIND_X86_SYSV ||
+      poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0 ||
+      poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr, "POLY_PROBE_FAIL: ABI signature slot programming mismatch\n");
+    return 1;
+  }
+  pcall_signature_aarch64_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall signature aarch64 SysV bridge mismatch\n");
+    return 1;
+  }
+  pcall_signature_riscv_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall signature riscv SysV bridge mismatch\n");
+    return 1;
+  }
+  pcall_signature_aarch64_exchange_probe();
+  if (read_rax() != 36) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall signature aarch64 exchange bridge mismatch\n");
+    return 1;
+  }
+  pcall_signature_riscv_exchange_probe();
+  if (read_rax() != 36) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall signature riscv exchange bridge mismatch\n");
     return 1;
   }
 

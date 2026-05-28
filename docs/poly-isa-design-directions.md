@@ -95,6 +95,12 @@ frontend, target PC, and signature slot. The common case stays fixed-latency:
 decode the transition, select the signature, update rename mappings, install
 the return cookie, and branch.
 
+The design point is speed and area efficiency: the hardware only changes
+register aliases. It does not execute moves, copy stack slots, or inspect call
+descriptors in memory. A realistic OoO implementation can treat the signature
+as extra control input to rename/RAT update logic, which is much closer to
+ordinary register renaming than to an ABI interpreter.
+
 Slot programming should happen at load time, lazy binding time, or runtime
 setup time, not on every call. A typical system can reserve one slot for
 SysV-to-AAPCS64, one for AAPCS64-to-SysV, one for SysV-to-RISC-V psABI, and one
@@ -125,6 +131,12 @@ This creates a deliberate hybrid boundary:
   and unusual vector cases before making the final fixed-latency transition.
 - The null signature is the exchange-window ABI, so every implementation has a
   simple fallback even without RAT remapping.
+
+The Bochs prototype currently models this with eight signature slots. Slot kind
+`0` is the exchange-window mapping, and slot kind `1` is x86_64 SysV source
+argument order. Signature-call prototype opcodes pass target PC in `RBX`, return
+PC in `R11`, and slot number in `R12` so the exchange-window lanes remain free
+for call arguments.
 
 ## Register Exchange Window
 

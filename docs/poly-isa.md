@@ -48,6 +48,19 @@ flushes or terminates the current decode block before switching fetch mode.
 The control instruction does not parse user-memory call descriptors or rewrite
 stack layouts.
 
+Current Bochs prototype subops for register-signature ABI calls are:
+
+| Subop | Operation | Register convention |
+| --- | --- | --- |
+| `0x2b` | `PCALL_SIG_A64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
+| `0x2c` | `PCALL_SIG_RV64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
+| `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
+| `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
+
+Prototype signature kinds are `0` for the baseline exchange window and `1` for
+x86_64 SysV source argument registers. They are a model of cached hardware
+control state, not a final x86 opcode allocation.
+
 ## Foreign Escapes
 
 | Source | Encoding | Meaning |
@@ -96,6 +109,12 @@ These slots are semi-persistent hardware control state, typically programmed by
 the loader or runtime and reused by many call sites. A `PCALL` names the target
 frontend, target PC, and signature slot; the CPU applies the cached register map
 in the rename path instead of executing move instructions.
+
+The intended silicon implementation is a programmable register-alias-table
+update, not a data-moving microcode loop. Slot programming is rare control
+state setup. The hot `PCALL` path selects a cached slot, rebinds architectural
+source names to destination names in rename/RAT state, installs the return
+cookie, and branches.
 
 This is intentionally limited to register renaming. Hardware does not repack
 stack arguments, copy by-value structs, interpret variadic call layouts, or read
