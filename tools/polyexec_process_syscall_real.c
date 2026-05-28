@@ -6,6 +6,7 @@ enum {
   POLY_PROT_READ = 1,
   POLY_PROT_WRITE = 2,
   POLY_GRND_NONBLOCK = 1,
+  POLY_MREMAP_MAYMOVE = 1,
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
   POLY_O_DIRECTORY = 0200000,
@@ -53,6 +54,7 @@ enum {
   POLY_SYS_SYSINFO = 179,
   POLY_SYS_BRK = 214,
   POLY_SYS_MUNMAP = 215,
+  POLY_SYS_MREMAP = 216,
   POLY_SYS_MMAP = 222,
   POLY_SYS_MPROTECT = 226,
   POLY_SYS_PRLIMIT64 = 261,
@@ -596,6 +598,33 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   }
   if (poly_syscall2(POLY_SYS_MUNMAP, page, 4096) != 0)
     return 49;
+
+  page = poly_syscall6(POLY_SYS_MMAP, 0, 4096,
+    POLY_PROT_READ | POLY_PROT_WRITE,
+    POLY_MAP_PRIVATE | POLY_MAP_ANONYMOUS, -1, 0);
+  if (page < 0)
+    return 94;
+  mapped = (unsigned char *) page;
+  mapped[0] = 0x6d;
+  mapped[4095] = 0x72;
+  long remapped_page = poly_syscall6(POLY_SYS_MREMAP, page, 4096, 8192,
+    POLY_MREMAP_MAYMOVE, 0, 0);
+  if (remapped_page < 0) {
+    poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
+    return 95;
+  }
+  mapped = (unsigned char *) remapped_page;
+  if (mapped[0] != 0x6d || mapped[4095] != 0x72) {
+    poly_syscall2(POLY_SYS_MUNMAP, remapped_page, 8192);
+    return 96;
+  }
+  mapped[8191] = 0x21;
+  if (mapped[8191] != 0x21) {
+    poly_syscall2(POLY_SYS_MUNMAP, remapped_page, 8192);
+    return 97;
+  }
+  if (poly_syscall2(POLY_SYS_MUNMAP, remapped_page, 8192) != 0)
+    return 98;
 
   static const char marker0[] = "POLY_PROCESS_";
   static const char marker1[] = "SYSCALL_OK\n";
