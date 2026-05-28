@@ -5,54 +5,44 @@ an x86_64 Linux process.
 
 ## Run
 
-Requirements: Docker with `linux/arm64` support and a writable checkout.
-
 ```bash
 make image
 make boot-poly-full-arch-traps
 ```
 
-Useful targets:
+Requires Docker with `linux/arm64` support. Re-run `make image` after changing
+`bochs-prepoly-src/`.
 
-- `make boot`: plain x86_64 guest sanity boot.
-- `make boot-poly-arch-traps`: CPUID, raw frontend, and trap checks.
-- `make boot-poly-call-arch-traps`: cross-ISA call, loader, thread, and signal checks.
-- `make boot-poly-binfmt-arch-traps`: foreign executable/binfmt checks.
-- `make boot-poly-bench-arch-traps`: benchmark checks.
-- `make clean`: remove generated state.
-
-Logs are written to `out/serial.log` and `out/bochs.log`.
+Focused targets: `make boot`, `make boot-poly-arch-traps`,
+`make boot-poly-call-arch-traps`, `make boot-poly-binfmt-arch-traps`, and
+`make boot-poly-bench-arch-traps`.
 
 ```bash
 grep -E 'BOOT_OK|NATIVE_CHECK_OK|POLYCALL_OK|POLYTHREAD_OK|POLYSIGNAL_OK|FAIL|Kernel panic' out/serial.log
 ```
 
-After changing `bochs-prepoly-src/`, rebuild the image before boot tests:
+## ISA Delta From x86_64
 
-```bash
-make image
-```
+The machine is still x86_64 for boot, paging, privilege, interrupts,
+exceptions, syscalls, virtual memory, and TSO memory ordering. The extension
+adds user-mode foreign execution:
 
-## ISA Delta vs x86_64
+- `PENTER.A64` and `PENTER.RV64` switch instruction fetch from x86_64 to raw
+  AArch64 or RISC-V at the current guest `RIP`.
+- `PCALL.*.SYSV` bridges ordinary x86_64 SysV calls to precompiled AAPCS64 or
+  RISC-V psABI functions by mapping native registers, stack arguments, return
+  registers, and return cookies.
+- Foreign code uses the same x86_64 virtual address space, page faults,
+  permissions, and TSO ordering as the process that called it.
+- Foreign traps and syscalls are surfaced as architectural events for software.
+  The CPU does not emulate Linux policy, libcalls, or named library functions.
+- Non-aliased foreign registers are explicit xstate-like architectural state,
+  not hidden CR3-scoped emulator state.
 
-The base machine remains x86_64. Boot, privileged execution, paging,
-interrupts, exceptions, virtual memory, syscalls, and TSO memory ordering still
-belong to the x86_64 guest OS.
+Foreign `ret` instructions can cross-return through CPU-created cookies, so the
+goal is compatibility with normal precompiled foreign functions, not a new
+compiler-only ABI.
 
-The extension adds user-mode foreign execution:
-
-- `PENTER.A64` / `PENTER.RV64` switch the frontend from x86 decode to raw
-  32-bit AArch64 or RISC-V fetch at the current guest `RIP`.
-- `PCALL.*.SYSV` calls precompiled AAPCS64 or RISC-V psABI functions from
-  x86_64 SysV code through CPU-defined register, stack, and return bridges.
-- Native foreign returns can cross-return through CPU-created return cookies.
-- Foreign traps and syscalls are exposed as architectural events for software;
-  the CPU does not emulate libcalls or Linux policy.
-- Foreign registers are explicit xstate-like CPU state, not hidden CR3-scoped
-  emulator state.
-- Foreign memory accesses use the same x86_64 virtual memory, page faults,
-  permissions, and ordering model as normal user code.
-
-The Bochs prototype currently encodes polyglot operations as
-`0f 24 <op> 50 4f 4c 59 21`. That is a temporary stand-in for future dedicated
-x86 polyglot opcodes. Full ISA details live in `docs/poly-isa.md`.
+Bochs currently encodes polyglot operations as `0f 24 <op> 50 4f 4c 59 21`.
+That is a prototype opcode slot, not the intended final silicon encoding. Full
+ISA details are in `docs/poly-isa.md`.
