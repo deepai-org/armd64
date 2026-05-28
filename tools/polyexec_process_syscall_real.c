@@ -99,6 +99,8 @@ enum {
   POLY_SYS_SETSOCKOPT = 208,
   POLY_SYS_GETSOCKOPT = 209,
   POLY_SYS_SHUTDOWN = 210,
+  POLY_SYS_SENDMSG = 211,
+  POLY_SYS_RECVMSG = 212,
   POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_UNAME = 160,
   POLY_SYS_GETRUSAGE = 165,
@@ -167,6 +169,18 @@ struct poly_pollfd {
 struct poly_sockaddr_un {
   uint16_t family;
   char path[108];
+};
+
+struct poly_msghdr {
+  uint64_t name;
+  uint32_t namelen;
+  uint32_t pad0;
+  uint64_t iov;
+  uint64_t iovlen;
+  uint64_t control;
+  uint64_t controllen;
+  int32_t flags;
+  int32_t pad1;
 };
 
 struct poly_epoll_event {
@@ -920,6 +934,56 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (accept_buffer[0] != 'C' || accept_buffer[1] != 'O' ||
       accept_buffer[2] != 'N' || accept_buffer[3] != 'N')
     return 196;
+
+  if (poly_syscall4(POLY_SYS_SOCKETPAIR, POLY_AF_UNIX,
+        POLY_SOCK_STREAM, 0, (long) socket_fds) != 0)
+    return 197;
+  static const char msg_message[] = "MSG!";
+  struct poly_iovec send_iov;
+  send_iov.base = (uint64_t) (uintptr_t) msg_message;
+  send_iov.len = sizeof(msg_message) - 1;
+  struct poly_msghdr send_msg;
+  send_msg.name = 0;
+  send_msg.namelen = 0;
+  send_msg.pad0 = 0;
+  send_msg.iov = (uint64_t) (uintptr_t) &send_iov;
+  send_msg.iovlen = 1;
+  send_msg.control = 0;
+  send_msg.controllen = 0;
+  send_msg.flags = 0;
+  send_msg.pad1 = 0;
+  if (poly_syscall3(POLY_SYS_SENDMSG, socket_fds[0],
+        (long) &send_msg, 0) != (long) sizeof(msg_message) - 1) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 198;
+  }
+  char msg_buffer[4];
+  struct poly_iovec recv_iov;
+  recv_iov.base = (uint64_t) (uintptr_t) msg_buffer;
+  recv_iov.len = sizeof(msg_buffer);
+  struct poly_msghdr recv_msg;
+  recv_msg.name = 0;
+  recv_msg.namelen = 0;
+  recv_msg.pad0 = 0;
+  recv_msg.iov = (uint64_t) (uintptr_t) &recv_iov;
+  recv_msg.iovlen = 1;
+  recv_msg.control = 0;
+  recv_msg.controllen = 0;
+  recv_msg.flags = 0;
+  recv_msg.pad1 = 0;
+  if (poly_syscall3(POLY_SYS_RECVMSG, socket_fds[1],
+        (long) &recv_msg, 0) != (long) sizeof(msg_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 199;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0) != 0)
+    return 200;
+  if (msg_buffer[0] != 'M' || msg_buffer[1] != 'S' ||
+      msg_buffer[2] != 'G' || msg_buffer[3] != '!')
+    return 201;
 
   if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
     return 156;

@@ -824,6 +824,8 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 208: *x86_number = SYS_setsockopt; return 1;
     case 209: *x86_number = SYS_getsockopt; return 1;
     case 210: *x86_number = SYS_shutdown; return 1;
+    case 211: *x86_number = SYS_sendmsg; return 1;
+    case 212: *x86_number = SYS_recvmsg; return 1;
     case 214: *x86_number = SYS_brk; return 1;
     case 215: *x86_number = SYS_munmap; return 1;
     case 216: *x86_number = SYS_mremap; return 1;
