@@ -561,6 +561,7 @@ struct poly_request {
   char path[160];
   char symbol[96];
   uint64_t expected;
+  unsigned repeat_count;
   int check_expected;
   int call_kind;
 };
@@ -1398,6 +1399,11 @@ static int parse_u64(const char *text, uint64_t *value) {
 static int parse_request(const char *arg, struct poly_request *request) {
   memset(request, 0, sizeof(*request));
   request->call_kind = POLY_CALL_U64;
+  request->repeat_count = 1;
+  if (strncmp(arg, "repeat:", 7) == 0) {
+    request->repeat_count = 2;
+    arg += 7;
+  }
   if (strncmp(arg, "fp64:", 5) == 0) {
     request->call_kind = POLY_CALL_FP64;
     arg += 5;
@@ -5548,7 +5554,7 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
 }
 
 static int emit_and_call(const struct poly_program *program, int call_kind,
-    uint64_t *result) {
+    unsigned repeat_count, uint64_t *result) {
   const uint32_t fallback_ret = fallback_ret_for_arch(program->arch);
   const int needs_x86_import = program->needs_x86_import;
   struct poly_import_contract import_contract = {
@@ -6398,8 +6404,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   const int entry_call_kind = call_kind == POLY_CALL_FINI_RESULT ?
     POLY_CALL_U64 : call_kind;
-  *result = call_poly_stub(code, target_imm_offset, foreign_target,
-    entry_call_kind);
+  if (repeat_count == 0)
+    repeat_count = 1;
+  for (unsigned repeat = 0; repeat < repeat_count; repeat++) {
+    *result = call_poly_stub(code, target_imm_offset, foreign_target,
+      entry_call_kind);
+  }
 
   if (program->fini_array_size != 0) {
     size_t fini_array_offset = 0;
@@ -6623,13 +6633,18 @@ int main(int argc, char **argv) {
       symbol_name ? symbol_name : "-", program.path);
 
     uint64_t result = 0;
-    if (emit_and_call(&program, request.call_kind, &result) < 0) {
+    if (emit_and_call(&program, request.call_kind, request.repeat_count,
+          &result) < 0) {
       free_program(&program);
       return 1;
     }
 
     printf("POLYCALL_RESULT: arch=%s value=%llu path=%s\n",
       program.arch_name, (unsigned long long) result, program.path);
+    if (request.repeat_count > 1) {
+      printf("POLYCALL_REPEAT: arch=%s count=%u path=%s\n",
+        program.arch_name, request.repeat_count, program.path);
+    }
     if (request.call_kind == POLY_CALL_FP64) {
       printf("POLYCALL_RESULT_FP64: arch=%s bits=0x%016llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
