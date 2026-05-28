@@ -189,13 +189,8 @@ uint64_t polybench_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return (uint64_t) -38;
   if (reason == POLY_TRAP_SYSCALL && number == 172)
     return 4242;
-  if (reason == POLY_TRAP_BREAK && number == 1) {
-    const char *text = (const char *) arg0;
-    uint64_t length = 0;
-    while (length < 4096 && text[length] != '\0')
-      length++;
-    return length;
-  }
+  if (reason == POLY_TRAP_BREAK)
+    return 0x4c000000ULL | (mode << 8) | number;
   return (uint64_t) -38;
 }
 
@@ -2223,12 +2218,11 @@ static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00100073U); // ebreak
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  static const char payload[] = "polyglot";
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_rax_arg(code, payload);
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2274,7 +2268,7 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   while ((offset & 3U) != 0)
     code[offset++] = 0x90;
   const size_t aarch64_target_offset = offset;
-  emit_u32(code, &offset, 0xd4200020U); // brk #1, runtime strlen trap
+  emit_u32(code, &offset, 0xd4200020U); // brk #1, neutral break trap
   emit_u32(code, &offset, 0xd65f03c0U); // ret
 
   while ((offset & 7U) != 0)
@@ -2289,12 +2283,11 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(6, 6,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  static const char payload[] = "polyglot";
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_rax_arg(code, payload);
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -3278,6 +3271,37 @@ static int check_cross_call_syscall_direction(const char *name,
   return 0;
 }
 
+static int check_cross_call_break_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *),
+    uint64_t expected) {
+  uint64_t result = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  printf("POLYBENCH_CROSS_CALL_BREAK_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta);
+
+  if (result != expected) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call break %s expected %llu got %llu\n",
+      name, (unsigned long long) expected, (unsigned long long) result);
+    return -1;
+  }
+  if (insn_delta < 8) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call break %s raw instruction delta expected at least 8 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (switch_delta < 4) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call break %s switch delta expected at least 4 got %llu\n",
+      name, (unsigned long long) switch_delta);
+    return -1;
+  }
+  return 0;
+}
+
 static int check_cross_call_string_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
@@ -3448,11 +3472,11 @@ static int check_cross_calls(void) {
   if (check_cross_call_syscall_direction("riscv-calls-aarch64-syscall",
         run_cross_call_syscall_riscv_to_aarch64) < 0)
     return -1;
-  if (check_cross_call_string_direction("aarch64-calls-riscv-break",
-        run_cross_call_break_aarch64_to_riscv) < 0)
+  if (check_cross_call_break_direction("aarch64-calls-riscv-break",
+        run_cross_call_break_aarch64_to_riscv, UINT64_C(0x4c000401)) < 0)
     return -1;
-  if (check_cross_call_string_direction("riscv-calls-aarch64-break",
-        run_cross_call_break_riscv_to_aarch64) < 0)
+  if (check_cross_call_break_direction("riscv-calls-aarch64-break",
+        run_cross_call_break_riscv_to_aarch64, UINT64_C(0x4c000301)) < 0)
     return -1;
   if (check_cross_call_string_direction("aarch64-calls-riscv-descriptor",
         run_cross_call_descriptor_aarch64_to_riscv) < 0)

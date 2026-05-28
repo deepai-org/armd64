@@ -393,12 +393,14 @@ result lane maps across `x1`/`a1`.  The syscall
 probes execute native AArch64 `svc` or RISC-V `ecall` inside the neutral
 callee and return the deterministic syscall result through the caller's native
 result register.  The break probes execute native AArch64 `brk #1` or
-RISC-V `ebreak` strlen traps inside the neutral callee and return through the
-same hardware cookie path.  Descriptor-import probes execute ordinary AArch64
-`blr` or RISC-V `jalr` calls to `strlen`, `strnlen`, `memset`, `memcpy`, and
-three-argument `memcmp` import descriptors inside the neutral callee, preserve
-the callee's native link register, mutate a shared x86 buffer through the
-foreign memory path, and return through the same cross-frontend cookie path.
+RISC-V `ebreak` inside the neutral callee and return a neutral trap-packet
+value through the same hardware cookie path; libc-like string behavior is
+covered by descriptor imports instead.  Descriptor-import probes execute
+ordinary AArch64 `blr` or RISC-V `jalr` calls to `strlen`, `strnlen`, `memset`,
+`memcpy`, and three-argument `memcmp` import descriptors inside the neutral
+callee, preserve the callee's native link register, mutate a shared x86 buffer
+through the foreign memory path, and return through the same cross-frontend
+cookie path.
 `polyprobe` also installs a guest x86 trap-vector handler for its raw syscall
 and breakpoint probes, so the low-level status/counter gate can run without
 Bochs synthesizing Linux or libc behavior.

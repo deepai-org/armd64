@@ -96,13 +96,8 @@ uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return (uint64_t) -38;
   if (reason == POLY_TRAP_SYSCALL && number == 172)
     return 4242;
-  if (reason == POLY_TRAP_BREAK && number == 1) {
-    const char *text = (const char *) arg0;
-    uint64_t length = 0;
-    while (length < 4096 && text[length] != '\0')
-      length++;
-    return length;
-  }
+  if (reason == POLY_TRAP_BREAK)
+    return 0x4c000000ULL | (mode << 8) | number;
   return (uint64_t) -38;
 }
 
@@ -489,7 +484,7 @@ static inline uint64_t raw_switch_stress_step(uint64_t value) {
   return rax;
 }
 
-static inline void raw_aarch64_strlen_probe(uint64_t arg0) {
+static inline void raw_aarch64_break_probe(uint64_t arg0) {
   register uint64_t rax __asm__("rax") = arg0;
   register uint64_t rdi __asm__("rdi") = arg0;
   asm volatile(
@@ -501,7 +496,7 @@ static inline void raw_aarch64_strlen_probe(uint64_t arg0) {
     : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
 }
 
-static inline void raw_riscv_strlen_probe(uint64_t arg0) {
+static inline void raw_riscv_break_probe(uint64_t arg0) {
   register uint64_t rax __asm__("rax") = arg0;
   register uint64_t rdi __asm__("rdi") = arg0;
   asm volatile(
@@ -831,8 +826,8 @@ int main(void) {
 
   stage("POLY_STAGE: raw-break");
   const char break_string[] = "polyglot";
-  raw_aarch64_strlen_probe((uint64_t) break_string);
-  if (read_rax() != 8) {
+  raw_aarch64_break_probe((uint64_t) break_string);
+  if (read_rax() != 0x4c000301ULL) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap vector mismatch\n");
     return 1;
   }
@@ -851,8 +846,8 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap selector mismatch\n");
     return 1;
   }
-  raw_riscv_strlen_probe((uint64_t) break_string);
-  if (read_rax() != 8) {
+  raw_riscv_break_probe((uint64_t) break_string);
+  if (read_rax() != 0x4c000401ULL) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap vector mismatch\n");
     return 1;
   }
@@ -960,7 +955,7 @@ int main(void) {
 
   poly_foreign_break_count_status();
   uint64_t breaks_before = read_rax();
-  raw_aarch64_strlen_probe((uint64_t) break_string);
+  raw_aarch64_break_probe((uint64_t) break_string);
   poly_foreign_break_count_status();
   if (read_rax() != breaks_before + 1) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw foreign break count mismatch\n");
