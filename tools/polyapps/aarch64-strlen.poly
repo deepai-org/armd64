@@ -1,7 +1,7 @@
 # poly payload v1
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-strlen.elf
-expected=5
+expected=0x4c000301
 syscall_expected=3
 break_id=0
 break_expected=0x4c000300

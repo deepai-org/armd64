@@ -1,7 +1,7 @@
 # poly payload v1
 arch=riscv
 elf=/usr/lib/polyapps/riscv-strlen.elf
-expected=5
+expected=0x4c000401
 syscall_expected=4
 break_id=0
 break_expected=0x4c000400

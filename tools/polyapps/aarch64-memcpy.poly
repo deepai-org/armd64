@@ -1,8 +1,7 @@
 # poly payload v1
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-memcpy.elf
-expected=4
-scratch_expected=oly!!
+expected=0x4c000304
 syscall_expected=3
 break_id=0
 break_expected=0x4c000300

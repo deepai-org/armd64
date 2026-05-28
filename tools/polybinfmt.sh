@@ -10,7 +10,6 @@ fi
 expected=""
 entry=""
 runner="polyexec"
-legacy_break_helpers=0
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
@@ -32,10 +31,10 @@ case "$path" in
   */aarch64-pcall-irelative.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-jumprel.elf) expected=123 ;;
   */aarch64-pcall-rel-jumprel.elf) expected=123 ;;
-  */aarch64-strlen.elf) expected=5; legacy_break_helpers=1 ;;
-  */aarch64-memfill.elf) expected=4; legacy_break_helpers=1 ;;
-  */aarch64-memcmp.elf) expected=1; legacy_break_helpers=1 ;;
-  */aarch64-memcpy.elf) expected=4; legacy_break_helpers=1 ;;
+  */aarch64-strlen.elf) expected=0x4c000301 ;;
+  */aarch64-memfill.elf) expected=0x4c000302 ;;
+  */aarch64-memcmp.elf) expected=0x4c000303 ;;
+  */aarch64-memcpy.elf) expected=0x4c000304 ;;
   */aarch64-eventfd2.elf) expected=0 ;;
   */aarch64-inotify-init1.elf) expected=0 ;;
   */aarch64-inotify-add-watch.elf) expected=1 ;;
@@ -121,10 +120,10 @@ case "$path" in
   */riscv-pcall-irelative.elf) expected=123; entry="#poly_entry" ;;
   */riscv-pcall-jumprel.elf) expected=123 ;;
   */riscv-pcall-rel-jumprel.elf) expected=123 ;;
-  */riscv-strlen.elf) expected=5; legacy_break_helpers=1 ;;
-  */riscv-memfill.elf) expected=4; legacy_break_helpers=1 ;;
-  */riscv-memcmp.elf) expected=1; legacy_break_helpers=1 ;;
-  */riscv-memcpy.elf) expected=4; legacy_break_helpers=1 ;;
+  */riscv-strlen.elf) expected=0x4c000401 ;;
+  */riscv-memfill.elf) expected=0x4c000402 ;;
+  */riscv-memcmp.elf) expected=0x4c000403 ;;
+  */riscv-memcpy.elf) expected=0x4c000404 ;;
   */riscv-eventfd2.elf) expected=0 ;;
   */riscv-inotify-init1.elf) expected=0 ;;
   */riscv-inotify-add-watch.elf) expected=1 ;;
@@ -180,9 +179,6 @@ esac
 
 target="${path}${entry}"
 echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none} runner=$runner"
-if [ "$runner" = "polyexec" ] && [ "$legacy_break_helpers" = "1" ]; then
-  export POLYEXEC_LEGACY_BREAK_HELPERS=1
-fi
 if [ -n "$expected" ]; then
   exec "/usr/bin/$runner" "$target=$expected"
 fi

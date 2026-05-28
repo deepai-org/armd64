@@ -1,7 +1,7 @@
 # poly payload v1
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-memcmp.elf
-expected=1
+expected=0x4c000303
 syscall_expected=3
 break_id=0
 break_expected=0x4c000300

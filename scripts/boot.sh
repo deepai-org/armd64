@@ -3674,19 +3674,7 @@ if [ "$RUN_POLY_PROBE" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then
-  polyapp_files=""
-  for polyapp_file in /usr/lib/polyapps/*.poly; do
-    case "\$polyapp_file" in
-      */aarch64-strlen.poly|*/aarch64-memfill.poly|*/aarch64-memcmp.poly|*/aarch64-memcpy.poly)
-        continue
-        ;;
-      */riscv-strlen.poly|*/riscv-memfill.poly|*/riscv-memcmp.poly|*/riscv-memcpy.poly)
-        continue
-        ;;
-    esac
-    polyapp_files="\$polyapp_files \$polyapp_file"
-  done
-  /usr/bin/polyapp \$polyapp_files >/dev/ttyS0 2>&1
+  /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
   /usr/bin/polyapp \
     /usr/lib/polyapps/aarch64-brk.poly \
     /usr/lib/polyapps/riscv-ebreak.poly >/dev/ttyS0 2>&1
@@ -4804,6 +4792,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-irelative.elf \
       /usr/lib/polyapps/aarch64-pcall-jumprel.elf \
       /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf \
+      /usr/lib/polyapps/aarch64-strlen.elf \
+      /usr/lib/polyapps/aarch64-memfill.elf \
+      /usr/lib/polyapps/aarch64-memcmp.elf \
+      /usr/lib/polyapps/aarch64-memcpy.elf \
       /usr/lib/polyapps/aarch64-mmap-real-store.elf \
       /usr/lib/polyapps/aarch64-real-mprotect.elf \
       /usr/lib/polyapps/aarch64-real-munmap.elf \
@@ -4842,6 +4834,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-irelative.elf \
       /usr/lib/polyapps/riscv-pcall-jumprel.elf \
       /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf \
+      /usr/lib/polyapps/riscv-strlen.elf \
+      /usr/lib/polyapps/riscv-memfill.elf \
+      /usr/lib/polyapps/riscv-memcmp.elf \
+      /usr/lib/polyapps/riscv-memcpy.elf \
       /usr/lib/polyapps/riscv-mmap-real-store.elf \
       /usr/lib/polyapps/riscv-real-mprotect.elf \
       /usr/lib/polyapps/riscv-real-munmap.elf \

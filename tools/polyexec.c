@@ -115,8 +115,6 @@ enum {
   SCRATCH_SECOND_PATH_OFFSET = 128
 };
 
-static int polyexec_legacy_break_helpers;
-
 struct poly_cpuid_regs {
   uint32_t eax;
   uint32_t ebx;
@@ -669,47 +667,6 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
   }
 
   if (reason == POLY_TRAP_BREAK) {
-    if (!polyexec_legacy_break_helpers)
-      return 0x4c000000ULL | (mode << 8) | number;
-    if (number == 1) {
-      const char *text = (const char *) arg0;
-      uint64_t length = 0;
-      while (length < 4096 && text[length] != '\0')
-        length++;
-      return length;
-    }
-    if (number == 2) {
-      uint8_t *dest = (uint8_t *) arg0;
-      uint8_t value = (uint8_t) arg1;
-      uint64_t count = arg2;
-      if (count > 4096)
-        count = 4096;
-      for (uint64_t n = 0; n < count; n++)
-        dest[n] = value;
-      return count;
-    }
-    if (number == 3) {
-      const uint8_t *left = (const uint8_t *) arg0;
-      const uint8_t *right = (const uint8_t *) arg1;
-      uint64_t count = arg2;
-      if (count > 4096)
-        count = 4096;
-      for (uint64_t n = 0; n < count; n++) {
-        if (left[n] != right[n])
-          return (uint64_t) ((int64_t) left[n] - (int64_t) right[n]);
-      }
-      return 0;
-    }
-    if (number == 4) {
-      uint8_t *dest = (uint8_t *) arg0;
-      const uint8_t *src = (const uint8_t *) arg1;
-      uint64_t count = arg2;
-      if (count > 4096)
-        count = 4096;
-      for (uint64_t n = 0; n < count; n++)
-        dest[n] = src[n];
-      return count;
-    }
     return 0x4c000000ULL | (mode << 8) | number;
   }
 
@@ -2463,9 +2420,6 @@ int main(int argc, char **argv) {
   const char *trap_vector_env = getenv("POLYEXEC_TRAP_VECTOR");
   const int use_trap_vector =
     trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0;
-  const char *legacy_break_env = getenv("POLYEXEC_LEGACY_BREAK_HELPERS");
-  polyexec_legacy_break_helpers =
-    legacy_break_env != NULL && strcmp(legacy_break_env, "1") == 0;
   if (read_poly_base_contract(use_trap_vector) < 0)
     return 1;
   if (use_trap_vector)

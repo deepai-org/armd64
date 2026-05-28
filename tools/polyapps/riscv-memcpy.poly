@@ -1,8 +1,7 @@
 # poly payload v1
 arch=riscv
 elf=/usr/lib/polyapps/riscv-memcpy.elf
-expected=4
-scratch_expected=oly!!
+expected=0x4c000404
 syscall_expected=4
 break_id=0
 break_expected=0x4c000400
