@@ -108,6 +108,12 @@ double POLY_HOST_HELPER poly_host_x86_fp64_sum8(double a, double b, double c,
   return a + b + c + d + e + f + g + h + 200.5;
 }
 
+double POLY_HOST_HELPER poly_host_x86_fp64_sum10(double a, double b, double c,
+    double d, double e, double f, double g, double h, double i, double j)
+{
+  return a + b + c + d + e + f + g + h + i + j + 200.5;
+}
+
 double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64(uint64_t a, double b,
     uint64_t c, double d, uint64_t e, double f)
 {

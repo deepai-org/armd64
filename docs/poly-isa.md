@@ -214,7 +214,7 @@ discover the experimental hardware contract before emitting poly operations:
   trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
   instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
   set/get opcode selectors.
-- `CPUID.EAX=0x40000002, ECX=5`: `EAX=145` reports the foreign import ID
+- `CPUID.EAX=0x40000002, ECX=5`: `EAX=146` reports the foreign import ID
   count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
   base, and `EDX=16` reports the import-call stride.
   Import ID `2` is reserved for the removed legacy x86-add helper and now
@@ -767,7 +767,11 @@ helper call before returning, so the descriptor path is exercised across
 ordinary x86 call/return activity inside the imported target. The
 `poly_import_x86_fp64_sum8` probes call an x86 SysV helper with eight double
 arguments, covering all `XMM0-XMM7`/`v0-v7`/`fa0-fa7` scalar FP argument
-aliases. The `poly_import_x86_mixed_u64_fp64` probes call an x86 helper with
+aliases. The `poly_import_x86_fp64_sum10` probes add two x86 SysV stack-passed
+double arguments, covering the overflow FP-argument path with ABI-specific
+source metadata: AArch64 supplies the overflow doubles on the foreign stack,
+while RISC-V supplies them in the integer `a0/a1` lanes after `fa0-fa7`. The
+`poly_import_x86_mixed_u64_fp64` probes call an x86 helper with
 alternating integer and double arguments, covering the native ABIs' independent
 GPR and FP argument counters. The imported-object
 probes exercise real compiler-emitted GOT loads of
@@ -971,8 +975,9 @@ cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,
 `memcpy`, and three-argument `memcmp` calls inside foreign callees, proving
 descriptor imports are not limited to x86-entered `PCALL` payloads. The gate
 also covers `poly_import_x86_add`, `poly_import_x86_mul`,
-`poly_import_x86_sum6`, `poly_import_x86_sum8`,
+`poly_import_x86_sum6`, `poly_import_x86_sum8`, `poly_import_x86_sum10`,
 `poly_import_x86_fp64_add`, `poly_import_x86_fp64_sum8`,
+`poly_import_x86_fp64_sum10`,
 `poly_import_x86_mixed_u64_fp64`, and `poly_import_x86_fp32_add`, where descriptor
 slots select real x86_64 helper targets from a runtime-supplied table, map the
 first six native foreign integer arguments to x86_64 SysV `RDI`, `RSI`, `RDX`,
@@ -1034,7 +1039,12 @@ specific helper IDs. Each 32-byte x86 import descriptor is
 `{target, trampoline, flags, x86_stack_arg_count}`.  Flag bit `0` requests x86
 stack-argument mapping; descriptor word 3 gives the number of x86 stack
 argument qwords to write after the synthesized return address.  A zero count
-with bit `0` set preserves the original two-slot encoding.  Bit `1` maps an
+with bit `0` set preserves the original two-slot encoding.  Bit `3` makes every
+stack slot come from the foreign stack instead of using the seventh and eighth
+foreign integer argument registers first; this is used for AArch64 FP overflow
+arguments such as a 10-double x86 SysV import.  Bit `4` makes stack slots come
+from the foreign integer argument lane zero upward; this is used for RISC-V FP
+overflow arguments that follow `fa0-fa7` in `a0/a1`. Bit `1` maps an
 x86 `RDX:RAX` 128-bit integer return back to the native foreign return register
 pair, and bit `2` maps an x86 `XMM0` binary128 return back to AArch64 `v0` or
 RISC-V `a0/a1`. These fields are runtime metadata, not CPU-side helper-ID

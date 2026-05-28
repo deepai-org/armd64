@@ -194,6 +194,8 @@ enum {
   POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 = (1U << 1),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 = (1U << 2),
+  POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_MEMORY = (1U << 3),
+  POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_GPR0 = (1U << 4),
   POLY_ABI_BRIDGE_ABI_VERSION = 1,
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64 = (1U << 0),
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV = (1U << 1),
@@ -398,7 +400,8 @@ enum {
   POLY_IMPORT_FUNC_CXA_GUARD_RELEASE = 142,
   POLY_IMPORT_FUNC_CXA_GUARD_ABORT = 143,
   POLY_IMPORT_FUNC_X86_SUM10 = 144,
-  POLY_IMPORT_FUNC_COUNT = 145
+  POLY_IMPORT_FUNC_X86_FP64_SUM10 = 145,
+  POLY_IMPORT_FUNC_COUNT = 146
 };
 
 enum {
@@ -711,6 +714,8 @@ extern uint64_t poly_host_x86_sum10(uint64_t a, uint64_t b, uint64_t c,
 extern double poly_host_x86_fp64_add(double a, double b);
 extern double poly_host_x86_fp64_sum8(double a, double b, double c,
     double d, double e, double f, double g, double h);
+extern double poly_host_x86_fp64_sum10(double a, double b, double c,
+    double d, double e, double f, double g, double h, double i, double j);
 extern double poly_host_x86_mixed_u64_fp64(uint64_t a, double b, uint64_t c,
     double d, uint64_t e, double f);
 extern float poly_host_x86_fp32_add(float a, float b);
@@ -986,6 +991,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_sum10;
     case POLY_IMPORT_FUNC_X86_SLOT6:
       return (uint64_t) (uintptr_t) poly_host_x86_fp64_sum8;
+    case POLY_IMPORT_FUNC_X86_FP64_SUM10:
+      return (uint64_t) (uintptr_t) poly_host_x86_fp64_sum10;
     case POLY_IMPORT_FUNC_X86_SLOT7:
       return (uint64_t) (uintptr_t) poly_host_x86_mixed_u64_fp64;
     case POLY_IMPORT_FUNC_STRLEN:
@@ -1283,12 +1290,19 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
   }
 }
 
-static uint64_t x86_descriptor_flags_for_import_id(uint64_t import_id) {
+static uint64_t x86_descriptor_flags_for_import_id(int arch,
+    uint64_t import_id) {
   switch (import_id) {
     case POLY_IMPORT_FUNC_X86_SLOT5:
     case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
     case POLY_IMPORT_FUNC_X86_SUM10:
       return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS;
+    case POLY_IMPORT_FUNC_X86_FP64_SUM10:
+      if (arch == POLY_ARCH_RISCV)
+        return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS |
+          POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_GPR0;
+      return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS |
+        POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_MEMORY;
     case POLY_IMPORT_FUNC_UDIVTI3:
     case POLY_IMPORT_FUNC_UMODTI3:
     case POLY_IMPORT_FUNC_DIVTI3:
@@ -1320,6 +1334,8 @@ static uint64_t x86_descriptor_stack_arg_count_for_import_id(
   switch (import_id) {
     case POLY_IMPORT_FUNC_X86_SUM10:
       return 4;
+    case POLY_IMPORT_FUNC_X86_FP64_SUM10:
+      return 2;
     case POLY_IMPORT_FUNC_X86_SLOT5:
     case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
       return 2;
@@ -1994,6 +2010,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_fp64_sum8") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_X86_SLOT6 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_X86_FP64_SUM10 * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
@@ -3742,6 +3762,7 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_add") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum8") == 0 ||
+        strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp32_add") == 0 ||
         import_symbol_uses_x86_descriptor(symbol_name))
@@ -5481,7 +5502,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       write_le64(code + descriptor_offset, target);
       write_le64(code + descriptor_offset + 8, import_x86_return);
       write_le64(code + descriptor_offset + 16,
-        x86_descriptor_flags_for_import_id(import_id));
+        x86_descriptor_flags_for_import_id(program->arch, import_id));
       write_le64(code + descriptor_offset + 24,
         x86_descriptor_stack_arg_count_for_import_id(import_id));
     }
