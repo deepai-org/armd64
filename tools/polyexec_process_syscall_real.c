@@ -9,6 +9,9 @@ enum {
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
   POLY_O_DIRECTORY = 0200000,
+  POLY_F_GETFD = 1,
+  POLY_F_SETFD = 2,
+  POLY_FD_CLOEXEC = 1,
   POLY_RLIMIT_STACK = 3,
   POLY_RUSAGE_SELF = 0,
   POLY_S_IFMT = 0170000,
@@ -18,6 +21,7 @@ enum {
   POLY_STATX_BASIC_STATS = 0x7ff,
 
   POLY_SYS_GETCWD = 17,
+  POLY_SYS_FCNTL = 25,
   POLY_SYS_STATFS = 43,
   POLY_SYS_FSTATFS = 44,
   POLY_SYS_OPENAT = 56,
@@ -479,6 +483,16 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       fd_statfs.bsize != path_statfs.bsize ||
       fd_statfs.namelen != path_statfs.namelen)
     return 68;
+
+  long fd_flags = poly_syscall3(POLY_SYS_FCNTL, fd, POLY_F_GETFD, 0);
+  if (fd_flags < 0)
+    return 91;
+  if (poly_syscall3(POLY_SYS_FCNTL, fd, POLY_F_SETFD,
+        fd_flags | POLY_FD_CLOEXEC) != 0)
+    return 92;
+  long cloexec_flags = poly_syscall3(POLY_SYS_FCNTL, fd, POLY_F_GETFD, 0);
+  if ((cloexec_flags & POLY_FD_CLOEXEC) == 0)
+    return 93;
 
   struct poly_statx statx_result;
   if (poly_syscall6(POLY_SYS_STATX, POLY_AT_FDCWD,
