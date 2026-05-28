@@ -123,6 +123,13 @@ path for this family:
 - `0f 24 20 50 4f 4c 59 21`: prototype `PIRET`, used by
   descriptor-driven foreign-to-x86 import calls to resume the saved foreign
   return PC after an x86 helper returns normally.
+- `0f 24 21 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.VEC128U32`, mapping x86_64 SysV `XMM0/XMM1` vector
+  arguments to AArch64 `v0/v1` and mapping the returned `v0` back to `XMM0`.
+- `0f 24 22 50 4f 4c 59 21`: prototype
+  `PCALL.RV64.SYSV.VEC128U32`, mapping x86_64 SysV `XMM0/XMM1` vector
+  arguments to RISC-V `a0/a1` and `a2/a3` GPR pairs and mapping the returned
+  `a0/a1` pair back to `XMM0`.
 - `0f 24 30+id 50 4f 4c 59 21`: syscall status read.  `id=0` returns the
   current mode, `id=1` returns the last foreign syscall number, and `id=2`
   returns the last foreign syscall mode.
@@ -214,7 +221,7 @@ discover the experimental hardware contract before emitting poly operations:
   trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
   instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
   set/get opcode selectors.
-- `CPUID.EAX=0x40000002, ECX=5`: `EAX=148` reports the foreign import ID
+- `CPUID.EAX=0x40000002, ECX=5`: `EAX=149` reports the foreign import ID
   count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
   base, and `EDX=16` reports the import-call stride.
   Import ID `2` is reserved for the removed legacy x86-add helper and now
@@ -776,6 +783,9 @@ while RISC-V supplies them in the integer `a0/a1` lanes after `fa0-fa7`. The
 `v0/v1` or RISC-V `fa0/fa1`. The `poly_import_x86_fpair32` probes return a
 two-`float` SysV aggregate packed in `XMM0[63:0]` and verify that descriptor
 metadata maps it back to AArch64 `s0/s1` or RISC-V `fa0/fa1`. The
+`poly_import_x86_vec128_u32` probes return a fixed 128-bit vector from x86
+`XMM0`, map it back to AArch64 `v0` or RISC-V `a0/a1`, and cover RISC-V's
+GPR-pair lowering for `vector_size(16)` arguments by descriptor metadata. The
 `poly_import_x86_mixed_u64_fp64` probes call an x86 helper with
 alternating integer and double arguments, covering the native ABIs' independent
 GPR and FP argument counters. The imported-object
@@ -984,6 +994,7 @@ also covers `poly_import_x86_add`, `poly_import_x86_mul`,
 `poly_import_x86_fp64_add`, `poly_import_x86_fp64_sum8`,
 `poly_import_x86_fp64_sum10`, `poly_import_x86_fpair64`,
 `poly_import_x86_fpair32`,
+`poly_import_x86_vec128_u32`,
 `poly_import_x86_mixed_u64_fp64`, and `poly_import_x86_fp32_add`, where descriptor
 slots select real x86_64 helper targets from a runtime-supplied table, map the
 first six native foreign integer arguments to x86_64 SysV `RDI`, `RSI`, `RDX`,
@@ -1056,8 +1067,11 @@ pair, and bit `2` maps an x86 `XMM0` binary128 return back to AArch64 `v0` or
 RISC-V `a0/a1`. Bit `5` maps an x86 two-`double` aggregate return from
 `XMM0/XMM1` back to native foreign FP return registers. Bit `6` maps an x86
 two-`float` aggregate return packed in `XMM0[63:0]` back to native foreign FP
-return registers. These fields are runtime metadata, not CPU-side helper-ID
-policy.
+return registers. Bit `7` maps an x86 128-bit vector return in `XMM0` back to
+the native foreign vector return location. Bit `8` maps the first two
+GPR-pair 128-bit vector arguments into x86 `XMM0/XMM1`, currently for RISC-V
+`vector_size(16)` objects that the psABI lowers through `a0/a1` and `a2/a3`.
+These fields are runtime metadata, not CPU-side helper-ID policy.
 The same descriptor path currently provides prototype imports for common GCC
 dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and
