@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <signal.h>
+#include <setjmp.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -109,6 +110,15 @@ static struct poly_xsave_state
 static struct poly_xsave_state
   nativecheck_import_restore_state __attribute__((aligned(64)));
 static unsigned nativecheck_import_helper_calls;
+static sigjmp_buf nativecheck_sigill_env;
+static volatile sig_atomic_t nativecheck_expect_sigill;
+
+static void nativecheck_sigill_handler(int signal_number) {
+  (void) signal_number;
+  if (nativecheck_expect_sigill)
+    siglongjmp(nativecheck_sigill_env, 1);
+  _exit(98);
+}
 
 __attribute__((naked, noinline, used))
 static void nativecheck_import_return_trampoline(void) {
@@ -1530,6 +1540,70 @@ static int run_poly_state_key_probe(void) {
   return 0;
 }
 
+static int run_poly_invalid_import_no_mutation_probe(void) {
+  struct poly_xsave_state before __attribute__((aligned(64)));
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  struct sigaction action;
+  struct sigaction old_action;
+  const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+
+  memset(&before, 0, sizeof(before));
+  memset(&bad, 0, sizeof(bad));
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value(trap_vector);
+  poly_state_export(&before);
+
+  memcpy(&bad, &before, sizeof(bad));
+  bad.header.trap_vector_pc = 0;
+  bad.header.trap_vector_mode = POLY_MODE_X86;
+  bad.import_return.top = 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].source_mode = POLY_MODE_X86;
+  bad.import_return.frames[0].import_id = 8;
+
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = nativecheck_sigill_handler;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(SIGILL, &action, &old_action) != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly invalid import sigaction failed\n");
+    return 1;
+  }
+
+  nativecheck_expect_sigill = 1;
+  if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
+    poly_state_import(&bad);
+    nativecheck_expect_sigill = 0;
+    sigaction(SIGILL, &old_action, 0);
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly invalid import returned without SIGILL\n");
+    return 1;
+  }
+  nativecheck_expect_sigill = 0;
+  if (sigaction(SIGILL, &old_action, 0) != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly invalid import sigaction restore failed\n");
+    return 1;
+  }
+
+  poly_trap_vector_get();
+  if (read_rax() != before.header.trap_vector_pc) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid import mutated trap vector got=0x%llx expected=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) before.header.trap_vector_pc);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != before.header.trap_vector_mode) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid import mutated trap mode got=%llu expected=%u\n",
+      (unsigned long long) read_rax(),
+      before.header.trap_vector_mode);
+    return 1;
+  }
+
+  poly_trap_vector_clear();
+  return 0;
+}
+
 static int run_poly_state_save_restore_probe(void) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
   struct poly_xsave_state trap_snapshot __attribute__((aligned(64)));
@@ -1543,6 +1617,8 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad import-return id xstate", SIGILL,
         child_expect_bad_import_return_id_xsave_signal) != 0)
+    return 1;
+  if (run_poly_invalid_import_no_mutation_probe() != 0)
     return 1;
 
   memset(&snapshot, 0, sizeof(snapshot));
