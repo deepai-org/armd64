@@ -225,9 +225,15 @@ static void pcall_aarch64_atomic_add(uint64_t *ptr, uint64_t iterations) {
     ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
     "1:\n"
     ".long 0xd2800022\n" // mov x2,#1
+    ".long 0xd5033fbf\n" // dmb sy
+    ".long 0xd5033f9f\n" // dsb sy
+    ".long 0xd5033fdf\n" // isb
     ".long 0xf8e2001f\n" // ldaddal x2,xzr,[x0]
     ".long 0xf1000421\n" // subs x1,x1,#1
     ".long 0x54ffffc1\n" // b.ne -8
+    ".long 0xd5033fbf\n" // dmb sy
+    ".long 0xd5033f9f\n" // dsb sy
+    ".long 0xd5033fdf\n" // isb
     ".long 0xd65f03c0\n" // ret x30
     "2:\n"
     : "=a"(ignored), "+D"(arg0), "+S"(arg1)
@@ -245,9 +251,13 @@ static void pcall_riscv_atomic_add(uint64_t *ptr, uint64_t iterations) {
     ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
     "1:\n"
     ".long 0x00100313\n" // addi t1,zero,1
+    ".long 0x0ff0000f\n" // fence
+    ".long 0x0000100f\n" // fence.i
     ".long 0x0665302f\n" // amoadd.d.aqrl zero,t1,(a0)
     ".long 0xfff58593\n" // addi a1,a1,-1
     ".long 0xfe059ce3\n" // bnez a1,-8
+    ".long 0x0ff0000f\n" // fence
+    ".long 0x0000100f\n" // fence.i
     ".long 0x00008067\n" // ret
     "2:\n"
     : "=a"(ignored), "+D"(arg0), "+S"(arg1)
