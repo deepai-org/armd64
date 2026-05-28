@@ -10,6 +10,7 @@ enum {
   POLY_PROT_WRITE = 2,
   POLY_SO_REUSEADDR = 2,
   POLY_SHUT_WR = 1,
+  POLY_SOCK_DGRAM = 2,
   POLY_SOCK_STREAM = 1,
   POLY_GRND_NONBLOCK = 1,
   POLY_MFD_CLOEXEC = 1,
@@ -101,6 +102,8 @@ enum {
   POLY_SYS_SHUTDOWN = 210,
   POLY_SYS_SENDMSG = 211,
   POLY_SYS_RECVMSG = 212,
+  POLY_SYS_RECVMMSG = 243,
+  POLY_SYS_SENDMMSG = 269,
   POLY_SYS_GETTIMEOFDAY = 169,
   POLY_SYS_UNAME = 160,
   POLY_SYS_GETRUSAGE = 165,
@@ -181,6 +184,12 @@ struct poly_msghdr {
   uint64_t controllen;
   int32_t flags;
   int32_t pad1;
+};
+
+struct poly_mmsghdr {
+  struct poly_msghdr hdr;
+  uint32_t len;
+  uint32_t pad;
 };
 
 struct poly_epoll_event {
@@ -984,6 +993,95 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (msg_buffer[0] != 'M' || msg_buffer[1] != 'S' ||
       msg_buffer[2] != 'G' || msg_buffer[3] != '!')
     return 201;
+
+  if (poly_syscall4(POLY_SYS_SOCKETPAIR, POLY_AF_UNIX,
+        POLY_SOCK_DGRAM, 0, (long) socket_fds) != 0)
+    return 202;
+  static const char batch_message0[] = "B0";
+  static const char batch_message1[] = "B1";
+  struct poly_iovec batch_send_iov0;
+  batch_send_iov0.base = (uint64_t) (uintptr_t) batch_message0;
+  batch_send_iov0.len = sizeof(batch_message0) - 1;
+  struct poly_iovec batch_send_iov1;
+  batch_send_iov1.base = (uint64_t) (uintptr_t) batch_message1;
+  batch_send_iov1.len = sizeof(batch_message1) - 1;
+  struct poly_mmsghdr batch_send[2];
+  batch_send[0].hdr.name = 0;
+  batch_send[0].hdr.namelen = 0;
+  batch_send[0].hdr.pad0 = 0;
+  batch_send[0].hdr.iov = (uint64_t) (uintptr_t) &batch_send_iov0;
+  batch_send[0].hdr.iovlen = 1;
+  batch_send[0].hdr.control = 0;
+  batch_send[0].hdr.controllen = 0;
+  batch_send[0].hdr.flags = 0;
+  batch_send[0].hdr.pad1 = 0;
+  batch_send[0].len = 0;
+  batch_send[0].pad = 0;
+  batch_send[1].hdr.name = 0;
+  batch_send[1].hdr.namelen = 0;
+  batch_send[1].hdr.pad0 = 0;
+  batch_send[1].hdr.iov = (uint64_t) (uintptr_t) &batch_send_iov1;
+  batch_send[1].hdr.iovlen = 1;
+  batch_send[1].hdr.control = 0;
+  batch_send[1].hdr.controllen = 0;
+  batch_send[1].hdr.flags = 0;
+  batch_send[1].hdr.pad1 = 0;
+  batch_send[1].len = 0;
+  batch_send[1].pad = 0;
+  if (poly_syscall4(POLY_SYS_SENDMMSG, socket_fds[0],
+        (long) batch_send, 2, 0) != 2) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 203;
+  }
+  char batch_buffer0[2];
+  char batch_buffer1[2];
+  struct poly_iovec batch_recv_iov0;
+  batch_recv_iov0.base = (uint64_t) (uintptr_t) batch_buffer0;
+  batch_recv_iov0.len = sizeof(batch_buffer0);
+  struct poly_iovec batch_recv_iov1;
+  batch_recv_iov1.base = (uint64_t) (uintptr_t) batch_buffer1;
+  batch_recv_iov1.len = sizeof(batch_buffer1);
+  struct poly_mmsghdr batch_recv[2];
+  batch_recv[0].hdr.name = 0;
+  batch_recv[0].hdr.namelen = 0;
+  batch_recv[0].hdr.pad0 = 0;
+  batch_recv[0].hdr.iov = (uint64_t) (uintptr_t) &batch_recv_iov0;
+  batch_recv[0].hdr.iovlen = 1;
+  batch_recv[0].hdr.control = 0;
+  batch_recv[0].hdr.controllen = 0;
+  batch_recv[0].hdr.flags = 0;
+  batch_recv[0].hdr.pad1 = 0;
+  batch_recv[0].len = 0;
+  batch_recv[0].pad = 0;
+  batch_recv[1].hdr.name = 0;
+  batch_recv[1].hdr.namelen = 0;
+  batch_recv[1].hdr.pad0 = 0;
+  batch_recv[1].hdr.iov = (uint64_t) (uintptr_t) &batch_recv_iov1;
+  batch_recv[1].hdr.iovlen = 1;
+  batch_recv[1].hdr.control = 0;
+  batch_recv[1].hdr.controllen = 0;
+  batch_recv[1].hdr.flags = 0;
+  batch_recv[1].hdr.pad1 = 0;
+  batch_recv[1].len = 0;
+  batch_recv[1].pad = 0;
+  if (poly_syscall5(POLY_SYS_RECVMMSG, socket_fds[1],
+        (long) batch_recv, 2, 0, 0) != 2) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 204;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0) != 0)
+    return 205;
+  if (batch_send[0].len != sizeof(batch_message0) - 1 ||
+      batch_send[1].len != sizeof(batch_message1) - 1 ||
+      batch_recv[0].len != sizeof(batch_buffer0) ||
+      batch_recv[1].len != sizeof(batch_buffer1))
+    return 206;
+  if (batch_buffer0[0] != 'B' || batch_buffer0[1] != '0' ||
+      batch_buffer1[0] != 'B' || batch_buffer1[1] != '1')
+    return 207;
 
   if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
     return 156;

@@ -844,8 +844,10 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 238: *x86_number = SYS_migrate_pages; return 1;
     case 239: *x86_number = SYS_move_pages; return 1;
     case 242: *x86_number = SYS_accept4; return 1;
+    case 243: *x86_number = SYS_recvmmsg; return 1;
     case 260: *x86_number = SYS_wait4; return 1;
     case 261: *x86_number = SYS_prlimit64; return 1;
+    case 269: *x86_number = SYS_sendmmsg; return 1;
     case 276: *x86_number = SYS_renameat2; return 1;
     case 277: *x86_number = SYS_seccomp; return 1;
     case 278: *x86_number = SYS_getrandom; return 1;
