@@ -559,11 +559,15 @@ struct poly_atexit_callback {
 
 static struct poly_atexit_callback poly_atexit_callbacks[MAX_ATEXIT_CALLBACKS];
 static size_t poly_atexit_callback_count;
+static uint8_t *poly_atexit_call_code;
+static size_t poly_atexit_target_imm_offset;
 
 void poly_runtime_reset_atexit_callbacks(void)
 {
   memset(poly_atexit_callbacks, 0, sizeof(poly_atexit_callbacks));
   poly_atexit_callback_count = 0;
+  poly_atexit_call_code = NULL;
+  poly_atexit_target_imm_offset = 0;
 }
 
 uint64_t poly_runtime_register_atexit_callback(void *callback, void *arg,
@@ -579,6 +583,12 @@ uint64_t poly_runtime_register_atexit_callback(void *callback, void *arg,
   entry->dso_handle = (uint64_t) (uintptr_t) dso_handle;
   entry->active = 1;
   return 0;
+}
+
+void poly_runtime_set_atexit_call_stub(uint8_t *code, size_t target_imm_offset)
+{
+  poly_atexit_call_code = code;
+  poly_atexit_target_imm_offset = target_imm_offset;
 }
 
 static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
@@ -5099,16 +5109,27 @@ static void call_poly_stub_one_u64(uint8_t *code, size_t target_imm_offset,
     fail_callee_save_guard(bad_mask);
 }
 
-static void run_poly_atexit_callbacks(uint8_t *code, size_t target_imm_offset)
+uint64_t poly_runtime_finalize_atexit_callbacks(void *dso_handle)
 {
+  if (poly_atexit_call_code == NULL)
+    return 1;
+
+  const uint64_t dso = (uint64_t) (uintptr_t) dso_handle;
   for (size_t n = poly_atexit_callback_count; n > 0; n--) {
     struct poly_atexit_callback *entry = &poly_atexit_callbacks[n - 1];
-    if (!entry->active)
+    if (!entry->active || (dso != 0 && entry->dso_handle != dso))
       continue;
     entry->active = 0;
-    call_poly_stub_one_u64(code, target_imm_offset, entry->callback,
-      entry->arg);
+    call_poly_stub_one_u64(poly_atexit_call_code,
+      poly_atexit_target_imm_offset, entry->callback, entry->arg);
   }
+  return 0;
+}
+
+static void run_poly_atexit_callbacks(uint8_t *code, size_t target_imm_offset)
+{
+  poly_runtime_set_atexit_call_stub(code, target_imm_offset);
+  (void) poly_runtime_finalize_atexit_callbacks(NULL);
 }
 
 static void unmap_dependency_images(uint8_t **dep_foreign,
@@ -5799,6 +5820,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
 
   poly_runtime_reset_atexit_callbacks();
+  poly_runtime_set_atexit_call_stub(code, target_imm_offset);
 
   if (program->preinit_array_size != 0) {
     size_t preinit_array_offset = 0;
