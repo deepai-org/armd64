@@ -51,6 +51,10 @@ extern char **environ;
 #define R_AARCH64_TLS_TPREL64 1030
 #endif
 
+#ifndef R_AARCH64_TLSDESC
+#define R_AARCH64_TLSDESC 1031
+#endif
+
 #ifndef R_RISCV_NONE
 #define R_RISCV_NONE 0
 #endif
@@ -65,6 +69,14 @@ extern char **environ;
 
 #ifndef R_RISCV_JUMP_SLOT
 #define R_RISCV_JUMP_SLOT 5
+#endif
+
+#ifndef R_RISCV_TLS_DTPMOD64
+#define R_RISCV_TLS_DTPMOD64 7
+#endif
+
+#ifndef R_RISCV_TLS_DTPREL64
+#define R_RISCV_TLS_DTPREL64 9
 #endif
 
 #ifndef R_RISCV_IRELATIVE
@@ -1057,7 +1069,7 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
     uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
     uint64_t gnu_hash_vaddr, uint64_t symbol_index, uint64_t *symbol_value,
     uint8_t *symbol_type, uint8_t *trampoline_code, size_t prefix_size,
-    uint64_t return_pc, uint8_t *scratch) {
+    uint64_t return_pc, uint64_t tls_get_addr_helper_pc, uint8_t *scratch) {
   const char *symbol_name = NULL;
   const char *requested_version = NULL;
   uint8_t unresolved_info = 0;
@@ -1068,6 +1080,13 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
   if (relocation_requested_version_name(program, loaded_image, strtab_vaddr,
         strsz, symbol_index, &requested_version) < 0)
     return -1;
+  if (program->arch == POLY_ARCH_RISCV && tls_get_addr_helper_pc != 0 &&
+      strcmp(symbol_name, "__tls_get_addr") == 0) {
+    *symbol_value = tls_get_addr_helper_pc;
+    if (symbol_type)
+      *symbol_type = STT_FUNC;
+    return 0;
+  }
   if (resolve_root_scope_symbol(program, symbol_name, requested_version,
         trampoline_code,
         prefix_size, return_pc, scratch, symbol_value, symbol_type) == 0)
@@ -2742,6 +2761,33 @@ static uint32_t riscv_jalr(unsigned rd, unsigned rs1, int16_t byte_offset) {
     ((rs1 & 0x1fU) << 15) | ((rd & 0x1fU) << 7) | 0x67U;
 }
 
+static uint32_t riscv_ld(unsigned rd, unsigned rs1, int16_t byte_offset) {
+  return (((uint32_t) byte_offset & 0xfffU) << 20) |
+    ((rs1 & 0x1fU) << 15) | (3U << 12) | ((rd & 0x1fU) << 7) | 0x03U;
+}
+
+static uint32_t riscv_add(unsigned rd, unsigned rs1, unsigned rs2) {
+  return ((rs2 & 0x1fU) << 20) | ((rs1 & 0x1fU) << 15) |
+    ((rd & 0x1fU) << 7) | 0x33U;
+}
+
+static int emit_process_tls_helper(const struct poly_program *program,
+    uint8_t *mapping, size_t *offset, uint64_t *helper_pc) {
+  if (*offset > SIZE_MAX - 16)
+    return -1;
+  *helper_pc = (uint64_t) (uintptr_t) (mapping + *offset);
+  if (program->arch == POLY_ARCH_AARCH64) {
+    emit_u32(mapping, offset, 0xf9400400U); // ldr x0, [x0, #8]
+    emit_u32(mapping, offset, 0xd65f03c0U); // ret
+  }
+  else {
+    emit_u32(mapping, offset, riscv_ld(10, 10, 8)); // ld a0, 8(a0)
+    emit_u32(mapping, offset, riscv_add(10, 10, 4)); // add a0, a0, tp
+    emit_u32(mapping, offset, riscv_jalr(0, 1, 0)); // ret
+  }
+  return 0;
+}
+
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
@@ -2763,7 +2809,8 @@ static int run_irelative_resolver(const struct poly_program *program,
 
 static int apply_relative_relocations(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
-    uint64_t return_pc, uint8_t *scratch) {
+    uint64_t return_pc, uint64_t tlsdesc_helper_pc,
+    uint64_t tls_get_addr_helper_pc, uint8_t *scratch) {
   if (!program->dynamic_size)
     return 0;
 
@@ -2804,6 +2851,12 @@ static int apply_relative_relocations(const struct poly_program *program,
   const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
   const uint32_t tls_tprel_type = tls_tprel_reloc_type_for_arch(program->arch);
   const uint32_t none_type = none_reloc_type_for_arch(program->arch);
+  const uint32_t tlsdesc_type = program->arch == POLY_ARCH_AARCH64 ?
+    R_AARCH64_TLSDESC : UINT32_MAX;
+  const uint32_t tls_dtpmod_type = program->arch == POLY_ARCH_RISCV ?
+    R_RISCV_TLS_DTPMOD64 : UINT32_MAX;
+  const uint32_t tls_dtprel_type = program->arch == POLY_ARCH_RISCV ?
+    R_RISCV_TLS_DTPREL64 : UINT32_MAX;
   const uint64_t load_bias = (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   if (rela_vaddr && rela_size) {
     if (rela_ent < sizeof(Elf64_Rela) || rela_size % rela_ent)
@@ -2840,6 +2893,31 @@ static int apply_relative_relocations(const struct poly_program *program,
         reloc_value += (uint64_t) rela->r_addend;
         reloc_value_is_absolute = 1;
       }
+      else if (symbol_index != 0 && reloc_type == tlsdesc_type) {
+        if (tlsdesc_helper_pc == 0 ||
+            elf_vaddr_to_image_offset(program, rela->r_offset, 16,
+              &target) < 0 ||
+            resolve_process_tls_reloc_symbol(program, loaded_image,
+              symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+              gnu_hash_vaddr, symbol_index, &reloc_value) < 0)
+          return -1;
+        write_u64_le(loaded_image + target, tlsdesc_helper_pc);
+        write_u64_le(loaded_image + target + 8,
+          reloc_value + (uint64_t) rela->r_addend);
+        continue;
+      }
+      else if (reloc_type == tls_dtpmod_type) {
+        reloc_value = 1 + (uint64_t) rela->r_addend;
+        reloc_value_is_absolute = 1;
+      }
+      else if (symbol_index != 0 && reloc_type == tls_dtprel_type) {
+        if (resolve_process_tls_reloc_symbol(program, loaded_image,
+              symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+              gnu_hash_vaddr, symbol_index, &reloc_value) < 0)
+          return -1;
+        reloc_value += (uint64_t) rela->r_addend;
+        reloc_value_is_absolute = 1;
+      }
       else if (symbol_index != 0 &&
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
         uint8_t symbol_type = 0;
@@ -2851,7 +2929,7 @@ static int apply_relative_relocations(const struct poly_program *program,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &reloc_value,
                 &symbol_type, trampoline_code, prefix_size, return_pc,
-                scratch) < 0)
+                tls_get_addr_helper_pc, scratch) < 0)
             return -1;
           from_dependency = 1;
           reloc_value_is_absolute = 1;
@@ -2908,6 +2986,33 @@ static int apply_relative_relocations(const struct poly_program *program,
         reloc_value += symbol_value;
         reloc_value_is_absolute = 1;
       }
+      else if (symbol_index != 0 && reloc_type == tlsdesc_type) {
+        uint64_t symbol_value = 0;
+        if (tlsdesc_helper_pc == 0 ||
+            elf_vaddr_to_image_offset(program, rel->r_offset, 16,
+              &target) < 0 ||
+            resolve_process_tls_reloc_symbol(program, loaded_image,
+              symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+              gnu_hash_vaddr, symbol_index, &symbol_value) < 0)
+          return -1;
+        write_u64_le(loaded_image + target, tlsdesc_helper_pc);
+        write_u64_le(loaded_image + target + 8,
+          read_u64_le(loaded_image + target + 8) + symbol_value);
+        continue;
+      }
+      else if (reloc_type == tls_dtpmod_type) {
+        reloc_value += 1;
+        reloc_value_is_absolute = 1;
+      }
+      else if (symbol_index != 0 && reloc_type == tls_dtprel_type) {
+        uint64_t symbol_value = 0;
+        if (resolve_process_tls_reloc_symbol(program, loaded_image,
+              symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+              gnu_hash_vaddr, symbol_index, &symbol_value) < 0)
+          return -1;
+        reloc_value += symbol_value;
+        reloc_value_is_absolute = 1;
+      }
       else if (symbol_index != 0 &&
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
         uint64_t symbol_value = 0;
@@ -2920,7 +3025,7 @@ static int apply_relative_relocations(const struct poly_program *program,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &symbol_value,
                 &symbol_type, trampoline_code, prefix_size, return_pc,
-                scratch) < 0)
+                tls_get_addr_helper_pc, scratch) < 0)
             return -1;
           from_dependency = 1;
           reloc_value_is_absolute = 1;
@@ -2994,6 +3099,21 @@ static int apply_relative_relocations(const struct poly_program *program,
         const uint32_t reloc_type = ELF64_R_TYPE(rela->r_info);
         if (reloc_type == none_type)
           continue;
+        if (symbol_index != 0 && reloc_type == tlsdesc_type) {
+          uint64_t reloc_value = 0;
+          size_t target = 0;
+          if (tlsdesc_helper_pc == 0 ||
+              elf_vaddr_to_image_offset(program, rela->r_offset, 16,
+                &target) < 0 ||
+              resolve_process_tls_reloc_symbol(program, loaded_image,
+                symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+                gnu_hash_vaddr, symbol_index, &reloc_value) < 0)
+            return -1;
+          write_u64_le(loaded_image + target, tlsdesc_helper_pc);
+          write_u64_le(loaded_image + target + 8,
+            reloc_value + (uint64_t) rela->r_addend);
+          continue;
+        }
         if (symbol_index == 0 ||
             !symbolic_64_reloc_type_for_arch(program->arch, reloc_type))
           return -1;
@@ -3007,7 +3127,7 @@ static int apply_relative_relocations(const struct poly_program *program,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &reloc_value,
                 &symbol_type, trampoline_code, prefix_size, return_pc,
-                scratch) < 0)
+                tls_get_addr_helper_pc, scratch) < 0)
             return -1;
           from_dependency = 1;
         }
@@ -3042,6 +3162,21 @@ static int apply_relative_relocations(const struct poly_program *program,
         const uint32_t reloc_type = ELF64_R_TYPE(rel->r_info);
         if (reloc_type == none_type)
           continue;
+        if (symbol_index != 0 && reloc_type == tlsdesc_type) {
+          uint64_t symbol_value = 0;
+          size_t target = 0;
+          if (tlsdesc_helper_pc == 0 ||
+              elf_vaddr_to_image_offset(program, rel->r_offset, 16,
+                &target) < 0 ||
+              resolve_process_tls_reloc_symbol(program, loaded_image,
+                symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
+                gnu_hash_vaddr, symbol_index, &symbol_value) < 0)
+            return -1;
+          write_u64_le(loaded_image + target, tlsdesc_helper_pc);
+          write_u64_le(loaded_image + target + 8,
+            read_u64_le(loaded_image + target + 8) + symbol_value);
+          continue;
+        }
         if (symbol_index == 0 ||
             !symbolic_64_reloc_type_for_arch(program->arch, reloc_type))
           return -1;
@@ -3058,7 +3193,7 @@ static int apply_relative_relocations(const struct poly_program *program,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &symbol_value,
                 &symbol_type, trampoline_code, prefix_size, return_pc,
-                scratch) < 0)
+                tls_get_addr_helper_pc, scratch) < 0)
             return -1;
           from_dependency = 1;
         }
@@ -3866,11 +4001,12 @@ static int copy_process_dependency_tls_images(const struct poly_program *program
 
 static int map_process_dependencies(struct poly_program *program,
     uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
+    uint64_t tlsdesc_helper_pc, uint64_t tls_get_addr_helper_pc,
     uint8_t *scratch) {
   for (size_t d = 0; d < program->dep_count; d++) {
     struct poly_process_dependency *dep = &program->deps[d];
     if (map_process_dependencies(dep->program, trampoline_code, prefix_size,
-          return_pc, scratch) < 0)
+          return_pc, tlsdesc_helper_pc, tls_get_addr_helper_pc, scratch) < 0)
       return -1;
     const uint64_t mapping_size_u64 =
       align_up_u64((uint64_t) dep->program->code_size, 0x1000);
@@ -3893,7 +4029,8 @@ static int map_process_dependencies(struct poly_program *program,
       dep->program->code_size);
 
     if (apply_relative_relocations(dep->program, dep->loaded_image,
-          trampoline_code, prefix_size, return_pc, scratch) < 0) {
+          trampoline_code, prefix_size, return_pc, tlsdesc_helper_pc,
+          tls_get_addr_helper_pc, scratch) < 0) {
       fprintf(stderr, "POLYEXEC_FAIL: unsupported dependency relocations: %s\n",
         dep->path);
       return -1;
@@ -3950,6 +4087,19 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   offset = return_page_offset;
   emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
+  if (align_up_size(offset, 4, &offset) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  uint64_t tls_helper_pc = 0;
+  if (emit_process_tls_helper(program, mapping, &offset, &tls_helper_pc) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  const uint64_t tlsdesc_helper_pc =
+    program->arch == POLY_ARCH_AARCH64 ? tls_helper_pc : 0;
+  const uint64_t tls_get_addr_helper_pc =
+    program->arch == POLY_ARCH_RISCV ? tls_helper_pc : 0;
 
   size_t scratch_size = 4096;
   uint8_t *scratch = mmap(NULL, scratch_size, PROT_READ | PROT_WRITE,
@@ -3961,7 +4111,8 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     return -1;
   }
   if (apply_relative_relocations(program, mapping + load_base_offset, code,
-        prefix_size, return_pc, scratch) < 0) {
+        prefix_size, return_pc, tlsdesc_helper_pc, tls_get_addr_helper_pc,
+        scratch) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
       program->path);
     munmap(scratch, scratch_size);
@@ -4049,6 +4200,19 @@ static int emit_and_run_process(struct poly_program *program,
   offset = return_page_offset;
   emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
+  if (align_up_size(offset, 4, &offset) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  uint64_t tls_helper_pc = 0;
+  if (emit_process_tls_helper(program, mapping, &offset, &tls_helper_pc) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  const uint64_t tlsdesc_helper_pc =
+    program->arch == POLY_ARCH_AARCH64 ? tls_helper_pc : 0;
+  const uint64_t tls_get_addr_helper_pc =
+    program->arch == POLY_ARCH_RISCV ? tls_helper_pc : 0;
 
   size_t scratch_size = 4096;
   uint8_t *scratch = mmap(NULL, scratch_size, PROT_READ | PROT_WRITE,
@@ -4066,15 +4230,16 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (map_process_dependencies(program, code,
-        prefix_size, return_pc, scratch) < 0) {
+  if (map_process_dependencies(program, code, prefix_size, return_pc,
+        tlsdesc_helper_pc, tls_get_addr_helper_pc, scratch) < 0) {
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
   }
   if (apply_relative_relocations(program, mapping + load_base_offset, code,
-        prefix_size, return_pc, scratch) < 0) {
+        prefix_size, return_pc, tlsdesc_helper_pc, tls_get_addr_helper_pc,
+        scratch) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
       program->path);
     unmap_process_dependencies(program);

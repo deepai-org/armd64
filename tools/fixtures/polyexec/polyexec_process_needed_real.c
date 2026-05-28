@@ -118,6 +118,17 @@ uint64_t poly_process_tls_dep_add(uint64_t left, uint64_t right) {
   return poly_process_tls_dep_counter;
 }
 
+#elif defined(POLY_PROCESS_TLS_DEFAULT_DEP)
+
+__thread uint64_t poly_process_tls_default_dep_counter
+    __attribute__((visibility("default"))) = 0x90;
+
+__attribute__((visibility("default")))
+uint64_t poly_process_tls_default_dep_add(uint64_t left, uint64_t right) {
+  poly_process_tls_default_dep_counter += left + right;
+  return poly_process_tls_default_dep_counter;
+}
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
@@ -143,6 +154,9 @@ __asm__(".symver poly_process_versioned_add_v1, "
 extern __thread uint64_t poly_process_tls_dep_counter
     __attribute__((tls_model("initial-exec")));
 extern uint64_t poly_process_tls_dep_add(uint64_t, uint64_t);
+#elif defined(POLY_PROCESS_TLS_DEFAULT_DEP_MAIN)
+extern __thread uint64_t poly_process_tls_default_dep_counter;
+extern uint64_t poly_process_tls_default_dep_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #else
@@ -185,6 +199,10 @@ uint64_t poly_process_root_export(uint64_t value) {
 #if defined(POLY_PROCESS_TLS_MAIN)
 __thread uint64_t poly_process_tls_counter
     __attribute__((tls_model("initial-exec"))) = 0x31;
+#endif
+
+#if defined(POLY_PROCESS_TLS_DEFAULT_MAIN)
+__thread uint64_t poly_process_tls_default_counter = 0x41;
 #endif
 
 #if defined(POLY_PROCESS_ROOT_IFUNC_MAIN)
@@ -271,6 +289,18 @@ uint64_t poly_process_main(void) {
       poly_process_tls_dep_counter != 0x95)
     return 35;
   static const char marker[] = "POLY_PROCESS_DEP_TLS_OK\n";
+#elif defined(POLY_PROCESS_TLS_DEFAULT_MAIN)
+  poly_process_tls_default_counter += 0x11;
+  if (poly_process_tls_default_counter != 0x52)
+    return 36;
+  static const char marker[] = "POLY_PROCESS_TLS_DEFAULT_OK\n";
+#elif defined(POLY_PROCESS_TLS_DEFAULT_DEP_MAIN)
+  const uint64_t before = poly_process_tls_default_dep_counter;
+  const uint64_t after = poly_process_tls_default_dep_add(0x21, 0x22);
+  if (before != 0x90 || after != 0xd3 ||
+      poly_process_tls_default_dep_counter != 0xd3)
+    return 37;
+  static const char marker[] = "POLY_PROCESS_DEP_TLS_DEFAULT_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;
