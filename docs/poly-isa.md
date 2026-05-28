@@ -214,7 +214,7 @@ discover the experimental hardware contract before emitting poly operations:
   trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
   instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
   set/get opcode selectors.
-- `CPUID.EAX=0x40000002, ECX=5`: `EAX=147` reports the foreign import ID
+- `CPUID.EAX=0x40000002, ECX=5`: `EAX=148` reports the foreign import ID
   count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
   base, and `EDX=16` reports the import-call stride.
   Import ID `2` is reserved for the removed legacy x86-add helper and now
@@ -773,7 +773,9 @@ source metadata: AArch64 supplies the overflow doubles on the foreign stack,
 while RISC-V supplies them in the integer `a0/a1` lanes after `fa0-fa7`. The
 `poly_import_x86_fpair64` probes return a two-`double` SysV aggregate from
 `XMM0/XMM1` and verify that descriptor metadata maps it back to AArch64
-`v0/v1` or RISC-V `fa0/fa1`. The
+`v0/v1` or RISC-V `fa0/fa1`. The `poly_import_x86_fpair32` probes return a
+two-`float` SysV aggregate packed in `XMM0[63:0]` and verify that descriptor
+metadata maps it back to AArch64 `s0/s1` or RISC-V `fa0/fa1`. The
 `poly_import_x86_mixed_u64_fp64` probes call an x86 helper with
 alternating integer and double arguments, covering the native ABIs' independent
 GPR and FP argument counters. The imported-object
@@ -981,6 +983,7 @@ also covers `poly_import_x86_add`, `poly_import_x86_mul`,
 `poly_import_x86_sum6`, `poly_import_x86_sum8`, `poly_import_x86_sum10`,
 `poly_import_x86_fp64_add`, `poly_import_x86_fp64_sum8`,
 `poly_import_x86_fp64_sum10`, `poly_import_x86_fpair64`,
+`poly_import_x86_fpair32`,
 `poly_import_x86_mixed_u64_fp64`, and `poly_import_x86_fp32_add`, where descriptor
 slots select real x86_64 helper targets from a runtime-supplied table, map the
 first six native foreign integer arguments to x86_64 SysV `RDI`, `RSI`, `RDX`,
@@ -1051,8 +1054,10 @@ overflow arguments that follow `fa0-fa7` in `a0/a1`. Bit `1` maps an
 x86 `RDX:RAX` 128-bit integer return back to the native foreign return register
 pair, and bit `2` maps an x86 `XMM0` binary128 return back to AArch64 `v0` or
 RISC-V `a0/a1`. Bit `5` maps an x86 two-`double` aggregate return from
-`XMM0/XMM1` back to native foreign FP return registers. These fields are
-runtime metadata, not CPU-side helper-ID policy.
+`XMM0/XMM1` back to native foreign FP return registers. Bit `6` maps an x86
+two-`float` aggregate return packed in `XMM0[63:0]` back to native foreign FP
+return registers. These fields are runtime metadata, not CPU-side helper-ID
+policy.
 The same descriptor path currently provides prototype imports for common GCC
 dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and

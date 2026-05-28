@@ -126,6 +126,18 @@ struct poly_host_pair_fp64 POLY_HOST_HELPER poly_host_x86_fpair64(double a,
   return result;
 }
 
+struct poly_host_pair_fp32 {
+  float lo;
+  float hi;
+};
+
+struct poly_host_pair_fp32 POLY_HOST_HELPER poly_host_x86_fpair32(float a,
+    float b, float c)
+{
+  struct poly_host_pair_fp32 result = { a + b + 10.5f, b + c + 20.5f };
+  return result;
+}
+
 double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64(uint64_t a, double b,
     uint64_t c, double d, uint64_t e, double f)
 {
