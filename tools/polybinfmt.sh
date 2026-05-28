@@ -6,11 +6,13 @@ if [ -z "$path" ]; then
   echo "POLYBINFMT_FAIL: missing foreign ELF path" >&2
   exit 2
 fi
+shift
 
 expected=""
 entry=""
 runner="polyexec"
 call_prefix=""
+process_mode=0
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
@@ -26,6 +28,7 @@ case "$path" in
   */aarch64-mem.elf) expected=77 ;;
   */aarch64-memwidth.elf) expected=0x100001324 ;;
   */aarch64-pcall-split-load.elf) expected=123 ;;
+  */aarch64-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */aarch64-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */aarch64-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
@@ -208,6 +211,7 @@ case "$path" in
   */riscv-mem.elf) expected=77 ;;
   */riscv-memwidth.elf) expected=0x1000000e0 ;;
   */riscv-pcall-split-load.elf) expected=123 ;;
+  */riscv-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */riscv-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */riscv-polyexec-gnu-hash-rv64gc.so) expected=45; entry="#poly_entry" ;;
   */riscv-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
@@ -355,7 +359,16 @@ case "$path" in
 esac
 
 target="${call_prefix}${path}${entry}"
-echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none} runner=$runner call_prefix=${call_prefix:-none}"
+if [ "$process_mode" = "1" ] && [ "${1:-}" = "$path" ]; then
+  shift
+fi
+echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none} runner=$runner call_prefix=${call_prefix:-none} process=$process_mode argc=$#"
+if [ "$process_mode" = "1" ]; then
+  if [ -n "$expected" ]; then
+    exec "/usr/bin/$runner" --process "$target=$expected" "$@"
+  fi
+  exec "/usr/bin/$runner" --process "$target" "$@"
+fi
 if [ -n "$expected" ]; then
   exec "/usr/bin/$runner" "$target=$expected"
 fi

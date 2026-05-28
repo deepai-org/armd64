@@ -16,6 +16,8 @@
 #include <time.h>
 #include <unistd.h>
 
+extern char **environ;
+
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x24,0x63,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -1581,6 +1583,115 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
   return rax;
 }
 
+__attribute__((noreturn))
+static void run_poly_process_entry(const uint8_t *code,
+    uint64_t initial_sp) {
+  asm volatile(
+      "movq %1, %%rsp\n"
+      "jmp *%0\n"
+      :
+      : "r"(code), "r"(initial_sp)
+      : "memory");
+  __builtin_unreachable();
+}
+
+static int copy_stack_string(uint8_t *stack, uint8_t **cursor,
+    const char *value, uint64_t *guest_addr) {
+  size_t len = strlen(value) + 1;
+  if ((size_t) (*cursor - stack) < len)
+    return -1;
+  *cursor -= len;
+  memcpy(*cursor, value, len);
+  *guest_addr = (uint64_t) (uintptr_t) *cursor;
+  return 0;
+}
+
+static int build_process_stack(const struct poly_request *request,
+    int extra_argc, char **extra_argv, uint8_t **stack_out,
+    size_t *stack_size_out, uint64_t *initial_sp_out) {
+  const size_t stack_size = 128 * 1024;
+  uint8_t *stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (stack == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: process stack mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t envc = 0;
+  while (environ[envc])
+    envc++;
+
+  const size_t argc = (size_t) extra_argc + 1;
+  uint64_t *argv_ptrs = calloc(argc, sizeof(*argv_ptrs));
+  uint64_t *env_ptrs = calloc(envc ? envc : 1, sizeof(*env_ptrs));
+  if (!argv_ptrs || !env_ptrs) {
+    fprintf(stderr, "POLYEXEC_FAIL: out of memory building process stack\n");
+    free(argv_ptrs);
+    free(env_ptrs);
+    munmap(stack, stack_size);
+    return -1;
+  }
+
+  uint8_t *cursor = stack + stack_size;
+  if (copy_stack_string(stack, &cursor, request->path, &argv_ptrs[0]) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: process argv0 does not fit stack\n");
+    free(argv_ptrs);
+    free(env_ptrs);
+    munmap(stack, stack_size);
+    return -1;
+  }
+  for (int n = 0; n < extra_argc; n++) {
+    if (copy_stack_string(stack, &cursor, extra_argv[n],
+          &argv_ptrs[(size_t) n + 1]) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: process argv does not fit stack\n");
+      free(argv_ptrs);
+      free(env_ptrs);
+      munmap(stack, stack_size);
+      return -1;
+    }
+  }
+  for (size_t n = 0; n < envc; n++) {
+    if (copy_stack_string(stack, &cursor, environ[n], &env_ptrs[n]) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: process env does not fit stack\n");
+      free(argv_ptrs);
+      free(env_ptrs);
+      munmap(stack, stack_size);
+      return -1;
+    }
+  }
+
+  const size_t table_words = 1 + argc + 1 + envc + 1 + 2;
+  const size_t table_bytes = table_words * sizeof(uint64_t);
+  uintptr_t sp_addr = ((uintptr_t) cursor - table_bytes) & ~(uintptr_t) 15;
+  if (sp_addr < (uintptr_t) stack) {
+    fprintf(stderr, "POLYEXEC_FAIL: process initial stack table overflow\n");
+    free(argv_ptrs);
+    free(env_ptrs);
+    munmap(stack, stack_size);
+    return -1;
+  }
+
+  uint64_t *sp = (uint64_t *) sp_addr;
+  size_t out = 0;
+  sp[out++] = argc;
+  for (size_t n = 0; n < argc; n++)
+    sp[out++] = argv_ptrs[n];
+  sp[out++] = 0;
+  for (size_t n = 0; n < envc; n++)
+    sp[out++] = env_ptrs[n];
+  sp[out++] = 0;
+  sp[out++] = 0;
+  sp[out++] = 0;
+
+  free(argv_ptrs);
+  free(env_ptrs);
+  *stack_out = stack;
+  *stack_size_out = stack_size;
+  *initial_sp_out = (uint64_t) sp_addr;
+  return 0;
+}
+
 static int emit_poly_trampoline(const struct poly_program *program,
     uint8_t *code, size_t prefix_size, uint64_t return_pc,
     uint64_t target_pc) {
@@ -2357,6 +2468,105 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   return 0;
 }
 
+static int emit_and_run_process(const struct poly_program *program,
+    const struct poly_request *request, int extra_argc, char **extra_argv,
+    uint64_t *result) {
+  const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
+  const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
+  const size_t raw_switch_size = 8;
+  const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
+  const size_t load_base_offset = 4096;
+  const size_t branch_offset = load_base_offset - branch_size;
+  const size_t code_offset = branch_offset - raw_switch_size - return_setup_size;
+  const size_t escape_return_size = 5;
+  const uint64_t image_mapping_size_u64 =
+    align_up_u64((uint64_t) program->code_size + escape_return_size, 0x1000);
+  if (image_mapping_size_u64 > SIZE_MAX - load_base_offset - 4096) {
+    fprintf(stderr, "POLYEXEC_FAIL: ELF image mapping is too large: %s\n",
+      program->path);
+    return -1;
+  }
+  const size_t image_mapping_size = (size_t) image_mapping_size_u64;
+  const size_t return_page_offset = load_base_offset + image_mapping_size;
+  const size_t mapping_size = return_page_offset + 4096;
+  uint8_t *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mapping == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: mmap failed: %s\n", strerror(errno));
+    return -1;
+  }
+
+  uint8_t *code = mapping + code_offset;
+  const uint64_t return_pc = (uint64_t) (uintptr_t)
+    (mapping + return_page_offset);
+  const uint64_t entry_pc = (uint64_t) (uintptr_t)
+    (mapping + load_base_offset + program->entry_offset);
+  const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
+    0xd42fffe0U : 0x0000000bU;
+  size_t offset = load_base_offset;
+  emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
+  emit_u32(mapping, &offset, escape);
+  mapping[offset++] = 0xc3;
+  offset = return_page_offset;
+  emit_u32(mapping, &offset, escape);
+  mapping[offset++] = 0xc3;
+
+  size_t scratch_size = 4096;
+  uint8_t *scratch = mmap(NULL, scratch_size, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (scratch == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: scratch mmap failed: %s\n",
+      strerror(errno));
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (apply_relative_relocations(program, mapping + load_base_offset, code,
+        prefix_size, return_pc, scratch) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
+      program->path);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (protect_load_segments(program, mapping + load_base_offset) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (protect_image_range(program, mapping + load_base_offset,
+        program->relro_vaddr, program->relro_size, PROT_READ,
+        "PT_GNU_RELRO") < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+
+  if (prepare_program_scratch(program->path, (char *) scratch,
+        scratch_size) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+
+  uint8_t *process_stack = NULL;
+  size_t process_stack_size = 0;
+  uint64_t initial_sp = 0;
+  if (build_process_stack(request, extra_argc, extra_argv, &process_stack,
+        &process_stack_size, &initial_sp) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+
+  (void) result;
+  run_poly_process_entry(code, initial_sp);
+}
+
 static int program_exits_process(const char *path) {
   return strstr(path, "-exit.") != NULL ||
     strstr(path, "-exit-group.") != NULL;
@@ -2402,6 +2612,48 @@ static int emit_and_run_exit_child(const struct poly_program *program,
   return -1;
 }
 
+static int emit_and_run_process_child(const struct poly_program *program,
+    const struct poly_request *request, int extra_argc, char **extra_argv,
+    uint64_t *result, int use_trap_vector) {
+  fflush(NULL);
+  pid_t pid = fork();
+  if (pid < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: fork failed for %s: %s\n",
+      program->path, strerror(errno));
+    return -1;
+  }
+
+  if (pid == 0) {
+    uint64_t child_result = 0;
+    if (use_trap_vector)
+      install_poly_trap_vector();
+    if (emit_and_run_process(program, request, extra_argc, extra_argv,
+          &child_result) < 0)
+      _exit(125);
+    _exit((int) (child_result & 0xff));
+  }
+
+  int status = 0;
+  if (waitpid(pid, &status, 0) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: waitpid failed for %s: %s\n",
+      program->path, strerror(errno));
+    return -1;
+  }
+
+  if (WIFEXITED(status)) {
+    *result = (uint64_t) WEXITSTATUS(status);
+    return 0;
+  }
+  if (WIFSIGNALED(status)) {
+    *result = (uint64_t) (128 + WTERMSIG(status));
+    return 0;
+  }
+
+  fprintf(stderr, "POLYEXEC_FAIL: unexpected child status for %s: 0x%x\n",
+    program->path, status);
+  return -1;
+}
+
 static void free_program(struct poly_program *program) {
   free(program->code_bytes);
   program->code_bytes = NULL;
@@ -2410,7 +2662,8 @@ static void free_program(struct poly_program *program) {
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: %s foreign.elf[=expected]...\n", argv[0]);
+    fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...]\n",
+      argv[0]);
     return 2;
   }
 
@@ -2424,6 +2677,52 @@ int main(int argc, char **argv) {
     return 1;
   if (use_trap_vector)
     install_poly_trap_vector();
+
+  if (strcmp(argv[1], "--process") == 0) {
+    if (argc < 3) {
+      fprintf(stderr, "POLYEXEC_FAIL: --process requires a foreign ELF\n");
+      return 2;
+    }
+    struct poly_request request;
+    if (parse_request(argv[2], &request) < 0)
+      return 1;
+
+    struct poly_program program;
+    if (load_elf_program(request.path, request.symbol, &program) < 0)
+      return 1;
+
+    printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u process=1 path=%s%s%s\n",
+      program.arch_name, program.code_size, program.entry_offset,
+      program.load_segment_count, program.relro_size != 0,
+      program.path, request.symbol[0] ? "#" : "", request.symbol);
+
+    uint64_t result = 0;
+    if (emit_and_run_process_child(&program, &request, argc - 3, argv + 3,
+          &result, use_trap_vector) < 0) {
+      free_program(&program);
+      return 1;
+    }
+
+    printf("POLYEXEC_RESULT: arch=%s value=%llu process=1 path=%s\n",
+      program.arch_name, (unsigned long long) result, program.path);
+    if (request.check_expected) {
+      printf("POLYEXEC_EXPECT: arch=%s expected=%llu process=1 path=%s\n",
+        program.arch_name, (unsigned long long) request.expected,
+        program.path);
+      if (result != request.expected) {
+        fprintf(stderr, "POLYEXEC_FAIL: %s expected %llu got %llu\n",
+          program.path, (unsigned long long) request.expected,
+          (unsigned long long) result);
+        free_program(&program);
+        return 1;
+      }
+    }
+    free_program(&program);
+    clear_poly_trap_vector();
+    puts("POLYEXEC_OK");
+    return 0;
+  }
+
   for (int n = 1; n < argc; n++) {
     struct poly_request request;
     if (parse_request(argv[n], &request) < 0)

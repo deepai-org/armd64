@@ -48,6 +48,7 @@ NATIVE_CHECK_BIN="$OUT_DIR/nativecheck"
 AARCH64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/aarch64_polycall_real.c"
 RISCV64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/riscv64_polycall_real.c"
 POLYEXEC_GNU_HASH_REAL_SRC="$ROOT_DIR/tools/polyexec_gnu_hash_real.c"
+POLYEXEC_PROCESS_START_REAL_SRC="$ROOT_DIR/tools/polyexec_process_start_real.c"
 POLYCALL_STATE_SRC="$ROOT_DIR/tools/polycall_state.c"
 POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_import_real.c"
 POLYCALL_LIBC_IMPORT_REAL_SRC="$ROOT_DIR/tools/polycall_libc_import_real.c"
@@ -474,6 +475,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
     "$POLYEXEC_GNU_HASH_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_START_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-argv-envp-real.elf"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_STATE_SRC" \
@@ -2064,6 +2070,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
     "$POLYEXEC_GNU_HASH_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_START_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-argv-envp-real.elf"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -5135,6 +5146,12 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 >/dev/ttyS0 2>&1
+    POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-argv-envp-real.elf=42 \
+      alpha beta >/dev/ttyS0 2>&1
+    POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
+      alpha beta >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_CALL" = "1" ]; then
@@ -5713,11 +5730,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     echo "POLYBINFMT_FAIL: binfmt_misc unavailable" >/dev/ttyS0
     exit 1
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt:' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt:P' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
     echo "POLYBINFMT_FAIL: register aarch64" >/dev/ttyS0
     exit 1
   }
-  echo ':poly-riscv:M:18:\xf3::/usr/bin/polybinfmt:' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
+  echo ':poly-riscv:M:18:\xf3::/usr/bin/polybinfmt:P' 2>/dev/ttyS0 > /proc/sys/fs/binfmt_misc/register || {
     echo "POLYBINFMT_FAIL: register riscv" >/dev/ttyS0
     exit 1
   }
@@ -5727,6 +5744,18 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     exit 1
   }
   if [ "$RUN_POLY_BINFMT_ARCH_TRAPS" = "1" ]; then
+    POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-argv-envp-real.elf=42 \
+      alpha beta >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process argv/env" >/dev/ttyS0
+      exit 1
+    }
+    POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
+      alpha beta >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process argv/env" >/dev/ttyS0
+      exit 1
+    }
     for foreign in \
       /usr/lib/polyapps/aarch64-add.elf \
       /usr/lib/polyapps/aarch64-regadd.elf \
