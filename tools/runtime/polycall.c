@@ -457,7 +457,8 @@ enum {
   POLY_IMPORT_FUNC_X86_I128 = 154,
   POLY_IMPORT_FUNC_QSORT = 155,
   POLY_IMPORT_FUNC_BSEARCH = 156,
-  POLY_IMPORT_FUNC_COUNT = 157
+  POLY_IMPORT_FUNC_QSORT_R = 157,
+  POLY_IMPORT_FUNC_COUNT = 158
 };
 
 enum {
@@ -895,6 +896,8 @@ extern uint64_t poly_host_x86_qsort(void *base, uint64_t nmemb,
     uint64_t size, void *compar);
 extern uint64_t poly_host_x86_bsearch(const void *key, const void *base,
     uint64_t nmemb, uint64_t size, void *compar);
+extern uint64_t poly_host_x86_qsort_r(void *base, uint64_t nmemb,
+    uint64_t size, void *compar, void *arg);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1038,7 +1041,7 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
     "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
-    "memalign", "qsort", "bsearch", "atexit", "__cxa_atexit",
+    "memalign", "qsort", "bsearch", "qsort_r", "atexit", "__cxa_atexit",
     "__cxa_finalize", "getpid", "getppid", "getuid", "geteuid", "getgid",
     "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
@@ -1221,6 +1224,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_qsort;
     case POLY_IMPORT_FUNC_BSEARCH:
       return (uint64_t) (uintptr_t) poly_host_x86_bsearch;
+    case POLY_IMPORT_FUNC_QSORT_R:
+      return (uint64_t) (uintptr_t) poly_host_x86_qsort_r;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -2824,6 +2829,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "bsearch") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_BSEARCH * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "qsort_r") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_QSORT_R * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {
@@ -5675,6 +5684,8 @@ extern uint64_t polycall_guarded_call_one_u64(const uint8_t *code,
     uint64_t arg, uint64_t *bad_mask);
 extern uint64_t polycall_guarded_call_two_u64(const uint8_t *code,
     uint64_t arg0, uint64_t arg1, uint64_t *bad_mask);
+extern uint64_t polycall_guarded_call_three_u64(const uint8_t *code,
+    uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t *bad_mask);
 
 __asm__(
   ".text\n"
@@ -5889,6 +5900,75 @@ __asm__(
   "  popq %rbx\n"
   "  ret\n"
   ".size polycall_guarded_call_two_u64, .-polycall_guarded_call_two_u64\n"
+  ".globl polycall_guarded_call_three_u64\n"
+  ".type polycall_guarded_call_three_u64,@function\n"
+  "polycall_guarded_call_three_u64:\n"
+  "  pushq %rbx\n"
+  "  pushq %rbp\n"
+  "  pushq %r12\n"
+  "  pushq %r13\n"
+  "  pushq %r14\n"
+  "  pushq %r15\n"
+  "  subq $16, %rsp\n"
+  "  movq %r8, 8(%rsp)\n"
+  "  movq %rdi, %r10\n"
+  "  movabsq $0x1badd00d00000001, %rbx\n"
+  "  movabsq $0x1badd00d00000002, %rbp\n"
+  "  movabsq $0x1badd00d00000003, %r12\n"
+  "  movabsq $0x1badd00d00000004, %r13\n"
+  "  movabsq $0x1badd00d00000005, %r14\n"
+  "  movabsq $0x1badd00d00000006, %r15\n"
+  "  movq %rsi, %rdi\n"
+  "  movq %rdx, %rsi\n"
+  "  movq %rcx, %rdx\n"
+  "  xorq %rcx, %rcx\n"
+  "  xorq %r8, %r8\n"
+  "  xorq %r9, %r9\n"
+  "  call *%r10\n"
+  "  movq %rax, (%rsp)\n"
+  "  xorl %ecx, %ecx\n"
+  "  movabsq $0x1badd00d00000001, %rdx\n"
+  "  cmpq %rdx, %rbx\n"
+  "  je 19f\n"
+  "  orq $1, %rcx\n"
+  "19:\n"
+  "  movabsq $0x1badd00d00000002, %rdx\n"
+  "  cmpq %rdx, %rbp\n"
+  "  je 20f\n"
+  "  orq $2, %rcx\n"
+  "20:\n"
+  "  movabsq $0x1badd00d00000003, %rdx\n"
+  "  cmpq %rdx, %r12\n"
+  "  je 21f\n"
+  "  orq $4, %rcx\n"
+  "21:\n"
+  "  movabsq $0x1badd00d00000004, %rdx\n"
+  "  cmpq %rdx, %r13\n"
+  "  je 22f\n"
+  "  orq $8, %rcx\n"
+  "22:\n"
+  "  movabsq $0x1badd00d00000005, %rdx\n"
+  "  cmpq %rdx, %r14\n"
+  "  je 23f\n"
+  "  orq $16, %rcx\n"
+  "23:\n"
+  "  movabsq $0x1badd00d00000006, %rdx\n"
+  "  cmpq %rdx, %r15\n"
+  "  je 24f\n"
+  "  orq $32, %rcx\n"
+  "24:\n"
+  "  movq 8(%rsp), %rdx\n"
+  "  movq %rcx, (%rdx)\n"
+  "  movq (%rsp), %rax\n"
+  "  addq $16, %rsp\n"
+  "  popq %r15\n"
+  "  popq %r14\n"
+  "  popq %r13\n"
+  "  popq %r12\n"
+  "  popq %rbp\n"
+  "  popq %rbx\n"
+  "  ret\n"
+  ".size polycall_guarded_call_three_u64, .-polycall_guarded_call_three_u64\n"
 );
 
 static void fail_callee_save_guard(uint64_t mask) {
@@ -6360,6 +6440,23 @@ int64_t poly_runtime_call_foreign_comparator(void *callback,
     (uint64_t) (uintptr_t) callback);
   uint64_t result = polycall_guarded_call_two_u64(poly_atexit_call_code,
     (uint64_t) (uintptr_t) left, (uint64_t) (uintptr_t) right, &bad_mask);
+  if (bad_mask != 0)
+    fail_callee_save_guard(bad_mask);
+  return (int32_t) result;
+}
+
+int64_t poly_runtime_call_foreign_comparator_arg(void *callback,
+    const void *left, const void *right, void *arg)
+{
+  if (poly_atexit_call_code == NULL || callback == NULL)
+    return 0;
+
+  uint64_t bad_mask = 0;
+  write_le64(poly_atexit_call_code + poly_atexit_target_imm_offset,
+    (uint64_t) (uintptr_t) callback);
+  uint64_t result = polycall_guarded_call_three_u64(poly_atexit_call_code,
+    (uint64_t) (uintptr_t) left, (uint64_t) (uintptr_t) right,
+    (uint64_t) (uintptr_t) arg, &bad_mask);
   if (bad_mask != 0)
     fail_callee_save_guard(bad_mask);
   return (int32_t) result;
