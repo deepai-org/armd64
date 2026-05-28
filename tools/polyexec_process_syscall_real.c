@@ -19,6 +19,8 @@ enum {
   POLY_F_GETFD = 1,
   POLY_F_SETFD = 2,
   POLY_FD_CLOEXEC = 1,
+  POLY_FUTEX_WAIT_PRIVATE = 128,
+  POLY_FUTEX_WAKE_PRIVATE = 129,
   POLY_RLIMIT_STACK = 3,
   POLY_RUSAGE_SELF = 0,
   POLY_SIG_BLOCK = 0,
@@ -61,6 +63,7 @@ enum {
   POLY_SYS_TIMERFD_SETTIME = 86,
   POLY_SYS_TIMERFD_GETTIME = 87,
   POLY_SYS_EXIT = 93,
+  POLY_SYS_FUTEX = 98,
   POLY_SYS_SET_TID_ADDRESS = 96,
   POLY_SYS_SET_ROBUST_LIST = 99,
   POLY_SYS_GET_ROBUST_LIST = 100,
@@ -421,6 +424,20 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (robust_head_ptr != (uint64_t) (uintptr_t) &robust_head ||
       robust_len != sizeof(robust_head))
     return 82;
+
+  int futex_word = 1;
+  struct poly_timespec futex_timeout;
+  futex_timeout.sec = 0;
+  futex_timeout.nsec = 0;
+  if (poly_syscall6(POLY_SYS_FUTEX, (long) &futex_word,
+        POLY_FUTEX_WAIT_PRIVATE, 2, (long) &futex_timeout, 0, 0) != -11)
+    return 148;
+  if (poly_syscall6(POLY_SYS_FUTEX, (long) &futex_word,
+        POLY_FUTEX_WAIT_PRIVATE, 1, (long) &futex_timeout, 0, 0) != -110)
+    return 149;
+  if (poly_syscall6(POLY_SYS_FUTEX, (long) &futex_word,
+        POLY_FUTEX_WAKE_PRIVATE, 1, 0, 0, 0) != 0)
+    return 150;
 
   long cwd_len = poly_syscall2(POLY_SYS_GETCWD, (long) cwd, sizeof(cwd));
   if (cwd_len <= 1 || cwd[0] != '/')
