@@ -114,6 +114,18 @@ double POLY_HOST_HELPER poly_host_x86_fp64_sum10(double a, double b, double c,
   return a + b + c + d + e + f + g + h + i + j + 200.5;
 }
 
+struct poly_host_pair_fp64 {
+  double lo;
+  double hi;
+};
+
+struct poly_host_pair_fp64 POLY_HOST_HELPER poly_host_x86_fpair64(double a,
+    double b, double c)
+{
+  struct poly_host_pair_fp64 result = { a + b + 100.5, b + c + 200.5 };
+  return result;
+}
+
 double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64(uint64_t a, double b,
     uint64_t c, double d, uint64_t e, double f)
 {
