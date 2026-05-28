@@ -1,32 +1,21 @@
 # armd64
 
-Bochs prototype for running precompiled AArch64 and RISC-V userspace code inside
-an x86_64 Linux process.
-
-The goal is compatibility with real foreign objects and shared libraries, not a
-new compiler-only ISA or ABI.
+Bochs prototype for running precompiled AArch64 and RISC-V userspace code in an
+x86_64 Linux process.
 
 ## Run
 
-Requirements:
-
-- Docker with `linux/arm64` support.
-- The repo mounted writable so the boot scripts can create `cache/`, `out/`,
-  and `tmp/`.
-
-Build the Bochs image:
+Requirements: Docker with `linux/arm64` support and a writable checkout.
 
 ```bash
 make image
 ```
 
-Run the broad test suite:
-
 ```bash
 make boot-poly-full-arch-traps
 ```
 
-Common targets:
+Useful targets:
 
 - `make boot`: plain x86_64 guest sanity boot.
 - `make boot-poly-arch-traps`: CPUID, raw frontend, and trap checks.
@@ -35,44 +24,33 @@ Common targets:
 - `make boot-poly-bench-arch-traps`: benchmark checks.
 - `make clean`: remove generated state.
 
-Logs:
-
-- `out/serial.log`: guest console and pass/fail markers.
-- `out/bochs.log`: Bochs trace/debug output.
-
-Useful marker check:
+Logs are written to `out/serial.log` and `out/bochs.log`. A quick result check:
 
 ```bash
 grep -E 'BOOT_OK|NATIVE_CHECK_OK|POLYCALL_OK|POLYTHREAD_OK|POLYSIGNAL_OK|FAIL|Kernel panic' out/serial.log
 ```
 
-Re-run `make image` after changing `bochs-prepoly-src/`; the boot targets use
-the Docker image, not a host Bochs binary.
+After changing `bochs-prepoly-src/`, run `make image` again before boot tests.
 
 ## What Changes vs x86_64
 
-The guest machine remains x86_64 for privileged architecture:
+The machine is still x86_64 for privileged execution: paging, rings,
+interrupts, exceptions, virtual memory, TSO ordering, and the guest OS are
+x86_64.
 
-- x86_64 paging, privilege rings, interrupts, exceptions, and virtual memory.
-- x86_64 TSO memory ordering.
-- x86_64 Linux as the guest OS.
-- CPU-visible foreign state exposed through CPUID/XSAVE-style contracts.
+The ISA extension adds user-mode foreign execution:
 
-The prototype adds user-mode polyglot execution:
+- `PENTER.A64` / `PENTER.RV64`: switch from x86 decode to raw 32-bit AArch64 or
+  RISC-V fetch at the current guest `RIP`.
+- `PCALL.*.SYSV`: call precompiled AAPCS64 or RISC-V psABI code from x86_64
+  SysV code through CPU-managed argument/result bridges.
+- Native AArch64/RISC-V return instructions can cross-return through
+  CPU-managed call cookies.
+- Foreign syscalls, breakpoints, and illegal instructions create neutral trap
+  records; the CPU does not emulate Linux libcalls.
+- Foreign register state is exposed as explicit prototype xstate, not hidden
+  emulator-only process state.
 
-- A temporary Bochs opcode family, `0f 24 <op> 50 4f 4c 59 21`, stands in for
-  future dedicated x86 polyglot opcodes.
-- `PENTER.A64` and `PENTER.RV64` switch the frontend from x86 variable-length
-  decode to raw foreign fetch.
-- AArch64 and RISC-V instructions are fetched directly from the same guest
-  address space as x86 code.
-- Native foreign return instructions return through CPU-managed cross-ISA call
-  cookies.
-- `PCALL.*.SYSV` bridges x86_64 SysV callers to precompiled AAPCS64 or RISC-V
-  psABI callees.
-- Foreign syscall, breakpoint, and illegal-instruction events produce neutral
-  trap records. The CPU does not emulate Linux libcalls.
-- Foreign architectural state is explicit prototype xstate, not hidden
-  per-process emulator state.
-
-Full ISA details are in `docs/poly-isa.md`.
+The current Bochs encoding uses `0f 24 <op> 50 4f 4c 59 21` as a temporary
+stand-in for future dedicated x86 polyglot opcodes. Full ISA details are in
+`docs/poly-isa.md`.
