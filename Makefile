@@ -116,6 +116,9 @@ boot-poly-full-arch-traps:
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_EXEC=0 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
+		-e RUN_POLY_CALL=1 \
+		-e RUN_POLY_THREAD=1 \
+		-e RUN_POLY_SIGNAL=1 \
 		-e RUN_POLY_BENCH=1 \
 		-e RUN_POLY_BINFMT=1 \
 		-e RUN_POLY_BINFMT_ARCH_TRAPS=1 \
@@ -133,6 +136,9 @@ boot-poly-full:
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_EXEC=0 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
+		-e RUN_POLY_CALL=1 \
+		-e RUN_POLY_THREAD=1 \
+		-e RUN_POLY_SIGNAL=1 \
 		-e RUN_POLY_BENCH=1 \
 		-e RUN_POLY_BINFMT=1 \
 		-e RUN_POLY_BINFMT_ARCH_TRAPS=1 \
