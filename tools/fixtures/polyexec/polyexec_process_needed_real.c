@@ -41,12 +41,23 @@ uint64_t poly_process_root_export_dep(uint64_t value) {
   return poly_process_root_export(value) + 0x33;
 }
 
+#elif defined(POLY_PROCESS_ROOT_IFUNC_DEP)
+
+extern uint64_t poly_process_root_ifunc(uint64_t);
+
+__attribute__((visibility("default")))
+uint64_t poly_process_root_ifunc_dep(uint64_t value) {
+  return poly_process_root_ifunc(value) + 0x55;
+}
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
 extern uint64_t poly_process_needed_leaf(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_ROOT_EXPORT_MAIN)
 extern uint64_t poly_process_root_export_dep(uint64_t);
+#elif defined(POLY_PROCESS_ROOT_IFUNC_MAIN)
+extern uint64_t poly_process_root_ifunc_dep(uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #else
@@ -86,6 +97,20 @@ uint64_t poly_process_root_export(uint64_t value) {
 }
 #endif
 
+#if defined(POLY_PROCESS_ROOT_IFUNC_MAIN)
+static uint64_t poly_process_root_ifunc_impl(uint64_t value) {
+  return value + 0x66;
+}
+
+static void *poly_process_root_ifunc_resolver(void) {
+  return poly_process_root_ifunc_impl;
+}
+
+__attribute__((visibility("default")))
+uint64_t poly_process_root_ifunc(uint64_t)
+    __attribute__((ifunc("poly_process_root_ifunc_resolver")));
+#endif
+
 uint64_t poly_process_main(void) {
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
   if (poly_process_needed_leaf(0x12, 0x23) != 0x46)
@@ -95,6 +120,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_root_export_dep(0x22) != 0x99)
     return 25;
   static const char marker[] = "POLY_PROCESS_ROOT_EXPORT_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_ROOT_IFUNC_MAIN)
+  if (poly_process_root_ifunc_dep(0x11) != 0xcc)
+    return 26;
+  static const char marker[] = "POLY_PROCESS_ROOT_IFUNC_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;

@@ -181,7 +181,7 @@ struct poly_program {
   struct poly_process_dependency deps[MAX_PROCESS_DEPS];
   size_t dep_count;
   const struct poly_program *scope_root_program;
-  const uint8_t *scope_root_loaded_image;
+  uint8_t *scope_root_loaded_image;
 };
 
 struct poly_request {
@@ -190,6 +190,11 @@ struct poly_request {
   uint64_t expected;
   int check_expected;
 };
+
+static int run_irelative_resolver(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
+    uint64_t *resolved);
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 
@@ -571,9 +576,10 @@ static int symbol_is_dependency_export(const Elf64_Sym *sym) {
     (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
 }
 
-static int resolve_loaded_program_symbol(const struct poly_program *program,
+static int resolve_loaded_program_symbol_ex(const struct poly_program *program,
     const uint8_t *loaded_image, const char *symbol_name,
-    uint64_t *symbol_value, uint8_t *symbol_type) {
+    uint64_t *symbol_value, uint8_t *symbol_type,
+    uint64_t *ifunc_resolver_vaddr) {
   uint64_t symtab_vaddr = 0, strtab_vaddr = 0, strsz = 0;
   uint64_t syment = sizeof(Elf64_Sym), hash_vaddr = 0, gnu_hash_vaddr = 0;
   if (dynamic_symbol_table_info(program, loaded_image, &symtab_vaddr,
@@ -605,15 +611,31 @@ static int resolve_loaded_program_symbol(const struct poly_program *program,
       sym->st_name);
     if (strcmp(name, symbol_name) != 0)
       continue;
-    if (ELF64_ST_TYPE(sym->st_info) == STT_GNU_IFUNC)
+    const uint8_t type = ELF64_ST_TYPE(sym->st_info);
+    if (type == STT_GNU_IFUNC && !ifunc_resolver_vaddr)
       return -1;
-    *symbol_value = (uint64_t) (uintptr_t) loaded_image -
-      program->base_vaddr + sym->st_value;
+    if (type == STT_GNU_IFUNC) {
+      *symbol_value = 0;
+      *ifunc_resolver_vaddr = sym->st_value;
+    }
+    else {
+      *symbol_value = (uint64_t) (uintptr_t) loaded_image -
+        program->base_vaddr + sym->st_value;
+      if (ifunc_resolver_vaddr)
+        *ifunc_resolver_vaddr = 0;
+    }
     if (symbol_type)
-      *symbol_type = ELF64_ST_TYPE(sym->st_info);
+      *symbol_type = type;
     return 0;
   }
   return -1;
+}
+
+static int resolve_loaded_program_symbol(const struct poly_program *program,
+    const uint8_t *loaded_image, const char *symbol_name,
+    uint64_t *symbol_value, uint8_t *symbol_type) {
+  return resolve_loaded_program_symbol_ex(program, loaded_image, symbol_name,
+    symbol_value, symbol_type, NULL);
 }
 
 static int resolve_loaded_dependency_symbol_at_depth(
@@ -644,26 +666,42 @@ static int resolve_loaded_dependency_symbol(const struct poly_program *program,
 }
 
 static int resolve_root_scope_symbol(const struct poly_program *program,
-    const char *symbol_name, uint64_t *symbol_value, uint8_t *symbol_type) {
+    const char *symbol_name, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch, uint64_t *symbol_value,
+    uint8_t *symbol_type) {
   if (!program->scope_root_program || !program->scope_root_loaded_image ||
       program == program->scope_root_program)
     return -1;
-  return resolve_loaded_program_symbol(program->scope_root_program,
-    program->scope_root_loaded_image, symbol_name, symbol_value, symbol_type);
+  uint64_t ifunc_resolver_vaddr = 0;
+  uint8_t resolved_type = 0;
+  if (resolve_loaded_program_symbol_ex(program->scope_root_program,
+        program->scope_root_loaded_image, symbol_name, symbol_value,
+        &resolved_type, &ifunc_resolver_vaddr) < 0)
+    return -1;
+  if (resolved_type == STT_GNU_IFUNC) {
+    if (run_irelative_resolver(program->scope_root_program,
+          program->scope_root_loaded_image, trampoline_code, prefix_size,
+          return_pc, scratch, ifunc_resolver_vaddr, symbol_value) < 0)
+      return -1;
+  }
+  if (symbol_type)
+    *symbol_type = resolved_type;
+  return 0;
 }
 
 static int resolve_dependency_reloc_symbol(const struct poly_program *program,
     const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
     uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
     uint64_t gnu_hash_vaddr, uint64_t symbol_index, uint64_t *symbol_value,
-    uint8_t *symbol_type) {
+    uint8_t *symbol_type, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch) {
   const char *symbol_name = NULL;
   if (dynamic_symbol_name_by_index(program, loaded_image, symtab_vaddr,
         strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
         symbol_index, &symbol_name) < 0)
     return -1;
-  if (resolve_root_scope_symbol(program, symbol_name, symbol_value,
-        symbol_type) == 0)
+  if (resolve_root_scope_symbol(program, symbol_name, trampoline_code,
+        prefix_size, return_pc, scratch, symbol_value, symbol_type) == 0)
     return 0;
   return resolve_loaded_dependency_symbol(program, symbol_name, symbol_value,
     symbol_type);
@@ -2371,7 +2409,8 @@ static int apply_relative_relocations(const struct poly_program *program,
           if (resolve_dependency_reloc_symbol(program, loaded_image,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &reloc_value,
-                &symbol_type) < 0)
+                &symbol_type, trampoline_code, prefix_size, return_pc,
+                scratch) < 0)
             return -1;
           from_dependency = 1;
           reloc_value_is_absolute = 1;
@@ -2430,7 +2469,8 @@ static int apply_relative_relocations(const struct poly_program *program,
           if (resolve_dependency_reloc_symbol(program, loaded_image,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &symbol_value,
-                &symbol_type) < 0)
+                &symbol_type, trampoline_code, prefix_size, return_pc,
+                scratch) < 0)
             return -1;
           from_dependency = 1;
           reloc_value_is_absolute = 1;
@@ -2516,7 +2556,8 @@ static int apply_relative_relocations(const struct poly_program *program,
           if (resolve_dependency_reloc_symbol(program, loaded_image,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &reloc_value,
-                &symbol_type) < 0)
+                &symbol_type, trampoline_code, prefix_size, return_pc,
+                scratch) < 0)
             return -1;
           from_dependency = 1;
         }
@@ -2566,7 +2607,8 @@ static int apply_relative_relocations(const struct poly_program *program,
           if (resolve_dependency_reloc_symbol(program, loaded_image,
                 symtab_vaddr, strtab_vaddr, strsz, syment, hash_vaddr,
                 gnu_hash_vaddr, symbol_index, &symbol_value,
-                &symbol_type) < 0)
+                &symbol_type, trampoline_code, prefix_size, return_pc,
+                scratch) < 0)
             return -1;
           from_dependency = 1;
         }
@@ -3206,7 +3248,7 @@ static void unmap_process_dependencies(struct poly_program *program) {
 }
 
 static void set_process_dependency_root_scope(struct poly_program *program,
-    const struct poly_program *root_program, const uint8_t *root_loaded_image) {
+    const struct poly_program *root_program, uint8_t *root_loaded_image) {
   program->scope_root_program = root_program;
   program->scope_root_loaded_image = root_loaded_image;
   for (size_t d = 0; d < program->dep_count; d++) {
