@@ -587,6 +587,7 @@ struct poly_program {
   uint64_t fini_array_size;
   uint64_t fini_result_vaddr;
   int fini_result_base_kind;
+  int fini_result_bridge_kind;
   size_t fini_count;
   uint64_t relro_vaddr;
   uint64_t relro_size;
@@ -5478,6 +5479,9 @@ static int load_elf_program(const char *path, const char *symbol_name,
   if (fini_result_resolved == 0) {
     program->fini_result_vaddr = fini_result_vaddr;
     program->fini_result_base_kind = fini_result_base_kind;
+    program->fini_result_bridge_kind = cross_bridge_kind_for_specs(
+      program->root_bridge_specs, program->root_bridge_spec_count,
+      "poly_fini_result");
   }
 
   int entry_in_exec = 0;
@@ -7273,8 +7277,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (reloc_base_is_root_ifunc(program->fini_result_base_kind))
       fini_result_target = call_poly_stub(code, target_imm_offset,
         fini_result_target, POLY_CALL_U64);
+    const int result_call_kind = call_kind_for_bridge_result(program->arch,
+      POLY_CALL_U64, program->fini_result_bridge_kind);
+    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 2];
+    code[pcall_opcode_offset + 2] =
+      pcall_opcode_for_call_kind(program->arch, result_call_kind);
     *result = call_poly_stub(code, target_imm_offset, fini_result_target,
-      POLY_CALL_U64);
+      result_call_kind);
+    code[pcall_opcode_offset + 2] = saved_pcall_op;
   }
   for (size_t fini_depth = 0; fini_depth <= max_dep_depth; fini_depth++) {
     for (size_t d = program->dep_count; d > 0; d--) {
