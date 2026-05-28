@@ -1050,6 +1050,47 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_setspecific(uint32_t key,
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_init(uint32_t *mutex,
+    const void *attr)
+{
+  (void) attr;
+  if (mutex == 0)
+    return 22;
+  *mutex = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_destroy(uint32_t *mutex)
+{
+  if (mutex == 0)
+    return 22;
+  return *mutex == 0 ? 0 : 16;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_lock(uint32_t *mutex)
+{
+  if (mutex == 0)
+    return 22;
+  while (__sync_lock_test_and_set(mutex, 1) != 0) {
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_trylock(uint32_t *mutex)
+{
+  if (mutex == 0)
+    return 22;
+  return __sync_lock_test_and_set(mutex, 1) == 0 ? 0 : 16;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_unlock(uint32_t *mutex)
+{
+  if (mutex == 0)
+    return 22;
+  __sync_lock_release(mutex);
+  return 0;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)
 {
   return poly_runtime_register_atexit_callback(callback, 0, 0);
