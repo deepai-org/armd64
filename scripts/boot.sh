@@ -1142,6 +1142,17 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolyroottls-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-root-tls-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyroottls-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_ROOT_TLS_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/aarch64/libpolyroottls-riscv.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ROOT_TLS_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/aarch64" \
+    -Wl,--no-as-needed -l:libpolyroottls-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-root-tls-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyrootifunc-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_ROOT_IFUNC_DEP_REAL_SRC" \
@@ -1191,6 +1202,17 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyneededtls-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-needed-tls-external-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-soname,libpolyneededtls-riscv.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_NEEDED_TLS_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/aarch64/libpolyneededtls-riscv.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_NEEDED_TLS_EXTERNAL_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/aarch64" \
+    -Wl,--no-as-needed -l:libpolyneededtls-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cross-needed-tls-external-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolyversioned-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none -Wl,--version-script="$POLYCALL_VERSIONED_DEP_REAL_MAP" \
@@ -2526,6 +2548,19 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-root-tls-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyroottls-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_ROOT_TLS_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/riscv/libpolyroottls-aarch64.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_ROOT_TLS_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/riscv" \
+    -Wl,--no-as-needed -l:libpolyroottls-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-root-tls-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolyrootifunc-riscv.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
     "$POLYCALL_ROOT_IFUNC_DEP_REAL_SRC" \
@@ -2583,6 +2618,19 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyneededtls-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-needed-tls-external-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-soname,libpolyneededtls-aarch64.so -Wl,--hash-style=sysv \
+    -Wl,--build-id=none \
+    "$POLYCALL_NEEDED_TLS_DEP_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/riscv/libpolyneededtls-aarch64.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_NEEDED_TLS_EXTERNAL_MAIN_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/riscv" \
+    -Wl,--no-as-needed -l:libpolyneededtls-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cross-needed-tls-external-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolyversioned-riscv.so -Wl,--hash-style=sysv \
@@ -4519,11 +4567,13 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-many-needed-real.so#poly_entry=4545 \
     /usr/lib/polyapps/aarch64-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/aarch64-pcall-root-tls-real.so#poly_entry=2348 \
+    /usr/lib/polyapps/aarch64-pcall-cross-root-tls-real.so#poly_entry=2348 \
     /usr/lib/polyapps/aarch64-pcall-root-ifunc-real.so#poly_entry=2045 \
     /usr/lib/polyapps/aarch64-pcall-cross-root-ifunc-real.so#poly_entry=2045 \
     /usr/lib/polyapps/aarch64-pcall-root-weak-real.so#poly_entry=955 \
     /usr/lib/polyapps/aarch64-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/aarch64-pcall-needed-tls-external-real.so#poly_entry=1045 \
+    /usr/lib/polyapps/aarch64-pcall-cross-needed-tls-external-real.so#poly_entry=1045 \
     /usr/lib/polyapps/aarch64-pcall-versioned-real.so#poly_entry=1045 \
     /usr/lib/polyapps/aarch64-pcall-needed-ifunc-real.so#poly_entry=845 \
     /usr/lib/polyapps/aarch64-pcall-needed-dt-init-real.so#poly_entry=945 \
@@ -4695,11 +4745,13 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-many-needed-real.so#poly_entry=4545 \
     /usr/lib/polyapps/riscv-pcall-root-export-real.so#poly_entry=1345 \
     /usr/lib/polyapps/riscv-pcall-root-tls-real.so#poly_entry=2348 \
+    /usr/lib/polyapps/riscv-pcall-cross-root-tls-real.so#poly_entry=2348 \
     /usr/lib/polyapps/riscv-pcall-root-ifunc-real.so#poly_entry=2045 \
     /usr/lib/polyapps/riscv-pcall-cross-root-ifunc-real.so#poly_entry=2045 \
     /usr/lib/polyapps/riscv-pcall-root-weak-real.so#poly_entry=955 \
     /usr/lib/polyapps/riscv-pcall-needed-tls-real.so#poly_entry=545 \
     /usr/lib/polyapps/riscv-pcall-needed-tls-external-real.so#poly_entry=1045 \
+    /usr/lib/polyapps/riscv-pcall-cross-needed-tls-external-real.so#poly_entry=1045 \
     /usr/lib/polyapps/riscv-pcall-versioned-real.so#poly_entry=1045 \
     /usr/lib/polyapps/riscv-pcall-needed-ifunc-real.so#poly_entry=845 \
     /usr/lib/polyapps/riscv-pcall-needed-dt-init-real.so#poly_entry=945 \

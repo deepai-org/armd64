@@ -553,8 +553,9 @@ symbols across the ISA boundary bind directly to the shared virtual address
 rather than to a code trampoline.  Mixed dependency `STT_GNU_IFUNC` exports are
 resolved by running the resolver in the exporting dependency ISA; if the
 resolved implementation is in the opposite ISA, the relocation receives a
-generated caller-ISA trampoline.  Cross-ISA TLS interposition remains an
-explicit future compatibility item rather than hidden emulator behavior.
+generated caller-ISA trampoline.  Mixed TLS interposition is covered in both
+directions: roots can import opposite-ISA dependency TLS symbols, and
+opposite-ISA dependencies can bind TLS relocations back to root-exported TLS.
 Section tables are kept as a fallback for synthetic test payloads. The gate
 uses compiler-produced AArch64 and RISC-V shared objects
 (`aarch64-pcall-real.so#poly_entry`, `riscv-pcall-real.so#poly_entry`,
@@ -604,11 +605,20 @@ where a needed DSO binds an undefined relocation back to a root IFUNC resolver
 (`aarch64-pcall-cross-root-ifunc-real.so#poly_entry` with
 `libpolyrootifunc-riscv.so`, and
 `riscv-pcall-cross-root-ifunc-real.so#poly_entry` with
-`libpolyrootifunc-aarch64.so`), compiler-produced `DT_NEEDED`
+`libpolyrootifunc-aarch64.so`), compiler-produced opposite-ISA
+dependency-to-root TLS pairs
+(`aarch64-pcall-cross-root-tls-real.so#poly_entry` with
+`libpolyroottls-riscv.so`, and
+`riscv-pcall-cross-root-tls-real.so#poly_entry` with
+`libpolyroottls-aarch64.so`), compiler-produced `DT_NEEDED`
 dependency-TLS pairs
 (`aarch64-pcall-needed-tls-real.so#poly_entry` with
 `libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
-with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
+with `libpolyneededtls-riscv.so`) plus opposite-ISA dependency TLS imports
+(`aarch64-pcall-cross-needed-tls-external-real.so#poly_entry` with
+`libpolyneededtls-riscv.so`, and
+`riscv-pcall-cross-needed-tls-external-real.so#poly_entry` with
+`libpolyneededtls-aarch64.so`), compiler-produced `DT_NEEDED`
 versioned-symbol pairs (`aarch64-pcall-versioned-real.so#poly_entry` with
 `libpolyversioned-aarch64.so`, and
 `riscv-pcall-versioned-real.so#poly_entry` with
