@@ -1091,6 +1091,18 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_mutex_unlock(uint32_t *mutex)
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_self(void)
+{
+  uint64_t self = poly_host_x86_tls_base();
+  return self != 0 ? self : 1;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_equal(uint64_t left,
+    uint64_t right)
+{
+  return left == right ? 1 : 0;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)
 {
   return poly_runtime_register_atexit_callback(callback, 0, 0);

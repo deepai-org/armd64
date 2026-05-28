@@ -468,7 +468,9 @@ enum {
   POLY_IMPORT_FUNC_PTHREAD_MUTEX_LOCK = 165,
   POLY_IMPORT_FUNC_PTHREAD_MUTEX_TRYLOCK = 166,
   POLY_IMPORT_FUNC_PTHREAD_MUTEX_UNLOCK = 167,
-  POLY_IMPORT_FUNC_COUNT = 168
+  POLY_IMPORT_FUNC_PTHREAD_SELF = 168,
+  POLY_IMPORT_FUNC_PTHREAD_EQUAL = 169,
+  POLY_IMPORT_FUNC_COUNT = 170
 };
 
 enum {
@@ -922,6 +924,8 @@ extern uint64_t poly_host_x86_pthread_mutex_destroy(uint32_t *mutex);
 extern uint64_t poly_host_x86_pthread_mutex_lock(uint32_t *mutex);
 extern uint64_t poly_host_x86_pthread_mutex_trylock(uint32_t *mutex);
 extern uint64_t poly_host_x86_pthread_mutex_unlock(uint32_t *mutex);
+extern uint64_t poly_host_x86_pthread_self(void);
+extern uint64_t poly_host_x86_pthread_equal(uint64_t left, uint64_t right);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1069,8 +1073,9 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "pthread_key_create", "pthread_key_delete", "pthread_getspecific",
     "pthread_setspecific", "pthread_mutex_init", "pthread_mutex_destroy",
     "pthread_mutex_lock", "pthread_mutex_trylock", "pthread_mutex_unlock",
-    "atexit", "__cxa_atexit", "__cxa_finalize", "getpid", "getppid",
-    "getuid", "geteuid", "getgid", "getegid", "gettid",
+    "pthread_self", "pthread_equal", "atexit", "__cxa_atexit",
+    "__cxa_finalize", "getpid", "getppid", "getuid", "geteuid", "getgid",
+    "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
     "__cxa_guard_abort",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
@@ -1273,6 +1278,10 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_mutex_trylock;
     case POLY_IMPORT_FUNC_PTHREAD_MUTEX_UNLOCK:
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_mutex_unlock;
+    case POLY_IMPORT_FUNC_PTHREAD_SELF:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_self;
+    case POLY_IMPORT_FUNC_PTHREAD_EQUAL:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_equal;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -2929,6 +2938,14 @@ static int resolve_import_function(const char *symbol_name,
   if (strcmp(symbol_name, "pthread_mutex_unlock") == 0) {
     *symbol_value =
       POLY_IMPORT_FUNC_PTHREAD_MUTEX_UNLOCK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_self") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_PTHREAD_SELF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_equal") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_PTHREAD_EQUAL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {
