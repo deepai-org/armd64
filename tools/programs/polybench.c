@@ -28,6 +28,7 @@ enum {
   POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
+  POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_DESCRIPTOR_MAX_SWITCH_DELTA = 7,
   POLYBENCH_DESCRIPTOR_MEMOPS_MAX_SWITCH_DELTA = 11
 };
@@ -343,6 +344,12 @@ static uint64_t polybench_x86_memcmp(const uint8_t *left,
   return 0;
 }
 
+__attribute__((noinline, noipa, used))
+static uint64_t polybench_x86_sum6_direct(uint64_t a0, uint64_t a1,
+    uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  return a0 + a1 + a2 + a3 + a4 + a5;
+}
+
 static int setup_polybench_x86_imports(void) {
   if (polybench_x86_import_trampoline != NULL)
     return 0;
@@ -629,6 +636,87 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
   *insn_delta = after - before;
 
   munmap(code, code_size);
+  return 0;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t polybench_direct_x86_pcall_aarch64_sum6(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) polybench_x86_sum6_direct;
+  asm volatile(
+    ".byte 0x0f,0x3a,0xfc,0x01\n"
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032f3f\n" // generic pcall frontend=x17 target=x16
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t polybench_direct_x86_pcall_riscv_sum6(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) polybench_x86_sum6_direct;
+  asm volatile(
+    ".byte 0x0f,0x3a,0xfc,0x02\n"
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x1200700b\n" // generic pcall frontend=t1 target=t0 return=t2
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
+static int run_direct_x86_pcall_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = polybench_direct_x86_pcall_aarch64_sum6();
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+  return 0;
+}
+
+static int run_direct_x86_pcall_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = polybench_direct_x86_pcall_riscv_sum6();
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
   return 0;
 }
 
@@ -3257,6 +3345,39 @@ static int check_cross_call_direction(const char *name,
   return 0;
 }
 
+static int check_direct_x86_pcall_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+  uint64_t result = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  printf("POLYBENCH_DIRECT_X86_PCALL_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta);
+
+  if (result != 21) {
+    fprintf(stderr, "POLYBENCH_FAIL: direct x86 pcall %s result expected 21 got %llu\n",
+      name, (unsigned long long) result);
+    return -1;
+  }
+  if (insn_delta < 10) {
+    fprintf(stderr, "POLYBENCH_FAIL: direct x86 pcall %s raw instruction delta expected at least 10 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (switch_delta < 4) {
+    fprintf(stderr, "POLYBENCH_FAIL: direct x86 pcall %s switch delta expected at least 4 got %llu\n",
+      name, (unsigned long long) switch_delta);
+    return -1;
+  }
+  if (check_switch_delta_max("direct x86 pcall", name, switch_delta,
+        POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  return 0;
+}
+
 static int check_cross_call_fp_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result_bits = 0;
@@ -3765,6 +3886,12 @@ static int check_cross_calls(void) {
   if (check_cross_call_direction("nested-aarch64-riscv-aarch64",
         run_nested_cross_call,
         POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_direct_x86_pcall_direction("aarch64-calls-x86-direct",
+        run_direct_x86_pcall_aarch64) < 0)
+    return -1;
+  if (check_direct_x86_pcall_direction("riscv-calls-x86-direct",
+        run_direct_x86_pcall_riscv) < 0)
     return -1;
   if (check_cross_call_fp_direction("aarch64-calls-riscv-fp",
         run_cross_call_fp_aarch64_to_riscv) < 0)

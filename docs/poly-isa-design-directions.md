@@ -76,7 +76,9 @@ bank, implemented as a small set of slots rather than one large dynamic call
 descriptor. The runtime programs a slot with a register-only mapping such as
 SysV `RDI,RSI,RDX` to AAPCS64 `x0,x1,x2`; a hot `PCALL` names only the slot.
 That keeps transition latency close to a branch plus rename-table update, with
-no operand movement through integer execution pipes.
+no operand movement through integer execution pipes. The target is zero
+data-move latency for arguments that already live in registers, not zero branch
+or frontend-redirect latency.
 
 This is hardware-assisted thunk elision, not hardware ABI interpretation. For
 register-only calls, a signature can replace a sequence of software moves such
@@ -116,6 +118,12 @@ the loader or runtime for common pairs such as SysV-to-AAPCS64,
 AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. Hot call sites
 then encode or supply only the slot number. If a process needs a rare mapping,
 runtime code can reprogram a cold slot outside the hot path.
+
+The slot state must be ordinary architectural Poly state. It should be saved by
+the explicit Poly/XSAVE state component with the rest of the foreign-register
+state, not inferred from CR3, lazy process identity, or hidden emulator maps.
+That makes the mechanism usable by real kernels and thread schedulers rather
+than depending on Bochs-only bookkeeping.
 
 The design point is speed and area efficiency: the hardware only changes
 register aliases. It does not execute moves, copy stack slots, reformat memory
