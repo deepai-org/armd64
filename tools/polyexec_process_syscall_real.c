@@ -85,8 +85,14 @@ enum {
   POLY_SYS_SET_TID_ADDRESS = 96,
   POLY_SYS_SET_ROBUST_LIST = 99,
   POLY_SYS_GET_ROBUST_LIST = 100,
+  POLY_SYS_NANOSLEEP = 101,
+  POLY_SYS_GETITIMER = 102,
+  POLY_SYS_SETITIMER = 103,
   POLY_SYS_CLOCK_GETTIME = 113,
+  POLY_SYS_CLOCK_GETRES = 114,
+  POLY_SYS_CLOCK_NANOSLEEP = 115,
   POLY_SYS_SCHED_GETAFFINITY = 123,
+  POLY_SYS_SCHED_YIELD = 124,
   POLY_SYS_KILL = 129,
   POLY_SYS_RT_SIGPROCMASK = 135,
   POLY_SYS_GETPID = 172,
@@ -254,6 +260,11 @@ struct poly_itimerspec {
 struct poly_timeval {
   int64_t sec;
   int64_t usec;
+};
+
+struct poly_itimerval {
+  struct poly_timeval interval;
+  struct poly_timeval value;
 };
 
 struct poly_rlimit64 {
@@ -525,6 +536,39 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 53;
   if (wall_time.sec <= 0 || wall_time.usec < 0 || wall_time.usec >= 1000000)
     return 54;
+
+  struct poly_timespec zero_sleep;
+  zero_sleep.sec = 0;
+  zero_sleep.nsec = 0;
+  if (poly_syscall2(POLY_SYS_NANOSLEEP, (long) &zero_sleep, 0) != 0)
+    return 221;
+  struct poly_timespec clock_res;
+  if (poly_syscall2(POLY_SYS_CLOCK_GETRES, POLY_CLOCK_MONOTONIC,
+        (long) &clock_res) != 0)
+    return 222;
+  if (clock_res.sec < 0 || clock_res.nsec <= 0 ||
+      clock_res.nsec >= 1000000000)
+    return 223;
+  if (poly_syscall4(POLY_SYS_CLOCK_NANOSLEEP, POLY_CLOCK_MONOTONIC, 0,
+        (long) &zero_sleep, 0) != 0)
+    return 224;
+  struct poly_itimerval current_timer;
+  if (poly_syscall2(POLY_SYS_GETITIMER, 0, (long) &current_timer) != 0)
+    return 225;
+  struct poly_itimerval disabled_timer;
+  disabled_timer.interval.sec = 0;
+  disabled_timer.interval.usec = 0;
+  disabled_timer.value.sec = 0;
+  disabled_timer.value.usec = 0;
+  struct poly_itimerval old_timer;
+  if (poly_syscall3(POLY_SYS_SETITIMER, 0, (long) &disabled_timer,
+        (long) &old_timer) != 0)
+    return 226;
+  if (old_timer.interval.usec < 0 || old_timer.interval.usec >= 1000000 ||
+      old_timer.value.usec < 0 || old_timer.value.usec >= 1000000)
+    return 227;
+  if (poly_syscall0(POLY_SYS_SCHED_YIELD) != 0)
+    return 228;
 
   struct poly_rlimit64 stack_limit;
   if (poly_syscall4(POLY_SYS_PRLIMIT64, 0, POLY_RLIMIT_STACK, 0,
