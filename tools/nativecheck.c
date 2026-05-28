@@ -548,7 +548,9 @@ static void poly_trap_vector_handler(void) {
 }
 
 extern const unsigned char poly_aarch64_trap_vector_raw[];
+extern const unsigned char poly_aarch64_trap_vector_ext_raw[];
 extern const unsigned char poly_riscv_trap_vector_raw[];
+extern const unsigned char poly_riscv_trap_vector_ext_raw[];
 
 __asm__(
   ".pushsection .text\n"
@@ -562,6 +564,14 @@ __asm__(
   "ud2\n"
   ".size poly_aarch64_trap_vector_raw, .-poly_aarch64_trap_vector_raw\n"
   ".balign 4\n"
+  ".globl poly_aarch64_trap_vector_ext_raw\n"
+  ".type poly_aarch64_trap_vector_ext_raw,@function\n"
+  "poly_aarch64_trap_vector_ext_raw:\n"
+  ".long 0x8b0c0160\n" // add x0,x11,x12, return trap arg6+arg7
+  ".long 0xd42fff20\n" // brk #0x7ff9, architectural trap return
+  "ud2\n"
+  ".size poly_aarch64_trap_vector_ext_raw, .-poly_aarch64_trap_vector_ext_raw\n"
+  ".balign 4\n"
   ".globl poly_riscv_trap_vector_raw\n"
   ".type poly_riscv_trap_vector_raw,@function\n"
   "poly_riscv_trap_vector_raw:\n"
@@ -570,6 +580,14 @@ __asm__(
   ".long 0x0000407b\n" // custom trap return
   "ud2\n"
   ".size poly_riscv_trap_vector_raw, .-poly_riscv_trap_vector_raw\n"
+  ".balign 4\n"
+  ".globl poly_riscv_trap_vector_ext_raw\n"
+  ".type poly_riscv_trap_vector_ext_raw,@function\n"
+  "poly_riscv_trap_vector_ext_raw:\n"
+  ".long 0x01de0533\n" // add a0,t3,t4, return trap arg6+arg7
+  ".long 0x0000407b\n" // custom trap return
+  "ud2\n"
+  ".size poly_riscv_trap_vector_ext_raw, .-poly_riscv_trap_vector_ext_raw\n"
   ".popsection\n");
 
 static int run_poly_trap_vector_probe(void) {
@@ -1158,6 +1176,52 @@ static int run_poly_trap_vector_probe(void) {
   result = read_rax();
   if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv trap vector result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
+  poly_trap_vector_set_value((uint64_t) (void *) poly_aarch64_trap_vector_ext_raw);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x01500513\n" // addi a0,zero,21
+    ".long 0x01600593\n" // addi a1,zero,22
+    ".long 0x01700613\n" // addi a2,zero,23
+    ".long 0x01800693\n" // addi a3,zero,24
+    ".long 0x01900713\n" // addi a4,zero,25
+    ".long 0x01a00793\n" // addi a5,zero,26
+    ".long 0x01b00813\n" // addi a6,zero,27
+    ".long 0x00500893\n" // addi a7,zero,5
+    ".long 0x00100073\n" // ebreak
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 32) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 extended trap vector result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value((uint64_t) (void *) poly_riscv_trap_vector_ext_raw);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800160\n" // movz x0,#11
+    ".long 0xd2800181\n" // movz x1,#12
+    ".long 0xd28001a2\n" // movz x2,#13
+    ".long 0xd28001c3\n" // movz x3,#14
+    ".long 0xd28001e4\n" // movz x4,#15
+    ".long 0xd2800205\n" // movz x5,#16
+    ".long 0xd2800226\n" // movz x6,#17
+    ".long 0xd2800247\n" // movz x7,#18
+    ".long 0xd42000a0\n" // brk #5
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 35) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv extended trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
