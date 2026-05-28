@@ -4199,7 +4199,6 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
-    POLYEXEC_LEGACY_BREAK_HELPERS=1 \
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-getpid.elf=pid \
     /usr/lib/polyapps/riscv-getpid.elf=pid \
@@ -4271,13 +4270,6 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-inotify-rm-watch.elf=0 \
     /usr/lib/polyapps/aarch64-dup3.elf=8 \
     /usr/lib/polyapps/riscv-dup3.elf=8 \
-    /usr/lib/polyapps/aarch64-strlen.elf=5 \
-    /usr/lib/polyapps/riscv-strlen.elf=5 \
-    /usr/lib/polyapps/aarch64-memfill.elf=4 \
-    /usr/lib/polyapps/riscv-memfill.elf=4 \
-    /usr/lib/polyapps/aarch64-memcmp.elf=1 \
-    /usr/lib/polyapps/riscv-memcmp.elf=1 \
-    /usr/lib/polyapps/aarch64-memcpy.elf=4 \
     /usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so#poly_entry=45 \
     /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
@@ -4299,8 +4291,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
-    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 \
-    /usr/lib/polyapps/riscv-memcpy.elf=4 >/dev/ttyS0 2>&1
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_CALL" = "1" ]; then
