@@ -774,6 +774,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 276: *x86_number = SYS_renameat2; return 1;
     case 277: *x86_number = SYS_seccomp; return 1;
     case 278: *x86_number = SYS_getrandom; return 1;
+    case 279: *x86_number = SYS_memfd_create; return 1;
     case 280: *x86_number = SYS_bpf; return 1;
     case 282: *x86_number = SYS_userfaultfd; return 1;
     case 283: *x86_number = SYS_membarrier; return 1;

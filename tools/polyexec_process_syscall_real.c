@@ -6,6 +6,7 @@ enum {
   POLY_PROT_READ = 1,
   POLY_PROT_WRITE = 2,
   POLY_GRND_NONBLOCK = 1,
+  POLY_MFD_CLOEXEC = 1,
   POLY_MREMAP_MAYMOVE = 1,
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
@@ -35,6 +36,8 @@ enum {
   POLY_SYS_WRITE = 64,
   POLY_SYS_READV = 65,
   POLY_SYS_WRITEV = 66,
+  POLY_SYS_PREAD64 = 67,
+  POLY_SYS_PWRITE64 = 68,
   POLY_SYS_READLINKAT = 78,
   POLY_SYS_NEWFSTATAT = 79,
   POLY_SYS_FSTAT = 80,
@@ -62,6 +65,7 @@ enum {
   POLY_SYS_MPROTECT = 226,
   POLY_SYS_PRLIMIT64 = 261,
   POLY_SYS_GETRANDOM = 278,
+  POLY_SYS_MEMFD_CREATE = 279,
   POLY_SYS_STATX = 291,
   POLY_SYS_OPENAT2 = 437
 };
@@ -514,6 +518,47 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
       file_bytes[2] != 'L' || file_bytes[3] != 'F')
     return 32;
+
+  fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD,
+    (long) "/usr/bin/polyexec", 0);
+  if (fd < 0)
+    return 105;
+  char offset_bytes[3];
+  if (poly_syscall4(POLY_SYS_PREAD64, fd, (long) offset_bytes,
+        sizeof(offset_bytes), 1) != (long) sizeof(offset_bytes)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 106;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 107;
+  if (offset_bytes[0] != 'E' || offset_bytes[1] != 'L' ||
+      offset_bytes[2] != 'F')
+    return 108;
+
+  fd = poly_syscall2(POLY_SYS_MEMFD_CREATE, (long) "poly-pwrite",
+    POLY_MFD_CLOEXEC);
+  if (fd < 0)
+    return 109;
+  static const char write_offset_message[] = "OFFSET";
+  if (poly_syscall4(POLY_SYS_PWRITE64, fd, (long) write_offset_message,
+        sizeof(write_offset_message) - 1, 3) !=
+      (long) (sizeof(write_offset_message) - 1)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 110;
+  }
+  char read_offset_message[6];
+  if (poly_syscall4(POLY_SYS_PREAD64, fd, (long) read_offset_message,
+        sizeof(read_offset_message), 3) !=
+      (long) sizeof(read_offset_message)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 111;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 112;
+  if (read_offset_message[0] != 'O' || read_offset_message[1] != 'F' ||
+      read_offset_message[2] != 'F' || read_offset_message[3] != 'S' ||
+      read_offset_message[4] != 'E' || read_offset_message[5] != 'T')
+    return 113;
 
   struct poly_open_how open_how;
   open_how.flags = 0;
