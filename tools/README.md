@@ -1,36 +1,36 @@
 # Tools
 
-Keep `tools/` source-only. Generated binaries, guest images, logs, and
-temporary build products belong under `out/`.
+`tools/` is source-only. Generated ELFs, initramfs contents, disk images, logs,
+and temporary build products belong under `out/`.
 
-## Runtime Path
+## Directory Map
 
-- `runtime/polycall.c`: foreign shared-object loader, dynamic-linker subset,
-  native ABI bridge, generated thunks, and descriptor import runtime.
-- `runtime/polyexec.c`: foreign ELF/process runner for raw process-mode tests.
-- `runtime/polybinfmt.sh`: guest-side binfmt wrapper used by boot tests.
+| Path | Purpose |
+| --- | --- |
+| `include/` | Shared userspace constants for CPUID, traps, imports, and poly XSAVE state. |
+| `runtime/` | Guest runtime loaders and wrappers: `polycall`, `polyexec`, and binfmt glue. |
+| `programs/` | Small x86_64 guest programs for probes, raw payloads, threads, signals, and benchmarks. |
+| `polyapps/` | Hand-authored raw AArch64/RISC-V payload descriptions consumed by `mkpolyelf`. |
+| `fixtures/polycall/` | Native-ABI shared-object fixtures for `polycall` compatibility tests. |
+| `fixtures/polyexec/` | Process-mode foreign ELF fixtures for `polyexec` tests. |
+| `build/` | Host-side source for build helpers. |
+| `contracts/` | Coarse consistency checks. Keep runnable, but do not treat as primary validation. |
 
-## Test Programs
+## Primary Runtime Pieces
 
-- `programs/polyprobe.c`: CPUID, trap, state, and frontend probes.
-- `programs/polyapp.c`: raw `.poly` payload runner.
-- `programs/polybench.c`: transition/execution microbenchmarks.
-- `programs/polythread.c`: thread and foreign-state isolation tests.
-- `programs/polysignal.c`: signal and interrupted-foreign-mode tests.
-- `programs/nativecheck.c`: x86_64 guest sanity checks.
+- `runtime/polycall.c`: shared-object loader, dynamic-linker subset, ABI bridge,
+  generated thunks, and descriptor import runtime.
+- `runtime/polyexec.c`: process-style runner for foreign ELF tests.
+- `runtime/polybinfmt.sh`: guest-side wrapper used by binfmt boot tests.
+- `build/mkpolyelf.c`: converts `.poly` payload descriptions into guest ELFs.
 
-## Inputs
+## Validation
 
-- `include/polycpuid.h`: userspace CPUID, trap, import, and poly XSAVE
-  constants shared with the Bochs implementation.
-- `polyapps/`: small hand-authored raw AArch64/RISC-V payload descriptions.
-- `fixtures/polycall/`: native ABI shared-object fixtures for `polycall`.
-- `fixtures/polyexec/`: process-mode ELF fixtures for `polyexec`.
-- `build/mkpolyelf.c`: host helper that converts `.poly` descriptions into
-  guest ELF payloads.
+Prefer real boot tests over contract-script expansion:
 
-## Checks
+- `make boot-poly-binfmt-arch-traps`
+- `make boot-poly-call-arch-traps`
+- `make boot-poly-full-arch-traps`
 
-- `contracts/`: coarse consistency checks. Keep them runnable, but prefer real
-  boot tests for validation: `make boot-poly-binfmt-arch-traps`,
-  `make boot-poly-call-arch-traps`, and `make boot-poly-full-arch-traps`.
+Use `make check-poly-import-ids` and related contract checks only as quick
+consistency smoke tests.
