@@ -1,8 +1,7 @@
 # armd64
 
-Bochs-based prototype for running precompiled AArch64 and RISC-V code inside an
-x86_64 Linux process. The guest OS is still ordinary x86_64 Linux; userspace
-enters foreign code through explicit polyglot ISA instructions.
+Bochs prototype for running precompiled AArch64 and RISC-V userspace code inside
+an ordinary x86_64 Linux guest.
 
 ## Run
 
@@ -13,31 +12,33 @@ make image
 make boot-poly-full-arch-traps
 ```
 
-Other useful targets:
+Common targets:
 
-- `make boot`: baseline x86_64 guest.
+- `make boot`: baseline x86_64 Linux boot.
 - `make boot-poly`: quick polyglot smoke test.
-- `make boot-poly-call-arch-traps`: cross-ISA calls/imports/signals.
-- `make boot-poly-binfmt-arch-traps`: foreign executable path.
+- `make boot-poly-call-arch-traps`: cross-ISA calls, imports, signals, traps.
+- `make boot-poly-binfmt-arch-traps`: foreign executable loading path.
 
-Logs are written to `out/serial.log` and `out/bochs.log`.
+Logs:
 
-## ISA Differences
+- `out/serial.log`: guest-visible test output.
+- `out/bochs.log`: emulator/debug log.
 
-Normal x86_64 execution, Linux boot, paging, privilege levels, and virtual
-memory stay unchanged. The prototype adds:
+## ISA Delta From x86_64
 
-- Discovery through private `CPUID` leaves at `0x40000000+`.
-- Dedicated prototype x86 opcodes: `0f 24 <op> "POLY!"`, not `UD2` envelopes.
-- Raw AArch64/RISC-V entry with `PENTER.A64` and `PENTER.RV64`.
-- Raw exit with AArch64 `brk #0x7fff` or RISC-V custom-0 `0x0000000b`.
-- Direct AArch64/RISC-V switch and call opcodes, so foreign modes do not need
-  to bounce through x86_64.
-- ABI-aware `PCALL.*.SYSV` calls into precompiled AAPCS64/RISC-V psABI code.
-- Shared x86_64 virtual memory, faults, permissions, and prototype TSO ordering.
-- Architectural traps for foreign syscalls, breakpoints, illegal instructions,
-  and unsupported operations.
-- Prototype foreign state component 20 via `CPUID`/`XCR0`/`XSAVE`; stock guest
-  Linux enumerates it but does not enable `XCR0[20]`.
+Normal x86_64 boot, paging, privilege levels, virtual memory, and Linux syscall
+ABI remain x86_64. The added polyglot ISA pieces are:
 
-Detailed design notes live in `docs/poly-isa.md`.
+- `CPUID 0x40000000+`: polyglot feature discovery.
+- `0f 24 <op> "POLY!"`: prototype dedicated x86 opcode space.
+- `PENTER.A64` / `PENTER.RV64`: enter raw 32-bit AArch64/RISC-V fetch.
+- AArch64 `brk #0x7fff` / RISC-V custom-0 `0x0000000b`: exit raw mode.
+- Direct AArch64<->RISC-V switch/call operations.
+- ABI-aware `PCALL.*.SYSV` into precompiled AAPCS64/RISC-V psABI functions.
+- Shared x86_64 virtual memory, page faults, permissions, and prototype TSO.
+- Architectural trap packets for foreign syscalls, breakpoints, illegal
+  instructions, imports, and unsupported operations.
+- Prototype foreign state as XSAVE component 20. Current stock guest Linux
+  enumerates it but does not enable `XCR0[20]`.
+
+Full ISA details are in `docs/poly-isa.md`.
