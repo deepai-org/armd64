@@ -56,7 +56,7 @@ handles aggregate returns or variadics, and then issues a fixed-latency
 is consumed by runtime code when generating or entering a thunk, not by the CPU
 pipeline on every transition.
 
-## Programmable ABI Signature Slots
+## Programmable RAT ABI Signature Slots
 
 A fixed exchange window is simple, but it forces software to move registers for
 ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
@@ -64,12 +64,12 @@ ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
 allow the runtime to program a small set of register-only ABI signature slots.
 
 Modern out-of-order CPUs already rename architectural registers through a
-register alias table (RAT). A poly ABI signature should describe only how source
-frontend architectural registers map onto destination frontend architectural
-registers for the call and return fast paths. On `PCALL`, hardware selects a
-cached signature slot and applies those mappings in or near the rename stage.
-The data does not move; only architectural names are rebound to physical
-registers.
+register alias table (RAT). A poly ABI signature should be a small programmable
+RAT update recipe: source frontend architectural register names are rebound to
+destination frontend architectural register names for the call and return fast
+paths. On `PCALL`, hardware selects a cached signature slot and applies those
+mappings in or near the rename stage. The data does not move; only
+architectural names are rebound to physical registers.
 
 This is the only kind of semi-persistent, reconfigurable ABI hardware that
 belongs on the fast path. Register renaming fits the existing OoO machinery: the
@@ -101,6 +101,17 @@ descriptors in memory. A realistic OoO implementation can treat the signature
 as extra control input to rename/RAT update logic, which is much closer to
 ordinary register renaming than to an ABI interpreter.
 
+Architecturally, the mechanism should look like:
+
+- `PABI_SIG_SET slot, kind`: program a small register-only mapping slot.
+- `PABI_SIG_GET slot`: report the active slot kind for discovery/debugging.
+- `PCALL mode, target, slot`: branch to another frontend while applying the
+  selected cached mapping.
+
+The final encoding can differ, but `PCALL` must name an already-programmed
+slot. It must not point at a user-memory descriptor that hardware has to load
+or parse.
+
 Slot programming should happen at load time, lazy binding time, or runtime
 setup time, not on every call. A typical system can reserve one slot for
 SysV-to-AAPCS64, one for AAPCS64-to-SysV, one for SysV-to-RISC-V psABI, and one
@@ -125,18 +136,19 @@ final frontend transition.
 
 This creates a deliberate hybrid boundary:
 
-- Hardware handles the common all-register case by applying a cached signature
-  with no data movement.
-- Software handles stack layout, by-value aggregates, variadics, lazy binding,
-  and unusual vector cases before making the final fixed-latency transition.
+- Hardware handles the common all-register case, roughly the 90% case for small
+  C-style calls, by applying a cached signature with no data movement.
+- Software handles the hard 10%: stack layout, by-value aggregates, variadics,
+  lazy binding, and unusual vector cases before making the final fixed-latency
+  transition.
 - The null signature is the exchange-window ABI, so every implementation has a
   simple fallback even without RAT remapping.
 
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, and slot kind `1` is x86_64 SysV source
-argument order. Signature-call prototype opcodes pass target PC in `RBX`, return
-PC in `R11`, and slot number in `R12` so the exchange-window lanes remain free
-for call arguments.
+argument order. Generic frontend-ID prototype opcodes pass mode in `R15`,
+target PC in `RBX`, return PC in `R11`, and slot number in `R12` so the
+exchange-window lanes remain free for call arguments.
 
 ## Register Exchange Window
 

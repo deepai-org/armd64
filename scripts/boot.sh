@@ -4668,7 +4668,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-get-robust-list.elf" 0xd2800000 0x91002022 0xd2800c88 0xd4000001 0xf9400040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prlimit64.elf" 0xaa0103e3 0xd2800000 0xd2800061 0xd2800002 0xd28020a8 0xd4000001 0xf9400060
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-getrandom.elf" 0xaa0103e0 0xd2800081 0xd2800002 0xd28022c8 0xd4000001
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap.elf" 0xd2800000 0xd2800001 0xd2801bc8 0xd4000001
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap.elf" 0xd2800000 0xd2800001 0xd2800002 0xd2800003 0xd2800004 0xd2800005 0xd2801bc8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap6.elf" 0xd2800000 0xd2800201 0xd2800062 0xd2800443 0xd28000a4 0xd28000e5 0xd2801bc8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap-store.elf" 0xd2800000 0xd2820001 0xd2800062 0xd2800443 0x92800004 0xd2800005 0xd2801bc8 0xd4000001 0xd28009a1 0xf9000001 0xf9400000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mmap-real-store.elf" 0xd2800000 0xd2820001 0xd2800062 0xd2800443 0x92800004 0xd2800005 0xd2801bc8 0xd4000001 0xd28009a1 0xf9000001 0xf9400000
@@ -4961,7 +4961,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-get-robust-list.elf" 0x00000513 0x00858613 0x06400893 0x00000073 0x00063503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-prlimit64.elf" 0x00058693 0x00000513 0x00300593 0x00000613 0x10500893 0x00000073 0x0006b503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-getrandom.elf" 0x00058513 0x00400593 0x00000613 0x11600893 0x00000073
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap.elf" 0x00000513 0x00000593 0x0de00893 0x00000073
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap.elf" 0x00000513 0x00000593 0x00000613 0x00000693 0x00000713 0x00000793 0x0de00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap6.elf" 0x00000513 0x01000593 0x00300613 0x02200693 0x00500713 0x00700793 0x0de00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap-store.elf" 0x00000513 0x000015b7 0x00300613 0x02200693 0xfff00713 0x00000793 0x0de00893 0x00000073 0x04d00593 0x00b53023 0x00053503
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-mmap-real-store.elf" 0x00000513 0x000015b7 0x00300613 0x02200693 0xfff00713 0x00000793 0x0de00893 0x00000073 0x04d00593 0x00b53023 0x00053503

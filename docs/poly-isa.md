@@ -54,12 +54,17 @@ Current Bochs prototype subops for register-signature ABI calls are:
 | --- | --- | --- |
 | `0x2b` | `PCALL_SIG_A64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2c` | `PCALL_SIG_RV64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
+| `0x2d` | `PCALL_SIG_MODE` | mode in `R15`, target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
 | `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
 
 Prototype signature kinds are `0` for the baseline exchange window and `1` for
 x86_64 SysV source argument registers. They are a model of cached hardware
 control state, not a final x86 opcode allocation.
+
+The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
+`R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V
+enter controls.
 
 ## Foreign Escapes
 
@@ -109,6 +114,11 @@ These slots are semi-persistent hardware control state, typically programmed by
 the loader or runtime and reused by many call sites. A `PCALL` names the target
 frontend, target PC, and signature slot; the CPU applies the cached register map
 in the rename path instead of executing move instructions.
+
+This is a programmable RAT mechanism, not a descriptor parser. The hot
+transition path selects an already-programmed slot; it does not fetch a call
+descriptor from user memory. Register-only native ABI calls can therefore avoid
+software move thunks, while complex calls still use loader/runtime thunks.
 
 The intended silicon implementation is a programmable register-alias-table
 update, not a data-moving microcode loop. Slot programming is rare control

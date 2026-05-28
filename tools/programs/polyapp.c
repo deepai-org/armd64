@@ -856,6 +856,7 @@ static int read_polyapp_base_contract(void) {
     POLY_CPUID_FEATURE_NEUTRAL_SWITCH |
     POLY_CPUID_FEATURE_TRAP_RECORDS |
     POLY_CPUID_FEATURE_X86_TSO |
+    POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS |
     POLY_CPUID_FEATURE_X86_POLY_OPCODES |
     POLY_CPUID_FEATURE_TRAP_VECTOR;
   const struct poly_cpuid_regs features = poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
