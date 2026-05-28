@@ -115,6 +115,8 @@ enum {
   SCRATCH_SECOND_PATH_OFFSET = 128
 };
 
+static int polyexec_legacy_break_helpers;
+
 struct poly_cpuid_regs {
   uint32_t eax;
   uint32_t ebx;
@@ -667,6 +669,8 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
   }
 
   if (reason == POLY_TRAP_BREAK) {
+    if (!polyexec_legacy_break_helpers)
+      return 0x4c000000ULL | (mode << 8) | number;
     if (number == 1) {
       const char *text = (const char *) arg0;
       uint64_t length = 0;
@@ -706,6 +710,7 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
         dest[n] = src[n];
       return count;
     }
+    return 0x4c000000ULL | (mode << 8) | number;
   }
 
   return (uint64_t) -ENOSYS;
@@ -2458,6 +2463,9 @@ int main(int argc, char **argv) {
   const char *trap_vector_env = getenv("POLYEXEC_TRAP_VECTOR");
   const int use_trap_vector =
     trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0;
+  const char *legacy_break_env = getenv("POLYEXEC_LEGACY_BREAK_HELPERS");
+  polyexec_legacy_break_helpers =
+    legacy_break_env != NULL && strcmp(legacy_break_env, "1") == 0;
   if (read_poly_base_contract(use_trap_vector) < 0)
     return 1;
   if (use_trap_vector)

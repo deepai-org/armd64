@@ -55,6 +55,7 @@ struct payload {
 static jmp_buf polyapp_exit_env;
 static int polyapp_exit_env_valid;
 static uint64_t polyapp_exit_result;
+static int polyapp_legacy_break_helpers;
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x24,0x00,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x24,0x31,0x50,0x4f,0x4c,0x59,0x21" ::: "memory"); }
@@ -384,6 +385,8 @@ uint64_t polyapp_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return (uint64_t) -38;
 
   if (reason == POLY_TRAP_BREAK) {
+    if (!polyapp_legacy_break_helpers)
+      return 0x4c000000ULL | (mode << 8) | number;
     if (number == 1) {
       const char *text = (const char *) (uintptr_t) arg0;
       uint64_t length = 0;
@@ -985,6 +988,9 @@ int main(int argc, char **argv) {
   }
 
   puts("POLYAPP: start");
+  const char *legacy_break_env = getenv("POLYAPP_LEGACY_BREAK_HELPERS");
+  polyapp_legacy_break_helpers =
+    legacy_break_env != NULL && strcmp(legacy_break_env, "1") == 0;
   if (read_polyapp_base_contract() < 0)
     return 1;
   install_polyapp_trap_vector();

@@ -3674,11 +3674,13 @@ if [ "$RUN_POLY_PROBE" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then
-  /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
+  POLYAPP_LEGACY_BREAK_HELPERS=1 \
+    /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_EXEC" = "1" ]; then
     POLYEXEC_TRAP_VECTOR=1 \
+    POLYEXEC_LEGACY_BREAK_HELPERS=1 \
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-add.elf=132 \
     /usr/lib/polyapps/aarch64-regadd.elf=123 \
@@ -3925,7 +3927,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-uname.elf=0 \
     /usr/lib/polyapps/aarch64-exit.elf=7 \
     /usr/lib/polyapps/aarch64-exit-group.elf=7 \
-    /usr/lib/polyapps/aarch64-brk.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/aarch64-brk.elf=0x4c000305 \
     /usr/lib/polyapps/aarch64-svc.elf=0xffffffffffffffda \
     /usr/lib/polyapps/aarch64-long.elf=80 \
     /usr/lib/polyapps/riscv-add.elf=27 \
@@ -4187,13 +4189,14 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-uname.elf=0 \
     /usr/lib/polyapps/riscv-exit.elf=7 \
     /usr/lib/polyapps/riscv-exit-group.elf=7 \
-    /usr/lib/polyapps/riscv-ebreak.elf=0xffffffffffffffda \
-    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 \
     /usr/lib/polyapps/riscv-ecall.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
+    POLYEXEC_LEGACY_BREAK_HELPERS=1 \
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-getpid.elf=pid \
     /usr/lib/polyapps/riscv-getpid.elf=pid \
@@ -4293,7 +4296,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
-    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0xffffffffffffffda \
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 \
     /usr/lib/polyapps/riscv-memcpy.elf=4 >/dev/ttyS0 2>&1
 fi
 

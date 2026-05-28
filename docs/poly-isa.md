@@ -1127,6 +1127,11 @@ foreign syscall/import traps and `SIGTRAP` for foreign breakpoint traps.
 Breakpoint traps use the source frontend's native ABI argument registers:
 AArch64 `x0`-`x5` or RISC-V `a0`-`a5`.  Runtime helper ids, dynamic-linker
 bindings, and OS syscall translation are guest policy layered above this packet.
+The `polyexec` and `polyapp` harnesses default to neutral breakpoint packet
+results.  Their old synthetic `strlen`/`memset`/`memcmp`/`memcpy` breakpoint
+fixtures only run when `POLYEXEC_LEGACY_BREAK_HELPERS=1` or
+`POLYAPP_LEGACY_BREAK_HELPERS=1` is set; real libc-like interop coverage uses
+descriptor imports instead.
 
 ## Compatibility Rule
 
