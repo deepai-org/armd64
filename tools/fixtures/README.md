@@ -11,6 +11,8 @@ under `tools/fixtures/` rather than generated into `out/`, because
   symbol visibility, callbacks, FP/vector argument shapes, and x86 helper
   imports.
 - `polyexec/`: process-mode foreign ELF fixtures loaded through `polyexec`.
+- `polyapps/`: hand-authored raw AArch64/RISC-V payload descriptions consumed
+  by `tools/build/mkpolyelf.c`.
 
 ## Naming
 

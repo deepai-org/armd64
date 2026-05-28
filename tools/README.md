@@ -10,7 +10,7 @@ and temporary build products belong under `out/`.
 | `include/` | Shared userspace constants for CPUID, traps, imports, and poly XSAVE state. |
 | `runtime/` | Guest runtime loaders and wrappers: `polycall`, `polyexec`, and binfmt glue. |
 | `programs/` | Small x86_64 guest programs for probes, raw payloads, threads, signals, and benchmarks. |
-| `polyapps/` | Hand-authored raw AArch64/RISC-V payload descriptions consumed by `mkpolyelf`. |
+| `fixtures/polyapps/` | Hand-authored raw AArch64/RISC-V payload descriptions consumed by `mkpolyelf`. |
 | `fixtures/polycall/` | Native-ABI shared-object fixtures for `polycall` compatibility tests. |
 | `fixtures/polyexec/` | Process-mode foreign ELF fixtures for `polyexec` tests. |
 | `build/` | Host-side source for build helpers. |
@@ -22,7 +22,8 @@ and temporary build products belong under `out/`.
   generated thunks, and descriptor import runtime.
 - `runtime/polyexec.c`: process-style runner for foreign ELF tests.
 - `runtime/polybinfmt.sh`: guest-side wrapper used by binfmt boot tests.
-- `build/mkpolyelf.c`: converts `.poly` payload descriptions into guest ELFs.
+- `build/mkpolyelf.c`: converts `fixtures/polyapps/*.poly` payload
+  descriptions into guest ELFs.
 
 ## Validation
 
