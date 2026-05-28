@@ -10,6 +10,7 @@ fi
 expected=""
 entry=""
 runner="polyexec"
+call_prefix=""
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
@@ -130,6 +131,22 @@ case "$path" in
   */aarch64-pcall-x86-callee-import-real.so) expected=7386; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-x86-callee-stack-import-real.so) expected=7455; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-x86-sum8-post-import-real.so) expected=245; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-x86-fp64-import-real.so) expected=0x4069e80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */aarch64-pcall-x86-fp64-sum8-import-real.so) expected=0x406da80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */aarch64-pcall-x86-fp64-sum10-import-real.so) expected=0x4070040000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */aarch64-pcall-x86-fp64-callee-import-real.so) expected=0x40993e0000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */aarch64-pcall-x86-fp64-callee-stack-import-real.so) expected=0x409a0e0000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */aarch64-pcall-x86-fpair64-import-real.so) expected=0x405ad0004069e800; entry="#poly_entry"; runner="polycall"; call_prefix="fpair:" ;;
+  */aarch64-pcall-x86-fpair64-fp64-callee-import-real.so) expected=0x409ae50000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */aarch64-pcall-x86-fpair32-import-real.so) expected=0x41da0000418a0000; entry="#poly_entry"; runner="polycall"; call_prefix="fpair32:" ;;
+  */aarch64-pcall-x86-fpair32-fp32-callee-import-real.so) expected=0x44b56800; entry="#poly_entry"; runner="polycall"; call_prefix="fp32:" ;;
+  */aarch64-pcall-x86-vec128-import-real.so) expected=0x01e4016b00f20079; entry="#poly_entry"; runner="polycall"; call_prefix="vec128u32:" ;;
+  */aarch64-pcall-x86-vec128-fp64-callee-import-real.so) expected=0x0208018f0116009d; entry="#poly_entry"; runner="polycall"; call_prefix="vec128u32:" ;;
+  */aarch64-pcall-x86-sret-stack10-import-real.so) expected=0x000b00160021008c; entry="#poly_entry"; runner="polycall"; call_prefix="sret10:" ;;
+  */aarch64-pcall-x86-sret-fp64-callee-stack-import-real.so) expected=0x4099450000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */aarch64-pcall-x86-mixed-u64-fp64-import-real.so) expected=0x406aa80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
+  */aarch64-pcall-x86-mixed-u64-fp64-callee-import-real.so) expected=0x40b2f1c000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
+  */aarch64-pcall-x86-fp32-import-real.so) expected=0x434f4000; entry="#poly_entry"; runner="polycall"; call_prefix="fp32:" ;;
   */aarch64-pcall-abs-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-rpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-rpath-inherit-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
@@ -274,6 +291,22 @@ case "$path" in
   */riscv-pcall-x86-callee-import-real.so) expected=7386; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-x86-callee-stack-import-real.so) expected=7455; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-x86-sum8-post-import-real.so) expected=245; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-x86-fp64-import-real.so) expected=0x4069e80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */riscv-pcall-x86-fp64-sum8-import-real.so) expected=0x406da80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */riscv-pcall-x86-fp64-sum10-import-real.so) expected=0x4070040000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */riscv-pcall-x86-fp64-callee-import-real.so) expected=0x40993e0000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */riscv-pcall-x86-fp64-callee-stack-import-real.so) expected=0x409a0e0000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */riscv-pcall-x86-fpair64-import-real.so) expected=0x405ad0004069e800; entry="#poly_entry"; runner="polycall"; call_prefix="fpair:" ;;
+  */riscv-pcall-x86-fpair64-fp64-callee-import-real.so) expected=0x409ae50000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */riscv-pcall-x86-fpair32-import-real.so) expected=0x41da0000418a0000; entry="#poly_entry"; runner="polycall"; call_prefix="fpair32:" ;;
+  */riscv-pcall-x86-fpair32-fp32-callee-import-real.so) expected=0x44b56800; entry="#poly_entry"; runner="polycall"; call_prefix="fp32:" ;;
+  */riscv-pcall-x86-vec128-import-real.so) expected=0x01e4016b00f20079; entry="#poly_entry"; runner="polycall"; call_prefix="vec128u32:" ;;
+  */riscv-pcall-x86-vec128-fp64-callee-import-real.so) expected=0x0208018f0116009d; entry="#poly_entry"; runner="polycall"; call_prefix="vec128u32:" ;;
+  */riscv-pcall-x86-sret-stack10-import-real.so) expected=0x000b00160021008c; entry="#poly_entry"; runner="polycall"; call_prefix="sret10:" ;;
+  */riscv-pcall-x86-sret-fp64-callee-stack-import-real.so) expected=0x4099450000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
+  */riscv-pcall-x86-mixed-u64-fp64-import-real.so) expected=0x406aa80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
+  */riscv-pcall-x86-mixed-u64-fp64-callee-import-real.so) expected=0x40b2f1c000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
+  */riscv-pcall-x86-fp32-import-real.so) expected=0x434f4000; entry="#poly_entry"; runner="polycall"; call_prefix="fp32:" ;;
   */riscv-pcall-abs-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-rpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-rpath-inherit-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
@@ -285,8 +318,8 @@ case "$path" in
   */riscv-pcall-relro-real.so) expected=745; entry="#poly_entry"; runner="polycall" ;;
 esac
 
-target="${path}${entry}"
-echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none} runner=$runner"
+target="${call_prefix}${path}${entry}"
+echo "POLYBINFMT_EXEC: path=$path entry=${entry:-none} expected=${expected:-none} runner=$runner call_prefix=${call_prefix:-none}"
 if [ -n "$expected" ]; then
   exec "/usr/bin/$runner" "$target=$expected"
 fi

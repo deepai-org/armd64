@@ -5823,6 +5823,22 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-x86-callee-import-real.so \
       /usr/lib/polyapps/aarch64-pcall-x86-callee-stack-import-real.so \
       /usr/lib/polyapps/aarch64-pcall-x86-sum8-post-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fp64-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fp64-sum8-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fp64-sum10-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fp64-callee-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fp64-callee-stack-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fpair64-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fpair64-fp64-callee-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fpair32-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fpair32-fp32-callee-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-vec128-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-vec128-fp64-callee-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-sret-stack10-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-sret-fp64-callee-stack-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-mixed-u64-fp64-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-mixed-u64-fp64-callee-import-real.so \
+      /usr/lib/polyapps/aarch64-pcall-x86-fp32-import-real.so \
       /usr/lib/polyapps/aarch64-pcall-abs-runpath-real.so \
       /usr/lib/polyapps/aarch64-pcall-rpath-real.so \
       /usr/lib/polyapps/aarch64-pcall-rpath-inherit-real.so \
@@ -5943,6 +5959,22 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-x86-callee-import-real.so \
       /usr/lib/polyapps/riscv-pcall-x86-callee-stack-import-real.so \
       /usr/lib/polyapps/riscv-pcall-x86-sum8-post-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fp64-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fp64-sum8-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fp64-sum10-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fp64-callee-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fp64-callee-stack-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fpair64-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fpair64-fp64-callee-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fpair32-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fpair32-fp32-callee-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-vec128-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-vec128-fp64-callee-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-sret-stack10-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-sret-fp64-callee-stack-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-mixed-u64-fp64-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-mixed-u64-fp64-callee-import-real.so \
+      /usr/lib/polyapps/riscv-pcall-x86-fp32-import-real.so \
       /usr/lib/polyapps/riscv-pcall-abs-runpath-real.so \
       /usr/lib/polyapps/riscv-pcall-rpath-real.so \
       /usr/lib/polyapps/riscv-pcall-rpath-inherit-real.so \
