@@ -1,6 +1,24 @@
 __attribute__((visibility("default")))
 unsigned long poly_cross_needed_bias = 11;
 
+struct poly_compact_u32_f32 {
+  unsigned int i;
+  float f;
+};
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_needed_fini_result compact_u32_f32\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
 static unsigned long poly_cross_needed_lifecycle;
 __thread unsigned long poly_cross_needed_tls_counter = 31;
 
@@ -41,6 +59,9 @@ double poly_cross_needed_fp64(double a, double b) {
 }
 
 __attribute__((visibility("default")))
-unsigned long poly_needed_fini_result(void) {
-  return poly_cross_needed_lifecycle;
+struct poly_compact_u32_f32 poly_needed_fini_result(void) {
+  struct poly_compact_u32_f32 result;
+  result.i = (unsigned int) poly_cross_needed_lifecycle;
+  result.f = 13.5f;
+  return result;
 }

@@ -2370,6 +2370,76 @@ static int root_ifunc_base_kind(int bridge_kind) {
   return RELOC_BASE_ROOT_IFUNC;
 }
 
+static int call_kind_for_bridge_result(int root_arch, int call_kind,
+    int bridge_kind) {
+  if (root_arch != POLY_ARCH_RISCV || call_kind != POLY_CALL_U64)
+    return call_kind;
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
+    return POLY_CALL_COMPACT_U32_F32;
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
+    return POLY_CALL_COMPACT_F32_U32;
+  if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
+    return POLY_CALL_VEC128_U32;
+  return call_kind;
+}
+
+static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
+  if (arch == POLY_ARCH_AARCH64) {
+    if (call_kind == POLY_CALL_SRET_U64)
+      return 0x12;
+    if (call_kind == POLY_CALL_FPAIR32)
+      return 0x14;
+    if (call_kind == POLY_CALL_FPAIR32_ARG)
+      return 0x16;
+    if (call_kind == POLY_CALL_HETERO_U64_F64 ||
+        call_kind == POLY_CALL_HETERO_U32_F64)
+      return 0x18;
+    if (call_kind == POLY_CALL_HETERO_F64_U64 ||
+        call_kind == POLY_CALL_HETERO_F64_U32)
+      return 0x19;
+    if (call_kind == POLY_CALL_HETERO_U64_F32)
+      return 0x1a;
+    if (call_kind == POLY_CALL_HETERO_F32_U64)
+      return 0x1b;
+    if (call_kind == POLY_CALL_FP64_STACK)
+      return 0x1e;
+    if (call_kind == POLY_CALL_VEC128_U32)
+      return 0x21;
+    if (call_kind == POLY_CALL_AARCH64_HFA3_F64)
+      return 0x23;
+    if (call_kind == POLY_CALL_AARCH64_HFA4_F64)
+      return 0x24;
+    if (call_kind == POLY_CALL_AARCH64_HFA3_F32)
+      return 0x25;
+    if (call_kind == POLY_CALL_AARCH64_HFA4_F32)
+      return 0x26;
+    if (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG)
+      return 0x27;
+    if (call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG)
+      return 0x28;
+    if (call_kind == POLY_CALL_AARCH64_HFA3_F32_ARG)
+      return 0x29;
+    if (call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG)
+      return 0x2a;
+    return 0x10;
+  }
+  if (call_kind == POLY_CALL_SRET_U64)
+    return 0x13;
+  if (call_kind == POLY_CALL_FPAIR32)
+    return 0x15;
+  if (call_kind == POLY_CALL_FPAIR32_ARG)
+    return 0x17;
+  if (call_kind == POLY_CALL_COMPACT_U32_F32)
+    return 0x1c;
+  if (call_kind == POLY_CALL_COMPACT_F32_U32)
+    return 0x1d;
+  if (call_kind == POLY_CALL_FP64_STACK)
+    return 0x1f;
+  if (call_kind == POLY_CALL_VEC128_U32)
+    return 0x22;
+  return 0x11;
+}
+
 static int reloc_base_is_root_cross_stub(int base_kind) {
   return base_kind == RELOC_BASE_ROOT_CROSS_STUB ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_VEC128 ||
@@ -6219,12 +6289,12 @@ static int protect_relro_region(const char *path, uint8_t *image,
 static int call_target_from_root_arch(uint8_t *code, size_t target_imm_offset,
     uint8_t *cross_stubs, size_t cross_stub_size, size_t *cross_stub_offset,
     int root_arch, int target_arch, uint64_t target, int call_kind,
-    const char *path, const char *label, uint64_t *result) {
+    int bridge_kind, const char *path, const char *label, uint64_t *result) {
   uint64_t call_target = target;
   if (root_arch != target_arch &&
       emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
         cross_stub_offset, root_arch, target_arch, target,
-        POLY_CROSS_BRIDGE_DEFAULT, &call_target) < 0) {
+        bridge_kind, &call_target) < 0) {
     fprintf(stderr, "POLYCALL_FAIL: %s cross-ISA call stub overflow: %s\n",
       label, path);
     return -1;
@@ -6244,8 +6314,8 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     const uint64_t init_target = dep_load_bias + dep->init_vaddr;
     if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
           cross_stub_size, cross_stub_offset, root_arch, dep->arch,
-          init_target, POLY_CALL_U64, dep->path, "dependency INIT",
-          NULL) < 0)
+          init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, dep->path,
+          "dependency INIT", NULL) < 0)
       return -1;
   }
   if (dep->init_array_size == 0)
@@ -6265,8 +6335,8 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     if (init_target != 0 &&
         call_target_from_root_arch(code, target_imm_offset, cross_stubs,
           cross_stub_size, cross_stub_offset, root_arch, dep->arch,
-          init_target, POLY_CALL_U64, dep->path, "dependency INIT_ARRAY",
-          NULL) < 0)
+          init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, dep->path,
+          "dependency INIT_ARRAY", NULL) < 0)
       return -1;
   }
   return 0;
@@ -6687,8 +6757,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
             cross_stub_size, &cross_stub_offset, program->arch,
-            resolver_arch, resolver, POLY_CALL_U64, dep->path,
-            "dependency IFUNC resolver", &resolved) < 0) {
+            resolver_arch, resolver, POLY_CALL_U64,
+            POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency IFUNC resolver",
+            &resolved) < 0) {
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
         if (tls)
           munmap(tls, tls_size);
@@ -6885,7 +6956,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
             cross_stub_size, &cross_stub_offset, program->arch,
-            program->arch, resolver, POLY_CALL_U64, dep->path,
+            program->arch, resolver, POLY_CALL_U64,
+            POLY_CROSS_BRIDGE_DEFAULT, dep->path,
             "dependency root IFUNC resolver", &resolved) < 0) {
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
         if (tls)
@@ -7076,8 +7148,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t resolved = 0;
     if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
           cross_stub_size, &cross_stub_offset, program->arch, resolver_arch,
-          resolver, POLY_CALL_U64, program->path, "IFUNC resolver",
-          &resolved) < 0) {
+          resolver, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, program->path,
+          "IFUNC resolver", &resolved) < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
@@ -7237,8 +7309,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           if (fini_target != 0 &&
               call_target_from_root_arch(code, target_imm_offset, cross_stubs,
                 cross_stub_size, &cross_stub_offset, program->arch,
-                dep->arch, fini_target, POLY_CALL_U64, dep->path,
-                "dependency FINI_ARRAY", NULL) < 0) {
+                dep->arch, fini_target, POLY_CALL_U64,
+                POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency FINI_ARRAY",
+                NULL) < 0) {
             unmap_dependency_images(dep_foreign, dep_sizes,
               program->dep_count);
             if (tls)
@@ -7255,8 +7328,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           dep_load_bias[dep_index] + dep->fini_vaddr;
         if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
               cross_stub_size, &cross_stub_offset, program->arch, dep->arch,
-              fini_target, POLY_CALL_U64, dep->path, "dependency FINI",
-              NULL) < 0) {
+              fini_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT,
+              dep->path, "dependency FINI", NULL) < 0) {
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
           if (tls)
             munmap(tls, tls_size);
@@ -7290,13 +7363,22 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const size_t dep_index = reloc_base_is_dep_cross_stub(base_kind) ?
       dep_cross_stub_index(base_kind) :
       (size_t) (base_kind - RELOC_BASE_DEP_LOAD_BIAS);
+    const int bridge_kind = reloc_base_is_dep_cross_stub(base_kind) ?
+      cross_bridge_kind_for_base(base_kind) : POLY_CROSS_BRIDGE_DEFAULT;
     const uint64_t fini_result_target =
       dep_load_bias[dep_index] + fini_result_vaddr;
-    if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-          cross_stub_size, &cross_stub_offset, program->arch,
-          program->deps[dep_index].arch, fini_result_target, POLY_CALL_U64,
-          program->deps[dep_index].path, "dependency fini result",
-          result) < 0) {
+    const int result_call_kind = call_kind_for_bridge_result(program->arch,
+      POLY_CALL_U64, bridge_kind);
+    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 2];
+    code[pcall_opcode_offset + 2] =
+      pcall_opcode_for_call_kind(program->arch, result_call_kind);
+    const int call_status = call_target_from_root_arch(code,
+      target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
+      program->arch, program->deps[dep_index].arch, fini_result_target,
+      result_call_kind, bridge_kind, program->deps[dep_index].path,
+      "dependency fini result", result);
+    code[pcall_opcode_offset + 2] = saved_pcall_op;
+    if (call_status < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
