@@ -5473,13 +5473,36 @@ static int protect_relro_region(const char *path, uint8_t *image,
   return 0;
 }
 
+static int call_target_from_root_arch(uint8_t *code, size_t target_imm_offset,
+    uint8_t *cross_stubs, size_t cross_stub_size, size_t *cross_stub_offset,
+    int root_arch, int target_arch, uint64_t target, int call_kind,
+    const char *path, const char *label, uint64_t *result) {
+  uint64_t call_target = target;
+  if (root_arch != target_arch &&
+      emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+        cross_stub_offset, root_arch, target_arch, target, &call_target) < 0) {
+    fprintf(stderr, "POLYCALL_FAIL: %s cross-ISA call stub overflow: %s\n",
+      label, path);
+    return -1;
+  }
+  const uint64_t value = call_poly_stub(code, target_imm_offset, call_target,
+    call_kind);
+  if (result)
+    *result = value;
+  return 0;
+}
+
 static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     uint8_t *dep_image, size_t dep_size, uint64_t dep_load_bias,
-    uint8_t *code, size_t target_imm_offset) {
+    uint8_t *code, size_t target_imm_offset, uint8_t *cross_stubs,
+    size_t cross_stub_size, size_t *cross_stub_offset, int root_arch) {
   if (dep->init_vaddr != 0) {
     const uint64_t init_target = dep_load_bias + dep->init_vaddr;
-    (void) call_poly_stub(code, target_imm_offset, init_target,
-      POLY_CALL_U64);
+    if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+          cross_stub_size, cross_stub_offset, root_arch, dep->arch,
+          init_target, POLY_CALL_U64, dep->path, "dependency INIT",
+          NULL) < 0)
+      return -1;
   }
   if (dep->init_array_size == 0)
     return 0;
@@ -5495,9 +5518,12 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     (size_t) (dep->init_array_size / sizeof(uint64_t));
   for (size_t n = 0; n < init_array_count; n++) {
     uint64_t init_target = read_le64(dep_image + init_array_offset + n * 8);
-    if (init_target != 0)
-      (void) call_poly_stub(code, target_imm_offset, init_target,
-        POLY_CALL_U64);
+    if (init_target != 0 &&
+        call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+          cross_stub_size, cross_stub_offset, root_arch, dep->arch,
+          init_target, POLY_CALL_U64, dep->path, "dependency INIT_ARRAY",
+          NULL) < 0)
+      return -1;
   }
   return 0;
 }
@@ -6151,7 +6177,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (!dep->init_first)
       continue;
     if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
-          dep_load_bias[d], code, target_imm_offset) < 0) {
+          dep_load_bias[d], code, target_imm_offset, cross_stubs,
+          cross_stub_size, &cross_stub_offset, program->arch) < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
@@ -6169,7 +6196,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       if (dep->init_first || dep->needed_depth != init_depth)
         continue;
       if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
-            dep_load_bias[d], code, target_imm_offset) < 0) {
+            dep_load_bias[d], code, target_imm_offset, cross_stubs,
+            cross_stub_size, &cross_stub_offset, program->arch) < 0) {
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
         if (tls)
           munmap(tls, tls_size);
@@ -6351,16 +6379,37 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         for (size_t n = fini_array_count; n > 0; n--) {
           uint64_t fini_target = read_le64(dep_foreign[dep_index] +
             fini_array_offset + (n - 1) * 8);
-          if (fini_target != 0)
-            (void) call_poly_stub(code, target_imm_offset, fini_target,
-              POLY_CALL_U64);
+          if (fini_target != 0 &&
+              call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+                cross_stub_size, &cross_stub_offset, program->arch,
+                dep->arch, fini_target, POLY_CALL_U64, dep->path,
+                "dependency FINI_ARRAY", NULL) < 0) {
+            unmap_dependency_images(dep_foreign, dep_sizes,
+              program->dep_count);
+            if (tls)
+              munmap(tls, tls_size);
+            munmap(import_page, 4096);
+            munmap(foreign, foreign_size);
+            munmap(code, code_size);
+            return -1;
+          }
         }
       }
       if (dep->fini_vaddr != 0) {
         const uint64_t fini_target =
           dep_load_bias[dep_index] + dep->fini_vaddr;
-        (void) call_poly_stub(code, target_imm_offset, fini_target,
-          POLY_CALL_U64);
+        if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+              cross_stub_size, &cross_stub_offset, program->arch, dep->arch,
+              fini_target, POLY_CALL_U64, dep->path, "dependency FINI",
+              NULL) < 0) {
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
       }
     }
   }
@@ -6370,8 +6419,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     int base_kind = RELOC_BASE_ABSOLUTE;
     if (resolve_dependency_symbol(program, "poly_needed_fini_result", NULL,
           &fini_result_vaddr, &base_kind) < 0 ||
-        base_kind < RELOC_BASE_DEP_LOAD_BIAS ||
-        base_kind >= RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count) {
+        (!reloc_base_is_dep_cross_stub(base_kind) &&
+         (base_kind < RELOC_BASE_DEP_LOAD_BIAS ||
+          base_kind >= RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count))) {
       fprintf(stderr, "POLYCALL_FAIL: dependency fini result symbol missing: %s\n",
         program->path);
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -6382,12 +6432,24 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       munmap(code, code_size);
       return -1;
     }
-    const size_t dep_index =
+    const size_t dep_index = reloc_base_is_dep_cross_stub(base_kind) ?
+      (size_t) (base_kind - RELOC_BASE_DEP_CROSS_STUB) :
       (size_t) (base_kind - RELOC_BASE_DEP_LOAD_BIAS);
     const uint64_t fini_result_target =
       dep_load_bias[dep_index] + fini_result_vaddr;
-    *result = call_poly_stub(code, target_imm_offset, fini_result_target,
-      POLY_CALL_U64);
+    if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+          cross_stub_size, &cross_stub_offset, program->arch,
+          program->deps[dep_index].arch, fini_result_target, POLY_CALL_U64,
+          program->deps[dep_index].path, "dependency fini result",
+          result) < 0) {
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
   }
   if (tls)
     munmap(tls, tls_size);
