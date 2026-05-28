@@ -635,6 +635,8 @@ static int run_poly_trap_vector_probe(void) {
 
   asm volatile(
     POLY_OP_ENTER_A64
+    ".long 0xd2800366\n" // movz x6,#27
+    ".long 0xd28000a7\n" // movz x7,#5
     ".long 0xd2801588\n" // movz x8,#172
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd42fffe0\n" // brk #0x7fff
@@ -656,6 +658,12 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall status mismatch number=%llu mode=%llu\n",
       (unsigned long long) poly_syscall_status_number(),
       (unsigned long long) poly_syscall_status_mode());
+    return 1;
+  }
+  if (poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 syscall packet extended args mismatch arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
   pid_t trap_child = fork();
@@ -694,6 +702,7 @@ static int run_poly_trap_vector_probe(void) {
 
   asm volatile(
     POLY_OP_ENTER_RV64
+    ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x0ac00893\n" // addi x17,x0,172
     ".long 0x00000073\n" // ecall
     ".long 0x0000000b\n" // custom-0 x86 escape
@@ -703,6 +712,19 @@ static int run_poly_trap_vector_probe(void) {
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ecall trap vector result mismatch got=%llu expected=%llu\n",
       (unsigned long long) result, (unsigned long long) expected_pid);
+    return 1;
+  }
+  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
+      poly_syscall_status_number() != 172 ||
+      poly_syscall_status_mode() != POLY_MODE_RAW_RISCV ||
+      poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 172) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv syscall packet mismatch reason=%llu number=%llu mode=%llu arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_reason(),
+      (unsigned long long) poly_syscall_status_number(),
+      (unsigned long long) poly_syscall_status_mode(),
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
 
