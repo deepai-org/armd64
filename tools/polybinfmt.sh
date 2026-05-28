@@ -93,6 +93,14 @@ case "$path" in
   */aarch64-pcall-libc-import-real.so) expected=171221; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-env-real.so) expected=53; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-alloc-real.so) expected=90; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-strdup-real.so) expected=911; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-atexit-real.so) expected=1122; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-cxa-guard-real.so) expected=101; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-cxx-static-guard-real.so) expected=113; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-cxx-virtual-real.so) expected=246; entry="#poly_entry"; runner="polycall" ;;
   */riscv-add.elf) expected=27 ;;
   */riscv-compressed.elf) expected=27 ;;
   */riscv-compressed-half.elf) expected=27 ;;
@@ -191,6 +199,14 @@ case "$path" in
   */riscv-pcall-libc-import-real.so) expected=171221; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-env-real.so) expected=53; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-alloc-real.so) expected=90; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-strdup-real.so) expected=911; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-atexit-real.so) expected=1122; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-cxa-guard-real.so) expected=101; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-cxx-static-guard-real.so) expected=113; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-cxx-virtual-real.so) expected=246; entry="#poly_entry"; runner="polycall" ;;
 esac
 
 target="${path}${entry}"
