@@ -9,13 +9,44 @@ enum {
   POLY_AT_BASE = 7,
   POLY_AT_FLAGS = 8,
   POLY_AT_ENTRY = 9,
+  POLY_AT_UID = 11,
+  POLY_AT_EUID = 12,
+  POLY_AT_GID = 13,
+  POLY_AT_EGID = 14,
   POLY_AT_HWCAP = 16,
   POLY_AT_CLKTCK = 17,
+  POLY_AT_SECURE = 23,
   POLY_AT_RANDOM = 25,
   POLY_AT_HWCAP2 = 26,
   POLY_AT_EXECFN = 31,
-  POLY_AT_PLATFORM = 15
+  POLY_AT_PLATFORM = 15,
+  POLY_SYS_GETUID = 174,
+  POLY_SYS_GETEUID = 175,
+  POLY_SYS_GETGID = 176,
+  POLY_SYS_GETEGID = 177
 };
+
+static long poly_syscall0(long number) {
+#if defined(__aarch64__)
+  register long x0 __asm__("x0");
+  register long x8 __asm__("x8") = number;
+  __asm__ volatile("svc #0"
+      : "=r"(x0)
+      : "r"(x8)
+      : "memory");
+  return x0;
+#elif defined(__riscv)
+  register long a0 __asm__("a0");
+  register long a7 __asm__("a7") = number;
+  __asm__ volatile("ecall"
+      : "=r"(a0)
+      : "r"(a7)
+      : "memory");
+  return a0;
+#else
+#error unsupported architecture
+#endif
+}
 
 static int poly_streq(const char *left, const char *right) {
   while (*left && *right && *left == *right) {
@@ -127,6 +158,25 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 36;
   if (!poly_aux_has(auxv, POLY_AT_HWCAP2))
     return 37;
+  if (!poly_aux_has(auxv, POLY_AT_UID) ||
+      poly_aux_get(auxv, POLY_AT_UID) !=
+      (uint64_t) poly_syscall0(POLY_SYS_GETUID))
+    return 38;
+  if (!poly_aux_has(auxv, POLY_AT_EUID) ||
+      poly_aux_get(auxv, POLY_AT_EUID) !=
+      (uint64_t) poly_syscall0(POLY_SYS_GETEUID))
+    return 39;
+  if (!poly_aux_has(auxv, POLY_AT_GID) ||
+      poly_aux_get(auxv, POLY_AT_GID) !=
+      (uint64_t) poly_syscall0(POLY_SYS_GETGID))
+    return 40;
+  if (!poly_aux_has(auxv, POLY_AT_EGID) ||
+      poly_aux_get(auxv, POLY_AT_EGID) !=
+      (uint64_t) poly_syscall0(POLY_SYS_GETEGID))
+    return 41;
+  if (!poly_aux_has(auxv, POLY_AT_SECURE) ||
+      poly_aux_get(auxv, POLY_AT_SECURE) != 0)
+    return 43;
   if (!poly_aux_get(auxv, POLY_AT_RANDOM) ||
       !poly_random_nonzero((const unsigned char *)
         poly_aux_get(auxv, POLY_AT_RANDOM)))
