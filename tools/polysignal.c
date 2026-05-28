@@ -10,13 +10,21 @@
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67,0x50,0x4f,0x4c,0x59,0x21\n"
 
 enum {
-  POLYSIGNAL_LOOP_COUNT = 200000
+  POLYSIGNAL_LOOP_COUNT = 200000,
+  POLYSIGNAL_SNAPSHOT_NONE = 0,
+  POLYSIGNAL_SNAPSHOT_AARCH64_X20 = 1,
+  POLYSIGNAL_SNAPSHOT_RISCV_X20 = 2,
+  POLYSIGNAL_SNAPSHOT_AARCH64_D20 = 3,
+  POLYSIGNAL_SNAPSHOT_RISCV_F20 = 4
 };
 
 static volatile sig_atomic_t signal_count;
 static volatile sig_atomic_t signal_transition_count;
 static volatile sig_atomic_t signal_transition_bad;
+static volatile sig_atomic_t signal_snapshot_bad;
+static volatile sig_atomic_t signal_expected_snapshot;
 static volatile sig_atomic_t signal_expected_mode;
+static volatile uint64_t signal_expected_snapshot_value;
 static struct poly_xsave_state signal_snapshot __attribute__((aligned(64)));
 
 static uint64_t double_to_bits(double value) {
@@ -46,6 +54,23 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
 }
 
+static int signal_snapshot_matches(void) {
+  switch (signal_expected_snapshot) {
+  case POLYSIGNAL_SNAPSHOT_NONE:
+    return 1;
+  case POLYSIGNAL_SNAPSHOT_AARCH64_X20:
+    return signal_snapshot.aarch64_gpr[20] == signal_expected_snapshot_value;
+  case POLYSIGNAL_SNAPSHOT_RISCV_X20:
+    return signal_snapshot.riscv_gpr[20] == signal_expected_snapshot_value;
+  case POLYSIGNAL_SNAPSHOT_AARCH64_D20:
+    return signal_snapshot.aarch64_fp[20].lo == signal_expected_snapshot_value;
+  case POLYSIGNAL_SNAPSHOT_RISCV_F20:
+    return signal_snapshot.riscv_fp[20].lo == signal_expected_snapshot_value;
+  default:
+    return 0;
+  }
+}
+
 static void handle_alarm(int signo) {
   (void) signo;
   signal_count++;
@@ -54,10 +79,15 @@ static void handle_alarm(int signo) {
   uint16_t flags = signal_snapshot.transition.active.flags;
   uint32_t target_mode = signal_snapshot.transition.active.target_mode;
   if ((flags & POLY_TRANSITION_FLAG_INTERRUPTED_RAW) != 0 &&
-      target_mode == (uint32_t) signal_expected_mode)
+      target_mode == (uint32_t) signal_expected_mode &&
+      signal_snapshot_matches())
     signal_transition_count++;
-  else
+  else {
+    if ((flags & POLY_TRANSITION_FLAG_INTERRUPTED_RAW) != 0 &&
+        target_mode == (uint32_t) signal_expected_mode)
+      signal_snapshot_bad++;
     signal_transition_bad++;
+  }
 }
 
 static int arm_alarm(void) {
@@ -196,6 +226,7 @@ static int check_arch(const char *name, uint64_t seed, uint64_t expected_delta,
   sig_atomic_t before = signal_count;
   sig_atomic_t transition_before = signal_transition_count;
   sig_atomic_t bad_before = signal_transition_bad;
+  sig_atomic_t snapshot_bad_before = signal_snapshot_bad;
 
   if (arm_alarm() != 0)
     return -1;
@@ -216,9 +247,10 @@ static int check_arch(const char *name, uint64_t seed, uint64_t expected_delta,
   if (signal_transition_count == transition_before ||
       signal_transition_bad != bad_before) {
     fprintf(stderr,
-      "POLYSIGNAL_FAIL: arch=%s interrupted raw transition missing count=%d bad=%d\n",
+      "POLYSIGNAL_FAIL: arch=%s interrupted raw transition missing count=%d bad=%d snapshot_bad=%d\n",
       name, (int) (signal_transition_count - transition_before),
-      (int) (signal_transition_bad - bad_before));
+      (int) (signal_transition_bad - bad_before),
+      (int) (signal_snapshot_bad - snapshot_bad_before));
     return -1;
   }
 
@@ -231,6 +263,7 @@ static int check_arch_fp(const char *name, uint64_t seed,
   sig_atomic_t before = signal_count;
   sig_atomic_t transition_before = signal_transition_count;
   sig_atomic_t bad_before = signal_transition_bad;
+  sig_atomic_t snapshot_bad_before = signal_snapshot_bad;
   uint64_t seven_bits = double_to_bits(7.0);
 
   if (arm_alarm() != 0)
@@ -253,9 +286,10 @@ static int check_arch_fp(const char *name, uint64_t seed,
   if (signal_transition_count == transition_before ||
       signal_transition_bad != bad_before) {
     fprintf(stderr,
-      "POLYSIGNAL_FAIL: arch=%s interrupted raw transition missing count=%d bad=%d\n",
+      "POLYSIGNAL_FAIL: arch=%s interrupted raw transition missing count=%d bad=%d snapshot_bad=%d\n",
       name, (int) (signal_transition_count - transition_before),
-      (int) (signal_transition_bad - bad_before));
+      (int) (signal_transition_bad - bad_before),
+      (int) (signal_snapshot_bad - snapshot_bad_before));
     return -1;
   }
 
@@ -275,24 +309,34 @@ int main(void) {
 
   printf("POLYSIGNAL_START\n");
   signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_NONE;
   if (check_arch("aarch64", 0x51000000ULL, 1, pcall_aarch64_signal) != 0)
     return 1;
   signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_NONE;
   if (check_arch("riscv", 0x52000000ULL, 1, pcall_riscv_signal) != 0)
     return 1;
   signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_AARCH64_X20;
+  signal_expected_snapshot_value = 0x53000000ULL;
   if (check_arch("aarch64-hidden", 0x53000000ULL, 7,
       pcall_aarch64_hidden_signal) != 0)
     return 1;
   signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_RISCV_X20;
+  signal_expected_snapshot_value = 0x54000000ULL;
   if (check_arch("riscv-hidden", 0x54000000ULL, 7,
       pcall_riscv_hidden_signal) != 0)
     return 1;
   signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_AARCH64_D20;
+  signal_expected_snapshot_value = double_to_bits((double) 0x55000000ULL);
   if (check_arch_fp("aarch64-hidden-fp", 0x55000000ULL,
       pcall_aarch64_hidden_fp_signal) != 0)
     return 1;
   signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_RISCV_F20;
+  signal_expected_snapshot_value = double_to_bits((double) 0x56000000ULL);
   if (check_arch_fp("riscv-hidden-fp", 0x56000000ULL,
       pcall_riscv_hidden_fp_signal) != 0)
     return 1;
