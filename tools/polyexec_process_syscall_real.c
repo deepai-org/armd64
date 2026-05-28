@@ -88,6 +88,10 @@ enum {
   POLY_SYS_GETTID = 178,
   POLY_SYS_SOCKET = 198,
   POLY_SYS_SOCKETPAIR = 199,
+  POLY_SYS_BIND = 200,
+  POLY_SYS_LISTEN = 201,
+  POLY_SYS_ACCEPT = 202,
+  POLY_SYS_CONNECT = 203,
   POLY_SYS_GETSOCKNAME = 204,
   POLY_SYS_GETPEERNAME = 205,
   POLY_SYS_SENDTO = 206,
@@ -848,6 +852,74 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 185;
   if (local_name.family != POLY_AF_UNIX || peer_name.family != POLY_AF_UNIX)
     return 186;
+
+  long server_fd = poly_syscall3(POLY_SYS_SOCKET, POLY_AF_UNIX,
+    POLY_SOCK_STREAM, 0);
+  if (server_fd < 0)
+    return 187;
+  struct poly_sockaddr_un server_name;
+  server_name.family = POLY_AF_UNIX;
+  server_name.path[0] = 0;
+  server_name.path[1] = 'p';
+  server_name.path[2] = 'o';
+  server_name.path[3] = 'l';
+  server_name.path[4] = 'y';
+  server_name.path[5] = 'p';
+  server_name.path[6] = 'r';
+  server_name.path[7] = 'o';
+  server_name.path[8] = 'c';
+  uint32_t server_name_len = sizeof(server_name.family) + 9;
+  if (poly_syscall3(POLY_SYS_BIND, server_fd, (long) &server_name,
+        server_name_len) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 188;
+  }
+  if (poly_syscall2(POLY_SYS_LISTEN, server_fd, 1) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 189;
+  }
+  long client_fd = poly_syscall3(POLY_SYS_SOCKET, POLY_AF_UNIX,
+    POLY_SOCK_STREAM, 0);
+  if (client_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 190;
+  }
+  if (poly_syscall3(POLY_SYS_CONNECT, client_fd, (long) &server_name,
+        server_name_len) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 191;
+  }
+  long accepted_fd = poly_syscall3(POLY_SYS_ACCEPT, server_fd, 0, 0);
+  if (accepted_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 192;
+  }
+  static const char connect_message[] = "CONN";
+  char accept_buffer[4];
+  if (poly_syscall3(POLY_SYS_WRITE, client_fd,
+        (long) connect_message, sizeof(accept_buffer)) !=
+      (long) sizeof(accept_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, accepted_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 193;
+  }
+  if (poly_syscall3(POLY_SYS_READ, accepted_fd, (long) accept_buffer,
+        sizeof(accept_buffer)) != (long) sizeof(accept_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, accepted_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, client_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, server_fd, 0);
+    return 194;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, accepted_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, client_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, server_fd, 0) != 0)
+    return 195;
+  if (accept_buffer[0] != 'C' || accept_buffer[1] != 'O' ||
+      accept_buffer[2] != 'N' || accept_buffer[3] != 'N')
+    return 196;
 
   if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
     return 156;
