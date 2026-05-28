@@ -3,6 +3,7 @@
 #define POLY_RLIM_INFINITY UINT64_MAX
 
 enum {
+  POLY_CLOCK_MONOTONIC = 1,
   POLY_PROT_READ = 1,
   POLY_PROT_WRITE = 2,
   POLY_GRND_NONBLOCK = 1,
@@ -42,6 +43,9 @@ enum {
   POLY_SYS_READLINKAT = 78,
   POLY_SYS_NEWFSTATAT = 79,
   POLY_SYS_FSTAT = 80,
+  POLY_SYS_TIMERFD_CREATE = 85,
+  POLY_SYS_TIMERFD_SETTIME = 86,
+  POLY_SYS_TIMERFD_GETTIME = 87,
   POLY_SYS_EXIT = 93,
   POLY_SYS_SET_TID_ADDRESS = 96,
   POLY_SYS_SET_ROBUST_LIST = 99,
@@ -123,6 +127,11 @@ struct poly_open_how {
 struct poly_timespec {
   int64_t sec;
   int64_t nsec;
+};
+
+struct poly_itimerspec {
+  struct poly_timespec interval;
+  struct poly_timespec value;
 };
 
 struct poly_timeval {
@@ -637,6 +646,37 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 117;
   if (event_value != 7)
     return 118;
+
+  fd = poly_syscall2(POLY_SYS_TIMERFD_CREATE, POLY_CLOCK_MONOTONIC, 0);
+  if (fd < 0)
+    return 119;
+  struct poly_itimerspec timer_new;
+  timer_new.interval.sec = 0;
+  timer_new.interval.nsec = 0;
+  timer_new.value.sec = 60;
+  timer_new.value.nsec = 0;
+  struct poly_itimerspec timer_old;
+  if (poly_syscall4(POLY_SYS_TIMERFD_SETTIME, fd, 0, (long) &timer_new,
+        (long) &timer_old) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 120;
+  }
+  struct poly_itimerspec timer_current;
+  if (poly_syscall2(POLY_SYS_TIMERFD_GETTIME, fd,
+        (long) &timer_current) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 121;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 122;
+  if (timer_old.value.sec != 0 || timer_old.value.nsec != 0 ||
+      timer_old.interval.sec != 0 || timer_old.interval.nsec != 0)
+    return 123;
+  if (timer_current.interval.sec != 0 || timer_current.interval.nsec != 0)
+    return 124;
+  if (timer_current.value.sec <= 0 || timer_current.value.sec > 60 ||
+      timer_current.value.nsec < 0 || timer_current.value.nsec >= 1000000000)
+    return 125;
 
   char dirents[4096];
   fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD, (long) "/usr/bin",
