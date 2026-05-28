@@ -71,6 +71,13 @@ paths. On `PCALL`, hardware selects a cached signature slot and applies those
 mappings in or near the rename stage. The data does not move; only
 architectural names are rebound to physical registers.
 
+This is hardware-assisted thunk elision, not hardware ABI interpretation. For
+register-only calls, a signature can replace a sequence of software moves such
+as `RDI,RSI,RDX` to `x0,x1,x2` with a rename-table update. For calls whose ABI
+meaning depends on stack layout, aggregate layout, variadic metadata, lazy
+binding, or language runtime policy, the loader/runtime still emits a software
+thunk and uses `PCALL` only for the final fixed-latency frontend branch.
+
 This is the only kind of semi-persistent, reconfigurable ABI hardware that
 belongs on the fast path. Register renaming fits the existing OoO machinery: the
 runtime programs a small control state block, and later transitions consume that
@@ -95,6 +102,13 @@ frontend, target PC, and signature slot, ideally with a small immediate slot
 operand in the final encoding. The common case stays fixed-latency: decode the
 transition, select the signature, update rename mappings, install the return
 cookie, and branch.
+
+The slot should be semi-persistent and cheap to select, not reconstructed at
+each call site. A plausible implementation exposes 4 to 8 slots, programmed by
+the loader or runtime for common pairs such as SysV-to-AAPCS64,
+AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. Hot call sites
+then encode or supply only the slot number. If a process needs a rare mapping,
+runtime code can reprogram a cold slot outside the hot path.
 
 The design point is speed and area efficiency: the hardware only changes
 register aliases. It does not execute moves, copy stack slots, reformat memory

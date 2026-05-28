@@ -143,6 +143,12 @@ transition path selects an already-programmed slot; it does not fetch a call
 descriptor from user memory. Register-only native ABI calls can therefore avoid
 software move thunks, while complex calls still use loader/runtime thunks.
 
+The intended use is semi-persistent signature caching. A runtime can program a
+small slot set once for common ABI pairs, then let many `PCALL` sites name only
+the slot. This keeps the crossing close to a branch plus rename-table update:
+the CPU changes which target architectural names reference existing physical
+registers, instead of moving operand data through execution pipes.
+
 The intended silicon implementation is a programmable register-alias-table
 update, not a data-moving microcode loop. Slot programming is rare control
 state setup. The hot `PCALL` path selects a cached slot, rebinds architectural
