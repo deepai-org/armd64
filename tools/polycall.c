@@ -1683,6 +1683,12 @@ static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
     (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
 }
 
+static uint32_t riscv_sd(uint32_t rs2, uint32_t rs1, int32_t imm) {
+  const uint32_t imm12 = (uint32_t) imm & 0xfffU;
+  return ((imm12 >> 5) << 25) | (rs2 << 20) | (rs1 << 15) |
+    (0x3U << 12) | ((imm12 & 0x1fU) << 7) | 0x23U;
+}
+
 static void emit_save_callee_regs(uint8_t *code, size_t *offset,
     uint64_t save_area) {
   emit_movabs_r10(code, offset, save_area);
@@ -1888,21 +1894,25 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
 
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
-    if (stub_limit - start < 48)
+    if (stub_limit - start < 64)
       return -1;
-    const uint64_t return_addr = start_addr + 40;
-    emit_u32(stubs, stub_offset, 0xf81f0ffeU); // str x30, [sp, #-16]!
+    const uint64_t return_addr = start_addr + 52;
+    emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
+    emit_u32(stubs, stub_offset, 0xf9400bf2U); // ldr x18, [sp, #16]
+    emit_u32(stubs, stub_offset, 0xf90003f2U); // str x18, [sp]
+    emit_u32(stubs, stub_offset, 0xf90007feU); // str x30, [sp, #8]
     emit_aarch64_movabs(stubs, stub_offset, 16, target);
     emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
     emit_u32(stubs, stub_offset, 0xd42fffa0U); // brk #0x7ffd, call RISC-V
-    emit_u32(stubs, stub_offset, 0xf84107feU); // ldr x30, [sp], #16
+    emit_u32(stubs, stub_offset, 0xf94007feU); // ldr x30, [sp, #8]
+    emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
     *stub_addr = start_addr;
     return 0;
   }
 
   if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64) {
-    if (stub_limit - start < 56)
+    if (stub_limit - start < 64)
       return -1;
     const size_t auipc_target_pc = *stub_offset;
     emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
@@ -1913,7 +1923,9 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
     emit_u32(stubs, stub_offset, 0xff010113U); // addi sp,sp,-16
-    emit_u32(stubs, stub_offset, 0x00113423U); // sd ra,8(sp)
+    emit_u32(stubs, stub_offset, riscv_ld(7, 2, 16)); // ld t2,16(sp)
+    emit_u32(stubs, stub_offset, riscv_sd(7, 2, 0)); // sd t2,0(sp)
+    emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
     emit_u32(stubs, stub_offset, 0x0000005bU); // custom-2, call AArch64
     const size_t return_pc = *stub_offset;
     emit_u32(stubs, stub_offset, 0x00813083U); // ld ra,8(sp)
@@ -6126,9 +6138,35 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         return -1;
       }
       const uint64_t resolver = root_load_bias + dep->relocs[r].value;
-      const uint64_t resolved = call_poly_stub(code, target_imm_offset,
-        resolver, POLY_CALL_U64);
-      write_le64(dep_foreign[d] + dep->relocs[r].offset, resolved);
+      uint64_t resolved = 0;
+      if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+            cross_stub_size, &cross_stub_offset, program->arch,
+            program->arch, resolver, POLY_CALL_U64, dep->path,
+            "dependency root IFUNC resolver", &resolved) < 0) {
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      uint64_t reloc_value = resolved;
+      if (dep->arch != program->arch &&
+          emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+            &cross_stub_offset, dep->arch, program->arch, resolved,
+            &reloc_value) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: dependency root IFUNC cross-ISA stub overflow: %s\n",
+          dep->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      write_le64(dep_foreign[d] + dep->relocs[r].offset, reloc_value);
     }
   }
   offset = program->image_size - 4;

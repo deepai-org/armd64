@@ -537,7 +537,10 @@ foreign ISA, the user-space loader writes the PLT/GOT target to a generated
 caller-ISA trampoline.  The trampoline loads the callee address and continuation
 into the architectural cross-call registers and uses the neutral AArch64/RISC-V
 cross-call opcode, so ordinary `bl`/`jalr` call sites and native return
-instructions still work without routing through x86.  The mixed `DT_NEEDED`
+instructions still work without routing through x86.  Generated cross-ISA call
+trampolines preserve the first stack overflow argument slot while saving the
+native link register, so nine-integer-argument dependency callbacks can use the
+ordinary callee stack ABI on both AArch64 and RISC-V.  The mixed `DT_NEEDED`
 gate covers both integer arguments/results and scalar FP64 arguments/results
 through the same generated trampoline, including a transitive case where a
 same-ISA dependency binds one of its own `DT_NEEDED` relocations to an
@@ -597,7 +600,12 @@ where a needed DSO binds an undefined relocation back to a root IFUNC resolver
 (`aarch64-pcall-root-ifunc-real.so#poly_entry` with
 `libpolyrootifunc-aarch64.so`, and
 `riscv-pcall-root-ifunc-real.so#poly_entry` with
-`libpolyrootifunc-riscv.so`), compiler-produced `DT_NEEDED` dependency-TLS pairs
+`libpolyrootifunc-riscv.so`) plus the opposite-ISA variants
+(`aarch64-pcall-cross-root-ifunc-real.so#poly_entry` with
+`libpolyrootifunc-riscv.so`, and
+`riscv-pcall-cross-root-ifunc-real.so#poly_entry` with
+`libpolyrootifunc-aarch64.so`), compiler-produced `DT_NEEDED`
+dependency-TLS pairs
 (`aarch64-pcall-needed-tls-real.so#poly_entry` with
 `libpolyneededtls-aarch64.so`, and `riscv-pcall-needed-tls-real.so#poly_entry`
 with `libpolyneededtls-riscv.so`), compiler-produced `DT_NEEDED`
