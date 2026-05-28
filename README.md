@@ -31,6 +31,8 @@ memory stay unchanged. The prototype adds:
 - Dedicated prototype x86 opcodes: `0f 24 <op> "POLY!"`, not `UD2` envelopes.
 - Raw AArch64/RISC-V entry with `PENTER.A64` and `PENTER.RV64`.
 - Raw exit with AArch64 `brk #0x7fff` or RISC-V custom-0 `0x0000000b`.
+- Direct AArch64/RISC-V switch and call opcodes, so foreign modes do not need
+  to bounce through x86_64.
 - ABI-aware `PCALL.*.SYSV` calls into precompiled AAPCS64/RISC-V psABI code.
 - Shared x86_64 virtual memory, faults, permissions, and prototype TSO ordering.
 - Architectural traps for foreign syscalls, breakpoints, illegal instructions,
