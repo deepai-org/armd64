@@ -32,6 +32,14 @@
 #define POLY_OP_BREAK_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x39\n"
 #define POLY_OP_BREAK_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x3a\n"
 
+#define POLY_NATIVE_XSAVE_AREA_BYTES \
+  (POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH)
+
+typedef uint8_t poly_native_xsave_area_t[POLY_NATIVE_XSAVE_AREA_BYTES];
+
+static uint8_t nativecheck_real_xsave_area[POLY_NATIVE_XSAVE_AREA_BYTES]
+  __attribute__((aligned(64)));
+
 static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
@@ -153,6 +161,24 @@ static inline uint64_t read_xcr0(void) {
   uint32_t edx;
   asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
   return ((uint64_t) edx << 32) | eax;
+}
+
+static inline void native_xsave64(void *area, uint64_t mask) {
+  uint32_t eax = (uint32_t) mask;
+  uint32_t edx = (uint32_t) (mask >> 32);
+  asm volatile("xsave64 %0"
+    : "+m" (*(poly_native_xsave_area_t *) area)
+    : "a" (eax), "d" (edx)
+    : "memory");
+}
+
+static inline void native_xrstor64(void *area, uint64_t mask) {
+  uint32_t eax = (uint32_t) mask;
+  uint32_t edx = (uint32_t) (mask >> 32);
+  asm volatile("xrstor64 %0"
+    :
+    : "m" (*(poly_native_xsave_area_t *) area), "a" (eax), "d" (edx)
+    : "memory");
 }
 
 static inline uint64_t poly_trap_status_reason(void) {
@@ -1737,6 +1763,65 @@ static int run_poly_state_save_restore_probe(void) {
   return 0;
 }
 
+static int run_poly_real_xsave_probe(uint64_t xcr0) {
+  const uint64_t poly_mask = 1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH;
+  const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+  struct poly_xsave_state *saved =
+    (struct poly_xsave_state *) (void *)
+    (nativecheck_real_xsave_area + POLY_STATE_XSAVE_OFFSET_ARCH);
+
+  if ((xcr0 & poly_mask) == 0) {
+    puts("NATIVE_POLY_REAL_XSAVE_SKIPPED");
+    return 0;
+  }
+
+  memset(nativecheck_real_xsave_area, 0,
+    sizeof(nativecheck_real_xsave_area));
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value(trap_vector);
+  native_xsave64(nativecheck_real_xsave_area, poly_mask);
+
+  if (saved->header.magic != POLY_STATE_XSAVE_MAGIC ||
+      saved->header.layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      saved->header.header_bytes != POLY_STATE_XSAVE_HEADER_BYTES ||
+      saved->header.total_bytes != POLY_STATE_XSAVE_BYTES_ARCH ||
+      saved->header.trap_vector_pc != trap_vector ||
+      saved->header.trap_vector_mode != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XSAVE poly state mismatch magic=0x%x version=%u bytes=%u pc=0x%llx mode=%u\n",
+      saved->header.magic,
+      saved->header.layout_version,
+      saved->header.total_bytes,
+      (unsigned long long) saved->header.trap_vector_pc,
+      saved->header.trap_vector_mode);
+    return 1;
+  }
+
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(0);
+  native_xrstor64(nativecheck_real_xsave_area, poly_mask);
+
+  poly_trap_vector_get();
+  if (read_rax() != trap_vector) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR trap vector mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) trap_vector);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR trap vector mode mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+
+  poly_trap_vector_clear();
+  puts("NATIVE_POLY_REAL_XSAVE_OK");
+  return 0;
+}
+
 __attribute__((noinline, noipa))
 static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
@@ -2135,6 +2220,8 @@ int main(void) {
     if (run_poly_state_key_probe() != 0)
       return 1;
     if (run_poly_state_save_restore_probe() != 0)
+      return 1;
+    if (run_poly_real_xsave_probe(xcr0) != 0)
       return 1;
     if (run_poly_import_return_xsave_probe() != 0)
       return 1;
