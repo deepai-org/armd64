@@ -518,8 +518,8 @@ static uint64_t call_code_with_rax_arg_and_imports(const uint8_t *code,
 static uint64_t call_code_with_poly3_args(const uint8_t *code,
     const void *arg0, const void *arg1, uint64_t arg2) {
   uint64_t rax = (uint64_t) (uintptr_t) arg0;
-  uint64_t rdi = (uint64_t) (uintptr_t) arg1;
-  uint64_t rsi = arg2;
+  uint64_t rdx = (uint64_t) (uintptr_t) arg1;
+  uint64_t rcx = arg2;
   asm volatile(
     "pushq %%rbx\n"
     "pushq %%rbp\n"
@@ -534,17 +534,17 @@ static uint64_t call_code_with_poly3_args(const uint8_t *code,
     "popq %%r12\n"
     "popq %%rbp\n"
     "popq %%rbx"
-    : "+a"(rax), "+D"(rdi), "+S"(rsi)
+    : "+a"(rax), "+d"(rdx), "+c"(rcx)
     : "r"(code)
-    : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+    : "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
   return rax;
 }
 
 static uint64_t call_code_with_poly3_args_and_imports(const uint8_t *code,
     const void *arg0, const void *arg1, uint64_t arg2) {
   uint64_t rax = (uint64_t) (uintptr_t) arg0;
-  uint64_t rdi = (uint64_t) (uintptr_t) arg1;
-  uint64_t rsi = arg2;
+  uint64_t rdx = (uint64_t) (uintptr_t) arg1;
+  uint64_t rcx = arg2;
   uint64_t import_base = (uint64_t) (uintptr_t) polybench_x86_imports;
   asm volatile(
     "pushq %%rbx\n"
@@ -561,9 +561,9 @@ static uint64_t call_code_with_poly3_args_and_imports(const uint8_t *code,
     "popq %%r12\n"
     "popq %%rbp\n"
     "popq %%rbx"
-    : "+a"(rax), "+D"(rdi), "+S"(rsi)
+    : "+a"(rax), "+d"(rdx), "+c"(rcx)
     : "r"(code), "r"(import_base)
-    : "r12", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+    : "r12", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
   return rax;
 }
 
