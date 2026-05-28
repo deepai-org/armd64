@@ -210,6 +210,74 @@ static uint64_t pcall_riscv_hidden_fp_busy(uint64_t left_bits,
   return read_xmm0_u64();
 }
 
+static uint64_t pcall_aarch64_hidden_set(uint64_t value) {
+  uint64_t result;
+  uint64_t arg0 = value;
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    "1:\n"
+    ".long 0x91000014\n" // add x20,x0,#0
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    : "=a"(result), "+D"(arg0)
+    :
+    : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
+static uint64_t pcall_aarch64_hidden_get(uint64_t addend) {
+  uint64_t result;
+  uint64_t arg0 = addend;
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x10,0x50,0x4f,0x4c,0x59,0x21\n"
+    "1:\n"
+    ".long 0x8b000280\n" // add x0,x20,x0
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    : "=a"(result), "+D"(arg0)
+    :
+    : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
+static uint64_t pcall_riscv_hidden_set(uint64_t value) {
+  uint64_t result;
+  uint64_t arg0 = value;
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+    "1:\n"
+    ".long 0x00050a13\n" // addi s4,a0,0
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    : "=a"(result), "+D"(arg0)
+    :
+    : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
+static uint64_t pcall_riscv_hidden_get(uint64_t addend) {
+  uint64_t result;
+  uint64_t arg0 = addend;
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x24,0x11,0x50,0x4f,0x4c,0x59,0x21\n"
+    "1:\n"
+    ".long 0x00aa0533\n" // add a0,s4,a0
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    : "=a"(result), "+D"(arg0)
+    :
+    : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
 static void x86_atomic_add(uint64_t *ptr, uint64_t iterations) {
   for (uint64_t n = 0; n < iterations; n++)
     __atomic_fetch_add(ptr, 1, __ATOMIC_SEQ_CST);
@@ -271,6 +339,46 @@ static void *worker_main(void *arg) {
   uint64_t state_key = 0x504f4c5954480000ULL + worker_id + 1;
 
   if (wait_for_workers(worker_id, "start") != 0)
+    return (void *) 1;
+
+  uint64_t default_aarch64_seed = base + 0x20000ULL;
+  uint64_t default_riscv_seed = base + 0x30000ULL;
+  if (pcall_aarch64_hidden_set(default_aarch64_seed) !=
+      default_aarch64_seed) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 hidden set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_riscv_hidden_set(default_riscv_seed) != default_riscv_seed) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default riscv hidden set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "default-hidden-set") != 0)
+    return (void *) 1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+  uint64_t default_aarch64_result = pcall_aarch64_hidden_get(9);
+  if (default_aarch64_result != default_aarch64_seed + 9) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 bank got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) default_aarch64_result,
+      (unsigned long long) (default_aarch64_seed + 9));
+    return (void *) 1;
+  }
+  uint64_t default_riscv_result = pcall_riscv_hidden_get(11);
+  if (default_riscv_result != default_riscv_seed + 11) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default riscv bank got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) default_riscv_result,
+      (unsigned long long) (default_riscv_seed + 11));
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "default-hidden-checked") != 0)
     return (void *) 1;
 
   poly_state_key_set(state_key);
