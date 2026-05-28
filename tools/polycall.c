@@ -158,6 +158,7 @@ enum {
   RELOC_BASE_ROOT_LOAD_BIAS = 6,
   RELOC_BASE_ROOT_TLS_OFFSET = 7,
   RELOC_BASE_ROOT_IFUNC = 8,
+  RELOC_BASE_ROOT_CROSS_STUB = 9,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
@@ -513,6 +514,7 @@ struct poly_program {
   const char *path;
   const char *arch_name;
   int arch;
+  int root_arch;
   int elf_type;
   uint8_t *image;
   size_t image_size;
@@ -1878,19 +1880,21 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
 
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
-    if (stub_limit - start < 40)
+    if (stub_limit - start < 48)
       return -1;
-    const uint64_t return_addr = start_addr + 36;
+    const uint64_t return_addr = start_addr + 40;
+    emit_u32(stubs, stub_offset, 0xf81f0ffeU); // str x30, [sp, #-16]!
     emit_aarch64_movabs(stubs, stub_offset, 16, target);
     emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
     emit_u32(stubs, stub_offset, 0xd42fffa0U); // brk #0x7ffd, call RISC-V
+    emit_u32(stubs, stub_offset, 0xf84107feU); // ldr x30, [sp], #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
     *stub_addr = start_addr;
     return 0;
   }
 
   if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64) {
-    if (stub_limit - start < 48)
+    if (stub_limit - start < 56)
       return -1;
     const size_t auipc_target_pc = *stub_offset;
     emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
@@ -1900,8 +1904,12 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, 0x00000317U); // auipc x6,0
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
+    emit_u32(stubs, stub_offset, 0xff010113U); // addi sp,sp,-16
+    emit_u32(stubs, stub_offset, 0x00113423U); // sd ra,8(sp)
     emit_u32(stubs, stub_offset, 0x0000005bU); // custom-2, call AArch64
     const size_t return_pc = *stub_offset;
+    emit_u32(stubs, stub_offset, 0x00813083U); // ld ra,8(sp)
+    emit_u32(stubs, stub_offset, 0x01010113U); // addi sp,sp,16
     emit_u32(stubs, stub_offset, 0x00008067U); // ret
     if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
       return -1;
@@ -3164,6 +3172,7 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   memset(&dep_view, 0, sizeof(dep_view));
   dep_view.path = dep->path;
   dep_view.arch = dep->arch;
+  dep_view.root_arch = owner->arch;
   dep_view.arch_name = dep->arch_name;
   dep_view.image = dep->image;
   dep_view.image_size = dep->image_size;
@@ -3707,8 +3716,15 @@ static int resolve_root_symbol(const struct poly_program *program,
           required_version ? required_version->name : NULL))
       continue;
     *symbol_value = sym->st_value;
-    *base_kind = type == STT_GNU_IFUNC ? RELOC_BASE_ROOT_IFUNC :
-      RELOC_BASE_ROOT_LOAD_BIAS;
+    if (type == STT_GNU_IFUNC)
+      *base_kind = RELOC_BASE_ROOT_IFUNC;
+    else if (program->dependency_view &&
+        (type == STT_FUNC || type == STT_NOTYPE) &&
+        program->root_arch != 0 &&
+        program->root_arch != program->arch)
+      *base_kind = RELOC_BASE_ROOT_CROSS_STUB;
+    else
+      *base_kind = RELOC_BASE_ROOT_LOAD_BIAS;
     return 0;
   }
   return -1;
@@ -5773,6 +5789,24 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = dep_load_bias[d];
       else if (dep->relocs[r].base_kind == RELOC_BASE_ROOT_LOAD_BIAS)
         reloc_base = root_load_bias;
+      else if (dep->relocs[r].base_kind == RELOC_BASE_ROOT_CROSS_STUB) {
+        uint64_t stub_addr = 0;
+        if (emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+              &cross_stub_offset, dep->arch, program->arch,
+              root_load_bias + dep->relocs[r].value, &stub_addr) < 0) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency root cross-ISA stub overflow: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        write_le64(dep_foreign[d] + dep->relocs[r].offset, stub_addr);
+        continue;
+      }
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_PAGE)
         reloc_base = (uint64_t) (uintptr_t) import_page;
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_CALL)
