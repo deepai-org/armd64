@@ -142,6 +142,18 @@ path for this family:
 - `0f 24 26 50 4f 4c 59 21`: prototype
   `PCALL.A64.SYSV.HFA4F32RET`, mapping an AAPCS64 homogeneous aggregate
   return in `s0`-`s3` into x86_64 SysV `XMM0`/`XMM1`.
+- `0f 24 27 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.HFA3F64ARG`, mapping an x86_64 SysV stack-passed
+  three-`double` aggregate argument into AAPCS64 `d0`-`d2`.
+- `0f 24 28 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.HFA4F64ARG`, mapping an x86_64 SysV stack-passed
+  four-`double` aggregate argument into AAPCS64 `d0`-`d3`.
+- `0f 24 29 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.HFA3F32ARG`, mapping an x86_64 SysV `XMM0`/`XMM1`
+  three-`float` aggregate argument into AAPCS64 `s0`-`s2`.
+- `0f 24 2a 50 4f 4c 59 21`: prototype
+  `PCALL.A64.SYSV.HFA4F32ARG`, mapping an x86_64 SysV `XMM0`/`XMM1`
+  four-`float` aggregate argument into AAPCS64 `s0`-`s3`.
 - `0f 24 30+id 50 4f 4c 59 21`: syscall status read.  `id=0` returns the
   current mode, `id=1` returns the last foreign syscall number, and `id=2`
   returns the last foreign syscall mode.
@@ -191,7 +203,7 @@ discover the experimental hardware contract before emitting poly operations:
 - `CPUID.EAX=0x40000001`: `EAX=1` for the poly CPUID ABI version.
 - `0x40000001.EBX`: frontend mode mask.  Bits `0`, `3`, and `4` mean x86_64,
   raw AArch64, and raw RISC-V.
-- `0x40000001.ECX`: feature mask.  Bits `0`-`29` mean raw AArch64, raw RISC-V,
+- `0x40000001.ECX`: feature mask.  Bits `0`-`30` mean raw AArch64, raw RISC-V,
   neutral direct switches, native return cookies, x86 SysV `PCALL`, `PCALL`
   sret, scalar FP bridging, trap records, user return restoration, x86 TSO
   foreign ordering, per-thread synthetic banks, reserved bit `11`, the
@@ -207,6 +219,7 @@ discover the experimental hardware contract before emitting poly operations:
   state keys, fixed 128-bit vector ABI bridging for tested x86-to-foreign
   calls, AArch64 three- and four-lane double HFA returns to x86 memory-return
   callers, AArch64 three- and four-lane float HFA returns to x86 register
+  callers, AArch64 three- and four-lane HFA argument bridges from x86 SysV
   callers, and neutral AArch64<->RISC-V fixed 128-bit vector cross-calls.
   The
   double-lane bridge forms also cover ABI-compatible `{u32,double}` and
@@ -469,7 +482,9 @@ arguments/returns through `XMM0`/`XMM1` and `v0`/`v1`, two-register
 homogeneous double aggregate arguments and returns through `XMM0`/`XMM1`,
 AArch64 HFA three- and four-`double` returns through `d0`-`d3` into x86_64
 SysV hidden memory-return buffers, AArch64 HFA three- and four-`float` returns
-through `s0`-`s3` into x86_64 SysV `XMM0`/`XMM1`, plus two-`float`
+through `s0`-`s3` into x86_64 SysV `XMM0`/`XMM1`, AArch64 HFA three- and
+four-lane `double` and `float` arguments from ordinary x86_64 SysV callers into
+`d0`-`d3`/`s0`-`s3`, plus two-`float`
 homogeneous aggregate returns packed into `XMM0[63:0]` and two-`float`
 homogeneous aggregate arguments unpacked from `XMM0[63:0]`, including mixed
 integer/FP signatures where GPR and XMM lanes are consumed in one native call.
@@ -739,8 +754,11 @@ homogeneous double aggregate return objects
 `aarch64-pcall-hfa4-real.so#poly_entry`), AArch64 three- and four-lane
 homogeneous float aggregate return objects
 (`aarch64-pcall-hfa3-f32-real.so#poly_entry` and
-`aarch64-pcall-hfa4-f32-real.so#poly_entry`), homogeneous float aggregate return
-objects (`aarch64-pcall-fpair32-real.so#poly_entry` and
+`aarch64-pcall-hfa4-f32-real.so#poly_entry`), AArch64 three- and four-lane
+homogeneous FP aggregate argument object
+(`aarch64-pcall-hfa-arg-real.so#poly_hfa3_f64_arg`,
+`#poly_hfa4_f64_arg`, `#poly_hfa3_f32_arg`, and `#poly_hfa4_f32_arg`),
+homogeneous float aggregate return objects (`aarch64-pcall-fpair32-real.so#poly_entry` and
 `riscv-pcall-fpair32-real.so#poly_entry`), homogeneous double aggregate argument
 objects (`aarch64-pcall-fpair-arg-real.so#poly_entry` and
 `riscv-pcall-fpair-arg-real.so#poly_entry`), homogeneous float aggregate

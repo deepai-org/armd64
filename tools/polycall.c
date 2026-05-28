@@ -143,6 +143,10 @@ enum {
   POLY_CALL_AARCH64_HFA4_F64 = 24,
   POLY_CALL_AARCH64_HFA3_F32 = 25,
   POLY_CALL_AARCH64_HFA4_F32 = 26,
+  POLY_CALL_AARCH64_HFA3_F64_ARG = 27,
+  POLY_CALL_AARCH64_HFA4_F64_ARG = 28,
+  POLY_CALL_AARCH64_HFA3_F32_ARG = 29,
+  POLY_CALL_AARCH64_HFA4_F32_ARG = 30,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -200,6 +204,7 @@ enum {
   POLY_CPUID_FEATURE_VEC128_BRIDGE = (1U << 27),
   POLY_CPUID_FEATURE_AARCH64_HFA64_RET = (1U << 28),
   POLY_CPUID_FEATURE_AARCH64_HFA32_RET = (1U << 29),
+  POLY_CPUID_FEATURE_AARCH64_HFA_ARGS = (1U << 30),
   POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 = (1U << 1),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 = (1U << 2),
@@ -267,7 +272,8 @@ static const uint32_t POLY_CPUID_REQUIRED_FEATURES =
   POLY_CPUID_FEATURE_FP64_STACK_ARGS |
   POLY_CPUID_FEATURE_VEC128_BRIDGE |
   POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
-  POLY_CPUID_FEATURE_AARCH64_HFA32_RET;
+  POLY_CPUID_FEATURE_AARCH64_HFA32_RET |
+  POLY_CPUID_FEATURE_AARCH64_HFA_ARGS;
 
 enum {
   POLY_IMPORT_FUNC_ADD = 0,
@@ -1443,6 +1449,22 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "hfa4f32:", 8) == 0) {
     request->call_kind = POLY_CALL_AARCH64_HFA4_F32;
     arg += 8;
+  }
+  else if (strncmp(arg, "hfa3f64arg:", 11) == 0) {
+    request->call_kind = POLY_CALL_AARCH64_HFA3_F64_ARG;
+    arg += 11;
+  }
+  else if (strncmp(arg, "hfa4f64arg:", 11) == 0) {
+    request->call_kind = POLY_CALL_AARCH64_HFA4_F64_ARG;
+    arg += 11;
+  }
+  else if (strncmp(arg, "hfa3f32arg:", 11) == 0) {
+    request->call_kind = POLY_CALL_AARCH64_HFA3_F32_ARG;
+    arg += 11;
+  }
+  else if (strncmp(arg, "hfa4f32arg:", 11) == 0) {
+    request->call_kind = POLY_CALL_AARCH64_HFA4_F32_ARG;
+    arg += 11;
   }
   else if (strncmp(arg, "pair:", 5) == 0) {
     request->call_kind = POLY_CALL_PAIR_U64;
@@ -5291,6 +5313,44 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
       (((uint64_t) (c_bits.u >> 16) & 0xffffULL) << 16) |
       ((uint64_t) (d_bits.u >> 16) & 0xffffULL);
   }
+  if (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG) {
+    struct hfa3_fp64 arg;
+    arg.a = 1.5;
+    arg.b = 2.25;
+    arg.c = 3.0;
+    uint64_t (*entry)(struct hfa3_fp64) =
+      (uint64_t (*)(struct hfa3_fp64)) code;
+    return entry(arg);
+  }
+  if (call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG) {
+    struct hfa4_fp64 arg;
+    arg.a = 1.5;
+    arg.b = 2.25;
+    arg.c = 3.0;
+    arg.d = 4.0;
+    uint64_t (*entry)(struct hfa4_fp64) =
+      (uint64_t (*)(struct hfa4_fp64)) code;
+    return entry(arg);
+  }
+  if (call_kind == POLY_CALL_AARCH64_HFA3_F32_ARG) {
+    struct hfa3_fp32 arg;
+    arg.a = 1.5f;
+    arg.b = 2.25f;
+    arg.c = 3.0f;
+    uint64_t (*entry)(struct hfa3_fp32) =
+      (uint64_t (*)(struct hfa3_fp32)) code;
+    return entry(arg);
+  }
+  if (call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG) {
+    struct hfa4_fp32 arg;
+    arg.a = 1.5f;
+    arg.b = 2.25f;
+    arg.c = 3.0f;
+    arg.d = 4.0f;
+    uint64_t (*entry)(struct hfa4_fp32) =
+      (uint64_t (*)(struct hfa4_fp32)) code;
+    return entry(arg);
+  }
   if (call_kind == POLY_CALL_FPAIR32) {
     union {
       float f;
@@ -5812,6 +5872,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x25;
     else if (call_kind == POLY_CALL_AARCH64_HFA4_F32)
       pcall_op = 0x26;
+    else if (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG)
+      pcall_op = 0x27;
+    else if (call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG)
+      pcall_op = 0x28;
+    else if (call_kind == POLY_CALL_AARCH64_HFA3_F32_ARG)
+      pcall_op = 0x29;
+    else if (call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG)
+      pcall_op = 0x2a;
     const uint8_t pcall[] = {
       0x0f, 0x24, pcall_op,
       0x50, 0x4f, 0x4c, 0x59, 0x21
@@ -6841,6 +6909,22 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_AARCH64_HFA4_F32) {
       printf("POLYCALL_RESULT_AARCH64_HFA4_F32: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG) {
+      printf("POLYCALL_RESULT_AARCH64_HFA3_F64_ARG: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG) {
+      printf("POLYCALL_RESULT_AARCH64_HFA4_F64_ARG: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_AARCH64_HFA3_F32_ARG) {
+      printf("POLYCALL_RESULT_AARCH64_HFA3_F32_ARG: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG) {
+      printf("POLYCALL_RESULT_AARCH64_HFA4_F32_ARG: arch=%s packed=0x%016llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.check_expected) {
