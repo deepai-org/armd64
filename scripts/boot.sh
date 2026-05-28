@@ -5730,7 +5730,17 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     for foreign in \
       /usr/lib/polyapps/aarch64-add.elf \
       /usr/lib/polyapps/aarch64-regadd.elf \
+      /usr/lib/polyapps/aarch64-movwide.elf \
+      /usr/lib/polyapps/aarch64-mul.elf \
+      /usr/lib/polyapps/aarch64-logical.elf \
+      /usr/lib/polyapps/aarch64-shifted.elf \
+      /usr/lib/polyapps/aarch64-regmix.elf \
+      /usr/lib/polyapps/aarch64-branch.elf \
+      /usr/lib/polyapps/aarch64-condbranch.elf \
+      /usr/lib/polyapps/aarch64-loop.elf \
+      /usr/lib/polyapps/aarch64-ret.elf \
       /usr/lib/polyapps/aarch64-mem.elf \
+      /usr/lib/polyapps/aarch64-memwidth.elf \
       /usr/lib/polyapps/aarch64-pcall-split-load.elf \
       /usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so \
       /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
@@ -5762,7 +5772,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-getpgid.elf \
       /usr/lib/polyapps/aarch64-getsid.elf \
       /usr/lib/polyapps/aarch64-getrlimit.elf \
+      /usr/lib/polyapps/aarch64-fp-int-move.elf \
+      /usr/lib/polyapps/aarch64-fp32-to-int.elf \
+      /usr/lib/polyapps/aarch64-fp32-to-int64.elf \
       /usr/lib/polyapps/aarch64-brk.elf \
+      /usr/lib/polyapps/aarch64-svc.elf \
       /usr/lib/polyapps/aarch64-pcall-needed-real.so \
       /usr/lib/polyapps/aarch64-pcall-lib-needed-real.so \
       /usr/lib/polyapps/aarch64-pcall-many-needed-real.so \
@@ -5770,8 +5784,35 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-needed-ifunc-real.so \
       /usr/lib/polyapps/aarch64-pcall-needed-dt-init-real.so \
       /usr/lib/polyapps/riscv-add.elf \
+      /usr/lib/polyapps/riscv-compressed.elf \
+      /usr/lib/polyapps/riscv-compressed-half.elf \
+      /usr/lib/polyapps/riscv-compressed-jalr.elf \
+      /usr/lib/polyapps/riscv-compressed-word.elf \
+      /usr/lib/polyapps/riscv-compressed-alu.elf \
+      /usr/lib/polyapps/riscv-compressed-fp.elf \
+      /usr/lib/polyapps/riscv-fp-int-move.elf \
+      /usr/lib/polyapps/riscv-fp-class.elf \
+      /usr/lib/polyapps/riscv-fp32-to-int.elf \
+      /usr/lib/polyapps/riscv-upper.elf \
+      /usr/lib/polyapps/riscv-immops.elf \
+      /usr/lib/polyapps/riscv-wordops.elf \
+      /usr/lib/polyapps/riscv-shiftcmp.elf \
+      /usr/lib/polyapps/riscv-divrem.elf \
+      /usr/lib/polyapps/riscv-shifts.elf \
+      /usr/lib/polyapps/riscv-srai.elf \
       /usr/lib/polyapps/riscv-regadd.elf \
+      /usr/lib/polyapps/riscv-mul.elf \
+      /usr/lib/polyapps/riscv-logical.elf \
+      /usr/lib/polyapps/riscv-regmix.elf \
+      /usr/lib/polyapps/riscv-branch.elf \
+      /usr/lib/polyapps/riscv-jal.elf \
+      /usr/lib/polyapps/riscv-jalr.elf \
+      /usr/lib/polyapps/riscv-branchcmp.elf \
+      /usr/lib/polyapps/riscv-condbranch.elf \
+      /usr/lib/polyapps/riscv-loop.elf \
+      /usr/lib/polyapps/riscv-ret.elf \
       /usr/lib/polyapps/riscv-mem.elf \
+      /usr/lib/polyapps/riscv-memwidth.elf \
       /usr/lib/polyapps/riscv-pcall-split-load.elf \
       /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so \
       /usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so \
@@ -5806,6 +5847,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-getrlimit.elf \
       /usr/lib/polyapps/riscv-ebreak.elf \
       /usr/lib/polyapps/riscv-compressed-ebreak.elf \
+      /usr/lib/polyapps/riscv-ecall.elf \
       /usr/lib/polyapps/riscv-pcall-needed-real.so \
       /usr/lib/polyapps/riscv-pcall-lib-needed-real.so \
       /usr/lib/polyapps/riscv-pcall-many-needed-real.so \

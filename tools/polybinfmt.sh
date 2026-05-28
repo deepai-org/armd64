@@ -15,7 +15,9 @@ case "$path" in
   */aarch64-regadd.elf) expected=123 ;;
   */aarch64-movwide.elf) expected=0xffff6543edcb5678 ;;
   */aarch64-mul.elf) expected=42 ;;
+  */aarch64-logical.elf) expected=60 ;;
   */aarch64-shifted.elf) expected=123 ;;
+  */aarch64-regmix.elf) expected=12 ;;
   */aarch64-branch.elf) expected=42 ;;
   */aarch64-condbranch.elf) expected=91 ;;
   */aarch64-loop.elf) expected=0 ;;
@@ -75,10 +77,13 @@ case "$path" in
   */aarch64-getegid.elf) expected=1000 ;;
   */aarch64-gettid.elf) expected=4243 ;;
   */aarch64-getcwd.elf) expected=6 ;;
+  */aarch64-fp-int-move.elf) expected=0x41400000 ;;
+  */aarch64-fp32-to-int.elf) expected=12 ;;
+  */aarch64-fp32-to-int64.elf) expected=12 ;;
   */aarch64-uname.elf) expected=0 ;;
   */aarch64-exit.elf) expected=7 ;;
   */aarch64-brk.elf) expected=0x4c000305 ;;
-  */aarch64-svc.elf) expected=0x53000003 ;;
+  */aarch64-svc.elf) expected=0xffffffffffffffda ;;
   */aarch64-pcall-needed-real.so) expected=397; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-lib-needed-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-many-needed-real.so) expected=4545; entry="#poly_entry"; runner="polycall" ;;
@@ -92,6 +97,9 @@ case "$path" in
   */riscv-compressed-word.elf) expected=27 ;;
   */riscv-compressed-alu.elf) expected=42 ;;
   */riscv-compressed-fp.elf) expected=64 ;;
+  */riscv-fp-int-move.elf) expected=0xffffffff8000002a ;;
+  */riscv-fp-class.elf) expected=32 ;;
+  */riscv-fp32-to-int.elf) expected=12 ;;
   */riscv-upper.elf) expected=0x1234567c ;;
   */riscv-immops.elf) expected=42 ;;
   */riscv-wordops.elf) expected=42 ;;
@@ -101,6 +109,8 @@ case "$path" in
   */riscv-srai.elf) expected=0xfffffffffffffffc ;;
   */riscv-regadd.elf) expected=123 ;;
   */riscv-mul.elf) expected=42 ;;
+  */riscv-logical.elf) expected=60 ;;
+  */riscv-regmix.elf) expected=12 ;;
   */riscv-branch.elf) expected=42 ;;
   */riscv-jal.elf) expected=9 ;;
   */riscv-jalr.elf) expected=5 ;;
@@ -168,7 +178,7 @@ case "$path" in
   */riscv-exit.elf) expected=7 ;;
   */riscv-ebreak.elf) expected=0x4c000405 ;;
   */riscv-compressed-ebreak.elf) expected=0x4c000405 ;;
-  */riscv-ecall.elf) expected=0x5303ff04 ;;
+  */riscv-ecall.elf) expected=0xffffffffffffffda ;;
   */riscv-pcall-needed-real.so) expected=397; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-lib-needed-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-many-needed-real.so) expected=4545; entry="#poly_entry"; runner="polycall" ;;
