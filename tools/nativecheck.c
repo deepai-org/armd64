@@ -474,6 +474,10 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "cmpq $16, %r12\n"
     "jne 9f\n"
+    "cmpq $17, %r13\n"
+    "jne 9f\n"
+    "cmpq $18, %r14\n"
+    "jne 9f\n"
     "movq $4444, %rax\n"
     "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
@@ -496,6 +500,10 @@ static void poly_trap_vector_handler(void) {
     "cmpq $25, %r11\n"
     "jne 9f\n"
     "cmpq $26, %r12\n"
+    "jne 9f\n"
+    "cmpq $27, %r13\n"
+    "jne 9f\n"
+    "cmpq $5, %r14\n"
     "jne 9f\n"
     "movq $4545, %rax\n"
     "pxor %xmm0, %xmm0\n"
@@ -794,6 +802,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd28001c3\n" // movz x3,#14
     ".long 0xd28001e4\n" // movz x4,#15
     ".long 0xd2800205\n" // movz x5,#16
+    ".long 0xd2800226\n" // movz x6,#17
+    ".long 0xd2800247\n" // movz x7,#18
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd42fffe0\n" // brk #0x7fff
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -814,6 +824,12 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break status mismatch number=%llu mode=%llu\n",
       (unsigned long long) poly_break_status_number(),
       (unsigned long long) poly_break_status_mode());
+    return 1;
+  }
+  if (poly_trap_status_arg6() != 17 || poly_trap_status_arg7() != 18) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 break packet extended args mismatch arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
   pid_t break_child = fork();
@@ -858,6 +874,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01800693\n" // addi a3,zero,24
     ".long 0x01900713\n" // addi a4,zero,25
     ".long 0x01a00793\n" // addi a5,zero,26
+    ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x00500893\n" // addi x17,x0,5
     ".long 0x00100073\n" // ebreak
     ".long 0x0000000b\n" // custom-0 x86 escape
@@ -876,6 +893,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_break_status_mode());
     return 1;
   }
+  if (poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv break packet extended args mismatch arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
+    return 1;
+  }
 
   asm volatile(
     POLY_OP_ENTER_RV64
@@ -885,6 +908,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01800693\n" // addi a3,zero,24
     ".long 0x01900713\n" // addi a4,zero,25
     ".long 0x01a00793\n" // addi a5,zero,26
+    ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x00500893\n" // addi x17,x0,5
     ".short 0x9002\n" // c.ebreak
     ".long 0x0000000b\n" // custom-0 x86 escape
@@ -906,6 +930,12 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed break status mismatch number=%llu mode=%llu\n",
       (unsigned long long) poly_break_status_number(),
       (unsigned long long) poly_break_status_mode());
+    return 1;
+  }
+  if (poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed break packet extended args mismatch arg6=%llu arg7=%llu\n",
+      (unsigned long long) poly_trap_status_arg6(),
+      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
 
