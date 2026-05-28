@@ -419,9 +419,11 @@ are `default`, `compact_u32_f32`, `compact_f32_u32`, `fp64_stack`, and
 The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
-The mixed raw probes also cover a 16-bit compressed RISC-V instruction followed
-by a direct switch to AArch64, proving the neutral path does not require
-32-bit-only RISC-V code before leaving the RISC-V frontend.  The Bochs
+The mixed raw probes also cover direct AArch64-to-RISC-V switching that lands
+on a 16-bit compressed RISC-V instruction, and a 16-bit compressed RISC-V
+instruction followed by a direct switch to AArch64.  This proves the neutral
+path does not require 32-bit-only RISC-V code on either side of a direct
+foreign-frontend switch.  The Bochs
 prototype backs this with a small bounded cross-return stack. Direct RISC-V
 ELF execution preserves raw executable bytes and accepts 2-byte-aligned entry
 segments, so compressed-code compatibility is not dependent on packing

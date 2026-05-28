@@ -667,6 +667,46 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   return 0;
 }
 
+static int run_compressed_mixed_program(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 2 + 8 + 3 * 4 + 2 + 4 + 1;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: compressed mixed mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_aarch64[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
+  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+  emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
+  emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
+  emit_u32(code, &offset, 0xd42fffc0U); // brk #0x7ffe, switch directly to RISC-V
+
+  emit_u16(code, &offset, 0x056dU); // c.addi a0,27
+  emit_u32(code, &offset, 0x0000000bU); // custom-0 x86 escape
+  code[offset++] = 0xc3;
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_compressed_reverse_mixed_program(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 2 + 8 + 2 + 4 + 2 * 4 + 1;
@@ -3167,6 +3207,9 @@ static int check_mixed_direction(const char *name,
 
 static int check_mixed(void) {
   if (check_mixed_direction("aarch64-to-riscv", run_mixed_program) < 0)
+    return -1;
+  if (check_mixed_direction("aarch64-to-compressed-riscv",
+        run_compressed_mixed_program) < 0)
     return -1;
   if (check_mixed_direction("riscv-to-aarch64", run_reverse_mixed_program) < 0)
     return -1;
