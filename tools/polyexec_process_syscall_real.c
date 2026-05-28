@@ -8,9 +8,11 @@ enum {
   POLY_GRND_NONBLOCK = 1,
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
+  POLY_O_DIRECTORY = 0200000,
   POLY_RLIMIT_STACK = 3,
   POLY_S_IFMT = 0170000,
   POLY_S_IFREG = 0100000,
+  POLY_DIRENT64_NAME_OFFSET = 19,
   POLY_AT_FDCWD = -100,
   POLY_STATX_BASIC_STATS = 0x7ff,
 
@@ -19,6 +21,7 @@ enum {
   POLY_SYS_FSTATFS = 44,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
+  POLY_SYS_GETDENTS64 = 61,
   POLY_SYS_READ = 63,
   POLY_SYS_WRITE = 64,
   POLY_SYS_READV = 65,
@@ -220,6 +223,19 @@ static int poly_contains_len(const char *text, long text_len,
   return 0;
 }
 
+static int poly_dirents_contain(char *buffer, long length, const char *name) {
+  long offset = 0;
+  while (offset + POLY_DIRENT64_NAME_OFFSET < length) {
+    uint16_t reclen = *(uint16_t *) (buffer + offset + 16);
+    if (reclen <= POLY_DIRENT64_NAME_OFFSET || offset + reclen > length)
+      return 0;
+    if (poly_streq(buffer + offset + POLY_DIRENT64_NAME_OFFSET, name))
+      return 1;
+    offset += reclen;
+  }
+  return 0;
+}
+
 uint64_t poly_process_main(uint64_t *initial_sp) {
   uint64_t argc = initial_sp[0];
   char **argv = (char **) &initial_sp[1];
@@ -354,6 +370,31 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
       file_bytes[2] != 'L' || file_bytes[3] != 'F')
     return 32;
+
+  char dirents[4096];
+  fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD, (long) "/usr/bin",
+    POLY_O_DIRECTORY);
+  if (fd < 0)
+    return 69;
+  int found_polyexec = 0;
+  for (;;) {
+    long dirent_len = poly_syscall3(POLY_SYS_GETDENTS64, fd, (long) dirents,
+      sizeof(dirents));
+    if (dirent_len < 0) {
+      poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+      return 71;
+    }
+    if (dirent_len == 0)
+      break;
+    if (poly_dirents_contain(dirents, dirent_len, "polyexec")) {
+      found_polyexec = 1;
+      break;
+    }
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 70;
+  if (!found_polyexec)
+    return 72;
 
   char vec0[2];
   char vec1[2];
