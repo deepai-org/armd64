@@ -392,7 +392,10 @@ enum {
   POLY_IMPORT_FUNC_GETEGID = 138,
   POLY_IMPORT_FUNC_GETTID = 139,
   POLY_IMPORT_FUNC_PUTS = 140,
-  POLY_IMPORT_FUNC_COUNT = 141
+  POLY_IMPORT_FUNC_CXA_GUARD_ACQUIRE = 141,
+  POLY_IMPORT_FUNC_CXA_GUARD_RELEASE = 142,
+  POLY_IMPORT_FUNC_CXA_GUARD_ABORT = 143,
+  POLY_IMPORT_FUNC_COUNT = 144
 };
 
 enum {
@@ -736,6 +739,9 @@ extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
 extern uint64_t poly_host_x86_cxa_finalize(void *dso_handle);
+extern uint64_t poly_host_x86_cxa_guard_acquire(uint64_t *guard);
+extern uint64_t poly_host_x86_cxa_guard_release(uint64_t *guard);
+extern uint64_t poly_host_x86_cxa_guard_abort(uint64_t *guard);
 extern uint64_t poly_host_x86_getpid(void);
 extern uint64_t poly_host_x86_getppid(void);
 extern uint64_t poly_host_x86_getuid(void);
@@ -874,7 +880,8 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
     "memalign", "atexit", "__cxa_atexit", "__cxa_finalize", "getpid",
     "getppid", "getuid", "geteuid", "getgid", "getegid", "gettid",
-    "puts",
+    "puts", "__cxa_guard_acquire", "__cxa_guard_release",
+    "__cxa_guard_abort",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
     "__fixdfti", "__fixunsdfti", "__floattidf", "__floatuntidf",
     "__fixsfti", "__fixunssfti", "__floattisf", "__floatuntisf",
@@ -1033,6 +1040,12 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_cxa_atexit;
     case POLY_IMPORT_FUNC_CXA_FINALIZE:
       return (uint64_t) (uintptr_t) poly_host_x86_cxa_finalize;
+    case POLY_IMPORT_FUNC_CXA_GUARD_ACQUIRE:
+      return (uint64_t) (uintptr_t) poly_host_x86_cxa_guard_acquire;
+    case POLY_IMPORT_FUNC_CXA_GUARD_RELEASE:
+      return (uint64_t) (uintptr_t) poly_host_x86_cxa_guard_release;
+    case POLY_IMPORT_FUNC_CXA_GUARD_ABORT:
+      return (uint64_t) (uintptr_t) poly_host_x86_cxa_guard_abort;
     case POLY_IMPORT_FUNC_GETPID:
       return (uint64_t) (uintptr_t) poly_host_x86_getpid;
     case POLY_IMPORT_FUNC_GETPPID:
@@ -1843,6 +1856,21 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "__cxa_finalize") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_CXA_FINALIZE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__cxa_guard_acquire") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_CXA_GUARD_ACQUIRE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__cxa_guard_release") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_CXA_GUARD_RELEASE * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "__cxa_guard_abort") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_CXA_GUARD_ABORT * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "getpid") == 0) {

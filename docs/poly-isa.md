@@ -215,7 +215,7 @@ discover the experimental hardware contract before emitting poly operations:
   trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
   instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
   set/get opcode selectors.
-- `CPUID.EAX=0x40000002, ECX=5`: `EAX=141` reports the foreign import ID
+- `CPUID.EAX=0x40000002, ECX=5`: `EAX=144` reports the foreign import ID
   count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
   base, and `EDX=16` reports the import-call stride.
   Import ID `2` is reserved for the removed legacy x86-add helper and now
@@ -998,8 +998,10 @@ that descriptor as the import target.  `polycall` uses this path for
 `poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory imports such as
 `strlen`, `memcpy`, `memcmp`, and `puts`, and also for environment, allocation,
 teardown, stack-failure, aux-vector/page-size,
-errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
-`__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, for
+errno, C++ guard imports such as `__cxa_guard_acquire`,
+`__cxa_guard_release`, and `__cxa_guard_abort`, and process-query imports such
+as `getenv`, `malloc`, `atexit`, `__stack_chk_fail`, `getauxval`,
+`__errno_location`, and `getpid`, for
 AArch64 TLSDESC, AArch64 traditional `__tls_get_addr`, and RISC-V
 `__tls_get_addr` TLS accessors, and for scalar
 libgcc 128-bit div/mod helpers `__udivti3`,

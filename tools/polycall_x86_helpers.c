@@ -792,6 +792,30 @@ uint64_t POLY_HOST_HELPER poly_host_x86_cxa_finalize(void *dso_handle)
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_acquire(uint64_t *guard)
+{
+  uint8_t *bytes = (uint8_t *) guard;
+  if ((bytes[0] & 1) != 0)
+    return 0;
+  bytes[1] = 1;
+  return 1;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_release(uint64_t *guard)
+{
+  uint8_t *bytes = (uint8_t *) guard;
+  bytes[0] = 1;
+  bytes[1] = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_cxa_guard_abort(uint64_t *guard)
+{
+  uint8_t *bytes = (uint8_t *) guard;
+  bytes[1] = 0;
+  return 0;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_getpid(void)
 {
   return 4242;
