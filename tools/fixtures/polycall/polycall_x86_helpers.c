@@ -10,6 +10,8 @@
 extern uint64_t poly_runtime_register_atexit_callback(void *callback,
   void *arg, void *dso_handle);
 extern uint64_t poly_runtime_finalize_atexit_callbacks(void *dso_handle);
+extern int64_t poly_runtime_call_foreign_comparator(void *callback,
+  const void *left, const void *right);
 
 static volatile uint64_t poly_host_x86_zero;
 static int poly_host_errno_value;
@@ -914,6 +916,35 @@ uint64_t POLY_HOST_HELPER poly_host_x86_memalign(uint64_t alignment,
   if (alignment == 0 || (alignment & (alignment - 1)) != 0)
     return 0;
   return (uint64_t) (uintptr_t) poly_host_alloc_aligned(size, alignment);
+}
+
+static void poly_host_swap_records(uint8_t *left, uint8_t *right,
+    uint64_t size)
+{
+  for (uint64_t n = 0; n < size; n++) {
+    uint8_t value = left[n];
+    left[n] = right[n];
+    right[n] = value;
+  }
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_qsort(void *base, uint64_t nmemb,
+    uint64_t size, void *compar)
+{
+  if (base == 0 || compar == 0 || size == 0 || nmemb < 2)
+    return 0;
+
+  uint8_t *items = (uint8_t *) base;
+  for (uint64_t end = nmemb; end > 1; end--) {
+    for (uint64_t index = 1; index < end; index++) {
+      uint8_t *left = items + (index - 1) * size;
+      uint8_t *right = items + index * size;
+      if (poly_runtime_call_foreign_comparator(compar, left, right) > 0)
+        poly_host_swap_records(left, right, size);
+    }
+  }
+
+  return 0;
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)

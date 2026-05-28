@@ -13,6 +13,14 @@ entry=""
 runner="polyexec"
 call_prefix=""
 process_mode=0
+
+set_polycall() {
+  expected="$1"
+  entry="${2:-#poly_entry}"
+  runner="polycall"
+  call_prefix="${3:-}"
+}
+
 case "$path" in
   */aarch64-add.elf) expected=132 ;;
   */aarch64-regadd.elf) expected=123 ;;
@@ -97,6 +105,7 @@ case "$path" in
   */aarch64-pcall-needed-ifunc-real.so) expected=845; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-needed-dt-init-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-libc-import-real.so) expected=171221; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-qsort-real.so) set_polycall 128 ;;
   */aarch64-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
@@ -281,6 +290,7 @@ case "$path" in
   */riscv-pcall-needed-ifunc-real.so) expected=845; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-needed-dt-init-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-libc-import-real.so) expected=171221; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-qsort-real.so) set_polycall 128 ;;
   */riscv-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-getauxval-real.so) expected=45; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
