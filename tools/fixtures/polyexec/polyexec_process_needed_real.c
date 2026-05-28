@@ -34,7 +34,9 @@ uint64_t poly_process_needed_add(uint64_t left, uint64_t right) {
 
 #else
 
-#if defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
+#if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
+extern uint64_t poly_process_needed_leaf(uint64_t, uint64_t);
+#elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #else
 extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
@@ -67,7 +69,11 @@ static long poly_syscall3(long number, long arg0, long arg1, long arg2) {
 }
 
 uint64_t poly_process_main(void) {
-#if defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
+#if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
+  if (poly_process_needed_leaf(0x12, 0x23) != 0x46)
+    return 24;
+  static const char marker[] = "POLY_PROCESS_INDIRECT_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;
   static const char marker[] = "POLY_PROCESS_TRANSITIVE_NEEDED_OK\n";

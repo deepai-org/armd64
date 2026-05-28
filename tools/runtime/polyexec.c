@@ -569,56 +569,76 @@ static int symbol_is_dependency_export(const Elf64_Sym *sym) {
     (visibility == STV_DEFAULT || visibility == STV_PROTECTED);
 }
 
-static int resolve_loaded_dependency_symbol(const struct poly_program *program,
-    const char *symbol_name, uint64_t *symbol_value, uint8_t *symbol_type) {
+static int resolve_loaded_program_symbol(const struct poly_program *program,
+    const uint8_t *loaded_image, const char *symbol_name,
+    uint64_t *symbol_value, uint8_t *symbol_type) {
+  uint64_t symtab_vaddr = 0, strtab_vaddr = 0, strsz = 0;
+  uint64_t syment = sizeof(Elf64_Sym), hash_vaddr = 0, gnu_hash_vaddr = 0;
+  if (dynamic_symbol_table_info(program, loaded_image, &symtab_vaddr,
+        &strtab_vaddr, &strsz, &syment, &hash_vaddr, &gnu_hash_vaddr) < 0)
+    return -1;
+
+  size_t symbol_count = 0;
+  if (dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
+        syment, hash_vaddr, gnu_hash_vaddr, &symbol_count) < 0)
+    return -1;
+
+  size_t symtab_offset = 0;
+  const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, symtab_size,
+        &symtab_offset) < 0)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+
+  for (size_t index = 0; index < symbol_count; index++) {
+    const Elf64_Sym *sym = (const Elf64_Sym *) (loaded_image +
+      symtab_offset + (uint64_t) index * syment);
+    if (sym->st_name >= strsz || !symbol_is_dependency_export(sym))
+      continue;
+    const char *name = (const char *) (loaded_image + strtab_offset +
+      sym->st_name);
+    if (strcmp(name, symbol_name) != 0)
+      continue;
+    if (ELF64_ST_TYPE(sym->st_info) == STT_GNU_IFUNC)
+      return -1;
+    *symbol_value = (uint64_t) (uintptr_t) loaded_image -
+      program->base_vaddr + sym->st_value;
+    if (symbol_type)
+      *symbol_type = ELF64_ST_TYPE(sym->st_info);
+    return 0;
+  }
+  return -1;
+}
+
+static int resolve_loaded_dependency_symbol_at_depth(
+    const struct poly_program *program, const char *symbol_name,
+    uint64_t *symbol_value, uint8_t *symbol_type, size_t depth) {
+  if (depth >= MAX_PROCESS_DEP_DEPTH)
+    return -1;
+
   for (size_t d = 0; d < program->dep_count; d++) {
     const struct poly_process_dependency *dep = &program->deps[d];
     if (!dep->program || !dep->loaded_image)
       continue;
 
-    uint64_t symtab_vaddr = 0, strtab_vaddr = 0, strsz = 0;
-    uint64_t syment = sizeof(Elf64_Sym), hash_vaddr = 0, gnu_hash_vaddr = 0;
-    if (dynamic_symbol_table_info(dep->program, dep->loaded_image,
-          &symtab_vaddr, &strtab_vaddr, &strsz, &syment, &hash_vaddr,
-          &gnu_hash_vaddr) < 0)
-      continue;
-
-    size_t symbol_count = 0;
-    if (dynamic_symbol_count_from_hash(dep->program, dep->loaded_image,
-          symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-          &symbol_count) < 0)
-      continue;
-
-    size_t symtab_offset = 0;
-    const uint64_t symtab_size = (uint64_t) symbol_count * syment;
-    if (elf_vaddr_to_image_offset(dep->program, symtab_vaddr, symtab_size,
-          &symtab_offset) < 0)
-      continue;
-
-    size_t strtab_offset = 0;
-    if (elf_vaddr_to_image_offset(dep->program, strtab_vaddr, strsz,
-          &strtab_offset) < 0)
-      continue;
-
-    for (size_t index = 0; index < symbol_count; index++) {
-      const Elf64_Sym *sym = (const Elf64_Sym *) (dep->loaded_image +
-        symtab_offset + (uint64_t) index * syment);
-      if (sym->st_name >= strsz || !symbol_is_dependency_export(sym))
-        continue;
-      const char *name =
-        (const char *) (dep->loaded_image + strtab_offset + sym->st_name);
-      if (strcmp(name, symbol_name) != 0)
-        continue;
-      if (ELF64_ST_TYPE(sym->st_info) == STT_GNU_IFUNC)
-        return -1;
-      *symbol_value = (uint64_t) (uintptr_t) dep->loaded_image -
-        dep->program->base_vaddr + sym->st_value;
-      if (symbol_type)
-        *symbol_type = ELF64_ST_TYPE(sym->st_info);
+    if (resolve_loaded_program_symbol(dep->program, dep->loaded_image,
+          symbol_name, symbol_value, symbol_type) == 0)
       return 0;
-    }
+    if (resolve_loaded_dependency_symbol_at_depth(dep->program, symbol_name,
+          symbol_value, symbol_type, depth + 1) == 0)
+      return 0;
   }
   return -1;
+}
+
+static int resolve_loaded_dependency_symbol(const struct poly_program *program,
+    const char *symbol_name, uint64_t *symbol_value, uint8_t *symbol_type) {
+  return resolve_loaded_dependency_symbol_at_depth(program, symbol_name,
+    symbol_value, symbol_type, 0);
 }
 
 static int resolve_dependency_reloc_symbol(const struct poly_program *program,
