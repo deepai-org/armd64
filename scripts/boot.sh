@@ -3550,6 +3550,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/aarch64-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/aarch64-strlen.elf=5 \
@@ -3814,6 +3815,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/riscv-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-strlen.elf=5 \
@@ -4127,6 +4129,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/aarch64-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so#poly_entry=45 \
@@ -4137,6 +4140,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-rel.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf#poly_entry=123 \
+    /usr/lib/polyapps/riscv-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-compressed-ebreak.elf=0xffffffffffffffda \
@@ -4630,6 +4634,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-rel.elf \
       /usr/lib/polyapps/aarch64-pcall-relr.elf \
       /usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf \
+      /usr/lib/polyapps/aarch64-pcall-irelative.elf \
       /usr/lib/polyapps/aarch64-pcall-jumprel.elf \
       /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf \
       /usr/lib/polyapps/aarch64-strlen.elf \
@@ -4664,6 +4669,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-rel.elf \
       /usr/lib/polyapps/riscv-pcall-relr.elf \
       /usr/lib/polyapps/riscv-pcall-relr-bitmap.elf \
+      /usr/lib/polyapps/riscv-pcall-irelative.elf \
       /usr/lib/polyapps/riscv-pcall-jumprel.elf \
       /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf \
       /usr/lib/polyapps/riscv-strlen.elf \

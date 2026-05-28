@@ -40,6 +40,10 @@
 #define R_AARCH64_JUMP_SLOT 1026
 #endif
 
+#ifndef R_AARCH64_IRELATIVE
+#define R_AARCH64_IRELATIVE 1032
+#endif
+
 #ifndef R_RISCV_NONE
 #define R_RISCV_NONE 0
 #endif
@@ -54,6 +58,10 @@
 
 #ifndef R_RISCV_JUMP_SLOT
 #define R_RISCV_JUMP_SLOT 5
+#endif
+
+#ifndef R_RISCV_IRELATIVE
+#define R_RISCV_IRELATIVE 58
 #endif
 
 #ifndef DT_RELR
@@ -263,6 +271,14 @@ static int symbolic_64_reloc_type_for_arch(int arch, uint32_t type) {
   if (arch == POLY_ARCH_RISCV)
     return type == R_RISCV_64 || type == R_RISCV_JUMP_SLOT;
   return 0;
+}
+
+static uint32_t irelative_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_IRELATIVE;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_IRELATIVE;
+  return UINT32_MAX;
 }
 
 static uint32_t none_reloc_type_for_arch(int arch) {
@@ -1573,6 +1589,12 @@ static int protect_load_segments(const struct poly_program *program,
   return 0;
 }
 
+static uint32_t aarch64_adr(unsigned rd, int64_t byte_offset);
+static int aarch64_b(int64_t byte_offset, uint32_t *insn);
+static uint32_t riscv_auipc(unsigned rd, int64_t byte_offset);
+static uint32_t riscv_addi(unsigned rd, unsigned rs1, int64_t byte_offset);
+static uint32_t riscv_jalr(unsigned rd, unsigned rs1, int16_t byte_offset);
+
 static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
   uint64_t rax = (uint64_t) (uintptr_t) scratch;
   asm volatile(
@@ -1595,6 +1617,51 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
       : "r"(code)
       : "rdi", "rsi", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
   return rax;
+}
+
+static int emit_poly_trampoline(const struct poly_program *program,
+    uint8_t *code, size_t prefix_size, uint64_t return_pc,
+    uint64_t target_pc) {
+  size_t offset = 0;
+  if (program->arch == POLY_ARCH_AARCH64) {
+    const uint8_t raw_switch[] = {
+      0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21
+    };
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+    emit_u32(code, &offset, aarch64_adr(30,
+      (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset)));
+    uint32_t branch = 0;
+    if (aarch64_b((int64_t) target_pc - (int64_t) (uintptr_t) (code + offset),
+          &branch) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: AArch64 target branch out of range: %s\n",
+        program->path);
+      return -1;
+    }
+    emit_u32(code, &offset, branch);
+  }
+  else {
+    const uint8_t raw_switch[] = {
+      0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21
+    };
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+    int64_t escape_offset =
+      (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset);
+    emit_u32(code, &offset, riscv_auipc(1, escape_offset));
+    emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));
+    int64_t target_offset =
+      (int64_t) target_pc - (int64_t) (uintptr_t) (code + offset);
+    emit_u32(code, &offset, riscv_auipc(5, target_offset));
+    emit_u32(code, &offset, riscv_addi(5, 5, target_offset));
+    emit_u32(code, &offset, riscv_jalr(0, 5, 0));
+  }
+  if (offset != prefix_size) {
+    fprintf(stderr, "POLYEXEC_FAIL: internal trampoline size mismatch: %s\n",
+      program->path);
+    return -1;
+  }
+  return 0;
 }
 
 static uint32_t aarch64_adr(unsigned rd, int64_t byte_offset) {
@@ -1628,8 +1695,28 @@ static uint32_t riscv_jalr(unsigned rd, unsigned rs1, int16_t byte_offset) {
     ((rs1 & 0x1fU) << 15) | ((rd & 0x1fU) << 7) | 0x67U;
 }
 
+static int run_irelative_resolver(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
+    uint64_t *resolved) {
+  size_t resolver_offset = 0;
+  if (elf_vaddr_to_image_offset(program, resolver_vaddr, 4,
+        &resolver_offset) < 0)
+    return -1;
+  const uint64_t load_bias =
+    (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
+  const uint64_t resolver_pc = load_bias + resolver_vaddr;
+  if (emit_poly_trampoline(program, trampoline_code, prefix_size,
+        return_pc, resolver_pc) < 0)
+    return -1;
+  *resolved = run_poly_entry(trampoline_code, scratch);
+  poly_mode_x86();
+  return 0;
+}
+
 static int apply_relative_relocations(const struct poly_program *program,
-    uint8_t *loaded_image) {
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch) {
   if (!program->dynamic_size)
     return 0;
 
@@ -1664,6 +1751,7 @@ static int apply_relative_relocations(const struct poly_program *program,
   }
 
   const uint32_t relative_type = relative_reloc_type_for_arch(program->arch);
+  const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
   const uint32_t none_type = none_reloc_type_for_arch(program->arch);
   const uint64_t load_bias = (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   if (rela_vaddr && rela_size) {
@@ -1678,9 +1766,20 @@ static int apply_relative_relocations(const struct poly_program *program,
       const uint32_t reloc_type = ELF64_R_TYPE(rela->r_info);
       if (reloc_type == none_type)
         continue;
+      size_t target = 0;
+      if (elf_vaddr_to_image_offset(program, rela->r_offset, 8, &target) < 0)
+        return -1;
       uint64_t reloc_value = 0;
+      int reloc_value_is_absolute = 0;
       if (symbol_index == 0 && reloc_type == relative_type) {
         reloc_value = (uint64_t) rela->r_addend;
+      }
+      else if (symbol_index == 0 && reloc_type == irelative_type) {
+        if (run_irelative_resolver(program, loaded_image, trampoline_code,
+              prefix_size, return_pc, scratch, (uint64_t) rela->r_addend,
+              &reloc_value) < 0)
+          return -1;
+        reloc_value_is_absolute = 1;
       }
       else if (symbol_index != 0 &&
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
@@ -1693,10 +1792,8 @@ static int apply_relative_relocations(const struct poly_program *program,
       else {
         return -1;
       }
-      size_t target = 0;
-      if (elf_vaddr_to_image_offset(program, rela->r_offset, 8, &target) < 0)
-        return -1;
-      write_u64_le(loaded_image + target, load_bias + reloc_value);
+      write_u64_le(loaded_image + target,
+        reloc_value_is_absolute ? reloc_value : load_bias + reloc_value);
     }
   }
 
@@ -1716,8 +1813,15 @@ static int apply_relative_relocations(const struct poly_program *program,
       if (elf_vaddr_to_image_offset(program, rel->r_offset, 8, &target) < 0)
         return -1;
       uint64_t reloc_value = read_u64_le(loaded_image + target);
+      int reloc_value_is_absolute = 0;
       if (symbol_index == 0 && reloc_type == relative_type) {
         // REL stores the addend in-place at the relocation target.
+      }
+      else if (symbol_index == 0 && reloc_type == irelative_type) {
+        if (run_irelative_resolver(program, loaded_image, trampoline_code,
+              prefix_size, return_pc, scratch, reloc_value, &reloc_value) < 0)
+          return -1;
+        reloc_value_is_absolute = 1;
       }
       else if (symbol_index != 0 &&
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
@@ -1731,7 +1835,8 @@ static int apply_relative_relocations(const struct poly_program *program,
       else {
         return -1;
       }
-      write_u64_le(loaded_image + target, load_bias + reloc_value);
+      write_u64_le(loaded_image + target,
+        reloc_value_is_absolute ? reloc_value : load_bias + reloc_value);
     }
   }
 
@@ -2221,68 +2326,18 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   }
 
   uint8_t *code = mapping + code_offset;
-  size_t offset = 0;
   const uint64_t return_pc = (uint64_t) (uintptr_t)
     (mapping + return_page_offset);
   const uint64_t entry_pc = (uint64_t) (uintptr_t) (mapping + load_base_offset + program->entry_offset);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
     0xd42fffe0U : 0x0000000bU;
-  if (program->arch == POLY_ARCH_AARCH64) {
-    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
-    emit_u32(code, &offset, aarch64_adr(30,
-      (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset)));
-    uint32_t branch = 0;
-    if (aarch64_b((int64_t) entry_pc - (int64_t) (uintptr_t) (code + offset),
-          &branch) < 0) {
-      fprintf(stderr, "POLYEXEC_FAIL: AArch64 entry branch out of range: %s\n",
-        program->path);
-      munmap(mapping, mapping_size);
-      return -1;
-    }
-    emit_u32(code, &offset, branch);
-  } else {
-    const uint8_t raw_switch[] = { 0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
-    int64_t escape_offset = (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset);
-    emit_u32(code, &offset, riscv_auipc(1, escape_offset));
-    emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));
-    int64_t entry_offset = (int64_t) entry_pc - (int64_t) (uintptr_t) (code + offset);
-    emit_u32(code, &offset, riscv_auipc(5, entry_offset));
-    emit_u32(code, &offset, riscv_addi(5, 5, entry_offset));
-    emit_u32(code, &offset, riscv_jalr(0, 5, 0));
-  }
-  if (offset != prefix_size) {
-    fprintf(stderr, "POLYEXEC_FAIL: internal trampoline size mismatch: %s\n",
-      program->path);
-    munmap(mapping, mapping_size);
-    return -1;
-  }
-  offset = load_base_offset;
+  size_t offset = load_base_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
   emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
   offset = return_page_offset;
   emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
-  if (apply_relative_relocations(program, mapping + load_base_offset) < 0) {
-    fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
-      program->path);
-    munmap(mapping, mapping_size);
-    return -1;
-  }
-  if (protect_load_segments(program, mapping + load_base_offset) < 0) {
-    munmap(mapping, mapping_size);
-    return -1;
-  }
-  if (protect_image_range(program, mapping + load_base_offset,
-        program->relro_vaddr, program->relro_size, PROT_READ,
-        "PT_GNU_RELRO") < 0) {
-    munmap(mapping, mapping_size);
-    return -1;
-  }
 
   size_t scratch_size = 4096;
   uint8_t *scratch = mmap(NULL, scratch_size, PROT_READ | PROT_WRITE,
@@ -2293,6 +2348,32 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     munmap(mapping, mapping_size);
     return -1;
   }
+  if (apply_relative_relocations(program, mapping + load_base_offset, code,
+        prefix_size, return_pc, scratch) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
+      program->path);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (protect_load_segments(program, mapping + load_base_offset) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (protect_image_range(program, mapping + load_base_offset,
+        program->relro_vaddr, program->relro_size, PROT_READ,
+        "PT_GNU_RELRO") < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+
   if (prepare_program_scratch(program->path, (char *) scratch, scratch_size) < 0) {
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);

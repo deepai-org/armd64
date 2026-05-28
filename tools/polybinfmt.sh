@@ -27,6 +27,7 @@ case "$path" in
   */aarch64-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-relr.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-relr-bitmap.elf) expected=123; entry="#poly_entry" ;;
+  */aarch64-pcall-irelative.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-jumprel.elf) expected=123 ;;
   */aarch64-pcall-rel-jumprel.elf) expected=123 ;;
   */aarch64-strlen.elf) expected=5 ;;
@@ -109,6 +110,7 @@ case "$path" in
   */riscv-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
   */riscv-pcall-relr.elf) expected=123; entry="#poly_entry" ;;
   */riscv-pcall-relr-bitmap.elf) expected=123; entry="#poly_entry" ;;
+  */riscv-pcall-irelative.elf) expected=123; entry="#poly_entry" ;;
   */riscv-pcall-jumprel.elf) expected=123 ;;
   */riscv-pcall-rel-jumprel.elf) expected=123 ;;
   */riscv-strlen.elf) expected=5 ;;
