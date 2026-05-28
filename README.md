@@ -1,7 +1,10 @@
 # armd64
 
 Bochs prototype for running existing precompiled AArch64 and RISC-V userspace
-code inside an x64 Linux process. The modified CPU lives in `bochs-prepoly-src/`.
+code inside an x86_64 Linux process.
+
+The modified emulator is in `bochs-prepoly-src/`. Detailed ISA notes are in
+`docs/poly-isa.md`.
 
 ## Run
 
@@ -9,38 +12,45 @@ Requires Docker with `linux/arm64` support.
 
 ```bash
 make image
-make boot-poly-full-arch-traps     # full polyglot test run
-make boot                         # x86_64 baseline only
-make boot-poly-call-arch-traps    # calls, pthreads, signals
+make boot-poly-full-arch-traps
+```
+
+Useful shorter runs:
+
+```bash
+make boot                         # x86_64 baseline
+make boot-poly-call-arch-traps    # cross-ISA calls, pthreads, signals
 make boot-poly-binfmt-arch-traps  # foreign ELF/binfmt execution
 ```
 
-Check `out/serial.log`:
+Check the serial log:
 
 ```bash
 grep -E 'BOOT_OK|NATIVE_CHECK_OK|POLYCALL_OK|POLYTHREAD_OK|POLYSIGNAL_OK|POLYBINFMT_OK|FAIL|Kernel panic' out/serial.log
 ```
 
-Rebuild with `make image` after changing Bochs or test sources.
+Re-run `make image` after changing Bochs or test sources.
 
-## How The ISA Differs From x64
+## ISA Delta From x64
 
-The machine is still architecturally x64 for paging, privilege levels,
-interrupts, exceptions, syscall entry, atomics, and memory ordering. The
-extension adds only the pieces needed to enter, run, and return from foreign
-userspace code:
+The base machine remains x86_64: paging, privilege levels, interrupts,
+exceptions, syscall entry, atomics, and memory ordering follow x64 rules.
 
-- `PENTER`/`PEXIT`: switch the fetch/decode frontend between x64, raw
-  AArch64, and raw RISC-V without per-instruction exception envelopes.
-- `PCALL`: call existing foreign ABI code from x64 by mapping SysV arguments
-  and returns to AAPCS64 or RISC-V psABI registers/stack layout.
-- Explicit foreign register state and OS-neutral trap records for foreign
-  syscalls, breakpoints, illegal instructions, and faults.
+The polyglot extension adds:
 
-Current Bochs opcode-family placeholder:
+- `PENTER.A64` / `PENTER.RV64`: switch fetch/decode from x64 to raw fixed-width
+  AArch64 or RISC-V instructions.
+- `PEXIT`: switch fetch/decode back to x64.
+- `PCALL`: bridge x86_64 SysV calls to existing AAPCS64 or RISC-V psABI code by
+  mapping native argument, return, stack, FP, and vector ABI state.
+- Explicit foreign state: non-x64 registers are architectural state that can be
+  saved/restored instead of hidden emulator-only process state.
+- OS-neutral traps: foreign syscalls, breakpoints, illegal instructions, and
+  faults produce trap records for software to handle; the ISA does not bake in
+  Linux or libc policy.
+
+Current Bochs prototype opcode family:
 
 ```text
 0f 24 <op> 50 4f 4c 59 21
 ```
-
-Full architecture notes: `docs/poly-isa.md`.
