@@ -408,6 +408,12 @@ similarly carry `d0`-`d7`/`fa0`-`fa7` through neutral cross-calls.
 Fixed 128-bit vector cross-calls use explicit ABI bridge encodings because
 AAPCS64 returns these values in `v0` while RV64 psABI lowers them through GPR
 pairs.
+The user-space loader selects these neutral cross-call bridges from `POLYABI`
+ELF note metadata on the exported callee symbol.  The prototype metadata names
+are `default`, `compact_u32_f32`, `compact_f32_u32`, `fp64_stack`, and
+`vec128_u32`; the loader emits a direct AArch64 `brk #0x7ffc`/`#0x7ffb`/
+`#0x7ffa`/`#0x7ff8` or RISC-V custom `0x0000107b`/`0x0000207b`/
+`0x0000307b`/`0x0000507b` call stub rather than routing through x86.
 The native cross-call forms additionally set the callee's native link register
 to a hardware return cookie, so AArch64 `ret` or RISC-V `jalr x0, 0(ra)`
 restores the caller frontend mode and continuation without an x86 rendezvous.
