@@ -1,12 +1,12 @@
 # armd64
 
-Bochs prototype for running existing precompiled AArch64 and RISC-V userspace
-code inside an x86_64 Linux process.
+Bochs-based prototype for running existing precompiled AArch64 and RISC-V
+userspace code inside an x86_64 Linux guest process.
 
-The modified emulator is in `bochs-prepoly-src/`. Detailed ISA notes are in
+Modified Bochs lives in `bochs-prepoly-src/`. Full ISA details live in
 `docs/poly-isa.md`.
 
-## Run
+## How To Run
 
 Requires Docker with `linux/arm64` support.
 
@@ -15,7 +15,7 @@ make image
 make boot-poly-full-arch-traps
 ```
 
-Useful shorter runs:
+Common faster checks:
 
 ```bash
 make boot                         # x86_64 baseline
@@ -23,33 +23,29 @@ make boot-poly-call-arch-traps    # cross-ISA calls, pthreads, signals
 make boot-poly-binfmt-arch-traps  # foreign ELF/binfmt execution
 ```
 
-Check the serial log:
+Inspect the serial log:
 
 ```bash
 grep -E 'BOOT_OK|NATIVE_CHECK_OK|POLYCALL_OK|POLYTHREAD_OK|POLYSIGNAL_OK|POLYBINFMT_OK|FAIL|Kernel panic' out/serial.log
 ```
 
-Re-run `make image` after changing Bochs or test sources.
+Run `make image` again after changing Bochs or guest test sources.
 
-## ISA Delta From x64
+## How The ISA Differs From x86_64
 
-The base machine remains x86_64: paging, privilege levels, interrupts,
-exceptions, syscall entry, atomics, and memory ordering follow x64 rules.
+The base CPU is still x86_64. Paging, privilege levels, interrupts, exceptions,
+syscall entry, atomics, and the memory model follow x86_64 rules.
 
-The polyglot extension adds:
+The polyglot extension adds only the cross-ISA machinery:
 
-- `PENTER.A64` / `PENTER.RV64`: switch fetch/decode from x64 to raw fixed-width
-  AArch64 or RISC-V instructions.
-- `PEXIT`: switch fetch/decode back to x64.
-- `PCALL`: bridge x86_64 SysV calls to existing AAPCS64 or RISC-V psABI code by
-  mapping native argument, return, stack, FP, and vector ABI state.
-- Explicit foreign state: non-x64 registers are architectural state that can be
-  saved/restored instead of hidden emulator-only process state.
-- OS-neutral traps: foreign syscalls, breakpoints, illegal instructions, and
-  faults produce trap records for software to handle; the ISA does not bake in
-  Linux or libc policy.
+- Enter raw AArch64 or RISC-V fetch/decode from x86_64.
+- Exit raw AArch64 or RISC-V fetch/decode back to x86_64.
+- Bridge calls between x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI code.
+- Expose non-x86 register state as architectural save/restore state.
+- Report foreign syscalls, breakpoints, illegal instructions, and faults as
+  OS-neutral traps instead of emulating Linux or libc in the CPU.
 
-Current Bochs prototype opcode family:
+Current prototype opcodes use the Bochs-only family:
 
 ```text
 0f 24 <op> 50 4f 4c 59 21
