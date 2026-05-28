@@ -88,6 +88,8 @@ enum {
   POLY_SYS_GETTID = 178,
   POLY_SYS_SOCKET = 198,
   POLY_SYS_SOCKETPAIR = 199,
+  POLY_SYS_GETSOCKNAME = 204,
+  POLY_SYS_GETPEERNAME = 205,
   POLY_SYS_SENDTO = 206,
   POLY_SYS_RECVFROM = 207,
   POLY_SYS_SETSOCKOPT = 208,
@@ -156,6 +158,11 @@ struct poly_pollfd {
   int32_t fd;
   int16_t events;
   int16_t revents;
+};
+
+struct poly_sockaddr_un {
+  uint16_t family;
+  char path[108];
 };
 
 struct poly_epoll_event {
@@ -813,6 +820,34 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0) != 0 ||
       poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0) != 0)
     return 180;
+
+  if (poly_syscall4(POLY_SYS_SOCKETPAIR, POLY_AF_UNIX,
+        POLY_SOCK_STREAM, 0, (long) socket_fds) != 0)
+    return 181;
+  struct poly_sockaddr_un local_name;
+  uint32_t local_name_len = sizeof(local_name);
+  if (poly_syscall3(POLY_SYS_GETSOCKNAME, socket_fds[0],
+        (long) &local_name, (long) &local_name_len) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 182;
+  }
+  struct poly_sockaddr_un peer_name;
+  uint32_t peer_name_len = sizeof(peer_name);
+  if (poly_syscall3(POLY_SYS_GETPEERNAME, socket_fds[0],
+        (long) &peer_name, (long) &peer_name_len) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0);
+    return 183;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, socket_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, socket_fds[1], 0) != 0)
+    return 184;
+  if (local_name_len < sizeof(local_name.family) ||
+      peer_name_len < sizeof(peer_name.family))
+    return 185;
+  if (local_name.family != POLY_AF_UNIX || peer_name.family != POLY_AF_UNIX)
+    return 186;
 
   if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
     return 156;
