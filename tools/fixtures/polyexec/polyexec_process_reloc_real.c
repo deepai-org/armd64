@@ -50,6 +50,11 @@ uint64_t poly_reloc_helper(uint64_t value) {
   return value + *poly_reloc_seed_ptr + *poly_reloc_delta_ptr;
 }
 
+__attribute__((visibility("default")))
+uint64_t poly_reloc_interposable(uint64_t value) {
+  return value + 0x42;
+}
+
 uint64_t (*poly_reloc_helper_ptr)(uint64_t) = poly_reloc_helper;
 
 uint64_t poly_process_main(uint64_t *initial_sp) {
@@ -64,6 +69,8 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   uint64_t result = poly_reloc_helper_ptr(0x9abcULL);
   if (result != 0x123400000000f134ULL)
     return 21;
+  if (poly_reloc_interposable(0x55) != 0x97)
+    return 23;
 
   static const char marker[] = "POLY_PROCESS_RELOC_OK\n";
   if (poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
