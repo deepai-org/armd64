@@ -314,6 +314,70 @@ static uint64_t pcall_riscv_hidden_fp_busy(uint64_t left_bits,
   return read_xmm0_u64();
 }
 
+static uint64_t pcall_aarch64_hidden_fp_set(uint64_t value_bits) {
+  write_xmm0_u64(value_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x3a,0xfc,0x10\n"
+    "1:\n"
+    ".long 0x1e604014\n" // fmov d20,d0
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    :::
+    "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+    "xmm0", "memory");
+  return read_xmm0_u64();
+}
+
+static uint64_t pcall_aarch64_hidden_fp_get(uint64_t addend_bits) {
+  write_xmm0_u64(addend_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x3a,0xfc,0x10\n"
+    "1:\n"
+    ".long 0x1e602a80\n" // fadd d0,d20,d0
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    :::
+    "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+    "xmm0", "memory");
+  return read_xmm0_u64();
+}
+
+static uint64_t pcall_riscv_hidden_fp_set(uint64_t value_bits) {
+  write_xmm0_u64(value_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x3a,0xfc,0x11\n"
+    "1:\n"
+    ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    :::
+    "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+    "xmm0", "memory");
+  return read_xmm0_u64();
+}
+
+static uint64_t pcall_riscv_hidden_fp_get(uint64_t addend_bits) {
+  write_xmm0_u64(addend_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    ".byte 0x0f,0x3a,0xfc,0x11\n"
+    "1:\n"
+    ".long 0x02aa7553\n" // fadd.d fa0,f20,fa0
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    :::
+    "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+    "xmm0", "memory");
+  return read_xmm0_u64();
+}
+
 static uint64_t trap_aarch64_syscall(uint64_t number, uint64_t arg6,
     uint64_t arg7) {
   uint64_t result = number;
@@ -557,6 +621,8 @@ static void *worker_main(void *arg) {
 
   uint64_t default_aarch64_seed = base + 0x20000ULL;
   uint64_t default_riscv_seed = base + 0x30000ULL;
+  uint64_t default_aarch64_fp_seed = base + 0x34000ULL;
+  uint64_t default_riscv_fp_seed = base + 0x35000ULL;
   if (pcall_aarch64_hidden_set(default_aarch64_seed) !=
       default_aarch64_seed) {
     fprintf(stderr,
@@ -567,6 +633,22 @@ static void *worker_main(void *arg) {
   if (pcall_riscv_hidden_set(default_riscv_seed) != default_riscv_seed) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default riscv hidden set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_aarch64_hidden_fp_set(
+      double_to_bits((double) default_aarch64_fp_seed)) !=
+      double_to_bits((double) default_aarch64_fp_seed)) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 hidden fp set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_riscv_hidden_fp_set(
+      double_to_bits((double) default_riscv_fp_seed)) !=
+      double_to_bits((double) default_riscv_fp_seed)) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default riscv hidden fp set failed\n",
       (unsigned long) worker_id);
     return (void *) 1;
   }
@@ -590,6 +672,30 @@ static void *worker_main(void *arg) {
       (unsigned long) worker_id,
       (unsigned long long) default_riscv_result,
       (unsigned long long) (default_riscv_seed + 11));
+    return (void *) 1;
+  }
+  uint64_t default_aarch64_fp_result =
+    pcall_aarch64_hidden_fp_get(double_to_bits(9.0));
+  uint64_t default_aarch64_fp_expected =
+    double_to_bits((double) default_aarch64_fp_seed + 9.0);
+  if (default_aarch64_fp_result != default_aarch64_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 fp bank got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) default_aarch64_fp_result,
+      (unsigned long long) default_aarch64_fp_expected);
+    return (void *) 1;
+  }
+  uint64_t default_riscv_fp_result =
+    pcall_riscv_hidden_fp_get(double_to_bits(11.0));
+  uint64_t default_riscv_fp_expected =
+    double_to_bits((double) default_riscv_fp_seed + 11.0);
+  if (default_riscv_fp_result != default_riscv_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu default riscv fp bank got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) default_riscv_fp_result,
+      (unsigned long long) default_riscv_fp_expected);
     return (void *) 1;
   }
 
