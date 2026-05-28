@@ -21,6 +21,9 @@ enum {
   POLY_EPOLL_CTL_ADD = 1,
   POLY_IN_OPEN = 0x20,
   POLY_POLLIN = 1,
+  POLY_O_CREAT = 0100,
+  POLY_O_RDWR = 02,
+  POLY_O_TRUNC = 01000,
   POLY_O_DIRECTORY = 0200000,
   POLY_O_CLOEXEC = 02000000,
   POLY_F_GETFD = 1,
@@ -35,10 +38,14 @@ enum {
   POLY_SIG_SETMASK = 2,
   POLY_SIGUSR1 = 10,
   POLY_S_IFMT = 0170000,
+  POLY_S_IFDIR = 0040000,
   POLY_S_IFREG = 0100000,
+  POLY_S_IFLNK = 0120000,
   POLY_DIRENT64_NAME_OFFSET = 19,
   POLY_KERNEL_SIGSET_SIZE = 8,
   POLY_AT_FDCWD = -100,
+  POLY_AT_SYMLINK_NOFOLLOW = 0x100,
+  POLY_AT_REMOVEDIR = 0x200,
   POLY_STATX_BASIC_STATS = 0x7ff,
 
   POLY_SYS_GETCWD = 17,
@@ -51,6 +58,11 @@ enum {
   POLY_SYS_INOTIFY_INIT1 = 26,
   POLY_SYS_INOTIFY_ADD_WATCH = 27,
   POLY_SYS_INOTIFY_RM_WATCH = 28,
+  POLY_SYS_MKDIRAT = 34,
+  POLY_SYS_UNLINKAT = 35,
+  POLY_SYS_SYMLINKAT = 36,
+  POLY_SYS_LINKAT = 37,
+  POLY_SYS_RENAMEAT = 38,
   POLY_SYS_STATFS = 43,
   POLY_SYS_FSTATFS = 44,
   POLY_SYS_FTRUNCATE = 46,
@@ -1504,6 +1516,103 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 70;
   if (!found_polyexec)
     return 72;
+
+  static const char namespace_dir[] = "/polyproc-syscall-real";
+  static const char namespace_file[] = "/polyproc-syscall-real/file";
+  static const char namespace_renamed[] = "/polyproc-syscall-real/renamed";
+  static const char namespace_hard[] = "/polyproc-syscall-real/hard";
+  static const char namespace_symlink[] = "/polyproc-syscall-real/symlink";
+  poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_hard, 0);
+  poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_symlink, 0);
+  poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_renamed, 0);
+  poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_file, 0);
+  poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_dir,
+    POLY_AT_REMOVEDIR);
+  if (poly_syscall3(POLY_SYS_MKDIRAT, POLY_AT_FDCWD,
+        (long) namespace_dir, 0700) != 0)
+    return 243;
+  struct poly_linux_generic_stat namespace_dir_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_dir, (long) &namespace_dir_stat, 0) != 0)
+    return 244;
+  if ((namespace_dir_stat.mode & POLY_S_IFMT) != POLY_S_IFDIR)
+    return 245;
+  fd = poly_syscall4(POLY_SYS_OPENAT, POLY_AT_FDCWD,
+    (long) namespace_file,
+    POLY_O_CREAT | POLY_O_RDWR | POLY_O_TRUNC | POLY_O_CLOEXEC, 0600);
+  if (fd < 0)
+    return 246;
+  static const char namespace_message[] = "NS";
+  if (poly_syscall3(POLY_SYS_WRITE, fd, (long) namespace_message,
+        sizeof(namespace_message) - 1) !=
+      (long) sizeof(namespace_message) - 1) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 247;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 248;
+  if (poly_syscall4(POLY_SYS_RENAMEAT, POLY_AT_FDCWD,
+        (long) namespace_file, POLY_AT_FDCWD,
+        (long) namespace_renamed) != 0)
+    return 249;
+  if (poly_syscall5(POLY_SYS_LINKAT, POLY_AT_FDCWD,
+        (long) namespace_renamed, POLY_AT_FDCWD,
+        (long) namespace_hard, 0) != 0)
+    return 250;
+  if (poly_syscall3(POLY_SYS_SYMLINKAT, (long) "renamed",
+        POLY_AT_FDCWD, (long) namespace_symlink) != 0)
+    return 251;
+  char symlink_target[16];
+  long symlink_len = poly_syscall4(POLY_SYS_READLINKAT, POLY_AT_FDCWD,
+    (long) namespace_symlink, (long) symlink_target, sizeof(symlink_target));
+  if (symlink_len != 7 || !poly_contains_len(symlink_target, symlink_len,
+        "renamed"))
+    return 252;
+  struct poly_linux_generic_stat namespace_link_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_symlink, (long) &namespace_link_stat,
+        POLY_AT_SYMLINK_NOFOLLOW) != 0)
+    return 253;
+  if ((namespace_link_stat.mode & POLY_S_IFMT) != POLY_S_IFLNK)
+    return 254;
+  struct poly_linux_generic_stat namespace_file_stat;
+  struct poly_linux_generic_stat namespace_hard_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_renamed, (long) &namespace_file_stat, 0) != 0)
+    return 255;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_hard, (long) &namespace_hard_stat, 0) != 0)
+    return 256;
+  if ((namespace_file_stat.mode & POLY_S_IFMT) != POLY_S_IFREG ||
+      namespace_file_stat.size != 2 ||
+      namespace_file_stat.ino != namespace_hard_stat.ino)
+    return 257;
+  fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD,
+    (long) namespace_hard, 0);
+  if (fd < 0)
+    return 258;
+  char namespace_read[2];
+  if (poly_syscall3(POLY_SYS_READ, fd, (long) namespace_read,
+        sizeof(namespace_read)) != (long) sizeof(namespace_read)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 259;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 260;
+  if (namespace_read[0] != 'N' || namespace_read[1] != 'S')
+    return 261;
+  if (poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD,
+        (long) namespace_hard, 0) != 0)
+    return 262;
+  if (poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD,
+        (long) namespace_symlink, 0) != 0)
+    return 263;
+  if (poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD,
+        (long) namespace_renamed, 0) != 0)
+    return 264;
+  if (poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD,
+        (long) namespace_dir, POLY_AT_REMOVEDIR) != 0)
+    return 265;
 
   char vec0[2];
   char vec1[2];
