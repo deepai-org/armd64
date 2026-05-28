@@ -475,7 +475,7 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
     "$POLYEXEC_GNU_HASH_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so"
-  aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_START_REAL_SRC" \
@@ -2070,7 +2070,7 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=gnu -Wl,--build-id=none \
     "$POLYEXEC_GNU_HASH_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so"
-  riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_START_REAL_SRC" \

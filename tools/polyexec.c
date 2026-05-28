@@ -82,6 +82,10 @@ extern char **environ;
 #define DT_GNU_HASH 0x6ffffef5
 #endif
 
+#ifndef GRND_NONBLOCK
+#define GRND_NONBLOCK 0x0001
+#endif
+
 #ifndef DT_PLTRELSZ
 #define DT_PLTRELSZ 2
 #endif
@@ -136,6 +140,9 @@ struct poly_program {
   int arch;
   uint64_t base_vaddr;
   size_t entry_offset;
+  uint64_t phdr_vaddr;
+  uint16_t phent;
+  uint16_t phnum;
   size_t dynamic_offset;
   size_t dynamic_size;
   struct poly_load_segment load_segments[MAX_LOAD_SEGMENTS];
@@ -1606,7 +1613,8 @@ static int copy_stack_string(uint8_t *stack, uint8_t **cursor,
   return 0;
 }
 
-static int build_process_stack(const struct poly_request *request,
+static int build_process_stack(const struct poly_program *program,
+    const struct poly_request *request, const uint8_t *loaded_image,
     int extra_argc, char **extra_argv, uint8_t **stack_out,
     size_t *stack_size_out, uint64_t *initial_sp_out) {
   const size_t stack_size = 128 * 1024;
@@ -1625,6 +1633,9 @@ static int build_process_stack(const struct poly_request *request,
   const size_t argc = (size_t) extra_argc + 1;
   uint64_t *argv_ptrs = calloc(argc, sizeof(*argv_ptrs));
   uint64_t *env_ptrs = calloc(envc ? envc : 1, sizeof(*env_ptrs));
+  uint64_t execfn_ptr = 0;
+  uint64_t platform_ptr = 0;
+  uint64_t random_ptr = 0;
   if (!argv_ptrs || !env_ptrs) {
     fprintf(stderr, "POLYEXEC_FAIL: out of memory building process stack\n");
     free(argv_ptrs);
@@ -1634,6 +1645,27 @@ static int build_process_stack(const struct poly_request *request,
   }
 
   uint8_t *cursor = stack + stack_size;
+  if (copy_stack_string(stack, &cursor, program->arch == POLY_ARCH_AARCH64 ?
+        "aarch64" : "riscv64", &platform_ptr) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: process platform does not fit stack\n");
+    free(argv_ptrs);
+    free(env_ptrs);
+    munmap(stack, stack_size);
+    return -1;
+  }
+  if ((size_t) (cursor - stack) < 16) {
+    fprintf(stderr, "POLYEXEC_FAIL: process random bytes do not fit stack\n");
+    free(argv_ptrs);
+    free(env_ptrs);
+    munmap(stack, stack_size);
+    return -1;
+  }
+  cursor -= 16;
+  if (syscall(SYS_getrandom, cursor, 16, GRND_NONBLOCK) != 16) {
+    for (size_t n = 0; n < 16; n++)
+      cursor[n] = (uint8_t) (0xa5U ^ (uint8_t) n ^ (uint8_t) getpid());
+  }
+  random_ptr = (uint64_t) (uintptr_t) cursor;
   if (copy_stack_string(stack, &cursor, request->path, &argv_ptrs[0]) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: process argv0 does not fit stack\n");
     free(argv_ptrs);
@@ -1660,8 +1692,36 @@ static int build_process_stack(const struct poly_request *request,
       return -1;
     }
   }
+  execfn_ptr = argv_ptrs[0];
 
-  const size_t table_words = 1 + argc + 1 + envc + 1 + 2;
+  const uint64_t load_bias =
+    (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
+  const uint64_t phdr_addr = program->phdr_vaddr ?
+    load_bias + program->phdr_vaddr : 0;
+  const uint64_t entry_addr = load_bias + program->base_vaddr +
+    (uint64_t) program->entry_offset;
+  const struct {
+    uint64_t type;
+    uint64_t value;
+  } auxv[] = {
+    { AT_PHDR, phdr_addr },
+    { AT_PHENT, program->phent },
+    { AT_PHNUM, program->phnum },
+    { AT_PAGESZ, 4096 },
+    { AT_ENTRY, entry_addr },
+    { AT_UID, (uint64_t) getuid() },
+    { AT_EUID, (uint64_t) geteuid() },
+    { AT_GID, (uint64_t) getgid() },
+    { AT_EGID, (uint64_t) getegid() },
+    { AT_SECURE, 0 },
+    { AT_RANDOM, random_ptr },
+    { AT_EXECFN, execfn_ptr },
+    { AT_PLATFORM, platform_ptr },
+    { AT_NULL, 0 }
+  };
+
+  const size_t table_words = 1 + argc + 1 + envc + 1 +
+    (sizeof(auxv) / sizeof(auxv[0])) * 2;
   const size_t table_bytes = table_words * sizeof(uint64_t);
   uintptr_t sp_addr = ((uintptr_t) cursor - table_bytes) & ~(uintptr_t) 15;
   if (sp_addr < (uintptr_t) stack) {
@@ -1681,8 +1741,10 @@ static int build_process_stack(const struct poly_request *request,
   for (size_t n = 0; n < envc; n++)
     sp[out++] = env_ptrs[n];
   sp[out++] = 0;
-  sp[out++] = 0;
-  sp[out++] = 0;
+  for (size_t n = 0; n < sizeof(auxv) / sizeof(auxv[0]); n++) {
+    sp[out++] = auxv[n].type;
+    sp[out++] = auxv[n].value;
+  }
 
   free(argv_ptrs);
   free(env_ptrs);
@@ -2230,9 +2292,14 @@ static int load_elf_program(const char *path, const char *symbol_name,
   uint64_t limit_vaddr = 0;
   uint64_t dynamic_vaddr = 0;
   uint64_t dynamic_size = 0;
+  uint64_t phdr_vaddr = 0;
   int found_load = 0;
   for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
     const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type == PT_PHDR) {
+      phdr_vaddr = phdr->p_vaddr;
+      continue;
+    }
     if (phdr->p_type == PT_DYNAMIC) {
       dynamic_vaddr = phdr->p_vaddr;
       dynamic_size = phdr->p_filesz;
@@ -2286,6 +2353,14 @@ static int load_elf_program(const char *path, const char *symbol_name,
   }
 
   program->base_vaddr = base_vaddr;
+  program->phent = ehdr->e_phentsize;
+  program->phnum = ehdr->e_phnum;
+  if (!phdr_vaddr) {
+    const uint64_t phdr_size = (uint64_t) ehdr->e_phnum * ehdr->e_phentsize;
+    if (ehdr->e_phoff < image_size && phdr_size <= image_size - ehdr->e_phoff)
+      phdr_vaddr = base_vaddr + ehdr->e_phoff;
+  }
+  program->phdr_vaddr = phdr_vaddr;
   program->code_size = (size_t) image_size;
   program->code_bytes = calloc(1, program->code_size);
   if (!program->code_bytes) {
@@ -2556,8 +2631,9 @@ static int emit_and_run_process(const struct poly_program *program,
   uint8_t *process_stack = NULL;
   size_t process_stack_size = 0;
   uint64_t initial_sp = 0;
-  if (build_process_stack(request, extra_argc, extra_argv, &process_stack,
-        &process_stack_size, &initial_sp) < 0) {
+  if (build_process_stack(program, request, mapping + load_base_offset,
+        extra_argc, extra_argv, &process_stack, &process_stack_size,
+        &initial_sp) < 0) {
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
