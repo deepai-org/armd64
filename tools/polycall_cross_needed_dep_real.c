@@ -58,10 +58,17 @@ double poly_cross_needed_fp64(double a, double b) {
   return a + b + 6.0;
 }
 
-__attribute__((visibility("default")))
-struct poly_compact_u32_f32 poly_needed_fini_result(void) {
+static struct poly_compact_u32_f32 poly_needed_fini_result_impl(void) {
   struct poly_compact_u32_f32 result;
   result.i = (unsigned int) poly_cross_needed_lifecycle;
   result.f = 13.5f;
   return result;
 }
+
+static void *poly_needed_fini_result_resolver(void) {
+  return poly_needed_fini_result_impl;
+}
+
+__attribute__((visibility("default")))
+struct poly_compact_u32_f32 poly_needed_fini_result(void)
+  __attribute__((ifunc("poly_needed_fini_result_resolver")));

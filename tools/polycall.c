@@ -7348,6 +7348,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (resolve_dependency_symbol(program, "poly_needed_fini_result", NULL,
           &fini_result_vaddr, &base_kind) < 0 ||
         (!reloc_base_is_dep_cross_stub(base_kind) &&
+         !reloc_base_is_dep_cross_ifunc(base_kind) &&
+         (base_kind < RELOC_BASE_DEP_IFUNC ||
+          base_kind >= RELOC_BASE_DEP_IFUNC + (int) program->dep_count) &&
          (base_kind < RELOC_BASE_DEP_LOAD_BIAS ||
           base_kind >= RELOC_BASE_DEP_LOAD_BIAS + (int) program->dep_count))) {
       fprintf(stderr, "POLYCALL_FAIL: dependency fini result symbol missing: %s\n",
@@ -7360,13 +7363,35 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       munmap(code, code_size);
       return -1;
     }
-    const size_t dep_index = reloc_base_is_dep_cross_stub(base_kind) ?
-      dep_cross_stub_index(base_kind) :
-      (size_t) (base_kind - RELOC_BASE_DEP_LOAD_BIAS);
-    const int bridge_kind = reloc_base_is_dep_cross_stub(base_kind) ?
-      cross_bridge_kind_for_base(base_kind) : POLY_CROSS_BRIDGE_DEFAULT;
-    const uint64_t fini_result_target =
-      dep_load_bias[dep_index] + fini_result_vaddr;
+    const int is_cross_stub = reloc_base_is_dep_cross_stub(base_kind);
+    const int is_cross_ifunc = reloc_base_is_dep_cross_ifunc(base_kind);
+    const int is_dep_ifunc = base_kind >= RELOC_BASE_DEP_IFUNC &&
+      base_kind < RELOC_BASE_DEP_IFUNC + (int) program->dep_count;
+    const size_t dep_index = is_cross_stub ? dep_cross_stub_index(base_kind) :
+      (is_cross_ifunc ? dep_cross_ifunc_index(base_kind) :
+       (is_dep_ifunc ? (size_t) (base_kind - RELOC_BASE_DEP_IFUNC) :
+        (size_t) (base_kind - RELOC_BASE_DEP_LOAD_BIAS)));
+    const int bridge_kind = is_cross_stub ? cross_bridge_kind_for_base(base_kind) :
+      (is_cross_ifunc ? cross_bridge_kind_for_ifunc_base(base_kind) :
+       POLY_CROSS_BRIDGE_DEFAULT);
+    uint64_t fini_result_target = dep_load_bias[dep_index] + fini_result_vaddr;
+    if (is_cross_ifunc || is_dep_ifunc) {
+      uint64_t resolved = 0;
+      if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
+            cross_stub_size, &cross_stub_offset, program->arch,
+            program->deps[dep_index].arch, fini_result_target, POLY_CALL_U64,
+            POLY_CROSS_BRIDGE_DEFAULT, program->deps[dep_index].path,
+            "dependency fini result IFUNC resolver", &resolved) < 0) {
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      fini_result_target = resolved;
+    }
     const int result_call_kind = call_kind_for_bridge_result(program->arch,
       POLY_CALL_U64, bridge_kind);
     const uint8_t saved_pcall_op = code[pcall_opcode_offset + 2];
