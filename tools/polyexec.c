@@ -86,6 +86,10 @@ extern char **environ;
 #define GRND_NONBLOCK 0x0001
 #endif
 
+#ifndef AT_HWCAP2
+#define AT_HWCAP2 26
+#endif
+
 #ifndef DT_PLTRELSZ
 #define DT_PLTRELSZ 2
 #endif
@@ -1700,6 +1704,9 @@ static int build_process_stack(const struct poly_program *program,
     load_bias + program->phdr_vaddr : 0;
   const uint64_t entry_addr = load_bias + program->base_vaddr +
     (uint64_t) program->entry_offset;
+  long clock_tick = sysconf(_SC_CLK_TCK);
+  if (clock_tick <= 0)
+    clock_tick = 100;
   const struct {
     uint64_t type;
     uint64_t value;
@@ -1708,7 +1715,12 @@ static int build_process_stack(const struct poly_program *program,
     { AT_PHENT, program->phent },
     { AT_PHNUM, program->phnum },
     { AT_PAGESZ, 4096 },
+    { AT_BASE, 0 },
+    { AT_FLAGS, 0 },
     { AT_ENTRY, entry_addr },
+    { AT_CLKTCK, (uint64_t) clock_tick },
+    { AT_HWCAP, 0 },
+    { AT_HWCAP2, 0 },
     { AT_UID, (uint64_t) getuid() },
     { AT_EUID, (uint64_t) geteuid() },
     { AT_GID, (uint64_t) getgid() },

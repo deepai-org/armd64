@@ -6,8 +6,13 @@ enum {
   POLY_AT_PHENT = 4,
   POLY_AT_PHNUM = 5,
   POLY_AT_PAGESZ = 6,
+  POLY_AT_BASE = 7,
+  POLY_AT_FLAGS = 8,
   POLY_AT_ENTRY = 9,
+  POLY_AT_HWCAP = 16,
+  POLY_AT_CLKTCK = 17,
   POLY_AT_RANDOM = 25,
+  POLY_AT_HWCAP2 = 26,
   POLY_AT_EXECFN = 31,
   POLY_AT_PLATFORM = 15
 };
@@ -58,6 +63,14 @@ static uint64_t poly_aux_get(uint64_t *auxv, uint64_t type) {
   return 0;
 }
 
+static int poly_aux_has(uint64_t *auxv, uint64_t type) {
+  for (; auxv[0] != POLY_AT_NULL; auxv += 2) {
+    if (auxv[0] == type)
+      return 1;
+  }
+  return 0;
+}
+
 static int poly_random_nonzero(const unsigned char *bytes) {
   unsigned char accum = 0;
   for (unsigned n = 0; n < 16; n++)
@@ -101,6 +114,19 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 28;
   if (poly_aux_get(auxv, POLY_AT_ENTRY) == 0)
     return 29;
+  if (!poly_aux_has(auxv, POLY_AT_BASE) ||
+      poly_aux_get(auxv, POLY_AT_BASE) != 0)
+    return 33;
+  if (!poly_aux_has(auxv, POLY_AT_FLAGS) ||
+      poly_aux_get(auxv, POLY_AT_FLAGS) != 0)
+    return 34;
+  if (!poly_aux_has(auxv, POLY_AT_CLKTCK) ||
+      poly_aux_get(auxv, POLY_AT_CLKTCK) == 0)
+    return 35;
+  if (!poly_aux_has(auxv, POLY_AT_HWCAP))
+    return 36;
+  if (!poly_aux_has(auxv, POLY_AT_HWCAP2))
+    return 37;
   if (!poly_aux_get(auxv, POLY_AT_RANDOM) ||
       !poly_random_nonzero((const unsigned char *)
         poly_aux_get(auxv, POLY_AT_RANDOM)))
