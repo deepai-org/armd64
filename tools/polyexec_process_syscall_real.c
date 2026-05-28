@@ -10,6 +10,7 @@ enum {
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
   POLY_O_DIRECTORY = 0200000,
+  POLY_O_CLOEXEC = 02000000,
   POLY_F_GETFD = 1,
   POLY_F_SETFD = 2,
   POLY_FD_CLOEXEC = 1,
@@ -22,11 +23,13 @@ enum {
   POLY_STATX_BASIC_STATS = 0x7ff,
 
   POLY_SYS_GETCWD = 17,
+  POLY_SYS_DUP3 = 24,
   POLY_SYS_FCNTL = 25,
   POLY_SYS_STATFS = 43,
   POLY_SYS_FSTATFS = 44,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
+  POLY_SYS_PIPE2 = 59,
   POLY_SYS_GETDENTS64 = 61,
   POLY_SYS_READ = 63,
   POLY_SYS_WRITE = 64,
@@ -530,6 +533,44 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
       file_bytes[2] != 'L' || file_bytes[3] != 'F')
     return 90;
+
+  int pipe_fds[2];
+  if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
+    return 99;
+  long dup_fd = poly_syscall3(POLY_SYS_DUP3, pipe_fds[0], 100,
+    POLY_O_CLOEXEC);
+  if (dup_fd != 100) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    return 100;
+  }
+  static const char pipe_message[] = "PX";
+  char pipe_buffer[2];
+  if (poly_syscall3(POLY_SYS_WRITE, pipe_fds[1],
+        (long) pipe_message, sizeof(pipe_buffer)) !=
+      (long) sizeof(pipe_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0);
+    return 101;
+  }
+  if (poly_syscall3(POLY_SYS_READ, dup_fd, (long) pipe_buffer,
+        sizeof(pipe_buffer)) != (long) sizeof(pipe_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0);
+    return 102;
+  }
+  if (pipe_buffer[0] != 'P' || pipe_buffer[1] != 'X') {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0);
+    return 103;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0) != 0)
+    return 104;
 
   char dirents[4096];
   fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD, (long) "/usr/bin",
