@@ -5,6 +5,9 @@ static unsigned long poly_cross_needed_lifecycle;
 __thread unsigned long poly_cross_needed_tls_counter = 31;
 
 extern unsigned long poly_cross_root_callback(unsigned long);
+extern unsigned long poly_cross_root_callback9(unsigned long, unsigned long,
+    unsigned long, unsigned long, unsigned long, unsigned long, unsigned long,
+    unsigned long, unsigned long);
 extern unsigned long poly_cross_root_bias;
 
 __attribute__((constructor))
@@ -21,6 +24,7 @@ static unsigned long poly_cross_needed_add_impl(unsigned long a,
     unsigned long b) {
   poly_cross_needed_tls_counter += a + b;
   return a + b + 300 + poly_cross_root_callback(a) + poly_cross_root_bias +
+    poly_cross_root_callback9(a, b, 3, 4, 5, 6, 7, 8, 9) +
     poly_cross_needed_lifecycle + poly_cross_needed_tls_counter;
 }
 
