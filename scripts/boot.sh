@@ -4830,6 +4830,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-getpgid.elf \
       /usr/lib/polyapps/aarch64-getsid.elf \
       /usr/lib/polyapps/aarch64-getrlimit.elf \
+      /usr/lib/polyapps/aarch64-brk.elf \
       /usr/lib/polyapps/aarch64-pcall-needed-real.so \
       /usr/lib/polyapps/aarch64-pcall-lib-needed-real.so \
       /usr/lib/polyapps/aarch64-pcall-many-needed-real.so \
@@ -4871,6 +4872,8 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-getpgid.elf \
       /usr/lib/polyapps/riscv-getsid.elf \
       /usr/lib/polyapps/riscv-getrlimit.elf \
+      /usr/lib/polyapps/riscv-ebreak.elf \
+      /usr/lib/polyapps/riscv-compressed-ebreak.elf \
       /usr/lib/polyapps/riscv-pcall-needed-real.so \
       /usr/lib/polyapps/riscv-pcall-lib-needed-real.so \
       /usr/lib/polyapps/riscv-pcall-many-needed-real.so \

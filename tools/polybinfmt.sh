@@ -168,6 +168,7 @@ case "$path" in
   */riscv-uname.elf) expected=0 ;;
   */riscv-exit.elf) expected=7 ;;
   */riscv-ebreak.elf) expected=0x4c000405 ;;
+  */riscv-compressed-ebreak.elf) expected=0x4c000405 ;;
   */riscv-ecall.elf) expected=0x5303ff04 ;;
   */riscv-pcall-needed-real.so) expected=397; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-lib-needed-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
