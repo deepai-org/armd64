@@ -130,6 +130,7 @@ static struct poly_xsave_state
 static struct poly_xsave_state
   nativecheck_import_restore_state __attribute__((aligned(64)));
 static unsigned nativecheck_import_helper_calls;
+static unsigned nativecheck_direct_x86_helper_calls;
 static sigjmp_buf nativecheck_sigill_env;
 static volatile sig_atomic_t nativecheck_expect_sigill;
 
@@ -157,6 +158,13 @@ static uint64_t nativecheck_import_x86_sum6(uint64_t a0, uint64_t a1,
   nativecheck_import_restore_state.import_return.top = 0;
   poly_state_import(&nativecheck_import_restore_state);
   poly_state_import(&nativecheck_import_live_state);
+  return a0 + a1 + a2 + a3 + a4 + a5;
+}
+
+__attribute__((noinline, noipa, used))
+static uint64_t nativecheck_direct_x86_sum6(uint64_t a0, uint64_t a1,
+    uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  nativecheck_direct_x86_helper_calls++;
   return a0 + a1 + a2 + a3 + a4 + a5;
 }
 
@@ -1962,6 +1970,57 @@ static uint64_t nativecheck_generic_pcall_riscv_import_sum6(uint64_t a0,
   return a0;
 }
 
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_generic_pcall_aarch64_x86_direct_sum6(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_sum6;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032f3f\n" // generic pcall frontend=x17 target=x16
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_generic_pcall_riscv_x86_direct_sum6(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_sum6;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x1200700b\n" // generic pcall frontend=t1 target=t0 return=t2
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
 static int check_poly_import_return_xsave_frame(uint32_t expected_mode) {
   const struct poly_import_return_state *state =
     &nativecheck_import_live_state.import_return;
@@ -2069,6 +2128,32 @@ static int run_poly_import_return_xsave_probe(void) {
     return 1;
 
   puts("NATIVE_POLY_IMPORT_RETURN_XSAVE_OK");
+  return 0;
+}
+
+static int run_poly_direct_x86_pcall_probe(void) {
+  const uint64_t expected = 21;
+  nativecheck_direct_x86_helper_calls = 0;
+
+  uint64_t result =
+    nativecheck_generic_pcall_aarch64_x86_direct_sum6();
+  if (result != expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_helper_calls = 0;
+  result = nativecheck_generic_pcall_riscv_x86_direct_sum6();
+  if (result != expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_DIRECT_X86_PCALL_OK");
   return 0;
 }
 
@@ -2397,6 +2482,8 @@ int main(void) {
     if (run_poly_real_xsave_probe(xcr0) != 0)
       return 1;
     if (run_poly_import_return_xsave_probe() != 0)
+      return 1;
+    if (run_poly_direct_x86_pcall_probe() != 0)
       return 1;
     if (run_poly_state_register_bank_probe() != 0)
       return 1;

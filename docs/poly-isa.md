@@ -111,10 +111,13 @@ Native return instructions may cross frontends when the link register or stack
 return slot contains a hardware return cookie installed by `PCALL`.
 
 Foreign generic `PCALL` can name x86_64 as frontend `0`. In the Bochs
-prototype this is currently restricted to descriptor-backed x86 import targets
-in the reserved import-call range. That keeps arbitrary x86 ABI policy in
-loader/runtime thunks while making the control transfer itself use the same
-frontend-neutral `PCALL` path as AArch64-to-RISC-V and RISC-V-to-AArch64.
+prototype, descriptor-backed imports still use the reserved import-call range,
+but direct x86 targets are also supported. Hardware installs a return cookie on
+the x86 stack; an ordinary x86 `ret` to that cookie restores the foreign
+frontend and resumes at the foreign continuation register. Loader/runtime
+thunks still own complex ABI policy, but the control transfer itself now uses
+the same frontend-neutral `PCALL` path as AArch64-to-RISC-V and
+RISC-V-to-AArch64.
 
 ## ABI Bridge
 
