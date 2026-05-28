@@ -81,6 +81,7 @@ enum {
   POLY_RISCV_CTRL_SUBOP_TRAP_RETURN = 6,
   POLY_RISCV_CTRL_SUBOP_AARCH64_CALL_VEC128_U32 = 7,
   POLY_RISCV_CTRL_SUBOP_SWITCH_MODE = 8,
+  POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_IMPORT_FUNC_X86_SLOT0 = 106,
   POLY_IMPORT_FUNC_X86_SLOT1 = 107,
   POLY_IMPORT_FUNC_X86_SLOT2 = 108,
@@ -593,6 +594,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf6(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_AARCH64_CTRL_SWITCH_MODE;
   regs.ebx = POLY_RISCV_CTRL_SWITCH_MODE;
+  regs.ecx = 0;
+  regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf7(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+  regs.ebx = POLY_ABI_SIGNATURE_SLOT_COUNT;
   regs.ecx = 0;
   regs.edx = 0;
   return regs;

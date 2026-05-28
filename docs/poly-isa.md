@@ -41,22 +41,23 @@ The Bochs prototype models this with a compact decoded x86 control page:
 
 `0f 3a fc` is the Poly Control Opcode Page and `<subop>` selects the operation.
 This is a normal decoded instruction family: no `#UD` exception path, no magic
-trailer, no variable-length envelope, and no following payload bytes. Future
+trailer, and no variable-length envelope. Future
 silicon may allocate a different reserved x86 opcode page, but it should keep
 the same hardware contract: one deterministic frontend-control decode that
 flushes or terminates the current decode block before switching fetch mode.
 The control instruction does not parse user-memory call descriptors or rewrite
 stack layouts.
 
-Final silicon-oriented `PCALL` encodings should name the signature slot with a
-small immediate. Current Bochs prototype subops use registers while the
-temporary control encoding is still evolving:
+Silicon-oriented `PCALL` encodings name the signature slot with a small
+immediate. The Bochs prototype keeps the older register-slot forms for test
+coverage, but the preferred generic form is `PCALL_SIG_IMM_MODE`.
 
 | Subop | Operation | Register convention |
 | --- | --- | --- |
 | `0x2b` | `PCALL_SIG_A64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2c` | `PCALL_SIG_RV64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2d` | `PCALL_SIG_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot in `R12` |
+| `0x2e <slot>` | `PCALL_SIG_IMM_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot as immediate byte |
 | `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
 | `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
 
@@ -75,6 +76,8 @@ CPUID leaf `0x40000002`, subleaf `6` reports the foreign generic `PSWITCH`
 encodings. CPUID leaf `0x40000008`, subleaf `1` reports the architectural
 frontend IDs: `EAX=x86_64`, `EBX=AArch64`, `ECX=RISC-V64`, and `EDX` as the
 supported frontend-ID bitmask.
+CPUID leaf `0x40000002`, subleaf `7` reports the preferred x86 immediate-slot
+generic `PCALL` subop in `EAX` and the ABI signature-slot count in `EBX`.
 
 ## Foreign Escapes
 

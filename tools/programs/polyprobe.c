@@ -16,6 +16,7 @@
 #define POLY_OP_PCALL_SIG_A64 ".byte 0x0f,0x3a,0xfc,0x2b\n"
 #define POLY_OP_PCALL_SIG_RV64 ".byte 0x0f,0x3a,0xfc,0x2c\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
+#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
@@ -752,6 +753,64 @@ static inline void pcall_signature_mode_riscv_sysv_args_probe(void) {
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
+static inline void pcall_signature_imm_mode_aarch64_sysv_args_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "movq %0, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0x8b020000\n" // add x0,x0,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
+static inline void pcall_signature_imm_mode_riscv_sysv_args_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "movq %0, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0x00b50533\n" // add a0,a0,a1
+    ".long 0x00c50533\n" // add a0,a0,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    :
+    : "i"(POLY_FRONTEND_RISCV)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
 static inline void raw_fp64_aarch64_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -986,6 +1045,16 @@ int main(void) {
       poly_escapes.ecx != expected_escapes.ecx ||
       poly_escapes.edx != expected_escapes.edx) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID generic switch manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf7();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID immediate pcall manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
@@ -1295,6 +1364,16 @@ int main(void) {
   pcall_signature_mode_riscv_sysv_args_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: generic pcall signature riscv bridge mismatch\n");
+    return 1;
+  }
+  pcall_signature_imm_mode_aarch64_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: immediate pcall signature aarch64 bridge mismatch\n");
+    return 1;
+  }
+  pcall_signature_imm_mode_riscv_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: immediate pcall signature riscv bridge mismatch\n");
     return 1;
   }
 

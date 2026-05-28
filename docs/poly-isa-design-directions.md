@@ -162,11 +162,12 @@ This creates a deliberate hybrid boundary:
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, and slot kind `1` is x86_64 SysV source
 argument order. The final silicon-oriented encoding should use a compact slot
-immediate. The current generic frontend-ID prototype opcodes pass the frontend
-ID in `R15`, target PC in `RBX`, return PC in `R11`, and slot number in `R12`
-only so the experiment can evolve without reworking Bochs' temporary control
-encoding. `PSWITCH_MODE` uses the same frontend ID and target registers but
-does not install a return cookie.
+immediate. The current preferred Bochs generic `PCALL` form uses frontend ID in
+`R15`, target PC in `RBX`, return PC in `R11`, and an immediate signature-slot
+byte. Older register-slot forms remain available for compatibility with
+existing probes while the temporary control encoding evolves. `PSWITCH_MODE`
+uses the same frontend ID and target registers but does not install a return
+cookie.
 Foreign generic `PSWITCH` controls use the existing scratch branch registers:
 AArch64 `x16=target, x17=frontend ID`; RISC-V `x5=target, x6=frontend ID`.
 
