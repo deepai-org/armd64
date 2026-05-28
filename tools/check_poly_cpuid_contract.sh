@@ -326,8 +326,8 @@ compare_polybench_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
 compare_polybench_const POLY_ABI_BRIDGE_FP_ARG_COUNT
 compare_polybench_const POLY_ABI_BRIDGE_STACK_ALIGN
 
-assert_contains 'state import layout version is `2`' "$POLY_ISA_DOC" \
-  "poly ISA doc must describe explicit state import with layout version 2"
+assert_contains 'state import layout version is `3`' "$POLY_ISA_DOC" \
+  "poly ISA doc must describe explicit state import with layout version 3"
 assert_not_contains 'state import layout version is `1`' "$POLY_ISA_DOC" \
   "poly ISA doc must not describe the old state import layout version"
 

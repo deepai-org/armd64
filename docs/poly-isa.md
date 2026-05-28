@@ -183,7 +183,7 @@ path for this family:
   4096-byte, 64-byte-aligned `struct poly_xsave_state` buffer.  The CPU writes
   the current keyed prototype state in the fixed leaf `0x40000004` layout.
 - `0f 24 68 50 4f 4c 59 21`: explicit state import.  `RAX` points to a
-  `struct poly_xsave_state` buffer with magic `0x31594c50`; the state import layout version is `2`.
+  `struct poly_xsave_state` buffer with magic `0x31594c50`; the state import layout version is `3`.
   The CPU imports the state into the current keyed prototype bank and
   continues execution in x86 mode.  This is a prototype software state operation
   using the same layout as the active poly xstate component.
@@ -277,10 +277,11 @@ discover the experimental hardware contract before emitting poly operations:
   area.
 - `CPUID.EAX=0x40000004`: silicon-target XSAVE contract discovery.  `EAX=20`
   is the XCR0 component number, `EBX=4096` is the component byte
-  size, `ECX[15:0]=2` is the layout version, `ECX[31:16]=64` is the required
-  byte alignment, and `EDX=0x1f` reports flags: user XCR0 component,
+  size, `ECX[15:0]=3` is the layout version, `ECX[31:16]=64` is the required
+  byte alignment, and `EDX=0x3f` reports flags: user XCR0 component,
   OSXSAVE/XRSTOR required, interrupt-resume state present, trap state present,
-  and no hidden foreign register banks permitted.  This is a formal hardware
+  import-return state present, and no hidden foreign register banks permitted.
+  This is a formal hardware
   ABI definition and is enumerated through standard `CPUID.0xD` when polyglot
   execution is enabled.  Component `20` avoids component `11`, which is already
   assigned to standard x86 CET_U state in current x86 XSAVE maps.  A guest OS
@@ -350,7 +351,8 @@ The leaf `0x40000004` XSAVE component layout is fixed-size and little-endian:
 | `0x480` | `0x100` | RISC-V integer state: `x0`-`x31`, each 64-bit; `x0` is saved as zero and ignored on restore. |
 | `0x580` | `0x200` | RISC-V FP state: `f0`-`f31`, each stored in a 128-bit slot for future FLEN growth. |
 | `0x780` | `0x080` | RISC-V `fcsr`, reservation metadata, and reserved expansion. |
-| `0x800` | `0x800` | Reserved, zero on save and ignored on restore until a future layout version assigns it. |
+| `0x800` | `0x500` | Active descriptor-backed foreign-to-x86 import return stack. |
+| `0xd00` | `0x300` | Reserved, zero on save and ignored on restore until a future layout version assigns it. |
 
 `tools/polycpuid.h` defines the matching C ABI types.  The layout is guarded by
 compile-time assertions for every offset above, the total 4096-byte component

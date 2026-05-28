@@ -10,6 +10,7 @@
 
 #define POLY_OP_ENTER_A64 ".byte 0x0f,0x24,0x01,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x24,0x02,0x50,0x4f,0x4c,0x59,0x21\n"
+#define POLY_OP_PIRET ".byte 0x0f,0x24,0x20,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x24,0x60,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x24,0x61,0x50,0x4f,0x4c,0x59,0x21\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x24,0x62,0x50,0x4f,0x4c,0x59,0x21\n"
@@ -92,6 +93,42 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
 
 static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
+}
+
+struct nativecheck_import_descriptor {
+  uint64_t target;
+  uint64_t trampoline;
+  uint64_t flags;
+  uint64_t stack_arg_qwords;
+};
+
+static struct nativecheck_import_descriptor
+  nativecheck_imports[POLY_IMPORT_FUNC_COUNT];
+static struct poly_xsave_state
+  nativecheck_import_live_state __attribute__((aligned(64)));
+static unsigned nativecheck_import_helper_calls;
+
+__attribute__((naked, noinline, used))
+static void nativecheck_import_return_trampoline(void) {
+  __asm__(
+    POLY_OP_PIRET
+    "ud2\n");
+}
+
+__attribute__((noinline, used))
+static uint64_t nativecheck_import_x86_sum6(uint64_t a0, uint64_t a1,
+    uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  nativecheck_import_helper_calls++;
+  poly_state_export(&nativecheck_import_live_state);
+  return a0 + a1 + a2 + a3 + a4 + a5;
+}
+
+static void nativecheck_setup_import_descriptors(void) {
+  memset(nativecheck_imports, 0, sizeof(nativecheck_imports));
+  nativecheck_imports[8].target =
+    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
+  nativecheck_imports[8].trampoline =
+    (uint64_t) (uintptr_t) nativecheck_import_return_trampoline;
 }
 
 static inline uint64_t read_xcr0(void) {
@@ -1570,6 +1607,77 @@ static int run_poly_state_save_restore_probe(void) {
   return 0;
 }
 
+static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
+    uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  register uint64_t r8_arg asm("r8") = a5;
+  asm volatile(
+    "movq %[imports], %%r12\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd29c1010\n" // movz x16,#0xe080
+    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
+    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
+    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0xd63f0200\n" // blr x16, descriptor-backed import
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+      "+r"(r8_arg)
+    : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
+    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+  return a0;
+}
+
+static int run_poly_import_return_xsave_probe(void) {
+  const uint64_t expected = 21;
+  memset(&nativecheck_import_live_state, 0,
+    sizeof(nativecheck_import_live_state));
+  nativecheck_import_helper_calls = 0;
+  nativecheck_setup_import_descriptors();
+
+  uint64_t result = nativecheck_descriptor_aarch64_import_sum6(
+    1, 2, 3, 4, 5, 6);
+  if (result != expected || nativecheck_import_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly import xsave helper result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_import_helper_calls);
+    return 1;
+  }
+
+  const struct poly_import_return_state *state =
+    &nativecheck_import_live_state.import_return;
+  if (nativecheck_import_live_state.header.layout_version !=
+        POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      state->top != 1 ||
+      state->depth != POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly import xsave header mismatch version=%u top=%llu depth=%llu\n",
+      nativecheck_import_live_state.header.layout_version,
+      (unsigned long long) state->top,
+      (unsigned long long) state->depth);
+    return 1;
+  }
+
+  const struct poly_import_return_frame *frame = &state->frames[0];
+  if (frame->source_mode != POLY_MODE_RAW_AARCH64 ||
+      frame->alias_valid != 1 ||
+      frame->return_pc == 0 ||
+      frame->return_sp == 0 ||
+      frame->import_id != 8 ||
+      frame->descriptor_flags != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly import xsave frame mismatch mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu flags=0x%llx\n",
+      frame->source_mode,
+      frame->alias_valid,
+      (unsigned long long) frame->return_pc,
+      (unsigned long long) frame->return_sp,
+      (unsigned long long) frame->import_id,
+      (unsigned long long) frame->descriptor_flags);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_IMPORT_RETURN_XSAVE_OK");
+  return 0;
+}
+
 static int run_poly_state_register_bank_probe(void) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
   const uint64_t three_bits = 0x4008000000000000ULL;
@@ -1852,6 +1960,8 @@ int main(void) {
     if (run_poly_state_key_probe() != 0)
       return 1;
     if (run_poly_state_save_restore_probe() != 0)
+      return 1;
+    if (run_poly_import_return_xsave_probe() != 0)
       return 1;
     if (run_poly_state_register_bank_probe() != 0)
       return 1;
