@@ -1,0 +1,7 @@
+POLYPROC_1.0 {
+  global: poly_process_versioned_add;
+};
+
+POLYPROC_2.0 {
+  global: poly_process_versioned_add;
+} POLYPROC_1.0;

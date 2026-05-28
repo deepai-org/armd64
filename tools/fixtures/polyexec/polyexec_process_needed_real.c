@@ -92,6 +92,21 @@ uint64_t poly_process_dt_init_dep(void) {
   return poly_process_dt_init_dep_value;
 }
 
+#elif defined(POLY_PROCESS_VERSIONED_DEP)
+
+uint64_t poly_process_versioned_add_v1(uint64_t left, uint64_t right) {
+  return left + right + 0x100;
+}
+
+uint64_t poly_process_versioned_add_v2(uint64_t left, uint64_t right) {
+  return left + right + 0x200;
+}
+
+__asm__(".symver poly_process_versioned_add_v1, "
+        "poly_process_versioned_add@POLYPROC_1.0");
+__asm__(".symver poly_process_versioned_add_v2, "
+        "poly_process_versioned_add@@POLYPROC_2.0");
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
@@ -109,6 +124,10 @@ extern uint64_t poly_process_weak_dep(void);
 extern uint64_t poly_process_init_dep(void);
 #elif defined(POLY_PROCESS_DT_INIT_DEP_MAIN)
 extern uint64_t poly_process_dt_init_dep(void);
+#elif defined(POLY_PROCESS_VERSIONED_MAIN)
+extern uint64_t poly_process_versioned_add_v1(uint64_t, uint64_t);
+__asm__(".symver poly_process_versioned_add_v1, "
+        "poly_process_versioned_add@POLYPROC_1.0");
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #else
@@ -216,6 +235,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_dt_init_dep() != 0x6c)
     return 32;
   static const char marker[] = "POLY_PROCESS_DEP_DT_INIT_OK\n";
+#elif defined(POLY_PROCESS_VERSIONED_MAIN)
+  if (poly_process_versioned_add_v1(0x20, 0x30) != 0x150)
+    return 33;
+  static const char marker[] = "POLY_PROCESS_VERSIONED_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;

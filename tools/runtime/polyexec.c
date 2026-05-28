@@ -115,6 +115,26 @@ extern char **environ;
 #define DT_RPATH 15
 #endif
 
+#ifndef DT_VERSYM
+#define DT_VERSYM 0x6ffffff0
+#endif
+
+#ifndef DT_VERDEF
+#define DT_VERDEF 0x6ffffffc
+#endif
+
+#ifndef DT_VERDEFNUM
+#define DT_VERDEFNUM 0x6ffffffd
+#endif
+
+#ifndef DT_VERNEED
+#define DT_VERNEED 0x6ffffffe
+#endif
+
+#ifndef DT_VERNEEDNUM
+#define DT_VERNEEDNUM 0x6fffffff
+#endif
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
@@ -361,6 +381,13 @@ static uint32_t read_u32_le(const uint8_t *bytes) {
   return value;
 }
 
+static uint16_t read_u16_le(const uint8_t *bytes) {
+  uint16_t value = 0;
+  for (unsigned n = 0; n < 2; n++)
+    value |= (uint16_t) bytes[n] << (n * 8);
+  return value;
+}
+
 static void write_u64_le(uint8_t *bytes, uint64_t value) {
   for (unsigned n = 0; n < 8; n++)
     bytes[n] = (uint8_t) ((value >> (n * 8)) & 0xff);
@@ -578,6 +605,194 @@ static int dynamic_symbol_table_info(const struct poly_program *program,
     *syment >= sizeof(Elf64_Sym) ? 0 : -1;
 }
 
+static void dynamic_version_table_info(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t *versym_vaddr,
+    uint64_t *verdef_vaddr, uint64_t *verdef_num, uint64_t *verneed_vaddr,
+    uint64_t *verneed_num) {
+  *versym_vaddr = 0;
+  *verdef_vaddr = 0;
+  *verdef_num = 0;
+  *verneed_vaddr = 0;
+  *verneed_num = 0;
+  if (!program->dynamic_size)
+    return;
+
+  const Elf64_Dyn *dyn =
+    (const Elf64_Dyn *) (loaded_image + program->dynamic_offset);
+  const size_t dyn_count = program->dynamic_size / sizeof(Elf64_Dyn);
+  for (size_t n = 0; n < dyn_count; n++) {
+    switch (dyn[n].d_tag) {
+      case DT_VERSYM: *versym_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_VERDEF: *verdef_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_VERDEFNUM: *verdef_num = dyn[n].d_un.d_val; break;
+      case DT_VERNEED: *verneed_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_VERNEEDNUM: *verneed_num = dyn[n].d_un.d_val; break;
+      default: break;
+    }
+  }
+}
+
+static int read_symbol_version_index(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t versym_vaddr, uint64_t symbol_index,
+    uint16_t *version_index) {
+  *version_index = 0;
+  if (!versym_vaddr)
+    return 0;
+  size_t versym_offset = 0;
+  if (elf_vaddr_to_image_offset(program, versym_vaddr,
+        (symbol_index + 1) * sizeof(uint16_t), &versym_offset) < 0)
+    return -1;
+  *version_index = read_u16_le(loaded_image + versym_offset +
+    symbol_index * sizeof(uint16_t));
+  return 0;
+}
+
+static int version_string_from_verneed(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t strtab_vaddr, uint64_t strsz,
+    uint64_t verneed_vaddr, uint64_t verneed_num, uint16_t version_index,
+    const char **version_name) {
+  *version_name = NULL;
+  if (!verneed_vaddr || !verneed_num)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+  size_t need_offset = 0;
+  if (elf_vaddr_to_image_offset(program, verneed_vaddr, sizeof(Elf64_Verneed),
+        &need_offset) < 0)
+    return -1;
+
+  for (uint64_t need_index = 0; need_index < verneed_num; need_index++) {
+    if (need_offset > program->code_size ||
+        sizeof(Elf64_Verneed) > program->code_size - need_offset)
+      return -1;
+    const Elf64_Verneed *need =
+      (const Elf64_Verneed *) (loaded_image + need_offset);
+    size_t aux_offset = need_offset + need->vn_aux;
+    for (uint16_t aux_index = 0; aux_index < need->vn_cnt; aux_index++) {
+      if (aux_offset > program->code_size ||
+          sizeof(Elf64_Vernaux) > program->code_size - aux_offset)
+        return -1;
+      const Elf64_Vernaux *aux =
+        (const Elf64_Vernaux *) (loaded_image + aux_offset);
+      if ((aux->vna_other & 0x7fffU) == version_index) {
+        if (aux->vna_name >= strsz)
+          return -1;
+        *version_name = (const char *) (loaded_image + strtab_offset +
+          aux->vna_name);
+        return 0;
+      }
+      if (!aux->vna_next)
+        break;
+      aux_offset += aux->vna_next;
+    }
+    if (!need->vn_next)
+      break;
+    need_offset += need->vn_next;
+  }
+
+  return -1;
+}
+
+static int version_string_from_verdef(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t strtab_vaddr, uint64_t strsz,
+    uint64_t verdef_vaddr, uint64_t verdef_num, uint16_t version_index,
+    const char **version_name) {
+  *version_name = NULL;
+  if (!verdef_vaddr || !verdef_num)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+  size_t def_offset = 0;
+  if (elf_vaddr_to_image_offset(program, verdef_vaddr, sizeof(Elf64_Verdef),
+        &def_offset) < 0)
+    return -1;
+
+  for (uint64_t def_index = 0; def_index < verdef_num; def_index++) {
+    if (def_offset > program->code_size ||
+        sizeof(Elf64_Verdef) > program->code_size - def_offset)
+      return -1;
+    const Elf64_Verdef *def =
+      (const Elf64_Verdef *) (loaded_image + def_offset);
+    if ((def->vd_ndx & 0x7fffU) == version_index) {
+      const size_t aux_offset = def_offset + def->vd_aux;
+      if (aux_offset > program->code_size ||
+          sizeof(Elf64_Verdaux) > program->code_size - aux_offset)
+        return -1;
+      const Elf64_Verdaux *aux =
+        (const Elf64_Verdaux *) (loaded_image + aux_offset);
+      if (aux->vda_name >= strsz)
+        return -1;
+      *version_name = (const char *) (loaded_image + strtab_offset +
+        aux->vda_name);
+      return 0;
+    }
+    if (!def->vd_next)
+      break;
+    def_offset += def->vd_next;
+  }
+
+  return -1;
+}
+
+static int relocation_requested_version_name(
+    const struct poly_program *program, const uint8_t *loaded_image,
+    uint64_t strtab_vaddr, uint64_t strsz, uint64_t symbol_index,
+    const char **version_name) {
+  *version_name = NULL;
+  uint64_t versym_vaddr = 0, verdef_vaddr = 0, verdef_num = 0;
+  uint64_t verneed_vaddr = 0, verneed_num = 0;
+  dynamic_version_table_info(program, loaded_image, &versym_vaddr,
+    &verdef_vaddr, &verdef_num, &verneed_vaddr, &verneed_num);
+  if (!versym_vaddr)
+    return 0;
+
+  uint16_t version_index = 0;
+  if (read_symbol_version_index(program, loaded_image, versym_vaddr,
+        symbol_index, &version_index) < 0)
+    return -1;
+  version_index &= 0x7fffU;
+  if (version_index <= 1)
+    return 0;
+
+  return version_string_from_verneed(program, loaded_image, strtab_vaddr,
+    strsz, verneed_vaddr, verneed_num, version_index, version_name);
+}
+
+static int symbol_definition_matches_version(
+    const struct poly_program *program, const uint8_t *loaded_image,
+    uint64_t strtab_vaddr, uint64_t strsz, size_t symbol_index,
+    const char *requested_version) {
+  if (!requested_version)
+    return 1;
+
+  uint64_t versym_vaddr = 0, verdef_vaddr = 0, verdef_num = 0;
+  uint64_t verneed_vaddr = 0, verneed_num = 0;
+  dynamic_version_table_info(program, loaded_image, &versym_vaddr,
+    &verdef_vaddr, &verdef_num, &verneed_vaddr, &verneed_num);
+  if (!versym_vaddr)
+    return 0;
+
+  uint16_t version_index = 0;
+  if (read_symbol_version_index(program, loaded_image, versym_vaddr,
+        symbol_index, &version_index) < 0)
+    return 0;
+  version_index &= 0x7fffU;
+  if (version_index <= 1)
+    return 0;
+
+  const char *defined_version = NULL;
+  if (version_string_from_verdef(program, loaded_image, strtab_vaddr, strsz,
+        verdef_vaddr, verdef_num, version_index, &defined_version) < 0)
+    return 0;
+  return strcmp(defined_version, requested_version) == 0;
+}
+
 static int symbol_is_dependency_export(const Elf64_Sym *sym) {
   const unsigned bind = ELF64_ST_BIND(sym->st_info);
   const unsigned visibility = ELF64_ST_VISIBILITY(sym->st_other);
@@ -588,7 +803,7 @@ static int symbol_is_dependency_export(const Elf64_Sym *sym) {
 
 static int resolve_loaded_program_symbol_ex(const struct poly_program *program,
     const uint8_t *loaded_image, const char *symbol_name,
-    uint64_t *symbol_value, uint8_t *symbol_type,
+    const char *requested_version, uint64_t *symbol_value, uint8_t *symbol_type,
     uint64_t *ifunc_resolver_vaddr) {
   uint64_t symtab_vaddr = 0, strtab_vaddr = 0, strsz = 0;
   uint64_t syment = sizeof(Elf64_Sym), hash_vaddr = 0, gnu_hash_vaddr = 0;
@@ -621,6 +836,9 @@ static int resolve_loaded_program_symbol_ex(const struct poly_program *program,
       sym->st_name);
     if (strcmp(name, symbol_name) != 0)
       continue;
+    if (!symbol_definition_matches_version(program, loaded_image, strtab_vaddr,
+          strsz, index, requested_version))
+      continue;
     const uint8_t type = ELF64_ST_TYPE(sym->st_info);
     if (type == STT_GNU_IFUNC && !ifunc_resolver_vaddr)
       return -1;
@@ -641,16 +859,10 @@ static int resolve_loaded_program_symbol_ex(const struct poly_program *program,
   return -1;
 }
 
-static int resolve_loaded_program_symbol(const struct poly_program *program,
-    const uint8_t *loaded_image, const char *symbol_name,
-    uint64_t *symbol_value, uint8_t *symbol_type) {
-  return resolve_loaded_program_symbol_ex(program, loaded_image, symbol_name,
-    symbol_value, symbol_type, NULL);
-}
-
 static int resolve_loaded_dependency_symbol_at_depth(
     const struct poly_program *program, const char *symbol_name,
-    uint64_t *symbol_value, uint8_t *symbol_type, size_t depth) {
+    const char *requested_version, uint64_t *symbol_value,
+    uint8_t *symbol_type, size_t depth) {
   if (depth >= MAX_PROCESS_DEP_DEPTH)
     return -1;
 
@@ -659,34 +871,36 @@ static int resolve_loaded_dependency_symbol_at_depth(
     if (!dep->program || !dep->loaded_image)
       continue;
 
-    if (resolve_loaded_program_symbol(dep->program, dep->loaded_image,
-          symbol_name, symbol_value, symbol_type) == 0)
+    if (resolve_loaded_program_symbol_ex(dep->program, dep->loaded_image,
+          symbol_name, requested_version, symbol_value, symbol_type,
+          NULL) == 0)
       return 0;
     if (resolve_loaded_dependency_symbol_at_depth(dep->program, symbol_name,
-          symbol_value, symbol_type, depth + 1) == 0)
+          requested_version, symbol_value, symbol_type, depth + 1) == 0)
       return 0;
   }
   return -1;
 }
 
 static int resolve_loaded_dependency_symbol(const struct poly_program *program,
-    const char *symbol_name, uint64_t *symbol_value, uint8_t *symbol_type) {
+    const char *symbol_name, const char *requested_version,
+    uint64_t *symbol_value, uint8_t *symbol_type) {
   return resolve_loaded_dependency_symbol_at_depth(program, symbol_name,
-    symbol_value, symbol_type, 0);
+    requested_version, symbol_value, symbol_type, 0);
 }
 
 static int resolve_root_scope_symbol(const struct poly_program *program,
-    const char *symbol_name, uint8_t *trampoline_code, size_t prefix_size,
-    uint64_t return_pc, uint8_t *scratch, uint64_t *symbol_value,
-    uint8_t *symbol_type) {
+    const char *symbol_name, const char *requested_version,
+    uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
+    uint8_t *scratch, uint64_t *symbol_value, uint8_t *symbol_type) {
   if (!program->scope_root_program || !program->scope_root_loaded_image ||
       program == program->scope_root_program)
     return -1;
   uint64_t ifunc_resolver_vaddr = 0;
   uint8_t resolved_type = 0;
   if (resolve_loaded_program_symbol_ex(program->scope_root_program,
-        program->scope_root_loaded_image, symbol_name, symbol_value,
-        &resolved_type, &ifunc_resolver_vaddr) < 0)
+        program->scope_root_loaded_image, symbol_name, requested_version,
+        symbol_value, &resolved_type, &ifunc_resolver_vaddr) < 0)
     return -1;
   if (resolved_type == STT_GNU_IFUNC) {
     if (run_irelative_resolver(program->scope_root_program,
@@ -706,16 +920,21 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
     uint8_t *symbol_type, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch) {
   const char *symbol_name = NULL;
+  const char *requested_version = NULL;
   uint8_t unresolved_info = 0;
   if (dynamic_symbol_name_by_index(program, loaded_image, symtab_vaddr,
         strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
         symbol_index, &symbol_name, &unresolved_info) < 0)
     return -1;
-  if (resolve_root_scope_symbol(program, symbol_name, trampoline_code,
+  if (relocation_requested_version_name(program, loaded_image, strtab_vaddr,
+        strsz, symbol_index, &requested_version) < 0)
+    return -1;
+  if (resolve_root_scope_symbol(program, symbol_name, requested_version,
+        trampoline_code,
         prefix_size, return_pc, scratch, symbol_value, symbol_type) == 0)
     return 0;
-  if (resolve_loaded_dependency_symbol(program, symbol_name, symbol_value,
-        symbol_type) == 0)
+  if (resolve_loaded_dependency_symbol(program, symbol_name, requested_version,
+        symbol_value, symbol_type) == 0)
     return 0;
   if (ELF64_ST_BIND(unresolved_info) == STB_WEAK) {
     *symbol_value = 0;
