@@ -1103,6 +1103,72 @@ uint64_t POLY_HOST_HELPER poly_host_x86_pthread_equal(uint64_t left,
   return left == right ? 1 : 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_rwlock_init(uint32_t *lock,
+    const void *attr)
+{
+  (void) attr;
+  if (lock == 0)
+    return 22;
+  *lock = 0;
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_rwlock_destroy(uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  return *lock == 0 ? 0 : 16;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_rwlock_tryrdlock(
+    uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  for (;;) {
+    uint32_t old_value = *lock;
+    if (old_value == UINT32_MAX)
+      return 16;
+    if (__sync_bool_compare_and_swap(lock, old_value, old_value + 1))
+      return 0;
+  }
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_rwlock_rdlock(uint32_t *lock)
+{
+  uint64_t status;
+  while ((status = poly_host_x86_pthread_rwlock_tryrdlock(lock)) == 16) {
+  }
+  return status;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_rwlock_trywrlock(
+    uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  return __sync_bool_compare_and_swap(lock, 0, UINT32_MAX) ? 0 : 16;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_rwlock_wrlock(uint32_t *lock)
+{
+  uint64_t status;
+  while ((status = poly_host_x86_pthread_rwlock_trywrlock(lock)) == 16) {
+  }
+  return status;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_pthread_rwlock_unlock(uint32_t *lock)
+{
+  if (lock == 0)
+    return 22;
+  if (*lock == UINT32_MAX) {
+    __sync_lock_release(lock);
+    return 0;
+  }
+  return __sync_sub_and_fetch(lock, 1) != UINT32_MAX ? 0 : 22;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)
 {
   return poly_runtime_register_atexit_callback(callback, 0, 0);

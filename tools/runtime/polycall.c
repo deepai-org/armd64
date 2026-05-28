@@ -470,7 +470,14 @@ enum {
   POLY_IMPORT_FUNC_PTHREAD_MUTEX_UNLOCK = 167,
   POLY_IMPORT_FUNC_PTHREAD_SELF = 168,
   POLY_IMPORT_FUNC_PTHREAD_EQUAL = 169,
-  POLY_IMPORT_FUNC_COUNT = 170
+  POLY_IMPORT_FUNC_PTHREAD_RWLOCK_INIT = 170,
+  POLY_IMPORT_FUNC_PTHREAD_RWLOCK_DESTROY = 171,
+  POLY_IMPORT_FUNC_PTHREAD_RWLOCK_RDLOCK = 172,
+  POLY_IMPORT_FUNC_PTHREAD_RWLOCK_TRYRDLOCK = 173,
+  POLY_IMPORT_FUNC_PTHREAD_RWLOCK_WRLOCK = 174,
+  POLY_IMPORT_FUNC_PTHREAD_RWLOCK_TRYWRLOCK = 175,
+  POLY_IMPORT_FUNC_PTHREAD_RWLOCK_UNLOCK = 176,
+  POLY_IMPORT_FUNC_COUNT = 177
 };
 
 enum {
@@ -926,6 +933,14 @@ extern uint64_t poly_host_x86_pthread_mutex_trylock(uint32_t *mutex);
 extern uint64_t poly_host_x86_pthread_mutex_unlock(uint32_t *mutex);
 extern uint64_t poly_host_x86_pthread_self(void);
 extern uint64_t poly_host_x86_pthread_equal(uint64_t left, uint64_t right);
+extern uint64_t poly_host_x86_pthread_rwlock_init(uint32_t *lock,
+    const void *attr);
+extern uint64_t poly_host_x86_pthread_rwlock_destroy(uint32_t *lock);
+extern uint64_t poly_host_x86_pthread_rwlock_rdlock(uint32_t *lock);
+extern uint64_t poly_host_x86_pthread_rwlock_tryrdlock(uint32_t *lock);
+extern uint64_t poly_host_x86_pthread_rwlock_wrlock(uint32_t *lock);
+extern uint64_t poly_host_x86_pthread_rwlock_trywrlock(uint32_t *lock);
+extern uint64_t poly_host_x86_pthread_rwlock_unlock(uint32_t *lock);
 extern uint64_t poly_host_x86_atexit(void *callback);
 extern uint64_t poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle);
@@ -1074,8 +1089,11 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "pthread_setspecific", "pthread_mutex_init", "pthread_mutex_destroy",
     "pthread_mutex_lock", "pthread_mutex_trylock", "pthread_mutex_unlock",
     "pthread_self", "pthread_equal", "atexit", "__cxa_atexit",
-    "__cxa_finalize", "getpid", "getppid", "getuid", "geteuid", "getgid",
-    "getegid", "gettid",
+    "__cxa_finalize", "pthread_rwlock_init", "pthread_rwlock_destroy",
+    "pthread_rwlock_rdlock", "pthread_rwlock_tryrdlock",
+    "pthread_rwlock_wrlock", "pthread_rwlock_trywrlock",
+    "pthread_rwlock_unlock", "getpid", "getppid", "getuid", "geteuid",
+    "getgid", "getegid", "gettid",
     "puts", "__cxa_guard_acquire", "__cxa_guard_release",
     "__cxa_guard_abort",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
@@ -1282,6 +1300,20 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_self;
     case POLY_IMPORT_FUNC_PTHREAD_EQUAL:
       return (uint64_t) (uintptr_t) poly_host_x86_pthread_equal;
+    case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_INIT:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_init;
+    case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_DESTROY:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_destroy;
+    case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_RDLOCK:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_rdlock;
+    case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_TRYRDLOCK:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_tryrdlock;
+    case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_WRLOCK:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_wrlock;
+    case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_TRYWRLOCK:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_trywrlock;
+    case POLY_IMPORT_FUNC_PTHREAD_RWLOCK_UNLOCK:
+      return (uint64_t) (uintptr_t) poly_host_x86_pthread_rwlock_unlock;
     case POLY_IMPORT_FUNC_ATEXIT:
       return (uint64_t) (uintptr_t) poly_host_x86_atexit;
     case POLY_IMPORT_FUNC_CXA_ATEXIT:
@@ -2946,6 +2978,41 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "pthread_equal") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_PTHREAD_EQUAL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_rwlock_init") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_RWLOCK_INIT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_rwlock_destroy") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_RWLOCK_DESTROY * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_rwlock_rdlock") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_RWLOCK_RDLOCK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_rwlock_tryrdlock") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_RWLOCK_TRYRDLOCK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_rwlock_wrlock") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_RWLOCK_WRLOCK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_rwlock_trywrlock") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_RWLOCK_TRYWRLOCK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "pthread_rwlock_unlock") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_PTHREAD_RWLOCK_UNLOCK * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "atexit") == 0) {
