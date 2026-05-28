@@ -251,6 +251,15 @@ struct poly_linux_generic_stat {
   uint32_t unused5;
 };
 
+struct poly_utsname {
+  char sysname[65];
+  char nodename[65];
+  char release[65];
+  char version[65];
+  char machine[65];
+  char domainname[65];
+};
+
 static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
   return value & ~(alignment - 1);
 }
@@ -475,9 +484,20 @@ static void poly_store_linux_generic_stat(uint64_t destination,
   target->ctime_nsec = (uint64_t) source->st_ctim.tv_nsec;
 }
 
+static void poly_store_fixed_string(char *target, size_t target_size,
+    const char *value) {
+  memset(target, 0, target_size);
+  if (target_size == 0)
+    return;
+  size_t value_len = strlen(value);
+  if (value_len >= target_size)
+    value_len = target_size - 1;
+  memcpy(target, value, value_len);
+}
+
 static int poly_handle_structured_foreign_syscall(uint64_t number,
-    uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3,
-    uint64_t *result) {
+    uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
+    uint64_t arg3, uint64_t *result) {
   struct stat stat_result;
   long status;
 
@@ -494,6 +514,15 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         (uint64_t) (uintptr_t) &stat_result, 0, 0, 0, 0);
       if (status == 0)
         poly_store_linux_generic_stat(arg1, &stat_result);
+      *result = (uint64_t) status;
+      return 1;
+    case 160:
+      status = poly_x86_syscall6(SYS_uname, arg0, 0, 0, 0, 0, 0);
+      if (status == 0 && arg0 != 0) {
+        struct poly_utsname *uts = (struct poly_utsname *) (uintptr_t) arg0;
+        poly_store_fixed_string(uts->machine, sizeof(uts->machine),
+          mode == POLY_MODE_RAW_AARCH64 ? "aarch64" : "riscv64");
+      }
       *result = (uint64_t) status;
       return 1;
     default:
@@ -745,7 +774,7 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
 
   if (reason == POLY_TRAP_SYSCALL) {
     uint64_t structured_result = 0;
-    if (poly_handle_structured_foreign_syscall(number, arg0, arg1, arg2,
+    if (poly_handle_structured_foreign_syscall(number, mode, arg0, arg1, arg2,
           arg3, &structured_result))
       return structured_result;
 

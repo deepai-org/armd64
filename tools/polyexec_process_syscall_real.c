@@ -34,6 +34,7 @@ enum {
   POLY_SYS_GETEGID = 177,
   POLY_SYS_GETTID = 178,
   POLY_SYS_GETTIMEOFDAY = 169,
+  POLY_SYS_UNAME = 160,
   POLY_SYS_MUNMAP = 215,
   POLY_SYS_MMAP = 222,
   POLY_SYS_MPROTECT = 226,
@@ -83,6 +84,15 @@ struct poly_timeval {
 struct poly_rlimit64 {
   uint64_t cur;
   uint64_t max;
+};
+
+struct poly_utsname {
+  char sysname[65];
+  char nodename[65];
+  char release[65];
+  char version[65];
+  char machine[65];
+  char domainname[65];
 };
 
 struct poly_statx_timestamp {
@@ -253,6 +263,17 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     sizeof(random_bytes), POLY_GRND_NONBLOCK);
   if (random_len != (long) sizeof(random_bytes) && random_len != -11)
     return 62;
+
+  struct poly_utsname uts;
+  if (poly_syscall2(POLY_SYS_UNAME, (long) &uts, 0) != 0)
+    return 63;
+#if defined(__aarch64__)
+  if (!poly_streq(uts.sysname, "Linux") || !poly_streq(uts.machine, "aarch64"))
+    return 64;
+#elif defined(__riscv)
+  if (!poly_streq(uts.sysname, "Linux") || !poly_streq(uts.machine, "riscv64"))
+    return 64;
+#endif
 
   char exe_path[128];
   long exe_len = poly_syscall4(POLY_SYS_READLINKAT, POLY_AT_FDCWD,
