@@ -157,6 +157,8 @@ enum {
   MAX_ATEXIT_CALLBACKS = 128,
   MAX_LOAD_SEGMENTS = 16,
   MAX_DEP_PATH = 192,
+  MAX_BRIDGE_SPECS = 64,
+  MAX_BRIDGE_SYMBOL = 128,
   RELOC_BASE_ABSOLUTE = 0,
   RELOC_BASE_LOAD_BIAS = 1,
   RELOC_BASE_IMPORT_PAGE = 2,
@@ -489,6 +491,11 @@ struct poly_load_segment {
   uint32_t flags;
 };
 
+struct poly_bridge_spec {
+  char symbol[MAX_BRIDGE_SYMBOL];
+  int bridge_kind;
+};
+
 struct poly_dependency {
   char path[MAX_DEP_PATH];
   char soname[MAX_DEP_PATH];
@@ -520,6 +527,8 @@ struct poly_dependency {
   size_t lookup_rank;
   int symbolic_binding;
   struct poly_symbol_table dynsym;
+  struct poly_bridge_spec bridge_specs[MAX_BRIDGE_SPECS];
+  size_t bridge_spec_count;
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
 };
@@ -566,6 +575,8 @@ struct poly_program {
   struct poly_dynamic_reloc *relocs;
   size_t reloc_count;
   struct poly_symbol_table root_dynsym;
+  struct poly_bridge_spec root_bridge_specs[MAX_BRIDGE_SPECS];
+  size_t root_bridge_spec_count;
   struct poly_dependency deps[MAX_NEEDED_DEPS];
   size_t dep_count;
   size_t direct_dep_count;
@@ -1921,10 +1932,103 @@ static int reloc_base_is_dep_cross_ifunc(int base_kind) {
     base_kind < RELOC_BASE_DEP_CROSS_IFUNC + MAX_NEEDED_DEPS;
 }
 
-static int cross_bridge_kind_for_symbol(const char *symbol_name) {
-  if (symbol_name && strcmp(symbol_name, "poly_cross_needed_vec128_u32") == 0)
+static int cross_bridge_kind_from_name(const char *name) {
+  if (strcmp(name, "default") == 0)
+    return POLY_CROSS_BRIDGE_DEFAULT;
+  if (strcmp(name, "vec128_u32") == 0)
     return POLY_CROSS_BRIDGE_VEC128_U32;
+  return -1;
+}
+
+static int cross_bridge_kind_for_specs(const struct poly_bridge_spec *specs,
+    size_t spec_count, const char *symbol_name) {
+  if (!symbol_name)
+    return POLY_CROSS_BRIDGE_DEFAULT;
+  for (size_t n = 0; n < spec_count; n++) {
+    if (strcmp(specs[n].symbol, symbol_name) == 0)
+      return specs[n].bridge_kind;
+  }
   return POLY_CROSS_BRIDGE_DEFAULT;
+}
+
+static int load_bridge_specs_for_path(const char *path,
+    struct poly_bridge_spec *specs, size_t *spec_count) {
+  *spec_count = 0;
+  char spec_path[MAX_DEP_PATH + 16];
+  const size_t path_len = strlen(path);
+  if (path_len + 8 >= sizeof(spec_path))
+    return 0;
+  memcpy(spec_path, path, path_len);
+  memcpy(spec_path + path_len, ".polyabi", 9);
+
+  FILE *file = fopen(spec_path, "rb");
+  if (!file) {
+    if (errno == ENOENT)
+      return 0;
+    fprintf(stderr, "POLYCALL_FAIL: unable to open %s: %s\n", spec_path,
+      strerror(errno));
+    return -1;
+  }
+  if (fseek(file, 0, SEEK_END) != 0) {
+    fprintf(stderr, "POLYCALL_FAIL: unable to seek %s\n", spec_path);
+    fclose(file);
+    return -1;
+  }
+  long file_size = ftell(file);
+  if (file_size < 0 || file_size > 64 * 1024) {
+    fprintf(stderr, "POLYCALL_FAIL: bad poly ABI sidecar size: %s\n",
+      spec_path);
+    fclose(file);
+    return -1;
+  }
+  rewind(file);
+
+  char *buffer = calloc(1, (size_t) file_size + 1);
+  if (!buffer) {
+    fprintf(stderr, "POLYCALL_FAIL: out of memory reading %s\n", spec_path);
+    fclose(file);
+    return -1;
+  }
+  if (file_size != 0 &&
+      fread(buffer, 1, (size_t) file_size, file) != (size_t) file_size) {
+    fprintf(stderr, "POLYCALL_FAIL: unable to read %s\n", spec_path);
+    free(buffer);
+    fclose(file);
+    return -1;
+  }
+  fclose(file);
+
+  char *save = NULL;
+  for (char *line = strtok_r(buffer, "\n", &save); line;
+      line = strtok_r(NULL, "\n", &save)) {
+    char *comment = strchr(line, '#');
+    if (comment)
+      *comment = '\0';
+    char *token_save = NULL;
+    char *symbol = strtok_r(line, " \t\r", &token_save);
+    if (!symbol)
+      continue;
+    char *bridge = strtok_r(NULL, " \t\r", &token_save);
+    if (!bridge || strtok_r(NULL, " \t\r", &token_save)) {
+      fprintf(stderr, "POLYCALL_FAIL: bad poly ABI sidecar line: %s\n",
+        spec_path);
+      free(buffer);
+      return -1;
+    }
+    const int bridge_kind = cross_bridge_kind_from_name(bridge);
+    if (bridge_kind < 0 || strlen(symbol) >= MAX_BRIDGE_SYMBOL ||
+        *spec_count >= MAX_BRIDGE_SPECS) {
+      fprintf(stderr, "POLYCALL_FAIL: bad poly ABI sidecar entry: %s\n",
+        spec_path);
+      free(buffer);
+      return -1;
+    }
+    strcpy(specs[*spec_count].symbol, symbol);
+    specs[*spec_count].bridge_kind = bridge_kind;
+    (*spec_count)++;
+  }
+  free(buffer);
+  return 0;
 }
 
 static int dep_cross_stub_base_kind(size_t dep_index, int bridge_kind) {
@@ -3157,6 +3261,11 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   }
   dep->arch = arch_probe.arch;
   dep->arch_name = arch_probe.arch_name;
+  if (load_bridge_specs_for_path(dep->path, dep->bridge_specs,
+        &dep->bridge_spec_count) < 0) {
+    free(data);
+    return -1;
+  }
 
   if (ehdr->e_phentsize < sizeof(Elf64_Phdr) ||
       ehdr->e_phoff > size ||
@@ -3366,6 +3475,9 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   memcpy(dep_view.deps, owner->deps, sizeof(dep_view.deps));
   dep_view.dep_count = owner->dep_count;
   dep_view.root_dynsym = owner->root_dynsym;
+  memcpy(dep_view.root_bridge_specs, owner->root_bridge_specs,
+    sizeof(dep_view.root_bridge_specs));
+  dep_view.root_bridge_spec_count = owner->root_bridge_spec_count;
   dep_view.needs_x86_import = owner->needs_x86_import;
   if (load_dynamic_relocs(&dep_view, data, size, ehdr, dynamic,
         dynamic_count) < 0) {
@@ -3834,7 +3946,8 @@ static int resolve_root_symbol(const struct poly_program *program,
         (type == STT_FUNC || type == STT_NOTYPE) &&
         program->root_arch != 0 &&
         program->root_arch != program->arch)
-      *base_kind = cross_bridge_kind_for_symbol(symbol_name) ==
+      *base_kind = cross_bridge_kind_for_specs(program->root_bridge_specs,
+        program->root_bridge_spec_count, symbol_name) ==
         POLY_CROSS_BRIDGE_VEC128_U32 ? RELOC_BASE_ROOT_CROSS_STUB_VEC128 :
         RELOC_BASE_ROOT_CROSS_STUB;
     else
@@ -3885,7 +3998,8 @@ static int resolve_dependency_symbol(const struct poly_program *program,
     if (program->deps[best].arch != program->arch) {
       if (best_type == STT_FUNC || best_type == STT_NOTYPE) {
         *base_kind = dep_cross_stub_base_kind(best,
-          cross_bridge_kind_for_symbol(symbol_name));
+          cross_bridge_kind_for_specs(program->deps[best].bridge_specs,
+            program->deps[best].bridge_spec_count, symbol_name));
         return 0;
       }
       if (best_type == STT_GNU_IFUNC) {
@@ -4755,6 +4869,11 @@ static int load_elf_program(const char *path, const char *symbol_name,
       (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) ||
       detect_arch(ehdr->e_machine, program) < 0) {
     fprintf(stderr, "POLYCALL_FAIL: unsupported ELF header: %s\n", path);
+    free(data);
+    return -1;
+  }
+  if (load_bridge_specs_for_path(program->path, program->root_bridge_specs,
+        &program->root_bridge_spec_count) < 0) {
     free(data);
     return -1;
   }

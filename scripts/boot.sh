@@ -666,6 +666,8 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_VEC128_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossvec-aarch64.so"
+  printf 'poly_cross_needed_vec128_u32 vec128_u32\n' \
+    > "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossvec-aarch64.so.polyabi"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycrossleaf-aarch64.so -Wl,--hash-style=sysv \
     -Wl,--build-id=none \
@@ -2027,6 +2029,8 @@ build_poly_elf_payloads() {
     -Wl,--build-id=none \
     "$POLYCALL_CROSS_VEC128_DEP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossvec-riscv.so"
+  printf 'poly_cross_needed_vec128_u32 vec128_u32\n' \
+    > "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolycrossvec-riscv.so.polyabi"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycrossleaf-riscv.so -Wl,--hash-style=sysv \
