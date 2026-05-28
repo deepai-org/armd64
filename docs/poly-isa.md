@@ -246,7 +246,10 @@ discover the experimental hardware contract before emitting poly operations:
   and no hidden foreign register banks permitted.  This is a formal hardware
   ABI definition and is enumerated through standard `CPUID.0xD` when polyglot
   execution is enabled.  Component `20` avoids component `11`, which is already
-  assigned to standard x86 CET_U state in current x86 XSAVE maps.
+  assigned to standard x86 CET_U state in current x86 XSAVE maps.  A guest OS
+  must still enable `XCR0[20]` before architectural `XSAVE/XRSTOR` context
+  switches include this component; the stock Linux guest used by the current
+  boot tests enumerates the component but leaves `XCR0[20]` disabled.
 - `CPUID.EAX=0x40000005`: architectural trap-packet ABI discovery.  `EAX=2`
   is the trap layout version, `EBX=64` is the byte size of the fixed packet
   header, `ECX=8` is the native ABI argument slot count, and `EDX=0x1f`
@@ -1109,7 +1112,9 @@ trap packet, and no stale trap-return frame.  Software can also explicitly
 export/import this keyed state with `0f 24 67/68 ... POLY!` and the fixed
 4096-byte `struct poly_xsave_state` layout. CPUID state bit `11` advertises the
 formal `0x40000004` hardware layout, and CPUID state bit `7` advertises the
-matching XCR0/XSAVE-visible component.
+matching XCR0/XSAVE-visible component.  Full OS context-switch coverage starts
+when the guest OS opts into `XCR0[20]`; until then, the prototype's explicit
+state-key and software save/restore paths remain the tested mechanism.
 If no vector is installed, syscall and import traps surface as x86 `#UD`;
 breakpoint traps surface as x86 `#BP`.  This keeps the CPU model OS-neutral:
 software, not the CPU, decides whether a trap means Linux syscall translation,

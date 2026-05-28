@@ -42,6 +42,7 @@ operations.
   unsupported ops exit architecturally for OS or userspace policy.
 - State: non-x86 architectural state is explicit and discoverable through a
   prototype CPUID/XCR0/XSAVE component; Bochs also provides direct save/restore
-  opcodes for tests.
+  opcodes for tests. The stock guest Linux enumerates this component but does
+  not yet enable `XCR0[20]`.
 
 Detailed design notes are in `docs/poly-isa.md`.

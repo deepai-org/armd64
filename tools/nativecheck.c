@@ -84,6 +84,13 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
 }
 
+static inline uint64_t read_xcr0(void) {
+  uint32_t eax;
+  uint32_t edx;
+  asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
+  return ((uint64_t) edx << 32) | eax;
+}
+
 static inline uint64_t poly_trap_status_reason(void) {
   uint64_t value;
   asm volatile(POLY_OP_TRAP_STATUS_REASON : "=a"(value) :: "memory");
@@ -1484,6 +1491,11 @@ int main(void) {
         xsave0.eax);
       return 1;
     }
+    if (xsave0.ecx < POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: CPUID.0xD max xsave area too small ecx=0x%x\n",
+        xsave0.ecx);
+      return 1;
+    }
     struct poly_cpuid_regs poly_xsave =
       poly_read_cpuid(0x0d, POLY_STATE_XSAVE_COMPONENT_ARCH);
     if (poly_xsave.eax != POLY_STATE_XSAVE_BYTES_ARCH ||
@@ -1495,6 +1507,11 @@ int main(void) {
         poly_xsave.edx);
       return 1;
     }
+    uint64_t xcr0 = read_xcr0();
+    if ((xcr0 & (1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH)) != 0)
+      puts("NATIVE_POLY_XSAVE_OS_ENABLED");
+    else
+      puts("NATIVE_POLY_XSAVE_OS_DISABLED");
     struct poly_cpuid_regs expected_trap =
       poly_cpuid_expected_trap_leaf();
     struct poly_cpuid_regs trap =
