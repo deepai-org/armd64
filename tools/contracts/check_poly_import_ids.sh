@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOCHS_SRC="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
-TOOLS_SRC="$ROOT_DIR/tools/polycall.c"
+TOOLS_SRC="$ROOT_DIR/tools/runtime/polycall.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-import-ids.$$"
 
 mkdir -p "$TMP_DIR"
@@ -69,7 +69,7 @@ extract_ids "$BOCHS_SRC" "BX_POLY_IMPORT_FUNC_" "$BOCHS_IDS"
 extract_ids "$TOOLS_SRC" "POLY_IMPORT_FUNC_" "$TOOLS_IDS"
 
 if ! diff -u "$BOCHS_IDS" "$TOOLS_IDS"; then
-  echo "poly import ID mismatch between Bochs and tools/polycall.c" >&2
+  echo "poly import ID mismatch between Bochs and tools/runtime/polycall.c" >&2
   exit 1
 fi
 

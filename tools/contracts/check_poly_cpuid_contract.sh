@@ -4,9 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOCHS_CPU="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 BOCHS_CRREGS="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/crregs.h"
-HEADER="$ROOT_DIR/tools/polycpuid.h"
-POLYCALL="$ROOT_DIR/tools/polycall.c"
-POLYBENCH="$ROOT_DIR/tools/polybench.c"
+HEADER="$ROOT_DIR/tools/include/polycpuid.h"
+POLYCALL="$ROOT_DIR/tools/runtime/polycall.c"
+POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
 POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
 TMP_DIR="${TMPDIR:-/tmp}/poly-cpuid-contract.$$"
 

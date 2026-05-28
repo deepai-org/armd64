@@ -7,7 +7,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#include "polycpuid.h"
+#include "../include/polycpuid.h"
 
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x24,0x67,0x50,0x4f,0x4c,0x59,0x21\n"
 

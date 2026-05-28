@@ -12,9 +12,9 @@ BOCHS_OPCODES="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/ia_opcodes.def"
 BOCHS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs"
 README="$ROOT_DIR/README.md"
 POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
-POLYPROBE="$ROOT_DIR/tools/polyprobe.c"
-POLYBENCH="$ROOT_DIR/tools/polybench.c"
-NATIVECHECK="$ROOT_DIR/tools/nativecheck.c"
+POLYPROBE="$ROOT_DIR/tools/programs/polyprobe.c"
+POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
+NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -158,7 +158,7 @@ assert_contains "pcall-needed-tls-external-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency-exported TLS relocations"
 assert_contains "pcall-abs-needed-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover absolute DT_NEEDED paths"
-assert_contains "needed\\[0\\][[:space:]]*==[[:space:]]*'/'" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "needed\\[0\\][[:space:]]*==[[:space:]]*'/'" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must accept absolute DT_NEEDED paths"
 assert_contains "pcall-origin-needed-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover ORIGIN token expansion in DT_NEEDED strings"
@@ -166,43 +166,43 @@ assert_contains "pcall-platform-needed-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover PLATFORM token expansion in DT_NEEDED strings"
 assert_contains "pcall-lib-needed-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover LIB token expansion in DT_NEEDED strings"
-assert_contains "expanded_needed" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "expanded_needed" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must expand dynamic-string tokens in DT_NEEDED entries"
 assert_contains "pcall-abs-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover absolute DT_RUNPATH dependency directories"
-assert_contains "build_runpath_entry_needed_path" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "build_runpath_entry_needed_path" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must accept absolute DT_RUNPATH dependency directories"
 assert_contains "pcall-rpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover old-style DT_RPATH dependency directories"
-assert_contains "DT_RPATH" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "DT_RPATH" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must parse old-style DT_RPATH dependency directories"
 assert_contains "pcall-colon-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover colon-separated DT_RUNPATH fallback directories"
-assert_contains "runpath\\[end\\][[:space:]]*!=[[:space:]]*':'" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "runpath\\[end\\][[:space:]]*!=[[:space:]]*':'" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must tokenize colon-separated DT_RUNPATH entries"
 assert_contains "pcall-braced-origin-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover braced ORIGIN DT_RUNPATH directories"
-assert_contains "\\$\\{ORIGIN\\}" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "\\$\\{ORIGIN\\}" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must accept braced ORIGIN DT_RUNPATH entries"
 assert_contains "pcall-relative-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover relative DT_RUNPATH dependency directories"
-assert_contains "expand_runpath_entry" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "expand_runpath_entry" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must accept relative DT_RUNPATH dependency directories"
 assert_contains "pcall-lib-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover LIB token expansion in DT_RUNPATH directories"
 assert_contains "pcall-braced-lib-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover braced LIB token expansion in DT_RUNPATH directories"
-assert_contains '\$LIB' "$ROOT_DIR/tools/polycall.c" \
+assert_contains '\$LIB' "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must expand LIB dynamic-string tokens in DT_RUNPATH entries"
 assert_contains "pcall-platform-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover PLATFORM token expansion in DT_RUNPATH directories"
 assert_contains "pcall-braced-platform-runpath-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover braced PLATFORM token expansion in DT_RUNPATH directories"
-assert_contains '\$PLATFORM' "$ROOT_DIR/tools/polycall.c" \
+assert_contains '\$PLATFORM' "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must expand PLATFORM dynamic-string tokens in DT_RUNPATH entries"
 assert_contains "pcall-ld-library-path-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover LD_LIBRARY_PATH dependency lookup"
-assert_contains "LD_LIBRARY_PATH" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "LD_LIBRARY_PATH" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must honor LD_LIBRARY_PATH for foreign dependency lookup"
 assert_contains "pcall-ld-platform-path-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover PLATFORM token expansion in LD_LIBRARY_PATH"
@@ -214,51 +214,51 @@ assert_contains "missing-envdeps" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover colon-separated LD_LIBRARY_PATH fallback"
 assert_contains "pcall-runpath-prefer-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover DT_RUNPATH precedence over fallback directories"
-assert_contains "found_needed" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "found_needed" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must prefer declared DT_RUNPATH/DT_RPATH before fallback directories"
-assert_contains "MAX_NEEDED_DEPS[[:space:]]*=[[:space:]]*32" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "MAX_NEEDED_DEPS[[:space:]]*=[[:space:]]*32" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must support dependency fans larger than eight libraries"
 assert_contains "pcall-many-needed-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency fans larger than eight libraries"
-assert_contains "RELOC_BASE_DEP_TLS_OFFSET" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "RELOC_BASE_DEP_TLS_OFFSET" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must have a relocation base for dependency-exported TLS symbols"
 assert_contains "pcall-versioned-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency-exported symbol versions"
-assert_contains "DT_VERNEED" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "DT_VERNEED" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must parse GNU version requirements"
-assert_contains "symbol_export_version_matches" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "symbol_export_version_matches" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must match dependency symbol versions"
-assert_contains "DT_SONAME" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "DT_SONAME" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must parse dependency SONAMEs"
-assert_contains "dependency_matches_version_file" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "dependency_matches_version_file" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must match GNU version provider filenames"
-assert_contains "symbol_is_dependency_export" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "symbol_is_dependency_export" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must filter dependency exports by ELF binding and visibility"
-assert_contains "ELF64_ST_VISIBILITY" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "ELF64_ST_VISIBILITY" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must inspect ELF symbol visibility"
 assert_contains "pcall-root-export-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency relocations bound to root exports"
-assert_contains "RELOC_BASE_ROOT_LOAD_BIAS" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "RELOC_BASE_ROOT_LOAD_BIAS" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must have a relocation base for root-object exports"
-assert_contains "resolve_root_symbol" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "resolve_root_symbol" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must resolve dependency relocations against root exports"
 assert_contains "pcall-root-tls-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency TLS relocations bound to root exports"
-assert_contains "RELOC_BASE_ROOT_TLS_OFFSET" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "RELOC_BASE_ROOT_TLS_OFFSET" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must have a relocation base for root-object TLS exports"
-assert_contains "resolve_root_tls_symbol" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "resolve_root_tls_symbol" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must resolve dependency TLS relocations against root exports"
 assert_contains "pcall-root-ifunc-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover dependency relocations bound to root IFUNC exports"
-assert_contains "RELOC_BASE_ROOT_IFUNC" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "RELOC_BASE_ROOT_IFUNC" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must have a relocation base for root-object IFUNC exports"
 assert_contains "pcall-root-weak-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover weak dependency relocations bound to root exports"
-assert_contains "resolve_root_symbol\\(program, symbol_name, &required_version" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "resolve_root_symbol\\(program, symbol_name, &required_version" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall weak undefined relocations must search root exports before resolving to zero"
 assert_contains "pcall-gnu-unique-real" "$ROOT_DIR/scripts/boot.sh" \
   "polycall boot matrix must cover GNU unique object exports"
-assert_contains "STB_GNU_UNIQUE" "$ROOT_DIR/tools/polycall.c" \
+assert_contains "STB_GNU_UNIQUE" "$ROOT_DIR/tools/runtime/polycall.c" \
   "polycall loader must treat GNU unique object symbols as exportable dynamic symbols"
 assert_not_contains "requires_software_descriptor|is_x86_descriptor" "$BOCHS_CPU" \
   "import descriptor/trap routing must not use CPU-side helper classification"
@@ -432,11 +432,11 @@ assert_not_contains "POLY_COMPAT_TRAPS|boot-poly-compat|boot-poly-full-compat" "
   "root make targets must not expose the removed compat trap knob"
 assert_not_contains "POLY_COMPAT_TRAPS|poly_compat_traps" "$ROOT_DIR/scripts/boot.sh" \
   "boot configuration must not emit the removed compat trap knob"
-assert_not_contains "poly_cpuid_expected_feature_mask_for_compat" "$ROOT_DIR/tools/polycpuid.h" \
+assert_not_contains "poly_cpuid_expected_feature_mask_for_compat" "$ROOT_DIR/tools/include/polycpuid.h" \
   "CPUID checks must not carry compat-trap feature variants"
-assert_not_contains "POLY_CPUID_FEATURE_COMPAT_TRAPS" "$ROOT_DIR/tools/polycpuid.h" \
+assert_not_contains "POLY_CPUID_FEATURE_COMPAT_TRAPS" "$ROOT_DIR/tools/include/polycpuid.h" \
   "CPUID ABI must not retain a named compatibility-trap feature bit"
-assert_not_contains "libcall_(expected|number_expected|id)" "$ROOT_DIR/tools/polyapp.c" \
+assert_not_contains "libcall_(expected|number_expected|id)" "$ROOT_DIR/tools/programs/polyapp.c" \
   "polyapp manifests must use neutral break-trap keys, not legacy libcall aliases"
 
 echo "poly architecture contract OK"
