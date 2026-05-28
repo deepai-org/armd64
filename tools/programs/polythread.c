@@ -381,6 +381,8 @@ static uint64_t pcall_riscv_hidden_fp_get(uint64_t addend_bits) {
 static uint64_t trap_aarch64_syscall(uint64_t number, uint64_t arg6,
     uint64_t arg7) {
   uint64_t result = number;
+  uint64_t arg6_lane = arg6;
+  uint64_t arg7_lane = arg7;
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0x91000008\n" // add x8,x0,#0
@@ -388,24 +390,25 @@ static uint64_t trap_aarch64_syscall(uint64_t number, uint64_t arg6,
     ".long 0x91000047\n" // add x7,x2,#0
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(result), "+D"(arg6), "+S"(arg7)
+    : "+a"(result), "+d"(arg6_lane), "+c"(arg7_lane)
     :
-    : "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r13", "r14",
+    : "rbx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r13", "r14",
       "memory");
   return result;
 }
 
 static uint64_t trap_riscv_syscall(uint64_t number, uint64_t arg6) {
   uint64_t result = number;
+  uint64_t arg6_lane = arg6;
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00058813\n" // addi a6,a1,0
     ".long 0x00050893\n" // addi a7,a0,0
     ".long 0x00000073\n" // ecall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(result), "+D"(arg6)
+    : "+a"(result), "+d"(arg6_lane)
     :
-    : "rbx", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "r13",
+    : "rbx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r13",
       "r14", "memory");
   return result;
 }
@@ -413,6 +416,8 @@ static uint64_t trap_riscv_syscall(uint64_t number, uint64_t arg6) {
 static uint64_t trap_aarch64_import(uint64_t arg0, uint64_t arg6,
     uint64_t arg7) {
   uint64_t result = arg0;
+  uint64_t arg6_lane = arg6;
+  uint64_t arg7_lane = arg7;
   asm volatile(
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_A64
@@ -420,21 +425,23 @@ static uint64_t trap_aarch64_import(uint64_t arg0, uint64_t arg6,
     ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
     ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
-    ".long 0x91000006\n" // add x6,x0,#0
-    ".long 0x91000027\n" // add x7,x1,#0
-    ".long 0x91000040\n" // add x0,x2,#0
+    ".long 0x91000026\n" // add x6,x1,#0
+    ".long 0x91000047\n" // add x7,x2,#0
+    ".long 0xd503201f\n" // nop, x0 already carries arg0
     ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(arg6), "+D"(arg7), "+S"(result)
+    : "+a"(result), "+d"(arg6_lane), "+c"(arg7_lane)
     :
-    : "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13",
+    : "rbx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13",
       "r14", "memory");
-  return arg6;
+  return result;
 }
 
 static uint64_t trap_riscv_import(uint64_t arg0, uint64_t arg6,
     uint64_t arg7) {
   uint64_t result = arg0;
+  uint64_t arg6_lane = arg6;
+  uint64_t arg7_lane = arg7;
   asm volatile(
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_RV64
@@ -445,9 +452,9 @@ static uint64_t trap_riscv_import(uint64_t arg0, uint64_t arg6,
     ".long 0x00050513\n" // addi a0,a0,0
     ".long 0x000280e7\n" // jalr ra,0(t0)
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(result), "+D"(arg6), "+S"(arg7)
+    : "+a"(result), "+d"(arg6_lane), "+c"(arg7_lane)
     :
-    : "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13",
+    : "rbx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13",
       "r14", "memory");
   return result;
 }
@@ -464,7 +471,7 @@ static uint64_t descriptor_aarch64_import_sum6(uint64_t a0, uint64_t a1,
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
     ".long 0xd63f0200\n" // blr x16, descriptor-backed import
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg)
     : [imports] "r"((uint64_t) (uintptr_t) polythread_imports)
     : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
@@ -481,7 +488,7 @@ static uint64_t descriptor_riscv_import_sum6(uint64_t a0, uint64_t a1,
     ".long 0x08028293\n" // addi t0,t0,0x80 -> descriptor-backed import
     ".long 0x000280e7\n" // jalr ra,0(t0)
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg)
     : [imports] "r"((uint64_t) (uintptr_t) polythread_imports)
     : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");

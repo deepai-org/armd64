@@ -2497,6 +2497,8 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
       "pushq %%r13\n"
       "pushq %%r14\n"
       "pushq %%r15\n"
+      "movq %%rax, %%rdx\n"
+      "movq %%rax, %%rcx\n"
       "movq %%rax, %%rdi\n"
       "movq %%rax, %%rsi\n"
       "call *%1\n"

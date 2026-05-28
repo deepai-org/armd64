@@ -1894,7 +1894,7 @@ static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
     ".long 0xd63f0200\n" // blr x16, descriptor-backed import
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg)
     : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
     : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
@@ -1912,7 +1912,7 @@ static uint64_t nativecheck_descriptor_riscv_import_sum6(uint64_t a0,
     ".long 0x08028293\n" // addi t0,t0,0x80 -> import id 8
     ".long 0x000280e7\n" // jalr ra,0(t0), descriptor-backed import
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg)
     : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
     : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
