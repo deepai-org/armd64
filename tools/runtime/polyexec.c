@@ -91,6 +91,10 @@ extern char **environ;
 #define AT_HWCAP2 26
 #endif
 
+#ifndef STT_GNU_IFUNC
+#define STT_GNU_IFUNC 10
+#endif
+
 #ifndef DT_PLTRELSZ
 #define DT_PLTRELSZ 2
 #endif
@@ -451,7 +455,7 @@ static int dynamic_symbol_count_from_hash(const struct poly_program *program,
 static int resolve_same_image_reloc_symbol(const struct poly_program *program,
     const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t syment,
     uint64_t hash_vaddr, uint64_t gnu_hash_vaddr, uint64_t symbol_index,
-    uint64_t *symbol_vaddr) {
+    uint64_t *symbol_vaddr, uint8_t *symbol_type) {
   size_t symbol_count = 0;
   if (!symtab_vaddr || syment < sizeof(Elf64_Sym) ||
       dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
@@ -470,6 +474,8 @@ static int resolve_same_image_reloc_symbol(const struct poly_program *program,
   if (sym->st_shndx == SHN_UNDEF)
     return -1;
   *symbol_vaddr = sym->st_value;
+  if (symbol_type)
+    *symbol_type = ELF64_ST_TYPE(sym->st_info);
   return 0;
 }
 
@@ -2164,10 +2170,18 @@ static int apply_relative_relocations(const struct poly_program *program,
       }
       else if (symbol_index != 0 &&
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
+        uint8_t symbol_type = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &reloc_value) < 0)
+              symbol_index, &reloc_value, &symbol_type) < 0)
           return -1;
+        if (symbol_type == STT_GNU_IFUNC) {
+          if (run_irelative_resolver(program, loaded_image, trampoline_code,
+                prefix_size, return_pc, scratch, reloc_value,
+                &reloc_value) < 0)
+            return -1;
+          reloc_value_is_absolute = 1;
+        }
         reloc_value += (uint64_t) rela->r_addend;
       }
       else {
@@ -2207,11 +2221,22 @@ static int apply_relative_relocations(const struct poly_program *program,
       else if (symbol_index != 0 &&
           symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
         uint64_t symbol_value = 0;
+        uint8_t symbol_type = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &symbol_value) < 0)
+              symbol_index, &symbol_value, &symbol_type) < 0)
           return -1;
-        reloc_value += symbol_value;
+        if (symbol_type == STT_GNU_IFUNC) {
+          if (run_irelative_resolver(program, loaded_image, trampoline_code,
+                prefix_size, return_pc, scratch, symbol_value,
+                &symbol_value) < 0)
+            return -1;
+          reloc_value += symbol_value;
+          reloc_value_is_absolute = 1;
+        }
+        else {
+          reloc_value += symbol_value;
+        }
       }
       else {
         return -1;
@@ -2274,15 +2299,25 @@ static int apply_relative_relocations(const struct poly_program *program,
             !symbolic_64_reloc_type_for_arch(program->arch, reloc_type))
           return -1;
         uint64_t reloc_value = 0;
+        uint8_t symbol_type = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &reloc_value) < 0)
+              symbol_index, &reloc_value, &symbol_type) < 0)
           return -1;
+        int reloc_value_is_absolute = 0;
+        if (symbol_type == STT_GNU_IFUNC) {
+          if (run_irelative_resolver(program, loaded_image, trampoline_code,
+                prefix_size, return_pc, scratch, reloc_value,
+                &reloc_value) < 0)
+            return -1;
+          reloc_value_is_absolute = 1;
+        }
         size_t target = 0;
         if (elf_vaddr_to_image_offset(program, rela->r_offset, 8, &target) < 0)
           return -1;
         write_u64_le(loaded_image + target,
-          load_bias + reloc_value + (uint64_t) rela->r_addend);
+          (reloc_value_is_absolute ? reloc_value : load_bias + reloc_value) +
+            (uint64_t) rela->r_addend);
       }
     }
     else {
@@ -2307,12 +2342,22 @@ static int apply_relative_relocations(const struct poly_program *program,
         if (elf_vaddr_to_image_offset(program, rel->r_offset, 8, &target) < 0)
           return -1;
         uint64_t symbol_value = 0;
+        uint8_t symbol_type = 0;
         if (resolve_same_image_reloc_symbol(program, loaded_image,
               symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
-              symbol_index, &symbol_value) < 0)
+              symbol_index, &symbol_value, &symbol_type) < 0)
           return -1;
+        int symbol_value_is_absolute = 0;
+        if (symbol_type == STT_GNU_IFUNC) {
+          if (run_irelative_resolver(program, loaded_image, trampoline_code,
+                prefix_size, return_pc, scratch, symbol_value,
+                &symbol_value) < 0)
+            return -1;
+          symbol_value_is_absolute = 1;
+        }
         write_u64_le(loaded_image + target,
-          load_bias + symbol_value + read_u64_le(loaded_image + target));
+          (symbol_value_is_absolute ? symbol_value : load_bias + symbol_value) +
+            read_u64_le(loaded_image + target));
       }
     }
   }
