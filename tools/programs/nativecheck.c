@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <errno.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -31,6 +33,16 @@
 #define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x32\n"
 #define POLY_OP_BREAK_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x39\n"
 #define POLY_OP_BREAK_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x3a\n"
+
+#ifndef ARCH_GET_XCOMP_SUPP
+#define ARCH_GET_XCOMP_SUPP 0x1021
+#endif
+#ifndef ARCH_GET_XCOMP_PERM
+#define ARCH_GET_XCOMP_PERM 0x1022
+#endif
+#ifndef ARCH_REQ_XCOMP_PERM
+#define ARCH_REQ_XCOMP_PERM 0x1023
+#endif
 
 #define POLY_NATIVE_XSAVE_AREA_BYTES \
   (POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH)
@@ -161,6 +173,10 @@ static inline uint64_t read_xcr0(void) {
   uint32_t edx;
   asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
   return ((uint64_t) edx << 32) | eax;
+}
+
+static long native_arch_prctl(int code, unsigned long addr) {
+  return syscall(SYS_arch_prctl, code, addr);
 }
 
 static inline void native_xsave64(void *area, uint64_t mask) {
@@ -1822,6 +1838,49 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   return 0;
 }
 
+static void request_poly_xsave_permission(uint64_t *xcr0) {
+  const uint64_t poly_mask = 1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH;
+  unsigned long xcomp_supp = 0;
+  unsigned long xcomp_perm = 0;
+
+  if (native_arch_prctl(ARCH_GET_XCOMP_SUPP,
+        (unsigned long) (uintptr_t) &xcomp_supp) == 0) {
+    printf("NATIVE_POLY_XSAVE_XCOMP_SUPP=0x%llx\n",
+      (unsigned long long) xcomp_supp);
+  }
+  else {
+    printf("NATIVE_POLY_XSAVE_XCOMP_SUPP_UNAVAILABLE errno=%d\n", errno);
+  }
+
+  if (native_arch_prctl(ARCH_GET_XCOMP_PERM,
+        (unsigned long) (uintptr_t) &xcomp_perm) == 0) {
+    printf("NATIVE_POLY_XSAVE_XCOMP_PERM=0x%llx\n",
+      (unsigned long long) xcomp_perm);
+  }
+  else {
+    printf("NATIVE_POLY_XSAVE_XCOMP_PERM_UNAVAILABLE errno=%d\n", errno);
+  }
+
+  if ((*xcr0 & poly_mask) != 0)
+    return;
+
+  errno = 0;
+  if (native_arch_prctl(ARCH_REQ_XCOMP_PERM,
+        POLY_STATE_XSAVE_COMPONENT_ARCH) == 0) {
+    *xcr0 = read_xcr0();
+    if ((*xcr0 & poly_mask) != 0) {
+      puts("NATIVE_POLY_XSAVE_ARCH_PRCTL_ENABLED");
+    }
+    else {
+      printf("NATIVE_POLY_XSAVE_ARCH_PRCTL_NO_XCR0 xcr0=0x%llx\n",
+        (unsigned long long) *xcr0);
+    }
+  }
+  else {
+    printf("NATIVE_POLY_XSAVE_ARCH_PRCTL_UNAVAILABLE errno=%d\n", errno);
+  }
+}
+
 __attribute__((noinline, noipa))
 static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
@@ -2152,6 +2211,7 @@ int main(void) {
       puts("NATIVE_POLY_XSAVE_OS_ENABLED");
     else
       puts("NATIVE_POLY_XSAVE_OS_DISABLED");
+    request_poly_xsave_permission(&xcr0);
     struct poly_cpuid_regs expected_trap =
       poly_cpuid_expected_trap_leaf();
     struct poly_cpuid_regs trap =
