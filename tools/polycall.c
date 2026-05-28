@@ -1951,9 +1951,144 @@ static int cross_bridge_kind_for_specs(const struct poly_bridge_spec *specs,
   return POLY_CROSS_BRIDGE_DEFAULT;
 }
 
-static int load_bridge_specs_for_path(const char *path,
+static int append_bridge_spec(struct poly_bridge_spec *specs,
+    size_t *spec_count, const char *symbol, const char *bridge,
+    const char *source) {
+  const int bridge_kind = cross_bridge_kind_from_name(bridge);
+  if (bridge_kind < 0 || strlen(symbol) >= MAX_BRIDGE_SYMBOL ||
+      *spec_count >= MAX_BRIDGE_SPECS) {
+    fprintf(stderr, "POLYCALL_FAIL: bad poly ABI metadata entry: %s\n",
+      source);
+    return -1;
+  }
+  for (size_t n = 0; n < *spec_count; n++) {
+    if (strcmp(specs[n].symbol, symbol) == 0) {
+      specs[n].bridge_kind = bridge_kind;
+      return 0;
+    }
+  }
+  strcpy(specs[*spec_count].symbol, symbol);
+  specs[*spec_count].bridge_kind = bridge_kind;
+  (*spec_count)++;
+  return 0;
+}
+
+static int parse_bridge_specs_text(const char *source, const char *text,
+    size_t text_size, struct poly_bridge_spec *specs, size_t *spec_count) {
+  char *buffer = calloc(1, text_size + 1);
+  if (!buffer) {
+    fprintf(stderr, "POLYCALL_FAIL: out of memory reading %s\n", source);
+    return -1;
+  }
+  memcpy(buffer, text, text_size);
+
+  char *save = NULL;
+  for (char *line = strtok_r(buffer, "\n", &save); line;
+      line = strtok_r(NULL, "\n", &save)) {
+    char *comment = strchr(line, '#');
+    if (comment)
+      *comment = '\0';
+    char *token_save = NULL;
+    char *symbol = strtok_r(line, " \t\r", &token_save);
+    if (!symbol)
+      continue;
+    char *bridge = strtok_r(NULL, " \t\r", &token_save);
+    if (!bridge || strtok_r(NULL, " \t\r", &token_save)) {
+      fprintf(stderr, "POLYCALL_FAIL: bad poly ABI metadata line: %s\n",
+        source);
+      free(buffer);
+      return -1;
+    }
+    if (append_bridge_spec(specs, spec_count, symbol, bridge, source) < 0) {
+      free(buffer);
+      return -1;
+    }
+  }
+  free(buffer);
+  return 0;
+}
+
+static uint32_t read_note_u32(const unsigned char *data) {
+  uint32_t value;
+  memcpy(&value, data, sizeof(value));
+  return value;
+}
+
+static int section_name(const unsigned char *data, size_t size,
+    const Elf64_Ehdr *ehdr, const Elf64_Shdr *sections, uint16_t index,
+    const char **name) {
+  *name = NULL;
+  if (ehdr->e_shstrndx == SHN_UNDEF || ehdr->e_shstrndx >= ehdr->e_shnum)
+    return 0;
+  const Elf64_Shdr *shstr = &sections[ehdr->e_shstrndx];
+  if (shstr->sh_type != SHT_STRTAB || shstr->sh_offset > size ||
+      shstr->sh_size > size - shstr->sh_offset)
+    return -1;
+  if (sections[index].sh_name >= shstr->sh_size)
+    return -1;
+  const char *strings = (const char *) (data + shstr->sh_offset);
+  if (memchr(strings + sections[index].sh_name, '\0',
+        (size_t) (shstr->sh_size - sections[index].sh_name)) == NULL)
+    return -1;
+  *name = strings + sections[index].sh_name;
+  return 0;
+}
+
+static int load_bridge_specs_from_sections(const char *path,
+    const unsigned char *data, size_t size, const Elf64_Ehdr *ehdr,
     struct poly_bridge_spec *specs, size_t *spec_count) {
-  *spec_count = 0;
+  if (ehdr->e_shentsize < sizeof(Elf64_Shdr) ||
+      check_elf_table(ehdr->e_shoff, ehdr->e_shnum, ehdr->e_shentsize, size) < 0)
+    return 0;
+
+  const Elf64_Shdr *sections = (const Elf64_Shdr *) (data + ehdr->e_shoff);
+  for (uint16_t n = 0; n < ehdr->e_shnum; n++) {
+    const Elf64_Shdr *section = &sections[n];
+    if (section->sh_offset > size || section->sh_size > size - section->sh_offset)
+      return -1;
+
+    const char *name = NULL;
+    if (section_name(data, size, ehdr, sections, n, &name) < 0)
+      return -1;
+    if (name && section->sh_type == SHT_PROGBITS &&
+        strcmp(name, ".polyabi") == 0) {
+      if (parse_bridge_specs_text(path,
+            (const char *) (data + section->sh_offset),
+            (size_t) section->sh_size, specs, spec_count) < 0)
+        return -1;
+      continue;
+    }
+    if (section->sh_type != SHT_NOTE)
+      continue;
+
+    size_t offset = (size_t) section->sh_offset;
+    const size_t end = offset + (size_t) section->sh_size;
+    while (offset < end) {
+      if (end - offset < 12)
+        return -1;
+      const uint32_t namesz = read_note_u32(data + offset);
+      const uint32_t descsz = read_note_u32(data + offset + 4);
+      offset += 12;
+      if (namesz > end - offset)
+        return -1;
+      const char *note_name = (const char *) (data + offset);
+      offset += (namesz + 3U) & ~3U;
+      if (offset > end || descsz > end - offset)
+        return -1;
+      const char *desc = (const char *) (data + offset);
+      offset += (descsz + 3U) & ~3U;
+      if (offset > end)
+        return -1;
+      if (namesz == 8 && memcmp(note_name, "POLYABI", 8) == 0 &&
+          parse_bridge_specs_text(path, desc, descsz, specs, spec_count) < 0)
+        return -1;
+    }
+  }
+  return 0;
+}
+
+static int load_bridge_specs_sidecar_for_path(const char *path,
+    struct poly_bridge_spec *specs, size_t *spec_count) {
   char spec_path[MAX_DEP_PATH + 16];
   const size_t path_len = strlen(path);
   if (path_len + 8 >= sizeof(spec_path))
@@ -1998,37 +2133,20 @@ static int load_bridge_specs_for_path(const char *path,
   }
   fclose(file);
 
-  char *save = NULL;
-  for (char *line = strtok_r(buffer, "\n", &save); line;
-      line = strtok_r(NULL, "\n", &save)) {
-    char *comment = strchr(line, '#');
-    if (comment)
-      *comment = '\0';
-    char *token_save = NULL;
-    char *symbol = strtok_r(line, " \t\r", &token_save);
-    if (!symbol)
-      continue;
-    char *bridge = strtok_r(NULL, " \t\r", &token_save);
-    if (!bridge || strtok_r(NULL, " \t\r", &token_save)) {
-      fprintf(stderr, "POLYCALL_FAIL: bad poly ABI sidecar line: %s\n",
-        spec_path);
-      free(buffer);
-      return -1;
-    }
-    const int bridge_kind = cross_bridge_kind_from_name(bridge);
-    if (bridge_kind < 0 || strlen(symbol) >= MAX_BRIDGE_SYMBOL ||
-        *spec_count >= MAX_BRIDGE_SPECS) {
-      fprintf(stderr, "POLYCALL_FAIL: bad poly ABI sidecar entry: %s\n",
-        spec_path);
-      free(buffer);
-      return -1;
-    }
-    strcpy(specs[*spec_count].symbol, symbol);
-    specs[*spec_count].bridge_kind = bridge_kind;
-    (*spec_count)++;
-  }
+  int result = parse_bridge_specs_text(spec_path, buffer, (size_t) file_size,
+    specs, spec_count);
   free(buffer);
-  return 0;
+  return result;
+}
+
+static int load_bridge_specs(const char *path, const unsigned char *data,
+    size_t size, const Elf64_Ehdr *ehdr, struct poly_bridge_spec *specs,
+    size_t *spec_count) {
+  *spec_count = 0;
+  if (load_bridge_specs_from_sections(path, data, size, ehdr, specs,
+        spec_count) < 0)
+    return -1;
+  return load_bridge_specs_sidecar_for_path(path, specs, spec_count);
 }
 
 static int dep_cross_stub_base_kind(size_t dep_index, int bridge_kind) {
@@ -3261,7 +3379,7 @@ static int load_dependency_object(struct poly_program *owner, size_t dep_index,
   }
   dep->arch = arch_probe.arch;
   dep->arch_name = arch_probe.arch_name;
-  if (load_bridge_specs_for_path(dep->path, dep->bridge_specs,
+  if (load_bridge_specs(dep->path, data, size, ehdr, dep->bridge_specs,
         &dep->bridge_spec_count) < 0) {
     free(data);
     return -1;
@@ -4872,8 +4990,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
     free(data);
     return -1;
   }
-  if (load_bridge_specs_for_path(program->path, program->root_bridge_specs,
-        &program->root_bridge_spec_count) < 0) {
+  if (load_bridge_specs(program->path, data, size, ehdr,
+        program->root_bridge_specs, &program->root_bridge_spec_count) < 0) {
     free(data);
     return -1;
   }
