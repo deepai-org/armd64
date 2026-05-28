@@ -294,9 +294,9 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
   emit_aarch64_movabs(code, &offset, 17,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd42fffa0U); // brk #0x7ffd, call RISC-V
+  emit_u32(code, &offset, 0xd5032e5fU); // aarch64 polyctrl riscv call, call RISC-V
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
-  emit_u32(code, &offset, 0xd42fffe0U); // brk #0x7fff, x86 escape
+  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -351,10 +351,10 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
   emit_u32(code, &offset, 0x00000317U); // auipc x6,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0000005bU); // custom-2, call AArch64
+  emit_u32(code, &offset, 0x0400000bU); // riscv polyctrl call AArch64
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
-  emit_u32(code, &offset, 0x0000000bU); // custom-0, x86 escape
+  emit_u32(code, &offset, 0x0000000bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)

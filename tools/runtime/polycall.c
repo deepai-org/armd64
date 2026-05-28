@@ -2742,26 +2742,26 @@ static int reloc_base_is_root_ifunc(int base_kind) {
 
 static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
-    return 0xd42fff80U; // brk #0x7ffc
+    return 0xd5032e7fU; // aarch64 polyctrl compact u32-f32 call
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
-    return 0xd42fff60U; // brk #0x7ffb
+    return 0xd5032e9fU; // aarch64 polyctrl compact f32-u32 call
   if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
-    return 0xd42fff40U; // brk #0x7ffa
+    return 0xd5032ebfU; // aarch64 polyctrl FP64-stack call
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
-    return 0xd42fff00U; // brk #0x7ff8
-  return 0xd42fffa0U; // brk #0x7ffd
+    return 0xd5032effU; // aarch64 polyctrl vec128 call
+  return 0xd5032e5fU; // aarch64 polyctrl riscv call
 }
 
 static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
-    return 0x0000107bU;
+    return 0x0600000bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
-    return 0x0000207bU;
+    return 0x0800000bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
-    return 0x0000307bU;
+    return 0x0a00000bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
-    return 0x0000507bU;
-  return 0x0000005bU;
+    return 0x0e00000bU;
+  return 0x0400000bU;
 }
 
 static uint32_t fallback_ret_for_arch(int arch) {

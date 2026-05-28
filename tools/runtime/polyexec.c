@@ -2724,7 +2724,7 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     (mapping + return_page_offset);
   const uint64_t entry_pc = (uint64_t) (uintptr_t) (mapping + load_base_offset + program->entry_offset);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
-    0xd42fffe0U : 0x0000000bU;
+    0xd5032e1fU : 0x0000000bU;
   size_t offset = load_base_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
   emit_u32(mapping, &offset, escape);
@@ -2823,7 +2823,7 @@ static int emit_and_run_process(const struct poly_program *program,
   const uint64_t entry_pc = (uint64_t) (uintptr_t)
     (mapping + load_base_offset + program->entry_offset);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
-    0xd42fffe0U : 0x0000000bU;
+    0xd5032e1fU : 0x0000000bU;
   size_t offset = load_base_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
   emit_u32(mapping, &offset, escape);

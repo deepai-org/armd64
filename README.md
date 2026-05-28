@@ -41,5 +41,9 @@ Other useful targets:
 - The Bochs prototype models hardware control instructions as a compact
   decoded `0f 24 <subop>` Poly Control Opcode Page. There is no magic trailer
   and no `#UD` envelope in the fast path.
+- Foreign-to-foreign and foreign-to-x86 transitions are also decoded control
+  instructions: AArch64 uses a reserved HINT subspace and RISC-V uses one
+  custom-0 opcode family. Breakpoint instructions remain traps, not fast mode
+  switches.
 
 Full architecture details are in `docs/poly-isa.md`.

@@ -50,14 +50,18 @@ flushes or terminates the current decode block before switching fetch mode.
 
 | Source | Encoding | Meaning |
 | --- | --- | --- |
-| AArch64 | `brk #0x7fff` | exit to x86_64 |
-| AArch64 | `brk #0x7ffe` | switch to RISC-V |
-| AArch64 | `brk #0x7ffd` | call RISC-V target in `x16`, continuation in `x17` |
-| AArch64 | `brk #0x7ff9` | trap return |
-| RISC-V | `0x0000000b` | exit to x86_64 |
-| RISC-V | `0x0000002b` | switch to AArch64 |
-| RISC-V | `0x0000005b` | call AArch64 target in `x5`, continuation in `x6` |
-| RISC-V | `0x0000407b` | trap return |
+| AArch64 | `HINT #0x70` / `0xd5032e1f` | exit to x86_64 |
+| AArch64 | `HINT #0x71` / `0xd5032e3f` | switch to RISC-V |
+| AArch64 | `HINT #0x72` / `0xd5032e5f` | call RISC-V target in `x16`, continuation in `x17` |
+| AArch64 | `HINT #0x76` / `0xd5032edf` | trap return |
+| RISC-V | custom-0 subop 0 / `0x0000000b` | exit to x86_64 |
+| RISC-V | custom-0 subop 1 / `0x0200000b` | switch to AArch64 |
+| RISC-V | custom-0 subop 2 / `0x0400000b` | call AArch64 target in `x5`, continuation in `x6` |
+| RISC-V | custom-0 subop 6 / `0x0c00000b` | trap return |
+
+These are decoded frontend-control instructions, not breakpoint or undefined
+instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
+debuggers or OS/user trap handling.
 
 Native return instructions may cross frontends when the link register or stack
 return slot contains a hardware return cookie.
