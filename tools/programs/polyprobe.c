@@ -209,7 +209,7 @@ static inline void poly_opcode_riscv_arith_probe(void) {
 static inline void raw_aarch64_sp_probe(void) {
   asm volatile(
     "movq $19, %%rax\n"
-    "movq $23, %%rdi\n"
+    "movq $23, %%rdx\n"
     POLY_OP_ENTER_A64
     ".long 0xd10043ff\n" // sub sp,sp,#16
     ".long 0xa90007e0\n" // stp x0,x1,[sp]
@@ -223,7 +223,7 @@ static inline void raw_aarch64_sp_probe(void) {
 static inline void raw_riscv_sp_probe(void) {
   asm volatile(
     "movq $17, %%rax\n"
-    "movq $25, %%rdi\n"
+    "movq $25, %%rdx\n"
     POLY_OP_ENTER_RV64
     ".long 0xff010113\n" // addi sp,sp,-16
     ".long 0x00a13023\n" // sd a0,0(sp)
@@ -329,10 +329,10 @@ static inline void raw_riscv_imm_regs_probe(void) {
 
 static inline void raw_aarch64_abi_args_probe(void) {
   asm volatile(
-    "movq $1, %%rdi\n"
-    "movq $2, %%rsi\n"
-    "movq $3, %%rdx\n"
-    "movq $4, %%rcx\n"
+    "movq $1, %%rdx\n"
+    "movq $2, %%rcx\n"
+    "movq $3, %%rdi\n"
+    "movq $4, %%rsi\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
     POLY_OP_ENTER_A64
@@ -347,10 +347,10 @@ static inline void raw_aarch64_abi_args_probe(void) {
 
 static inline void raw_riscv_abi_args_probe(void) {
   asm volatile(
-    "movq $1, %%rdi\n"
-    "movq $2, %%rsi\n"
-    "movq $3, %%rdx\n"
-    "movq $4, %%rcx\n"
+    "movq $1, %%rdx\n"
+    "movq $2, %%rcx\n"
+    "movq $3, %%rdi\n"
+    "movq $4, %%rsi\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
     POLY_OP_ENTER_RV64
