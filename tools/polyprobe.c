@@ -833,7 +833,7 @@ int main(void) {
   const char break_string[] = "polyglot";
   raw_aarch64_strlen_probe((uint64_t) break_string);
   if (read_rax() != 8) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break helper mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap vector mismatch\n");
     return 1;
   }
   poly_break_number_status();
@@ -853,7 +853,7 @@ int main(void) {
   }
   raw_riscv_strlen_probe((uint64_t) break_string);
   if (read_rax() != 8) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break helper mismatch\n");
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap vector mismatch\n");
     return 1;
   }
   poly_break_number_status();

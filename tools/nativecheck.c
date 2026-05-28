@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -185,6 +186,24 @@ static void child_expect_aarch64_brk_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_aarch64_brk1_signal(void) {
+  static const char payload[] = "polyglot";
+  register uint64_t rax __asm__("rax") = (uint64_t) (uintptr_t) payload;
+  register uint64_t rdi __asm__("rdi") = (uint64_t) (uintptr_t) payload;
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd4200020\n" // brk #1
+    ".long 0xd42fffe0\n" // brk #0x7fff
+    : "+a"(rax), "+D"(rdi)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_riscv_ebreak_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -195,6 +214,25 @@ static void child_expect_riscv_ebreak_signal(void) {
     ".long 0x0000000b\n" // custom-0 x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_ebreak1_signal(void) {
+  static const char payload[] = "polyglot";
+  register uint64_t rax __asm__("rax") = (uint64_t) (uintptr_t) payload;
+  register uint64_t rdi __asm__("rdi") = (uint64_t) (uintptr_t) payload;
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00100893\n" // addi a7,zero,1
+    ".long 0x00100073\n" // ebreak
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    : "+a"(rax), "+D"(rdi)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
   _exit(99);
 }
 
@@ -322,8 +360,14 @@ static int run_poly_no_vector_signal_probe(void) {
   if (expect_child_signal("poly aarch64 brk no-vector", SIGTRAP,
         child_expect_aarch64_brk_signal) != 0)
     return 1;
+  if (expect_child_signal("poly aarch64 brk #1 no-vector", SIGTRAP,
+        child_expect_aarch64_brk1_signal) != 0)
+    return 1;
   if (expect_child_signal("poly riscv ebreak no-vector", SIGTRAP,
         child_expect_riscv_ebreak_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv ebreak id1 no-vector", SIGTRAP,
+        child_expect_riscv_ebreak1_signal) != 0)
     return 1;
   if (expect_child_signal("poly riscv compressed ebreak no-vector", SIGTRAP,
         child_expect_riscv_compressed_ebreak_signal) != 0)

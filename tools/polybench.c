@@ -2274,7 +2274,7 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   while ((offset & 3U) != 0)
     code[offset++] = 0x90;
   const size_t aarch64_target_offset = offset;
-  emit_u32(code, &offset, 0xd4200020U); // brk #1, strlen break helper
+  emit_u32(code, &offset, 0xd4200020U); // brk #1, runtime strlen trap
   emit_u32(code, &offset, 0xd65f03c0U); // ret
 
   while ((offset & 7U) != 0)
