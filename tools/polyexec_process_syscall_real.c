@@ -2,6 +2,9 @@
 
 enum {
   POLY_SYS_GETCWD = 17,
+  POLY_SYS_OPENAT = 56,
+  POLY_SYS_CLOSE = 57,
+  POLY_SYS_READ = 63,
   POLY_SYS_WRITE = 64,
   POLY_SYS_EXIT = 93,
   POLY_SYS_GETPID = 172,
@@ -97,10 +100,26 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (cwd_len <= 1 || cwd[0] != '/')
     return 28;
 
+  char file_bytes[4];
+  long fd = poly_syscall3(POLY_SYS_OPENAT, -100,
+    (long) "/usr/bin/polyexec", 0);
+  if (fd < 0)
+    return 29;
+  if (poly_syscall3(POLY_SYS_READ, fd, (long) file_bytes,
+        sizeof(file_bytes)) != (long) sizeof(file_bytes)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 30;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 31;
+  if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
+      file_bytes[2] != 'L' || file_bytes[3] != 'F')
+    return 32;
+
   static const char marker[] = "POLY_PROCESS_SYSCALL_OK\n";
   if (poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
         sizeof(marker) - 1) != (long) sizeof(marker) - 1)
-    return 29;
+    return 33;
 
   return 42;
 }
