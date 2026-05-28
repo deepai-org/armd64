@@ -716,6 +716,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 70: *x86_number = SYS_pwritev; return 1;
     case 72: *x86_number = SYS_pselect6; return 1;
     case 73: *x86_number = SYS_ppoll; return 1;
+    case 74: *x86_number = SYS_signalfd4; return 1;
     case 78: *x86_number = SYS_readlinkat; return 1;
     case 79: *x86_number = SYS_newfstatat; return 1;
     case 80: *x86_number = SYS_fstat; return 1;

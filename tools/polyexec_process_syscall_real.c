@@ -21,9 +21,13 @@ enum {
   POLY_FD_CLOEXEC = 1,
   POLY_RLIMIT_STACK = 3,
   POLY_RUSAGE_SELF = 0,
+  POLY_SIG_BLOCK = 0,
+  POLY_SIG_SETMASK = 2,
+  POLY_SIGUSR1 = 10,
   POLY_S_IFMT = 0170000,
   POLY_S_IFREG = 0100000,
   POLY_DIRENT64_NAME_OFFSET = 19,
+  POLY_KERNEL_SIGSET_SIZE = 8,
   POLY_AT_FDCWD = -100,
   POLY_STATX_BASIC_STATS = 0x7ff,
 
@@ -49,6 +53,7 @@ enum {
   POLY_SYS_WRITEV = 66,
   POLY_SYS_PREAD64 = 67,
   POLY_SYS_PWRITE64 = 68,
+  POLY_SYS_SIGNALFD4 = 74,
   POLY_SYS_READLINKAT = 78,
   POLY_SYS_NEWFSTATAT = 79,
   POLY_SYS_FSTAT = 80,
@@ -61,6 +66,8 @@ enum {
   POLY_SYS_GET_ROBUST_LIST = 100,
   POLY_SYS_CLOCK_GETTIME = 113,
   POLY_SYS_SCHED_GETAFFINITY = 123,
+  POLY_SYS_KILL = 129,
+  POLY_SYS_RT_SIGPROCMASK = 135,
   POLY_SYS_GETPID = 172,
   POLY_SYS_GETPPID = 173,
   POLY_SYS_GETUID = 174,
@@ -138,6 +145,27 @@ struct poly_inotify_event {
   uint32_t mask;
   uint32_t cookie;
   uint32_t len;
+};
+
+struct poly_signalfd_siginfo {
+  uint32_t signo;
+  uint32_t errno_value;
+  uint32_t code;
+  uint32_t pid;
+  uint32_t uid;
+  uint32_t fd;
+  uint32_t tid;
+  uint32_t band;
+  uint32_t overrun;
+  uint32_t trapno;
+  uint32_t status;
+  uint32_t int_value;
+  uint64_t ptr;
+  uint64_t utime;
+  uint64_t stime;
+  uint64_t addr;
+  uint16_t addr_lsb;
+  uint8_t pad[46];
 };
 
 struct poly_open_how {
@@ -746,6 +774,37 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (notify_event.wd != (int32_t) watch_id ||
       (notify_event.mask & POLY_IN_OPEN) == 0)
     return 140;
+
+  uint64_t sigusr1_mask = 1ULL << (POLY_SIGUSR1 - 1);
+  uint64_t old_signal_mask = 0;
+  if (poly_syscall4(POLY_SYS_RT_SIGPROCMASK, POLY_SIG_BLOCK,
+        (long) &sigusr1_mask, (long) &old_signal_mask,
+        POLY_KERNEL_SIGSET_SIZE) != 0)
+    return 141;
+  fd = poly_syscall4(POLY_SYS_SIGNALFD4, -1, (long) &sigusr1_mask,
+    POLY_KERNEL_SIGSET_SIZE, 0);
+  if (fd < 0) {
+    poly_syscall4(POLY_SYS_RT_SIGPROCMASK, POLY_SIG_SETMASK,
+      (long) &old_signal_mask, 0, POLY_KERNEL_SIGSET_SIZE);
+    return 142;
+  }
+  if (poly_syscall2(POLY_SYS_KILL, pid0, POLY_SIGUSR1) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 143;
+  }
+  struct poly_signalfd_siginfo signal_info;
+  if (poly_syscall3(POLY_SYS_READ, fd, (long) &signal_info,
+        sizeof(signal_info)) != (long) sizeof(signal_info)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 144;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 145;
+  if (signal_info.signo != POLY_SIGUSR1 || signal_info.pid != (uint32_t) pid0)
+    return 146;
+  if (poly_syscall4(POLY_SYS_RT_SIGPROCMASK, POLY_SIG_SETMASK,
+        (long) &old_signal_mask, 0, POLY_KERNEL_SIGSET_SIZE) != 0)
+    return 147;
 
   fd = poly_syscall2(POLY_SYS_TIMERFD_CREATE, POLY_CLOCK_MONOTONIC, 0);
   if (fd < 0)
