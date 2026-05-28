@@ -32,6 +32,7 @@ enum {
   POLY_SYS_FSTAT = 80,
   POLY_SYS_EXIT = 93,
   POLY_SYS_CLOCK_GETTIME = 113,
+  POLY_SYS_SCHED_GETAFFINITY = 123,
   POLY_SYS_GETPID = 172,
   POLY_SYS_GETPPID = 173,
   POLY_SYS_GETUID = 174,
@@ -274,6 +275,14 @@ static int poly_dirents_contain(char *buffer, long length, const char *name) {
   return 0;
 }
 
+static int poly_any_byte_set(const unsigned char *bytes, long length) {
+  for (long offset = 0; offset < length; offset++) {
+    if (bytes[offset] != 0)
+      return 1;
+  }
+  return 0;
+}
+
 uint64_t poly_process_main(uint64_t *initial_sp) {
   uint64_t argc = initial_sp[0];
   char **argv = (char **) &initial_sp[1];
@@ -362,6 +371,14 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (info.uptime < 0 || info.totalram == 0 || info.mem_unit == 0 ||
       info.procs == 0)
     return 76;
+
+  unsigned char affinity[128];
+  long affinity_len = poly_syscall3(POLY_SYS_SCHED_GETAFFINITY, 0,
+    sizeof(affinity), (long) affinity);
+  if (affinity_len <= 0 || affinity_len > (long) sizeof(affinity))
+    return 77;
+  if (!poly_any_byte_set(affinity, affinity_len))
+    return 78;
 
   char exe_path[128];
   long exe_len = poly_syscall4(POLY_SYS_READLINKAT, POLY_AT_FDCWD,
