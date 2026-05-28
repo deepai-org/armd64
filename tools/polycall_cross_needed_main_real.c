@@ -3,6 +3,9 @@ extern double poly_cross_needed_fp64(double, double);
 extern unsigned long poly_cross_needed_bias;
 
 __attribute__((visibility("default")))
+unsigned long poly_cross_root_bias = 17;
+
+__attribute__((visibility("default")))
 unsigned long poly_cross_root_callback(unsigned long value) {
   return value + 19;
 }
