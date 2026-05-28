@@ -388,6 +388,17 @@ static void child_expect_riscv_compressed_illegal_signal(void) {
   _exit(99);
 }
 
+__attribute__((noreturn, noinline))
+static void child_expect_malformed_import_return_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH + 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
 static int expect_child_signal(const char *name, int expected_signal,
     void (*child_func)(void)) {
   pid_t child = fork();
@@ -1497,6 +1508,10 @@ static int run_poly_state_save_restore_probe(void) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
   struct poly_xsave_state trap_snapshot __attribute__((aligned(64)));
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+
+  if (expect_child_signal("poly malformed import-return xstate", SIGILL,
+        child_expect_malformed_import_return_xsave_signal) != 0)
+    return 1;
 
   memset(&snapshot, 0, sizeof(snapshot));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
