@@ -489,6 +489,10 @@ same-directory foreign shared libraries. Symbolic relocation metadata and `path#
 lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
 `DT_HASH` is used to bound the sectionless dynamic symbol table, and
 `DT_GNU_HASH` is supported for common GNU-hash-only shared objects.
+The standalone `polyexec` path uses the same post-relocation memory protection
+baseline for foreign application images: `PT_LOAD` pages are protected from
+ELF `PF_R`/`PF_W`/`PF_X` flags, and `PT_GNU_RELRO` pages are marked read-only
+before entering the foreign entrypoint.
 `DT_VERSYM`/`DT_VERNEED`/`DT_VERDEF` symbol-version metadata is honored when
 binding undefined relocations to dependency exports, so a relocation requiring
 `foo@OLD` from a specific needed library does not silently bind to a default

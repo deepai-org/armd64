@@ -4,9 +4,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -64,7 +70,9 @@ enum {
   POLY_CPUID_FEATURE_TRAP_RECORDS = (1U << 7),
   POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
   POLY_CPUID_FEATURE_TRAP_VECTOR = (1U << 25),
-  MAX_PROGRAM_BYTES = 1024 * 1024
+  MAX_PROGRAM_BYTES = 1024 * 1024,
+  MAX_LOAD_SEGMENTS = 16,
+  SCRATCH_SECOND_PATH_OFFSET = 128
 };
 
 struct poly_cpuid_regs {
@@ -72,6 +80,12 @@ struct poly_cpuid_regs {
   uint32_t ebx;
   uint32_t ecx;
   uint32_t edx;
+};
+
+struct poly_load_segment {
+  uint64_t vaddr;
+  uint64_t memsz;
+  uint32_t flags;
 };
 
 struct poly_program {
@@ -82,6 +96,10 @@ struct poly_program {
   size_t entry_offset;
   size_t dynamic_offset;
   size_t dynamic_size;
+  struct poly_load_segment load_segments[MAX_LOAD_SEGMENTS];
+  size_t load_segment_count;
+  uint64_t relro_vaddr;
+  uint64_t relro_size;
   uint8_t *code_bytes;
   size_t code_size;
 };
@@ -161,6 +179,24 @@ static uint64_t align_down_u64(uint64_t value, uint64_t alignment) {
   return value & ~(alignment - 1);
 }
 
+static uint64_t align_up_u64(uint64_t value, uint64_t alignment) {
+  return (value + alignment - 1) & ~(alignment - 1);
+}
+
+static int record_load_segment(struct poly_program *program,
+    const Elf64_Phdr *phdr) {
+  if (program->load_segment_count >= MAX_LOAD_SEGMENTS) {
+    fprintf(stderr, "POLYEXEC_FAIL: too many PT_LOAD segments: %s\n",
+      program->path);
+    return -1;
+  }
+  program->load_segments[program->load_segment_count].vaddr = phdr->p_vaddr;
+  program->load_segments[program->load_segment_count].memsz = phdr->p_memsz;
+  program->load_segments[program->load_segment_count].flags = phdr->p_flags;
+  program->load_segment_count++;
+  return 0;
+}
+
 static uint64_t read_u64_le(const uint8_t *bytes) {
   uint64_t value = 0;
   for (unsigned n = 0; n < 8; n++)
@@ -232,40 +268,128 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 16: *x86_number = SYS_fremovexattr; return 1;
     case 17: *x86_number = SYS_getcwd; return 1;
     case 19: *x86_number = SYS_eventfd2; return 1;
+    case 20: *x86_number = SYS_epoll_create1; return 1;
+    case 21: *x86_number = SYS_epoll_ctl; return 1;
+    case 22: *x86_number = SYS_epoll_pwait; return 1;
     case 24: *x86_number = SYS_dup3; return 1;
+    case 25: *x86_number = SYS_fcntl; return 1;
     case 26: *x86_number = SYS_inotify_init1; return 1;
     case 27: *x86_number = SYS_inotify_add_watch; return 1;
     case 28: *x86_number = SYS_inotify_rm_watch; return 1;
+    case 29: *x86_number = SYS_ioctl; return 1;
     case 30: *x86_number = SYS_ioprio_set; return 1;
     case 31: *x86_number = SYS_ioprio_get; return 1;
     case 32: *x86_number = SYS_flock; return 1;
+    case 33: *x86_number = SYS_mknodat; return 1;
+    case 34: *x86_number = SYS_mkdirat; return 1;
+    case 35: *x86_number = SYS_unlinkat; return 1;
+    case 36: *x86_number = SYS_symlinkat; return 1;
+    case 37: *x86_number = SYS_linkat; return 1;
+    case 38: *x86_number = SYS_renameat; return 1;
+    case 39: *x86_number = SYS_umount2; return 1;
+    case 40: *x86_number = SYS_mount; return 1;
+    case 41: *x86_number = SYS_pivot_root; return 1;
+    case 43: *x86_number = SYS_statfs; return 1;
+    case 44: *x86_number = SYS_fstatfs; return 1;
+    case 45: *x86_number = SYS_truncate; return 1;
+    case 46: *x86_number = SYS_ftruncate; return 1;
+    case 47: *x86_number = SYS_fallocate; return 1;
+    case 48: *x86_number = SYS_faccessat; return 1;
+    case 49: *x86_number = SYS_chdir; return 1;
+    case 50: *x86_number = SYS_fchdir; return 1;
+    case 51: *x86_number = SYS_chroot; return 1;
+    case 52: *x86_number = SYS_fchmod; return 1;
+    case 53: *x86_number = SYS_fchmodat; return 1;
+    case 54: *x86_number = SYS_fchownat; return 1;
+    case 55: *x86_number = SYS_fchown; return 1;
     case 56: *x86_number = SYS_openat; return 1;
     case 57: *x86_number = SYS_close; return 1;
+    case 59: *x86_number = SYS_pipe2; return 1;
     case 61: *x86_number = SYS_getdents64; return 1;
     case 62: *x86_number = SYS_lseek; return 1;
     case 63: *x86_number = SYS_read; return 1;
     case 64: *x86_number = SYS_write; return 1;
     case 65: *x86_number = SYS_readv; return 1;
     case 66: *x86_number = SYS_writev; return 1;
+    case 67: *x86_number = SYS_pread64; return 1;
+    case 68: *x86_number = SYS_pwrite64; return 1;
+    case 69: *x86_number = SYS_preadv; return 1;
+    case 70: *x86_number = SYS_pwritev; return 1;
+    case 72: *x86_number = SYS_pselect6; return 1;
+    case 73: *x86_number = SYS_ppoll; return 1;
     case 78: *x86_number = SYS_readlinkat; return 1;
     case 79: *x86_number = SYS_newfstatat; return 1;
     case 80: *x86_number = SYS_fstat; return 1;
+    case 81: *x86_number = SYS_sync; return 1;
+    case 82: *x86_number = SYS_fsync; return 1;
+    case 83: *x86_number = SYS_fdatasync; return 1;
+    case 84: *x86_number = SYS_sync_file_range; return 1;
+    case 85: *x86_number = SYS_timerfd_create; return 1;
+    case 86: *x86_number = SYS_timerfd_settime; return 1;
+    case 87: *x86_number = SYS_timerfd_gettime; return 1;
+    case 90: *x86_number = SYS_capget; return 1;
+    case 91: *x86_number = SYS_capset; return 1;
+    case 92: *x86_number = SYS_personality; return 1;
     case 93: *x86_number = SYS_exit; return 1;
     case 94: *x86_number = SYS_exit_group; return 1;
+    case 95: *x86_number = SYS_waitid; return 1;
     case 96: *x86_number = SYS_set_tid_address; return 1;
     case 98: *x86_number = SYS_futex; return 1;
     case 99: *x86_number = SYS_set_robust_list; return 1;
     case 100: *x86_number = SYS_get_robust_list; return 1;
+    case 101: *x86_number = SYS_nanosleep; return 1;
+    case 102: *x86_number = SYS_getitimer; return 1;
+    case 103: *x86_number = SYS_setitimer; return 1;
+    case 107: *x86_number = SYS_timer_create; return 1;
+    case 108: *x86_number = SYS_timer_gettime; return 1;
+    case 109: *x86_number = SYS_timer_getoverrun; return 1;
+    case 110: *x86_number = SYS_timer_settime; return 1;
+    case 111: *x86_number = SYS_timer_delete; return 1;
     case 113: *x86_number = SYS_clock_gettime; return 1;
     case 114: *x86_number = SYS_clock_getres; return 1;
+    case 115: *x86_number = SYS_clock_nanosleep; return 1;
+    case 118: *x86_number = SYS_sched_setparam; return 1;
+    case 119: *x86_number = SYS_sched_setscheduler; return 1;
+    case 120: *x86_number = SYS_sched_getscheduler; return 1;
+    case 121: *x86_number = SYS_sched_getparam; return 1;
+    case 122: *x86_number = SYS_sched_setaffinity; return 1;
+    case 123: *x86_number = SYS_sched_getaffinity; return 1;
+    case 124: *x86_number = SYS_sched_yield; return 1;
+    case 125: *x86_number = SYS_sched_get_priority_max; return 1;
+    case 126: *x86_number = SYS_sched_get_priority_min; return 1;
+    case 129: *x86_number = SYS_kill; return 1;
+    case 130: *x86_number = SYS_tkill; return 1;
+    case 131: *x86_number = SYS_tgkill; return 1;
+    case 132: *x86_number = SYS_sigaltstack; return 1;
     case 134: *x86_number = SYS_rt_sigaction; return 1;
     case 135: *x86_number = SYS_rt_sigprocmask; return 1;
+    case 140: *x86_number = SYS_setpriority; return 1;
+    case 141: *x86_number = SYS_getpriority; return 1;
+    case 143: *x86_number = SYS_setregid; return 1;
+    case 144: *x86_number = SYS_setgid; return 1;
+    case 145: *x86_number = SYS_setreuid; return 1;
+    case 146: *x86_number = SYS_setuid; return 1;
+    case 147: *x86_number = SYS_setresuid; return 1;
+    case 148: *x86_number = SYS_getresuid; return 1;
+    case 149: *x86_number = SYS_setresgid; return 1;
+    case 150: *x86_number = SYS_getresgid; return 1;
+    case 151: *x86_number = SYS_setfsuid; return 1;
+    case 152: *x86_number = SYS_setfsgid; return 1;
+    case 153: *x86_number = SYS_times; return 1;
+    case 154: *x86_number = SYS_setpgid; return 1;
     case 160: *x86_number = SYS_uname; return 1;
     case 163: *x86_number = SYS_getrlimit; return 1;
+    case 164: *x86_number = SYS_setrlimit; return 1;
+    case 165: *x86_number = SYS_getrusage; return 1;
+    case 166: *x86_number = SYS_umask; return 1;
     case 167: *x86_number = SYS_prctl; return 1;
+    case 168: *x86_number = SYS_getcpu; return 1;
     case 169: *x86_number = SYS_gettimeofday; return 1;
     case 155: *x86_number = SYS_getpgid; return 1;
     case 156: *x86_number = SYS_getsid; return 1;
+    case 157: *x86_number = SYS_setsid; return 1;
+    case 158: *x86_number = SYS_getgroups; return 1;
+    case 159: *x86_number = SYS_setgroups; return 1;
     case 172: *x86_number = SYS_getpid; return 1;
     case 173: *x86_number = SYS_getppid; return 1;
     case 174: *x86_number = SYS_getuid; return 1;
@@ -274,15 +398,87 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 177: *x86_number = SYS_getegid; return 1;
     case 178: *x86_number = SYS_gettid; return 1;
     case 179: *x86_number = SYS_sysinfo; return 1;
+    case 180: *x86_number = SYS_socket; return 1;
+    case 181: *x86_number = SYS_socketpair; return 1;
+    case 182: *x86_number = SYS_bind; return 1;
+    case 183: *x86_number = SYS_listen; return 1;
+    case 184: *x86_number = SYS_accept; return 1;
+    case 185: *x86_number = SYS_connect; return 1;
+    case 186: *x86_number = SYS_getsockname; return 1;
+    case 187: *x86_number = SYS_getpeername; return 1;
+    case 188: *x86_number = SYS_sendto; return 1;
+    case 189: *x86_number = SYS_recvfrom; return 1;
+    case 190: *x86_number = SYS_setsockopt; return 1;
+    case 191: *x86_number = SYS_getsockopt; return 1;
+    case 192: *x86_number = SYS_shutdown; return 1;
+    case 198: *x86_number = SYS_socket; return 1;
+    case 199: *x86_number = SYS_socketpair; return 1;
+    case 200: *x86_number = SYS_bind; return 1;
+    case 201: *x86_number = SYS_listen; return 1;
+    case 202: *x86_number = SYS_accept; return 1;
+    case 203: *x86_number = SYS_connect; return 1;
+    case 204: *x86_number = SYS_getsockname; return 1;
+    case 205: *x86_number = SYS_getpeername; return 1;
+    case 206: *x86_number = SYS_sendto; return 1;
+    case 207: *x86_number = SYS_recvfrom; return 1;
+    case 208: *x86_number = SYS_setsockopt; return 1;
+    case 209: *x86_number = SYS_getsockopt; return 1;
+    case 210: *x86_number = SYS_shutdown; return 1;
     case 214: *x86_number = SYS_brk; return 1;
     case 215: *x86_number = SYS_munmap; return 1;
+    case 216: *x86_number = SYS_mremap; return 1;
+    case 220: *x86_number = SYS_clone; return 1;
+    case 221: *x86_number = SYS_execve; return 1;
     case 222: *x86_number = SYS_mmap; return 1;
+    case 223: *x86_number = SYS_fadvise64; return 1;
     case 226: *x86_number = SYS_mprotect; return 1;
+    case 228: *x86_number = SYS_mlock; return 1;
+    case 229: *x86_number = SYS_munlock; return 1;
+    case 230: *x86_number = SYS_mlockall; return 1;
+    case 231: *x86_number = SYS_munlockall; return 1;
     case 233: *x86_number = SYS_madvise; return 1;
+    case 236: *x86_number = SYS_get_mempolicy; return 1;
+    case 237: *x86_number = SYS_set_mempolicy; return 1;
+    case 238: *x86_number = SYS_migrate_pages; return 1;
+    case 239: *x86_number = SYS_move_pages; return 1;
+    case 242: *x86_number = SYS_accept4; return 1;
+    case 260: *x86_number = SYS_wait4; return 1;
     case 261: *x86_number = SYS_prlimit64; return 1;
+    case 276: *x86_number = SYS_renameat2; return 1;
+    case 277: *x86_number = SYS_seccomp; return 1;
     case 278: *x86_number = SYS_getrandom; return 1;
+    case 280: *x86_number = SYS_bpf; return 1;
+    case 282: *x86_number = SYS_userfaultfd; return 1;
+    case 283: *x86_number = SYS_membarrier; return 1;
+    case 284: *x86_number = SYS_mlock2; return 1;
+    case 288: *x86_number = SYS_pkey_mprotect; return 1;
+    case 289: *x86_number = SYS_pkey_alloc; return 1;
+    case 290: *x86_number = SYS_pkey_free; return 1;
     case 291: *x86_number = SYS_statx; return 1;
     case 293: *x86_number = SYS_rseq; return 1;
+    case 424: *x86_number = SYS_pidfd_send_signal; return 1;
+    case 425: *x86_number = SYS_io_uring_setup; return 1;
+    case 426: *x86_number = SYS_io_uring_enter; return 1;
+    case 427: *x86_number = SYS_io_uring_register; return 1;
+    case 428: *x86_number = SYS_open_tree; return 1;
+    case 429: *x86_number = SYS_move_mount; return 1;
+    case 430: *x86_number = SYS_fsopen; return 1;
+    case 431: *x86_number = SYS_fsconfig; return 1;
+    case 432: *x86_number = SYS_fsmount; return 1;
+    case 433: *x86_number = SYS_fspick; return 1;
+    case 434: *x86_number = SYS_pidfd_open; return 1;
+    case 435: *x86_number = SYS_clone3; return 1;
+    case 436: *x86_number = SYS_close_range; return 1;
+    case 437: *x86_number = SYS_openat2; return 1;
+    case 438: *x86_number = SYS_pidfd_getfd; return 1;
+    case 440: *x86_number = SYS_process_madvise; return 1;
+    case 442: *x86_number = SYS_mount_setattr; return 1;
+    case 444: *x86_number = SYS_landlock_create_ruleset; return 1;
+    case 445: *x86_number = SYS_landlock_add_rule; return 1;
+    case 446: *x86_number = SYS_landlock_restrict_self; return 1;
+    case 448: *x86_number = SYS_process_mrelease; return 1;
+    case 449: *x86_number = SYS_futex_waitv; return 1;
+    case 450: *x86_number = SYS_set_mempolicy_home_node; return 1;
     default: return 0;
   }
 }
@@ -408,6 +604,619 @@ static void install_poly_trap_vector(void) {
 static void clear_poly_trap_vector(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
+}
+
+static int prepare_syscall_fixture_file(void) {
+  int fd = open("user.poly", O_CREAT | O_RDWR | O_TRUNC, 0600);
+  if (fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create syscall fixture: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  if (fd != 3) {
+    if (dup2(fd, 3) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to bind syscall fixture fd: %s\n",
+        strerror(errno));
+      close(fd);
+      return -1;
+    }
+    close(fd);
+    fd = 3;
+  }
+  static const char fixture_data[] = "poly!";
+  if (write(fd, fixture_data, sizeof(fixture_data) - 1) !=
+      (ssize_t) (sizeof(fixture_data) - 1)) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to write syscall fixture: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  if (lseek(fd, 0, SEEK_SET) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to rewind syscall fixture: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  long setxattr_result = poly_x86_syscall6(SYS_setxattr,
+    (uint64_t) (uintptr_t) "user.poly",
+    (uint64_t) (uintptr_t) "user.poly",
+    (uint64_t) (uintptr_t) "user.poly", 4, 0, 0);
+  if (setxattr_result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to prepare syscall xattr: %ld\n",
+      setxattr_result);
+    return -1;
+  }
+  return 0;
+}
+
+static int prepare_timerfd_fixture(int target_fd) {
+  int fd = (int) poly_x86_syscall6(SYS_timerfd_create, CLOCK_MONOTONIC, 0, 0, 0, 0, 0);
+  if (fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create timerfd fixture: %d\n",
+      fd);
+    return -1;
+  }
+  if (fd != target_fd) {
+    if (dup2(fd, target_fd) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to bind timerfd fixture fd: %s\n",
+        strerror(errno));
+      close(fd);
+      return -1;
+    }
+    close(fd);
+  }
+  return 0;
+}
+
+static int prepare_eventfd_fixture(int target_fd) {
+  int fd = (int) poly_x86_syscall6(SYS_eventfd2, 0, 0, 0, 0, 0, 0);
+  if (fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create eventfd fixture: %d\n",
+      fd);
+    return -1;
+  }
+  if (fd != target_fd) {
+    if (dup2(fd, target_fd) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to bind eventfd fixture fd: %s\n",
+        strerror(errno));
+      close(fd);
+      return -1;
+    }
+    close(fd);
+  }
+  return 0;
+}
+
+static int prepare_epoll_fixture(int target_fd) {
+  int fd = (int) poly_x86_syscall6(SYS_epoll_create1, 0, 0, 0, 0, 0, 0);
+  if (fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create epoll fixture: %d\n",
+      fd);
+    return -1;
+  }
+  if (fd != target_fd) {
+    if (dup2(fd, target_fd) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to bind epoll fixture fd: %s\n",
+        strerror(errno));
+      close(fd);
+      return -1;
+    }
+    close(fd);
+  }
+  return 0;
+}
+
+static void close_transient_fixture_fds(void) {
+  for (int fd = 4; fd < 32; fd++)
+    close(fd);
+}
+
+static int bind_fixture_fd(int fd, int target_fd) {
+  if (fd < 0)
+    return -1;
+  if (fd != target_fd) {
+    if (dup2(fd, target_fd) < 0) {
+      close(fd);
+      return -1;
+    }
+    close(fd);
+  }
+  return 0;
+}
+
+static void init_loopback_sockaddr(struct sockaddr_in *addr) {
+  memset(addr, 0, sizeof(*addr));
+  addr->sin_family = AF_INET;
+  addr->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+}
+
+static void init_abstract_unix_sockaddr(struct sockaddr_un *addr,
+    const char *name) {
+  memset(addr, 0, sizeof(*addr));
+  addr->sun_family = AF_UNIX;
+  addr->sun_path[0] = '\0';
+  snprintf(addr->sun_path + 1, sizeof(addr->sun_path) - 1, "%s", name);
+}
+
+static int prepare_socket_fd_fixture(int target_fd, int bind_socket,
+    char *scratch, size_t scratch_size) {
+  if (scratch_size < sizeof(struct sockaddr_in))
+    return -1;
+
+  int fd = (int) poly_x86_syscall6(SYS_socket, AF_INET, SOCK_STREAM, 0, 0, 0, 0);
+  if (fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create socket fixture: %d\n", fd);
+    return -1;
+  }
+  if (bind_socket) {
+    struct sockaddr_in *addr = (struct sockaddr_in *) scratch;
+    init_loopback_sockaddr(addr);
+    long result = poly_x86_syscall6(SYS_bind, fd, (uint64_t) (uintptr_t) addr,
+      sizeof(*addr), 0, 0, 0);
+    if (result < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to bind socket fixture: %ld\n",
+        result);
+      close(fd);
+      return -1;
+    }
+  }
+  if (bind_fixture_fd(fd, target_fd) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind socket fixture fd: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  return 0;
+}
+
+static int prepare_listening_socket_fixture(int target_fd, char *scratch,
+    size_t scratch_size) {
+  if (prepare_socket_fd_fixture(target_fd, 1, scratch, scratch_size) < 0)
+    return -1;
+  long result = poly_x86_syscall6(SYS_listen, target_fd, 1, 0, 0, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to listen on socket fixture: %ld\n",
+      result);
+    return -1;
+  }
+  return 0;
+}
+
+static int load_socket_name(int fd, char *scratch, size_t scratch_size) {
+  if (scratch_size < SCRATCH_SECOND_PATH_OFFSET + sizeof(socklen_t))
+    return -1;
+  socklen_t *addrlen = (socklen_t *) (scratch + SCRATCH_SECOND_PATH_OFFSET);
+  *addrlen = sizeof(struct sockaddr_in);
+  long result = poly_x86_syscall6(SYS_getsockname, fd,
+    (uint64_t) (uintptr_t) scratch, (uint64_t) (uintptr_t) addrlen, 0, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to read socket fixture name: %ld\n",
+      result);
+    return -1;
+  }
+  *addrlen = sizeof(struct sockaddr_in);
+  return 0;
+}
+
+static int prepare_pending_accept_fixture(char *scratch, size_t scratch_size) {
+  if (scratch_size < sizeof(struct sockaddr_un))
+    return -1;
+
+  struct sockaddr_un *addr = (struct sockaddr_un *) scratch;
+  init_abstract_unix_sockaddr(addr, "polyacc");
+  int server_fd = (int) poly_x86_syscall6(SYS_socket, AF_UNIX, SOCK_STREAM, 0,
+    0, 0, 0);
+  if (server_fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create socket server fixture: %d\n",
+      server_fd);
+    return -1;
+  }
+  long result = poly_x86_syscall6(SYS_bind, server_fd,
+    (uint64_t) (uintptr_t) addr, 16, 0, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind socket server fixture: %ld\n",
+      result);
+    close(server_fd);
+    return -1;
+  }
+  result = poly_x86_syscall6(SYS_listen, server_fd, 1, 0, 0, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to listen on socket server fixture: %ld\n",
+      result);
+    close(server_fd);
+    return -1;
+  }
+  if (bind_fixture_fd(server_fd, 5) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind socket server fixture fd: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  int client_fd = (int) poly_x86_syscall6(SYS_socket, AF_UNIX, SOCK_STREAM, 0,
+    0, 0, 0);
+  if (client_fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create socket client fixture: %d\n",
+      client_fd);
+    return -1;
+  }
+  if (bind_fixture_fd(client_fd, 4) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind socket client fixture fd: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  result = poly_x86_syscall6(SYS_connect, 4, (uint64_t) (uintptr_t) scratch,
+    16, 0, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to connect socket client fixture: %ld\n",
+      result);
+    return -1;
+  }
+  return 0;
+}
+
+static int prepare_connect_fixture(char *scratch, size_t scratch_size) {
+  if (scratch_size < sizeof(struct sockaddr_un))
+    return -1;
+
+  struct sockaddr_un *addr = (struct sockaddr_un *) scratch;
+  init_abstract_unix_sockaddr(addr, "polycon");
+  int server_fd = (int) poly_x86_syscall6(SYS_socket, AF_UNIX, SOCK_STREAM, 0,
+    0, 0, 0);
+  if (server_fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create connect server fixture: %d\n",
+      server_fd);
+    return -1;
+  }
+  long result = poly_x86_syscall6(SYS_bind, server_fd,
+    (uint64_t) (uintptr_t) addr, 16, 0, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind connect server fixture: %ld\n",
+      result);
+    close(server_fd);
+    return -1;
+  }
+  result = poly_x86_syscall6(SYS_listen, server_fd, 1, 0, 0, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to listen on connect server fixture: %ld\n",
+      result);
+    close(server_fd);
+    return -1;
+  }
+  if (bind_fixture_fd(server_fd, 4) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind connect server fixture fd: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  int client_fd = (int) poly_x86_syscall6(SYS_socket, AF_UNIX, SOCK_STREAM, 0,
+    0, 0, 0);
+  if (client_fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create connect client fixture: %d\n",
+      client_fd);
+    return -1;
+  }
+  if (bind_fixture_fd(client_fd, 5) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind connect client fixture fd: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  return 0;
+}
+
+static int prepare_socketpair_fixture(int fd0, int fd1) {
+  int fds[2] = { -1, -1 };
+  long result = poly_x86_syscall6(SYS_socketpair, AF_UNIX, SOCK_STREAM, 0,
+    (uint64_t) (uintptr_t) fds, 0, 0);
+  if (result < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create socketpair fixture: %ld\n",
+      result);
+    return -1;
+  }
+  if (bind_fixture_fd(fds[0], fd0) < 0 ||
+      bind_fixture_fd(fds[1], fd1) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind socketpair fixture fd: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  return 0;
+}
+
+static int prepare_directory_fd_fixture(const char *path, int target_fd) {
+  rmdir(path);
+  unlink(path);
+  if (mkdir(path, 0700) < 0 && errno != EEXIST) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to create directory fixture %s: %s\n",
+      path, strerror(errno));
+    return -1;
+  }
+  int fd = open(path, O_RDONLY | O_DIRECTORY);
+  if (fd < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to open directory fixture %s: %s\n",
+      path, strerror(errno));
+    return -1;
+  }
+  if (bind_fixture_fd(fd, target_fd) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to bind directory fixture fd: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  return 0;
+}
+
+static int prepare_program_scratch(const char *program_path, char *scratch,
+    size_t scratch_size) {
+  if (scratch_size < sizeof("poly!\0/init"))
+    return -1;
+
+  close_transient_fixture_fds();
+
+  if (prepare_syscall_fixture_file() < 0)
+    return -1;
+
+  memcpy(scratch, "poly!\0/init", sizeof("poly!\0/init"));
+
+  if (strstr(program_path, "-timerfd-settime.") != NULL ||
+      strstr(program_path, "-timerfd-gettime.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    return prepare_timerfd_fixture(13);
+  }
+
+  if (strstr(program_path, "-pselect6.") != NULL ||
+      strstr(program_path, "-ppoll.") != NULL ||
+      strstr(program_path, "-nanosleep.") != NULL ||
+      strstr(program_path, "-setitimer.") != NULL ||
+      strstr(program_path, "-sched-setparam.") != NULL ||
+      strstr(program_path, "-sched-setscheduler.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    return 0;
+  }
+
+  if (strstr(program_path, "-epoll-ctl.") != NULL ||
+      strstr(program_path, "-epoll-pwait.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    ((uint32_t *) scratch)[0] = 1;
+    if (prepare_eventfd_fixture(3) < 0)
+      return -1;
+    return prepare_epoll_fixture(4);
+  }
+
+  if (strstr(program_path, "-sched-setaffinity.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    ((uint64_t *) scratch)[0] = 1;
+    return 0;
+  }
+
+  if (strstr(program_path, "-setrlimit.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    if (getrlimit(RLIMIT_STACK, (struct rlimit *) scratch) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to prepare rlimit fixture: %s\n",
+        strerror(errno));
+      return -1;
+    }
+    return 0;
+  }
+
+  if (strstr(program_path, "-bind.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    init_loopback_sockaddr((struct sockaddr_in *) scratch);
+    return prepare_socket_fd_fixture(5, 0, scratch, scratch_size);
+  }
+
+  if (strstr(program_path, "-listen.") != NULL)
+    return prepare_socket_fd_fixture(5, 1, scratch, scratch_size);
+
+  if (strstr(program_path, "-accept.") != NULL ||
+      strstr(program_path, "-accept4.") != NULL)
+    return prepare_pending_accept_fixture(scratch, scratch_size);
+
+  if (strstr(program_path, "-connect.") != NULL)
+    return prepare_connect_fixture(scratch, scratch_size);
+
+  if (strstr(program_path, "-getsockname.") != NULL) {
+    if (prepare_socket_fd_fixture(5, 1, scratch, scratch_size) < 0)
+      return -1;
+    return load_socket_name(5, scratch, scratch_size);
+  }
+
+  if (strstr(program_path, "-getpeername.") != NULL) {
+    if (prepare_socketpair_fixture(4, 5) < 0)
+      return -1;
+    memset(scratch, 0, scratch_size);
+    *(socklen_t *) (scratch + SCRATCH_SECOND_PATH_OFFSET) =
+      sizeof(struct sockaddr_storage);
+    return 0;
+  }
+
+  if (strstr(program_path, "-sendto.") != NULL ||
+      strstr(program_path, "-shutdown.") != NULL)
+    return prepare_socketpair_fixture(4, 5);
+
+  if (strstr(program_path, "-recvfrom.") != NULL) {
+    static const char data[] = "poly";
+    if (prepare_socketpair_fixture(4, 5) < 0)
+      return -1;
+    if (write(4, data, sizeof(data) - 1) != (ssize_t) (sizeof(data) - 1)) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to seed socket recv fixture: %s\n",
+        strerror(errno));
+      return -1;
+    }
+    return 0;
+  }
+
+  if (strstr(program_path, "-setsockopt.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    *(int *) scratch = 1;
+    return prepare_socket_fd_fixture(5, 0, scratch, scratch_size);
+  }
+
+  if (strstr(program_path, "-getsockopt.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    *(socklen_t *) (scratch + SCRATCH_SECOND_PATH_OFFSET) = sizeof(int);
+    return prepare_socket_fd_fixture(5, 0, scratch, scratch_size);
+  }
+
+  if (strstr(program_path, "-capget.") != NULL ||
+      strstr(program_path, "-capset.") != NULL) {
+    memset(scratch, 0, scratch_size);
+    ((uint32_t *) scratch)[0] = 0x20080522U;
+    if (strstr(program_path, "-capset.") != NULL)
+      ((int32_t *) scratch)[1] = -1;
+    return 0;
+  }
+
+  if (strstr(program_path, "xattr") != NULL) {
+    if (prepare_syscall_fixture_file() < 0)
+      return -1;
+    memcpy(scratch, "user.poly\0/init", sizeof("user.poly\0/init"));
+    return 0;
+  }
+
+  if (strstr(program_path, "-statfs.") != NULL &&
+      strstr(program_path, "-fstatfs.") == NULL) {
+    memcpy(scratch, "/\0/init", sizeof("/\0/init"));
+    return 0;
+  }
+
+  if (strstr(program_path, "-openat.") != NULL ||
+      (strstr(program_path, "-openat-") != NULL &&
+       strstr(program_path, "-real-openat-") == NULL)) {
+    memcpy(scratch, "/init", sizeof("/init"));
+    return 0;
+  }
+
+  if (strstr(program_path, "-faccessat.") != NULL) {
+    memcpy(scratch, "/init", sizeof("/init"));
+    return 0;
+  }
+
+  if (strstr(program_path, "-readlinkat.") != NULL) {
+    memcpy(scratch, "/polyexec-readlink", sizeof("/polyexec-readlink"));
+    unlink(scratch);
+    if (symlink("poly!", scratch) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to create readlink fixture: %s\n",
+        strerror(errno));
+      return -1;
+    }
+    return 0;
+  }
+
+  if (strstr(program_path, "-newfstatat.") != NULL) {
+    memcpy(scratch, "/init", sizeof("/init"));
+    return 0;
+  }
+
+  if (strstr(program_path, "-statx.") != NULL &&
+      strstr(program_path, "-real-statx.") == NULL) {
+    memcpy(scratch, "/init", sizeof("/init"));
+    return 0;
+  }
+
+  if (strstr(program_path, "-getdents64.") != NULL)
+    return prepare_directory_fd_fixture("/polyexec-getdents64", 3);
+
+  if (strstr(program_path, "-chdir.") != NULL) {
+    const char *name = strrchr(program_path, '/');
+    name = name ? name + 1 : program_path;
+    if (snprintf(scratch, scratch_size, "/polyexec-%s", name) >=
+        (int) scratch_size) {
+      fprintf(stderr, "POLYEXEC_FAIL: syscall fixture path too long: %s\n",
+        program_path);
+      return -1;
+    }
+    unlink(scratch);
+    rmdir(scratch);
+    if (mkdir(scratch, 0700) < 0 && errno != EEXIST) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to create chdir fixture: %s: %s\n",
+        program_path, strerror(errno));
+      return -1;
+    }
+    return 0;
+  }
+
+  if (strstr(program_path, "-fchdir.") != NULL) {
+    const char *path = "/polyexec-fchdir";
+    rmdir(path);
+    unlink(path);
+    if (mkdir(path, 0700) < 0 && errno != EEXIST) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to create fchdir fixture: %s: %s\n",
+        program_path, strerror(errno));
+      return -1;
+    }
+    int fd = open(path, O_RDONLY | O_DIRECTORY);
+    if (fd < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to open fchdir fixture: %s: %s\n",
+        program_path, strerror(errno));
+      return -1;
+    }
+    if (fd != 3) {
+      if (dup2(fd, 3) < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: unable to bind fchdir fixture fd: %s\n",
+          strerror(errno));
+        close(fd);
+        return -1;
+      }
+      close(fd);
+    }
+    return 0;
+  }
+
+  if (strstr(program_path, "-linkat.") != NULL) {
+    const char *name = strrchr(program_path, '/');
+    name = name ? name + 1 : program_path;
+    if (scratch_size <= SCRATCH_SECOND_PATH_OFFSET ||
+        snprintf(scratch, scratch_size, "/polyexec-%s-old", name) >=
+        (int) scratch_size ||
+        snprintf(scratch + SCRATCH_SECOND_PATH_OFFSET,
+          scratch_size - SCRATCH_SECOND_PATH_OFFSET, "/polyexec-%s-new",
+          name) >= (int) (scratch_size - SCRATCH_SECOND_PATH_OFFSET)) {
+      fprintf(stderr, "POLYEXEC_FAIL: syscall fixture path too long: %s\n",
+        program_path);
+      return -1;
+    }
+    unlink(scratch);
+    unlink(scratch + SCRATCH_SECOND_PATH_OFFSET);
+    int fd = open(scratch, O_CREAT | O_RDWR | O_TRUNC, 0600);
+    if (fd < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unable to create link fixture: %s: %s\n",
+        program_path, strerror(errno));
+      return -1;
+    }
+    close(fd);
+    return 0;
+  }
+
+  if (strstr(program_path, "-mknodat.") != NULL ||
+      strstr(program_path, "-mkdirat.") != NULL ||
+      strstr(program_path, "-unlinkat.") != NULL ||
+      strstr(program_path, "-symlinkat.") != NULL ||
+      strstr(program_path, "-renameat.") != NULL ||
+      strstr(program_path, "-renameat2.") != NULL ||
+      strstr(program_path, "-truncate.") != NULL ||
+      strstr(program_path, "-fchmodat.") != NULL ||
+      strstr(program_path, "-fchownat.") != NULL) {
+    const char *name = strrchr(program_path, '/');
+    name = name ? name + 1 : program_path;
+    if (snprintf(scratch, scratch_size, "/polyexec-%s", name) >=
+        (int) scratch_size) {
+      fprintf(stderr, "POLYEXEC_FAIL: syscall fixture path too long: %s\n",
+        program_path);
+      return -1;
+    }
+    rmdir(scratch);
+    unlink(scratch);
+    if (strstr(program_path, "-unlinkat.") != NULL ||
+        strstr(program_path, "-renameat.") != NULL ||
+        strstr(program_path, "-renameat2.") != NULL ||
+        strstr(program_path, "-truncate.") != NULL ||
+        strstr(program_path, "-fchmodat.") != NULL ||
+        strstr(program_path, "-fchownat.") != NULL) {
+      int fd = open(scratch, O_CREAT | O_RDWR | O_TRUNC, 0600);
+      if (fd < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: unable to create path fixture: %s: %s\n",
+          program_path, strerror(errno));
+        return -1;
+      }
+      close(fd);
+    }
+  }
+
+  return 0;
 }
 
 static int parse_u64(const char *text, uint64_t *value) {
@@ -556,12 +1365,84 @@ static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes, size
   *offset += size;
 }
 
+static int load_segment_prot(uint32_t flags) {
+  int prot = 0;
+  if ((flags & PF_R) != 0)
+    prot |= PROT_READ;
+  if ((flags & PF_W) != 0)
+    prot |= PROT_WRITE;
+  if ((flags & PF_X) != 0)
+    prot |= PROT_EXEC;
+  return prot;
+}
+
+static int protect_image_range(const struct poly_program *program,
+    uint8_t *image, uint64_t vaddr, uint64_t size, int prot,
+    const char *range_name) {
+  if (size == 0)
+    return 0;
+  if (vaddr < program->base_vaddr || vaddr > UINT64_MAX - size) {
+    fprintf(stderr, "POLYEXEC_FAIL: bad %s range: %s\n",
+      range_name, program->path);
+    return -1;
+  }
+
+  const uint64_t start = align_down_u64(vaddr, 0x1000);
+  const uint64_t end_unaligned = vaddr + size;
+  if (end_unaligned > UINT64_MAX - 0xfff) {
+    fprintf(stderr, "POLYEXEC_FAIL: bad %s page range: %s\n",
+      range_name, program->path);
+    return -1;
+  }
+  const uint64_t end = align_up_u64(end_unaligned, 0x1000);
+  const uint64_t mapped_image_size = align_up_u64(program->code_size, 0x1000);
+  if (start < program->base_vaddr || end < start ||
+      end - start > SIZE_MAX ||
+      end - program->base_vaddr > mapped_image_size) {
+    fprintf(stderr, "POLYEXEC_FAIL: %s escaped image: %s\n",
+      range_name, program->path);
+    return -1;
+  }
+
+  void *addr = image + (size_t) (start - program->base_vaddr);
+  const size_t length = (size_t) (end - start);
+  if (mprotect(addr, length, prot) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: %s mprotect failed: %s: %s\n",
+      range_name, program->path, strerror(errno));
+    return -1;
+  }
+  return 0;
+}
+
+static int protect_load_segments(const struct poly_program *program,
+    uint8_t *image) {
+  for (size_t n = 0; n < program->load_segment_count; n++) {
+    if (protect_image_range(program, image, program->load_segments[n].vaddr,
+          program->load_segments[n].memsz,
+          load_segment_prot(program->load_segments[n].flags), "PT_LOAD") < 0)
+      return -1;
+  }
+  return 0;
+}
+
 static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
   uint64_t rax = (uint64_t) (uintptr_t) scratch;
   asm volatile(
+      "pushq %%rbx\n"
+      "pushq %%rbp\n"
+      "pushq %%r12\n"
+      "pushq %%r13\n"
+      "pushq %%r14\n"
+      "pushq %%r15\n"
       "movq %%rax, %%rdi\n"
       "movq %%rax, %%rsi\n"
-      "call *%1"
+      "call *%1\n"
+      "popq %%r15\n"
+      "popq %%r14\n"
+      "popq %%r13\n"
+      "popq %%r12\n"
+      "popq %%rbp\n"
+      "popq %%rbx"
       : "+a"(rax)
       : "r"(code)
       : "rdi", "rsi", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
@@ -929,6 +1810,11 @@ static int load_elf_program(const char *path, const char *symbol_name,
       dynamic_size = phdr->p_filesz;
       continue;
     }
+    if (phdr->p_type == PT_GNU_RELRO) {
+      program->relro_vaddr = phdr->p_vaddr;
+      program->relro_size = phdr->p_memsz;
+      continue;
+    }
     if (phdr->p_type != PT_LOAD)
       continue;
 
@@ -943,6 +1829,10 @@ static int load_elf_program(const char *path, const char *symbol_name,
 
     const uint64_t segment_base = align_down_u64(phdr->p_vaddr, 0x1000);
     const uint64_t segment_limit = phdr->p_vaddr + phdr->p_memsz;
+    if (record_load_segment(program, phdr) < 0) {
+      free(data);
+      return -1;
+    }
     if (segment_base < base_vaddr)
       base_vaddr = segment_base;
     if (segment_limit > limit_vaddr)
@@ -1063,7 +1953,17 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   const size_t load_base_offset = 4096;
   const size_t branch_offset = load_base_offset - branch_size;
   const size_t code_offset = branch_offset - raw_switch_size - return_setup_size;
-  const size_t mapping_size = load_base_offset + program->code_size + 4 + 1;
+  const size_t escape_return_size = 5;
+  const uint64_t image_mapping_size_u64 =
+    align_up_u64((uint64_t) program->code_size + escape_return_size, 0x1000);
+  if (image_mapping_size_u64 > SIZE_MAX - load_base_offset - 4096) {
+    fprintf(stderr, "POLYEXEC_FAIL: ELF image mapping is too large: %s\n",
+      program->path);
+    return -1;
+  }
+  const size_t image_mapping_size = (size_t) image_mapping_size_u64;
+  const size_t return_page_offset = load_base_offset + image_mapping_size;
+  const size_t mapping_size = return_page_offset + 4096;
   uint8_t *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (mapping == MAP_FAILED) {
     fprintf(stderr, "POLYEXEC_FAIL: mmap failed: %s\n", strerror(errno));
@@ -1072,8 +1972,11 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
 
   uint8_t *code = mapping + code_offset;
   size_t offset = 0;
-  const uint64_t return_pc = (uint64_t) (uintptr_t) (mapping + load_base_offset + program->code_size);
+  const uint64_t return_pc = (uint64_t) (uintptr_t)
+    (mapping + return_page_offset);
   const uint64_t entry_pc = (uint64_t) (uintptr_t) (mapping + load_base_offset + program->entry_offset);
+  const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
+    0xd42fffe0U : 0x0000000bU;
   if (program->arch == POLY_ARCH_AARCH64) {
     const uint8_t raw_switch[] = { 0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
@@ -1109,21 +2012,101 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   }
   offset = load_base_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
+  emit_u32(mapping, &offset, escape);
+  mapping[offset++] = 0xc3;
+  offset = return_page_offset;
+  emit_u32(mapping, &offset, escape);
+  mapping[offset++] = 0xc3;
   if (apply_relative_relocations(program, mapping + load_base_offset) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
       program->path);
     munmap(mapping, mapping_size);
     return -1;
   }
-  const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ? 0xd42fffe0U : 0x0000000bU;
-  emit_u32(mapping, &offset, escape);
-  mapping[offset++] = 0xc3;
+  if (protect_load_segments(program, mapping + load_base_offset) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (protect_image_range(program, mapping + load_base_offset,
+        program->relro_vaddr, program->relro_size, PROT_READ,
+        "PT_GNU_RELRO") < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
 
-  char scratch[4096] = "poly!\0/init";
-  *result = run_poly_entry(code, (uint8_t *) scratch);
+  size_t scratch_size = 4096;
+  uint8_t *scratch = mmap(NULL, scratch_size, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (scratch == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: scratch mmap failed: %s\n",
+      strerror(errno));
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (prepare_program_scratch(program->path, (char *) scratch, scratch_size) < 0) {
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  char cwd[4096];
+  int have_cwd = getcwd(cwd, sizeof(cwd)) != NULL;
+  *result = run_poly_entry(code, scratch);
+  if (have_cwd && chdir(cwd) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to restore cwd after %s: %s\n",
+      program->path, strerror(errno));
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
   poly_mode_x86();
+  munmap(scratch, scratch_size);
   munmap(mapping, mapping_size);
   return 0;
+}
+
+static int program_exits_process(const char *path) {
+  return strstr(path, "-exit.") != NULL ||
+    strstr(path, "-exit-group.") != NULL;
+}
+
+static int emit_and_run_exit_child(const struct poly_program *program,
+    uint64_t *result, int use_trap_vector) {
+  fflush(NULL);
+  pid_t pid = fork();
+  if (pid < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: fork failed for %s: %s\n",
+      program->path, strerror(errno));
+    return -1;
+  }
+
+  if (pid == 0) {
+    uint64_t child_result = 0;
+    if (use_trap_vector)
+      install_poly_trap_vector();
+    if (emit_and_run(program, &child_result) < 0)
+      _exit(125);
+    _exit((int) (child_result & 0xff));
+  }
+
+  int status = 0;
+  if (waitpid(pid, &status, 0) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: waitpid failed for %s: %s\n",
+      program->path, strerror(errno));
+    return -1;
+  }
+
+  if (WIFEXITED(status)) {
+    *result = (uint64_t) WEXITSTATUS(status);
+    return 0;
+  }
+  if (WIFSIGNALED(status)) {
+    *result = (uint64_t) (128 + WTERMSIG(status));
+    return 0;
+  }
+
+  fprintf(stderr, "POLYEXEC_FAIL: unexpected child status for %s: 0x%x\n",
+    program->path, status);
+  return -1;
 }
 
 static void free_program(struct poly_program *program) {
@@ -1139,6 +2122,8 @@ int main(int argc, char **argv) {
   }
 
   puts("POLYEXEC: start");
+  if (prepare_syscall_fixture_file() < 0)
+    return 1;
   const char *trap_vector_env = getenv("POLYEXEC_TRAP_VECTOR");
   const int use_trap_vector =
     trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0;
@@ -1155,12 +2140,16 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, request.symbol, &program) < 0)
       return 1;
 
-    printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu path=%s%s%s\n",
+    printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u path=%s%s%s\n",
       program.arch_name, program.code_size, program.entry_offset,
+      program.load_segment_count, program.relro_size != 0,
       program.path, request.symbol[0] ? "#" : "", request.symbol);
 
     uint64_t result = 0;
-    if (emit_and_run(&program, &result) < 0) {
+    int run_status = program_exits_process(program.path) ?
+      emit_and_run_exit_child(&program, &result, use_trap_vector) :
+      emit_and_run(&program, &result);
+    if (run_status < 0) {
       free_program(&program);
       return 1;
     }
