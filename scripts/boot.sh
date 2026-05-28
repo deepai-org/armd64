@@ -3674,8 +3674,19 @@ if [ "$RUN_POLY_PROBE" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_APPS" = "1" ]; then
-  POLYAPP_LEGACY_BREAK_HELPERS=1 \
-    /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
+  polyapp_files=""
+  for polyapp_file in /usr/lib/polyapps/*.poly; do
+    case "\$polyapp_file" in
+      */aarch64-strlen.poly|*/aarch64-memfill.poly|*/aarch64-memcmp.poly|*/aarch64-memcpy.poly)
+        continue
+        ;;
+      */riscv-strlen.poly|*/riscv-memfill.poly|*/riscv-memcmp.poly|*/riscv-memcpy.poly)
+        continue
+        ;;
+    esac
+    polyapp_files="\$polyapp_files \$polyapp_file"
+  done
+  /usr/bin/polyapp \$polyapp_files >/dev/ttyS0 2>&1
   /usr/bin/polyapp \
     /usr/lib/polyapps/aarch64-brk.poly \
     /usr/lib/polyapps/riscv-ebreak.poly >/dev/ttyS0 2>&1
@@ -3683,7 +3694,6 @@ fi
 
 if [ "$RUN_POLY_EXEC" = "1" ]; then
     POLYEXEC_TRAP_VECTOR=1 \
-    POLYEXEC_LEGACY_BREAK_HELPERS=1 \
     /usr/bin/polyexec \
     /usr/lib/polyapps/aarch64-add.elf=132 \
     /usr/lib/polyapps/aarch64-regadd.elf=123 \
@@ -3708,10 +3718,6 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf=123 \
-    /usr/lib/polyapps/aarch64-strlen.elf=5 \
-    /usr/lib/polyapps/aarch64-memfill.elf=4 \
-    /usr/lib/polyapps/aarch64-memcmp.elf=1 \
-    /usr/lib/polyapps/aarch64-memcpy.elf=4 \
     /usr/lib/polyapps/aarch64-eventfd2.elf=0 \
     /usr/lib/polyapps/aarch64-inotify-init1.elf=0 \
     /usr/lib/polyapps/aarch64-inotify-add-watch.elf=1 \
@@ -3973,10 +3979,6 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
-    /usr/lib/polyapps/riscv-strlen.elf=5 \
-    /usr/lib/polyapps/riscv-memfill.elf=4 \
-    /usr/lib/polyapps/riscv-memcmp.elf=1 \
-    /usr/lib/polyapps/riscv-memcpy.elf=4 \
     /usr/lib/polyapps/riscv-eventfd2.elf=0 \
     /usr/lib/polyapps/riscv-inotify-init1.elf=0 \
     /usr/lib/polyapps/riscv-inotify-add-watch.elf=1 \
