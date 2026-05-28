@@ -4802,10 +4802,6 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-irelative.elf \
       /usr/lib/polyapps/aarch64-pcall-jumprel.elf \
       /usr/lib/polyapps/aarch64-pcall-rel-jumprel.elf \
-      /usr/lib/polyapps/aarch64-strlen.elf \
-      /usr/lib/polyapps/aarch64-memfill.elf \
-      /usr/lib/polyapps/aarch64-memcmp.elf \
-      /usr/lib/polyapps/aarch64-memcpy.elf \
       /usr/lib/polyapps/aarch64-mmap-real-store.elf \
       /usr/lib/polyapps/aarch64-real-mprotect.elf \
       /usr/lib/polyapps/aarch64-real-munmap.elf \
@@ -4844,10 +4840,6 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-irelative.elf \
       /usr/lib/polyapps/riscv-pcall-jumprel.elf \
       /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf \
-      /usr/lib/polyapps/riscv-strlen.elf \
-      /usr/lib/polyapps/riscv-memfill.elf \
-      /usr/lib/polyapps/riscv-memcmp.elf \
-      /usr/lib/polyapps/riscv-memcpy.elf \
       /usr/lib/polyapps/riscv-mmap-real-store.elf \
       /usr/lib/polyapps/riscv-real-mprotect.elf \
       /usr/lib/polyapps/riscv-real-munmap.elf \
