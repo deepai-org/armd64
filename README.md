@@ -1,39 +1,47 @@
 # armd64
 
-Modified Bochs harness for an x64 polyglot ISA prototype. x64 Linux stays the
-native environment while selected instructions enter, run, and call existing
-precompiled AArch64/RISC-V code in the same process.
+Bochs-based prototype for running precompiled AArch64 and RISC-V code inside an
+x86_64 Linux process. x86_64 remains the boot, kernel, and default userspace ISA.
 
 ## Run
 
-Requires Docker with `linux/arm64` support.
+Prerequisite: Docker with `linux/arm64` support.
 
 ```bash
 make image
 make boot-poly-full-arch-traps
 ```
 
-Shorter targets: `make boot`, `make boot-poly`,
-`make boot-poly-call-arch-traps`, `make boot-poly-binfmt-arch-traps`.
-Logs: `out/serial.log` and `out/bochs.log`.
+Useful targets:
 
-## ISA vs x64
+- `make boot`: boot the baseline x86_64 guest.
+- `make boot-poly`: boot with the polyglot CPU enabled.
+- `make boot-poly-call-arch-traps`: run cross-ISA call/linker tests.
+- `make boot-poly-binfmt-arch-traps`: run foreign executable/binfmt tests.
+- `make boot-poly-full-arch-traps`: run the broadest current boot test set.
 
-x64 remains the boot ISA, kernel ISA, and default userspace ISA. Ordinary x64
-code is unchanged unless it executes a polyglot instruction.
+Logs are written to `out/serial.log` and `out/bochs.log`.
 
-- Discovery: private CPUID leaves starting at `0x40000000`.
-- Hot opcodes: prototype x64 `0f 24 <op> "POLY!"` forms, not `UD2`/`#UD`.
-- Entry: `PENTER.A64`/`PENTER.RV64` switch to raw foreign fetch in the same
-  guest virtual address space.
-- Exit: AArch64 `brk #0x7fff`; RISC-V custom-0 opcode `0x0000000b`.
-- Calls: `PCALL.*.SYSV` maps ordinary x64 SysV call state to native AAPCS64 or
-  RISC-V psABI state so precompiled foreign functions can run.
-- Memory: same virtual memory/page-fault path as x64; prototype foreign memory
-  ordering is x64 TSO.
-- Traps: foreign syscalls, breakpoints, illegal instructions, and unsupported
-  ops produce architectural records for OS/userspace policy.
-- State: Bochs stores extra foreign registers internally; hardware should expose
-  that state through CPUID/XCR0/XSAVE-style context switching.
+## ISA Changes From x86_64
 
-More detail: `docs/poly-isa.md`.
+Ordinary x86_64 code is unchanged. Polyglot behavior starts only when code
+executes a polyglot opcode.
+
+- Discovery uses private CPUID leaves starting at `0x40000000`.
+- Polyglot x86 opcodes use prototype `0f 24 <op> "POLY!"` encodings, not
+  `UD2` or exception-based instruction envelopes.
+- `PENTER.A64` and `PENTER.RV64` switch the frontend into raw AArch64 or RISC-V
+  fetch from the same guest virtual address space.
+- AArch64 exits with `brk #0x7fff`; RISC-V exits with custom-0
+  `0x0000000b`.
+- `PCALL.*.SYSV` bridges x86_64 SysV callers to native AAPCS64 or RISC-V psABI
+  callees so existing foreign objects can be linked and called.
+- Foreign memory accesses use the same virtual memory and page-fault machinery
+  as x86_64. The prototype gives foreign modes x86-style TSO ordering.
+- Foreign syscalls, breakpoints, illegal instructions, and unsupported ops are
+  architectural trap exits for OS or userspace policy. They are not hidden
+  Bochs libcalls.
+- Extra foreign register state is explicit ISA state. Bochs stores it
+  internally; hardware should expose it through CPUID/XCR0/XSAVE-style state.
+
+Detailed ISA notes live in `docs/poly-isa.md`.
