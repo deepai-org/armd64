@@ -492,7 +492,11 @@ lookup are read from `DT_SYMTAB`/`DT_STRTAB` in the loaded dynamic image.
 The standalone `polyexec` path uses the same post-relocation memory protection
 baseline for foreign application images: `PT_LOAD` pages are protected from
 ELF `PF_R`/`PF_W`/`PF_X` flags, and `PT_GNU_RELRO` pages are marked read-only
-before entering the foreign entrypoint.
+before entering the foreign entrypoint. It also applies same-image symbolic
+64-bit dynamic relocations for `R_AARCH64_ABS64`, `R_AARCH64_GLOB_DAT`,
+`R_AARCH64_JUMP_SLOT`, `R_RISCV_64`, and `R_RISCV_JUMP_SLOT`, while still
+rejecting unresolved external dynamic symbols in the standalone application
+path.
 `DT_VERSYM`/`DT_VERNEED`/`DT_VERDEF` symbol-version metadata is honored when
 binding undefined relocations to dependency exports, so a relocation requiring
 `foo@OLD` from a specific needed library does not silently bind to a default

@@ -28,12 +28,32 @@
 #define R_AARCH64_RELATIVE 1027
 #endif
 
+#ifndef R_AARCH64_ABS64
+#define R_AARCH64_ABS64 257
+#endif
+
+#ifndef R_AARCH64_GLOB_DAT
+#define R_AARCH64_GLOB_DAT 1025
+#endif
+
+#ifndef R_AARCH64_JUMP_SLOT
+#define R_AARCH64_JUMP_SLOT 1026
+#endif
+
 #ifndef R_RISCV_NONE
 #define R_RISCV_NONE 0
 #endif
 
 #ifndef R_RISCV_RELATIVE
 #define R_RISCV_RELATIVE 3
+#endif
+
+#ifndef R_RISCV_64
+#define R_RISCV_64 2
+#endif
+
+#ifndef R_RISCV_JUMP_SLOT
+#define R_RISCV_JUMP_SLOT 5
 #endif
 
 #ifndef DT_RELR
@@ -204,6 +224,13 @@ static uint64_t read_u64_le(const uint8_t *bytes) {
   return value;
 }
 
+static uint32_t read_u32_le(const uint8_t *bytes) {
+  uint32_t value = 0;
+  for (unsigned n = 0; n < 4; n++)
+    value |= (uint32_t) bytes[n] << (n * 8);
+  return value;
+}
+
 static void write_u64_le(uint8_t *bytes, uint64_t value) {
   for (unsigned n = 0; n < 8; n++)
     bytes[n] = (uint8_t) ((value >> (n * 8)) & 0xff);
@@ -214,6 +241,15 @@ static uint32_t relative_reloc_type_for_arch(int arch) {
     return R_AARCH64_RELATIVE;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_RELATIVE;
+  return 0;
+}
+
+static int symbolic_64_reloc_type_for_arch(int arch, uint32_t type) {
+  if (arch == POLY_ARCH_AARCH64)
+    return type == R_AARCH64_ABS64 || type == R_AARCH64_GLOB_DAT ||
+      type == R_AARCH64_JUMP_SLOT;
+  if (arch == POLY_ARCH_RISCV)
+    return type == R_RISCV_64 || type == R_RISCV_JUMP_SLOT;
   return 0;
 }
 
@@ -233,6 +269,106 @@ static int elf_vaddr_to_image_offset(const struct poly_program *program,
   if (image_offset > program->code_size || size > program->code_size - image_offset)
     return -1;
   *offset = (size_t) image_offset;
+  return 0;
+}
+
+static int dynamic_symbol_count_from_hash(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t syment,
+    uint64_t hash_vaddr, uint64_t gnu_hash_vaddr, size_t *symbol_count) {
+  *symbol_count = 0;
+  if (hash_vaddr) {
+    size_t hash_offset = 0;
+    if (elf_vaddr_to_image_offset(program, hash_vaddr, 8, &hash_offset) < 0)
+      return -1;
+    *symbol_count = read_u32_le(loaded_image + hash_offset + 4);
+    return *symbol_count != 0 && *symbol_count <= 4096 ? 0 : -1;
+  }
+
+  if (!gnu_hash_vaddr)
+    return -1;
+
+  size_t symtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, syment,
+        &symtab_offset) < 0)
+    return -1;
+
+  size_t hash_offset = 0;
+  if (elf_vaddr_to_image_offset(program, gnu_hash_vaddr, 16,
+        &hash_offset) < 0)
+    return -1;
+
+  const uint32_t nbuckets = read_u32_le(loaded_image + hash_offset);
+  const uint32_t symoffset = read_u32_le(loaded_image + hash_offset + 4);
+  const uint32_t bloom_size = read_u32_le(loaded_image + hash_offset + 8);
+  if (nbuckets == 0 || bloom_size == 0)
+    return -1;
+
+  const uint64_t buckets_offset = (uint64_t) hash_offset + 16 +
+    (uint64_t) bloom_size * sizeof(uint64_t);
+  const uint64_t buckets_size = (uint64_t) nbuckets * sizeof(uint32_t);
+  if (buckets_offset > program->code_size ||
+      buckets_size > program->code_size - buckets_offset)
+    return -1;
+
+  const uint64_t chains_offset = buckets_offset + buckets_size;
+  if (chains_offset > program->code_size ||
+      symtab_offset > program->code_size ||
+      (program->code_size - symtab_offset) / syment < symoffset)
+    return -1;
+
+  const size_t max_symbols = (program->code_size - symtab_offset) / syment;
+  size_t count = symoffset;
+  for (uint32_t n = 0; n < nbuckets; n++) {
+    uint32_t index = read_u32_le(loaded_image + buckets_offset +
+      (uint64_t) n * sizeof(uint32_t));
+    if (index == 0)
+      continue;
+    if (index < symoffset || index >= max_symbols)
+      return -1;
+
+    while (1) {
+      const uint64_t chain_offset = chains_offset +
+        (uint64_t) (index - symoffset) * sizeof(uint32_t);
+      if (chain_offset > program->code_size ||
+          sizeof(uint32_t) > program->code_size - chain_offset)
+        return -1;
+      const uint32_t chain = read_u32_le(loaded_image + chain_offset);
+      if ((size_t) index + 1 > count)
+        count = (size_t) index + 1;
+      if (chain & 1)
+        break;
+      index++;
+      if (index >= max_symbols)
+        return -1;
+    }
+  }
+
+  *symbol_count = count;
+  return count != 0 && count <= 4096 ? 0 : -1;
+}
+
+static int resolve_same_image_reloc_symbol(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t syment,
+    uint64_t hash_vaddr, uint64_t gnu_hash_vaddr, uint64_t symbol_index,
+    uint64_t *symbol_vaddr) {
+  size_t symbol_count = 0;
+  if (!symtab_vaddr || syment < sizeof(Elf64_Sym) ||
+      dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
+        syment, hash_vaddr, gnu_hash_vaddr, &symbol_count) < 0 ||
+      symbol_index >= symbol_count)
+    return -1;
+
+  size_t symtab_offset = 0;
+  const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, symtab_size,
+        &symtab_offset) < 0)
+    return -1;
+
+  const Elf64_Sym *sym = (const Elf64_Sym *) (loaded_image + symtab_offset +
+    symbol_index * syment);
+  if (sym->st_shndx == SHN_UNDEF)
+    return -1;
+  *symbol_vaddr = sym->st_value;
   return 0;
 }
 
@@ -1490,6 +1626,8 @@ static int apply_relative_relocations(const struct poly_program *program,
   uint64_t rela_vaddr = 0, rela_size = 0, rela_ent = sizeof(Elf64_Rela);
   uint64_t rel_vaddr = 0, rel_size = 0, rel_ent = sizeof(Elf64_Rel);
   uint64_t relr_vaddr = 0, relr_size = 0, relr_ent = sizeof(uint64_t);
+  uint64_t symtab_vaddr = 0, syment = sizeof(Elf64_Sym);
+  uint64_t hash_vaddr = 0, gnu_hash_vaddr = 0;
   for (size_t n = 0; n < dyn_count; n++) {
     switch (dyn[n].d_tag) {
       case DT_RELA: rela_vaddr = dyn[n].d_un.d_ptr; break;
@@ -1501,6 +1639,10 @@ static int apply_relative_relocations(const struct poly_program *program,
       case DT_RELR: relr_vaddr = dyn[n].d_un.d_ptr; break;
       case DT_RELRSZ: relr_size = dyn[n].d_un.d_val; break;
       case DT_RELRENT: relr_ent = dyn[n].d_un.d_val; break;
+      case DT_SYMTAB: symtab_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_SYMENT: syment = dyn[n].d_un.d_val; break;
+      case DT_HASH: hash_vaddr = dyn[n].d_un.d_ptr; break;
+      case DT_GNU_HASH: gnu_hash_vaddr = dyn[n].d_un.d_ptr; break;
       default: break;
     }
   }
@@ -1520,12 +1662,25 @@ static int apply_relative_relocations(const struct poly_program *program,
       const uint32_t reloc_type = ELF64_R_TYPE(rela->r_info);
       if (reloc_type == none_type)
         continue;
-      if (symbol_index != 0 || reloc_type != relative_type)
+      uint64_t reloc_value = 0;
+      if (symbol_index == 0 && reloc_type == relative_type) {
+        reloc_value = (uint64_t) rela->r_addend;
+      }
+      else if (symbol_index != 0 &&
+          symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
+        if (resolve_same_image_reloc_symbol(program, loaded_image,
+              symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
+              symbol_index, &reloc_value) < 0)
+          return -1;
+        reloc_value += (uint64_t) rela->r_addend;
+      }
+      else {
         return -1;
+      }
       size_t target = 0;
       if (elf_vaddr_to_image_offset(program, rela->r_offset, 8, &target) < 0)
         return -1;
-      write_u64_le(loaded_image + target, load_bias + (uint64_t) rela->r_addend);
+      write_u64_le(loaded_image + target, load_bias + reloc_value);
     }
   }
 
@@ -1541,12 +1696,26 @@ static int apply_relative_relocations(const struct poly_program *program,
       const uint32_t reloc_type = ELF64_R_TYPE(rel->r_info);
       if (reloc_type == none_type)
         continue;
-      if (symbol_index != 0 || reloc_type != relative_type)
-        return -1;
       size_t target = 0;
       if (elf_vaddr_to_image_offset(program, rel->r_offset, 8, &target) < 0)
         return -1;
-      write_u64_le(loaded_image + target, load_bias + read_u64_le(loaded_image + target));
+      uint64_t reloc_value = read_u64_le(loaded_image + target);
+      if (symbol_index == 0 && reloc_type == relative_type) {
+        // REL stores the addend in-place at the relocation target.
+      }
+      else if (symbol_index != 0 &&
+          symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
+        uint64_t symbol_value = 0;
+        if (resolve_same_image_reloc_symbol(program, loaded_image,
+              symtab_vaddr, syment, hash_vaddr, gnu_hash_vaddr,
+              symbol_index, &symbol_value) < 0)
+          return -1;
+        reloc_value += symbol_value;
+      }
+      else {
+        return -1;
+      }
+      write_u64_le(loaded_image + target, load_bias + reloc_value);
     }
   }
 
