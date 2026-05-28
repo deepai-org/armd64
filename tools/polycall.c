@@ -1765,6 +1765,11 @@ static uint32_t riscv_sd(uint32_t rs2, uint32_t rs1, int32_t imm) {
     (0x3U << 12) | ((imm12 & 0x1fU) << 7) | 0x23U;
 }
 
+static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
+  return (((uint32_t) imm & 0xfffU) << 20) |
+    (rs1 << 15) | (0x0U << 12) | (rd << 7) | 0x13U;
+}
+
 static void emit_save_callee_regs(uint8_t *code, size_t *offset,
     uint64_t save_area) {
   emit_movabs_r10(code, offset, save_area);
@@ -2337,6 +2342,16 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
     if (stub_limit - start < 64)
       return -1;
+    if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
+      const uint64_t return_addr = start_addr + 36;
+      emit_aarch64_movabs(stubs, stub_offset, 16, target);
+      emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
+      emit_u32(stubs, stub_offset,
+        aarch64_cross_call_opcode_for_bridge(bridge_kind));
+      emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
+      *stub_addr = start_addr;
+      return 0;
+    }
     const uint64_t return_addr = start_addr + 52;
     emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
     emit_u32(stubs, stub_offset, 0xf9400bf2U); // ldr x18, [sp, #16]
@@ -2364,15 +2379,27 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, 0x00000317U); // auipc x6,0
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
-    emit_u32(stubs, stub_offset, 0xff010113U); // addi sp,sp,-16
-    emit_u32(stubs, stub_offset, riscv_ld(7, 2, 16)); // ld t2,16(sp)
-    emit_u32(stubs, stub_offset, riscv_sd(7, 2, 0)); // sd t2,0(sp)
-    emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
+    if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
+      emit_u32(stubs, stub_offset, riscv_addi(2, 2, -80)); // addi sp,sp,-80
+      emit_u32(stubs, stub_offset, riscv_sd(1, 2, 72)); // sd ra,72(sp)
+    }
+    else {
+      emit_u32(stubs, stub_offset, 0xff010113U); // addi sp,sp,-16
+      emit_u32(stubs, stub_offset, riscv_ld(7, 2, 16)); // ld t2,16(sp)
+      emit_u32(stubs, stub_offset, riscv_sd(7, 2, 0)); // sd t2,0(sp)
+      emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
+    }
     emit_u32(stubs, stub_offset,
       riscv_cross_call_opcode_for_bridge(bridge_kind));
     const size_t return_pc = *stub_offset;
-    emit_u32(stubs, stub_offset, 0x00813083U); // ld ra,8(sp)
-    emit_u32(stubs, stub_offset, 0x01010113U); // addi sp,sp,16
+    if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
+      emit_u32(stubs, stub_offset, riscv_ld(1, 2, 72)); // ld ra,72(sp)
+      emit_u32(stubs, stub_offset, riscv_addi(2, 2, 80)); // addi sp,sp,80
+    }
+    else {
+      emit_u32(stubs, stub_offset, 0x00813083U); // ld ra,8(sp)
+      emit_u32(stubs, stub_offset, 0x01010113U); // addi sp,sp,16
+    }
     emit_u32(stubs, stub_offset, 0x00008067U); // ret
     if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
       return -1;
