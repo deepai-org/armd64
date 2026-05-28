@@ -88,6 +88,15 @@ uint64_t POLY_HOST_HELPER poly_host_x86_sum8(uint64_t a, uint64_t b,
   return result + poly_host_x86_zero;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_sum10(uint64_t a, uint64_t b,
+    uint64_t c, uint64_t d, uint64_t e, uint64_t f, uint64_t g, uint64_t h,
+    uint64_t i, uint64_t j)
+{
+  const uint64_t result =
+    poly_host_x86_add_bias(a + b + c + d + e + f + g + h + i + j);
+  return result + poly_host_x86_zero;
+}
+
 double POLY_HOST_HELPER poly_host_x86_fp64_add(double a, double b)
 {
   return a + b + 200.5;

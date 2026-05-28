@@ -214,7 +214,7 @@ discover the experimental hardware contract before emitting poly operations:
   trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
   instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
   set/get opcode selectors.
-- `CPUID.EAX=0x40000002, ECX=5`: `EAX=144` reports the foreign import ID
+- `CPUID.EAX=0x40000002, ECX=5`: `EAX=145` reports the foreign import ID
   count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
   base, and `EDX=16` reports the import-call stride.
   Import ID `2` is reserved for the removed legacy x86-add helper and now
@@ -1031,12 +1031,14 @@ maps the fixed native argument lanes. RISC-V quad-precision helper descriptors
 rebuild `__float128` operands from fixed `a0/a1` and `a2/a3` GPR lane pairs in
 runtime x86 wrappers rather than requiring CPU-side XMM argument packing for
 specific helper IDs. Each 32-byte x86 import descriptor is
-`{target, trampoline, flags, reserved}`.  Flag bit `0` requests that the
-seventh and eighth native GPR argument lanes be written to x86 stack-argument
-slots, bit `1` maps an x86 `RDX:RAX` 128-bit integer return back to the native
-foreign return register pair, and bit `2` maps an x86 `XMM0` binary128 return
-back to AArch64 `v0` or RISC-V `a0/a1`. These flags are runtime metadata, not
-CPU-side helper-ID policy.
+`{target, trampoline, flags, x86_stack_arg_count}`.  Flag bit `0` requests x86
+stack-argument mapping; descriptor word 3 gives the number of x86 stack
+argument qwords to write after the synthesized return address.  A zero count
+with bit `0` set preserves the original two-slot encoding.  Bit `1` maps an
+x86 `RDX:RAX` 128-bit integer return back to the native foreign return register
+pair, and bit `2` maps an x86 `XMM0` binary128 return back to AArch64 `v0` or
+RISC-V `a0/a1`. These fields are runtime metadata, not CPU-side helper-ID
+policy.
 The same descriptor path currently provides prototype imports for common GCC
 dynamic TLS accessors (`R_AARCH64_TLSDESC`, AArch64
 `R_AARCH64_TLS_DTPMOD64`/`R_AARCH64_TLS_DTPREL64` plus `__tls_get_addr`, and
