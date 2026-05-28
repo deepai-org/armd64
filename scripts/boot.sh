@@ -5794,6 +5794,23 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-cxa-guard-real.so \
       /usr/lib/polyapps/aarch64-pcall-cxx-static-guard-real.so \
       /usr/lib/polyapps/aarch64-pcall-cxx-virtual-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-needed-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-needed-transitive-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-compact-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-ifunc-compact-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-ifunc-fp64-stack-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-ifunc-vec128-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-fp64-stack-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-vec128-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-compact-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-ifunc-compact-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-ifunc-fp64-stack-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-ifunc-vec128-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-fp64-stack-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-vec128-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-tls-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-root-ifunc-real.so \
+      /usr/lib/polyapps/aarch64-pcall-cross-needed-tls-external-real.so \
       /usr/lib/polyapps/aarch64-pcall-abs-runpath-real.so \
       /usr/lib/polyapps/aarch64-pcall-rpath-real.so \
       /usr/lib/polyapps/aarch64-pcall-rpath-inherit-real.so \
@@ -5885,6 +5902,23 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-cxa-guard-real.so \
       /usr/lib/polyapps/riscv-pcall-cxx-static-guard-real.so \
       /usr/lib/polyapps/riscv-pcall-cxx-virtual-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-needed-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-needed-transitive-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-compact-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-ifunc-compact-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-ifunc-fp64-stack-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-ifunc-vec128-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-fp64-stack-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-vec128-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-compact-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-ifunc-compact-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-ifunc-fp64-stack-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-ifunc-vec128-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-fp64-stack-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-vec128-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-tls-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-root-ifunc-real.so \
+      /usr/lib/polyapps/riscv-pcall-cross-needed-tls-external-real.so \
       /usr/lib/polyapps/riscv-pcall-abs-runpath-real.so \
       /usr/lib/polyapps/riscv-pcall-rpath-real.so \
       /usr/lib/polyapps/riscv-pcall-rpath-inherit-real.so \
