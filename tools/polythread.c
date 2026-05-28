@@ -12,6 +12,52 @@ enum {
 
 static pthread_barrier_t start_barrier;
 
+static inline void poly_state_key_set(uint64_t value) {
+  asm volatile(
+    ".byte 0x0f,0x24,0x65,0x50,0x4f,0x4c,0x59,0x21\n"
+    : "+a"(value)
+    :
+    : "memory");
+}
+
+static inline uint64_t poly_state_key_get(void) {
+  uint64_t value;
+  asm volatile(
+    ".byte 0x0f,0x24,0x66,0x50,0x4f,0x4c,0x59,0x21\n"
+    : "=a"(value)
+    :
+    : "memory");
+  return value;
+}
+
+static int wait_for_workers(uintptr_t worker_id, const char *phase) {
+  int barrier_status = pthread_barrier_wait(&start_barrier);
+  if (barrier_status != 0 && barrier_status != PTHREAD_BARRIER_SERIAL_THREAD) {
+    fprintf(stderr, "POLYTHREAD_FAIL: barrier worker=%lu phase=%s status=%d\n",
+      (unsigned long) worker_id, phase, barrier_status);
+    return -1;
+  }
+  return 0;
+}
+
+static __attribute__((noinline)) int check_state_key_after_stack_growth(
+  uintptr_t worker_id, uint64_t expected) {
+  volatile unsigned char stack_pad[12288];
+  for (unsigned n = 0; n < sizeof(stack_pad); n += 4096)
+    stack_pad[n] = (unsigned char) n;
+  asm volatile("" : : "m"(stack_pad) : "memory");
+  uint64_t got = poly_state_key_get();
+  if (got != expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-growth explicit-state-key got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) got,
+      (unsigned long long) expected);
+    return -1;
+  }
+  return 0;
+}
+
 static uint64_t double_to_bits(double value) {
   union {
     double d;
@@ -165,12 +211,25 @@ static uint64_t pcall_riscv_hidden_fp_busy(uint64_t left_bits,
 static void *worker_main(void *arg) {
   uintptr_t worker_id = (uintptr_t) arg;
   uint64_t base = 0x10000000ULL + worker_id * 0x10000ULL;
-  int barrier_status = pthread_barrier_wait(&start_barrier);
-  if (barrier_status != 0 && barrier_status != PTHREAD_BARRIER_SERIAL_THREAD) {
-    fprintf(stderr, "POLYTHREAD_FAIL: barrier worker=%lu status=%d\n",
-      (unsigned long) worker_id, barrier_status);
+  uint64_t state_key = 0x504f4c5954480000ULL + worker_id + 1;
+
+  if (wait_for_workers(worker_id, "start") != 0)
+    return (void *) 1;
+
+  poly_state_key_set(state_key);
+  if (wait_for_workers(worker_id, "state-key-set") != 0)
+    return (void *) 1;
+  uint64_t current_state_key = poly_state_key_get();
+  if (current_state_key != state_key) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu explicit-state-key got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) current_state_key,
+      (unsigned long long) state_key);
     return (void *) 1;
   }
+  if (check_state_key_after_stack_growth(worker_id, state_key) != 0)
+    return (void *) 1;
 
   for (unsigned round = 0; round < POLYTHREAD_ROUNDS; round++) {
     uint64_t aarch64_seed = base + round * 2;
@@ -227,6 +286,15 @@ static void *worker_main(void *arg) {
       double_to_bits((double) hidden_aarch64_fp_seed + 7.0);
     uint64_t expected_riscv_fp =
       double_to_bits((double) hidden_riscv_fp_seed + 7.0);
+    current_state_key = poly_state_key_get();
+    if (current_state_key != state_key) {
+      fprintf(stderr,
+        "POLYTHREAD_FAIL: worker=%lu round=%u explicit-state-key got=0x%llx expected=0x%llx\n",
+        (unsigned long) worker_id, round,
+        (unsigned long long) current_state_key,
+        (unsigned long long) state_key);
+      return (void *) 1;
+    }
     if (hidden_aarch64_fp_result != expected_aarch64_fp) {
       fprintf(stderr,
         "POLYTHREAD_FAIL: worker=%lu arch=aarch64-hidden-fp round=%u got=0x%llx expected=0x%llx\n",
@@ -248,6 +316,7 @@ static void *worker_main(void *arg) {
       sched_yield();
   }
 
+  poly_state_key_set(0);
   return 0;
 }
 
