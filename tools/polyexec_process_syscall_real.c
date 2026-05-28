@@ -53,7 +53,8 @@ enum {
   POLY_SYS_MPROTECT = 226,
   POLY_SYS_PRLIMIT64 = 261,
   POLY_SYS_GETRANDOM = 278,
-  POLY_SYS_STATX = 291
+  POLY_SYS_STATX = 291,
+  POLY_SYS_OPENAT2 = 437
 };
 
 struct poly_linux_generic_stat {
@@ -97,6 +98,12 @@ struct poly_linux_generic_statfs {
 struct poly_iovec {
   uint64_t base;
   uint64_t len;
+};
+
+struct poly_open_how {
+  uint64_t flags;
+  uint64_t mode;
+  uint64_t resolve;
 };
 
 struct poly_timespec {
@@ -488,6 +495,25 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
       file_bytes[2] != 'L' || file_bytes[3] != 'F')
     return 32;
+
+  struct poly_open_how open_how;
+  open_how.flags = 0;
+  open_how.mode = 0;
+  open_how.resolve = 0;
+  fd = poly_syscall4(POLY_SYS_OPENAT2, POLY_AT_FDCWD,
+    (long) "/usr/bin/polyexec", (long) &open_how, sizeof(open_how));
+  if (fd < 0)
+    return 87;
+  if (poly_syscall3(POLY_SYS_READ, fd, (long) file_bytes,
+        sizeof(file_bytes)) != (long) sizeof(file_bytes)) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 88;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
+    return 89;
+  if (file_bytes[0] != 0x7f || file_bytes[1] != 'E' ||
+      file_bytes[2] != 'L' || file_bytes[3] != 'F')
+    return 90;
 
   char dirents[4096];
   fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD, (long) "/usr/bin",
