@@ -165,7 +165,8 @@ enum {
   POLY_SYS_STATX = 291,
   POLY_SYS_PIDFD_OPEN = 434,
   POLY_SYS_CLOSE_RANGE = 436,
-  POLY_SYS_OPENAT2 = 437
+  POLY_SYS_OPENAT2 = 437,
+  POLY_SYS_PIDFD_GETFD = 438
 };
 
 struct poly_linux_generic_stat {
@@ -959,8 +960,35 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   long pid_fd = poly_syscall2(POLY_SYS_PIDFD_OPEN, pid0, 0);
   if (pid_fd < 0)
     return 277;
-  if (poly_syscall2(POLY_SYS_CLOSE, pid_fd, 0) != 0)
+  long pidfd_source_fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD,
+    (long) "/usr/bin/polyexec", 0);
+  if (pidfd_source_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, pid_fd, 0);
     return 278;
+  }
+  long pidfd_dup_fd = poly_syscall3(POLY_SYS_PIDFD_GETFD, pid_fd,
+    pidfd_source_fd, 0);
+  if (pidfd_dup_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, pidfd_source_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, pid_fd, 0);
+    return 287;
+  }
+  char pidfd_file_bytes[4];
+  if (poly_syscall3(POLY_SYS_READ, pidfd_dup_fd,
+        (long) pidfd_file_bytes, sizeof(pidfd_file_bytes)) !=
+      (long) sizeof(pidfd_file_bytes)) {
+    poly_syscall2(POLY_SYS_CLOSE, pidfd_dup_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, pidfd_source_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, pid_fd, 0);
+    return 288;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, pidfd_dup_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, pidfd_source_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, pid_fd, 0) != 0)
+    return 289;
+  if (pidfd_file_bytes[0] != 0x7f || pidfd_file_bytes[1] != 'E' ||
+      pidfd_file_bytes[2] != 'L' || pidfd_file_bytes[3] != 'F')
+    return 290;
 
   if (poly_syscall2(POLY_SYS_PIPE2, (long) pipe_fds, 0) != 0)
     return 279;
