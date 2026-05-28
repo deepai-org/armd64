@@ -107,6 +107,10 @@ extern char **environ;
 #define DT_JMPREL 23
 #endif
 
+#ifndef DT_RUNPATH
+#define DT_RUNPATH 29
+#endif
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
@@ -2954,6 +2958,100 @@ static int build_needed_path(const char *owner_path, const char *needed,
   return 0;
 }
 
+static int append_path_bytes(char *out, size_t *out_len, size_t out_size,
+    const char *bytes, size_t bytes_len) {
+  if (*out_len + bytes_len + 1 > out_size)
+    return -1;
+  memcpy(out + *out_len, bytes, bytes_len);
+  *out_len += bytes_len;
+  out[*out_len] = '\0';
+  return 0;
+}
+
+static int append_origin_dir(const char *owner_path, char *out,
+    size_t *out_len, size_t out_size) {
+  const char *slash = strrchr(owner_path, '/');
+  const size_t dir_len = slash ? (size_t) (slash - owner_path) : 0;
+  return append_path_bytes(out, out_len, out_size, owner_path, dir_len);
+}
+
+static int expand_runpath_entry(const char *owner_path, const char *entry,
+    size_t entry_len, char *out, size_t out_size) {
+  size_t out_len = 0;
+  if (out_size == 0)
+    return -1;
+  out[0] = '\0';
+  for (size_t n = 0; n < entry_len;) {
+    if (entry_len - n >= 9 && memcmp(entry + n, "${ORIGIN}", 9) == 0) {
+      if (append_origin_dir(owner_path, out, &out_len, out_size) < 0)
+        return -1;
+      n += 9;
+      continue;
+    }
+    if (entry_len - n >= 7 && memcmp(entry + n, "$ORIGIN", 7) == 0) {
+      if (append_origin_dir(owner_path, out, &out_len, out_size) < 0)
+        return -1;
+      n += 7;
+      continue;
+    }
+    if (append_path_bytes(out, &out_len, out_size, entry + n, 1) < 0)
+      return -1;
+    n++;
+  }
+  return out_len == 0 ? -1 : 0;
+}
+
+static int build_runpath_entry_needed_path(const char *entry, size_t entry_len,
+    const char *needed, char *out, size_t out_size) {
+  const size_t needed_len = strlen(needed);
+  const int entry_has_slash = entry_len != 0 && entry[entry_len - 1] == '/';
+  const size_t sep_len = entry_has_slash ? 0 : 1;
+  if (entry_len + sep_len + needed_len + 1 > out_size)
+    return -1;
+  memcpy(out, entry, entry_len);
+  if (sep_len != 0)
+    out[entry_len] = '/';
+  memcpy(out + entry_len + sep_len, needed, needed_len + 1);
+  return 0;
+}
+
+static int build_runpath_needed_path(const char *owner_path,
+    const char *runpath, size_t runpath_len, const char *needed,
+    char *out, size_t out_size) {
+  if (!runpath || runpath_len == 0 || needed[0] == '/')
+    return -1;
+
+  size_t start = 0;
+  while (start < runpath_len) {
+    size_t end = start;
+    while (end < runpath_len && runpath[end] != ':')
+      end++;
+    const char *entry = runpath + start;
+    const size_t entry_len = end - start;
+    start = end + 1;
+    if (entry_len == 0)
+      continue;
+
+    char expanded[MAX_DEP_PATH];
+    if (expand_runpath_entry(owner_path, entry, entry_len, expanded,
+          sizeof(expanded)) == 0 &&
+        build_runpath_entry_needed_path(expanded, strlen(expanded), needed,
+          out, out_size) == 0 &&
+        access(out, R_OK) == 0)
+      return 0;
+  }
+  return -1;
+}
+
+static int find_process_needed_path(const char *owner_path, const char *needed,
+    const char *runpath, size_t runpath_len, char *out, size_t out_size) {
+  if (needed[0] != '/' &&
+      build_runpath_needed_path(owner_path, runpath, runpath_len, needed, out,
+        out_size) == 0)
+    return 0;
+  return build_needed_path(owner_path, needed, out, out_size);
+}
+
 static int load_process_dependencies_at_depth(struct poly_program *program,
     size_t depth) {
   if (!program->dynamic_size)
@@ -2967,11 +3065,12 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
   const Elf64_Dyn *dyn =
     (const Elf64_Dyn *) (program->code_bytes + program->dynamic_offset);
   const size_t dyn_count = program->dynamic_size / sizeof(Elf64_Dyn);
-  uint64_t strtab_vaddr = 0, strsz = 0;
+  uint64_t strtab_vaddr = 0, strsz = 0, runpath_offset = UINT64_MAX;
   for (size_t n = 0; n < dyn_count; n++) {
     switch (dyn[n].d_tag) {
       case DT_STRTAB: strtab_vaddr = dyn[n].d_un.d_ptr; break;
       case DT_STRSZ: strsz = dyn[n].d_un.d_val; break;
+      case DT_RUNPATH: runpath_offset = dyn[n].d_un.d_val; break;
       default: break;
     }
   }
@@ -2983,6 +3082,24 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
         &strtab_offset) < 0)
     return -1;
   const char *strings = (const char *) (program->code_bytes + strtab_offset);
+  const char *runpath = NULL;
+  size_t runpath_len = 0;
+  if (runpath_offset != UINT64_MAX) {
+    if (runpath_offset >= strsz) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad DT_RUNPATH string: %s\n",
+        program->path);
+      return -1;
+    }
+    const void *end = memchr(strings + runpath_offset, '\0',
+      (size_t) (strsz - runpath_offset));
+    if (!end) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad DT_RUNPATH string: %s\n",
+        program->path);
+      return -1;
+    }
+    runpath = strings + runpath_offset;
+    runpath_len = (size_t) ((const char *) end - runpath);
+  }
 
   for (size_t n = 0; n < dyn_count; n++) {
     if (dyn[n].d_tag != DT_NEEDED)
@@ -3003,8 +3120,8 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
 
     const char *needed = strings + needed_offset;
     struct poly_process_dependency *dep = &program->deps[program->dep_count];
-    if (build_needed_path(program->path, needed, dep->path,
-          sizeof(dep->path)) < 0) {
+    if (find_process_needed_path(program->path, needed, runpath, runpath_len,
+          dep->path, sizeof(dep->path)) < 0) {
       fprintf(stderr, "POLYEXEC_FAIL: bad DT_NEEDED path: %s: %s\n",
         program->path, needed);
       return -1;
