@@ -551,7 +551,7 @@ int main(void) {
   if (poly_features.eax != POLY_CPUID_ABI_VERSION ||
       poly_features.ebx != poly_cpuid_expected_mode_mask() ||
       poly_features.ecx != poly_cpuid_expected_feature_mask() ||
-      poly_features.edx != 0) {
+      poly_features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID feature mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_features.eax, poly_features.ebx, poly_features.ecx, poly_features.edx);
     return 1;

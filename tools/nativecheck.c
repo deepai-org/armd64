@@ -1437,10 +1437,10 @@ int main(void) {
     if (features.eax != POLY_CPUID_ABI_VERSION ||
         features.ebx != poly_cpuid_expected_mode_mask() ||
         features.ecx != expected_features ||
-        features.edx != 0) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID feature leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x expected_ecx=0x%x\n",
+        features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID feature leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x expected_ecx=0x%x expected_edx=0x%x\n",
         features.eax, features.ebx, features.ecx, features.edx,
-        expected_features);
+        expected_features, POLY_STATE_XSAVE_COMPONENT_ARCH);
       return 1;
     }
     struct poly_cpuid_regs expected_import_manifest =
@@ -1476,6 +1476,23 @@ int main(void) {
         arch_state.edx != expected_arch_state.edx) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID arch state leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         arch_state.eax, arch_state.ebx, arch_state.ecx, arch_state.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs xsave0 = poly_read_cpuid(0x0d, 0);
+    if ((xsave0.eax & (1U << POLY_STATE_XSAVE_COMPONENT_ARCH)) == 0) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: CPUID.0xD missing poly xstate bit eax=0x%x\n",
+        xsave0.eax);
+      return 1;
+    }
+    struct poly_cpuid_regs poly_xsave =
+      poly_read_cpuid(0x0d, POLY_STATE_XSAVE_COMPONENT_ARCH);
+    if (poly_xsave.eax != POLY_STATE_XSAVE_BYTES_ARCH ||
+        poly_xsave.ebx != POLY_STATE_XSAVE_OFFSET_ARCH ||
+        (poly_xsave.ecx & (1U << 1)) == 0 ||
+        poly_xsave.edx != 0) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: CPUID.0xD poly component mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        poly_xsave.eax, poly_xsave.ebx, poly_xsave.ecx,
+        poly_xsave.edx);
       return 1;
     }
     struct poly_cpuid_regs expected_trap =

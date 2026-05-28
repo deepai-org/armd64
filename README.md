@@ -40,7 +40,8 @@ operations.
   the prototype's x86-style TSO ordering.
 - Traps/syscalls: foreign syscalls, breakpoints, illegal instructions, and
   unsupported ops exit architecturally for OS or userspace policy.
-- State: non-x86 architectural state is explicit and discoverable; Bochs also
-  provides prototype save/restore opcodes for tests.
+- State: non-x86 architectural state is explicit and discoverable through a
+  prototype CPUID/XCR0/XSAVE component; Bochs also provides direct save/restore
+  opcodes for tests.
 
 Detailed design notes are in `docs/poly-isa.md`.

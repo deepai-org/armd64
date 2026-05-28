@@ -155,7 +155,7 @@ path for this family:
   `struct poly_xsave_state` buffer with magic `0x31594c50`; the state import layout version is `2`.
   The CPU imports the state into the current keyed prototype bank and
   continues execution in x86 mode.  This is a prototype software state operation
-  and does not set the active XSAVE-visible bit in leaf `0x40000003`.
+  using the same layout as the active poly xstate component.
 
 Bochs decodes the `0f 24` opcode slot through the prototype `BX_IA_POLYMODE`
 handler and validates the trailing `POLY!` magic before changing frontend
@@ -189,9 +189,8 @@ discover the experimental hardware contract before emitting poly operations:
   The
   double-lane bridge forms also cover ABI-compatible `{u32,double}` and
   `{double,u32}` shapes.
-- `0x40000001.EDX`: architectural XSAVE component id.  It is currently `0`
-  because the Bochs prototype still uses synthetic banks rather than an
-  OS-visible foreign XSAVE state component.
+- `0x40000001.EDX`: architectural XSAVE component id.  The current prototype
+  reports component `20`.
 - `CPUID.EAX=0x40000002, ECX=0`: native escape encoding discovery.
   `EAX[15:0]=0x7fff` means AArch64 `brk #0x7fff` exits to x86_64;
   `EAX[31:16]=0x7ffe` means AArch64 `brk #0x7ffe` switches to RISC-V;
@@ -225,32 +224,29 @@ discover the experimental hardware contract before emitting poly operations:
   `EAX` reports state flags.  Bits `0`-`6` mean overlapping x86-visible
   GPR/FP state, prototype synthetic banks, `CR3` keying, `FSBASE` keying,
   8 MiB stack-region keying, user-return restoration, and x86 TSO foreign
-  ordering.  Bit `7` is intentionally clear until non-aliased foreign state is
-  exposed as an architectural XSAVE component.  Bit `8` means software can
-  select an explicit state key with `0f 24 65 ... POLY!`; a zero explicit key
-  restores the stack-region fallback.  Bit `9` means native cross-frontend
-  return state uses fixed 32-byte transition records.  Bit `10` means the
-  prototype implements explicit state export/import opcodes `0f 24 67/68 ...
-  POLY!` using the fixed `struct poly_xsave_state` layout.  Bit `11` means the
-  formal silicon-target XSAVE component contract is present in leaf
-  `0x40000004`, even if bit `7` is clear because guest `XSAVE/XRSTOR` does not
-  yet save the component.  `EBX=23` reports the stack region shift.
+  ordering.  Bit `7` means non-aliased foreign state is exposed as an
+  architectural XSAVE component.  Bit `8` means software can select an explicit
+  state key with `0f 24 65 ... POLY!`; a zero explicit key restores the
+  stack-region fallback.  Bit `9` means native cross-frontend return state uses
+  fixed 32-byte transition records.  Bit `10` means the prototype implements
+  explicit state export/import opcodes `0f 24 67/68 ... POLY!` using the fixed
+  `struct poly_xsave_state` layout.  Bit `11` means the formal silicon-target
+  XSAVE component contract is present in leaf `0x40000004`.  `EBX=23` reports
+  the stack region shift.
   Legacy syscall/break status registers, trap-vector policy, recorded
   trap-packet/status state, trap-return save state, and 32-byte transition
-  records are part of this keyed prototype state until an XSAVE component is
-  assigned.  `ECX=0` and
-  `EDX=0` mean no XCR0 component id or XSAVE byte area is assigned yet.
+  records are part of this keyed prototype state and component layout.
+  `ECX=20` reports the XCR0 component id and `EDX=4096` reports the XSAVE byte
+  area.
 - `CPUID.EAX=0x40000004`: silicon-target XSAVE contract discovery.  `EAX=20`
-  is the proposed XCR0 component number, `EBX=4096` is the component byte
+  is the XCR0 component number, `EBX=4096` is the component byte
   size, `ECX[15:0]=2` is the layout version, `ECX[31:16]=64` is the required
   byte alignment, and `EDX=0x1f` reports flags: user XCR0 component,
   OSXSAVE/XRSTOR required, interrupt-resume state present, trap state present,
   and no hidden foreign register banks permitted.  This is a formal hardware
-  ABI definition.  It is active only when leaf `0x40000003.EAX` sets bit `7`
-  and leaf `0x40000001.EDX` reports the same component id; the Bochs
-  prototype intentionally leaves those active fields clear while it still uses
-  keyed synthetic banks.  Component `20` avoids component `11`, which is
-  already assigned to standard x86 CET_U state in current x86 XSAVE maps.
+  ABI definition and is enumerated through standard `CPUID.0xD` when polyglot
+  execution is enabled.  Component `20` avoids component `11`, which is already
+  assigned to standard x86 CET_U state in current x86 XSAVE maps.
 - `CPUID.EAX=0x40000005`: architectural trap-packet ABI discovery.  `EAX=2`
   is the trap layout version, `EBX=64` is the byte size of the fixed packet
   header, `ECX=8` is the native ABI argument slot count, and `EDX=0x1f`
@@ -417,8 +413,8 @@ x86_64 signal handler and `rt_sigreturn` path resume the interrupted foreign
 frontend.  The Bochs prototype now records raw-mode interrupt state before
 x86_64 long-mode interrupt delivery and restores the recorded foreign frontend
 after `IRET64`, `SYSRET`, `SYSEXIT`, or Linux signal return reaches the
-interrupted user RIP.  Final hardware still needs this state exposed as an
-architectural, XSAVE-visible component.
+interrupted user RIP.  The same interrupt-resume state is part of the poly
+xstate component layout.
 
 The prototype `PCALL` forms use `R10` as the foreign target address and `R11`
 as the x86_64 return continuation; `R13` optionally carries the foreign TLS
@@ -1112,8 +1108,8 @@ starts with no stale trap vector, no stale syscall/break status, no stale
 trap packet, and no stale trap-return frame.  Software can also explicitly
 export/import this keyed state with `0f 24 67/68 ... POLY!` and the fixed
 4096-byte `struct poly_xsave_state` layout. CPUID state bit `11` advertises the
-formal `0x40000004` hardware layout, but this is still a prototype save/restore
-path, not an OS-enabled XCR0 component.
+formal `0x40000004` hardware layout, and CPUID state bit `7` advertises the
+matching XCR0/XSAVE-visible component.
 If no vector is installed, syscall and import traps surface as x86 `#UD`;
 breakpoint traps surface as x86 `#BP`.  This keeps the CPU model OS-neutral:
 software, not the CPU, decides whether a trap means Linux syscall translation,
