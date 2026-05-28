@@ -13,6 +13,7 @@
 
 enum {
   POLYSIGNAL_LOOP_COUNT = 200000,
+  POLYSIGNAL_ALT_STACK_SIZE = 65536,
   POLYSIGNAL_SNAPSHOT_NONE = 0,
   POLYSIGNAL_SNAPSHOT_AARCH64_X20 = 1,
   POLYSIGNAL_SNAPSHOT_RISCV_X20 = 2,
@@ -24,9 +25,12 @@ static volatile sig_atomic_t signal_count;
 static volatile sig_atomic_t signal_transition_count;
 static volatile sig_atomic_t signal_transition_bad;
 static volatile sig_atomic_t signal_snapshot_bad;
+static volatile sig_atomic_t signal_altstack_bad;
 static volatile sig_atomic_t signal_expected_snapshot;
 static volatile sig_atomic_t signal_expected_mode;
 static volatile uint64_t signal_expected_snapshot_value;
+static uintptr_t signal_altstack_base;
+static uintptr_t signal_altstack_end;
 static struct poly_xsave_state signal_snapshot __attribute__((aligned(64)));
 
 static uint64_t double_to_bits(double value) {
@@ -117,6 +121,11 @@ static int signal_snapshot_matches(void) {
 
 static void handle_alarm(int signo) {
   (void) signo;
+  char stack_marker;
+  uintptr_t handler_sp = (uintptr_t) &stack_marker;
+  if (handler_sp < signal_altstack_base || handler_sp >= signal_altstack_end)
+    signal_altstack_bad++;
+
   signal_count++;
   poly_state_export(&signal_snapshot);
 
@@ -471,8 +480,28 @@ static int check_arch_fp(const char *name, uint64_t seed,
 
 int main(void) {
   struct sigaction sa;
+  stack_t altstack;
+  void *altstack_mem = mmap(NULL, POLYSIGNAL_ALT_STACK_SIZE,
+    PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (altstack_mem == MAP_FAILED) {
+    fprintf(stderr, "POLYSIGNAL_FAIL: sigaltstack mmap: %s\n",
+      strerror(errno));
+    return 1;
+  }
+
+  signal_altstack_base = (uintptr_t) altstack_mem;
+  signal_altstack_end = signal_altstack_base + POLYSIGNAL_ALT_STACK_SIZE;
+  memset(&altstack, 0, sizeof(altstack));
+  altstack.ss_sp = altstack_mem;
+  altstack.ss_size = POLYSIGNAL_ALT_STACK_SIZE;
+  if (sigaltstack(&altstack, 0) != 0) {
+    fprintf(stderr, "POLYSIGNAL_FAIL: sigaltstack: %s\n", strerror(errno));
+    return 1;
+  }
+
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = handle_alarm;
+  sa.sa_flags = SA_ONSTACK;
   sigemptyset(&sa.sa_mask);
 
   if (sigaction(SIGALRM, &sa, 0) != 0) {
@@ -526,6 +555,12 @@ int main(void) {
       pcall_riscv_to_aarch64_hidden_signal) != 0)
     return 1;
 
+  if (signal_altstack_bad != 0) {
+    fprintf(stderr, "POLYSIGNAL_FAIL: handler did not run on alt stack bad=%d\n",
+      (int) signal_altstack_bad);
+    return 1;
+  }
+  printf("POLYSIGNAL_ALTSTACK_OK\n");
   printf("POLYSIGNAL_OK\n");
   return 0;
 }
