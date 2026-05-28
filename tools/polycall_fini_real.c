@@ -22,8 +22,16 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   return poly_state;
 }
 
-__attribute__((visibility("default")))
-unsigned long poly_fini_result(void)
+static unsigned long poly_fini_result_impl(void)
 {
   return poly_state;
 }
+
+static void *poly_fini_result_resolver(void)
+{
+  return poly_fini_result_impl;
+}
+
+__attribute__((visibility("default")))
+unsigned long poly_fini_result(void)
+  __attribute__((ifunc("poly_fini_result_resolver")));

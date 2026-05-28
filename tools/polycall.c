@@ -586,6 +586,7 @@ struct poly_program {
   uint64_t fini_array_vaddr;
   uint64_t fini_array_size;
   uint64_t fini_result_vaddr;
+  int fini_result_base_kind;
   size_t fini_count;
   uint64_t relro_vaddr;
   uint64_t relro_size;
@@ -5433,19 +5434,25 @@ static int load_elf_program(const char *path, const char *symbol_name,
     program->loaded_bytes += (size_t) phdr->p_filesz;
   }
 
+  const Elf64_Dyn *early_dynamic = NULL;
+  size_t early_dynamic_count = 0;
+  if (dynamic_size != 0 && dynamic_size % sizeof(Elf64_Dyn) == 0) {
+    size_t dynamic_offset = 0;
+    if (elf_vaddr_to_image_offset(program, dynamic_vaddr, dynamic_size,
+          &dynamic_offset) == 0) {
+      early_dynamic = (const Elf64_Dyn *) (program->image + dynamic_offset);
+      early_dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
+      (void) load_dynsym_from_dynamic(program, early_dynamic,
+        early_dynamic_count, &program->root_dynsym);
+    }
+  }
+
   uint64_t entry_vaddr = ehdr->e_entry;
   if (symbol_name && symbol_name[0] != '\0') {
     int resolved = -1;
-    if (dynamic_size != 0 && dynamic_size % sizeof(Elf64_Dyn) == 0) {
-      size_t dynamic_offset = 0;
-      if (elf_vaddr_to_image_offset(program, dynamic_vaddr, dynamic_size,
-            &dynamic_offset) == 0) {
-        resolved = resolve_dynamic_symbol(program,
-          (const Elf64_Dyn *) (program->image + dynamic_offset),
-          (size_t) (dynamic_size / sizeof(Elf64_Dyn)), symbol_name,
-          &entry_vaddr);
-      }
-    }
+    if (early_dynamic)
+      resolved = resolve_dynamic_symbol(program, early_dynamic,
+        early_dynamic_count, symbol_name, &entry_vaddr);
     if (resolved < 0)
       resolved = resolve_elf_symbol_from_sections(data, size, ehdr,
         symbol_name, &entry_vaddr);
@@ -5458,22 +5465,20 @@ static int load_elf_program(const char *path, const char *symbol_name,
     }
   }
   uint64_t fini_result_vaddr = 0;
+  int fini_result_base_kind = RELOC_BASE_ABSOLUTE;
   int fini_result_resolved = -1;
-  if (dynamic_size != 0 && dynamic_size % sizeof(Elf64_Dyn) == 0) {
-    size_t dynamic_offset = 0;
-    if (elf_vaddr_to_image_offset(program, dynamic_vaddr, dynamic_size,
-          &dynamic_offset) == 0) {
-      fini_result_resolved = resolve_dynamic_symbol(program,
-        (const Elf64_Dyn *) (program->image + dynamic_offset),
-        (size_t) (dynamic_size / sizeof(Elf64_Dyn)), "poly_fini_result",
-        &fini_result_vaddr);
-    }
-  }
-  if (fini_result_resolved < 0)
+  if (program->root_dynsym.symbols)
+    fini_result_resolved = resolve_root_symbol(program, "poly_fini_result",
+      NULL, &fini_result_vaddr, &fini_result_base_kind);
+  if (fini_result_resolved < 0) {
     fini_result_resolved = resolve_elf_symbol_from_sections(data, size, ehdr,
       "poly_fini_result", &fini_result_vaddr);
-  if (fini_result_resolved == 0)
+    fini_result_base_kind = RELOC_BASE_ROOT_LOAD_BIAS;
+  }
+  if (fini_result_resolved == 0) {
     program->fini_result_vaddr = fini_result_vaddr;
+    program->fini_result_base_kind = fini_result_base_kind;
+  }
 
   int entry_in_exec = 0;
   for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
@@ -7264,7 +7269,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       munmap(code, code_size);
       return -1;
     }
-    const uint64_t fini_result_target = load_bias + program->fini_result_vaddr;
+    uint64_t fini_result_target = load_bias + program->fini_result_vaddr;
+    if (reloc_base_is_root_ifunc(program->fini_result_base_kind))
+      fini_result_target = call_poly_stub(code, target_imm_offset,
+        fini_result_target, POLY_CALL_U64);
     *result = call_poly_stub(code, target_imm_offset, fini_result_target,
       POLY_CALL_U64);
   }
