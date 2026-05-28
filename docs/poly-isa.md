@@ -26,7 +26,7 @@ Hardware or FPGA should allocate real decoded x86 opcodes for:
 | --- | --- |
 | `PENTER mode` | Enter a raw frontend from x86_64/system code. |
 | `PSWITCH mode, target` | Fixed-latency branch to another frontend. |
-| `PCALL mode, target` | Push a hardware transition-stack entry, install a native return cookie, and branch to another frontend. |
+| `PCALL mode, target[, abi_sig]` | Apply an optional register-only ABI signature, push a hardware transition-stack entry, install a native return cookie, and branch to another frontend. |
 | `PIRET` | Restore a previously interrupted frontend after trap handling. |
 
 Every transition ends the current decode block and records precise source and
@@ -45,7 +45,8 @@ trailer, no variable-length envelope, and no following payload bytes. Future
 silicon may allocate a different reserved x86 opcode page, but it should keep
 the same hardware contract: one deterministic frontend-control decode that
 flushes or terminates the current decode block before switching fetch mode.
-The control instruction does not parse user-memory call descriptors.
+The control instruction does not parse user-memory call descriptors or rewrite
+stack layouts.
 
 ## Foreign Escapes
 
@@ -71,8 +72,8 @@ return slot contains a hardware return cookie installed by `PCALL`.
 
 ## ABI Bridge
 
-The hardware provides a small integer exchange window for fast argument/result
-handoff:
+The hardware provides a baseline integer exchange window for fast
+argument/result handoff:
 
 | Window | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
@@ -85,11 +86,16 @@ handoff:
 | `P6` | `R9` | `x6` | `a6` |
 | `P7` | `R10` | `x7` | `a7` |
 
-Loader/runtime thunks translate native ABI argument order into this window
-before issuing `PSWITCH` or `PCALL`. This keeps the CPU transition fixed
-latency while still allowing SysV, AAPCS64, and RISC-V psABI compatibility.
-FP/vector arguments, stack arguments, aggregate returns, variadics, callbacks,
-PLT/GOT lazy binding, and helper imports are software-thunk responsibilities.
+Loader/runtime thunks can translate native ABI argument order into this window
+before issuing `PSWITCH` or `PCALL`. Silicon may also expose a small set of
+programmable ABI signature slots. A signature is register-only: it lets `PCALL`
+remap source architectural registers onto destination architectural registers
+through rename/RAT state, without moving data and without reading memory.
+
+This makes ordinary all-register calls fast while preserving a simple hardware
+contract. FP/vector arguments, stack arguments, aggregate returns, variadics,
+callbacks, PLT/GOT lazy binding, and helper imports remain software-thunk
+responsibilities.
 
 Large memory returns follow the callee ABI. AArch64 uses `x8`; RISC-V uses `a0`
 and shifts user arguments; x86_64 returns the hidden pointer in `RAX`.
@@ -128,9 +134,10 @@ not the silicon context-switch contract.
 
 ## Runtime Boundary
 
-Hardware provides frontend transitions, the exchange window, trap packets,
-explicit state, native return cookies, the hardware transition stack, and
-optional user-space monitor delivery.
+Hardware provides frontend transitions, the exchange window, optional
+register-only ABI signature slots, trap packets, explicit state, native return
+cookies, the hardware transition stack, and optional user-space monitor
+delivery.
 
 Userspace runtime code provides ELF loading, relocations, PLT/GOT binding,
 IFUNC, TLS, dependency search policy, generated thunks, all ABI metadata

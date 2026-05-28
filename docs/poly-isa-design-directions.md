@@ -11,9 +11,9 @@ Poly should be a generic multi-frontend CPU extension. x86_64 is the boot and
 system frontend, not the semantic center of all execution.
 
 The hardware should accelerate frontend transitions, precise traps, explicit
-architectural state, a small register exchange window, and native return
-recovery. It should not parse dynamic-linker descriptors or know Linux, libc,
-dynamic linker policy, or helper-function semantics.
+architectural state, register-only ABI handoff, and native return recovery. It
+should not parse dynamic-linker descriptors, rewrite stack layouts, or know
+Linux, libc, dynamic linker policy, or helper-function semantics.
 
 ## Generic Frontend IDs
 
@@ -56,14 +56,58 @@ handles aggregate returns or variadics, and then issues a fixed-latency
 is consumed by runtime code when generating or entering a thunk, not by the CPU
 pipeline on every transition.
 
+## Programmable ABI Signature Slots
+
+A fixed exchange window is simple, but it forces software to move registers for
+ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
+`x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine:
+allow the runtime to program a small set of register-only ABI signature slots.
+
+Modern out-of-order CPUs already rename architectural registers through a
+register alias table (RAT). A poly ABI signature should describe only how source
+frontend architectural registers map onto destination frontend architectural
+registers for the call and return fast paths. On `PCALL`, hardware selects a
+cached signature slot and applies those mappings in or near the rename stage.
+The data does not move; only architectural names are rebound to physical
+registers.
+
+For example, a SysV-to-AAPCS64 signature can map:
+
+- x86_64 `RDI` to AArch64 `x0`
+- x86_64 `RSI` to AArch64 `x1`
+- x86_64 `RDX` to AArch64 `x2`
+- x86_64 `RCX` to AArch64 `x3`
+- x86_64 `R8` to AArch64 `x4`
+- x86_64 `R9` to AArch64 `x5`
+
+The runtime or loader programs a small number of semi-persistent slots, for
+example 4 to 8 per thread or address space. `PCALL` then names the target
+frontend, target PC, and signature slot. The common case stays fixed-latency:
+decode the transition, select the signature, update rename mappings, install
+the return cookie, and branch.
+
+This mechanism must be strictly limited to registers:
+
+- No hardware parsing of descriptors.
+- No user-memory reads by `PCALL`.
+- No stack argument repacking.
+- No by-value aggregate layout conversion.
+- No variadic call handling.
+- No PLT/GOT or lazy-binding policy.
+
+Stack arguments, split aggregates, variadics, unusual FP/vector ABI cases, and
+all loader policy still go through software thunks. The thunk performs memory
+layout work and then uses a null, identity, or simple register signature for the
+final frontend transition.
+
 ## Register Exchange Window
 
 Fully separate register files are clean but force every cross-ISA call to spill
 through memory. Full global aliasing is also wrong because each ISA has
 different register counts and preservation rules.
 
-Define a small physical exchange window shared by the common integer
-argument/result lanes:
+Define a small physical exchange window as the baseline/null signature shared by
+the common integer argument/result lanes:
 
 | Window | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
@@ -76,10 +120,14 @@ argument/result lanes:
 | `P6` | `R9` | `x6` | `a6` |
 | `P7` | `R10` | `x7` | `a7` |
 
-Software thunks translate native ABI argument order into this window before the
-mode switch. Simple calls then cross without memory marshalling. Non-window
-GPRs, FP/SIMD registers, vector state, and special registers remain separate
-architectural state preserved through the poly XSAVE component.
+Software thunks can always translate native ABI argument order into this window
+before the mode switch. Hardware ABI signature slots are an optimization over
+the same model: when a call fits entirely in registers, the signature maps the
+native source ABI registers directly onto the native destination ABI registers
+without executing moves.
+
+Non-window GPRs, FP/SIMD registers, vector state, and special registers remain
+separate architectural state preserved through the poly XSAVE component.
 
 The same idea can be extended to a fixed FP exchange window later, but integer
 lanes should come first because they cover most loader, syscall, and simple C
@@ -201,7 +249,7 @@ The next ISA-level work should prioritize:
 
 1. Generic frontend IDs instead of pairwise mode names.
 2. Fixed-latency `PSWITCH`/`PCALL` with no hardware descriptor parsing.
-3. A small integer register exchange window.
+3. A baseline integer exchange window plus register-only ABI signature slots.
 4. XSAVE poly state as the only context-switch contract.
 5. Native return-cookie support through the HTS.
 6. User-space poly monitor delivery for recoverable traps.
