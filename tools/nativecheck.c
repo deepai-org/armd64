@@ -1626,6 +1626,61 @@ static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
   return a0;
 }
 
+static uint64_t nativecheck_descriptor_riscv_import_sum6(uint64_t a0,
+    uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+  register uint64_t r8_arg asm("r8") = a5;
+  asm volatile(
+    "movq %[imports], %%r12\n"
+    POLY_OP_ENTER_RV64
+    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> import id 8
+    ".long 0x000280e7\n" // jalr ra,0(t0), descriptor-backed import
+    ".long 0x0000000b\n" // custom-0 x86 escape
+    : "+a"(a0), "+D"(a1), "+S"(a2), "+d"(a3), "+c"(a4),
+      "+r"(r8_arg)
+    : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
+    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+  return a0;
+}
+
+static int check_poly_import_return_xsave_frame(uint32_t expected_mode) {
+  const struct poly_import_return_state *state =
+    &nativecheck_import_live_state.import_return;
+  if (nativecheck_import_live_state.header.layout_version !=
+        POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      state->top != 1 ||
+      state->depth != POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly import xsave header mismatch mode=%u version=%u top=%llu depth=%llu\n",
+      expected_mode,
+      nativecheck_import_live_state.header.layout_version,
+      (unsigned long long) state->top,
+      (unsigned long long) state->depth);
+    return 1;
+  }
+
+  const struct poly_import_return_frame *frame = &state->frames[0];
+  if (frame->source_mode != expected_mode ||
+      frame->alias_valid != 1 ||
+      frame->return_pc == 0 ||
+      frame->return_sp == 0 ||
+      frame->import_id != 8 ||
+      frame->descriptor_flags != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly import xsave frame mismatch expected_mode=%u mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu flags=0x%llx\n",
+      expected_mode,
+      frame->source_mode,
+      frame->alias_valid,
+      (unsigned long long) frame->return_pc,
+      (unsigned long long) frame->return_sp,
+      (unsigned long long) frame->import_id,
+      (unsigned long long) frame->descriptor_flags);
+    return 1;
+  }
+
+  return 0;
+}
+
 static int run_poly_import_return_xsave_probe(void) {
   const uint64_t expected = 21;
   memset(&nativecheck_import_live_state, 0,
@@ -1641,38 +1696,22 @@ static int run_poly_import_return_xsave_probe(void) {
       (unsigned long long) result, nativecheck_import_helper_calls);
     return 1;
   }
+  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_AARCH64) != 0)
+    return 1;
 
-  const struct poly_import_return_state *state =
-    &nativecheck_import_live_state.import_return;
-  if (nativecheck_import_live_state.header.layout_version !=
-        POLY_STATE_XSAVE_LAYOUT_VERSION ||
-      state->top != 1 ||
-      state->depth != POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH) {
+  memset(&nativecheck_import_live_state, 0,
+    sizeof(nativecheck_import_live_state));
+  nativecheck_import_helper_calls = 0;
+
+  result = nativecheck_descriptor_riscv_import_sum6(1, 2, 3, 4, 5, 6);
+  if (result != expected || nativecheck_import_helper_calls != 1) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly import xsave header mismatch version=%u top=%llu depth=%llu\n",
-      nativecheck_import_live_state.header.layout_version,
-      (unsigned long long) state->top,
-      (unsigned long long) state->depth);
+      "NATIVE_CHECK_FAIL: poly riscv import xsave helper result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_import_helper_calls);
     return 1;
   }
-
-  const struct poly_import_return_frame *frame = &state->frames[0];
-  if (frame->source_mode != POLY_MODE_RAW_AARCH64 ||
-      frame->alias_valid != 1 ||
-      frame->return_pc == 0 ||
-      frame->return_sp == 0 ||
-      frame->import_id != 8 ||
-      frame->descriptor_flags != 0) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly import xsave frame mismatch mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu flags=0x%llx\n",
-      frame->source_mode,
-      frame->alias_valid,
-      (unsigned long long) frame->return_pc,
-      (unsigned long long) frame->return_sp,
-      (unsigned long long) frame->import_id,
-      (unsigned long long) frame->descriptor_flags);
+  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_RISCV) != 0)
     return 1;
-  }
 
   puts("NATIVE_POLY_IMPORT_RETURN_XSAVE_OK");
   return 0;
