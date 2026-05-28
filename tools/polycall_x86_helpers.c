@@ -812,6 +812,16 @@ uint64_t POLY_HOST_HELPER poly_host_x86_gettid(void)
   return 4243;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_puts(const uint8_t *text)
+{
+  uint64_t len = 0;
+  while (len < 4096 && text[len] != 0)
+    len++;
+  if (len == 4096)
+    return (uint64_t) -1;
+  return (uint64_t) len + 1;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
 {
   uint64_t result = 0;

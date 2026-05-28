@@ -391,7 +391,8 @@ enum {
   POLY_IMPORT_FUNC_GETGID = 137,
   POLY_IMPORT_FUNC_GETEGID = 138,
   POLY_IMPORT_FUNC_GETTID = 139,
-  POLY_IMPORT_FUNC_COUNT = 140
+  POLY_IMPORT_FUNC_PUTS = 140,
+  POLY_IMPORT_FUNC_COUNT = 141
 };
 
 enum {
@@ -739,6 +740,7 @@ extern uint64_t poly_host_x86_getpid(void);
 extern uint64_t poly_host_x86_getppid(void);
 extern uint64_t poly_host_x86_getuid(void);
 extern uint64_t poly_host_x86_gettid(void);
+extern uint64_t poly_host_x86_puts(const uint8_t *text);
 extern unsigned __int128 poly_host_x86_udivti3(
     unsigned __int128 dividend, unsigned __int128 divisor);
 extern unsigned __int128 poly_host_x86_umodti3(
@@ -872,6 +874,7 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "free", "strdup", "strndup", "posix_memalign", "aligned_alloc",
     "memalign", "atexit", "__cxa_atexit", "__cxa_finalize", "getpid",
     "getppid", "getuid", "geteuid", "getgid", "getegid", "gettid",
+    "puts",
     "__udivti3", "__umodti3", "__divti3", "__modti3",
     "__fixdfti", "__fixunsdfti", "__floattidf", "__floatuntidf",
     "__fixsfti", "__fixunssfti", "__floattisf", "__floatuntisf",
@@ -1041,6 +1044,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_getuid;
     case POLY_IMPORT_FUNC_GETTID:
       return (uint64_t) (uintptr_t) poly_host_x86_gettid;
+    case POLY_IMPORT_FUNC_PUTS:
+      return (uint64_t) (uintptr_t) poly_host_x86_puts;
     case POLY_IMPORT_FUNC_UDIVTI3:
       return (uint64_t) (uintptr_t) poly_host_x86_udivti3;
     case POLY_IMPORT_FUNC_UMODTI3:
@@ -1866,6 +1871,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "gettid") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_GETTID * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "puts") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_PUTS * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {

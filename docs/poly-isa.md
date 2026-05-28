@@ -215,7 +215,7 @@ discover the experimental hardware contract before emitting poly operations:
   trap-return escape, `EBX=0x0000407b` reports the RISC-V trap-return
   instruction, and `ECX=0x63`/`EDX=0x64` report the x86 trap-vector mode
   set/get opcode selectors.
-- `CPUID.EAX=0x40000002, ECX=5`: `EAX=140` reports the foreign import ID
+- `CPUID.EAX=0x40000002, ECX=5`: `EAX=141` reports the foreign import ID
   count, `ECX:EBX=0xffffffffffffe000` reports the import-call address window
   base, and `EDX=16` reports the import-call stride.
   Import ID `2` is reserved for the removed legacy x86-add helper and now
@@ -962,7 +962,8 @@ symbol names `strlen`, `strcmp`, `strncmp`, `memcpy`, `memmove`, `memset`,
 `memcmp`, `memchr`, `strchr`, `strrchr`, `strstr`, `strcpy`, `strncpy`,
 `strnlen`, `strcat`, `strncat`, `strspn`, `strcspn`, `strpbrk`, `stpcpy`,
 `stpncpy`, `mempcpy`, `memrchr`, `memmem`, `rawmemchr`, `strchrnul`,
-`strcasecmp`, `strncasecmp`, `strcasestr`, `bcmp`, `bcopy`, `bzero`, `index`, and `rindex`, so
+`strcasecmp`, `strncasecmp`, `strcasestr`, `bcmp`, `bcopy`, `bzero`,
+`index`, `rindex`, and `puts`, so
 compiler-produced foreign objects can call those routines through ordinary
 PLT/GOT entries without using synthetic breakpoint helpers. The neutral
 cross-call gate also covers direct descriptor `strlen`, `strnlen`, `memset`,
@@ -995,7 +996,7 @@ When a runtime supplies a descriptor entry for an import ID, the Bochs CPU uses
 that descriptor as the import target.  `polycall` uses this path for
 `poly_import_add`/`poly_import_mul`,
 `poly_import_fp64_add`/`poly_import_fp32_add`, libc string/memory imports such as
-`strlen`, `memcpy`, and `memcmp`, and also for environment, allocation,
+`strlen`, `memcpy`, `memcmp`, and `puts`, and also for environment, allocation,
 teardown, stack-failure, aux-vector/page-size,
 errno, and process-query imports such as `getenv`, `malloc`, `atexit`,
 `__stack_chk_fail`, `getauxval`, `__errno_location`, and `getpid`, for
