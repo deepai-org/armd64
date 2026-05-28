@@ -3676,6 +3676,9 @@ fi
 if [ "$RUN_POLY_APPS" = "1" ]; then
   POLYAPP_LEGACY_BREAK_HELPERS=1 \
     /usr/bin/polyapp /usr/lib/polyapps/*.poly >/dev/ttyS0 2>&1
+  /usr/bin/polyapp \
+    /usr/lib/polyapps/aarch64-brk.poly \
+    /usr/lib/polyapps/riscv-ebreak.poly >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_EXEC" = "1" ]; then
