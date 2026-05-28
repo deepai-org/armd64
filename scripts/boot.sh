@@ -183,6 +183,8 @@ POLYCALL_FPAIR_ARG_REAL_SRC="$ROOT_DIR/tools/polycall_fpair_arg_real.c"
 POLYCALL_FPAIR32_ARG_REAL_SRC="$ROOT_DIR/tools/polycall_fpair32_arg_real.c"
 POLYCALL_HFA3_REAL_SRC="$ROOT_DIR/tools/polycall_hfa3_real.c"
 POLYCALL_HFA4_REAL_SRC="$ROOT_DIR/tools/polycall_hfa4_real.c"
+POLYCALL_HFA3_F32_REAL_SRC="$ROOT_DIR/tools/polycall_hfa3_f32_real.c"
+POLYCALL_HFA4_F32_REAL_SRC="$ROOT_DIR/tools/polycall_hfa4_f32_real.c"
 POLYCALL_VEC128_AARCH64_REAL_SRC="$ROOT_DIR/tools/polycall_vec128_aarch64_real.c"
 POLYCALL_HETERO_REAL_SRC="$ROOT_DIR/tools/polycall_hetero_real.c"
 POLYCALL_HETERO_REV_REAL_SRC="$ROOT_DIR/tools/polycall_hetero_rev_real.c"
@@ -1490,6 +1492,14 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_HFA4_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-hfa4-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_HFA3_F32_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-hfa3-f32-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_HFA4_F32_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-hfa4-f32-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -ffp-contract=off \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -4643,6 +4653,8 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fpair:/usr/lib/polyapps/aarch64-pcall-fpair-real.so#poly_entry=0x40268000400b0000 \
     hfa3f64:/usr/lib/polyapps/aarch64-pcall-hfa3-real.so#poly_entry=0x0000400e40154016 \
     hfa4f64:/usr/lib/polyapps/aarch64-pcall-hfa4-real.so#poly_entry=0x400e401540164021 \
+    hfa3f32:/usr/lib/polyapps/aarch64-pcall-hfa3-f32-real.so#poly_entry=0x0000407040a840b0 \
+    hfa4f32:/usr/lib/polyapps/aarch64-pcall-hfa4-f32-real.so#poly_entry=0x407040a840b0410c \
     fpair32:/usr/lib/polyapps/aarch64-pcall-fpair32-real.so#poly_entry=0x40d8000040700000 \
     fpairarg:/usr/lib/polyapps/aarch64-pcall-fpair-arg-real.so#poly_entry=0x4026800000000000 \
     fpair32arg:/usr/lib/polyapps/aarch64-pcall-fpair32-arg-real.so#poly_entry=0x41340000 \
