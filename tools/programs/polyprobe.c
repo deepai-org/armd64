@@ -10,6 +10,7 @@
 #define POLY_OP_ENTER_A64 ".byte 0x0f,0x3a,0xfc,0x01\n"
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
 #define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
+#define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
 #define POLY_OP_PCALL_A64 ".byte 0x0f,0x3a,0xfc,0x10\n"
 #define POLY_OP_PCALL_RV64 ".byte 0x0f,0x3a,0xfc,0x11\n"
 #define POLY_OP_PCALL_SIG_A64 ".byte 0x0f,0x3a,0xfc,0x2b\n"
@@ -373,6 +374,52 @@ static inline void generic_enter_riscv_probe(void) {
     ".long 0x01500513\n" // addi a0,zero,21
     ".long 0x0000700b\n"
     "popq %%r15\n"
+    :
+    : "i"(POLY_MODE_RAW_RISCV)
+    : POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void generic_switch_aarch64_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "movq %0, %%r15\n"
+    POLY_OP_SWITCH_MODE
+    "jmp 3f\n"
+    "1:\n"
+    ".long 0xd2800420\n" // movz x0,#33
+    ".long 0xd5032e1f\n"
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    "jmp 4f\n"
+    "3:\n"
+    "movq $0xbad, %%rax\n"
+    "4:\n"
+    :
+    : "i"(POLY_MODE_RAW_AARCH64)
+    : POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void generic_switch_riscv_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "movq %0, %%r15\n"
+    POLY_OP_SWITCH_MODE
+    "jmp 3f\n"
+    "1:\n"
+    ".long 0x02100513\n" // addi a0,zero,33
+    ".long 0x0000700b\n"
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    "jmp 4f\n"
+    "3:\n"
+    "movq $0xbad, %%rax\n"
+    "4:\n"
     :
     : "i"(POLY_MODE_RAW_RISCV)
     : POLY_ABI_GPR_CLOBBERS, "memory");
@@ -1109,6 +1156,16 @@ int main(void) {
   generic_enter_riscv_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: generic riscv frontend enter mismatch\n");
+    return 1;
+  }
+  generic_switch_aarch64_probe();
+  if (read_rax() != 33) {
+    fprintf(stderr, "POLY_PROBE_FAIL: generic aarch64 frontend switch mismatch\n");
+    return 1;
+  }
+  generic_switch_riscv_probe();
+  if (read_rax() != 33) {
+    fprintf(stderr, "POLY_PROBE_FAIL: generic riscv frontend switch mismatch\n");
     return 1;
   }
 

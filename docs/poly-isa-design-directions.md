@@ -148,7 +148,8 @@ The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, and slot kind `1` is x86_64 SysV source
 argument order. Generic frontend-ID prototype opcodes pass mode in `R15`,
 target PC in `RBX`, return PC in `R11`, and slot number in `R12` so the
-exchange-window lanes remain free for call arguments.
+exchange-window lanes remain free for call arguments. `PSWITCH_MODE` uses the
+same mode and target registers but does not install a return cookie.
 
 ## Register Exchange Window
 

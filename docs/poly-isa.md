@@ -66,6 +66,9 @@ The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
 `R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V
 enter controls.
 
+`0x04` is `PSWITCH_MODE`: frontend ID in `R15`, target PC in `RBX`. It is a
+non-call branch and does not install a return cookie.
+
 ## Foreign Escapes
 
 | Source | Encoding | Meaning |
