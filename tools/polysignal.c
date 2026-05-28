@@ -3,7 +3,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "polycpuid.h"
 
@@ -52,6 +54,48 @@ static inline void write_xmm1_u64(uint64_t value) {
 
 static inline void poly_state_export(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
+}
+
+static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
+  code[(*offset)++] = (uint8_t) (value & 0xff);
+  code[(*offset)++] = (uint8_t) ((value >> 8) & 0xff);
+  code[(*offset)++] = (uint8_t) ((value >> 16) & 0xff);
+  code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
+}
+
+static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
+  for (unsigned n = 0; n < 8; n++)
+    code[(*offset)++] = (uint8_t) ((value >> (n * 8)) & 0xff);
+}
+
+static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes,
+    size_t count) {
+  for (size_t n = 0; n < count; n++)
+    code[(*offset)++] = bytes[n];
+}
+
+static void store_u32(uint8_t *code, size_t offset, uint32_t value) {
+  code[offset] = (uint8_t) (value & 0xff);
+  code[offset + 1] = (uint8_t) ((value >> 8) & 0xff);
+  code[offset + 2] = (uint8_t) ((value >> 16) & 0xff);
+  code[offset + 3] = (uint8_t) ((value >> 24) & 0xff);
+}
+
+static void emit_aarch64_movabs(uint8_t *code, size_t *offset, unsigned rd,
+    uint64_t value) {
+  emit_u32(code, offset, 0xd2800000U | (((uint32_t) value & 0xffffU) << 5) | rd);
+  emit_u32(code, offset, 0xf2a00000U |
+    ((((uint32_t) (value >> 16)) & 0xffffU) << 5) | rd);
+  emit_u32(code, offset, 0xf2c00000U |
+    ((((uint32_t) (value >> 32)) & 0xffffU) << 5) | rd);
+  emit_u32(code, offset, 0xf2e00000U |
+    ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | rd);
+}
+
+static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
+  uint32_t uimm = (uint32_t) imm & 0xfffU;
+  return (uimm << 20) | ((rs1 & 0x1fU) << 15) | (3U << 12) |
+    ((rd & 0x1fU) << 7) | 0x03U;
 }
 
 static int signal_snapshot_matches(void) {
@@ -220,6 +264,135 @@ static uint64_t pcall_riscv_hidden_fp_signal(uint64_t left_bits,
   return read_xmm0_u64();
 }
 
+static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
+    uint64_t loops) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYSIGNAL_FAIL: aarch64-to-riscv mmap: %s\n",
+      strerror(errno));
+    return UINT64_MAX;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_aarch64[] = {
+    0x0f, 0x24, 0x01, 0x50, 0x4f, 0x4c, 0x59, 0x21
+  };
+  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+
+  const size_t aarch64_return_offset = offset + 16 + 16 + 16 + 16 + 4;
+  const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
+
+  emit_aarch64_movabs(code, &offset, 0, seed);
+  emit_aarch64_movabs(code, &offset, 1, loops);
+  emit_aarch64_movabs(code, &offset, 16,
+    (uint64_t) (uintptr_t) (code + riscv_target_offset));
+  emit_aarch64_movabs(code, &offset, 17,
+    (uint64_t) (uintptr_t) (code + aarch64_return_offset));
+  emit_u32(code, &offset, 0xd42fffa0U); // brk #0x7ffd, call RISC-V
+  emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
+  emit_u32(code, &offset, 0xd42fffe0U); // brk #0x7fff, x86 escape
+  code[offset++] = 0xc3;
+
+  while (offset < riscv_target_offset)
+    code[offset++] = 0x90;
+  emit_u32(code, &offset, 0x00050a13U); // addi s4,a0,0
+  emit_u32(code, &offset, 0xfff58593U); // addi a1,a1,-1
+  emit_u32(code, &offset, 0xfe059ee3U); // bnez a1,-4
+  emit_u32(code, &offset, 0x009a0513U); // addi a0,s4,9
+  emit_u32(code, &offset, 0x00008067U); // ret
+
+  uint64_t (*entry)(uint64_t, uint64_t) =
+    (uint64_t (*)(uint64_t, uint64_t)) code;
+  uint64_t result = entry(seed, loops);
+  munmap(code, code_size);
+  return result;
+}
+
+static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
+    uint64_t loops) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYSIGNAL_FAIL: riscv-to-aarch64 mmap: %s\n",
+      strerror(errno));
+    return UINT64_MAX;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_riscv[] = {
+    0x0f, 0x24, 0x02, 0x50, 0x4f, 0x4c, 0x59, 0x21
+  };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+
+  const size_t auipc_seed_pc = offset;
+  emit_u32(code, &offset, 0x00000517U); // auipc x10,0
+  const size_t ld_seed_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t auipc_loops_pc = offset;
+  emit_u32(code, &offset, 0x00000597U); // auipc x11,0
+  const size_t ld_loops_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0x0000005bU); // custom-2, call AArch64
+  const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
+  emit_u32(code, &offset, 0x0000000bU); // custom-0, x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  emit_u32(code, &offset, 0x91000014U); // add x20,x0,#0
+  emit_u32(code, &offset, 0xf1000421U); // subs x1,x1,#1
+  emit_u32(code, &offset, 0x54ffffe1U); // b.ne -4
+  emit_u32(code, &offset, 0x91002280U); // add x0,x20,#8
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
+  const size_t seed_data_offset = offset;
+  emit_u64(code, &offset, seed);
+  const size_t loops_data_offset = offset;
+  emit_u64(code, &offset, loops);
+
+  store_u32(code, ld_seed_offset, riscv_ld(10, 10,
+    (int32_t) seed_data_offset - (int32_t) auipc_seed_pc));
+  store_u32(code, ld_loops_offset, riscv_ld(11, 11,
+    (int32_t) loops_data_offset - (int32_t) auipc_loops_pc));
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+
+  uint64_t (*entry)(uint64_t, uint64_t) =
+    (uint64_t (*)(uint64_t, uint64_t)) code;
+  uint64_t result = entry(seed, loops);
+  munmap(code, code_size);
+  return result;
+}
+
 static int check_arch(const char *name, uint64_t seed, uint64_t expected_delta,
   uint64_t (*pcall)(uint64_t, uint64_t))
 {
@@ -339,6 +512,18 @@ int main(void) {
   signal_expected_snapshot_value = double_to_bits((double) 0x56000000ULL);
   if (check_arch_fp("riscv-hidden-fp", 0x56000000ULL,
       pcall_riscv_hidden_fp_signal) != 0)
+    return 1;
+  signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_RISCV_X20;
+  signal_expected_snapshot_value = 0x57000000ULL;
+  if (check_arch("aarch64-to-riscv-hidden", 0x57000000ULL, 10,
+      pcall_aarch64_to_riscv_hidden_signal) != 0)
+    return 1;
+  signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_AARCH64_X20;
+  signal_expected_snapshot_value = 0x58000000ULL;
+  if (check_arch("riscv-to-aarch64-hidden", 0x58000000ULL, 9,
+      pcall_riscv_to_aarch64_hidden_signal) != 0)
     return 1;
 
   printf("POLYSIGNAL_OK\n");
