@@ -7,6 +7,9 @@
 #define POLY_HOST_HELPER
 #endif
 
+extern uint64_t poly_runtime_register_atexit_callback(void *callback,
+  void *arg, void *dso_handle);
+
 static volatile uint64_t poly_host_x86_zero;
 static int poly_host_errno_value;
 static uint8_t poly_host_heap[64 * 1024];
@@ -780,10 +783,7 @@ uint64_t POLY_HOST_HELPER poly_host_x86_atexit(void *callback)
 uint64_t POLY_HOST_HELPER poly_host_x86_cxa_atexit(void *callback, void *arg,
     void *dso_handle)
 {
-  (void) callback;
-  (void) arg;
-  (void) dso_handle;
-  return 0;
+  return poly_runtime_register_atexit_callback(callback, arg, dso_handle);
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_cxa_finalize(void *dso_handle)

@@ -138,6 +138,7 @@ enum {
   POLY_CALL_FP64_STACK = 19,
   POLY_CALL_DEP_FINI_RESULT = 20,
   POLY_CALL_VEC128_U32 = 21,
+  POLY_CALL_ONE_U64 = 22,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -145,6 +146,7 @@ enum {
   POLY_ERRNO_TLS_OFFSET = 4096,
   POLY_ERRNO_TLS_SIZE = 4104,
   MAX_NEEDED_DEPS = 32,
+  MAX_ATEXIT_CALLBACKS = 128,
   MAX_LOAD_SEGMENTS = 16,
   MAX_DEP_PATH = 192,
   RELOC_BASE_ABSOLUTE = 0,
@@ -547,6 +549,37 @@ struct poly_request {
   int check_expected;
   int call_kind;
 };
+
+struct poly_atexit_callback {
+  uint64_t callback;
+  uint64_t arg;
+  uint64_t dso_handle;
+  int active;
+};
+
+static struct poly_atexit_callback poly_atexit_callbacks[MAX_ATEXIT_CALLBACKS];
+static size_t poly_atexit_callback_count;
+
+void poly_runtime_reset_atexit_callbacks(void)
+{
+  memset(poly_atexit_callbacks, 0, sizeof(poly_atexit_callbacks));
+  poly_atexit_callback_count = 0;
+}
+
+uint64_t poly_runtime_register_atexit_callback(void *callback, void *arg,
+    void *dso_handle)
+{
+  if (callback == NULL || poly_atexit_callback_count >= MAX_ATEXIT_CALLBACKS)
+    return 1;
+
+  struct poly_atexit_callback *entry =
+    &poly_atexit_callbacks[poly_atexit_callback_count++];
+  entry->callback = (uint64_t) (uintptr_t) callback;
+  entry->arg = (uint64_t) (uintptr_t) arg;
+  entry->dso_handle = (uint64_t) (uintptr_t) dso_handle;
+  entry->active = 1;
+  return 0;
+}
 
 static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
   struct poly_cpuid_regs regs;
@@ -4583,6 +4616,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
 
 extern uint64_t polycall_guarded_call_u64(const uint8_t *code,
     uint64_t *bad_mask);
+extern uint64_t polycall_guarded_call_one_u64(const uint8_t *code,
+    uint64_t arg, uint64_t *bad_mask);
 
 __asm__(
   ".text\n"
@@ -4659,6 +4694,75 @@ __asm__(
   "  popq %rbx\n"
   "  ret\n"
   ".size polycall_guarded_call_u64, .-polycall_guarded_call_u64\n"
+  ".globl polycall_guarded_call_one_u64\n"
+  ".type polycall_guarded_call_one_u64,@function\n"
+  "polycall_guarded_call_one_u64:\n"
+  "  pushq %rbx\n"
+  "  pushq %rbp\n"
+  "  pushq %r12\n"
+  "  pushq %r13\n"
+  "  pushq %r14\n"
+  "  pushq %r15\n"
+  "  subq $16, %rsp\n"
+  "  movq %rdx, 8(%rsp)\n"
+  "  movq %rdi, %r10\n"
+  "  movabsq $0x1badd00d00000001, %rbx\n"
+  "  movabsq $0x1badd00d00000002, %rbp\n"
+  "  movabsq $0x1badd00d00000003, %r12\n"
+  "  movabsq $0x1badd00d00000004, %r13\n"
+  "  movabsq $0x1badd00d00000005, %r14\n"
+  "  movabsq $0x1badd00d00000006, %r15\n"
+  "  movq %rsi, %rdi\n"
+  "  xorq %rsi, %rsi\n"
+  "  xorq %rdx, %rdx\n"
+  "  xorq %rcx, %rcx\n"
+  "  xorq %r8, %r8\n"
+  "  xorq %r9, %r9\n"
+  "  call *%r10\n"
+  "  movq %rax, (%rsp)\n"
+  "  xorl %ecx, %ecx\n"
+  "  movabsq $0x1badd00d00000001, %rdx\n"
+  "  cmpq %rdx, %rbx\n"
+  "  je 7f\n"
+  "  orq $1, %rcx\n"
+  "7:\n"
+  "  movabsq $0x1badd00d00000002, %rdx\n"
+  "  cmpq %rdx, %rbp\n"
+  "  je 8f\n"
+  "  orq $2, %rcx\n"
+  "8:\n"
+  "  movabsq $0x1badd00d00000003, %rdx\n"
+  "  cmpq %rdx, %r12\n"
+  "  je 9f\n"
+  "  orq $4, %rcx\n"
+  "9:\n"
+  "  movabsq $0x1badd00d00000004, %rdx\n"
+  "  cmpq %rdx, %r13\n"
+  "  je 10f\n"
+  "  orq $8, %rcx\n"
+  "10:\n"
+  "  movabsq $0x1badd00d00000005, %rdx\n"
+  "  cmpq %rdx, %r14\n"
+  "  je 11f\n"
+  "  orq $16, %rcx\n"
+  "11:\n"
+  "  movabsq $0x1badd00d00000006, %rdx\n"
+  "  cmpq %rdx, %r15\n"
+  "  je 12f\n"
+  "  orq $32, %rcx\n"
+  "12:\n"
+  "  movq 8(%rsp), %rdx\n"
+  "  movq %rcx, (%rdx)\n"
+  "  movq (%rsp), %rax\n"
+  "  addq $16, %rsp\n"
+  "  popq %r15\n"
+  "  popq %r14\n"
+  "  popq %r13\n"
+  "  popq %r12\n"
+  "  popq %rbp\n"
+  "  popq %rbx\n"
+  "  ret\n"
+  ".size polycall_guarded_call_one_u64, .-polycall_guarded_call_one_u64\n"
 );
 
 static void fail_callee_save_guard(uint64_t mask) {
@@ -4773,6 +4877,13 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
       ((uint64_t) (result.u[2] & 0xffffU) << 32) |
       ((uint64_t) (result.u[1] & 0xffffU) << 16) |
       (uint64_t) (result.u[0] & 0xffffU);
+  }
+  if (call_kind == POLY_CALL_ONE_U64) {
+    uint64_t bad_mask = 0;
+    uint64_t result = polycall_guarded_call_one_u64(code, 0, &bad_mask);
+    if (bad_mask != 0)
+      fail_callee_save_guard(bad_mask);
+    return result;
   }
   if (call_kind == POLY_CALL_PAIR_U64) {
     struct pair_u64 (*entry)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
@@ -4976,6 +5087,28 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
   if (bad_mask != 0)
     fail_callee_save_guard(bad_mask);
   return result;
+}
+
+static void call_poly_stub_one_u64(uint8_t *code, size_t target_imm_offset,
+    uint64_t target, uint64_t arg)
+{
+  uint64_t bad_mask = 0;
+  write_le64(code + target_imm_offset, target);
+  (void) polycall_guarded_call_one_u64(code, arg, &bad_mask);
+  if (bad_mask != 0)
+    fail_callee_save_guard(bad_mask);
+}
+
+static void run_poly_atexit_callbacks(uint8_t *code, size_t target_imm_offset)
+{
+  for (size_t n = poly_atexit_callback_count; n > 0; n--) {
+    struct poly_atexit_callback *entry = &poly_atexit_callbacks[n - 1];
+    if (!entry->active)
+      continue;
+    entry->active = 0;
+    call_poly_stub_one_u64(code, target_imm_offset, entry->callback,
+      entry->arg);
+  }
 }
 
 static void unmap_dependency_images(uint8_t **dep_foreign,
@@ -5665,6 +5798,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   }
 
+  poly_runtime_reset_atexit_callbacks();
+
   if (program->preinit_array_size != 0) {
     size_t preinit_array_offset = 0;
     if (elf_vaddr_to_image_offset(program, program->preinit_array_vaddr,
@@ -5838,6 +5973,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint64_t fini_target = load_bias + program->fini_vaddr;
     (void) call_poly_stub(code, target_imm_offset, fini_target, POLY_CALL_U64);
   }
+  run_poly_atexit_callbacks(code, target_imm_offset);
   if (call_kind == POLY_CALL_FINI_RESULT) {
     if (program->fini_result_vaddr == 0) {
       fprintf(stderr, "POLYCALL_FAIL: fini result symbol missing: %s\n",
@@ -5905,6 +6041,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       }
     }
   }
+  run_poly_atexit_callbacks(code, target_imm_offset);
   if (call_kind == POLY_CALL_DEP_FINI_RESULT) {
     uint64_t fini_result_vaddr = 0;
     int base_kind = RELOC_BASE_ABSOLUTE;

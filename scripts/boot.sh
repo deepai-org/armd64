@@ -73,6 +73,7 @@ POLYCALL_CXX_GUARD_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cxx_guard_dep_real.cc"
 POLYCALL_CXX_GUARD_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cxx_guard_main_real.cc"
 POLYCALL_CXX_VIRTUAL_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_cxx_virtual_dep_real.cc"
 POLYCALL_CXX_VIRTUAL_MAIN_REAL_SRC="$ROOT_DIR/tools/polycall_cxx_virtual_main_real.cc"
+POLYCALL_CXX_GLOBAL_DTOR_REAL_SRC="$ROOT_DIR/tools/polycall_cxx_global_dtor_real.cc"
 POLYCALL_PROCESS_REAL_SRC="$ROOT_DIR/tools/polycall_process_real.c"
 POLYCALL_NEEDED_LEAF_REAL_SRC="$ROOT_DIR/tools/polycall_needed_leaf_real.c"
 POLYCALL_NEEDED_DEP_REAL_SRC="$ROOT_DIR/tools/polycall_needed_dep_real.c"
@@ -527,6 +528,11 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolycxxvirtual-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cxx-virtual-real.so"
+  aarch64-linux-gnu-g++ -O2 -fno-builtin -fno-rtti -fno-exceptions \
+    -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CXX_GLOBAL_DTOR_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-cxx-global-dtor-real.so"
   aarch64-linux-gnu-g++ -O2 -fno-builtin -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycxxguard-aarch64.so -Wl,--hash-style=sysv \
@@ -1748,6 +1754,12 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolycxxvirtual-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cxx-virtual-real.so"
+  riscv64-linux-gnu-g++ -O2 -fno-builtin -fno-rtti -fno-exceptions \
+    -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_CXX_GLOBAL_DTOR_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-cxx-global-dtor-real.so"
   riscv64-linux-gnu-g++ -O2 -fno-builtin -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
@@ -4273,6 +4285,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-cxa-guard-real.so#poly_entry=101 \
     /usr/lib/polyapps/aarch64-pcall-cxx-static-guard-real.so#poly_entry=113 \
     /usr/lib/polyapps/aarch64-pcall-cxx-virtual-real.so#poly_entry=246 \
+    fini:/usr/lib/polyapps/aarch64-pcall-cxx-global-dtor-real.so#poly_entry=2345 \
     /usr/lib/polyapps/aarch64-pcall-cxx-guard-needed-real.so#poly_entry=219 \
     /usr/lib/polyapps/aarch64-pcall-process-real.so#poly_entry=16771 \
     /usr/lib/polyapps/aarch64-pcall-needed-real.so#poly_entry=397 \
@@ -4436,6 +4449,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-cxa-guard-real.so#poly_entry=101 \
     /usr/lib/polyapps/riscv-pcall-cxx-static-guard-real.so#poly_entry=113 \
     /usr/lib/polyapps/riscv-pcall-cxx-virtual-real.so#poly_entry=246 \
+    fini:/usr/lib/polyapps/riscv-pcall-cxx-global-dtor-real.so#poly_entry=2345 \
     /usr/lib/polyapps/riscv-pcall-cxx-guard-needed-real.so#poly_entry=219 \
     /usr/lib/polyapps/riscv-pcall-process-real.so#poly_entry=16771 \
     /usr/lib/polyapps/riscv-pcall-needed-real.so#poly_entry=397 \
