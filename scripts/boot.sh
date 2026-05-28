@@ -519,6 +519,12 @@ build_poly_elf_payloads() {
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/libpolyprocessrunpath-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
+    -Wl,-soname,libpolyprocessrpath-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/libpolyprocessrpath-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
@@ -533,6 +539,14 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps" \
     -Wl,--no-as-needed -l:libpolyprocessrunpath-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-needed-runpath-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--disable-new-dtags -Wl,-rpath,'$ORIGIN/processdeps' \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps" \
+    -Wl,--no-as-needed -l:libpolyprocessrpath-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-needed-rpath-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_LEAF \
     -Wl,-soname,libpolyprocessneededleaf-aarch64.so \
@@ -2315,6 +2329,13 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/libpolyprocessrunpath-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_NEEDED_DEP \
+    -Wl,-soname,libpolyprocessrpath-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/libpolyprocessrpath-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
@@ -2328,6 +2349,14 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps" \
     -Wl,--no-as-needed -l:libpolyprocessrunpath-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-needed-runpath-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--disable-new-dtags -Wl,-rpath,'$ORIGIN/processdeps' \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps" \
+    -Wl,--no-as-needed -l:libpolyprocessrpath-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-needed-rpath-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_NEEDED_LEAF \
@@ -5605,6 +5634,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-needed-runpath-real.elf=42 \
       runpath-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-needed-rpath-real.elf=42 \
+      rpath-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-transitive-real.elf=42 \
       transitive-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -5649,6 +5681,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-runpath-real.elf=42 \
       runpath-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-needed-rpath-real.elf=42 \
+      rpath-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-transitive-real.elf=42 \
       transitive-needed >/dev/ttyS0 2>&1
@@ -6326,6 +6361,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       exit 1
     }
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-needed-rpath-real.elf=42 \
+      rpath-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process rpath needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-transitive-real.elf=42 \
       transitive-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 process transitive needed" >/dev/ttyS0
@@ -6429,6 +6470,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-needed-runpath-real.elf=42 \
       runpath-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process runpath needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-needed-rpath-real.elf=42 \
+      rpath-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process rpath needed" >/dev/ttyS0
       exit 1
     }
     /usr/bin/polyexec --process \

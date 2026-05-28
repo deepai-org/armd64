@@ -111,6 +111,10 @@ extern char **environ;
 #define DT_RUNPATH 29
 #endif
 
+#ifndef DT_RPATH
+#define DT_RPATH 15
+#endif
+
 enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
@@ -3241,12 +3245,14 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
   const Elf64_Dyn *dyn =
     (const Elf64_Dyn *) (program->code_bytes + program->dynamic_offset);
   const size_t dyn_count = program->dynamic_size / sizeof(Elf64_Dyn);
-  uint64_t strtab_vaddr = 0, strsz = 0, runpath_offset = UINT64_MAX;
+  uint64_t strtab_vaddr = 0, strsz = 0;
+  uint64_t runpath_offset = UINT64_MAX, rpath_offset = UINT64_MAX;
   for (size_t n = 0; n < dyn_count; n++) {
     switch (dyn[n].d_tag) {
       case DT_STRTAB: strtab_vaddr = dyn[n].d_un.d_ptr; break;
       case DT_STRSZ: strsz = dyn[n].d_un.d_val; break;
       case DT_RUNPATH: runpath_offset = dyn[n].d_un.d_val; break;
+      case DT_RPATH: rpath_offset = dyn[n].d_un.d_val; break;
       default: break;
     }
   }
@@ -3260,20 +3266,24 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
   const char *strings = (const char *) (program->code_bytes + strtab_offset);
   const char *runpath = NULL;
   size_t runpath_len = 0;
-  if (runpath_offset != UINT64_MAX) {
-    if (runpath_offset >= strsz) {
-      fprintf(stderr, "POLYEXEC_FAIL: bad DT_RUNPATH string: %s\n",
+  const uint64_t search_path_offset =
+    runpath_offset != UINT64_MAX ? runpath_offset : rpath_offset;
+  const char *search_path_tag =
+    runpath_offset != UINT64_MAX ? "DT_RUNPATH" : "DT_RPATH";
+  if (search_path_offset != UINT64_MAX) {
+    if (search_path_offset >= strsz) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad %s string: %s\n", search_path_tag,
         program->path);
       return -1;
     }
-    const void *end = memchr(strings + runpath_offset, '\0',
-      (size_t) (strsz - runpath_offset));
+    const void *end = memchr(strings + search_path_offset, '\0',
+      (size_t) (strsz - search_path_offset));
     if (!end) {
-      fprintf(stderr, "POLYEXEC_FAIL: bad DT_RUNPATH string: %s\n",
+      fprintf(stderr, "POLYEXEC_FAIL: bad %s string: %s\n", search_path_tag,
         program->path);
       return -1;
     }
-    runpath = strings + runpath_offset;
+    runpath = strings + search_path_offset;
     runpath_len = (size_t) ((const char *) end - runpath);
   }
 
