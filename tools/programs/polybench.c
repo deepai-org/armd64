@@ -571,7 +571,7 @@ static uint64_t polybench_direct_x86_pcall_aarch64_sum6(void) {
     ".long 0xd28000c5\n" // movz x5,#6
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032f3f\n" // generic pcall frontend=x17 target=x16
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     : "=a"(result), "+r"(target)
     :
@@ -597,7 +597,7 @@ static uint64_t polybench_direct_x86_pcall_riscv_sum6(void) {
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x1200700b\n" // generic pcall frontend=t1 target=t0 return=t2
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     : "=a"(result), "+r"(target)
     :
