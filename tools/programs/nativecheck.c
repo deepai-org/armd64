@@ -3048,6 +3048,7 @@ static int run_poly_cross_return_xsave_roundtrip_probe(void) {
     return 1;
   }
 
+  puts("NATIVE_POLY_CROSS_RETURN_XSAVE_OK");
   return 0;
 }
 
