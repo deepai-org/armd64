@@ -22,6 +22,7 @@ extern char **environ;
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
+#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 
 #ifndef R_AARCH64_NONE
 #define R_AARCH64_NONE 0
@@ -284,6 +285,16 @@ static int poly_cpuid_vendor_matches(const struct poly_cpuid_regs *regs) {
     regs->ecx == 0x21555043U;
 }
 
+static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t rax = slot;
+  uint64_t rdx = kind;
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+    : "+a"(rax), "+d"(rdx)
+    :
+    : "memory");
+  return rax;
+}
+
 static int read_poly_base_contract(int require_trap_vector) {
   const struct poly_cpuid_regs base = read_cpuid(POLY_CPUID_BASE, 0);
   if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
@@ -328,6 +339,13 @@ static int read_poly_base_contract(int require_trap_vector) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx);
+    return -1;
+  }
+  if (poly_abi_signature_set(native_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly native signature slot setup failed slot=%u\n",
+      native_slot);
     return -1;
   }
   process_native_signature_slot = native_slot;
