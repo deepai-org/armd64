@@ -5033,11 +5033,7 @@ int main(void) {
     }
     struct poly_cpuid_regs features = poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
     uint32_t expected_features = poly_cpuid_expected_feature_mask();
-    uint32_t forbidden_feature_bits = POLY_CPUID_FEATURE_THREAD_BANKS |
-      POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS |
-      POLY_CPUID_FEATURE_FP64_STACK_ARGS |
-      POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
-      POLY_CPUID_FEATURE_STATE_KEY;
+    uint32_t forbidden_feature_bits = poly_cpuid_forbidden_feature_mask();
     if ((features.ecx & forbidden_feature_bits) != 0) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: prototype CPUID feature bits advertised ecx=0x%x forbidden=0x%x\n",
         features.ecx, forbidden_feature_bits);
@@ -5378,9 +5374,7 @@ int main(void) {
     struct poly_cpuid_regs abi_bridge =
       poly_read_cpuid(POLY_CPUID_BASE + 9, 0);
     const uint32_t forbidden_abi_bridge_flags =
-      POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS |
-      POLY_ABI_BRIDGE_FLAG_FP64_STACK |
-      POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS;
+      poly_cpuid_forbidden_abi_bridge_mask();
     if ((abi_bridge.ebx & forbidden_abi_bridge_flags) != 0) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: non-register ABI work advertised as bridge hardware ebx=0x%x forbidden=0x%x\n",
         abi_bridge.ebx, forbidden_abi_bridge_flags);

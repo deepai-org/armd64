@@ -747,6 +747,14 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
   return mask;
 }
 
+static inline uint32_t poly_cpuid_forbidden_feature_mask(void) {
+  return POLY_CPUID_FEATURE_THREAD_BANKS |
+    POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS |
+    POLY_CPUID_FEATURE_FP64_STACK_ARGS |
+    POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
+    POLY_CPUID_FEATURE_STATE_KEY;
+}
+
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_AARCH64_CTRL_X86_ESCAPE;
@@ -1053,6 +1061,12 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_abi_bridge_leaf(void) {
     (POLY_ABI_BRIDGE_STACK_ALIGN << 16);
   regs.edx = POLY_IMPORT_CALL_STRIDE << 16;
   return regs;
+}
+
+static inline uint32_t poly_cpuid_forbidden_abi_bridge_mask(void) {
+  return POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS |
+    POLY_ABI_BRIDGE_FLAG_FP64_STACK |
+    POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS;
 }
 
 static inline void poly_cpuid_vendor_string(const struct poly_cpuid_regs *regs,
