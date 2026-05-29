@@ -69,6 +69,14 @@ already needs for rename, while reconfiguring stack or memory layouts would turn
 `PCALL` into a variable-latency memory operation with page-fault and recovery
 complexity.
 
+An ABI signature slot is a cached rename template, not a data-moving program.
+At minimum, a slot records source frontend, destination frontend, register
+class, destination architectural register, source architectural register, and a
+valid bit for each lane. The hardware validates the slot before the frontend
+redirect, then applies it as part of transition rename. It does not discover the
+mapping by reading a call-site descriptor, and it does not execute a hidden
+sequence of move instructions.
+
 Modern out-of-order CPUs already rename architectural registers through a
 register alias table (RAT). A Poly ABI signature is a semi-persistent RAT update
 recipe: source frontend architectural names are rebound to destination frontend
@@ -76,6 +84,15 @@ architectural names during a cross-ISA branch or call. On `PCALL`, hardware
 selects a cached signature slot and applies those mappings in or near the
 rename stage. The data does not move through integer or FP execution pipes; only
 the architectural names are rebound to existing physical registers.
+
+The precise-exception rule should stay simple: an invalid slot traps before
+changing frontend mode or architectural PC, while a valid slot cannot fault
+because it performs no memory access. RAT ownership, physical-register lifetime,
+and rollback are handled by the same rename-map and checkpoint machinery that
+already supports branches, exceptions, and speculative execution. The caller's
+architectural view remains recoverable through the hardware transition stack
+and normal precise state recovery; the callee receives only the destination
+architectural names described by the signature.
 
 For example, a SysV-to-AAPCS64 slot can map:
 
@@ -144,6 +161,15 @@ This is the intended "90/10" split: hot calls whose arguments and returns fit in
 native ABI registers should avoid thunks entirely through RAT remapping, while
 the uncommon stack, aggregate, vector, or variadic cases stay in software where
 memory access and policy belong.
+
+The fast path therefore covers ordinary register-only calls between existing
+precompiled objects, for example an x86_64 caller passing six scalar SysV
+arguments to an AArch64 AAPCS64 function. The slow path is not a failure mode;
+it is the architectural escape hatch for anything whose native ABI contract
+requires memory layout work. A loader can choose per symbol or per relocation:
+direct `PCALL ... sig_imm` for all-register signatures, or a generated thunk
+that performs stack/aggregate conversion and then uses a null, identity, or
+simple signature for the final branch.
 
 The performance target for a hot signature `PCALL` is a frontend redirect plus
 a rename-map selection, not a sequence of register moves. Slot programming is a
