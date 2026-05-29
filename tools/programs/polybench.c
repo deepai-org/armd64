@@ -555,84 +555,100 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
   return 0;
 }
 
-__attribute__((noinline, noipa))
-static uint64_t polybench_direct_x86_pcall_aarch64_sum6(void) {
-  uint64_t result;
-  register uint64_t target asm("r10") =
-    (uint64_t) (uintptr_t) polybench_x86_sum6_direct;
-  asm volatile(
-    ".byte 0x0f,0x3a,0xfc,0x01\n"
-    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
-    ".long 0xd2800020\n" // movz x0,#1
-    ".long 0xd2800041\n" // movz x1,#2
-    ".long 0xd2800062\n" // movz x2,#3
-    ".long 0xd2800083\n" // movz x3,#4
-    ".long 0xd28000a4\n" // movz x4,#5
-    ".long 0xd28000c5\n" // movz x5,#6
-    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
-    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
-    : "=a"(result), "+r"(target)
-    :
-    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
-  return result;
-}
-
-__attribute__((noinline, noipa))
-static uint64_t polybench_direct_x86_pcall_riscv_sum6(void) {
-  uint64_t result;
-  register uint64_t target asm("r10") =
-    (uint64_t) (uintptr_t) polybench_x86_sum6_direct;
-  asm volatile(
-    ".byte 0x0f,0x3a,0xfc,0x02\n"
-    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
-    ".long 0x00100513\n" // addi a0,zero,1
-    ".long 0x00200593\n" // addi a1,zero,2
-    ".long 0x00300613\n" // addi a2,zero,3
-    ".long 0x00400693\n" // addi a3,zero,4
-    ".long 0x00500713\n" // addi a4,zero,5
-    ".long 0x00600793\n" // addi a5,zero,6
-    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
-    ".long 0x00000397\n" // auipc t2,0
-    ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
-    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
-    : "=a"(result), "+r"(target)
-    :
-    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
-  return result;
-}
-
 static int run_direct_x86_pcall_aarch64(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64 direct x86 pcall mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+  emit_u32(code, &offset, 0xd2800020U); // movz x0,#1
+  emit_u32(code, &offset, 0xd2800041U); // movz x1,#2
+  emit_u32(code, &offset, 0xd2800062U); // movz x2,#3
+  emit_u32(code, &offset, 0xd2800083U); // movz x3,#4
+  emit_u32(code, &offset, 0xd28000a4U); // movz x4,#5
+  emit_u32(code, &offset, 0xd28000c5U); // movz x5,#6
+  emit_aarch64_direct_x86_pcall(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_sum6_direct);
+  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  code[offset++] = 0xc3;
+
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = polybench_direct_x86_pcall_aarch64_sum6();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
   poly_switch_count_status();
   *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
   return 0;
 }
 
 static int run_direct_x86_pcall_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: riscv direct x86 pcall mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u32(code, &offset, 0x00100513U); // addi a0,zero,1
+  emit_u32(code, &offset, 0x00200593U); // addi a1,zero,2
+  emit_u32(code, &offset, 0x00300613U); // addi a2,zero,3
+  emit_u32(code, &offset, 0x00400693U); // addi a3,zero,4
+  emit_u32(code, &offset, 0x00500713U); // addi a4,zero,5
+  emit_u32(code, &offset, 0x00600793U); // addi a5,zero,6
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_direct_x86_pcall(code, &offset);
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_sum6_direct);
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = polybench_direct_x86_pcall_riscv_sum6();
+  *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
   poly_switch_count_status();
   *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
   return 0;
 }
 
