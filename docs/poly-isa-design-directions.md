@@ -69,6 +69,12 @@ already needs for rename, while reconfiguring stack or memory layouts would turn
 `PCALL` into a variable-latency memory operation with page-fault and recovery
 complexity.
 
+The architectural rule is simple: programmable signatures may rename registers,
+but they may not describe memory. This gives silicon a practical fast path for
+the common case where arguments and returns fit in native ABI registers, while
+leaving stack arguments, by-value structs, variadics, and unusual aggregate
+returns to loader/runtime thunks.
+
 This is the useful middle ground between a fixed exchange window and a
 hardware ABI interpreter. A fixed exchange window is a portable fallback, but
 it leaves hot native ABI calls paying software register moves. A programmable

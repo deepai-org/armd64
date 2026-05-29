@@ -186,6 +186,11 @@ architectural names in rename/RAT state, installs the return cookie, and
 redirects the frontend. Operand data does not move through execution pipes, and
 the transition does not read user memory.
 
+Signatures are intentionally limited to register renaming. They are the fast
+path for ordinary precompiled functions whose arguments and return values fit
+in native ABI registers. Stack arguments, by-value structs, variadic calls, and
+memory-side ABI layout remain software thunk work.
+
 The intended silicon shape is a small cached slot bank, not per-call
 reconfiguration. A loader can program hot slots such as SysV-to-AAPCS64,
 AAPCS64-to-SysV, and SysV-to-RISC-V once, then emit `PCALL ... sig_imm` at
