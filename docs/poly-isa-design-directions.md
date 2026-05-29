@@ -302,6 +302,9 @@ entry point and trap-packet address through poly control registers. For
 recoverable user events, hardware writes the packet to that address and enters
 the monitor in Ring 3. The monitor can translate foreign syscalls, perform lazy
 binding, call helper thunks, or reflect breakpoints to a debugger policy.
+Those controls should be frontend-neutral: AArch64 and RISC-V code must be
+able to install or query the same trap vector and monitor packet state directly,
+instead of relying on an x86-only setup path.
 
 The OS is only required for hard faults and real asynchronous events: monitor
 page faults, target page faults that cannot be resolved in user space, hardware

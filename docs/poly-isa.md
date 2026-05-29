@@ -101,6 +101,9 @@ CPUID leaf `0x40000002`, subleaf `11` reports foreign immediate-slot
 signature-call encodings: `EAX=AArch64 PCALL_SIG_IMM slot 0`,
 `EBX=RISC-V PCALL_SIG_IMM slot 0`, and `ECX` as the slot count. Slot `n`
 is encoded by adding `n` to the reported control subop.
+CPUID leaf `0x40000002`, subleaf `12` reports foreign trap-control setup
+encodings: `EAX=AArch64 TRAP_VECTOR_SET`, `EBX=AArch64 MONITOR_PACKET_SET`,
+`ECX=RISC-V TRAP_VECTOR_SET`, and `EDX=RISC-V MONITOR_PACKET_SET`.
 
 ## Foreign Escapes
 
@@ -117,6 +120,7 @@ is encoded by adding `n` to the reported control subop.
 | AArch64 | `HINT #0x7b` / `0xd5032f7f` | landing-pad marker; decoded as a no-op today |
 | AArch64 | `HINT #0x7c` / `0xd5032f9f` | `ABI_SIGNATURE_SET`: `x0=slot`, `x1=kind`, returns `x0=0` or `-EINVAL` |
 | AArch64 | `HINT #0x7d` / `0xd5032fbf` | `ABI_SIGNATURE_GET`: `x0=slot`, returns signature kind in `x0` or `-EINVAL` |
+| AArch64 | `HINT #0x68..#0x6d` / `0xd5032d1f..0xd5032dbf` | trap-vector set/get, trap-vector-mode set/get, monitor-packet set/get; operand/result in `x0` |
 | RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
 | RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
 | RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | compatibility fixed call to AArch64; new register-only code should use `PCALL_SIG_IMM` |
@@ -128,6 +132,7 @@ is encoded by adding `n` to the reported control subop.
 | RISC-V | custom-0, funct3=7, subop 11 / `0x1600700b` | landing-pad marker; decoded as a no-op today |
 | RISC-V | custom-0, funct3=7, subop 12 / `0x1800700b` | `ABI_SIGNATURE_SET`: `a0=slot`, `a1=kind`, returns `a0=0` or `-EINVAL` |
 | RISC-V | custom-0, funct3=7, subop 13 / `0x1a00700b` | `ABI_SIGNATURE_GET`: `a0=slot`, returns signature kind in `a0` or `-EINVAL` |
+| RISC-V | custom-0, funct3=7, subop 24..29 / `0x3000700b..0x3a00700b` | trap-vector set/get, trap-vector-mode set/get, monitor-packet set/get; operand/result in `a0` |
 
 These are decoded frontend-control instructions, not breakpoint or undefined
 instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
