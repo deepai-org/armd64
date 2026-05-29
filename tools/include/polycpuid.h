@@ -282,6 +282,7 @@ enum {
   POLY_CPUID_STATE_ABI_SIGNATURE_XSAVE = (1U << 13),
   POLY_CPUID_STATE_MONITOR_PACKET_XSAVE = (1U << 14),
   POLY_CPUID_STATE_CROSS_RETURN_XSAVE = (1U << 15),
+  POLY_CPUID_STATE_FRONTEND_TLS_XSAVE = (1U << 16),
   POLY_STATE_STACK_KEY_SHIFT = 23,
   POLY_STATE_XSAVE_MAGIC = 0x31594c50, /* "PLY1" */
   POLY_STATE_XSAVE_COMPONENT_NONE = 0,
@@ -290,7 +291,7 @@ enum {
   POLY_STATE_XSAVE_OFFSET_ARCH = 0x3000,
   POLY_STATE_XSAVE_BYTES_ARCH = 4096,
   POLY_STATE_XSAVE_ALIGN_ARCH = 64,
-  POLY_STATE_XSAVE_LAYOUT_VERSION = 6,
+  POLY_STATE_XSAVE_LAYOUT_VERSION = 7,
   POLY_STATE_XSAVE_FLAG_XCR0_USER = (1U << 0),
   POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED = (1U << 1),
   POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME = (1U << 2),
@@ -300,6 +301,7 @@ enum {
   POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES = (1U << 6),
   POLY_STATE_XSAVE_FLAG_MONITOR_PACKET = (1U << 7),
   POLY_STATE_XSAVE_FLAG_CROSS_RETURN = (1U << 8),
+  POLY_STATE_XSAVE_FLAG_FRONTEND_TLS = (1U << 9),
   POLY_STATE_XSAVE_HEADER_OFFSET = 0x000,
   POLY_STATE_XSAVE_HEADER_BYTES = 0x040,
   POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
@@ -332,8 +334,10 @@ enum {
   POLY_STATE_XSAVE_CROSS_RETURN_BYTES = 0x120,
   POLY_STATE_XSAVE_CROSS_RETURN_DEPTH = 8,
   POLY_STATE_XSAVE_CROSS_RETURN_FRAME_BYTES = 0x20,
-  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xea0,
-  POLY_STATE_XSAVE_RESERVED_BYTES = 0x160,
+  POLY_STATE_XSAVE_FRONTEND_TLS_OFFSET = 0xea0,
+  POLY_STATE_XSAVE_FRONTEND_TLS_BYTES = 0x040,
+  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xee0,
+  POLY_STATE_XSAVE_RESERVED_BYTES = 0x120,
   POLY_TRAP_PACKET_LAYOUT_VERSION = 2,
   POLY_TRAP_PACKET_HEADER_BYTES = 64,
   POLY_TRAP_PACKET_ARG_COUNT = 8,
@@ -536,6 +540,14 @@ struct poly_abi_signature_state {
       sizeof(struct poly_abi_signature_slot_state)];
 };
 
+struct poly_frontend_tls_state {
+  uint64_t flags;
+  uint64_t active_mode;
+  uint64_t aarch64_tls_base;
+  uint64_t riscv_tls_base;
+  uint64_t reserved[4];
+};
+
 struct poly_xsave_state {
   struct poly_xsave_header header;
   struct poly_trap_packet trap;
@@ -550,6 +562,7 @@ struct poly_xsave_state {
   struct poly_import_return_state import_return;
   struct poly_abi_signature_state abi_signature;
   struct poly_cross_return_state cross_return;
+  struct poly_frontend_tls_state frontend_tls;
   uint8_t reserved[POLY_STATE_XSAVE_RESERVED_BYTES];
 };
 
@@ -589,6 +602,9 @@ POLY_STATIC_ASSERT(sizeof(struct poly_cross_return_state) ==
 POLY_STATIC_ASSERT(sizeof(struct poly_abi_signature_state) ==
   POLY_STATE_XSAVE_ABI_SIGNATURE_BYTES,
   "poly ABI signature area size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_frontend_tls_state) ==
+  POLY_STATE_XSAVE_FRONTEND_TLS_BYTES,
+  "poly frontend TLS area size must match XSAVE layout");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, header) ==
   POLY_STATE_XSAVE_HEADER_OFFSET,
   "poly XSAVE header offset drifted");
@@ -628,6 +644,9 @@ POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, abi_signature) ==
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, cross_return) ==
   POLY_STATE_XSAVE_CROSS_RETURN_OFFSET,
   "poly cross-return offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, frontend_tls) ==
+  POLY_STATE_XSAVE_FRONTEND_TLS_OFFSET,
+  "poly frontend TLS offset drifted");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, reserved) ==
   POLY_STATE_XSAVE_RESERVED_OFFSET,
   "poly reserved area offset drifted");
@@ -843,7 +862,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
     POLY_CPUID_STATE_IMPORT_RETURN_XSAVE |
     POLY_CPUID_STATE_ABI_SIGNATURE_XSAVE |
     POLY_CPUID_STATE_MONITOR_PACKET_XSAVE |
-    POLY_CPUID_STATE_CROSS_RETURN_XSAVE;
+    POLY_CPUID_STATE_CROSS_RETURN_XSAVE |
+    POLY_CPUID_STATE_FRONTEND_TLS_XSAVE;
   regs.ebx = POLY_STATE_STACK_KEY_SHIFT;
   regs.ecx = POLY_STATE_XSAVE_COMPONENT_ARCH;
   regs.edx = POLY_STATE_XSAVE_BYTES_ARCH;
@@ -864,7 +884,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
     POLY_STATE_XSAVE_FLAG_IMPORT_RETURN |
     POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES |
     POLY_STATE_XSAVE_FLAG_MONITOR_PACKET |
-    POLY_STATE_XSAVE_FLAG_CROSS_RETURN;
+    POLY_STATE_XSAVE_FLAG_CROSS_RETURN |
+    POLY_STATE_XSAVE_FLAG_FRONTEND_TLS;
   return regs;
 }
 

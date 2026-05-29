@@ -165,6 +165,68 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
 }
 
 static __attribute__((noinline)) uint64_t
+nativecheck_aarch64_read_tls(uint64_t tls_base) {
+  uint64_t result;
+  asm volatile(
+    "movq %1, %%r13\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd53bd040\n" // mrs x0,tpidr_el0
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result)
+    : "r"(tls_base)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+      "r11", "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
+nativecheck_riscv_read_tls(uint64_t tls_base) {
+  uint64_t result;
+  asm volatile(
+    "movq %1, %%r13\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00020513\n" // addi a0,tp,0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result)
+    : "r"(tls_base)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+      "r11", "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
+nativecheck_aarch64_switch_riscv_read_tls(uint64_t tls_base) {
+  uint64_t result;
+  asm volatile(
+    "movq %1, %%r13\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd5032e3f\n" // aarch64 polyctrl switch to RISC-V
+    ".long 0x00020513\n" // addi a0,tp,0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result)
+    : "r"(tls_base)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+      "r11", "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
+nativecheck_riscv_switch_aarch64_read_tls(uint64_t tls_base) {
+  uint64_t result;
+  asm volatile(
+    "movq %1, %%r13\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x0200700b\n" // riscv polyctrl switch to AArch64
+    ".long 0xd53bd040\n" // mrs x0,tpidr_el0
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result)
+    : "r"(tls_base)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+      "r11", "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
 poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
   uint64_t rdx = kind;
@@ -2215,6 +2277,67 @@ static int run_poly_cross_return_xsave_roundtrip_probe(void) {
   return 0;
 }
 
+static int run_poly_frontend_tls_probe(void) {
+  struct poly_xsave_state snapshot __attribute__((aligned(64)));
+  const uint64_t aarch64_tls = 0x111ULL;
+  const uint64_t riscv_tls = 0x222ULL;
+  uint64_t result = nativecheck_aarch64_read_tls(aarch64_tls);
+  if (result != aarch64_tls) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 TLS read got=0x%llx expected=0x%llx\n",
+      (unsigned long long) result, (unsigned long long) aarch64_tls);
+    return 1;
+  }
+
+  result = nativecheck_riscv_read_tls(riscv_tls);
+  if (result != riscv_tls) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv TLS read got=0x%llx expected=0x%llx\n",
+      (unsigned long long) result, (unsigned long long) riscv_tls);
+    return 1;
+  }
+
+  memset(&snapshot, 0, sizeof(snapshot));
+  poly_state_export(&snapshot);
+  if (snapshot.frontend_tls.flags != 1 ||
+      snapshot.frontend_tls.aarch64_tls_base != aarch64_tls ||
+      snapshot.frontend_tls.riscv_tls_base != riscv_tls) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly frontend TLS export mismatch flags=0x%llx a64=0x%llx rv=0x%llx\n",
+      (unsigned long long) snapshot.frontend_tls.flags,
+      (unsigned long long) snapshot.frontend_tls.aarch64_tls_base,
+      (unsigned long long) snapshot.frontend_tls.riscv_tls_base);
+    return 1;
+  }
+
+  if (nativecheck_aarch64_read_tls(0x333ULL) != 0x333ULL ||
+      nativecheck_riscv_read_tls(0x444ULL) != 0x444ULL) {
+    fputs("NATIVE_CHECK_FAIL: poly frontend TLS mutation setup failed\n",
+      stderr);
+    return 1;
+  }
+
+  poly_state_import(&snapshot);
+  result = nativecheck_riscv_switch_aarch64_read_tls(0x555ULL);
+  if (result != aarch64_tls) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 TLS isolation got=0x%llx expected=0x%llx\n",
+      (unsigned long long) result, (unsigned long long) aarch64_tls);
+    return 1;
+  }
+
+  poly_state_import(&snapshot);
+  result = nativecheck_aarch64_switch_riscv_read_tls(0x666ULL);
+  if (result != riscv_tls) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64-to-riscv TLS isolation got=0x%llx expected=0x%llx\n",
+      (unsigned long long) result, (unsigned long long) riscv_tls);
+    return 1;
+  }
+
+  return 0;
+}
+
 static int run_poly_state_save_restore_probe(void) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
   struct poly_xsave_state trap_snapshot __attribute__((aligned(64)));
@@ -2242,6 +2365,8 @@ static int run_poly_state_save_restore_probe(void) {
   if (run_poly_invalid_import_no_mutation_probe() != 0)
     return 1;
   if (run_poly_cross_return_xsave_roundtrip_probe() != 0)
+    return 1;
+  if (run_poly_frontend_tls_probe() != 0)
     return 1;
 
   memset(&snapshot, 0, sizeof(snapshot));

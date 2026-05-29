@@ -337,13 +337,16 @@ the normal x86_64 interrupt/fault path, and restores the recorded foreign
 frontend on `IRET64`, `SYSRET`, `SYSEXIT`, or signal return when required.
 
 The prototype CPUID contract exposes poly state as XCR0 component `20`.
-Component layout version `6` is 4096 bytes and contains the mode header, trap
+Component layout version `7` is 4096 bytes and contains the mode header, trap
 packet, active transition record, AArch64 GPR/FP state, RISC-V GPR/FP state,
 hardware transition-stack state, user-space monitor registers, and the ABI
-signature slot bank.
+signature slot bank. It also contains explicit per-frontend TLS bases:
+AArch64 `TPIDR_EL0` state is separate from RISC-V `tp/x4` state, and both are
+saved/restored through the Poly XSAVE component rather than inferred from x86
+`R13`, CR3, or emulator-global state.
 
 Private CPUID leaves start at `0x40000000` and extend through `0x40000009`. The
-prototype software state import layout version is `6`; it is a Bochs fallback,
+prototype software state import layout version is `7`; it is a Bochs fallback,
 not the silicon context-switch contract.
 
 ## Runtime Boundary
