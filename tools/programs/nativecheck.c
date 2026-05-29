@@ -2307,6 +2307,75 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_x86_direct_sum6(void) {
 }
 
 __attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_imm_pcall_aarch64_riscv_sum6(void) {
+  uint64_t result;
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, riscv target from R10/P7
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032c1f\n" // generic signature pcall, immediate slot 0
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x00b50533\n" // add a0,a0,a1
+    ".long 0x00c50533\n" // add a0,a0,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x00008067\n" // ret through hardware return cookie
+    "2:\n"
+    : "=a"(result)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_imm_pcall_riscv_aarch64_sum6(void) {
+  uint64_t result;
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, aarch64 target from R10/P7
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x2000700b\n" // generic signature pcall, immediate slot 0
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0x8b020000\n" // add x0,x0,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
+    "2:\n"
+    : "=a"(result)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+__attribute__((noinline, noipa))
 static uint64_t nativecheck_signature_pcall_aarch64_x86_direct_i128(void) {
   uint64_t result;
   register uint64_t target asm("r10") =
@@ -2584,6 +2653,35 @@ static int run_poly_direct_x86_pcall_probe(void) {
   }
 
   puts("NATIVE_POLY_DIRECT_X86_PCALL_OK");
+  return 0;
+}
+
+static int run_poly_foreign_signature_pcall_probe(void) {
+  const uint64_t expected = 21;
+
+  if (poly_abi_signature_set(0, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly foreign signature slot exchange set failed\n",
+      stderr);
+    return 1;
+  }
+
+  uint64_t result = nativecheck_signature_imm_pcall_aarch64_riscv_sum6();
+  if (result != expected) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 immediate signature riscv pcall result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  result = nativecheck_signature_imm_pcall_riscv_aarch64_sum6();
+  if (result != expected) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv immediate signature aarch64 pcall result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_FOREIGN_SIGNATURE_PCALL_OK");
   return 0;
 }
 
@@ -2927,6 +3025,8 @@ int main(void) {
     if (run_poly_import_return_xsave_probe() != 0)
       return 1;
     if (run_poly_direct_x86_pcall_probe() != 0)
+      return 1;
+    if (run_poly_foreign_signature_pcall_probe() != 0)
       return 1;
     if (run_poly_state_register_bank_probe() != 0)
       return 1;
