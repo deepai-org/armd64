@@ -40,6 +40,8 @@ Other useful targets:
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
   descriptor parsing.
+- Descriptor-backed import calls are a Bochs/runtime compatibility path, not a
+  CPUID-advertised silicon feature.
 - Hot signature calls encode the slot in the control instruction where
   possible, so foreign callers do not need an extra temporary-register move
   before the frontend switch.

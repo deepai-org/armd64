@@ -180,6 +180,8 @@ only as a compatibility fallback, not a required hardware feature.
 Foreign ABI signature-slot controls let AArch64 and RISC-V code program or
 query the same architectural slot bank directly. x86_64 remains the boot and
 system frontend, not the only frontend allowed to configure Poly call state.
+Descriptor-backed x86 import calls are therefore not advertised in the base
+Poly feature mask; software discovers and uses them as runtime fallback policy.
 
 ## ABI Bridge
 
