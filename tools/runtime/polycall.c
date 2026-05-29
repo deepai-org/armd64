@@ -3435,6 +3435,12 @@ static int x86_direct_import_uses_i128_signature(uint64_t import_id) {
     import_id == POLY_IMPORT_FUNC_X86_I128;
 }
 
+static int x86_direct_import_uses_single_result_signature(
+    uint64_t import_id) {
+  return import_id == POLY_IMPORT_FUNC_AARCH64_TLSDESC ||
+    import_id == POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR;
+}
+
 static int x86_direct_import_needs_riscv_fp128_return_thunk(int caller_arch,
     uint64_t import_id) {
   if (caller_arch != POLY_ARCH_RISCV)
@@ -3857,6 +3863,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       contract->signature_slot_x86_sysv_regs_i128 :
     x86_direct_import_uses_i128_signature(import_id) ?
       contract->signature_slot_x86_sysv_regs_i128 :
+    x86_direct_import_uses_single_result_signature(import_id) ?
+      contract->signature_slot_x86_sysv_regs :
       contract->signature_slot_native_regs;
 
   if (stats) {
