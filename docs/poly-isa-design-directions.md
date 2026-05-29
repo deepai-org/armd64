@@ -186,6 +186,22 @@ portable fallback. Signature slots remove thunks whose only job is register
 shuffling, but they deliberately do not remove thunks whose job is ABI memory
 semantics.
 
+The practical rule is "rename, do not marshal." A semi-persistent signature
+slot is worthwhile only when it can be applied like a register-alias-table
+update: source ABI register names and destination ABI register names are made
+to refer to the same physical registers. This can be a rename-stage action with
+no execution-unit register moves. It is not a second ABI interpreter in
+hardware, and it must not make `PCALL` depend on user-memory reads.
+
+For the common all-register case, the loader can program a slot such as
+"SysV x86_64 to AAPCS64 integer/scalar FP" once, then emit hot calls as
+`PCALL target_frontend, target_pc, slot`. The immediate selects the cached RAT
+template, so the transition path does not parse bitmasks or load a descriptor.
+For stack arguments, by-value structs, variadic calls, lazy binding, and vector
+layout mismatches, the call must route through a software thunk. The thunk owns
+the page-fault-capable memory work and may finish with a null, identity, or
+simple register signature.
+
 The area argument is the same as the latency argument. A few signature
 registers plus muxing in rename/dispatch is small, deterministic hardware.
 Adding stack or struct rewriting would require a memory walker, store
