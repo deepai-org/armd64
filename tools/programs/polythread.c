@@ -15,6 +15,8 @@
 #define POLY_OP_TRAP_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x52\n"
 #define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x3a,0xfc,0x5c\n"
 #define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x3a,0xfc,0x5d\n"
+#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
+#define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 
 enum {
   POLYTHREAD_THREADS = 4,
@@ -43,6 +45,25 @@ static inline uint64_t poly_state_key_get(void) {
     :
     : "memory");
   return value;
+}
+
+static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t rax = slot;
+  uint64_t rdx = kind;
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+    : "+a"(rax), "+d"(rdx)
+    :
+    : "memory");
+  return rax;
+}
+
+static inline uint64_t poly_abi_signature_get(uint64_t slot) {
+  uint64_t rax = slot;
+  asm volatile(POLY_OP_ABI_SIGNATURE_GET
+    : "+a"(rax)
+    :
+    : "memory");
+  return rax;
 }
 
 static inline void poly_trap_vector_set(uint64_t value) {
@@ -880,6 +901,34 @@ static void *worker_main(void *arg) {
   if (check_state_key_after_stack_growth(worker_id, state_key) != 0)
     return (void *) 1;
 
+  const uint64_t signature_slot = 5;
+  const uint64_t signature_kind =
+    worker_id == 0 ? POLY_ABI_SIGNATURE_KIND_EXCHANGE :
+    worker_id == 1 ? POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS :
+    worker_id == 2 ? POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 :
+    POLY_ABI_SIGNATURE_KIND_X86_SYSV;
+  if (poly_abi_signature_set(signature_slot, signature_kind) != 0) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu ABI signature set slot=%llu kind=%llu failed\n",
+      (unsigned long) worker_id,
+      (unsigned long long) signature_slot,
+      (unsigned long long) signature_kind);
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "abi-signature-set") != 0)
+    return (void *) 1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+  uint64_t got_signature_kind = poly_abi_signature_get(signature_slot);
+  if (got_signature_kind != signature_kind) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu ABI signature slot leak got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) got_signature_kind,
+      (unsigned long long) signature_kind);
+    return (void *) 1;
+  }
+
   for (unsigned round = 0; round < POLYTHREAD_ROUNDS; round++) {
     uint64_t aarch64_seed = base + round * 2;
     uint64_t riscv_seed = base + round * 2 + 1;
@@ -942,6 +991,15 @@ static void *worker_main(void *arg) {
         (unsigned long) worker_id, round,
         (unsigned long long) current_state_key,
         (unsigned long long) state_key);
+      return (void *) 1;
+    }
+    got_signature_kind = poly_abi_signature_get(signature_slot);
+    if (got_signature_kind != signature_kind) {
+      fprintf(stderr,
+        "POLYTHREAD_FAIL: worker=%lu round=%u ABI signature slot leak got=%llu expected=%llu\n",
+        (unsigned long) worker_id, round,
+        (unsigned long long) got_signature_kind,
+        (unsigned long long) signature_kind);
       return (void *) 1;
     }
     if (hidden_aarch64_fp_result != expected_aarch64_fp) {
