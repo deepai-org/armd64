@@ -754,6 +754,57 @@ static uint64_t direct_riscv_aarch64_signature_sum6(uint64_t a0) {
   return a0;
 }
 
+static uint64_t direct_aarch64_riscv_signature_fp64_mix(uint64_t left_bits,
+    uint64_t right_bits) {
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, RISC-V target from R10/P7
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x02b50553\n" // fadd.d fa0,fa0,fa1
+    ".long 0x0ab50553\n" // fsub.d fa0,fa0,fa1
+    ".long 0x12b50553\n" // fmul.d fa0,fa0,fa1
+    ".long 0x00008067\n" // ret through hardware return cookie
+    "2:\n"
+    ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
+static uint64_t direct_riscv_aarch64_signature_fp64_mix(uint64_t left_bits,
+    uint64_t right_bits) {
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, AArch64 target from R10/P7
+    ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x1e612800\n" // fadd d0,d0,d1
+    ".long 0x1e613800\n" // fsub d0,d0,d1
+    ".long 0x1e610800\n" // fmul d0,d0,d1
+    ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
+    "2:\n"
+    ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
 static uint64_t pcall_aarch64_hidden_set(uint64_t value) {
   uint64_t result;
   uint64_t arg0 = value;
@@ -1311,6 +1362,28 @@ static void *worker_main(void *arg) {
       (unsigned long) worker_id,
       (unsigned long long) direct_sig_riscv_aarch64_result,
       (unsigned long long) direct_sig_riscv_aarch64_expected);
+    return (void *) 1;
+  }
+
+  uint64_t direct_sig_aarch64_riscv_fp_result =
+    direct_aarch64_riscv_signature_fp64_mix(sig_fp_left, sig_fp_right);
+  if (direct_sig_aarch64_riscv_fp_result != sig_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu direct sig aarch64 riscv fp got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) direct_sig_aarch64_riscv_fp_result,
+      (unsigned long long) sig_fp_expected);
+    return (void *) 1;
+  }
+
+  uint64_t direct_sig_riscv_aarch64_fp_result =
+    direct_riscv_aarch64_signature_fp64_mix(sig_fp_left, sig_fp_right);
+  if (direct_sig_riscv_aarch64_fp_result != sig_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu direct sig riscv aarch64 fp got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) direct_sig_riscv_aarch64_fp_result,
+      (unsigned long long) sig_fp_expected);
     return (void *) 1;
   }
   if (wait_for_workers(worker_id, "direct-x86-call-done") != 0)
