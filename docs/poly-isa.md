@@ -1,116 +1,80 @@
 # Poly ISA
 
-Short operating reference for the prototype Poly ISA extension.
+Prototype extension for running existing precompiled x86_64, AArch64, and
+RISC-V64 userspace code in one x86_64 virtual address space.
 
-Goal: run existing precompiled x86_64, AArch64, and RISC-V64 userspace objects
-in one x86_64 virtual address space. This is native ABI compatibility, not a
-new compiler-only ABI target.
+This file is the short operational reference. Constants are in
+`tools/include/polycpuid.h`; rationale is in
+`docs/poly-isa-design-directions.md`.
 
-Implementation constants live in `tools/include/polycpuid.h`. Longer rationale
-and silicon notes live in `docs/poly-isa-design-directions.md`.
-
-## Run It
-
-Build:
+## Run
 
 ```sh
 make image
-```
-
-Useful boot gates:
-
-```sh
-make boot-poly-binfmt-arch-traps
 make boot-poly-call-arch-traps
+make boot-poly-binfmt-arch-traps
 make boot-poly-full-arch-traps
-```
-
-Check logs:
-
-```sh
 rg -n "POLY.*(OK|FAIL)|Kernel panic|Segmentation fault|BUG:" out/serial.log out/bochs*.log
 ```
 
-## What Changes From x86_64
+## Difference From x86_64
 
-- x86_64 remains the system ISA for boot, privilege, page tables, interrupts,
-  faults, virtual memory, atomics, and TSO memory ordering.
-- CPL3 code can switch the instruction frontend to raw AArch64 or raw RISC-V64.
-- Foreign code is fetched directly from `RIP`; there is no per-instruction
-  `#UD` envelope.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts, and
+  faults.
+- CPL3 code can switch the frontend to raw AArch64 or RISC-V64.
+- Foreign code is direct-fetched from `RIP`; there is no per-instruction `#UD`
+  envelope.
 - Cross-ISA calls target real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
   psABI.
-- Non-x86 architectural state is explicit XSAVE-style state, not hidden
-  CR3-scoped emulator state.
-- Hardware does not emulate Linux, libc, libgcc, or libatomic. Foreign syscalls,
-  breakpoints, illegal instructions, unsupported operations, and unresolved
-  imports produce OS-neutral trap records.
-- The hardware boundary is intentionally small: frontend switch, register alias
-  signatures, return cookies, trap packets, and XSAVE state.
-- The loader/runtime handles ELF loading, relocations, PLT/GOT binding, TLS,
-  syscall policy, libc helpers, stack arguments, aggregates, variadics, and
-  incompatible vector layouts.
+- Foreign state is explicit XSAVE-style state, not hidden emulator state.
+- Hardware is OS-neutral: no Linux, libc, import, syscall, or stack-layout
+  emulation.
 
-## Core ISA Model
+## Operations
 
-Frontend IDs are `0=x86_64`, `1=AArch64`, and `2=RISC-V64`.
+| Operation | Purpose |
+| --- | --- |
+| `PENTER frontend` | Enter a raw frontend. |
+| `PSWITCH frontend, target` | Branch to another frontend. |
+| `PCALL frontend, target[, sig]` | Cross-ISA call, optionally applying a register signature slot. |
+| `PIRET` | Resume an interrupted frontend. |
 
-Operations:
+Frontend IDs: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
 
-- `PENTER frontend`: enter a raw foreign frontend from x86_64/system code.
-- `PSWITCH frontend, target`: branch to another frontend without a return
-  cookie.
-- `PCALL frontend, target[, slot]`: apply a register-only ABI signature, push
-  transition state, install a native return cookie, and branch.
-- `PIRET`: restore a previously interrupted frontend after trap handling.
+Rules: AArch64 fetch is 4-byte aligned; RISC-V fetch is 2-byte aligned; every
+transition ends the current decode block; native returns cross frontends only
+through a `PCALL` return cookie.
 
-Rules:
+## Encodings
 
-- AArch64 fetch is 4-byte aligned.
-- RISC-V fetch is 2-byte aligned so compressed instructions remain valid.
-- Every transition ends the current decode block and records precise source and
-  destination PCs.
-- Native return instructions may cross frontends only when returning to a
-  hardware return cookie installed by `PCALL`.
+The Bochs prototype uses temporary decoded x86 controls: `0f 3a fc <subop>`.
+Foreign controls use reserved AArch64 `HINT` encodings and RISC-V64 `custom-0`
+encodings. These are not exception paths.
 
-## Prototype Controls
+A final silicon encoding may change the bytes, but must preserve fixed decode,
+direct frontend redirect, no user-memory descriptor parsing, and no stack
+rewriting.
 
-The Bochs prototype uses temporary decoded x86 controls:
+## ABI State
 
-```text
-0f 3a fc <subop>
-```
+Fast integer exchange window:
 
-This is not an exception path. A silicon allocation can change the bytes, but
-must preserve fixed decode, frontend redirect, no user-memory descriptor
-parsing, and no stack rewriting.
+| x86_64 | RAX | RDX | RCX | RDI | RSI | R8 | R9 | R10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| AArch64 | x0 | x1 | x2 | x3 | x4 | x5 | x6 | x7 |
+| RISC-V | a0 | a1 | a2 | a3 | a4 | a5 | a6 | a7 |
 
-Foreign exit/switch/call controls use reserved AArch64 `HINT` encodings and
-RISC-V64 `custom-0` encodings. Exact opcodes, subops, and CPUID feature bits are
-defined in `tools/include/polycpuid.h`.
+Signature slots are cached register-renaming templates for compatible integer,
+FP, and fixed SIMD ABI lanes. Stack arguments, aggregates, variadics, PLT/GOT
+policy, lazy binding, and incompatible vectors stay in software thunks.
 
-## ABI And State
-
-The baseline exchange window aliases hot integer lanes: `RAX/RDX/RCX/RDI/RSI/R8/R9/R10`
-to AArch64 `x0..x7` and RISC-V `a0..a7`.
-
-Signature slots are cached register-renaming templates selected by `PCALL`.
-They may remap compatible integer, FP, and fixed SIMD ABI lanes without move
-instructions or memory access. They must not describe stack layouts, by-value
-aggregates, variadic metadata, PLT/GOT policy, or lazy binding.
-
-FP lanes `XMM0..XMM7`, AArch64 `v0..v7`, and RISC-V `fa0..fa7` are bridged for
-register-only calls. Wider AVX, SVE, RVV, stack FP overflow, incompatible
-vectors, aggregates, and variadics require runtime thunks.
-
-Poly state is exposed as XCR0 component `20`, layout version `8`, 4096 bytes in
-the current prototype.
+Prototype XSAVE state: XCR0 component `20`, layout version `8`, size `4096`.
 
 ## Traps
 
-If a per-thread user-space monitor is installed, hardware writes trap packets
-there and transfers to the Ring 3 monitor. Otherwise syscall/import traps
-surface as x86 `#UD`; breakpoint traps surface as x86 `#BP`.
+With a per-thread user monitor installed, hardware writes an OS-neutral trap
+packet and transfers to the monitor. Without one, syscall/import traps surface
+as x86 `#UD`; breakpoint traps surface as x86 `#BP`.
 
 Private CPUID leaves start at `0x40000000`; probe the live contract instead of
-hardcoding optional feature assumptions.
+hardcoding optional features.
