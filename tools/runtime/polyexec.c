@@ -2937,14 +2937,15 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     if (process_cross_stubs.size - start < 80)
       return -1;
     size_t offset = start;
-    const uint64_t return_addr = start_addr + 52;
+    const uint64_t return_addr = start_addr + 56;
     emit_u32(code, &offset, 0xd10043ffU); // sub sp, sp, #16
     emit_u32(code, &offset, 0xf9400bf2U); // ldr x18, [sp, #16]
     emit_u32(code, &offset, 0xf90003f2U); // str x18, [sp]
     emit_u32(code, &offset, 0xf90007feU); // str x30, [sp, #8]
     emit_aarch64_movabs(code, &offset, 16, target);
-    emit_aarch64_movabs(code, &offset, 17, return_addr);
-    emit_u32(code, &offset, 0xd5032e5fU); // AArch64 polyctrl call RISC-V
+    emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+    emit_aarch64_movabs(code, &offset, 18, return_addr);
+    emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
     emit_u32(code, &offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(code, &offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(code, &offset, 0xd65f03c0U); // ret
@@ -2953,22 +2954,23 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     return 0;
   }
 
-  if (process_cross_stubs.size - start < 72)
+  if (process_cross_stubs.size - start < 80)
     return -1;
   size_t offset = start;
   const size_t auipc_target_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
   const size_t auipc_return_pc = offset;
-  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset, 0xff010113U); // addi sp,sp,-16
-  emit_u32(code, &offset, riscv_ld(7, 2, 16)); // ld t2,16(sp)
-  emit_u32(code, &offset, riscv_sd(7, 2, 0)); // sd t2,0(sp)
+  emit_u32(code, &offset, riscv_ld(29, 2, 16)); // ld t4,16(sp)
+  emit_u32(code, &offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
   emit_u32(code, &offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
-  emit_u32(code, &offset, 0x0400700bU); // RISC-V polyctrl call AArch64
+  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
   const size_t return_pc = offset;
   emit_u32(code, &offset, 0x00813083U); // ld ra,8(sp)
   emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
@@ -2982,7 +2984,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + return_pc));
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int16_t) ((int64_t) target_data_offset - (int64_t) auipc_target_pc)));
-  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int16_t) ((int64_t) return_data_offset - (int64_t) auipc_return_pc)));
   process_cross_stubs.offset = offset;
   *stub_addr = start_addr;

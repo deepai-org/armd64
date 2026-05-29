@@ -102,6 +102,12 @@ static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
     ((rd & 0x1fU) << 7) | 0x03U;
 }
 
+static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
+  uint32_t uimm = (uint32_t) imm & 0xfffU;
+  return (uimm << 20) | ((rs1 & 0x1fU) << 15) |
+    ((rd & 0x1fU) << 7) | 0x13U;
+}
+
 static int signal_snapshot_matches(void) {
   switch (signal_expected_snapshot) {
   case POLYSIGNAL_SNAPSHOT_NONE:
@@ -294,16 +300,17 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
   };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
-  const size_t aarch64_return_offset = offset + 16 + 16 + 16 + 16 + 4;
+  const size_t aarch64_return_offset = offset + 16 + 16 + 16 + 4 + 16 + 4;
   const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
 
   emit_aarch64_movabs(code, &offset, 0, seed);
   emit_aarch64_movabs(code, &offset, 1, loops);
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
-  emit_aarch64_movabs(code, &offset, 17,
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032e5fU); // aarch64 polyctrl riscv call, call RISC-V
+  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -356,11 +363,12 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
   const size_t auipc_return_pc = offset;
-  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -392,7 +400,7 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
     (int32_t) loops_data_offset - (int32_t) auipc_loops_pc));
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   uint64_t (*entry)(uint64_t, uint64_t) =
