@@ -1,7 +1,7 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system CPU so
-precompiled native ABI objects can share one virtual address space.
+Poly is a prototype extension that lets precompiled x86_64, AArch64, and
+RISC-V64 user-mode code run in one x86_64 virtual address space.
 
 ## Run
 
@@ -11,34 +11,29 @@ make boot-poly-binfmt-arch-traps
 rg -a 'POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Model
+## Frontends
 
-| ID | Frontend | Fetch |
-| --- | --- | --- |
-| `0` | x86_64 | normal x86 byte stream |
-| `1` | AArch64 | raw 32-bit words from `RIP` |
-| `2` | RISC-V64 | raw RV64/RVC from `RIP` |
+- `0`: x86_64, normal byte-stream fetch.
+- `1`: AArch64, raw 32-bit instruction fetch from `RIP`.
+- `2`: RISC-V64, raw RV64/RVC fetch from `RIP`.
 
-## Differences From x86_64
+## How It Differs From x86_64
 
-- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  faults, atomics, and TSO memory ordering.
-- Foreign code is direct-fetched. There is no per-instruction `#UD` envelope.
-- Cross-ISA calls target real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
-  psABI.
-- Register-only ABI cases can use cached signature slots. Stack arguments,
-  aggregates, variadics, lazy binding, and ABI reshaping stay in software.
-- Foreign traps produce OS-neutral trap packets, not Linux/libc-specific CPU
-  behavior.
-- Foreign register state is explicit XSAVE-style state, not hidden emulator
-  state.
+- x86_64 remains the system ISA for boot, paging, privilege, faults,
+  interrupts, atomics, and TSO ordering.
+- Foreign code is direct-fetched. There are no per-instruction `#UD`
+  envelopes.
+- Cross-ISA calls target real ABIs: x86_64 SysV, AAPCS64, and RISC-V psABI.
+- `PCALL` signature slots handle register-only ABI mappings. Stack arguments,
+  aggregates, variadics, and lazy binding remain software/runtime work.
+- Foreign traps use OS-neutral trap packets. The CPU does not emulate Linux,
+  libc, or loader policy.
+- Foreign register state is explicit XSAVE-style architectural state.
 
-## Controls
+## Prototype Controls
 
 - Operations: `PENTER`, `PSWITCH`, `PCALL frontend,target,sig`, `PTRAPRET`.
-- Prototype encodings: x86_64 `0f 3a fc <subop>`, AArch64 `HINT`, RISC-V
-  `custom-0`.
-- Prototype XSAVE component: `20`.
+- Encodings: x86_64 `0f 3a fc <subop>`, AArch64 `HINT`, RISC-V `custom-0`.
+- XSAVE component: `20`.
 
-See `README.md` for current build/test status and
-`docs/poly-isa-design-directions.md` for design rationale.
+Deeper rationale lives in `docs/poly-isa-design-directions.md`.
