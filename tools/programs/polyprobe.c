@@ -1610,6 +1610,12 @@ int main(void) {
   }
   struct poly_cpuid_regs poly_features =
     poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
+  const uint32_t forbidden_features = poly_cpuid_forbidden_feature_mask();
+  if ((poly_features.ecx & forbidden_features) != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: forbidden poly CPUID features advertised ecx=0x%x forbidden=0x%x\n",
+      poly_features.ecx, forbidden_features);
+    return 1;
+  }
   if (poly_features.eax != POLY_CPUID_ABI_VERSION ||
       poly_features.ebx != poly_cpuid_expected_mode_mask() ||
       poly_features.ecx != poly_cpuid_expected_feature_mask() ||
@@ -1866,6 +1872,26 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID frontend leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_frontends.eax, poly_frontends.ebx, poly_frontends.ecx,
       poly_frontends.edx);
+    return 1;
+  }
+  struct poly_cpuid_regs expected_abi_bridge =
+    poly_cpuid_expected_abi_bridge_leaf();
+  struct poly_cpuid_regs poly_abi_bridge =
+    poly_read_cpuid(POLY_CPUID_BASE + 9, 0);
+  const uint32_t forbidden_abi_bridge =
+    poly_cpuid_forbidden_abi_bridge_mask();
+  if ((poly_abi_bridge.ebx & forbidden_abi_bridge) != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: forbidden ABI bridge hardware advertised ebx=0x%x forbidden=0x%x\n",
+      poly_abi_bridge.ebx, forbidden_abi_bridge);
+    return 1;
+  }
+  if (poly_abi_bridge.eax != expected_abi_bridge.eax ||
+      poly_abi_bridge.ebx != expected_abi_bridge.ebx ||
+      poly_abi_bridge.ecx != expected_abi_bridge.ecx ||
+      poly_abi_bridge.edx != expected_abi_bridge.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID ABI bridge leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_abi_bridge.eax, poly_abi_bridge.ebx, poly_abi_bridge.ecx,
+      poly_abi_bridge.edx);
     return 1;
   }
 
