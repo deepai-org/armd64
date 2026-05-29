@@ -75,6 +75,14 @@ CPU then changes which destination architectural names point to which existing
 physical registers. The argument data is not copied, no execution unit performs
 register moves, and no user memory is inspected.
 
+This is the intended silicon sweet spot. A Poly ABI Signature Register is not a
+descriptor pointer and not a mini ABI interpreter. It is a prevalidated
+rename-template entry that tells the frontend transition machinery how to
+relabel already-live physical registers. `PCALL frontend, target, sig_imm`
+selects one cached template; the rename stage applies it while the frontend is
+redirected. The performance target is zero data-move latency for the ABI
+handoff, not a claim that the whole cross-frontend branch has no pipeline cost.
+
 The design rule is narrow: semi-persistent, reconfigurable hardware is useful
 only for register renaming. It must not become a configurable stack or memory
 layout engine. Register aliasing fits the existing rename stage of an OoO CPU;
@@ -92,6 +100,10 @@ The architectural boundary is intentionally small:
   scan variadic metadata, or otherwise perform memory-side ABI translation.
 - Calls that need memory-side ABI work must branch through generated software
   thunks, which can finish with an identity or simple register signature.
+- Signature slots should be small and semi-persistent, for example 4 to 8
+  entries programmed by the loader/runtime for common pairs such as
+  SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and
+  RISC-V psABI-to-SysV.
 
 The mechanism is a programmable register alias table (RAT) template. Modern
 OoO cores already rename architectural registers onto physical registers; a
@@ -113,6 +125,16 @@ It is not a general ABI translation engine. The implementation target is a
 small set of prevalidated mapping slots plus rename-stage muxing, not
 microcode that walks user stacks, copies structs, or handles page faults inside
 the transition instruction.
+
+The hybrid rule is therefore simple: hardware handles the register-only common
+case, software handles the memory-shaped remainder. Calls whose arguments and
+returns fit in compatible integer, FP, or fixed SIMD ABI lanes can use a direct
+signature `PCALL`. Calls involving overflow stack arguments, structs passed by
+value, variadics such as `printf`, lazy binding policy, incompatible vector
+layout, or target-specific stack alignment route through a loader/runtime
+thunk. The thunk owns page faults and ABI-specific memory layout, then performs
+the final cross-frontend branch with a null, identity, or simple cached
+signature.
 
 Architecturally, each slot is a semi-persistent Poly ABI Signature Register:
 it holds a compact, prevalidated register-renaming recipe such as "SysV

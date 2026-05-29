@@ -113,6 +113,12 @@ repacking, variadic handling, or incompatible vector layout must still enter a
 software thunk. That thunk performs the memory-side ABI work and then finishes
 with a null, identity, or simple register signature.
 
+The important silicon boundary is that a signature slot is a cached RAT
+template, not a call descriptor. Hardware may relabel already-live physical
+registers for compatible integer, FP, and fixed SIMD ABI lanes. It must not
+read a stack frame, inspect variadic metadata, split structs, or marshal memory
+during `PCALL`. Those cases deliberately stay in loader/runtime thunks.
+
 The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
 `R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V
 enter controls.
@@ -251,6 +257,14 @@ ABI lanes: SysV x86_64 `RDI,RSI,RDX,RCX,R8,R9`, AAPCS64 `x0..x7`, and RISC-V
 psABI `a0..a7` all use the same architectural kind. The setup cost is paid when
 the loader programs the slot; the hot call-site cost is a frontend redirect
 plus cached rename-template selection.
+
+Typical slots are programmed for common ABI pairs such as SysV-to-AAPCS64,
+AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. For these
+all-register calls, the goal is zero execution-unit data moves: the rename/RAT
+state makes target argument names point at source physical registers while the
+frontend transition occurs. This is still a branch-like control operation, so
+it has frontend and prediction costs; the win is that ABI register shuffles do
+not dispatch as instructions and do not touch memory.
 
 The lifecycle is intentionally simple: `PABI_SIG_SET` programs a compact
 register-renaming recipe, the CPU validates and stores it in the slot bank, and
