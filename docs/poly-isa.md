@@ -1,32 +1,33 @@
 # Poly ISA
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system CPU.
-All code runs in the same x86_64 virtual address space; x86_64 remains the
-system ISA.
+Poly is an x86_64 system ISA extension that adds user-mode AArch64 and RISC-V64
+frontends. All modes share one x86_64 virtual address space; x86_64 still owns
+boot, privilege, paging, interrupts, syscalls, atomics, and the memory model.
 
-## Contract
+## Modes
 
-- x86_64 owns boot, privilege, paging, interrupts, faults, syscalls, atomics,
-  and TSO memory ordering.
-- AArch64 and RISC-V64 are direct-fetch user frontends, not `#UD` envelopes.
-- Frontend ids are x86_64=`0`, AArch64=`1`, RISC-V64=`2`; `3..255` reserved.
-- AArch64 fetches aligned 32-bit instructions from `RIP`.
-- RISC-V64 fetches standard compressed and uncompressed instructions from `RIP`.
-- All frontends share x86_64 virtual memory, TLBs, permissions, and precise
-  fault behavior.
-- Non-x86 architectural state is explicit Poly XSAVE-style state, not hidden
-  CR3-scoped emulator state.
+- x86_64: frontend `0`, system/privileged ISA.
+- AArch64: frontend `1`, direct 32-bit fetch from `RIP`.
+- RISC-V64: frontend `2`, direct RVC/RV64 fetch from `RIP`.
+- `3..255`: reserved.
+
+Foreign modes are not `#UD` instruction envelopes. They are real decode modes
+with shared TLBs, permissions, precise faults, and x86 TSO ordering.
+
+## State
+
+- Common address, stack, and fault model are x86_64-defined.
+- Extra AArch64/RISC-V architectural state is explicit XSAVE-style Poly state.
+- Hidden CR3-scoped emulator register banks are not part of the ISA contract.
 
 ## Interop
 
-- Calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
-  psABI.
-- Register-only calls use cached ABI signature slots to alias exchange
-  registers.
-- Stack arguments, aggregates, variadics, lazy binding, and incompatible vector
-  layouts are handled by loader/runtime thunks.
-- Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
-  OS-neutral trap records for the runtime or OS policy layer.
+- Native ABIs are preserved: x86_64 SysV, AArch64 AAPCS64, RISC-V psABI.
+- Register-only calls may use cached ABI signature slots for register aliasing.
+- Stack args, aggregates, variadics, lazy binding, and incompatible vector
+  layouts stay in loader/runtime thunks.
+- Foreign traps (`svc`, `ecall`, breakpoints, illegal instructions, faults)
+  produce OS-neutral trap records for the runtime or OS policy layer.
 
 ## Prototype Encodings
 
@@ -35,5 +36,5 @@ system ISA.
 - RISC-V64 controls: `custom-0` subspace.
 - Poly XSAVE component: `20`.
 
-Full design rationale: `docs/poly-isa-design-directions.md`.
-Shared constants: `tools/include/polycpuid.h`.
+Design rationale: `docs/poly-isa-design-directions.md`
+Shared constants: `tools/include/polycpuid.h`
