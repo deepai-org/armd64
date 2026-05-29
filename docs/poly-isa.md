@@ -58,6 +58,7 @@ coverage, but the preferred generic form is `PCALL_SIG_IMM_MODE`.
 | `0x2c` | `PCALL_SIG_RV64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2d` | `PCALL_SIG_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2e <slot>` | `PCALL_SIG_IMM_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot as immediate byte |
+| `0x05` | `PLANDING` | x86_64 landing-pad marker; decoded as a no-op today |
 | `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
 | `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
 | `0x6b` | `MONITOR_PACKET_SET` | `RAX=user pointer` for the monitor trap-packet buffer, `0` disables memory packet writes |
@@ -100,6 +101,7 @@ ABI signature-slot count.
 | AArch64 | `HINT #0x78` / `0xd5032f1f` | `PSWITCH`: target in `x16`, frontend ID in `x17` |
 | AArch64 | `HINT #0x79` / `0xd5032f3f` | `PCALL`: target in `x16`, frontend ID in `x17`, continuation in `x18` |
 | AArch64 | `HINT #0x7a` / `0xd5032f5f` | `PCALL_SIG`: target in `x16`, frontend ID in `x17`, continuation in `x18`, signature slot in `x19` |
+| AArch64 | `HINT #0x7b` / `0xd5032f7f` | landing-pad marker; decoded as a no-op today |
 | RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
 | RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
 | RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | call AArch64 target in `x5`, continuation in `x6` |
@@ -107,6 +109,7 @@ ABI signature-slot count.
 | RISC-V | custom-0, funct3=7, subop 8 / `0x1000700b` | `PSWITCH`: target in `x5`, frontend ID in `x6` |
 | RISC-V | custom-0, funct3=7, subop 9 / `0x1200700b` | `PCALL`: target in `x5`, frontend ID in `x6`, continuation in `x7` |
 | RISC-V | custom-0, funct3=7, subop 10 / `0x1400700b` | `PCALL_SIG`: target in `x5`, frontend ID in `x6`, continuation in `x7`, signature slot in `x28` |
+| RISC-V | custom-0, funct3=7, subop 11 / `0x1600700b` | landing-pad marker; decoded as a no-op today |
 
 These are decoded frontend-control instructions, not breakpoint or undefined
 instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
@@ -116,6 +119,11 @@ simple hardware decode without consuming multiple custom opcode pages.
 
 Native return instructions may cross frontends when the link register or stack
 return slot contains a hardware return cookie installed by `PCALL`.
+
+Landing-pad markers are optional validation points for cross-frontend indirect
+targets. The current prototype decodes them as no-ops and reports them through
+CPUID; future policy can require them for selected indirect `PSWITCH`/`PCALL`
+sites without changing ordinary function bodies.
 
 Foreign generic `PCALL` can name x86_64 as frontend `0`. In the Bochs
 prototype, descriptor-backed imports still use the reserved import-call range,

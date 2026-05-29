@@ -11,6 +11,7 @@
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
 #define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
+#define POLY_OP_LANDING ".byte 0x0f,0x3a,0xfc,0x05\n"
 #define POLY_OP_PCALL_A64 ".byte 0x0f,0x3a,0xfc,0x10\n"
 #define POLY_OP_PCALL_RV64 ".byte 0x0f,0x3a,0xfc,0x11\n"
 #define POLY_OP_PCALL_SIG_A64 ".byte 0x0f,0x3a,0xfc,0x2b\n"
@@ -424,6 +425,21 @@ static inline void generic_switch_riscv_probe(void) {
     :
     : "i"(POLY_FRONTEND_RISCV)
     : POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void landing_pad_probe(void) {
+  asm volatile(
+    POLY_OP_LANDING
+    "movq $17, %%rax\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd5032f7f\n" // aarch64 landing pad
+    ".long 0x91000400\n" // add x0,x0,#1
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    POLY_OP_ENTER_RV64
+    ".long 0x1600700b\n" // riscv landing pad
+    ".long 0x00150513\n" // addi a0,a0,1
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void aarch64_generic_switch_riscv_probe(void) {
@@ -1163,6 +1179,16 @@ int main(void) {
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
+  expected_escapes = poly_cpuid_expected_escape_leaf9();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 9);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID landing pad manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
   struct poly_cpuid_regs expected_state =
     poly_cpuid_expected_state_leaf();
   struct poly_cpuid_regs poly_state =
@@ -1386,6 +1412,11 @@ int main(void) {
   generic_switch_riscv_probe();
   if (read_rax() != 33) {
     fprintf(stderr, "POLY_PROBE_FAIL: generic riscv frontend switch mismatch\n");
+    return 1;
+  }
+  landing_pad_probe();
+  if (read_rax() != 19) {
+    fprintf(stderr, "POLY_PROBE_FAIL: landing pad marker mismatch\n");
     return 1;
   }
   aarch64_generic_switch_riscv_probe();

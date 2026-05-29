@@ -58,45 +58,20 @@ pipeline on every transition.
 
 ## Programmable RAT ABI Signature Slots
 
-A fixed exchange window is simple, but it forces software to move registers for
+A fixed exchange window is simple, but it still forces software moves for
 ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
-`x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine:
-allow the runtime to program a small set of register-only ABI signature slots.
+`x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine
+by exposing a small bank of register-only ABI signature slots.
 
 Modern out-of-order CPUs already rename architectural registers through a
-register alias table (RAT). A poly ABI signature should be a small programmable
-RAT update recipe: source frontend architectural register names are rebound to
-destination frontend architectural register names for the call and return fast
-paths. On `PCALL`, hardware selects a cached signature slot and applies those
-mappings in or near the rename stage. The data does not move; only
-architectural names are rebound to physical registers.
+register alias table (RAT). A Poly ABI signature is a semi-persistent RAT update
+recipe: source frontend architectural names are rebound to destination frontend
+architectural names during a cross-ISA branch or call. On `PCALL`, hardware
+selects a cached signature slot and applies those mappings in or near the
+rename stage. The data does not move through integer or FP execution pipes; only
+the architectural names are rebound to existing physical registers.
 
-The architectural abstraction is a semi-persistent Poly ABI Signature Register
-bank, implemented as a small set of slots rather than one large dynamic call
-descriptor. The runtime programs a slot with a register-only mapping such as
-SysV `RDI,RSI,RDX` to AAPCS64 `x0,x1,x2`; a hot `PCALL` names only the slot.
-That keeps transition latency close to a branch plus rename-table update, with
-no operand movement through integer execution pipes. The target is zero
-data-move latency for arguments that already live in registers, not zero branch
-or frontend-redirect latency.
-
-This is hardware-assisted thunk elision, not hardware ABI interpretation. For
-register-only calls, a signature can replace a sequence of software moves such
-as `RDI,RSI,RDX` to `x0,x1,x2` with a rename-table update. For calls whose ABI
-meaning depends on stack layout, aggregate layout, variadic metadata, lazy
-binding, or language runtime policy, the loader/runtime still emits a software
-thunk and uses `PCALL` only for the final fixed-latency frontend branch.
-
-This is the only kind of semi-persistent, reconfigurable ABI hardware that
-belongs on the fast path. Register renaming fits the existing OoO machinery: the
-runtime programs a small control state block, and later transitions consume that
-state by updating rename mappings. Trying to extend the same mechanism to
-memory, stack slots, or aggregate layouts would require page-walking loads,
-variable-latency microcode, partial writes, and precise fault recovery inside
-the transition instruction. That crosses the boundary from an ISA switch into a
-general ABI-marshalling engine and should be kept out of hardware.
-
-For example, a SysV-to-AAPCS64 signature can map:
+For example, a SysV-to-AAPCS64 slot can map:
 
 - x86_64 `RDI` to AArch64 `x0`
 - x86_64 `RSI` to AArch64 `x1`
@@ -105,77 +80,32 @@ For example, a SysV-to-AAPCS64 signature can map:
 - x86_64 `R8` to AArch64 `x4`
 - x86_64 `R9` to AArch64 `x5`
 
-The runtime or loader programs a small number of semi-persistent slots, for
-example 4 to 8 per thread or address space. `PCALL` then names the target
-frontend, target PC, and signature slot, ideally with a small immediate slot
-operand in the final encoding. The common case stays fixed-latency: decode the
-transition, select the signature, update rename mappings, install the return
-cookie, and branch.
+The slot bank should be small, for example 4 to 8 slots. The loader or runtime
+programs common mappings once, such as SysV-to-AAPCS64, AAPCS64-to-SysV,
+SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. Hot call sites then encode only
+the target frontend, target PC, and signature slot. A rare mapping can either
+reuse a cold slot outside the hot path or fall back to a software thunk.
 
-The slot should be semi-persistent and cheap to select, not reconstructed at
-each call site. A plausible implementation exposes 4 to 8 slots, programmed by
-the loader or runtime for common pairs such as SysV-to-AAPCS64,
-AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. Hot call sites
-then encode or supply only the slot number. If a process needs a rare mapping,
-runtime code can reprogram a cold slot outside the hot path.
-
-The slot state must be ordinary architectural Poly state. It should be saved by
-the explicit Poly/XSAVE state component with the rest of the foreign-register
-state, not inferred from CR3, lazy process identity, or hidden emulator maps.
-That makes the mechanism usable by real kernels and thread schedulers rather
-than depending on Bochs-only bookkeeping.
-
-The design point is speed and area efficiency: the hardware only changes
-register aliases. It does not execute moves, copy stack slots, reformat memory
-layouts, or inspect call descriptors in memory. A realistic OoO implementation
-can treat the signature as extra control input to rename/RAT update logic,
-which is much closer to ordinary register renaming than to an ABI interpreter.
-
-The signature slot is semi-persistent reconfigurable hardware state, not part of
-the dynamic call payload. Runtime code can program a slot once for a common
-source/target ABI pair, and many call sites can reuse it. This keeps the hot
-transition path small: `PCALL` selects a slot, applies register-name aliases,
-installs native return-cookie state, and redirects fetch to the target frontend.
-No operand data moves through the integer execution pipes.
-
-Signature slots are architectural Poly state. They must be saved and restored
-by the explicit Poly/XSAVE component with the foreign register files and
-transition-stack state. A runtime can rely on a slot remaining configured across
-thread preemption or explicit `XSAVE`/`XRSTOR`; hardware must not keep the slot
-bank as hidden CR3-scoped or process-global emulator state.
-
-The architectural contract for applying a signature must be as strict as a
-branch-class operation:
+This is hardware-assisted thunk elision, not hardware ABI interpretation. The
+architectural contract for applying a signature is branch-like:
 
 - It performs no user-memory reads or writes.
 - It cannot fault because of stack, descriptor, or aggregate layout access.
 - It does not allocate temporary architectural registers.
 - It only changes frontend mode, PC, return-cookie state, and register aliases.
-- Its slot state is explicit poly architectural state, saved/restored by the
-  poly state component, not hidden CR3 or emulator bookkeeping.
+- Its slot state is explicit Poly architectural state, saved and restored by
+  the Poly/XSAVE component, not hidden CR3 or emulator bookkeeping.
 
 Architecturally, the mechanism should look like:
 
-- `PABI_SIG_SET slot, kind`: program a small register-only mapping slot.
+- `PABI_SIG_SET slot, kind`: program a register-only mapping slot.
 - `PABI_SIG_GET slot`: report the active slot kind for discovery/debugging.
 - `PCALL frontend, target, sig_imm`: branch to another frontend while applying
   the selected cached mapping.
 
-The final encoding can differ, but `PCALL` must name an already-programmed slot
-directly. It must not point at a user-memory descriptor that hardware has to
-load or parse.
-
-Slot programming should happen at load time, lazy binding time, or runtime
-setup time, not on every call. A typical system can reserve one slot for
-SysV-to-AAPCS64, one for AAPCS64-to-SysV, one for SysV-to-RISC-V psABI, and one
-for the reverse direction. Additional slots can cover hot callbacks or
-specialized return-value conventions. If a call site does not match a cached
-slot, software can either program a less-used slot before entering a hot loop or
-fall back to a thunk.
-
 This mechanism must be strictly limited to registers:
 
-- No hardware parsing of descriptors.
+- No hardware parsing of call descriptors.
 - No user-memory reads by `PCALL`.
 - No stack argument repacking.
 - No by-value aggregate layout conversion.
@@ -185,51 +115,33 @@ This mechanism must be strictly limited to registers:
 Stack arguments, split aggregates, variadics, unusual FP/vector ABI cases, and
 all loader policy still go through software thunks. The thunk performs memory
 layout work and then uses a null, identity, or simple register signature for the
-final frontend transition.
+final frontend transition. This is the silicon boundary: register renaming is
+small and predictable because it reuses OoO machinery, while stack and aggregate
+translation needs memory accesses, page-fault recovery, and variable amounts of
+work inside what should remain a fixed-latency frontend switch.
 
-This limit is the silicon boundary. Register renaming is small and predictable
-because it reuses machinery an OoO core already needs. Stack and aggregate
-translation is not the same class of problem: it needs memory accesses, endian
-and layout policy, page-fault recovery, and variable amounts of work. Putting
-that into `PCALL` would make frontend switching an ABI interpreter rather than
-a fast architectural branch.
+The deliberate hybrid model is:
 
-This creates a deliberate hybrid boundary:
-
-- Hardware handles the common all-register case, roughly the 90% case for small
-  C-style calls, by applying a cached signature with no data movement.
-- Software handles the hard 10%: stack layout, by-value aggregates, variadics,
-  lazy binding, and unusual vector cases before making the final fixed-latency
-  transition.
+- Hardware handles the common all-register case by applying a cached signature
+  with no operand data movement.
+- Software handles stack layout, by-value aggregates, variadics, lazy binding,
+  and unusual vector cases before making the final fixed-latency transition.
 - The null signature is the exchange-window ABI, so every implementation has a
   simple fallback even without RAT remapping.
-
-This is the highest-performance silicon-realistic point: reconfigurable
-hardware is used only where modern CPUs already have indirection, namely
-register renaming. Memory layout remains software policy.
-
-The key design rule is that "reconfigurable ABI hardware" means
-semi-persistent register-alias configuration, not general call marshalling. A
-small signature bank is area-efficient because it adds control inputs to
-existing rename logic. A memory or stack reformatter is the opposite: it creates
-variable-latency control flow, page-fault exposure, data-cache traffic, and
-precise recovery work inside the ISA switch itself. Keeping the hardware scope
-to RAT remaps gives hot register-only native calls the fewest possible data
-moves while preserving a clean software escape path for the cases that are
-actually ABI-policy dependent.
 
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
 compatibility mapping, and kind `2` is the hardware-oriented x86_64 SysV
 register-only mapping. Kind `2` is the important silicon-facing form: it maps
 the six SysV integer argument registers into the target ABI without stack
-access. The final silicon-oriented encoding should use a compact slot
-immediate. The current preferred Bochs generic `PCALL` form uses frontend ID in
-`R15`, target PC in `RBX`, return PC in `R11`, and an immediate signature-slot
-byte. Older register-slot forms remain available for compatibility with
-existing probes while the temporary control encoding evolves. `PSWITCH_MODE`
-uses the same frontend ID and target registers but does not install a return
-cookie.
+access. The final silicon-oriented encoding should use a compact slot immediate.
+
+The current preferred Bochs generic `PCALL` form uses frontend ID in `R15`,
+target PC in `RBX`, return PC in `R11`, and an immediate signature-slot byte.
+Older register-slot forms remain available for compatibility with existing
+probes while the temporary control encoding evolves. `PSWITCH_MODE` uses the
+same frontend ID and target registers but does not install a return cookie.
+
 Foreign generic `PSWITCH` controls use the existing scratch branch registers:
 AArch64 `x16=target, x17=frontend ID`; RISC-V `x5=target, x6=frontend ID`.
 Foreign generic `PCALL` adds one scratch continuation register: AArch64
@@ -383,13 +295,15 @@ understand AArch64 or RISC-V register semantics to context-switch a task.
 Cross-frontend branch targets should optionally begin with frontend-specific
 landing-pad instructions:
 
-- x86_64 poly landing opcode
-- AArch64 reserved `HINT`
-- RISC-V custom-0 marker
+- x86_64 poly landing opcode: prototype subop `0x05`
+- AArch64 reserved `HINT`: prototype `HINT #0x7b`
+- RISC-V custom-0 marker: prototype subop `11`
 
 Landing pads give hardware a validation point for indirect cross-ISA control
 flow, help catch wrong-frontend targets, and provide a path for CET/BTI-like
-hardening without making normal direct calls expensive.
+hardening without making normal direct calls expensive. The Bochs prototype
+currently decodes these markers as no-ops and exposes them through CPUID; target
+validation policy can be added later without changing the marker encodings.
 
 ## Implementation Priority
 
