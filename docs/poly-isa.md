@@ -87,7 +87,10 @@ CPUID leaf `0x40000002`, subleaf `6` reports foreign generic frontend controls:
 architectural frontend IDs: `EAX=x86_64`, `EBX=AArch64`, `ECX=RISC-V64`, and
 `EDX` as the supported frontend-ID bitmask.
 CPUID leaf `0x40000002`, subleaf `7` reports the preferred x86 immediate-slot
-generic `PCALL` subop in `EAX` and the ABI signature-slot count in `EBX`.
+generic `PCALL` subop in `EAX`, the ABI signature-slot count in `EBX`, and the
+preferred hot slot manifest. `ECX` packs slot IDs as exchange, x86 SysV
+register-only, and x86 SysV register-only `__int128` return slots in bytes
+0..2. `EDX` packs the corresponding signature kinds in the same byte lanes.
 CPUID leaf `0x40000002`, subleaf `8` reports foreign signature `PCALL`
 controls: `EAX=AArch64 PCALL_SIG`, `EBX=RISC-V PCALL_SIG`, and `ECX` as the
 ABI signature-slot count.
