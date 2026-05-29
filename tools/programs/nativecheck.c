@@ -4632,6 +4632,29 @@ static int run_poly_foreign_signature_pcall_probe(void) {
       stderr);
     return 1;
   }
+
+  result = poly_abi_signature_set(5,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 + 1);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 ABI signature invalid kind mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
+  result = poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_COUNT,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 ABI signature invalid slot mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
   result = nativecheck_aarch64_abi_signature_set_get_slot5();
   if (result != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
