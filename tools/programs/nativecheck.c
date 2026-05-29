@@ -822,8 +822,23 @@ static uint64_t nativecheck_x86_signature_pcall_aarch64_leaf(void) {
     "ret\n");
 }
 
+__attribute__((naked, noinline, used))
+static uint64_t nativecheck_x86_signature_pcall_riscv_leaf(void) {
+  __asm__(
+    "leaq 1f(%rip),%rbx\n"
+    "leaq 2f(%rip),%r11\n"
+    "movq $2,%r15\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0x02a00513\n" // addi a0,zero,42
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    "ret\n");
+}
+
 __attribute__((noreturn, noinline))
-static void child_expect_signature_pcall_stackless(void) {
+static void expect_signature_pcall_stackless_target(
+    uint64_t (*target)(void)) {
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0)
     _exit(97);
 
@@ -849,8 +864,7 @@ static void child_expect_signature_pcall_stackless(void) {
   }
 
   const uint64_t result = nativecheck_call_on_stack(
-    nativecheck_x86_signature_pcall_aarch64_leaf,
-    stack_top);
+    target, stack_top);
   if (result != 42)
     _exit(96);
 
@@ -860,6 +874,18 @@ static void child_expect_signature_pcall_stackless(void) {
   }
 
   _exit(0);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_signature_pcall_aarch64_stackless(void) {
+  expect_signature_pcall_stackless_target(
+    nativecheck_x86_signature_pcall_aarch64_leaf);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_signature_pcall_riscv_stackless(void) {
+  expect_signature_pcall_stackless_target(
+    nativecheck_x86_signature_pcall_riscv_leaf);
 }
 
 __attribute__((noreturn, noinline))
@@ -5067,8 +5093,11 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
 
-  if (expect_child_exit("poly signature pcall stackless transition",
-        0, child_expect_signature_pcall_stackless) != 0)
+  if (expect_child_exit("poly signature pcall aarch64 stackless transition",
+        0, child_expect_signature_pcall_aarch64_stackless) != 0)
+    return 1;
+  if (expect_child_exit("poly signature pcall riscv stackless transition",
+        0, child_expect_signature_pcall_riscv_stackless) != 0)
     return 1;
 
   puts("NATIVE_POLY_FOREIGN_SIGNATURE_PCALL_OK");
