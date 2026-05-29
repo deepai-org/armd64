@@ -1,7 +1,7 @@
 # Poly ISA
 
-Poly is a Bochs prototype for running precompiled x86_64, AArch64, and
-RISC-V64 user-mode code in one x86_64 virtual address space.
+Poly extends an x86_64 Bochs VM with direct-fetch AArch64 and RISC-V64
+user-mode execution for precompiled cross-ISA code.
 
 ## Run
 
@@ -17,18 +17,19 @@ rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.
 - `1`: AArch64 32-bit direct fetch from `RIP`.
 - `2`: RISC-V64 direct RV64/RVC fetch from `RIP`.
 
-## How It Differs From x86_64
+## Difference From x86_64
 
-- x86_64 remains the system ISA: boot, paging, privilege, faults, interrupts,
-  atomics, virtual memory, and TSO ordering.
-- Foreign modes execute native instructions directly, not `#UD` envelopes.
+- x86_64 remains the system ISA for boot, paging, privilege, interrupts,
+  virtual memory, atomics, and TSO ordering.
+- Foreign modes execute raw native instructions; there are no per-instruction
+  `#UD` envelopes.
 - Cross-ISA calls target existing ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
-- Fast `PCALL` is register-only and uses cached ABI signature slots.
+- Fast `PCALL` uses register-only ABI signature slots.
 - Stack arguments, aggregates, variadics, and lazy binding are handled by
-  software thunks/runtime code.
-- Foreign traps create OS-neutral trap packets; they do not emulate Linux or
-  libc in hardware.
-- Non-aliased foreign registers are explicit XSAVE-style architectural state.
+  software thunks/runtime code, not hardware memory repacking.
+- Foreign traps produce OS-neutral trap packets; hardware does not emulate Linux
+  or libc.
+- Non-aliased foreign registers are XSAVE-style architectural state.
 
 ## Controls
 
