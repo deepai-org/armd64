@@ -1,7 +1,7 @@
 # Poly ISA Quick Reference
 
-Poly is a prototype extension that lets precompiled x86_64, AArch64, and
-RISC-V64 user-mode code run in one x86_64 virtual address space.
+Poly lets precompiled x86_64, AArch64, and RISC-V64 user-mode code run in one
+x86_64 virtual address space under the Bochs prototype.
 
 ## Run
 
@@ -14,20 +14,21 @@ rg -a 'POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ## Frontends
 
 - `0`: x86_64, normal byte-stream fetch.
-- `1`: AArch64, raw 32-bit instruction fetch from `RIP`.
+- `1`: AArch64, raw instruction fetch from `RIP`.
 - `2`: RISC-V64, raw RV64/RVC fetch from `RIP`.
 
-## How It Differs From x86_64
+## Differences From x86_64
 
-- x86_64 remains the system ISA for boot, paging, privilege, faults,
-  interrupts, atomics, and TSO ordering.
-- Foreign code is direct-fetched. There are no per-instruction `#UD`
-  envelopes.
-- Cross-ISA calls target real ABIs: x86_64 SysV, AAPCS64, and RISC-V psABI.
-- `PCALL` signature slots handle register-only ABI mappings. Stack arguments,
-  aggregates, variadics, and lazy binding remain software/runtime work.
-- Foreign traps use OS-neutral trap packets. The CPU does not emulate Linux,
-  libc, or loader policy.
+- x86_64 remains the system ISA for boot, paging, privilege, interrupts,
+  faults, atomics, virtual memory, and TSO ordering.
+- Foreign frontends direct-fetch real instructions. There are no per-instruction
+  `#UD` envelopes in the fast path.
+- Cross-ISA calls target existing ABIs: x86_64 SysV, AAPCS64, and RISC-V psABI.
+- Register-only `PCALL` uses cached ABI signature slots for fast integer, FP,
+  and compatible fixed-vector calls.
+- Stack arguments, aggregates, variadics, lazy binding, and loader policy stay
+  in software thunks/runtime code.
+- Foreign traps produce OS-neutral trap packets, not Linux/libc emulation.
 - Foreign register state is explicit XSAVE-style architectural state.
 
 ## Prototype Controls
@@ -36,4 +37,4 @@ rg -a 'POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 - Encodings: x86_64 `0f 3a fc <subop>`, AArch64 `HINT`, RISC-V `custom-0`.
 - XSAVE component: `20`.
 
-Deeper rationale lives in `docs/poly-isa-design-directions.md`.
+Design rationale lives in `docs/poly-isa-design-directions.md`.
