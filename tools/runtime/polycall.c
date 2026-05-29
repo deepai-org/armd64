@@ -118,6 +118,7 @@ enum {
   POLY_ARCH_RISCV = 2,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 14,
+  POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 128,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -8266,12 +8267,20 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
-  // Signature PCALL is register-only. The default U64 probe intentionally
-  // passes overflow arguments, so it must stay on the stack-capable bridge.
-  const int use_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
+  // The generic signature PCALL is register-only. Leaf U64 executables can use
+  // a generated x86 thunk to handle overflow stack args before switching
+  // frontends, keeping stack parsing out of the CPU control instruction.
+  const int use_exchange_u64_pcall = call_kind == POLY_CALL_U64 &&
+    program->elf_type == ET_EXEC &&
+    program->reloc_count == 0 &&
+    program->dep_count == 0 &&
+    !needs_x86_import;
+  const int use_native_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
     call_kind == POLY_CALL_SIGREGS_FP64;
-  const size_t pcall_sequence_size = use_sig_imm_pcall ?
-    POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE : POLY_X86_CONTROL_OPCODE_SIZE;
+  const size_t pcall_sequence_size = use_exchange_u64_pcall ?
+    POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
+    (use_native_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
+      POLY_X86_CONTROL_OPCODE_SIZE);
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
     pcall_sequence_size;
@@ -8371,7 +8380,51 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_movabs_r12(code, &offset, import_x86_table);
   }
   const size_t pcall_opcode_offset = offset;
-  if (use_sig_imm_pcall) {
+  if (use_exchange_u64_pcall) {
+    const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
+      POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
+    const uint8_t shuffle_prefix[] = {
+      0x4d, 0x89, 0xcf,                   // mov r15,r9: save SysV arg5.
+      0x4c, 0x89, 0xd3,                   // mov rbx,r10: target operand.
+      0x48, 0x8d, 0x84, 0x24, 0x00, 0xff,
+      0xff, 0xff,                         // lea rax,[rsp-0x100].
+      0x48, 0x83, 0xe0, 0xf0,             // and rax,-16: foreign SP.
+      0x4c, 0x8b, 0x54, 0x24, 0x18,       // mov r10,[rsp+24].
+      0x4c, 0x89, 0x10,                   // mov [rax],r10.
+      0x4c, 0x8b, 0x54, 0x24, 0x20,
+      0x4c, 0x89, 0x50, 0x08,
+      0x4c, 0x8b, 0x54, 0x24, 0x28,
+      0x4c, 0x89, 0x50, 0x10,
+      0x4c, 0x8b, 0x54, 0x24, 0x30,
+      0x4c, 0x89, 0x50, 0x18,
+      0x4c, 0x8b, 0x54, 0x24, 0x38,
+      0x4c, 0x89, 0x50, 0x20,
+      0x4c, 0x8b, 0x54, 0x24, 0x40,
+      0x4c, 0x89, 0x50, 0x28,
+      0x4c, 0x8b, 0x54, 0x24, 0x48,
+      0x4c, 0x89, 0x50, 0x30,
+      0x4c, 0x8b, 0x54, 0x24, 0x50,
+      0x4c, 0x89, 0x50, 0x38,
+      0x4c, 0x8b, 0x54, 0x24, 0x10,       // mov r10,[rsp+16]: SysV arg7.
+      0x4c, 0x8b, 0x4c, 0x24, 0x08,       // mov r9,[rsp+8]: SysV arg6.
+      0x48, 0x89, 0xf8,                   // mov rax,rdi: exchange arg0.
+      0x48, 0x89, 0xcf,                   // mov rdi,rcx: exchange arg3.
+      0x48, 0x89, 0xd1,                   // mov rcx,rdx: exchange arg2.
+      0x48, 0x89, 0xf2,                   // mov rdx,rsi: exchange arg1.
+      0x4c, 0x89, 0xc6,                   // mov rsi,r8: exchange arg4.
+      0x4d, 0x89, 0xf8,                   // mov r8,r15: exchange arg5.
+      0x41, 0xbf                          // mov r15d,frontend ID.
+    };
+    memcpy(code + offset, shuffle_prefix, sizeof(shuffle_prefix));
+    offset += sizeof(shuffle_prefix);
+    emit_u32(code, &offset, pcall_frontend);
+    code[offset++] = 0x0f;
+    code[offset++] = 0x3a;
+    code[offset++] = 0xfc;
+    code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+    code[offset++] = (uint8_t) import_contract.signature_slot_exchange;
+  }
+  else if (use_native_sig_imm_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
     code[offset++] = 0x4c; // mov rbx,r10: target operand.
