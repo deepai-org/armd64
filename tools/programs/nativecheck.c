@@ -274,6 +274,42 @@ poly_abi_signature_get(uint64_t slot) {
 }
 
 static __attribute__((noinline)) uint64_t
+nativecheck_aarch64_abi_signature_set_get_slot5(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28000a0\n" // movz x0,#5 (signature slot)
+    ".long 0xd2800081\n" // movz x1,#4 (native-register kind)
+    ".long 0xd5032f9f\n" // aarch64 ABI_SIGNATURE_SET
+    ".long 0xd28000a0\n" // movz x0,#5
+    ".long 0xd5032fbf\n" // aarch64 ABI_SIGNATURE_GET
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
+nativecheck_riscv_abi_signature_set_get_slot5(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00500513\n" // addi a0,zero,5 (signature slot)
+    ".long 0x00400593\n" // addi a1,zero,4 (native-register kind)
+    ".long 0x1800700b\n" // riscv ABI_SIGNATURE_SET
+    ".long 0x00500513\n" // addi a0,zero,5
+    ".long 0x1a00700b\n" // riscv ABI_SIGNATURE_GET
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
 poly_landing_policy_set(uint64_t policy) {
   uint64_t rax = policy;
   asm volatile(POLY_OP_LANDING_POLICY_SET
@@ -4099,6 +4135,41 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   const uint64_t fp_left_bits = 0x3ff8000000000000ULL;
   const uint64_t fp_right_bits = 0x4002000000000000ULL;
   const uint64_t fp_expected_bits = 0x400b000000000000ULL;
+  uint64_t result;
+
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly foreign signature setup slot5 reset failed\n",
+      stderr);
+    return 1;
+  }
+  result = nativecheck_aarch64_abi_signature_set_get_slot5();
+  if (result != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 ABI signature control mismatch result=%llu x86_get=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly foreign signature setup slot5 reset failed\n",
+      stderr);
+    return 1;
+  }
+  result = nativecheck_riscv_abi_signature_set_get_slot5();
+  if (result != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv ABI signature control mismatch result=%llu x86_get=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly foreign signature cleanup slot5 failed\n",
+      stderr);
+    return 1;
+  }
 
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
     fputs("NATIVE_CHECK_FAIL: poly foreign signature slot native-regs set failed\n",
@@ -4106,7 +4177,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
 
-  uint64_t result = nativecheck_signature_imm_pcall_aarch64_riscv_sum6();
+  result = nativecheck_signature_imm_pcall_aarch64_riscv_sum6();
   if (result != expected) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly aarch64 immediate signature riscv pcall result=%llu\n",
