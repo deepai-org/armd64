@@ -1192,8 +1192,8 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
   return 0;
 }
 
-static int resolve_direct_x86_register_import(const char *symbol_name,
-    uint64_t *import_id) {
+static int resolve_direct_x86_register_import(int arch,
+    const char *symbol_name, uint64_t *import_id) {
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT0;
     return 0;
@@ -1228,6 +1228,11 @@ static int resolve_direct_x86_register_import(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT7;
+    return 0;
+  }
+  if (arch == POLY_ARCH_AARCH64 &&
+      strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_VEC128_U32;
     return 0;
   }
   return -1;
@@ -5270,7 +5275,8 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     *base_kind = RELOC_BASE_IMPORT_PAGE;
     return 0;
   }
-  if (resolve_direct_x86_register_import(symbol_name, symbol_value) == 0) {
+  if (resolve_direct_x86_register_import(program->arch, symbol_name,
+        symbol_value) == 0) {
     *base_kind = RELOC_BASE_X86_DIRECT_IMPORT_STUB;
     return 0;
   }
