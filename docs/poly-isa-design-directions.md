@@ -218,6 +218,8 @@ encoding should use a compact slot immediate.
 
 The current preferred Bochs generic `PCALL` form uses frontend ID in `R15`,
 target PC in `RBX`, return PC in `R11`, and an immediate signature-slot byte.
+Foreign frontends have matching immediate-slot forms: AArch64 reserves
+`HINT #0x60..#0x67`, and RISC-V reserves custom-0 subops `16..23`.
 Older register-slot forms remain available for compatibility with existing
 probes while the temporary control encoding evolves. `PSWITCH_MODE` uses the
 same frontend ID and target registers but does not install a return cookie.
@@ -225,10 +227,11 @@ same frontend ID and target registers but does not install a return cookie.
 Foreign generic `PSWITCH` controls use the existing scratch branch registers:
 AArch64 `x16=target, x17=frontend ID`; RISC-V `x5=target, x6=frontend ID`.
 Foreign generic `PCALL` adds one scratch continuation register: AArch64
-`x18=return PC`; RISC-V `x7=return PC`. Foreign `PCALL_SIG` adds a
-signature-slot operand: AArch64 `x19`, and RISC-V `x28`. The callee still
-returns with its ordinary native return instruction through the hardware return
-cookie.
+`x18=return PC`; RISC-V `x7=return PC`. Foreign `PCALL_SIG_IMM` encodes the
+signature slot in the control instruction, avoiding a temporary slot register
+on hot paths. The older foreign `PCALL_SIG` register-slot controls use AArch64
+`x19` and RISC-V `x28`. The callee still returns with its ordinary native
+return instruction through the hardware return cookie.
 
 The frontend ID space includes x86_64 as frontend `0`; it should not be a
 privileged special case. In the prototype, foreign `PCALL frontend=0` supports

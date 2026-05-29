@@ -94,6 +94,10 @@ ABI signature-slot count.
 CPUID leaf `0x40000002`, subleaf `10` reports foreign ABI signature-slot
 controls: `EAX=AArch64 SET`, `EBX=AArch64 GET`, `ECX=RISC-V SET`, and
 `EDX=RISC-V GET`.
+CPUID leaf `0x40000002`, subleaf `11` reports foreign immediate-slot
+signature-call encodings: `EAX=AArch64 PCALL_SIG_IMM slot 0`,
+`EBX=RISC-V PCALL_SIG_IMM slot 0`, and `ECX` as the slot count. Slot `n`
+is encoded by adding `n` to the reported control subop.
 
 ## Foreign Escapes
 
@@ -105,6 +109,7 @@ controls: `EAX=AArch64 SET`, `EBX=AArch64 GET`, `ECX=RISC-V SET`, and
 | AArch64 | `HINT #0x76` / `0xd5032edf` | trap return |
 | AArch64 | `HINT #0x78` / `0xd5032f1f` | `PSWITCH`: target in `x16`, frontend ID in `x17` |
 | AArch64 | `HINT #0x79` / `0xd5032f3f` | `PCALL`: target in `x16`, frontend ID in `x17`, continuation in `x18` |
+| AArch64 | `HINT #0x60..#0x67` / `0xd5032c1f + (slot << 5)` | `PCALL_SIG_IMM`: target in `x16`, frontend ID in `x17`, continuation in `x18`, signature slot in encoding |
 | AArch64 | `HINT #0x7a` / `0xd5032f5f` | `PCALL_SIG`: target in `x16`, frontend ID in `x17`, continuation in `x18`, signature slot in `x19` |
 | AArch64 | `HINT #0x7b` / `0xd5032f7f` | landing-pad marker; decoded as a no-op today |
 | AArch64 | `HINT #0x7c` / `0xd5032f9f` | `ABI_SIGNATURE_SET`: `x0=slot`, `x1=kind`, returns `x0=0` or `-EINVAL` |
@@ -115,6 +120,7 @@ controls: `EAX=AArch64 SET`, `EBX=AArch64 GET`, `ECX=RISC-V SET`, and
 | RISC-V | custom-0, funct3=7, subop 6 / `0x0c00700b` | trap return |
 | RISC-V | custom-0, funct3=7, subop 8 / `0x1000700b` | `PSWITCH`: target in `x5`, frontend ID in `x6` |
 | RISC-V | custom-0, funct3=7, subop 9 / `0x1200700b` | `PCALL`: target in `x5`, frontend ID in `x6`, continuation in `x7` |
+| RISC-V | custom-0, funct3=7, subop 16..23 / `0x2000700b + (slot << 25)` | `PCALL_SIG_IMM`: target in `x5`, frontend ID in `x6`, continuation in `x7`, signature slot in encoding |
 | RISC-V | custom-0, funct3=7, subop 10 / `0x1400700b` | `PCALL_SIG`: target in `x5`, frontend ID in `x6`, continuation in `x7`, signature slot in `x28` |
 | RISC-V | custom-0, funct3=7, subop 11 / `0x1600700b` | landing-pad marker; decoded as a no-op today |
 | RISC-V | custom-0, funct3=7, subop 12 / `0x1800700b` | `ABI_SIGNATURE_SET`: `a0=slot`, `a1=kind`, returns `a0=0` or `-EINVAL` |

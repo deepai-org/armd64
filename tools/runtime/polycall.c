@@ -231,6 +231,7 @@ enum {
   POLY_CPUID_FEATURE_AARCH64_HFA64_RET = (1U << 28),
   POLY_CPUID_FEATURE_AARCH64_HFA32_RET = (1U << 29),
   POLY_CPUID_FEATURE_AARCH64_HFA_ARGS = (1U << 30),
+  POLY_CPUID_FEATURE_FOREIGN_PCALL_SIG_IMM = (1U << 31),
   POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 = (1U << 1),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 = (1U << 2),
@@ -303,7 +304,8 @@ static const uint32_t POLY_CPUID_REQUIRED_FEATURES =
   POLY_CPUID_FEATURE_VEC128_BRIDGE |
   POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
   POLY_CPUID_FEATURE_AARCH64_HFA32_RET |
-  POLY_CPUID_FEATURE_AARCH64_HFA_ARGS;
+  POLY_CPUID_FEATURE_AARCH64_HFA_ARGS |
+  POLY_CPUID_FEATURE_FOREIGN_PCALL_SIG_IMM;
 
 enum {
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
@@ -2963,20 +2965,16 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 96)
       return -1;
-    const uint64_t return_addr = start_addr + 76;
-    emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
-    emit_u32(stubs, stub_offset, 0xf90003f3U); // str x19, [sp]
+    const uint64_t return_addr = start_addr + 52;
     emit_aarch64_movabs(stubs, stub_offset, 16, target);
     emit_aarch64_movabs(stubs, stub_offset, 17, 0);
     emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
-    emit_aarch64_movabs(stubs, stub_offset, 19, signature_slot);
-    emit_u32(stubs, stub_offset, 0xd5032f5fU); // aarch64 PCALL_SIG
+    emit_u32(stubs, stub_offset,
+      0xd5032c1fU | ((signature_slot & 0x7U) << 5)); // aarch64 PCALL_SIG_IMM
     if (split_fp32_pair_return) {
       emit_u32(stubs, stub_offset, 0x0e0c3c09U); // umov w9, v0.s[1]
       emit_u32(stubs, stub_offset, 0x1e270121U); // fmov s1, w9
     }
-    emit_u32(stubs, stub_offset, 0xf94003f3U); // ldr x19, [sp]
-    emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
     *stub_addr = start_addr;
     return 0;
@@ -2995,8 +2993,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
     emit_u32(stubs, stub_offset,
-      riscv_addi(28, 0, (int32_t) signature_slot));
-    emit_u32(stubs, stub_offset, 0x1400700bU); // riscv PCALL_SIG
+      0x2000700bU | ((signature_slot & 0x7U) << 25)); // riscv PCALL_SIG_IMM
     const size_t return_pc = *stub_offset;
     if (split_fp32_pair_return) {
       emit_u32(stubs, stub_offset, riscv_fmv_x_d(5, 10)); // fmv.x.d t0,fa0

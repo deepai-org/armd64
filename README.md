@@ -37,6 +37,9 @@ Other useful targets:
   windows. Fixed 128-bit vector calls can also stay on the direct path when
   both ABIs use SIMD/vector registers. Stack, aggregate, variadic, ABI
   reshaping, and loader policy stays in software.
+- Hot signature calls encode the slot in the control instruction where
+  possible, so foreign callers do not need an extra temporary-register move
+  before the frontend switch.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
   OS-neutral trap records carrying eight ABI arguments for runtime or OS
   policy.
