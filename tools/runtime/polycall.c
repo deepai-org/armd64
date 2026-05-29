@@ -118,7 +118,7 @@ enum {
   POLY_ARCH_RISCV = 2,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 14,
-  POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 128,
+  POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 45,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -541,7 +541,8 @@ enum {
   POLY_IMPORT_FUNC_STRTOUL = 197,
   POLY_IMPORT_FUNC_STRTOLL = 198,
   POLY_IMPORT_FUNC_STRTOULL = 199,
-  POLY_IMPORT_FUNC_COUNT = 200,
+  POLY_IMPORT_FUNC_SNPRINTF = 200,
+  POLY_IMPORT_FUNC_COUNT = 201,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1092,6 +1093,9 @@ extern uint64_t poly_host_x86_strtoll(const uint8_t *text, uint8_t **endptr,
     uint64_t base);
 extern uint64_t poly_host_x86_strtoull(const uint8_t *text, uint8_t **endptr,
     uint64_t base);
+extern uint64_t poly_host_x86_snprintf_u64(uint8_t *dest, uint64_t size,
+    const uint8_t *format, const uint8_t *text, uint64_t left,
+    uint64_t right);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1303,6 +1307,7 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     "strspn", "strcspn", "strpbrk", "stpcpy", "stpncpy", "mempcpy",
     "rawmemchr", "strchrnul", "bcmp", "bcopy", "bzero",
     "atoi", "strtol", "strtoul", "strtoll", "strtoull",
+    "snprintf",
     "__tls_get_addr",
     "__stack_chk_fail", "__errno_location", "getauxval", "getpagesize",
     "sysconf", "getenv", "secure_getenv", "malloc", "calloc", "realloc",
@@ -1459,6 +1464,7 @@ static int resolve_direct_x86_register_import(int arch,
     { "strtoul", POLY_IMPORT_FUNC_STRTOUL },
     { "strtoll", POLY_IMPORT_FUNC_STRTOLL },
     { "strtoull", POLY_IMPORT_FUNC_STRTOULL },
+    { "snprintf", POLY_IMPORT_FUNC_SNPRINTF },
     { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
@@ -1798,6 +1804,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_strtoll;
     case POLY_IMPORT_FUNC_STRTOULL:
       return (uint64_t) (uintptr_t) poly_host_x86_strtoull;
+    case POLY_IMPORT_FUNC_SNPRINTF:
+      return (uint64_t) (uintptr_t) poly_host_x86_snprintf_u64;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -2541,11 +2549,17 @@ static void emit_x86_mov_mrsp_disp8_r10(uint8_t *code, size_t *offset,
 }
 
 static void emit_x86_mov_mrsp_disp8_r9_from_r11(uint8_t *code,
-    size_t *offset, uint8_t source_disp, uint8_t dest_disp) {
+    size_t *offset, uint32_t source_disp, uint8_t dest_disp) {
   code[(*offset)++] = 0x4d; // mov r9,[r11+source_disp]
   code[(*offset)++] = 0x8b;
-  code[(*offset)++] = 0x4b;
-  code[(*offset)++] = source_disp;
+  if (source_disp <= 127U) {
+    code[(*offset)++] = 0x4b;
+    code[(*offset)++] = (uint8_t) source_disp;
+  }
+  else {
+    code[(*offset)++] = 0x8b;
+    emit_u32(code, offset, source_disp);
+  }
   emit_x86_mov_mrsp_disp8_r9(code, offset, dest_disp);
 }
 
@@ -2571,6 +2585,36 @@ static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
     ((((uint32_t) (value >> 32)) & 0xffffU) << 5) | rd);
   emit_u32(code, offset, 0xf2e00000U |
     ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | rd);
+}
+
+static uint32_t aarch64_add_sp_imm(uint32_t imm) {
+  return 0x910003ffU | ((imm & 0xfffU) << 10);
+}
+
+static uint32_t aarch64_sub_sp_imm(uint32_t imm) {
+  return 0xd10003ffU | ((imm & 0xfffU) << 10);
+}
+
+static uint32_t aarch64_stp_sp(uint32_t rt, uint32_t rt2,
+    uint32_t byte_offset) {
+  return 0xa90003e0U | (((byte_offset / 8U) & 0x7fU) << 15) |
+    ((rt2 & 0x1fU) << 10) | (rt & 0x1fU);
+}
+
+static uint32_t aarch64_ldp_sp(uint32_t rt, uint32_t rt2,
+    uint32_t byte_offset) {
+  return 0xa94003e0U | (((byte_offset / 8U) & 0x7fU) << 15) |
+    ((rt2 & 0x1fU) << 10) | (rt & 0x1fU);
+}
+
+static uint32_t aarch64_str_sp(uint32_t rt, uint32_t byte_offset) {
+  return 0xf90003e0U | (((byte_offset / 8U) & 0xfffU) << 10) |
+    (rt & 0x1fU);
+}
+
+static uint32_t aarch64_ldr_sp(uint32_t rt, uint32_t byte_offset) {
+  return 0xf94003e0U | (((byte_offset / 8U) & 0xfffU) << 10) |
+    (rt & 0x1fU);
 }
 
 static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
@@ -3555,14 +3599,6 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   return -1;
 }
 
-static int x86_direct_import_needs_link_save(uint64_t import_id) {
-  return import_id == POLY_IMPORT_FUNC_QSORT ||
-    import_id == POLY_IMPORT_FUNC_BSEARCH ||
-    import_id == POLY_IMPORT_FUNC_QSORT_R ||
-    import_id == POLY_IMPORT_FUNC_PTHREAD_ONCE ||
-    import_id == POLY_IMPORT_FUNC_CXA_FINALIZE;
-}
-
 static int x86_direct_import_uses_i128_signature(uint64_t import_id) {
   return import_id == POLY_IMPORT_FUNC_UDIVTI3 ||
     import_id == POLY_IMPORT_FUNC_UMODTI3 ||
@@ -3635,6 +3671,10 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     needs_riscv_fp128_return_x86_thunk ||
     needs_fp64_stack_x86_thunk || needs_sret_stack_x86_thunk ||
     needs_sret_stack10_x86_thunk || needs_mixed_stack_x86_thunk;
+  const uint32_t foreign_stack_source_disp =
+    caller_arch == POLY_ARCH_AARCH64 ?
+      (needs_sret_stack10_x86_thunk ? 112U : 96U) :
+    caller_arch == POLY_ARCH_RISCV ? 112U : 0U;
   uint64_t x86_thunk_addr = 0;
   if (needs_int_stack_x86_thunk) {
     if (stub_limit - *stub_offset < 160)
@@ -3649,7 +3689,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_x86_mov_mrsp_disp8_r10(stubs, stub_offset, 8);
     for (uint32_t n = 2; n < int_stack_arg_count; n++) {
       emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
-        (uint8_t) ((n - 2) * 8), (uint8_t) (n * 8));
+        foreign_stack_source_disp + (n - 2) * 8U, (uint8_t) (n * 8));
     }
     stubs[(*stub_offset)++] = 0x49; // mov r10,rdi
     stubs[(*stub_offset)++] = 0x89;
@@ -3810,11 +3850,10 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       stubs[(*stub_offset)++] = 0x08;
     }
     else {
-      stubs[(*stub_offset)++] = 0x4d; // mov r9,[r11]
-      stubs[(*stub_offset)++] = 0x8b;
-      stubs[(*stub_offset)++] = 0x0b;
-      emit_x86_mov_mrsp_disp8_r9(stubs, stub_offset, 0);
-      emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset, 8, 8);
+      emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+        foreign_stack_source_disp, 0);
+      emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+        foreign_stack_source_disp + 8U, 8);
     }
     emit_movabs_r11(stubs, stub_offset, target);
     stubs[(*stub_offset)++] = 0x41; // call r11
@@ -3875,12 +3914,12 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   else if (needs_sret_stack10_x86_thunk) {
     if (stub_limit - *stub_offset < 128)
       return -1;
-    const uint8_t source_arg7_disp =
-      caller_arch == POLY_ARCH_AARCH64 ? 0 : 0;
-    const uint8_t source_arg8_disp =
-      caller_arch == POLY_ARCH_AARCH64 ? 16 : 8;
-    const uint8_t source_arg9_disp =
-      caller_arch == POLY_ARCH_AARCH64 ? 24 : 16;
+    const uint32_t source_arg7_disp =
+      caller_arch == POLY_ARCH_AARCH64 ? 96U : foreign_stack_source_disp;
+    const uint32_t source_arg8_disp =
+      caller_arch == POLY_ARCH_AARCH64 ? 112U : foreign_stack_source_disp + 8U;
+    const uint32_t source_arg9_disp =
+      caller_arch == POLY_ARCH_AARCH64 ? 120U : foreign_stack_source_disp + 16U;
     x86_thunk_addr = (uint64_t) (uintptr_t) (stubs + *stub_offset);
     stubs[(*stub_offset)++] = 0x48; // sub rsp,40: align and reserve five stack args.
     stubs[(*stub_offset)++] = 0x83;
@@ -3941,8 +3980,10 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     stubs[(*stub_offset)++] = 0x28;
     emit_x86_mov_mrsp_disp8_r9(stubs, stub_offset, 0); // int arg 6
     emit_x86_mov_mrsp_disp8_r10(stubs, stub_offset, 8); // int arg 7
-    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset, 0, 16); // int arg 8
-    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset, 8, 24); // fp arg 8
+    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+      foreign_stack_source_disp, 16); // int arg 8
+    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+      foreign_stack_source_disp + 8U, 24); // fp arg 8
     stubs[(*stub_offset)++] = 0x49; // mov r10,rdi (int arg 3)
     stubs[(*stub_offset)++] = 0x89;
     stubs[(*stub_offset)++] = 0xfa;
@@ -3990,8 +4031,6 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     needs_x86_thunk ? x86_thunk_addr : target;
   const int split_fp32_pair_return =
     import_id == POLY_IMPORT_FUNC_X86_FPAIR32;
-  const int save_foreign_link =
-    x86_direct_import_needs_link_save(import_id);
   const uint32_t signature_slot =
     needs_int_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_fp64_stack_x86_thunk ? contract->signature_slot_exchange :
@@ -4019,7 +4058,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   }
 
   if (caller_arch == POLY_ARCH_AARCH64) {
-    if (stub_limit - start < 128)
+    if (stub_limit - start < 192)
       return -1;
     uint32_t aarch64_sret_arg_shift_insns = 0;
     if (import_id == POLY_IMPORT_FUNC_X86_SRET_U64)
@@ -4030,21 +4069,29 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       aarch64_sret_arg_shift_insns = 10;
     const int needs_aarch64_sret_stack10_stage =
       import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10;
-    uint32_t aarch64_shift_insns = aarch64_sret_arg_shift_insns;
-    if (save_foreign_link && needs_aarch64_sret_stack10_stage)
-      aarch64_shift_insns = 7;
+    const uint32_t aarch64_save_bytes =
+      needs_aarch64_sret_stack10_stage ? 112U : 96U;
+    uint32_t pre_pcall_insns = 7; // sp adjust plus x19-x30 saves.
+    if (needs_aarch64_sret_stack10_stage)
+      pre_pcall_insns += 2;
+    if (aarch64_sret_arg_shift_insns == 7 ||
+        aarch64_sret_arg_shift_insns == 10)
+      pre_pcall_insns += 3;
+    if (aarch64_sret_arg_shift_insns != 0)
+      pre_pcall_insns += 4;
+    pre_pcall_insns += 12; // x16 target, x17 mode, x18 return PC.
     const uint64_t return_addr = start_addr +
-      (save_foreign_link ? 60 : 52) +
-      (uint64_t) aarch64_shift_insns * 4 +
-      (save_foreign_link && needs_aarch64_sret_stack10_stage ? 8 : 0);
-    if (save_foreign_link) {
-      emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
-      emit_u32(stubs, stub_offset, 0xf90007feU); // str x30, [sp, #8]
-    }
+      ((uint64_t) pre_pcall_insns + 1U) * 4U;
+    emit_u32(stubs, stub_offset,
+      aarch64_sub_sp_imm(aarch64_save_bytes));
+    emit_u32(stubs, stub_offset, aarch64_stp_sp(19, 20, 0));
+    emit_u32(stubs, stub_offset, aarch64_stp_sp(21, 22, 16));
+    emit_u32(stubs, stub_offset, aarch64_stp_sp(23, 24, 32));
+    emit_u32(stubs, stub_offset, aarch64_stp_sp(25, 26, 48));
+    emit_u32(stubs, stub_offset, aarch64_stp_sp(27, 28, 64));
+    emit_u32(stubs, stub_offset, aarch64_stp_sp(29, 30, 80));
     if (needs_aarch64_sret_stack10_stage) {
-      if (!save_foreign_link)
-        emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
-      emit_u32(stubs, stub_offset, 0xf90003e7U); // str x7, [sp]
+      emit_u32(stubs, stub_offset, aarch64_str_sp(7, 96));
       emit_u32(stubs, stub_offset, 0xaa0603e7U); // mov x7,x6
     }
     if (aarch64_sret_arg_shift_insns == 7) {
@@ -4073,20 +4120,22 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, 0x1e270121U); // fmov s1, w9
     }
     if (needs_aarch64_sret_stack10_stage)
-      emit_u32(stubs, stub_offset, 0xf94003e7U); // ldr x7, [sp]
-    if (save_foreign_link) {
-      emit_u32(stubs, stub_offset, 0xf94007feU); // ldr x30, [sp, #8]
-      emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
-    }
-    else if (needs_aarch64_sret_stack10_stage)
-      emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
+      emit_u32(stubs, stub_offset, aarch64_ldr_sp(7, 96));
+    emit_u32(stubs, stub_offset, aarch64_ldp_sp(29, 30, 80));
+    emit_u32(stubs, stub_offset, aarch64_ldp_sp(27, 28, 64));
+    emit_u32(stubs, stub_offset, aarch64_ldp_sp(25, 26, 48));
+    emit_u32(stubs, stub_offset, aarch64_ldp_sp(23, 24, 32));
+    emit_u32(stubs, stub_offset, aarch64_ldp_sp(21, 22, 16));
+    emit_u32(stubs, stub_offset, aarch64_ldp_sp(19, 20, 0));
+    emit_u32(stubs, stub_offset,
+      aarch64_add_sp_imm(aarch64_save_bytes));
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
     *stub_addr = start_addr;
     return 0;
   }
 
   if (caller_arch == POLY_ARCH_RISCV) {
-    if (stub_limit - start < 96)
+    if (stub_limit - start < 160)
       return -1;
     const size_t auipc_target_pc = *stub_offset;
     emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
@@ -4097,10 +4146,20 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, 0x00000397U); // auipc x7,0
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
-    if (save_foreign_link) {
-      emit_u32(stubs, stub_offset, riscv_addi(2, 2, -16)); // addi sp,sp,-16
-      emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
-    }
+    emit_u32(stubs, stub_offset, riscv_addi(2, 2, -112));
+    emit_u32(stubs, stub_offset, riscv_sd(1, 2, 0)); // ra
+    emit_u32(stubs, stub_offset, riscv_sd(8, 2, 8)); // s0/fp
+    emit_u32(stubs, stub_offset, riscv_sd(9, 2, 16)); // s1
+    emit_u32(stubs, stub_offset, riscv_sd(18, 2, 24)); // s2
+    emit_u32(stubs, stub_offset, riscv_sd(19, 2, 32)); // s3
+    emit_u32(stubs, stub_offset, riscv_sd(20, 2, 40)); // s4
+    emit_u32(stubs, stub_offset, riscv_sd(21, 2, 48)); // s5
+    emit_u32(stubs, stub_offset, riscv_sd(22, 2, 56)); // s6
+    emit_u32(stubs, stub_offset, riscv_sd(23, 2, 64)); // s7
+    emit_u32(stubs, stub_offset, riscv_sd(24, 2, 72)); // s8
+    emit_u32(stubs, stub_offset, riscv_sd(25, 2, 80)); // s9
+    emit_u32(stubs, stub_offset, riscv_sd(26, 2, 88)); // s10
+    emit_u32(stubs, stub_offset, riscv_sd(27, 2, 96)); // s11
     emit_u32(stubs, stub_offset,
       0x2000700bU | ((signature_slot & 0x7U) << 25)); // riscv PCALL_SIG_IMM
     const size_t return_pc = *stub_offset;
@@ -4109,10 +4168,20 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, riscv_srli(5, 5, 32)); // srli t0,t0,32
       emit_u32(stubs, stub_offset, riscv_fmv_w_x(11, 5)); // fmv.w.x fa1,t0
     }
-    if (save_foreign_link) {
-      emit_u32(stubs, stub_offset, riscv_ld(1, 2, 8)); // ld ra,8(sp)
-      emit_u32(stubs, stub_offset, riscv_addi(2, 2, 16)); // addi sp,sp,16
-    }
+    emit_u32(stubs, stub_offset, riscv_ld(27, 2, 96)); // s11
+    emit_u32(stubs, stub_offset, riscv_ld(26, 2, 88)); // s10
+    emit_u32(stubs, stub_offset, riscv_ld(25, 2, 80)); // s9
+    emit_u32(stubs, stub_offset, riscv_ld(24, 2, 72)); // s8
+    emit_u32(stubs, stub_offset, riscv_ld(23, 2, 64)); // s7
+    emit_u32(stubs, stub_offset, riscv_ld(22, 2, 56)); // s6
+    emit_u32(stubs, stub_offset, riscv_ld(21, 2, 48)); // s5
+    emit_u32(stubs, stub_offset, riscv_ld(20, 2, 40)); // s4
+    emit_u32(stubs, stub_offset, riscv_ld(19, 2, 32)); // s3
+    emit_u32(stubs, stub_offset, riscv_ld(18, 2, 24)); // s2
+    emit_u32(stubs, stub_offset, riscv_ld(9, 2, 16)); // s1
+    emit_u32(stubs, stub_offset, riscv_ld(8, 2, 8)); // s0/fp
+    emit_u32(stubs, stub_offset, riscv_ld(1, 2, 0)); // ra
+    emit_u32(stubs, stub_offset, riscv_addi(2, 2, 112));
     emit_u32(stubs, stub_offset, 0x00008067U); // ret
     if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
       return -1;
@@ -4295,6 +4364,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "strtoull") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STRTOULL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "snprintf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_SNPRINTF * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
@@ -8385,9 +8458,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
-  // The generic signature PCALL is register-only. U64 root calls use a
-  // generated x86 thunk to handle overflow stack args before switching
-  // frontends, keeping stack parsing out of the CPU control instruction.
+  // U64 root calls use a generated x86 thunk to populate the eight-register
+  // exchange window before switching frontends. Overflow stack slots are
+  // copied by the current Bochs prototype from the source ABI stack layout.
   const int use_exchange_u64_pcall = call_kind == POLY_CALL_U64 ||
     call_kind == POLY_CALL_PAIR_U64 ||
     call_kind == POLY_CALL_MIXED_STACK_ARGS ||
@@ -8420,7 +8493,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t callback_stub_offset =
     main_stub_size + import_return_size + import_descriptor_size;
   const size_t stub_size = callback_stub_offset + callback_stub_size;
-  const size_t cross_stub_size = 4096;
+  const size_t cross_stub_size = 65536;
   const size_t callback_callee_save_area_size = 48;
   const size_t cross_stub_base_offset =
     (stub_size + callee_save_area_size + callback_callee_save_area_size + 7U) &
@@ -8517,25 +8590,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint8_t shuffle_prefix[] = {
       0x4d, 0x89, 0xcf,                   // mov r15,r9: save SysV arg5.
       0x4c, 0x89, 0xd3,                   // mov rbx,r10: target operand.
-      0x48, 0x8d, 0x84, 0x24, 0x00, 0xff,
-      0xff, 0xff,                         // lea rax,[rsp-0x100].
-      0x48, 0x83, 0xe0, 0xf0,             // and rax,-16: foreign SP.
-      0x4c, 0x8b, 0x54, 0x24, 0x18,       // mov r10,[rsp+24].
-      0x4c, 0x89, 0x10,                   // mov [rax],r10.
-      0x4c, 0x8b, 0x54, 0x24, 0x20,
-      0x4c, 0x89, 0x50, 0x08,
-      0x4c, 0x8b, 0x54, 0x24, 0x28,
-      0x4c, 0x89, 0x50, 0x10,
-      0x4c, 0x8b, 0x54, 0x24, 0x30,
-      0x4c, 0x89, 0x50, 0x18,
-      0x4c, 0x8b, 0x54, 0x24, 0x38,
-      0x4c, 0x89, 0x50, 0x20,
-      0x4c, 0x8b, 0x54, 0x24, 0x40,
-      0x4c, 0x89, 0x50, 0x28,
-      0x4c, 0x8b, 0x54, 0x24, 0x48,
-      0x4c, 0x89, 0x50, 0x30,
-      0x4c, 0x8b, 0x54, 0x24, 0x50,
-      0x4c, 0x89, 0x50, 0x38,
       0x4c, 0x8b, 0x54, 0x24, 0x10,       // mov r10,[rsp+16]: SysV arg7.
       0x4c, 0x8b, 0x4c, 0x24, 0x08,       // mov r9,[rsp+8]: SysV arg6.
       0x48, 0x89, 0xf8,                   // mov rax,rdi: exchange arg0.

@@ -1,6 +1,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef unsigned long size_t;
+
+extern int snprintf(char *, size_t, const char *, ...);
+
 #if defined(__GNUC__)
 #define POLY_HOST_HELPER __attribute__((noinline, noclone, used))
 #else
@@ -1439,6 +1443,14 @@ uint64_t POLY_HOST_HELPER poly_host_x86_puts(const uint8_t *text)
   if (len == 4096)
     return (uint64_t) -1;
   return (uint64_t) len + 1;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_u64(uint8_t *dest,
+    uint64_t size, const uint8_t *format, const uint8_t *text,
+    uint64_t left, uint64_t right)
+{
+  return (uint64_t) snprintf((char *) dest, (size_t) size,
+    (const char *) format, (const char *) text, left, right);
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
