@@ -50,6 +50,8 @@ Other useful targets:
   policy.
 - Foreign register state is intended to be explicit XSAVE-style architectural
   state. Hidden CR3-scoped emulator state is not the hardware contract.
+- Optional landing-pad policy can require marked indirect `PSWITCH`/`PCALL`
+  targets; the policy is explicit Poly XSAVE state.
 - The Bochs prototype models hardware control instructions as a compact
   decoded `0f 3a fc <subop>` Poly Control Opcode Page. There is no magic trailer
   and no `#UD` envelope in the fast path.

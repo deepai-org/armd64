@@ -60,11 +60,13 @@ coverage, but the preferred generic form is `PCALL_SIG_IMM_MODE`.
 | `0x2c` | `PCALL_SIG_RV64` | target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2d` | `PCALL_SIG_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot in `R12` |
 | `0x2e <slot>` | `PCALL_SIG_IMM_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot as immediate byte |
-| `0x05` | `PLANDING` | x86_64 landing-pad marker; decoded as a no-op today |
+| `0x05` | `PLANDING` | x86_64 landing-pad marker; no-op unless landing policy requires it |
 | `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
 | `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
 | `0x6b` | `MONITOR_PACKET_SET` | `RAX=user pointer` for the monitor trap-packet buffer, `0` disables memory packet writes |
 | `0x6c` | `MONITOR_PACKET_GET` | returns the active monitor trap-packet buffer pointer in `RAX` |
+| `0x6d` | `LANDING_POLICY_SET` | `RAX=policy flags`, returns `RAX=0` or `-EINVAL` |
+| `0x6e` | `LANDING_POLICY_GET` | returns active landing-policy flags in `RAX` |
 
 Prototype signature kinds are `0` for the baseline exchange window, `1` for the
 older stack-capable x86_64 SysV compatibility mapping, `2` for the older
@@ -168,9 +170,10 @@ encodings for RISC-V.
 | AArch64 | `HINT #0x79` / `0xd5032f3f` | `PCALL`: target in `x16`, frontend ID in `x17`, continuation in `x18` |
 | AArch64 | `HINT #0x60..#0x67` / `0xd5032c1f + (slot << 5)` | `PCALL_SIG_IMM`: target in `x16`, frontend ID in `x17`, continuation in `x18`, signature slot in encoding |
 | AArch64 | `HINT #0x7a` / `0xd5032f5f` | `PCALL_SIG`: target in `x16`, frontend ID in `x17`, continuation in `x18`, signature slot in `x19` |
-| AArch64 | `HINT #0x7b` / `0xd5032f7f` | landing-pad marker; decoded as a no-op today |
+| AArch64 | `HINT #0x7b` / `0xd5032f7f` | landing-pad marker; no-op unless landing policy requires it |
 | AArch64 | `HINT #0x7c` / `0xd5032f9f` | `ABI_SIGNATURE_SET`: `x0=slot`, `x1=kind`, returns `x0=0` or `-EINVAL` |
 | AArch64 | `HINT #0x7d` / `0xd5032fbf` | `ABI_SIGNATURE_GET`: `x0=slot`, returns signature kind in `x0` or `-EINVAL` |
+| AArch64 | `HINT #0x7e..#0x7f` / `0xd5032fdf..0xd5032fff` | landing-policy set/get; operand/result in `x0` |
 | AArch64 | `HINT #0x68..#0x6d` / `0xd5032d1f..0xd5032dbf` | trap-vector set/get, trap-vector-mode set/get, monitor-packet set/get; operand/result in `x0` |
 | RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
 | RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
@@ -180,10 +183,11 @@ encodings for RISC-V.
 | RISC-V | custom-0, funct3=7, subop 9 / `0x1200700b` | `PCALL`: target in `x5`, frontend ID in `x6`, continuation in `x7` |
 | RISC-V | custom-0, funct3=7, subop 16..23 / `0x2000700b + (slot << 25)` | `PCALL_SIG_IMM`: target in `x5`, frontend ID in `x6`, continuation in `x7`, signature slot in encoding |
 | RISC-V | custom-0, funct3=7, subop 10 / `0x1400700b` | `PCALL_SIG`: target in `x5`, frontend ID in `x6`, continuation in `x7`, signature slot in `x28` |
-| RISC-V | custom-0, funct3=7, subop 11 / `0x1600700b` | landing-pad marker; decoded as a no-op today |
+| RISC-V | custom-0, funct3=7, subop 11 / `0x1600700b` | landing-pad marker; no-op unless landing policy requires it |
 | RISC-V | custom-0, funct3=7, subop 12 / `0x1800700b` | `ABI_SIGNATURE_SET`: `a0=slot`, `a1=kind`, returns `a0=0` or `-EINVAL` |
 | RISC-V | custom-0, funct3=7, subop 13 / `0x1a00700b` | `ABI_SIGNATURE_GET`: `a0=slot`, returns signature kind in `a0` or `-EINVAL` |
 | RISC-V | custom-0, funct3=7, subop 24..29 / `0x3000700b..0x3a00700b` | trap-vector set/get, trap-vector-mode set/get, monitor-packet set/get; operand/result in `a0` |
+| RISC-V | custom-0, funct3=7, subop 30..31 / `0x3c00700b..0x3e00700b` | landing-policy set/get; operand/result in `a0` |
 
 These are decoded frontend-control instructions, not breakpoint or undefined
 instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
@@ -200,9 +204,11 @@ Native return instructions may cross frontends when the link register or stack
 return slot contains a hardware return cookie installed by `PCALL`.
 
 Landing-pad markers are optional validation points for cross-frontend indirect
-targets. The current prototype decodes them as no-ops and reports them through
-CPUID; future policy can require them for selected indirect `PSWITCH`/`PCALL`
-sites without changing ordinary function bodies.
+targets. Policy bit `1<<0` requires a landing marker at indirect `PSWITCH`
+targets. Policy bit `1<<1` requires a landing marker at indirect `PCALL`
+targets. The policy is frontend-neutral architectural state and is exported in
+the Poly XSAVE component. With policy disabled, landing markers decode as
+no-ops.
 
 Foreign generic `PCALL` can name x86_64 as frontend `0`. Direct x86 targets are
 the hardware contract: `PCALL_SIG` selects a cached register-only ABI signature
@@ -351,16 +357,17 @@ the normal x86_64 interrupt/fault path, and restores the recorded foreign
 frontend on `IRET64`, `SYSRET`, `SYSEXIT`, or signal return when required.
 
 The prototype CPUID contract exposes poly state as XCR0 component `20`.
-Component layout version `7` is 4096 bytes and contains the mode header, trap
+Component layout version `8` is 4096 bytes and contains the mode header, trap
 packet, active transition record, AArch64 GPR/FP state, RISC-V GPR/FP state,
 hardware transition-stack state, user-space monitor registers, and the ABI
 signature slot bank. It also contains explicit per-frontend TLS bases:
 AArch64 `TPIDR_EL0` state is separate from RISC-V `tp/x4` state, and both are
 saved/restored through the Poly XSAVE component rather than inferred from x86
-`R13`, CR3, or emulator-global state.
+`R13`, CR3, or emulator-global state. Landing-policy flags are saved/restored
+in the same Poly XSAVE component.
 
 Private CPUID leaves start at `0x40000000` and extend through `0x40000009`. The
-prototype software state import layout version is `7`; it is a Bochs fallback,
+prototype software state import layout version is `8`; it is a Bochs fallback,
 not the silicon context-switch contract.
 
 ## Runtime Boundary

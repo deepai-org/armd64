@@ -520,8 +520,11 @@ landing-pad instructions:
 Landing pads give hardware a validation point for indirect cross-ISA control
 flow, help catch wrong-frontend targets, and provide a path for CET/BTI-like
 hardening without making normal direct calls expensive. The Bochs prototype
-currently decodes these markers as no-ops and exposes them through CPUID; target
-validation policy can be added later without changing the marker encodings.
+decodes these markers as no-ops when policy is disabled and exposes opt-in
+policy bits that require landing pads for indirect `PSWITCH` targets,
+indirect `PCALL` targets, or both. The policy is explicit Poly XSAVE state, not
+hidden emulator state, so context switching can preserve it like the signature
+slot bank.
 
 ## Implementation Priority
 
