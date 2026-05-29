@@ -38,6 +38,8 @@
 #define POLY_ERR_INVAL ((uint64_t) -22)
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
+static uint32_t polyprobe_native_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
 
 struct polyprobe_monitor_packet {
   struct poly_trap_packet trap;
@@ -905,7 +907,7 @@ static inline void pcall_signature_aarch64_sysv_args_probe(void) {
     "movq $4, %%rcx\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
-    "movq $3, %%r12\n"
+    "movq %0, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     POLY_OP_PCALL_SIG_A64
@@ -919,7 +921,9 @@ static inline void pcall_signature_aarch64_sysv_args_probe(void) {
     "2:\n"
     "popq %%r12\n"
     "popq %%rbx\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    :
+    : "r"((uint64_t) polyprobe_native_signature_slot)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
 static inline void pcall_signature_riscv_sysv_args_probe(void) {
@@ -932,7 +936,7 @@ static inline void pcall_signature_riscv_sysv_args_probe(void) {
     "movq $4, %%rcx\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
-    "movq $3, %%r12\n"
+    "movq %0, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     POLY_OP_PCALL_SIG_RV64
@@ -946,7 +950,9 @@ static inline void pcall_signature_riscv_sysv_args_probe(void) {
     "2:\n"
     "popq %%r12\n"
     "popq %%rbx\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    :
+    : "r"((uint64_t) polyprobe_native_signature_slot)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
 static inline void pcall_signature_aarch64_exchange_probe(void) {
@@ -1022,7 +1028,7 @@ static inline void pcall_signature_mode_aarch64_sysv_args_probe(void) {
     "movq $4, %%rcx\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
-    "movq $3, %%r12\n"
+    "movq %1, %%r12\n"
     "movq %0, %%r15\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
@@ -1039,7 +1045,8 @@ static inline void pcall_signature_mode_aarch64_sysv_args_probe(void) {
     "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_FRONTEND_AARCH64)
+    : "i"(POLY_FRONTEND_AARCH64),
+      "r"((uint64_t) polyprobe_native_signature_slot)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
@@ -1054,7 +1061,7 @@ static inline void pcall_signature_mode_riscv_sysv_args_probe(void) {
     "movq $4, %%rcx\n"
     "movq $5, %%r8\n"
     "movq $6, %%r9\n"
-    "movq $3, %%r12\n"
+    "movq %1, %%r12\n"
     "movq %0, %%r15\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
@@ -1071,7 +1078,8 @@ static inline void pcall_signature_mode_riscv_sysv_args_probe(void) {
     "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_FRONTEND_RISCV)
+    : "i"(POLY_FRONTEND_RISCV),
+      "r"((uint64_t) polyprobe_native_signature_slot)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
@@ -1414,11 +1422,13 @@ static inline void pcall_fp64_riscv_probe(void) {
 static inline void pcall_signature_fp64_aarch64_probe(void) {
   asm volatile(
     "pushq %%rbx\n"
+    "pushq %%r12\n"
     "pushq %%r15\n"
     "movq %0, %%r15\n"
+    "movq %1, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    POLY_OP_PCALL_SIG_MODE
     "1:\n"
     ".long 0x1e612800\n"
     ".long 0x1e613800\n"
@@ -1426,9 +1436,11 @@ static inline void pcall_signature_fp64_aarch64_probe(void) {
     ".long 0xd65f03c0\n"
     "2:\n"
     "popq %%r15\n"
+    "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_FRONTEND_AARCH64)
+    : "i"(POLY_FRONTEND_AARCH64),
+      "r"((uint64_t) polyprobe_native_signature_slot)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "memory");
 }
@@ -1436,11 +1448,13 @@ static inline void pcall_signature_fp64_aarch64_probe(void) {
 static inline void pcall_signature_fp64_riscv_probe(void) {
   asm volatile(
     "pushq %%rbx\n"
+    "pushq %%r12\n"
     "pushq %%r15\n"
     "movq %0, %%r15\n"
+    "movq %1, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    POLY_OP_PCALL_SIG_MODE
     "1:\n"
     ".long 0x02b50553\n"
     ".long 0x0ab50553\n"
@@ -1448,9 +1462,11 @@ static inline void pcall_signature_fp64_riscv_probe(void) {
     ".long 0x00008067\n"
     "2:\n"
     "popq %%r15\n"
+    "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_FRONTEND_RISCV)
+    : "i"(POLY_FRONTEND_RISCV),
+      "r"((uint64_t) polyprobe_native_signature_slot)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "memory");
 }
@@ -1682,6 +1698,16 @@ int main(void) {
       poly_escapes.edx != expected_escapes.edx) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID immediate pcall manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  polyprobe_native_signature_slot = (poly_escapes.ecx >> 24) & 0xffU;
+  if (polyprobe_native_signature_slot >= poly_escapes.ebx ||
+      ((poly_escapes.edx >> 24) & 0xffU) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: native signature slot manifest mismatch slot=%u kind=0x%x count=%u\n",
+      polyprobe_native_signature_slot, (poly_escapes.edx >> 24) & 0xffU,
+      poly_escapes.ebx);
     return 1;
   }
   expected_escapes = poly_cpuid_expected_escape_leaf8();
@@ -2131,6 +2157,15 @@ int main(void) {
   if (read_rax() != POLY_ERR_INVAL ||
       poly_abi_signature_get(6) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI signature invalid kind mismatch\n");
+    return 1;
+  }
+  if (poly_abi_signature_set(polyprobe_native_signature_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_abi_signature_get(polyprobe_native_signature_slot) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: discovered native ABI signature slot setup mismatch slot=%u\n",
+      polyprobe_native_signature_slot);
     return 1;
   }
 
