@@ -108,7 +108,7 @@ is encoded by adding `n` to the reported control subop.
 | --- | --- | --- |
 | AArch64 | `HINT #0x70` / `0xd5032e1f` | exit to x86_64 |
 | AArch64 | `HINT #0x71` / `0xd5032e3f` | switch to RISC-V |
-| AArch64 | `HINT #0x72` / `0xd5032e5f` | call RISC-V target in `x16`, continuation in `x17` |
+| AArch64 | `HINT #0x72` / `0xd5032e5f` | compatibility fixed call to RISC-V; new register-only code should use `PCALL_SIG_IMM` |
 | AArch64 | `HINT #0x76` / `0xd5032edf` | trap return |
 | AArch64 | `HINT #0x78` / `0xd5032f1f` | `PSWITCH`: target in `x16`, frontend ID in `x17` |
 | AArch64 | `HINT #0x79` / `0xd5032f3f` | `PCALL`: target in `x16`, frontend ID in `x17`, continuation in `x18` |
@@ -119,7 +119,7 @@ is encoded by adding `n` to the reported control subop.
 | AArch64 | `HINT #0x7d` / `0xd5032fbf` | `ABI_SIGNATURE_GET`: `x0=slot`, returns signature kind in `x0` or `-EINVAL` |
 | RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
 | RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
-| RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | call AArch64 target in `x5`, continuation in `x6` |
+| RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | compatibility fixed call to AArch64; new register-only code should use `PCALL_SIG_IMM` |
 | RISC-V | custom-0, funct3=7, subop 6 / `0x0c00700b` | trap return |
 | RISC-V | custom-0, funct3=7, subop 8 / `0x1000700b` | `PSWITCH`: target in `x5`, frontend ID in `x6` |
 | RISC-V | custom-0, funct3=7, subop 9 / `0x1200700b` | `PCALL`: target in `x5`, frontend ID in `x6`, continuation in `x7` |
@@ -134,6 +134,11 @@ instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
 debuggers or OS/user trap handling. The RISC-V encoding reserves one fixed
 custom-0 funct3 signature and uses funct7 as the control subop, which gives a
 simple hardware decode without consuming multiple custom opcode pages.
+
+The fixed AArch64/RISC-V call opcodes remain decoded for compatibility with
+older probes. Runtime-generated default register-only cross-frontend calls use
+`PCALL_SIG_IMM`; specialized bridge opcodes remain for compact mixed lanes,
+FP-stack policy, and fixed 128-bit vector policy.
 
 Native return instructions may cross frontends when the link register or stack
 return slot contains a hardware return cookie installed by `PCALL`.
