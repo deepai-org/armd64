@@ -2301,6 +2301,7 @@ static int run_poly_trap_vector_probe(void) {
       POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0, 2, 0, 0, 0) != 0)
     return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
   poly_trap_vector_set_value((uint64_t) (void *) poly_aarch64_trap_vector_raw);
   asm volatile(
@@ -2311,6 +2312,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00400693\n" // addi a3,zero,4
     ".long 0x00500713\n" // addi a4,zero,5
     ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x00700813\n" // addi a6,zero,7
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
@@ -2322,7 +2324,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
+  if (expect_monitor_packet("riscv-to-aarch64 syscall vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0, 1,
+      7, 172) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value((uint64_t) (void *) poly_riscv_trap_vector_raw);
   asm volatile(
@@ -2333,6 +2340,8 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd2800083\n" // movz x3,#4
     ".long 0xd28000a4\n" // movz x4,#5
     ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd28000e6\n" // movz x6,#7
+    ".long 0xd2800107\n" // movz x7,#8
     ".long 0xd2801588\n" // movz x8,#172
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
@@ -2344,7 +2353,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
+  if (expect_monitor_packet("aarch64-to-riscv syscall vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7, 1,
+      7, 8) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
   poly_trap_vector_set_value((uint64_t) (void *) poly_aarch64_trap_vector_ext_raw);
   asm volatile(
@@ -2367,7 +2381,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
+  if (expect_monitor_packet("riscv-to-aarch64 break vector",
+      &monitor_packet, POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0, 21, 27,
+      5) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value((uint64_t) (void *) poly_riscv_trap_vector_ext_raw);
   asm volatile(
@@ -2390,7 +2409,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
+  if (expect_monitor_packet("aarch64-to-riscv break vector",
+      &monitor_packet, POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 5, 5, 11, 17,
+      18) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
   poly_trap_vector_set_value((uint64_t) (void *) poly_aarch64_trap_vector_ext_raw);
   asm volatile(
@@ -2426,7 +2450,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("riscv-to-aarch64 import vector",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 21, 27,
+      5) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value((uint64_t) (void *) poly_riscv_trap_vector_ext_raw);
   asm volatile(
@@ -2464,6 +2493,10 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("aarch64-to-riscv import vector",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 11,
+      17, 18) != 0)
+    return 1;
 
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
   poly_trap_vector_set_value((uint64_t) (void *) poly_aarch64_trap_vector_raw);
