@@ -1487,6 +1487,40 @@ double POLY_HOST_HELPER poly_host_x86_fabs(double value)
   return bits.d;
 }
 
+float POLY_HOST_HELPER poly_host_x86_sqrtf(float value)
+{
+  if (value < 0.0f) {
+    union {
+      uint32_t u;
+      float f;
+    } nan = { 0x7fc00000U };
+    return nan.f;
+  }
+  if (value == 0.0f)
+    return 0.0f;
+  float guess = value >= 1.0f ? value : 1.0f;
+  for (unsigned n = 0; n < 24; n++)
+    guess = 0.5f * (guess + value / guess);
+  return guess;
+}
+
+double POLY_HOST_HELPER poly_host_x86_sqrt(double value)
+{
+  if (value < 0.0) {
+    union {
+      uint64_t u;
+      double d;
+    } nan = { 0x7ff8000000000000ULL };
+    return nan.d;
+  }
+  if (value == 0.0)
+    return 0.0;
+  double guess = value >= 1.0 ? value : 1.0;
+  for (unsigned n = 0; n < 48; n++)
+    guess = 0.5 * (guess + value / guess);
+  return guess;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
 {
   uint64_t result = 0;

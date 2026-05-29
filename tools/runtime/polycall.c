@@ -548,7 +548,9 @@ enum {
   POLY_IMPORT_FUNC_STRTOF = 202,
   POLY_IMPORT_FUNC_FABSF = 203,
   POLY_IMPORT_FUNC_FABS = 204,
-  POLY_IMPORT_FUNC_COUNT = 205,
+  POLY_IMPORT_FUNC_SQRTF = 205,
+  POLY_IMPORT_FUNC_SQRT = 206,
+  POLY_IMPORT_FUNC_COUNT = 207,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1106,6 +1108,8 @@ extern double poly_host_x86_strtod(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_strtof(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_fabsf(float value);
 extern double poly_host_x86_fabs(double value);
+extern float poly_host_x86_sqrtf(float value);
+extern double poly_host_x86_sqrt(double value);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1479,6 +1483,8 @@ static int resolve_direct_x86_register_import(int arch,
     { "strtof", POLY_IMPORT_FUNC_STRTOF },
     { "fabsf", POLY_IMPORT_FUNC_FABSF },
     { "fabs", POLY_IMPORT_FUNC_FABS },
+    { "sqrtf", POLY_IMPORT_FUNC_SQRTF },
+    { "sqrt", POLY_IMPORT_FUNC_SQRT },
     { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
@@ -1828,6 +1834,10 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_fabsf;
     case POLY_IMPORT_FUNC_FABS:
       return (uint64_t) (uintptr_t) poly_host_x86_fabs;
+    case POLY_IMPORT_FUNC_SQRTF:
+      return (uint64_t) (uintptr_t) poly_host_x86_sqrtf;
+    case POLY_IMPORT_FUNC_SQRT:
+      return (uint64_t) (uintptr_t) poly_host_x86_sqrt;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -2187,9 +2197,11 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FPAIR32;
     case POLY_IMPORT_FUNC_STRTOD:
     case POLY_IMPORT_FUNC_FABS:
+    case POLY_IMPORT_FUNC_SQRT:
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP64;
     case POLY_IMPORT_FUNC_STRTOF:
     case POLY_IMPORT_FUNC_FABSF:
+    case POLY_IMPORT_FUNC_SQRTF:
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP32;
     case POLY_IMPORT_FUNC_X86_VEC128_U32:
       if (arch == POLY_ARCH_RISCV)
@@ -4412,6 +4424,14 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "fabs") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FABS * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "sqrtf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_SQRTF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "sqrt") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_SQRT * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
