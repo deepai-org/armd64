@@ -275,7 +275,6 @@ static const uint32_t POLY_ABI_BRIDGE_REQUIRED_FLAGS =
   POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES |
   POLY_ABI_BRIDGE_FLAG_FP64_STACK |
   POLY_ABI_BRIDGE_FLAG_TLS_BASE |
-  POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS |
   POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK |
   POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET |
   POLY_ABI_BRIDGE_FLAG_VEC128 |
@@ -810,7 +809,7 @@ static int read_poly_abi_bridge_contract(struct poly_import_contract *contract) 
       abi_gpr_arg_count != POLY_ABI_BRIDGE_GPR_ARG_COUNT ||
       abi_fp_arg_count != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
       abi_stack_align != POLY_ABI_BRIDGE_STACK_ALIGN ||
-      abi_descriptor_size != POLY_X86_IMPORT_DESCRIPTOR_SIZE ||
+      abi_descriptor_size != 0 ||
       abi_call_stride != POLY_IMPORT_CALL_STRIDE) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x)\n",

@@ -1047,7 +1047,6 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_abi_bridge_leaf(void) {
     POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES |
     POLY_ABI_BRIDGE_FLAG_FP64_STACK |
     POLY_ABI_BRIDGE_FLAG_TLS_BASE |
-    POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS |
     POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK |
     POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET |
     POLY_ABI_BRIDGE_FLAG_VEC128 |
@@ -1056,8 +1055,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_abi_bridge_leaf(void) {
   regs.ecx = POLY_ABI_BRIDGE_GPR_ARG_COUNT |
     (POLY_ABI_BRIDGE_FP_ARG_COUNT << 8) |
     (POLY_ABI_BRIDGE_STACK_ALIGN << 16);
-  regs.edx = POLY_IMPORT_X86_DESCRIPTOR_SIZE |
-    (POLY_IMPORT_CALL_STRIDE << 16);
+  regs.edx = POLY_IMPORT_CALL_STRIDE << 16;
   return regs;
 }
 

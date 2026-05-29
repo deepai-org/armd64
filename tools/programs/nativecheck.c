@@ -5030,9 +5030,12 @@ int main(void) {
       poly_cpuid_expected_abi_bridge_leaf();
     struct poly_cpuid_regs abi_bridge =
       poly_read_cpuid(POLY_CPUID_BASE + 9, 0);
-    if ((abi_bridge.ebx & POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS) != 0) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: descriptor imports advertised as ABI bridge hardware ebx=0x%x\n",
-        abi_bridge.ebx);
+    const uint32_t forbidden_abi_bridge_flags =
+      POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS |
+      POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS;
+    if ((abi_bridge.ebx & forbidden_abi_bridge_flags) != 0) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: descriptor imports advertised as ABI bridge hardware ebx=0x%x forbidden=0x%x\n",
+        abi_bridge.ebx, forbidden_abi_bridge_flags);
       return 1;
     }
     if ((abi_bridge.ebx & POLY_ABI_BRIDGE_FLAG_NATIVE_I128_SIGNATURES) == 0) {
