@@ -36,6 +36,8 @@
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX "rcx", "rsi", "rdi", "r8", "r9"
 #define POLY_ERR_INVAL ((uint64_t) -22)
+#define POLYPROBE_NEUTRAL_SWITCH_DELTA 3ULL
+#define POLYPROBE_NEUTRAL_CALL_DELTA 4ULL
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 static uint32_t polyprobe_native_signature_slot =
@@ -151,6 +153,30 @@ static inline uint64_t read_rsp(void) {
   asm volatile("movq %%rsp, %0" : "=r"(value));
   return value;
 }
+
+#define CHECK_POLYPROBE_SWITCH_DELTA(name, probe, expected_result, expected_delta) \
+  do { \
+    poly_switch_count_status(); \
+    uint64_t switches_before_ = read_rax(); \
+    probe(); \
+    uint64_t result_ = read_rax(); \
+    poly_switch_count_status(); \
+    uint64_t switch_delta_ = read_rax() - switches_before_; \
+    if (result_ != (uint64_t) (expected_result)) { \
+      fprintf(stderr, \
+        "POLY_PROBE_FAIL: %s result expected %llu got %llu\n", \
+        (name), (unsigned long long) (uint64_t) (expected_result), \
+        (unsigned long long) result_); \
+      return 1; \
+    } \
+    if (switch_delta_ != (uint64_t) (expected_delta)) { \
+      fprintf(stderr, \
+        "POLY_PROBE_FAIL: %s switch delta expected %llu got %llu\n", \
+        (name), (unsigned long long) (uint64_t) (expected_delta), \
+        (unsigned long long) switch_delta_); \
+      return 1; \
+    } \
+  } while (0)
 
 static inline uint64_t read_xmm0_u64(void) {
   uint64_t value;
@@ -2059,36 +2085,24 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: landing pad marker mismatch\n");
     return 1;
   }
-  aarch64_generic_switch_riscv_probe();
-  if (read_rax() != 45) {
-    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 generic switch to riscv mismatch\n");
-    return 1;
-  }
+  CHECK_POLYPROBE_SWITCH_DELTA("aarch64 generic switch to riscv",
+    aarch64_generic_switch_riscv_probe, 45, POLYPROBE_NEUTRAL_SWITCH_DELTA);
   aarch64_generic_switch_x86_probe();
   if (read_rax() != 57) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 generic switch to x86 mismatch\n");
     return 1;
   }
-  riscv_generic_switch_aarch64_probe();
-  if (read_rax() != 45) {
-    fprintf(stderr, "POLY_PROBE_FAIL: riscv generic switch to aarch64 mismatch\n");
-    return 1;
-  }
+  CHECK_POLYPROBE_SWITCH_DELTA("riscv generic switch to aarch64",
+    riscv_generic_switch_aarch64_probe, 45, POLYPROBE_NEUTRAL_SWITCH_DELTA);
   riscv_generic_switch_x86_probe();
   if (read_rax() != 58) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv generic switch to x86 mismatch\n");
     return 1;
   }
-  aarch64_generic_call_riscv_probe();
-  if (read_rax() != 45) {
-    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 generic call to riscv mismatch\n");
-    return 1;
-  }
-  riscv_generic_call_aarch64_probe();
-  if (read_rax() != 45) {
-    fprintf(stderr, "POLY_PROBE_FAIL: riscv generic call to aarch64 mismatch\n");
-    return 1;
-  }
+  CHECK_POLYPROBE_SWITCH_DELTA("aarch64 generic call to riscv",
+    aarch64_generic_call_riscv_probe, 45, POLYPROBE_NEUTRAL_CALL_DELTA);
+  CHECK_POLYPROBE_SWITCH_DELTA("riscv generic call to aarch64",
+    riscv_generic_call_aarch64_probe, 45, POLYPROBE_NEUTRAL_CALL_DELTA);
 
   stage("POLY_STAGE: abi-args");
   raw_aarch64_abi_args_probe();
