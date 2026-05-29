@@ -559,6 +559,102 @@ static void child_expect_invalid_generic_pcall_imm_slot_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_aarch64_invalid_generic_switch_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xd2801ff1\n" // movz x17,#255
+    ".long 0xd5032f1f\n" // aarch64 generic switch frontend=x17 target=x16
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_aarch64_invalid_generic_call_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xd2801ff1\n" // movz x17,#255
+    ".long 0xd2800012\n" // movz x18,#0
+    ".long 0xd5032f3f\n" // aarch64 generic pcall frontend=x17 target=x16
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_aarch64_invalid_generic_signature_slot_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xd2800012\n" // movz x18,#0
+    ".long 0xd2800113\n" // movz x19,#8 (invalid signature slot)
+    ".long 0xd5032f5f\n" // aarch64 generic signature pcall
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_invalid_generic_switch_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi x5,zero,0
+    ".long 0x0ff00313\n" // addi x6,zero,255
+    ".long 0x1000700b\n" // riscv generic switch frontend=x6 target=x5
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_invalid_generic_call_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi x5,zero,0
+    ".long 0x0ff00313\n" // addi x6,zero,255
+    ".long 0x00000393\n" // addi x7,zero,0
+    ".long 0x1200700b\n" // riscv generic pcall frontend=x6 target=x5
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi x5,zero,0
+    ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
+    ".long 0x00000393\n" // addi x7,zero,0
+    ".long 0x00800e13\n" // addi x28,zero,8 (invalid signature slot)
+    ".long 0x1400700b\n" // riscv generic signature pcall
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_malformed_import_return_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -675,6 +771,24 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly invalid generic pcall immediate slot", SIGILL,
         child_expect_invalid_generic_pcall_imm_slot_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly aarch64 invalid generic switch", SIGILL,
+        child_expect_aarch64_invalid_generic_switch_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly aarch64 invalid generic pcall", SIGILL,
+        child_expect_aarch64_invalid_generic_call_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly aarch64 invalid generic signature slot",
+        SIGILL, child_expect_aarch64_invalid_generic_signature_slot_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv invalid generic switch", SIGILL,
+        child_expect_riscv_invalid_generic_switch_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv invalid generic pcall", SIGILL,
+        child_expect_riscv_invalid_generic_call_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv invalid generic signature slot", SIGILL,
+        child_expect_riscv_invalid_generic_signature_slot_signal) != 0)
     return 1;
 
   puts("NATIVE_POLY_INVALID_GENERIC_CONTROLS_OK");
