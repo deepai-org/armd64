@@ -65,52 +65,24 @@ pipeline on every transition.
 
 A fixed exchange window is simple, but it still forces software moves for
 ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
-`x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine
-by exposing a small bank of register-only ABI signature slots.
+`x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine:
+make the reconfigurable hardware strictly register-only.
 
-The core decision is to use semi-persistent, reconfigurable hardware only where
-it matches modern CPU structure: register renaming. A runtime can program a
-small set of ABI signatures, and a hot call can select one by immediate. The
-CPU then changes which destination architectural names point to which existing
-physical registers. The argument data is not copied, no execution unit performs
-register moves, and no user memory is inspected.
+Modern OoO cores already rename architectural registers onto physical
+registers through a register alias table (RAT). A Poly ABI Signature Register
+is a compact, prevalidated RAT template. When a hot `PCALL` names a signature
+slot, the rename stage rebinds destination frontend architectural names to the
+physical registers already holding source ABI arguments. No integer, FP, SIMD,
+load, or store execution unit moves the data, and the transition instruction
+does not inspect user memory.
 
-This is the intended silicon sweet spot. A Poly ABI Signature Register is not a
-descriptor pointer and not a mini ABI interpreter. It is a prevalidated
-rename-template entry that tells the frontend transition machinery how to
-relabel already-live physical registers. `PCALL frontend, target, sig_imm`
-selects one cached template; the rename stage applies it while the frontend is
-redirected. The performance target is zero data-move latency for the ABI
-handoff, not a claim that the whole cross-frontend branch has no pipeline cost.
+The slot bank should be semi-persistent hardware state. A loader or runtime
+programs a small number of slots, for example 4 to 8, with common register-only
+ABI pairs such as SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and
+RISC-V psABI-to-SysV. Hot call sites encode only the target frontend, target
+PC, and signature slot immediate. The mapping is not programmed on every call.
 
-The design rule is narrow: semi-persistent, reconfigurable hardware is useful
-only for register renaming. It must not become a configurable stack or memory
-layout engine. Register aliasing fits the existing rename stage of an OoO CPU;
-stack repacking, by-value aggregate conversion, and variadic argument handling
-would require memory reads, memory writes, ABI policy, and page-fault-capable
-microcode in the transition path.
-
-The architectural boundary is intentionally small:
-
-- The loader/runtime may program a few semi-persistent signature slots.
-- A hot `PCALL` may name one slot with an immediate operand.
-- The CPU may apply that slot by changing rename/RAT mappings for compatible
-  integer, FP, or fixed SIMD ABI lanes.
-- The CPU must not read user-memory descriptors, repack stacks, split structs,
-  scan variadic metadata, or otherwise perform memory-side ABI translation.
-- Calls that need memory-side ABI work must branch through generated software
-  thunks, which can finish with an identity or simple register signature.
-- Signature slots should be small and semi-persistent, for example 4 to 8
-  entries programmed by the loader/runtime for common pairs such as
-  SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and
-  RISC-V psABI-to-SysV.
-
-The mechanism is a programmable register alias table (RAT) template. Modern
-OoO cores already rename architectural registers onto physical registers; a
-Poly ABI signature reuses that machinery by rebinding destination frontend
-architectural names to source frontend physical registers during `PCALL`. The
-data does not move through integer or FP execution pipes. The rename stage only
-selects a cached mapping, for example:
+Example signature action:
 
 - x86_64 `RDI` to AArch64 `x0`
 - x86_64 `RSI` to AArch64 `x1`
@@ -119,136 +91,28 @@ selects a cached mapping, for example:
 - x86_64 `R8` to AArch64 `x4`
 - x86_64 `R9` to AArch64 `x5`
 
-This makes semi-persistent ABI reconfiguration plausible in silicon because
-the CPU is only selecting physical-register mappings it already has to track.
-It is not a general ABI translation engine. The implementation target is a
-small set of prevalidated mapping slots plus rename-stage muxing, not
-microcode that walks user stacks, copies structs, or handles page faults inside
-the transition instruction.
-
-The hybrid rule is therefore simple: hardware handles the register-only common
-case, software handles the memory-shaped remainder. Calls whose arguments and
-returns fit in compatible integer, FP, or fixed SIMD ABI lanes can use a direct
-signature `PCALL`. Calls involving overflow stack arguments, structs passed by
-value, variadics such as `printf`, lazy binding policy, incompatible vector
-layout, or target-specific stack alignment route through a loader/runtime
-thunk. The thunk owns page faults and ABI-specific memory layout, then performs
-the final cross-frontend branch with a null, identity, or simple cached
-signature.
-
-Architecturally, each slot is a semi-persistent Poly ABI Signature Register:
-it holds a compact, prevalidated register-renaming recipe such as "SysV
-x86_64 integer args to AAPCS64 integer args" or "AAPCS64 scalar FP args to
-SysV scalar FP args." A `PCALL` carries the target frontend, target PC, and a
-small immediate slot selector. The hot path does not program a mapping, read a
-descriptor, or execute moves; it only applies the cached rename recipe while
-redirecting the frontend.
-
 The preferred generic signature kind is `native-registers`: source frontend
 native ABI argument/result registers are rebound to target frontend native ABI
 argument/result registers. For x86_64 this means SysV lanes such as
-`RDI,RSI,RDX,RCX,R8,R9`; for AArch64 it means AAPCS64 `x0..x7` and
-`v0..v7`; for RISC-V it means psABI `a0..a7` and `fa0..fa7`. This avoids
-encoding x86-specific policy into the architectural fast path while preserving
-compatibility with ordinary precompiled code.
-
-The slot contents are intentionally small enough to look like rename metadata,
-not microcode. A practical slot records the source frontend, destination
-frontend, argument/result register class mappings, and validity bits. Applying
-it is a rename checkpoint operation: destination architectural names are made
-to point at the physical registers already holding the caller's live argument
-values. No integer, FP, SIMD, load, or store execution unit needs to move the
-data.
-
-This is a hardware ABI accelerator, not a hardware ABI interpreter. For
-example, a loader can program slot 0 with the standard SysV x86_64 to AAPCS64
-register mapping. A hot call then executes a form such as
-`PCALL mode, target, slot0`; the hardware action is only to make destination
-names like AArch64 `x0,x1,x2` refer to the same physical registers currently
-named by x86_64 `RDI,RSI,RDX`. The data never moves, and the instruction does
-not inspect memory.
-
-The slot bank is semi-persistent hardware state. A loader or runtime programs a
-small number of slots, for example 4 to 8, with common register-only ABI pairs:
-SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V
-psABI-to-SysV. A hot call site then executes `PCALL frontend, target, sig_imm`.
-The immediate selects a prevalidated slot; the instruction does not fetch a
-user-memory descriptor or carry a dynamic per-call bitmask for hardware to
-interpret.
-
-This gives a concrete lifecycle:
-
-- At load time, the runtime writes a Poly ABI Signature Register with a compact
-  register-only mapping such as "SysV integer and scalar FP args to AAPCS64."
-- The CPU validates the mapping once and caches it as a RAT template in the
-  selected signature slot.
-- A hot call site encodes only the target frontend, target PC, and slot number.
-- During `PCALL`, the rename stage applies the cached template by rebinding
-  architectural names to the existing physical registers.
-- The data never moves, and the transition does not allocate a memory-side ABI
-  sequencer.
-
-The runtime should therefore program slots at load time, link time, or lazy
-binding time, not on every call. Call sites that match a cached signature become
-one frontend-control instruction. Call sites that need a custom layout branch
-to a generated thunk; the thunk can still end with `PCALL` using a null,
-identity, or simple cached signature after it has finished the memory work.
-
-This is the only kind of reconfigurable ABI hardware that should be in the
-ISA. Semi-persistent register remapping fits existing OoO machinery because it
-is just a controlled rename-map update. The hardware is not asked to understand
-stack layouts, copy overflow arguments, split by-value structs, or inspect
-variadic metadata. Trying to extend the same mechanism from registers into
-memory would turn `PCALL` into a variable-latency microcoded ABI engine with
-new page-fault points in the transition path.
-
-This is the silicon-realistic middle ground between a fixed exchange window and
-a hardware ABI interpreter. The exchange window remains the null signature and
-portable fallback. Signature slots remove thunks whose only job is register
-shuffling, but they deliberately do not remove thunks whose job is ABI memory
-semantics.
-
-The practical rule is "rename, do not marshal." A semi-persistent signature
-slot is worthwhile only when it can be applied like a register-alias-table
-update: source ABI register names and destination ABI register names are made
-to refer to the same physical registers. This can be a rename-stage action with
-no execution-unit register moves. It is not a second ABI interpreter in
-hardware, and it must not make `PCALL` depend on user-memory reads.
-
-For the common all-register case, the loader can program a slot such as
-"SysV x86_64 to AAPCS64 integer/scalar FP" once, then emit hot calls as
-`PCALL target_frontend, target_pc, slot`. The immediate selects the cached RAT
-template, so the transition path does not parse bitmasks or load a descriptor.
-For stack arguments, by-value structs, variadic calls, lazy binding, and vector
-layout mismatches, the call must route through a software thunk. The thunk owns
-the page-fault-capable memory work and may finish with a null, identity, or
-simple register signature.
-
-The area argument is the same as the latency argument. A few signature
-registers plus muxing in rename/dispatch is small, deterministic hardware.
-Adding stack or struct rewriting would require a memory walker, store
-generation, rollback state, and page-fault handling inside the transition
-instruction. That is a different class of machine, and it is not the Poly ISA
-contract.
-
-This is also where the design draws the line on "hardware ABI translation."
-Register renaming is architectural state selection. Stack and aggregate
-translation is memory transformation. The former fits naturally into the
-rename/checkpoint machinery already required by an OoO frontend; the latter
-creates variable-latency execution and precise-exception complexity. Poly
-should expose the former and require software thunks for the latter.
+`RDI,RSI,RDX,RCX,R8,R9` and `XMM0..XMM7`; for AArch64 it means AAPCS64
+`x0..x7` and `v0..v7`; for RISC-V it means psABI `a0..a7` and `fa0..fa7`.
+This preserves compatibility with ordinary precompiled code instead of
+inventing a compiler-only ABI.
 
 The hardware/software split is strict:
 
 - Hardware handles register-only argument and return handoff by selecting a
   cached signature slot and rebinding architectural names in RAT state.
-- Hardware may include compatible integer and FP/SIMD register lanes in a
-  signature, but only when source and destination ABI classes match.
-- Software handles stack arguments, by-value aggregate layout, variadics,
-  PLT/GOT and lazy-binding policy, cross-class vector reshaping, and any ABI
-  rule that requires memory inspection or rewriting.
-- A software thunk can still finish with `PCALL` using an identity, null, or
-  simple register signature after it has completed memory-side ABI work.
+- Hardware may include compatible integer, FP, and fixed SIMD lanes in a
+  signature when source and destination ABI classes match.
+- Hardware must not read user-memory descriptors, repack stacks, split structs,
+  scan variadic metadata, reshape vectors, or perform memory-side ABI
+  translation.
+- Software thunks handle overflow stack arguments, by-value aggregates,
+  variadics such as `printf`, target stack alignment, PLT/GOT and lazy-binding
+  policy, and incompatible vector layouts.
+- A thunk may finish with a null, identity, or simple register signature
+  `PCALL` after it completes the page-fault-capable memory work.
 
 The architectural contract for applying a signature is branch-like:
 
@@ -266,14 +130,6 @@ Architecturally, the controls should be:
 - `PCALL frontend, target, sig_imm`: branch to another frontend while applying
   the selected cached mapping.
 
-For example, a runtime can program slot 0 as SysV x86_64 to AAPCS64 so
-`RDI,RSI,RDX` become `x0,x1,x2`, slot 1 as AAPCS64 to SysV, and slot 2 as
-SysV to RISC-V psABI. Register-only call sites then use `PCALL` with an
-immediate slot selector. Calls with stack arguments, structs, vectors that need
-class conversion, or variadics branch to a generated software thunk first; that
-thunk performs memory-side ABI work and then finishes with an identity or
-simple signature `PCALL`.
-
 `PABI_SIG_SET` and `PABI_SIG_GET` must be frontend-neutral controls. x86_64 can
 expose them for boot/runtime setup, but AArch64 and RISC-V code must be able to
 program or query the same architectural slot bank without first switching back
@@ -283,51 +139,22 @@ The precise-exception rule stays simple: an invalid slot traps before changing
 frontend mode or architectural PC, while a valid slot cannot fault because it
 performs no memory access. RAT ownership, physical-register lifetime, and
 rollback are handled by the same rename-map and checkpoint machinery used for
-branches, exceptions, and speculation. The caller's architectural view remains
-recoverable through the hardware transition stack and precise state recovery;
-the callee receives only the destination architectural names described by the
-signature.
+branches, exceptions, and speculation.
 
 The performance target for a hot signature `PCALL` is zero execution-unit
-data-move latency for ABI register handoff. It is not a literal zero-cycle
-call: the transition still pays normal control-redirect, frontend-switch,
-return-cookie, and rename-checkpoint costs. The important property is that a
-register-only cross-ISA call does not dispatch move instructions, enter a
-software thunk, parse a descriptor, or touch stack memory.
+data-move latency for ABI register handoff, not a literal zero-cycle call. The
+transition still pays normal control-redirect, frontend-switch, return-cookie,
+and rename-checkpoint costs. The important property is that a register-only
+cross-ISA call does not dispatch move instructions, enter a software thunk,
+parse a descriptor, or touch stack memory.
 
-This is also the area target. The hardware addition should be a handful of
-architectural signature registers, prevalidation logic, and muxing in the
-rename path. It must not grow into a stack-layout transformer, struct splitter,
-variadic argument scanner, or page-fault-capable memory sequencer.
-
-This is the intended hybrid model. Common precompiled functions whose arguments
-and returns fit in standard integer or FP registers can cross frontends through
-a few-slot RAT-remap fast path. Stack-heavy, aggregate-heavy, variadic, vector
-layout, and lazy-binding cases stay in generated thunks where page faults,
-memory policy, and ABI-specific layout rules belong.
-
-The practical target is a 90/10 split:
-
-- Hardware handles the common register-only calls with a semi-persistent,
-  reconfigurable slot bank. A hot `PCALL` names the target frontend, target PC,
-  and signature slot; the rename stage applies the cached RAT template.
-- Software handles the uncommon but semantically complex cases. The thunk
-  marshals stack arguments, structs, variadics, lazy binding, or vector layout,
-  then performs the final jump with a null, identity, or simple register
-  signature.
-
-This keeps the architectural fast path sympathetic to real precompiled code
-without bloating the CPU into an ABI-specific memory transformer.
-It also keeps the implementation realistic for FPGA and silicon prototypes:
-the small hardware addition is a bank of prevalidated mapping registers plus
-rename-stage muxing, while all page-fault-capable memory layout work remains
-ordinary software.
-
-The target is zero data-move latency for the ABI handoff, not a magic
-zero-cycle call. The call still pays for control redirection, frontend
-selection, return-cookie state, and rename checkpointing. The important
-architectural property is that the hot path avoids software shims and avoids
-turning `PCALL` into a memory-touching ABI interpreter.
+This is the silicon-realistic hybrid model. Common precompiled functions whose
+arguments and returns fit in standard integer or FP registers can cross
+frontends through a few-slot RAT-remap fast path. Stack-heavy, aggregate-heavy,
+variadic, lazy-binding, and incompatible vector cases stay in generated thunks
+where page faults, memory policy, and ABI-specific layout rules belong. The
+area cost is a small bank of signature registers, prevalidation logic, and
+rename-stage muxing, not a page-fault-capable ABI memory sequencer.
 
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
