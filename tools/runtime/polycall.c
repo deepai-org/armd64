@@ -1276,6 +1276,8 @@ static int resolve_direct_x86_register_import(int arch,
   } register_only_imports[] = {
     { "poly_import_add", POLY_IMPORT_FUNC_ADD },
     { "poly_import_mul", POLY_IMPORT_FUNC_MUL },
+    { "poly_import_fp64_add", POLY_IMPORT_FUNC_FP64_ADD },
+    { "poly_import_fp32_add", POLY_IMPORT_FUNC_FP32_ADD },
     { "strlen", POLY_IMPORT_FUNC_STRLEN },
     { "strcmp", POLY_IMPORT_FUNC_STRCMP },
     { "strncmp", POLY_IMPORT_FUNC_STRNCMP },
@@ -1319,6 +1321,12 @@ static int resolve_direct_x86_register_import(int arch,
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
     { "__popcountdi2", POLY_IMPORT_FUNC_POPCOUNTDI2 },
+    { "__udivti3", POLY_IMPORT_FUNC_UDIVTI3 },
+    { "__umodti3", POLY_IMPORT_FUNC_UMODTI3 },
+    { "__divti3", POLY_IMPORT_FUNC_DIVTI3 },
+    { "__modti3", POLY_IMPORT_FUNC_MODTI3 },
+    { "__atomic_load_16", POLY_IMPORT_FUNC_ATOMIC_LOAD_16 },
+    { "__atomic_store_16", POLY_IMPORT_FUNC_ATOMIC_STORE_16 },
     { "__tls_get_addr", POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR },
     { "__stack_chk_fail", POLY_IMPORT_FUNC_STACK_CHK_FAIL },
     { "__errno_location", POLY_IMPORT_FUNC_ERRNO_LOCATION },
@@ -3261,6 +3269,15 @@ static int x86_direct_import_needs_link_save(uint64_t import_id) {
     import_id == POLY_IMPORT_FUNC_CXA_FINALIZE;
 }
 
+static int x86_direct_import_uses_i128_signature(uint64_t import_id) {
+  return import_id == POLY_IMPORT_FUNC_UDIVTI3 ||
+    import_id == POLY_IMPORT_FUNC_UMODTI3 ||
+    import_id == POLY_IMPORT_FUNC_DIVTI3 ||
+    import_id == POLY_IMPORT_FUNC_MODTI3 ||
+    import_id == POLY_IMPORT_FUNC_ATOMIC_LOAD_16 ||
+    import_id == POLY_IMPORT_FUNC_X86_I128;
+}
+
 static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int caller_arch, uint64_t import_id, uint64_t target,
     const struct poly_import_contract *contract, uint64_t *stub_addr) {
@@ -3619,7 +3636,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     needs_mixed_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_riscv_vec128_x86_thunk ?
       contract->signature_slot_x86_sysv_regs_i128 :
-    import_id == POLY_IMPORT_FUNC_X86_I128 ?
+    x86_direct_import_uses_i128_signature(import_id) ?
       contract->signature_slot_x86_sysv_regs_i128 :
       contract->signature_slot_x86_sysv_regs;
 
