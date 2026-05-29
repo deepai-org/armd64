@@ -29,6 +29,8 @@
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLY_OP_MONITOR_PACKET_GET ".byte 0x0f,0x3a,0xfc,0x6c\n"
+#define POLY_OP_LANDING_POLICY_SET ".byte 0x0f,0x3a,0xfc,0x6d\n"
+#define POLY_OP_LANDING_POLICY_GET ".byte 0x0f,0x3a,0xfc,0x6e\n"
 #define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
@@ -108,6 +110,24 @@ static inline uint64_t poly_abi_signature_get(uint64_t slot) {
   uint64_t rax = slot;
   asm volatile(POLY_OP_ABI_SIGNATURE_GET
       : "+a"(rax)
+      :
+      : "memory");
+  return rax;
+}
+
+static inline uint64_t poly_landing_policy_set(uint64_t policy) {
+  uint64_t rax = policy;
+  asm volatile(POLY_OP_LANDING_POLICY_SET
+      : "+a"(rax)
+      :
+      : "memory");
+  return rax;
+}
+
+static inline uint64_t poly_landing_policy_get(void) {
+  uint64_t rax;
+  asm volatile(POLY_OP_LANDING_POLICY_GET
+      : "=a"(rax)
       :
       : "memory");
   return rax;
@@ -553,6 +573,56 @@ static inline void riscv_abi_signature_invalid_kind_probe(void) {
     ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline uint64_t aarch64_landing_policy_control_probe(uint64_t policy) {
+  uint64_t rax = policy;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032fdf\n" // aarch64 landing policy set
+    ".long 0xd5032fff\n" // aarch64 landing policy get
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
+}
+
+static inline uint64_t aarch64_landing_policy_invalid_probe(uint64_t policy) {
+  uint64_t rax = policy;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032fdf\n" // aarch64 landing policy set
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
+}
+
+static inline uint64_t riscv_landing_policy_control_probe(uint64_t policy) {
+  uint64_t rax = policy;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3c00700b\n" // riscv landing policy set
+    ".long 0x3e00700b\n" // riscv landing policy get
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
+}
+
+static inline uint64_t riscv_landing_policy_invalid_probe(uint64_t policy) {
+  uint64_t rax = policy;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3c00700b\n" // riscv landing policy set
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
 }
 
 static inline uint64_t aarch64_foreign_control_plane_probe(uint64_t vector,
@@ -1572,6 +1642,46 @@ int main(void) {
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
+  expected_escapes = poly_cpuid_expected_escape_leaf13();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 13);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID aarch64 trap detail manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf14();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 14);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID riscv trap detail manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf15();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 15);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID landing policy manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf16();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 16);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID landing policy details mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
   struct poly_cpuid_regs expected_state =
     poly_cpuid_expected_state_leaf();
   struct poly_cpuid_regs poly_state =
@@ -1929,6 +2039,55 @@ int main(void) {
   if (read_rax() != POLY_ERR_INVAL ||
       poly_abi_signature_get(6) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI signature invalid kind mismatch\n");
+    return 1;
+  }
+
+  stage("POLY_STAGE: landing-policy");
+  if (poly_landing_policy_set(0) != 0 ||
+      poly_landing_policy_get() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: landing policy reset mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
+    return 1;
+  }
+  if (aarch64_landing_policy_control_probe(
+        POLY_LANDING_POLICY_REQUIRE_SWITCH) !=
+        POLY_LANDING_POLICY_REQUIRE_SWITCH ||
+      poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_SWITCH) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 landing policy control mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  if (aarch64_landing_policy_invalid_probe(
+        POLY_LANDING_POLICY_SUPPORTED << 1) != POLY_ERR_INVAL ||
+      poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_SWITCH) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 landing policy invalid control mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  if (poly_landing_policy_set(0) != 0)
+    return 1;
+  if (riscv_landing_policy_control_probe(POLY_LANDING_POLICY_REQUIRE_CALL) !=
+        POLY_LANDING_POLICY_REQUIRE_CALL ||
+      poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv landing policy control mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  if (riscv_landing_policy_invalid_probe(
+        POLY_LANDING_POLICY_SUPPORTED << 1) != POLY_ERR_INVAL ||
+      poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv landing policy invalid control mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  if (poly_landing_policy_set(0) != 0 ||
+      poly_landing_policy_get() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: landing policy final reset mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
     return 1;
   }
 
