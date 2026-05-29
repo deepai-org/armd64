@@ -74,6 +74,51 @@ static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
+static int check_polysignal_contract(void) {
+  const struct poly_cpuid_regs base = poly_read_cpuid(POLY_CPUID_BASE, 0);
+  if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: poly CPUID missing base=(0x%x,0x%x,0x%x,0x%x)\n",
+      base.eax, base.ebx, base.ecx, base.edx);
+    return -1;
+  }
+
+  const struct poly_cpuid_regs features =
+    poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
+  const uint32_t forbidden_features = poly_cpuid_forbidden_feature_mask();
+  if (features.eax != POLY_CPUID_ABI_VERSION ||
+      features.ebx != poly_cpuid_expected_mode_mask() ||
+      features.ecx != poly_cpuid_expected_feature_mask() ||
+      features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH ||
+      (features.ecx & forbidden_features) != 0) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x) forbidden=0x%x\n",
+      features.eax, features.ebx, features.ecx, features.edx,
+      forbidden_features);
+    return -1;
+  }
+
+  const struct poly_cpuid_regs expected_abi_bridge =
+    poly_cpuid_expected_abi_bridge_leaf();
+  const struct poly_cpuid_regs abi_bridge =
+    poly_read_cpuid(POLY_CPUID_BASE + 9, 0);
+  const uint32_t forbidden_abi_bridge =
+    poly_cpuid_forbidden_abi_bridge_mask();
+  if (abi_bridge.eax != expected_abi_bridge.eax ||
+      abi_bridge.ebx != expected_abi_bridge.ebx ||
+      abi_bridge.ecx != expected_abi_bridge.ecx ||
+      abi_bridge.edx != expected_abi_bridge.edx ||
+      (abi_bridge.ebx & forbidden_abi_bridge) != 0) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x) forbidden=0x%x\n",
+      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx,
+      forbidden_abi_bridge);
+    return -1;
+  }
+
+  return 0;
+}
+
 static int setup_polysignal_native_signature_slot(void) {
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
@@ -644,6 +689,8 @@ static int check_arch_fp(const char *name, uint64_t seed,
 int main(void) {
   struct sigaction sa;
   stack_t altstack;
+  if (check_polysignal_contract() < 0)
+    return 1;
   if (setup_polysignal_native_signature_slot() < 0)
     return 1;
 
