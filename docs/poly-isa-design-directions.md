@@ -84,6 +84,13 @@ selects a cached mapping, for example:
 - x86_64 `R8` to AArch64 `x4`
 - x86_64 `R9` to AArch64 `x5`
 
+This makes semi-persistent ABI reconfiguration plausible in silicon because
+the CPU is only selecting physical-register mappings it already has to track.
+It is not a general ABI translation engine. The implementation target is a
+small set of prevalidated mapping slots plus rename-stage muxing, not
+microcode that walks user stacks, copies structs, or handles page faults inside
+the transition instruction.
+
 Architecturally, each slot is a semi-persistent Poly ABI Signature Register:
 it holds a compact, prevalidated register-renaming recipe such as "SysV
 x86_64 integer args to AAPCS64 integer args" or "AAPCS64 scalar FP args to

@@ -201,6 +201,8 @@ or slots. The loader programs common mappings once, such as SysV x86_64
 `RDI,RSI,RDX` to AAPCS64 `x0,x1,x2`; a hot call then encodes the slot in
 `PCALL`. The cached slot is applied during rename/dispatch, so register-only
 ABI handoff does not require software moves or per-call descriptor parsing.
+The area cost should stay small because this is a RAT-template selection
+problem: a few prevalidated control registers plus muxing in the rename path.
 
 This is intentionally reconfigurable hardware, but only at the register-rename
 boundary. It is suitable for silicon because modern OoO cores already maintain
