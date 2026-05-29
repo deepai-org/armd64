@@ -188,6 +188,19 @@ static uint64_t poly_aarch64_trap_vector_mode_set_get(uint64_t value) {
   return result;
 }
 
+static uint64_t poly_aarch64_trap_vector_mode_set(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032d5f\n" // aarch64 trap-vector-mode set, x0=value.
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
 static uint64_t poly_aarch64_monitor_packet_set_get(uint64_t value) {
   uint64_t result;
   asm volatile(
@@ -222,6 +235,19 @@ static uint64_t poly_riscv_trap_vector_mode_set_get(uint64_t value) {
     POLY_OP_ENTER_RV64
     ".long 0x3400700b\n" // riscv trap-vector-mode set, a0=value.
     ".long 0x3600700b\n" // riscv trap-vector-mode get, a0=result.
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static uint64_t poly_riscv_trap_vector_mode_set(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3400700b\n" // riscv trap-vector-mode set, a0=value.
     ".long 0x0000700b\n" // riscv x86 escape.
     : "=a"(result)
     : "0"(value)
@@ -1720,6 +1746,18 @@ static int run_poly_trap_vector_probe(void) {
       stderr);
     return 1;
   }
+  if (poly_aarch64_trap_vector_mode_set(255) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 trap vector mode accepted invalid mode\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 invalid trap vector mode mutated state got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
   if (poly_aarch64_monitor_packet_set_get(
         (uint64_t) (uintptr_t) &monitor_packet) !=
       (uint64_t) (uintptr_t) &monitor_packet) {
@@ -1737,6 +1775,18 @@ static int run_poly_trap_vector_probe(void) {
       POLY_MODE_X86) {
     fputs("NATIVE_CHECK_FAIL: poly riscv trap vector mode set/get mismatch\n",
       stderr);
+    return 1;
+  }
+  if (poly_riscv_trap_vector_mode_set(255) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv trap vector mode accepted invalid mode\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv invalid trap vector mode mutated state got=%llu\n",
+      (unsigned long long) read_rax());
     return 1;
   }
   if (poly_riscv_monitor_packet_set_get(
