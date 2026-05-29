@@ -201,6 +201,12 @@ The intended split is simple: hardware handles all-register calls with cached
 RAT remaps; software thunks handle stack and aggregate ABI conversion, then use
 a null, identity, or simple signature for the final `PCALL`.
 
+The prototype also treats the first eight scalar FP argument/result lanes as a
+fast exchange window: x86_64 `XMM0..XMM7`, AArch64 `v0..v7`, and RISC-V
+`fa0..fa7`. This is still register-only state. Wider AVX, SVE, RVV, stack FP
+overflow, and aggregate/vector ABI cases remain thunk policy unless a future
+signature kind explicitly covers them.
+
 Large memory returns follow the callee ABI. AArch64 uses `x8`; RISC-V uses `a0`
 and shifts user arguments; x86_64 returns the hidden pointer in `RAX`.
 

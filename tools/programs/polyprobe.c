@@ -910,6 +910,50 @@ static inline void pcall_fp64_riscv_probe(void) {
     ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "xmm0", "memory");
 }
 
+static inline void pcall_signature_fp64_aarch64_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %0, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0x1e612800\n"
+    ".long 0x1e613800\n"
+    ".long 0x1e610800\n"
+    ".long 0xd65f03c0\n"
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "memory");
+}
+
+static inline void pcall_signature_fp64_riscv_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %0, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0x02b50553\n"
+    ".long 0x0ab50553\n"
+    ".long 0x12b50553\n"
+    ".long 0x00008067\n"
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    :
+    : "i"(POLY_FRONTEND_RISCV)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "memory");
+}
+
 static inline void raw_barrier_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -1489,6 +1533,24 @@ int main(void) {
   if (pcall_riscv_fp64 != 0x400b000000000000ULL) {
     fprintf(stderr, "POLY_PROBE_FAIL: pcall riscv FP64 bridge mismatch got=0x%llx\n",
             (unsigned long long) pcall_riscv_fp64);
+    return 1;
+  }
+  write_xmm0_u64(0x3ff8000000000000ULL);
+  write_xmm1_u64(0x4002000000000000ULL);
+  pcall_signature_fp64_aarch64_probe();
+  uint64_t pcall_signature_aarch64_fp64 = read_xmm0_u64();
+  if (pcall_signature_aarch64_fp64 != 0x400b000000000000ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall signature aarch64 FP64 bridge mismatch got=0x%llx\n",
+            (unsigned long long) pcall_signature_aarch64_fp64);
+    return 1;
+  }
+  write_xmm0_u64(0x3ff8000000000000ULL);
+  write_xmm1_u64(0x4002000000000000ULL);
+  pcall_signature_fp64_riscv_probe();
+  uint64_t pcall_signature_riscv_fp64 = read_xmm0_u64();
+  if (pcall_signature_riscv_fp64 != 0x400b000000000000ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: pcall signature riscv FP64 bridge mismatch got=0x%llx\n",
+            (unsigned long long) pcall_signature_riscv_fp64);
     return 1;
   }
 
