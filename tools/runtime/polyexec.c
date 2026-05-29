@@ -1415,6 +1415,39 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
       *result = (uint64_t) status;
       return 1;
     }
+    case 441: {
+      if (arg2 == 0) {
+        *result = (uint64_t) -EINVAL;
+        return 1;
+      }
+      if (arg1 == 0) {
+        *result = (uint64_t) -EFAULT;
+        return 1;
+      }
+      if (arg2 > SIZE_MAX / sizeof(struct poly_x86_epoll_event)) {
+        *result = (uint64_t) -EINVAL;
+        return 1;
+      }
+      size_t event_count = (size_t) arg2;
+      size_t event_bytes = event_count * sizeof(struct poly_x86_epoll_event);
+      struct poly_x86_epoll_event *x86_events = malloc(event_bytes);
+      if (x86_events == NULL) {
+        *result = (uint64_t) -ENOMEM;
+        return 1;
+      }
+      status = poly_x86_syscall6(SYS_epoll_pwait2, arg0,
+        (uint64_t) (uintptr_t) x86_events, arg2, arg3, arg4, arg5);
+      if (status > 0) {
+        for (long i = 0; i < status; i++) {
+          poly_store_linux_generic_epoll_event(arg1 +
+            (uint64_t) i * sizeof(struct poly_linux_generic_epoll_event),
+            &x86_events[i]);
+        }
+      }
+      free(x86_events);
+      *result = (uint64_t) status;
+      return 1;
+    }
     case 43:
       status = poly_x86_syscall6(SYS_statfs, arg0,
         (uint64_t) (uintptr_t) &statfs_result, 0, 0, 0, 0);
@@ -1684,6 +1717,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 438: *x86_number = SYS_pidfd_getfd; return 1;
     case 439: *x86_number = SYS_faccessat2; return 1;
     case 440: *x86_number = SYS_process_madvise; return 1;
+    case 441: *x86_number = SYS_epoll_pwait2; return 1;
     case 442: *x86_number = SYS_mount_setattr; return 1;
     case 444: *x86_number = SYS_landlock_create_ruleset; return 1;
     case 445: *x86_number = SYS_landlock_add_rule; return 1;

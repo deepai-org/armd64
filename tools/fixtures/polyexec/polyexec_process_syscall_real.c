@@ -64,6 +64,7 @@ enum {
   POLY_SYS_EPOLL_CREATE1 = 20,
   POLY_SYS_EPOLL_CTL = 21,
   POLY_SYS_EPOLL_PWAIT = 22,
+  POLY_SYS_EPOLL_PWAIT2 = 441,
   POLY_SYS_DUP3 = 24,
   POLY_SYS_FCNTL = 25,
   POLY_SYS_INOTIFY_INIT1 = 26,
@@ -1565,6 +1566,47 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if ((ready_event.events & POLY_EPOLLIN) == 0 ||
       ready_event.data != 0x1122334455667788ULL)
     return 132;
+
+  event_fd = poly_syscall2(POLY_SYS_EVENTFD2, 0, 0);
+  if (event_fd < 0)
+    return 308;
+  epoll_fd = poly_syscall2(POLY_SYS_EPOLL_CREATE1, 0, 0);
+  if (epoll_fd < 0) {
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 309;
+  }
+  event.events = POLY_EPOLLIN;
+  event.pad = 0;
+  event.data = 0x8877665544332211ULL;
+  if (poly_syscall4(POLY_SYS_EPOLL_CTL, epoll_fd, POLY_EPOLL_CTL_ADD,
+        event_fd, (long) &event) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 310;
+  }
+  event_value = 11;
+  if (poly_syscall3(POLY_SYS_WRITE, event_fd, (long) &event_value,
+        sizeof(event_value)) != (long) sizeof(event_value)) {
+    poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 311;
+  }
+  ready_event.events = 0;
+  ready_event.pad = 0;
+  ready_event.data = 0;
+  struct poly_timespec epoll_timeout = { 0, 0 };
+  if (poly_syscall6(POLY_SYS_EPOLL_PWAIT2, epoll_fd,
+        (long) &ready_event, 1, (long) &epoll_timeout, 0, 0) != 1) {
+    poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0);
+    poly_syscall2(POLY_SYS_CLOSE, event_fd, 0);
+    return 312;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, epoll_fd, 0) != 0 ||
+      poly_syscall2(POLY_SYS_CLOSE, event_fd, 0) != 0)
+    return 313;
+  if ((ready_event.events & POLY_EPOLLIN) == 0 ||
+      ready_event.data != 0x8877665544332211ULL)
+    return 314;
 
   long inotify_fd = poly_syscall2(POLY_SYS_INOTIFY_INIT1, 0, 0);
   if (inotify_fd < 0)
