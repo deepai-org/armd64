@@ -1682,6 +1682,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 436: *x86_number = SYS_close_range; return 1;
     case 437: *x86_number = SYS_openat2; return 1;
     case 438: *x86_number = SYS_pidfd_getfd; return 1;
+    case 439: *x86_number = SYS_faccessat2; return 1;
     case 440: *x86_number = SYS_process_madvise; return 1;
     case 442: *x86_number = SYS_mount_setattr; return 1;
     case 444: *x86_number = SYS_landlock_create_ruleset; return 1;

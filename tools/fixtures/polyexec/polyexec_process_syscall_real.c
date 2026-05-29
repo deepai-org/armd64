@@ -172,6 +172,7 @@ enum {
   POLY_SYS_CLOSE_RANGE = 436,
   POLY_SYS_OPENAT2 = 437,
   POLY_SYS_PIDFD_GETFD = 438,
+  POLY_SYS_FACCESSAT2 = 439,
   POLY_SYS_FUTEX_WAITV = 449,
 };
 
@@ -805,6 +806,10 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       statx_result.ino != path_stat.ino ||
       (int64_t) statx_result.size != path_stat.size)
     return 58;
+
+  if (poly_syscall4(POLY_SYS_FACCESSAT2, POLY_AT_FDCWD,
+        (long) "/usr/bin/polyexec", 0, 0) != 0)
+    return 307;
 
   if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
     return 31;
