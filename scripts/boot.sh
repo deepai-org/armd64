@@ -7967,6 +7967,14 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_ROOT_PENTER: arch=aarch64 generic=1 process=1 .*aarch64-process-argv-envp-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_ROOT_PENTER: arch=riscv generic=1 process=1 .*riscv-process-argv-envp-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
       fi
       if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
         if ! grep -q "NATIVE_CHECK_OK" "$SERIAL_LOG"; then

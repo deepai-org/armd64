@@ -4836,6 +4836,8 @@ int main(int argc, char **argv) {
       return 1;
     }
 
+    printf("POLYEXEC_ROOT_PENTER: arch=%s generic=1 process=1 path=%s\n",
+      program.arch_name, program.path);
     printf("POLYEXEC_RESULT: arch=%s value=%llu process=1 path=%s\n",
       program.arch_name, (unsigned long long) result, program.path);
     if (request.check_expected) {
@@ -4880,6 +4882,8 @@ int main(int argc, char **argv) {
       return 1;
     }
 
+    printf("POLYEXEC_ROOT_PENTER: arch=%s generic=1 path=%s\n",
+      program.arch_name, program.path);
     printf("POLYEXEC_RESULT: arch=%s value=%llu path=%s\n",
       program.arch_name, (unsigned long long) result, program.path);
     if (request.check_expected) {
