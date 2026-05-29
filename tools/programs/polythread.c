@@ -16,6 +16,7 @@
 #define POLY_OP_TRAP_STATUS_SELECTOR ".byte 0x0f,0x3a,0xfc,0x5a\n"
 #define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x3a,0xfc,0x5c\n"
 #define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x3a,0xfc,0x5d\n"
+#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 
@@ -65,6 +66,10 @@ static inline uint64_t poly_abi_signature_get(uint64_t slot) {
     :
     : "memory");
   return rax;
+}
+
+static inline void poly_state_export(struct poly_xsave_state *state) {
+  asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
 }
 
 static inline void poly_trap_vector_set(uint64_t value) {
@@ -568,6 +573,31 @@ static uint64_t pcall_riscv_hidden_get(uint64_t addend) {
   return result;
 }
 
+static int check_exported_thread_banks(uintptr_t worker_id,
+    uint64_t expected_aarch64_gpr, uint64_t expected_riscv_gpr,
+    uint64_t expected_aarch64_fp, uint64_t expected_riscv_fp) {
+  struct poly_xsave_state snapshot __attribute__((aligned(64)));
+  poly_state_export(&snapshot);
+  if (snapshot.aarch64_gpr[20] != expected_aarch64_gpr ||
+      snapshot.riscv_gpr[20] != expected_riscv_gpr ||
+      snapshot.aarch64_fp[20].lo != expected_aarch64_fp ||
+      snapshot.riscv_fp[20].lo != expected_riscv_fp) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu exported banks a64x20=0x%llx/0x%llx rvx20=0x%llx/0x%llx a64d20=0x%llx/0x%llx rvf20=0x%llx/0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) snapshot.aarch64_gpr[20],
+      (unsigned long long) expected_aarch64_gpr,
+      (unsigned long long) snapshot.riscv_gpr[20],
+      (unsigned long long) expected_riscv_gpr,
+      (unsigned long long) snapshot.aarch64_fp[20].lo,
+      (unsigned long long) expected_aarch64_fp,
+      (unsigned long long) snapshot.riscv_fp[20].lo,
+      (unsigned long long) expected_riscv_fp);
+    return -1;
+  }
+  return 0;
+}
+
 static void x86_atomic_add(uint64_t *ptr, uint64_t iterations) {
   for (uint64_t n = 0; n < iterations; n++)
     __atomic_fetch_add(ptr, 1, __ATOMIC_SEQ_CST);
@@ -710,6 +740,10 @@ static void *worker_main(void *arg) {
       (unsigned long long) default_riscv_fp_expected);
     return (void *) 1;
   }
+  if (check_exported_thread_banks(worker_id, default_aarch64_seed,
+      default_riscv_seed, double_to_bits((double) default_aarch64_fp_seed),
+      double_to_bits((double) default_riscv_fp_seed)) != 0)
+    return (void *) 1;
 
   poly_trap_vector_mode_set(POLY_MODE_X86);
   poly_trap_vector_set(
