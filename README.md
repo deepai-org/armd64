@@ -34,7 +34,9 @@ Other useful targets:
 - Cross-ISA calls bridge real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
   psABI. This is compatibility glue, not a new `PolyFast` ABI.
 - Fast calls can use register-only ABI signature slots and integer/FP exchange
-  windows; stack, aggregate, variadic, and loader policy stays in software.
+  windows. Fixed 128-bit vector calls can also stay on the direct path when
+  both ABIs use SIMD/vector registers. Stack, aggregate, variadic, ABI
+  reshaping, and loader policy stays in software.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
   OS-neutral trap records carrying eight ABI arguments for runtime or OS
   policy.

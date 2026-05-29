@@ -171,6 +171,14 @@ native ABI registers should avoid thunks entirely through RAT remapping, while
 the uncommon stack, aggregate, vector, or variadic cases stay in software where
 memory access and policy belong.
 
+Fixed-width vector values are eligible for this fast path only when both native
+ABIs place the value in compatible vector/SIMD architectural registers. A
+128-bit x86_64 SysV vector to AArch64 AAPCS64 vector call can be a direct
+register-signature transition. A RISC-V psABI call that represents the same
+128-bit value as integer register pairs is not the same hardware operation; it
+requires cross-class reshaping and should use a software thunk or an explicitly
+defined future signature kind.
+
 The fast path therefore covers ordinary register-only calls between existing
 precompiled objects, for example an x86_64 caller passing six scalar SysV
 arguments to an AArch64 AAPCS64 function. The slow path is not a failure mode;

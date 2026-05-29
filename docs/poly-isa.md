@@ -228,9 +228,13 @@ a null, identity, or simple signature for the final `PCALL`.
 
 The prototype also treats the first eight scalar FP argument/result lanes as a
 fast exchange window: x86_64 `XMM0..XMM7`, AArch64 `v0..v7`, and RISC-V
-`fa0..fa7`. This is still register-only state. Wider AVX, SVE, RVV, stack FP
-overflow, and aggregate/vector ABI cases remain thunk policy unless a future
-signature kind explicitly covers them.
+`fa0..fa7`. This is still register-only state. Fixed 128-bit vector calls can
+use the same direct path when the source and target ABIs both use SIMD/vector
+registers, as with x86_64 SysV and AArch64 AAPCS64. Cases that require
+cross-class reshaping, such as RISC-V psABI 128-bit vector values passed in GPR
+pairs, remain software-thunk or descriptor policy. Wider AVX, SVE, RVV, stack
+FP overflow, and aggregate/vector ABI cases that require layout conversion also
+remain thunk policy unless a future signature kind explicitly covers them.
 
 Large memory returns follow the callee ABI. AArch64 uses `x8`; RISC-V uses `a0`
 and shifts user arguments; x86_64 returns the hidden pointer in `RAX`.
