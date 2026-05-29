@@ -75,6 +75,17 @@ stack repacking, by-value aggregate conversion, and variadic argument handling
 would require memory reads, memory writes, ABI policy, and page-fault-capable
 microcode in the transition path.
 
+The architectural boundary is intentionally small:
+
+- The loader/runtime may program a few semi-persistent signature slots.
+- A hot `PCALL` may name one slot with an immediate operand.
+- The CPU may apply that slot by changing rename/RAT mappings for compatible
+  integer, FP, or fixed SIMD ABI lanes.
+- The CPU must not read user-memory descriptors, repack stacks, split structs,
+  scan variadic metadata, or otherwise perform memory-side ABI translation.
+- Calls that need memory-side ABI work must branch through generated software
+  thunks, which can finish with an identity or simple register signature.
+
 The mechanism is a programmable register alias table (RAT) template. Modern
 OoO cores already rename architectural registers onto physical registers; a
 Poly ABI signature reuses that machinery by rebinding destination frontend
