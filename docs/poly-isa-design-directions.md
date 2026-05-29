@@ -192,6 +192,15 @@ require page-fault-capable microcode and OS-visible recovery state inside the
 transition instruction, which would make the common case slower and less
 portable.
 
+This is the intended silicon-realistic split: hardware handles the common
+all-register case with semi-persistent, reconfigurable RAT signatures; software
+handles the minority of calls whose ABI meaning depends on memory layout. The
+CPU should be excellent at renaming `RDI,RSI,RDX` into `x0,x1,x2` or `a0,a1,a2`.
+It should not attempt to become a stack repacker, struct classifier, variadic
+scanner, or lazy-binding runtime. A loader/runtime thunk may do that
+page-fault-capable work in software, then finish with an identity or simple
+register-only `PCALL`.
+
 The preferred generic signature kind is `native-registers`: source frontend
 native ABI argument/result registers are rebound to target frontend native ABI
 argument/result registers. For x86_64 this means SysV lanes such as
