@@ -130,6 +130,7 @@ case "$path" in
   */aarch64-pcall-ctype-real.so) expected=1540; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-abs-real.so) expected=1524; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-atol-real.so) expected=1532; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-ffs-real.so) expected=1564; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-strtod-real.so) expected=1376; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-strtof-real.so) expected=1384; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-fabsf-real.so) expected=1396; entry="#poly_entry"; runner="polycall" ;;
@@ -343,6 +344,7 @@ case "$path" in
   */riscv-pcall-ctype-real.so) expected=1540; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-abs-real.so) expected=1524; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-atol-real.so) expected=1532; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-ffs-real.so) expected=1564; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-strtod-real.so) expected=1376; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-strtof-real.so) expected=1384; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-fabsf-real.so) expected=1396; entry="#poly_entry"; runner="polycall" ;;

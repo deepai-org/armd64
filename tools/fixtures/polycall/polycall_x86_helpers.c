@@ -2244,6 +2244,34 @@ uint64_t POLY_HOST_HELPER poly_host_x86_llabs(uint64_t value)
   return poly_host_x86_labs(value);
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_ffs(uint64_t value)
+{
+  uint32_t input = (uint32_t) value;
+  if (input == 0)
+    return 0;
+  for (unsigned bit = 0; bit < 32; bit++) {
+    if ((input >> bit) & 1U)
+      return bit + 1;
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_ffsl(uint64_t value)
+{
+  if (value == 0)
+    return 0;
+  for (unsigned bit = 0; bit < 64; bit++) {
+    if ((value >> bit) & 1ULL)
+      return bit + 1;
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_ffsll(uint64_t value)
+{
+  return poly_host_x86_ffsl(value);
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_bcopy(const uint8_t *src,
     uint8_t *dest, uint64_t size)
 {

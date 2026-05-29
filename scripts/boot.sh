@@ -73,6 +73,7 @@ POLYCALL_INTEGER_PARSE_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_inte
 POLYCALL_CTYPE_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_ctype_real.c"
 POLYCALL_ABS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_abs_real.c"
 POLYCALL_ATOL_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_atol_real.c"
+POLYCALL_FFS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_ffs_real.c"
 POLYCALL_STRTOD_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_strtod_real.c"
 POLYCALL_STRTOF_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_strtof_real.c"
 POLYCALL_FABSF_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_fabsf_real.c"
@@ -915,6 +916,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_ATOL_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-atol-real.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_FFS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-ffs-real.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2957,6 +2963,12 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_ATOL_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-atol-real.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_FFS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-ffs-real.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
@@ -6193,6 +6205,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-ctype-real.so#poly_entry=1540 \
     /usr/lib/polyapps/aarch64-pcall-abs-real.so#poly_entry=1524 \
     /usr/lib/polyapps/aarch64-pcall-atol-real.so#poly_entry=1532 \
+    /usr/lib/polyapps/aarch64-pcall-ffs-real.so#poly_entry=1564 \
     /usr/lib/polyapps/aarch64-pcall-strtod-real.so#poly_entry=1376 \
     /usr/lib/polyapps/aarch64-pcall-strtof-real.so#poly_entry=1384 \
     /usr/lib/polyapps/aarch64-pcall-fabsf-real.so#poly_entry=1396 \
@@ -6439,6 +6452,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-ctype-real.so#poly_entry=1540 \
     /usr/lib/polyapps/riscv-pcall-abs-real.so#poly_entry=1524 \
     /usr/lib/polyapps/riscv-pcall-atol-real.so#poly_entry=1532 \
+    /usr/lib/polyapps/riscv-pcall-ffs-real.so#poly_entry=1564 \
     /usr/lib/polyapps/riscv-pcall-strtod-real.so#poly_entry=1376 \
     /usr/lib/polyapps/riscv-pcall-strtof-real.so#poly_entry=1384 \
     /usr/lib/polyapps/riscv-pcall-fabsf-real.so#poly_entry=1396 \
@@ -7167,6 +7181,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-ctype-real.so \
       /usr/lib/polyapps/aarch64-pcall-abs-real.so \
       /usr/lib/polyapps/aarch64-pcall-atol-real.so \
+      /usr/lib/polyapps/aarch64-pcall-ffs-real.so \
       /usr/lib/polyapps/aarch64-pcall-strtod-real.so \
       /usr/lib/polyapps/aarch64-pcall-strtof-real.so \
       /usr/lib/polyapps/aarch64-pcall-fabsf-real.so \
@@ -7353,6 +7368,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-ctype-real.so \
       /usr/lib/polyapps/riscv-pcall-abs-real.so \
       /usr/lib/polyapps/riscv-pcall-atol-real.so \
+      /usr/lib/polyapps/riscv-pcall-ffs-real.so \
       /usr/lib/polyapps/riscv-pcall-strtod-real.so \
       /usr/lib/polyapps/riscv-pcall-strtof-real.so \
       /usr/lib/polyapps/riscv-pcall-fabsf-real.so \

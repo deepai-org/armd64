@@ -573,7 +573,10 @@ enum {
   POLY_IMPORT_FUNC_LLABS = 227,
   POLY_IMPORT_FUNC_ATOL = 228,
   POLY_IMPORT_FUNC_ATOLL = 229,
-  POLY_IMPORT_FUNC_COUNT = 230,
+  POLY_IMPORT_FUNC_FFS = 230,
+  POLY_IMPORT_FUNC_FFSL = 231,
+  POLY_IMPORT_FUNC_FFSLL = 232,
+  POLY_IMPORT_FUNC_COUNT = 233,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1156,6 +1159,9 @@ extern uint64_t poly_host_x86_toupper(uint64_t value);
 extern uint64_t poly_host_x86_abs(uint64_t value);
 extern uint64_t poly_host_x86_labs(uint64_t value);
 extern uint64_t poly_host_x86_llabs(uint64_t value);
+extern uint64_t poly_host_x86_ffs(uint64_t value);
+extern uint64_t poly_host_x86_ffsl(uint64_t value);
+extern uint64_t poly_host_x86_ffsll(uint64_t value);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1554,6 +1560,9 @@ static int resolve_direct_x86_register_import(int arch,
     { "abs", POLY_IMPORT_FUNC_ABS },
     { "labs", POLY_IMPORT_FUNC_LABS },
     { "llabs", POLY_IMPORT_FUNC_LLABS },
+    { "ffs", POLY_IMPORT_FUNC_FFS },
+    { "ffsl", POLY_IMPORT_FUNC_FFSL },
+    { "ffsll", POLY_IMPORT_FUNC_FFSLL },
     { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
@@ -1953,6 +1962,12 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_labs;
     case POLY_IMPORT_FUNC_LLABS:
       return (uint64_t) (uintptr_t) poly_host_x86_llabs;
+    case POLY_IMPORT_FUNC_FFS:
+      return (uint64_t) (uintptr_t) poly_host_x86_ffs;
+    case POLY_IMPORT_FUNC_FFSL:
+      return (uint64_t) (uintptr_t) poly_host_x86_ffsl;
+    case POLY_IMPORT_FUNC_FFSLL:
+      return (uint64_t) (uintptr_t) poly_host_x86_ffsll;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -4643,6 +4658,18 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "llabs") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_LLABS * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "ffs") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FFS * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "ffsl") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FFSL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "ffsll") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FFSLL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
