@@ -8,6 +8,10 @@
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
+#define POLYBENCH_AARCH64_PCALL_SIG_IMM(slot) \
+  (0xd5032c1fU | (((uint32_t) (slot) & 0x7U) << 5))
+#define POLYBENCH_RISCV_PCALL_SIG_IMM(slot) \
+  (0x2000700bU | (((uint32_t) (slot) & 0x7U) << 25))
 
 enum {
   POLY_ARCH_AARCH64 = 1,
@@ -24,7 +28,8 @@ enum {
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
   POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA = 7,
-  POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA = 11
+  POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA = 11,
+  POLYBENCH_NATIVE_SIGNATURE_SLOT = 3
 };
 
 typedef uint32_t polybench_vec128_u32 __attribute__((vector_size(16)));
@@ -855,7 +860,8 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -909,7 +915,8 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -978,7 +985,8 @@ static int run_cross_call_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1033,7 +1041,8 @@ static int run_cross_call_fp_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -1101,7 +1110,8 @@ static int run_cross_call_fp8_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -1157,7 +1167,8 @@ static int run_cross_call_fp8_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -1528,7 +1539,8 @@ static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1585,7 +1597,8 @@ static int run_cross_call_mixed_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -1659,7 +1672,8 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0x910043ffU); // add sp,sp,#16
   emit_u32(code, &offset, 0x91003400U); // add x0,x0,#13
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
@@ -1718,7 +1732,8 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
   emit_u32(code, &offset, 0x00d50513U); // addi a0,a0,13
@@ -1790,7 +1805,8 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0x8b130000U); // add x0,x0,x19
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1845,7 +1861,8 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00850533U); // add a0,a0,s0
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -1916,7 +1933,8 @@ static int run_cross_call_saved_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 8));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1973,7 +1991,8 @@ static int run_cross_call_saved_fp_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_fadd_d(10, 10, 8));
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -2042,7 +2061,8 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0x8b010000U); // add x0,x0,x1
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -2096,7 +2116,8 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00b50533U); // add a0,a0,a1
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -2417,7 +2438,8 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2470,7 +2492,8 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2537,7 +2560,8 @@ static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2590,7 +2614,8 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2656,7 +2681,8 @@ static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2723,7 +2749,8 @@ static int run_cross_call_direct_x86_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2793,7 +2820,8 @@ static int run_cross_call_direct_x86_memcmp_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2862,7 +2890,8 @@ static int run_cross_call_direct_x86_memcmp_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2934,7 +2963,8 @@ static int run_cross_call_direct_x86_memops_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -3034,7 +3064,8 @@ static int run_cross_call_direct_x86_memops_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -3125,7 +3156,8 @@ static int run_nested_cross_call(uint64_t *result,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_outer_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -3141,7 +3173,8 @@ static int run_nested_cross_call(uint64_t *result,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x00008067U); // ret
