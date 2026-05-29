@@ -76,13 +76,14 @@ arguments are left to software thunks. Kinds `2` and `3` remain valid prototype
 aliases for existing x86-oriented tests and direct x86 imports. These kinds are
 a model of cached hardware control state, not a final x86 opcode allocation.
 
-Signature slots are register-renaming templates. A real CPU should apply them
-by updating RAT mappings during the `PCALL` control redirect, not by executing
-move instructions or reading an ABI descriptor from memory. They are suitable
-for integer and FP register arguments/results that already match ABI classes.
-They deliberately do not describe stack arguments, by-value aggregate layout,
-variadic calls, or vector reshaping; those cases use loader/runtime thunks and
-then finish with a null, identity, or simple signature `PCALL`.
+Signature slots are semi-persistent register-renaming templates. A real CPU
+should apply them by updating RAT mappings during the `PCALL` control redirect,
+not by executing move instructions or reading an ABI descriptor from memory.
+They are suitable for integer and FP register arguments/results that already
+match ABI classes. They deliberately do not describe stack arguments,
+by-value aggregate layout, variadic calls, or vector reshaping; those cases use
+loader/runtime thunks and then finish with a null, identity, or simple
+signature `PCALL`.
 
 The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
 `R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V
@@ -200,59 +201,40 @@ register-only native ABI calls is a small bank of programmable ABI signature
 slots, so calls that only need register shuffling do not need software move
 thunks.
 
-A signature slot is semi-persistent hardware control state programmed by the
-loader or runtime. It is a register-alias-table recipe, not a call descriptor:
-when `PCALL` names a slot, the CPU rebinds source architectural names to target
-architectural names in rename/RAT state, installs the return cookie, and
-redirects the frontend. Operand data does not move through execution pipes, and
-the transition does not read user memory.
+A signature slot is hardware control state programmed by the loader or runtime.
+It is a register-alias-table recipe, not a call descriptor. When `PCALL` names
+a slot, the CPU rebinds source architectural names to target architectural
+names in rename/RAT state, installs the return cookie, and redirects the
+frontend. Operand data does not move through integer, FP, SIMD, load, or store
+execution pipes, and the transition does not read user memory.
 
-The intended architectural shape is a small set of Poly ABI Signature Registers
-or slots. The loader programs common mappings once, such as SysV x86_64
-`RDI,RSI,RDX` to AAPCS64 `x0,x1,x2`; a hot call then encodes the slot in
-`PCALL`. The cached slot is applied during rename/dispatch, so register-only
-ABI handoff does not require software moves or per-call descriptor parsing.
-The area cost should stay small because this is a RAT-template selection
-problem: a few prevalidated control registers plus muxing in the rename path.
+The intended silicon shape is a small semi-persistent cache of signature slots,
+for example 4 to 8 entries. A loader can program a neutral native-register slot
+once, then emit `PCALL ... sig_imm` at register-only call sites. The slot maps
+whichever frontend is currently the source onto the target frontend's native
+ABI lanes: SysV x86_64 `RDI,RSI,RDX,RCX,R8,R9`, AAPCS64 `x0..x7`, and RISC-V
+psABI `a0..a7` all use the same architectural kind. The setup cost is paid when
+the loader programs the slot; the hot call-site cost is a frontend redirect
+plus cached rename-template selection.
 
-Conceptually, the slot is a semi-persistent rename recipe. If a native-register
-slot is applied to an x86_64-to-AArch64 call, then `PCALL ..., slot` makes
-AArch64 `x0,x1,x2` name the physical registers currently named by x86_64
-`RDI,RSI,RDX`. No argument data is copied, and no stack or descriptor memory is
-read by the transition instruction.
+For example, if a native-register slot is applied to an x86_64-to-AArch64 call,
+then `PCALL ..., slot` makes AArch64 `x0,x1,x2` name the physical registers
+currently named by x86_64 `RDI,RSI,RDX`. No argument data is copied, and no
+stack or descriptor memory is read by the transition instruction.
 
 This is intentionally reconfigurable hardware, but only at the register-rename
 boundary. It is suitable for silicon because modern OoO cores already maintain
-rename maps from architectural registers to physical registers. A Poly
-signature slot selects a cached rename template; it does not ask hardware to
-repack stacks, copy overflow arguments, split structs, or interpret variadic
-metadata.
-
-The limit is strict. Hardware can cheaply rename registers; it must not
-reconfigure stack or memory layouts. Stack arguments, by-value aggregates,
-variadics, and ABI-specific memory layout remain software-thunk work because
-they require memory access, rollback, and page-fault policy.
-
-The intended silicon shape is a small cached slot bank, not per-call
-reconfiguration. A loader can program a neutral native-register slot once, then
-emit `PCALL ... sig_imm` at register-only call sites. The slot maps whichever
-frontend is currently the source onto the target frontend's native ABI lanes:
-SysV x86_64 `RDI,RSI,RDX,RCX,R8,R9`, AAPCS64 `x0..x7`, and RISC-V psABI
-`a0..a7` all use the same architectural kind. The setup cost is paid when the
-loader programs the slot; the hot call-site cost is a frontend redirect plus
-cached rename-template selection.
+rename maps from architectural registers to physical registers. The area cost
+should stay small: a few prevalidated control registers plus muxing in the
+rename path. The CPU must not grow a page-fault-capable stack repacker inside
+`PCALL`.
 
 The intended split is hybrid. Hardware handles the common all-register case,
 including compatible integer and FP/SIMD ABI register lanes. Software handles
 stack arguments, by-value aggregates, variadics, lazy binding, PLT/GOT policy,
-and ABI cases that require memory inspection or rewriting. A thunk can perform
-that memory-side ABI work and then finish with a null, identity, or simple
-register signature `PCALL`.
-
-This keeps the common precompiled-code path on a few-slot RAT-remap fast path
-while keeping complex ABI memory policy in generated thunks. The CPU must not
-grow a page-fault-capable memory repacker inside `PCALL`; signatures can
-reconfigure register names, not memory layouts.
+cross-class vector reshaping, and every ABI case that requires memory
+inspection or rewriting. A thunk performs that memory-side ABI work and then
+finishes with a null, identity, or simple register signature `PCALL`.
 
 The slot bank is explicit Poly architectural state. In the Bochs prototype it
 is saved and restored by the Poly XSAVE component, not stored in a process-wide
