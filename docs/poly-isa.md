@@ -89,6 +89,11 @@ by-value aggregate layout, variadic calls, or vector reshaping; those cases use
 loader/runtime thunks and then finish with a null, identity, or simple
 signature `PCALL`.
 
+The silicon contract is intentionally narrow: signature slots reconfigure
+architectural names onto existing physical registers. They do not reconfigure
+stack or memory layouts. That keeps `PCALL` branch-like and fixed-latency
+instead of turning it into a page-fault-capable ABI marshalling sequencer.
+
 This is the intended hardware/software boundary. The loader or runtime may
 program a small bank of signature slots, for example 4 to 8 common ABI pairs,
 and hot call sites select one with an immediate. Hardware handles the

@@ -76,11 +76,20 @@ physical registers already holding source ABI arguments. No integer, FP, SIMD,
 load, or store execution unit moves the data, and the transition instruction
 does not inspect user memory.
 
+The hard design rule is that a signature slot reconfigures names, not layouts.
+It may change which physical register backs `RDI`, `x0`, or `a0`; it must not
+read a call descriptor, inspect a stack frame, split an aggregate, or rewrite
+memory. Crossing that boundary turns `PCALL` into a variable-latency,
+page-fault-capable ABI microsequencer, which is exactly what this design avoids.
+
 The slot bank should be semi-persistent hardware state. A loader or runtime
 programs a small number of slots, for example 4 to 8, with common register-only
 ABI pairs such as SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and
 RISC-V psABI-to-SysV. Hot call sites encode only the target frontend, target
 PC, and signature slot immediate. The mapping is not programmed on every call.
+The area budget is intentionally small: several prevalidated mapping registers
+plus muxing/check logic in the rename path, not a second ABI engine beside the
+load/store unit.
 
 Example signature action:
 
