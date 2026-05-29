@@ -265,12 +265,14 @@ ordinary software.
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
 compatibility mapping, and kind `2` is the hardware-oriented x86_64 SysV
-register-only mapping. Kind `2` is the important silicon-facing form: it maps
-the six SysV integer argument registers into the target ABI without stack
-access. Kind `3` uses the same argument mapping but treats the x86
-`RAX/RDX` pair as a two-register integer return for ABIs that return
-`unsigned __int128`-class values in two GPRs. The final silicon-oriented
-encoding should use a compact slot immediate.
+register-only mapping. Kind `3` uses the same argument mapping but treats the
+x86 `RAX/RDX` pair as a two-register integer return for ABIs that return
+`unsigned __int128`-class values in two GPRs. Kind `4` is the preferred
+silicon-facing form: it maps the source frontend's native integer and FP ABI
+lanes onto the target frontend's native lanes without stack access. Kinds `2`
+and `3` remain valid prototype aliases for x86-oriented tests and direct x86
+imports, but hot neutral cross-frontend calls should use kind `4`. The final
+silicon-oriented encoding should use a compact slot immediate.
 
 The current preferred Bochs generic `PCALL` form uses frontend ID in `R15`,
 target PC in `RBX`, return PC in `R11`, and an immediate signature-slot byte.

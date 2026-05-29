@@ -164,7 +164,8 @@ static void emit_aarch64_direct_x86_pcall(uint8_t *code, size_t *offset,
   const uint64_t return_pc =
     (uint64_t) (uintptr_t) (code + *offset + 16 + 4);
   emit_aarch64_movabs(code, offset, 18, return_pc);
-  emit_u32(code, offset, 0xd5032c3fU); // PCALL_SIG_IMM slot 1 (x86 SysV regs)
+  emit_u32(code, offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
 }
 
 static size_t emit_x86_movabs_r10(uint8_t *code, size_t *offset,
@@ -367,7 +368,8 @@ static void emit_riscv_direct_x86_pcall(uint8_t *code, size_t *offset) {
   emit_u32(code, offset, 0x00000397U); // auipc t2,0
   const size_t addi_return_offset = *offset;
   emit_u32(code, offset, 0);
-  emit_u32(code, offset, 0x2200700bU); // PCALL_SIG_IMM slot 1 (x86 SysV regs)
+  emit_u32(code, offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   store_u32(code, addi_return_offset, riscv_addi(7, 7,
     (int32_t) *offset - (int32_t) auipc_return_pc));
 }
