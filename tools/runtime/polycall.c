@@ -252,6 +252,7 @@ enum {
   POLY_IMPORT_X86_DESCRIPTOR_VEC128_FROM_GPR_PAIRS = (1U << 8),
   POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8 = (1U << 9),
   POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP64 = (1U << 10),
+  POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP32 = (1U << 11),
   POLY_ABI_BRIDGE_ABI_VERSION = 1,
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64 = (1U << 0),
   POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV = (1U << 1),
@@ -544,7 +545,8 @@ enum {
   POLY_IMPORT_FUNC_STRTOULL = 199,
   POLY_IMPORT_FUNC_SNPRINTF = 200,
   POLY_IMPORT_FUNC_STRTOD = 201,
-  POLY_IMPORT_FUNC_COUNT = 202,
+  POLY_IMPORT_FUNC_STRTOF = 202,
+  POLY_IMPORT_FUNC_COUNT = 203,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1099,6 +1101,7 @@ extern uint64_t poly_host_x86_snprintf_u64(uint8_t *dest, uint64_t size,
     const uint8_t *format, const uint8_t *text, uint64_t left,
     uint64_t right);
 extern double poly_host_x86_strtod(const uint8_t *text, uint8_t **endptr);
+extern float poly_host_x86_strtof(const uint8_t *text, uint8_t **endptr);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1469,6 +1472,7 @@ static int resolve_direct_x86_register_import(int arch,
     { "strtoull", POLY_IMPORT_FUNC_STRTOULL },
     { "snprintf", POLY_IMPORT_FUNC_SNPRINTF },
     { "strtod", POLY_IMPORT_FUNC_STRTOD },
+    { "strtof", POLY_IMPORT_FUNC_STRTOF },
     { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
@@ -1812,6 +1816,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_snprintf_u64;
     case POLY_IMPORT_FUNC_STRTOD:
       return (uint64_t) (uintptr_t) poly_host_x86_strtod;
+    case POLY_IMPORT_FUNC_STRTOF:
+      return (uint64_t) (uintptr_t) poly_host_x86_strtof;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -2171,6 +2177,8 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FPAIR32;
     case POLY_IMPORT_FUNC_STRTOD:
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP64;
+    case POLY_IMPORT_FUNC_STRTOF:
+      return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP32;
     case POLY_IMPORT_FUNC_X86_VEC128_U32:
       if (arch == POLY_ARCH_RISCV)
         return POLY_IMPORT_X86_DESCRIPTOR_RETURN_VEC128 |
@@ -4380,6 +4388,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "strtod") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_STRTOD * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "strtof") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_STRTOF * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
