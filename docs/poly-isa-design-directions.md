@@ -68,6 +68,12 @@ ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
 `x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine:
 make the reconfigurable hardware strictly register-only.
 
+The key architectural bet is narrow reconfiguration. Semi-persistent ABI
+hardware can be fast and small when it only changes register names. It stops
+being silicon-realistic when it starts transforming stacks, structs, varargs,
+or other memory layouts. Register aliasing belongs in the frontend/rename
+machinery; memory-side ABI conversion belongs in loader/runtime thunks.
+
 Modern OoO cores already rename architectural registers onto physical
 registers through a register alias table (RAT). A Poly ABI Signature Register
 is a compact, prevalidated RAT template. When a hot `PCALL` names a signature
@@ -81,7 +87,10 @@ rename machinery. The hardware changes are a small slot bank, decode-visible
 slot selection, prevalidation, and muxing in the rename path. The data path does
 not gain a stack-layout engine, descriptor walker, or ABI-specific memory
 sequencer. In a real OoO implementation, applying a signature is closer to
-selecting a rename-map template than executing a register-copy routine.
+selecting a rename-map template than executing a register-copy routine. In a
+small in-order core or FPGA prototype, the same contract can be modeled as a
+small architectural alias table at the frontend boundary; it still must not
+perform page-fault-capable memory marshalling inside `PCALL`.
 
 The hard design rule is that a signature slot reconfigures names, not layouts.
 It may change which physical register backs `RDI`, `x0`, or `a0`; it must not

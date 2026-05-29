@@ -89,6 +89,14 @@ by-value aggregate layout, variadic calls, or vector reshaping; those cases use
 loader/runtime thunks and then finish with a null, identity, or simple
 signature `PCALL`.
 
+The design intentionally limits reconfigurable hardware to register names.
+Modern OoO CPUs already map architectural registers such as `RDI`, `x0`, or
+`a0` onto physical registers through rename/RAT state, so a cached ABI
+signature can make the target ABI names point at already-live source argument
+registers. That can be implemented with a small signature-slot bank and rename
+muxing. It does not require a memory-layout engine, descriptor walker, or stack
+rewriter.
+
 The silicon contract is intentionally narrow: signature slots reconfigure
 architectural names onto existing physical registers. They do not reconfigure
 stack or memory layouts. That keeps `PCALL` branch-like and fixed-latency
