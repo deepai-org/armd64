@@ -32,6 +32,21 @@ uint64_t poly_process_needed_add(uint64_t left, uint64_t right) {
   return left + right + poly_process_needed_bias;
 }
 
+#elif defined(POLY_PROCESS_NEEDED_IFUNC_DEP)
+
+static uint64_t poly_process_needed_ifunc_add_impl(uint64_t left,
+    uint64_t right) {
+  return left + right + 0x40;
+}
+
+static void *poly_process_needed_ifunc_add_resolver(void) {
+  return poly_process_needed_ifunc_add_impl;
+}
+
+__attribute__((visibility("default")))
+uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t)
+    __attribute__((ifunc("poly_process_needed_ifunc_add_resolver")));
+
 #elif defined(POLY_PROCESS_ROOT_EXPORT_DEP)
 
 extern uint64_t poly_process_root_export(uint64_t);
@@ -159,6 +174,8 @@ extern __thread uint64_t poly_process_tls_default_dep_counter;
 extern uint64_t poly_process_tls_default_dep_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
+#elif defined(POLY_PROCESS_NEEDED_IFUNC_MAIN)
+extern uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t);
 #else
 extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
 #endif
@@ -305,6 +322,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;
   static const char marker[] = "POLY_PROCESS_TRANSITIVE_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_IFUNC_MAIN)
+  if (poly_process_needed_ifunc_add(0x20, 0x30) != 0x90)
+    return 38;
+  static const char marker[] = "POLY_PROCESS_IFUNC_NEEDED_OK\n";
 #else
   if (poly_process_needed_add(0x20, 0x30) != 0x90)
     return 21;

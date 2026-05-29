@@ -987,7 +987,9 @@ static int resolve_loaded_program_tls_symbol_ex(
 static int resolve_loaded_dependency_symbol_at_depth(
     const struct poly_program *program, int caller_arch,
     const char *symbol_name, const char *requested_version,
-    uint64_t *symbol_value, uint8_t *symbol_type, size_t depth) {
+    uint64_t *symbol_value, uint8_t *symbol_type,
+    uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
+    uint8_t *scratch, size_t depth) {
   if (depth >= MAX_PROCESS_DEP_DEPTH)
     return -1;
 
@@ -996,12 +998,21 @@ static int resolve_loaded_dependency_symbol_at_depth(
     if (!dep->program || !dep->loaded_image)
       continue;
 
+    uint64_t ifunc_resolver_vaddr = 0;
+    uint8_t resolved_type = 0;
     if (resolve_loaded_program_symbol_ex(dep->program, dep->loaded_image,
-          symbol_name, requested_version, symbol_value, symbol_type,
-          NULL) == 0) {
-      const uint8_t type = symbol_type ? *symbol_type : STT_NOTYPE;
+          symbol_name, requested_version, symbol_value, &resolved_type,
+          &ifunc_resolver_vaddr) == 0) {
+      if (resolved_type == STT_GNU_IFUNC &&
+          run_irelative_resolver(dep->program, dep->loaded_image,
+            trampoline_code, prefix_size, return_pc, scratch,
+            ifunc_resolver_vaddr, symbol_value) < 0)
+        return -1;
+      if (symbol_type)
+        *symbol_type = resolved_type;
       if (caller_arch != dep->program->arch &&
-          (type == STT_FUNC || type == STT_NOTYPE) &&
+          (resolved_type == STT_FUNC || resolved_type == STT_NOTYPE ||
+           resolved_type == STT_GNU_IFUNC) &&
           emit_process_cross_isa_call_stub(caller_arch, dep->program->arch,
             *symbol_value, symbol_value) < 0)
         return -1;
@@ -1009,7 +1020,7 @@ static int resolve_loaded_dependency_symbol_at_depth(
     }
     if (resolve_loaded_dependency_symbol_at_depth(dep->program, caller_arch,
           symbol_name, requested_version, symbol_value, symbol_type,
-          depth + 1) == 0)
+          trampoline_code, prefix_size, return_pc, scratch, depth + 1) == 0)
       return 0;
   }
   return -1;
@@ -1017,9 +1028,12 @@ static int resolve_loaded_dependency_symbol_at_depth(
 
 static int resolve_loaded_dependency_symbol(const struct poly_program *program,
     const char *symbol_name, const char *requested_version,
-    uint64_t *symbol_value, uint8_t *symbol_type) {
+    uint64_t *symbol_value, uint8_t *symbol_type,
+    uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
+    uint8_t *scratch) {
   return resolve_loaded_dependency_symbol_at_depth(program, program->arch,
-    symbol_name, requested_version, symbol_value, symbol_type, 0);
+    symbol_name, requested_version, symbol_value, symbol_type,
+    trampoline_code, prefix_size, return_pc, scratch, 0);
 }
 
 static int resolve_loaded_dependency_tls_symbol_at_depth(
@@ -1119,7 +1133,8 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
         prefix_size, return_pc, scratch, symbol_value, symbol_type) == 0)
     return 0;
   if (resolve_loaded_dependency_symbol(program, symbol_name, requested_version,
-        symbol_value, symbol_type) == 0)
+        symbol_value, symbol_type, trampoline_code, prefix_size, return_pc,
+        scratch) == 0)
     return 0;
   if (ELF64_ST_BIND(unresolved_info) == STB_WEAK) {
     *symbol_value = 0;
@@ -2831,6 +2846,58 @@ static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
     ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | (rd & 0x1fU));
 }
 
+static int emit_poly_resolver_trampoline(const struct poly_program *program,
+    uint8_t *code, size_t code_size, uint64_t return_pc,
+    uint64_t target_pc) {
+  (void) return_pc;
+  size_t offset = 0;
+  if (program->arch == POLY_ARCH_AARCH64) {
+    if (code_size < 37)
+      return -1;
+    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 32);
+    const uint8_t raw_switch[] = {
+      0x0f, 0x3a, 0xfc, 0x01
+    };
+    code[offset++] = 0x48; // movabs rax,target_pc -> AArch64 x0
+    code[offset++] = 0xb8;
+    emit_u64(code, &offset, target_pc);
+    code[offset++] = 0x48; // movabs rdx,return_pc -> AArch64 x1
+    code[offset++] = 0xba;
+    emit_u64(code, &offset, resolver_return_pc);
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+    emit_u32(code, &offset, 0xaa0103feU); // mov x30,x1
+    emit_u32(code, &offset, 0xd61f0000U); // br x0
+    emit_u32(code, &offset, 0xd5032e1fU); // AArch64 polyctrl escape
+    code[offset++] = 0xc3;
+    return 0;
+  }
+
+  if (program->arch == POLY_ARCH_RISCV) {
+    if (code_size < 37)
+      return -1;
+    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 32);
+    const uint8_t raw_switch[] = {
+      0x0f, 0x3a, 0xfc, 0x02
+    };
+    code[offset++] = 0x48; // movabs rax,target_pc -> RISC-V a0
+    code[offset++] = 0xb8;
+    emit_u64(code, &offset, target_pc);
+    code[offset++] = 0x48; // movabs rdx,return_pc -> RISC-V a1
+    code[offset++] = 0xba;
+    emit_u64(code, &offset, resolver_return_pc);
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+    emit_u32(code, &offset, riscv_addi(1, 11, 0)); // mv ra,a1
+    emit_u32(code, &offset, riscv_jalr(0, 10, 0)); // jr a0
+    emit_u32(code, &offset, 0x0000700bU); // RISC-V polyctrl escape
+    code[offset++] = 0xc3;
+    return 0;
+  }
+
+  return -1;
+}
+
 static int ensure_process_cross_stub_arena(void) {
   if (process_cross_stubs.mapping)
     return 0;
@@ -2950,11 +3017,37 @@ static int run_irelative_resolver(const struct poly_program *program,
   const uint64_t load_bias =
     (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   const uint64_t resolver_pc = load_bias + resolver_vaddr;
-  if (emit_poly_trampoline(program, trampoline_code, prefix_size,
-        return_pc, resolver_pc) < 0)
+
+  const size_t expected_prefix_size =
+    program->arch == POLY_ARCH_AARCH64 ? 12 :
+    program->arch == POLY_ARCH_RISCV ? 24 : 0;
+  if (expected_prefix_size != 0 && prefix_size == expected_prefix_size) {
+    if (emit_poly_trampoline(program, trampoline_code, prefix_size,
+          return_pc, resolver_pc) < 0)
+      return -1;
+    *resolved = run_poly_entry(trampoline_code, scratch);
+    poly_mode_x86();
+    return 0;
+  }
+
+  const size_t resolver_code_size = 4096;
+  uint8_t *resolver_code = mmap(NULL, resolver_code_size,
+    PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (resolver_code == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: IFUNC resolver trampoline mmap failed: %s\n",
+      strerror(errno));
     return -1;
-  *resolved = run_poly_entry(trampoline_code, scratch);
+  }
+  if (emit_poly_resolver_trampoline(program, resolver_code, resolver_code_size,
+        return_pc, resolver_pc) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: IFUNC resolver trampoline failed: %s\n",
+      program->path);
+    munmap(resolver_code, resolver_code_size);
+    return -1;
+  }
+  *resolved = run_poly_entry(resolver_code, scratch);
   poly_mode_x86();
+  munmap(resolver_code, resolver_code_size);
   return 0;
 }
 
