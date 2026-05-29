@@ -254,6 +254,15 @@ double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64(uint64_t a, double b,
   return (double) (a + c + e) + b + d + f + 200.5;
 }
 
+double POLY_HOST_HELPER poly_host_x86_mixed_u64_fp64_stack(uint64_t a,
+    double b, uint64_t c, double d, uint64_t e, double f, uint64_t g,
+    double h, uint64_t i, double j, uint64_t k, double l, uint64_t m,
+    double n, uint64_t o, double p, uint64_t q, double r)
+{
+  return (double) (a + c + e + g + i + k + m + o + q) +
+    b + d + f + h + j + l + n + p + r + 300.5;
+}
+
 float POLY_HOST_HELPER poly_host_x86_fp32_add(float a, float b)
 {
   return a + b + 200.5f;

@@ -148,6 +148,7 @@ enum {
   POLY_CALL_AARCH64_HFA4_F64_ARG = 28,
   POLY_CALL_AARCH64_HFA3_F32_ARG = 29,
   POLY_CALL_AARCH64_HFA4_F32_ARG = 30,
+  POLY_CALL_MIXED_STACK_ARGS = 31,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -517,7 +518,8 @@ enum {
   POLY_IMPORT_FUNC_STRTOUL = 197,
   POLY_IMPORT_FUNC_STRTOLL = 198,
   POLY_IMPORT_FUNC_STRTOULL = 199,
-  POLY_IMPORT_FUNC_COUNT = 200
+  POLY_IMPORT_FUNC_COUNT = 200,
+  POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
 enum {
@@ -941,6 +943,10 @@ extern struct poly_host_sret_u64 poly_host_x86_sret_u64_stack10(uint64_t a,
     uint64_t h, uint64_t i, uint64_t j);
 extern double poly_host_x86_mixed_u64_fp64(uint64_t a, double b, uint64_t c,
     double d, uint64_t e, double f);
+extern double poly_host_x86_mixed_u64_fp64_stack(uint64_t a, double b,
+    uint64_t c, double d, uint64_t e, double f, uint64_t g, double h,
+    uint64_t i, double j, uint64_t k, double l, uint64_t m, double n,
+    uint64_t o, double p, uint64_t q, double r);
 extern float poly_host_x86_fp32_add(float a, float b);
 extern uint64_t poly_host_x86_strlen(const char *text);
 extern uint64_t poly_host_x86_strcmp(const unsigned char *left_text,
@@ -1320,6 +1326,10 @@ static int resolve_direct_x86_register_import(int arch,
     *import_id = POLY_IMPORT_FUNC_X86_SLOT7;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64_stack") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK;
+    return 0;
+  }
   if (strcmp(symbol_name, "poly_import_x86_i128") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_I128;
     return 0;
@@ -1397,6 +1407,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_sret_u64_stack10;
     case POLY_IMPORT_FUNC_X86_SLOT7:
       return (uint64_t) (uintptr_t) poly_host_x86_mixed_u64_fp64;
+    case POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK:
+      return (uint64_t) (uintptr_t) poly_host_x86_mixed_u64_fp64_stack;
     case POLY_IMPORT_FUNC_STRLEN:
       return (uint64_t) (uintptr_t) poly_host_x86_strlen;
     case POLY_IMPORT_FUNC_STRCMP:
@@ -1964,6 +1976,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "mixedargs:", 10) == 0) {
     request->call_kind = POLY_CALL_MIXED_ARGS;
     arg += 10;
+  }
+  else if (strncmp(arg, "mixedstack:", 11) == 0) {
+    request->call_kind = POLY_CALL_MIXED_STACK_ARGS;
+    arg += 11;
   }
   else if (strncmp(arg, "hetero:", 7) == 0) {
     request->call_kind = POLY_CALL_HETERO_U64_F64;
@@ -3119,10 +3135,12 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK;
   const int needs_sret_stack10_x86_thunk =
     import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10;
+  const int needs_mixed_stack_x86_thunk =
+    import_id == POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK;
   const int needs_x86_thunk =
     needs_int_stack_x86_thunk || needs_riscv_vec128_x86_thunk ||
     needs_fp64_stack_x86_thunk || needs_sret_stack_x86_thunk ||
-    needs_sret_stack10_x86_thunk;
+    needs_sret_stack10_x86_thunk || needs_mixed_stack_x86_thunk;
   uint64_t x86_thunk_addr = 0;
   if (needs_int_stack_x86_thunk) {
     if (stub_limit - *stub_offset < 160)
@@ -3382,6 +3400,55 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     stubs[(*stub_offset)++] = 0x28;
     stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
   }
+  else if (needs_mixed_stack_x86_thunk) {
+    if (stub_limit - *stub_offset < 128)
+      return -1;
+    x86_thunk_addr = (uint64_t) (uintptr_t) (stubs + *stub_offset);
+    stubs[(*stub_offset)++] = 0x48; // sub rsp,40: align and reserve four stack args.
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xec;
+    stubs[(*stub_offset)++] = 0x28;
+    emit_x86_mov_mrsp_disp8_r9(stubs, stub_offset, 0); // int arg 6
+    emit_x86_mov_mrsp_disp8_r10(stubs, stub_offset, 8); // int arg 7
+    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset, 0, 16); // int arg 8
+    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset, 8, 24); // fp arg 8
+    stubs[(*stub_offset)++] = 0x49; // mov r10,rdi (int arg 3)
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xfa;
+    stubs[(*stub_offset)++] = 0x49; // mov r11,rsi (int arg 4)
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xf3;
+    stubs[(*stub_offset)++] = 0x48; // mov rdi,rax
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc7;
+    stubs[(*stub_offset)++] = 0x48; // mov rsi,rdx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd6;
+    stubs[(*stub_offset)++] = 0x48; // mov rdx,rcx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xca;
+    stubs[(*stub_offset)++] = 0x4c; // mov rcx,r10
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd1;
+    stubs[(*stub_offset)++] = 0x4d; // mov r10,r8 (int arg 5)
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc2;
+    stubs[(*stub_offset)++] = 0x4d; // mov r8,r11
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd8;
+    stubs[(*stub_offset)++] = 0x4d; // mov r9,r10
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd1;
+    emit_movabs_r11(stubs, stub_offset, target);
+    stubs[(*stub_offset)++] = 0x41; // call r11
+    stubs[(*stub_offset)++] = 0xff;
+    stubs[(*stub_offset)++] = 0xd3;
+    stubs[(*stub_offset)++] = 0x48; // add rsp,40
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xc4;
+    stubs[(*stub_offset)++] = 0x28;
+    stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
+  }
 
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
@@ -3397,6 +3464,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     needs_fp64_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_sret_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_sret_stack10_x86_thunk ? contract->signature_slot_exchange :
+    needs_mixed_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_riscv_vec128_x86_thunk ?
       contract->signature_slot_x86_sysv_regs_i128 :
     import_id == POLY_IMPORT_FUNC_X86_I128 ?
@@ -3982,6 +4050,11 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_X86_SLOT7 * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64_stack") == 0) {
+    *symbol_value =
+      POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "poly_import_x86_fp32_add") == 0) {
@@ -7296,6 +7369,21 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     double (*entry)(uint64_t, double, uint64_t, double, uint64_t, double) =
       (double (*)(uint64_t, double, uint64_t, double, uint64_t, double)) code;
     fp_result.d = entry(1, 1.5, 2, 2.25, 3, 3.0);
+    return fp_result.u;
+  }
+  if (call_kind == POLY_CALL_MIXED_STACK_ARGS) {
+    union {
+      double d;
+      uint64_t u;
+    } fp_result;
+    double (*entry)(uint64_t, double, uint64_t, double, uint64_t, double,
+        uint64_t, double, uint64_t, double, uint64_t, double, uint64_t,
+        double, uint64_t, double, uint64_t, double) =
+      (double (*)(uint64_t, double, uint64_t, double, uint64_t, double,
+        uint64_t, double, uint64_t, double, uint64_t, double, uint64_t,
+        double, uint64_t, double, uint64_t, double)) code;
+    fp_result.d = entry(1, 1.5, 2, 2.25, 3, 3.0, 4, 4.5, 5, 5.25,
+      6, 6.0, 7, 7.5, 8, 8.25, 9, 9.0);
     return fp_result.u;
   }
   if (call_kind == POLY_CALL_HETERO_U64_F64) {

@@ -192,6 +192,7 @@ case "$path" in
   */aarch64-pcall-x86-sret-fp64-callee-stack-import-real.so) expected=0x4099450000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
   */aarch64-pcall-x86-mixed-u64-fp64-import-real.so) expected=0x406aa80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
   */aarch64-pcall-x86-mixed-u64-fp64-callee-import-real.so) expected=0x40b2f1c000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
+  */aarch64-pcall-x86-mixed-u64-fp64-stack-import-real.so) expected=0x40788c0000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedstack:" ;;
   */aarch64-pcall-x86-fp32-import-real.so) expected=0x434f4000; entry="#poly_entry"; runner="polycall"; call_prefix="fp32:" ;;
   */aarch64-pcall-abs-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-rpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
@@ -382,6 +383,7 @@ case "$path" in
   */riscv-pcall-x86-sret-fp64-callee-stack-import-real.so) expected=0x4099450000000000; entry="#poly_entry"; runner="polycall"; call_prefix="fp64:" ;;
   */riscv-pcall-x86-mixed-u64-fp64-import-real.so) expected=0x406aa80000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
   */riscv-pcall-x86-mixed-u64-fp64-callee-import-real.so) expected=0x40b2f1c000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedargs:" ;;
+  */riscv-pcall-x86-mixed-u64-fp64-stack-import-real.so) expected=0x40788c0000000000; entry="#poly_entry"; runner="polycall"; call_prefix="mixedstack:" ;;
   */riscv-pcall-x86-fp32-import-real.so) expected=0x434f4000; entry="#poly_entry"; runner="polycall"; call_prefix="fp32:" ;;
   */riscv-pcall-abs-runpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-rpath-real.so) expected=945; entry="#poly_entry"; runner="polycall" ;;
