@@ -1,44 +1,42 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 CPU. x86_64
-stays the system ISA for boot, paging, privilege, interrupts, atomics, and the
-global TSO memory model.
+Poly is an x86_64 CPU extension that adds user-mode AArch64 and RISC-V64
+frontends in the same virtual address space. It targets existing native ABI
+objects and libraries, not a new compiler-only ABI.
 
 ## Frontends
 
-| ID | Frontend | Fetch model |
-| -- | -------- | ----------- |
-| `0` | x86_64 | normal variable-length x86 decode |
-| `1` | AArch64 | direct 32-bit fetch from `RIP` |
-| `2` | RISC-V64 | direct RV64/RVC fetch from `RIP` |
+| ID | Frontend | Fetch |
+| --- | --- | --- |
+| `0` | x86_64 | normal variable-length x86 |
+| `1` | AArch64 | raw 32-bit instructions from `RIP` |
+| `2` | RISC-V64 | raw RV64/RVC instructions from `RIP` |
 
-## What Changes From x86_64
+## Contract
 
-- Foreign instructions are fetched directly; there are no per-instruction
-  `#UD` envelopes or legacy single-instruction wrappers.
-- All frontends share one virtual address space, TLB, page-fault path,
-  permission model, and x86-style TSO ordering.
-- Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI. Poly is not a new compiler-only ABI.
-- Register-only calls use cached ABI signature slots. Stack arguments,
-  aggregates, variadics, lazy binding, and other ABI reshaping stay in
-  loader/runtime thunks.
-- Trap packets are OS-neutral. Foreign `svc`/`ecall`, illegal instructions,
-  unresolved imports, and breakpoints report the source frontend, PC, status,
-  and the first eight native foreign ABI argument registers.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  faults, atomics, and the global TSO memory model.
+- Foreign instructions are fetched directly. The fast path has no `#UD`
+  envelope and no one-trap-per-instruction execution model.
+- All frontends share virtual memory, page permissions, TLB behavior, fault
+  delivery, and x86-style TSO ordering.
+- Cross-ISA calls target real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
+  psABI.
+- Register-only ABI cases can use cached signature slots. Stack arguments,
+  aggregates, variadics, lazy binding, and ABI reshaping stay in software
+  thunks.
+- Foreign `svc`/`ecall`, breakpoints, illegal instructions, unresolved imports,
+  and recoverable faults produce OS-neutral trap packets with eight native ABI
+  argument lanes.
 - Foreign register state is explicit XSAVE-style architectural state. Hidden
   CR3/TLS-keyed emulator banks are not the hardware contract.
 
-## Control Surface
+## Controls
 
 - Generic operations: `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`.
-- x86_64 prototype controls: decoded Poly control opcode page.
-- AArch64 prototype controls: reserved `HINT` subspace.
-- RISC-V64 prototype controls: `custom-0` subspace.
-- Poly XSAVE component: `20`.
+- Prototype encodings: x86_64 Poly control opcode page, AArch64 reserved
+  `HINT` subspace, and RISC-V `custom-0` subspace.
+- Prototype Poly XSAVE component: `20`.
 
-## Pointers
-
-- Run instructions and current prototype status: `README.md`.
-- Design rationale and hardware direction: `docs/poly-isa-design-directions.md`.
-- Shared constants: `tools/include/polycpuid.h`.
+See `README.md` for build/run status and `docs/poly-isa-design-directions.md`
+for design rationale.
