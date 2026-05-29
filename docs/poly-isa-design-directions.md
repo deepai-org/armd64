@@ -328,8 +328,8 @@ frontend and continuation. The source frontend stack pointer is exposed to x86
 in volatile `R11`, giving software thunks enough information to copy overflow
 stack arguments without making `PCALL` parse descriptors or rewrite memory.
 Software thunks still own ABI and loader policy while the CPU control path
-stays frontend-neutral. The Bochs reserved import-call descriptor range is a
-compatibility fallback, not a required silicon ABI.
+stays frontend-neutral. The Bochs reserved import-call range is now a trap
+delivery surface for unresolved imports, not a CPU-parsed descriptor ABI.
 
 ## Register Exchange Window
 

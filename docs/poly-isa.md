@@ -184,8 +184,8 @@ installs a return cookie on the x86 stack; an ordinary x86 `ret` to that cookie
 restores the foreign frontend and resumes at the foreign continuation register.
 Loader/runtime thunks still own complex ABI policy, but the control transfer
 itself now uses the same frontend-neutral `PCALL` path as AArch64-to-RISC-V and
-RISC-V-to-AArch64. The Bochs reserved import-call descriptor range is retained
-only as a compatibility fallback, not a required hardware feature.
+RISC-V-to-AArch64. The Bochs reserved import-call range is an import-trap
+delivery surface for unresolved targets, not a CPU-parsed descriptor ABI.
 Foreign ABI signature-slot controls let AArch64 and RISC-V code program or
 query the same architectural slot bank directly. x86_64 remains the boot and
 system frontend, not the only frontend allowed to configure Poly call state.
