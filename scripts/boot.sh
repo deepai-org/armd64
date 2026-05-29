@@ -7883,11 +7883,11 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_sigregs=[1-9]" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_sigregs=[1-9].*aarch64-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_sigregs=[1-9]" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_sigregs=[1-9].*riscv-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

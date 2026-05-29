@@ -9292,7 +9292,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       return -1;
     }
   }
-  if (needs_x86_import) {
+  const uint32_t x86_import_stub_total =
+    import_stub_stats.x86_direct_sigreg_stubs +
+    import_stub_stats.x86_direct_i128_sigreg_stubs +
+    import_stub_stats.x86_thunk_stubs;
+  if (x86_import_stub_total != 0) {
     printf("POLYCALL_X86_IMPORT_STUBS: arch=%s direct_sigregs=%u direct_i128=%u thunks=%u path=%s\n",
       program->arch_name, import_stub_stats.x86_direct_sigreg_stubs,
       import_stub_stats.x86_direct_i128_sigreg_stubs,
