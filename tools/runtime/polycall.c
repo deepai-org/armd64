@@ -306,6 +306,8 @@ static const uint32_t POLY_CPUID_REQUIRED_FEATURES =
   POLY_CPUID_FEATURE_AARCH64_HFA_ARGS;
 
 enum {
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 = 3,
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
   POLY_IMPORT_FUNC_RESERVED_LEGACY_X86_ADD = 2,
@@ -1228,6 +1230,10 @@ static int resolve_direct_x86_register_import(int arch,
   }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT7;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_i128") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_I128;
     return 0;
   }
   if (arch == POLY_ARCH_AARCH64 &&
@@ -2951,6 +2957,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
   const int split_fp32_pair_return =
     import_id == POLY_IMPORT_FUNC_X86_FPAIR32;
+  const uint32_t signature_slot =
+    import_id == POLY_IMPORT_FUNC_X86_I128 ? 2U : 1U;
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 96)
@@ -2961,7 +2969,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_aarch64_movabs(stubs, stub_offset, 16, target);
     emit_aarch64_movabs(stubs, stub_offset, 17, 0);
     emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
-    emit_aarch64_movabs(stubs, stub_offset, 19, 1);
+    emit_aarch64_movabs(stubs, stub_offset, 19, signature_slot);
     emit_u32(stubs, stub_offset, 0xd5032f5fU); // aarch64 PCALL_SIG
     if (split_fp32_pair_return) {
       emit_u32(stubs, stub_offset, 0x0e0c3c09U); // umov w9, v0.s[1]
@@ -2986,7 +2994,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, 0x00000397U); // auipc x7,0
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
-    emit_u32(stubs, stub_offset, riscv_addi(28, 0, 1)); // signature slot 1
+    emit_u32(stubs, stub_offset,
+      riscv_addi(28, 0, (int32_t) signature_slot));
     emit_u32(stubs, stub_offset, 0x1400700bU); // riscv PCALL_SIG
     const size_t return_pc = *stub_offset;
     if (split_fp32_pair_return) {
@@ -5287,7 +5296,6 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_i128") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64") == 0 ||

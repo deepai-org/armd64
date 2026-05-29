@@ -65,8 +65,10 @@ coverage, but the preferred generic form is `PCALL_SIG_IMM_MODE`.
 | `0x6c` | `MONITOR_PACKET_GET` | returns the active monitor trap-packet buffer pointer in `RAX` |
 
 Prototype signature kinds are `0` for the baseline exchange window, `1` for the
-older x86_64 SysV compatibility mapping, and `2` for the hardware-oriented
-x86_64 SysV register-only mapping. Fast `PCALL_SIG_*` code should use kind `2`
+older x86_64 SysV compatibility mapping, `2` for the hardware-oriented x86_64
+SysV register-only mapping, and `3` for the same register argument mapping with
+a two-register integer return (`RAX/RDX` to the destination ABI's first two
+integer return registers). Fast `PCALL_SIG_*` code should use kind `2` or `3`
 when it wants RAT-style behavior: `RDI,RSI,RDX,RCX,R8,R9` are rebound to the
 target argument registers and stack arguments are left to software thunks.
 These kinds are a model of cached hardware control state, not a final x86
