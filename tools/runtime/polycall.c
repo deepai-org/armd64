@@ -2870,7 +2870,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
 
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
-    if (stub_limit - start < 64)
+    if (stub_limit - start < 80)
       return -1;
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
       const uint64_t return_addr = start_addr + 36;
@@ -2882,15 +2882,23 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       *stub_addr = start_addr;
       return 0;
     }
-    const uint64_t return_addr = start_addr + 52;
+    const uint64_t return_addr = start_addr +
+      (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT ? 56 : 52);
     emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
     emit_u32(stubs, stub_offset, 0xf9400bf2U); // ldr x18, [sp, #16]
     emit_u32(stubs, stub_offset, 0xf90003f2U); // str x18, [sp]
     emit_u32(stubs, stub_offset, 0xf90007feU); // str x30, [sp, #8]
     emit_aarch64_movabs(stubs, stub_offset, 16, target);
-    emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
-    emit_u32(stubs, stub_offset,
-      aarch64_cross_call_opcode_for_bridge(bridge_kind));
+    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT) {
+      emit_u32(stubs, stub_offset, 0xd2800051U); // movz x17,#2 (RISC-V)
+      emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
+      emit_u32(stubs, stub_offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+    }
+    else {
+      emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
+      emit_u32(stubs, stub_offset,
+        aarch64_cross_call_opcode_for_bridge(bridge_kind));
+    }
     emit_u32(stubs, stub_offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
@@ -2905,8 +2913,16 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
     const size_t ld_target_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
-    const size_t auipc_return_pc = *stub_offset;
-    emit_u32(stubs, stub_offset, 0x00000317U); // auipc x6,0
+    size_t auipc_return_pc = 0;
+    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT) {
+      emit_u32(stubs, stub_offset, riscv_addi(6, 0, 1)); // frontend AArch64
+      auipc_return_pc = *stub_offset;
+      emit_u32(stubs, stub_offset, 0x00000397U); // auipc x7,0
+    }
+    else {
+      auipc_return_pc = *stub_offset;
+      emit_u32(stubs, stub_offset, 0x00000317U); // auipc x6,0
+    }
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
@@ -2919,8 +2935,11 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, riscv_sd(7, 2, 0)); // sd t2,0(sp)
       emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
     }
-    emit_u32(stubs, stub_offset,
-      riscv_cross_call_opcode_for_bridge(bridge_kind));
+    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+      emit_u32(stubs, stub_offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+    else
+      emit_u32(stubs, stub_offset,
+        riscv_cross_call_opcode_for_bridge(bridge_kind));
     const size_t return_pc = *stub_offset;
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
       emit_u32(stubs, stub_offset, riscv_ld(1, 2, 72)); // ld ra,72(sp)
@@ -2940,8 +2959,12 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       (uint64_t) (uintptr_t) (stubs + return_pc));
     store_u32(stubs, ld_target_offset, riscv_ld(5, 5,
       (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-    store_u32(stubs, ld_return_offset, riscv_ld(6, 6,
-      (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+      store_u32(stubs, ld_return_offset, riscv_ld(7, 7,
+        (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+    else
+      store_u32(stubs, ld_return_offset, riscv_ld(6, 6,
+        (int32_t) return_data_offset - (int32_t) auipc_return_pc));
     *stub_addr = start_addr;
     return 0;
   }
