@@ -178,6 +178,7 @@ enum {
   RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32 = 15,
   RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 = 16,
   RELOC_BASE_ROOT_IFUNC_FP64_STACK = 17,
+  RELOC_BASE_X86_DIRECT_IMPORT_STUB = 18,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
@@ -1189,6 +1190,23 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
     return 1;
 
   return 0;
+}
+
+static int resolve_direct_x86_register_import(const char *symbol_name,
+    uint64_t *import_id) {
+  if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT0;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_mul") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT1;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_sum6") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT2;
+    return 0;
+  }
+  return -1;
 }
 
 static uint64_t x86_descriptor_target_for_import_id(int arch,
@@ -2873,6 +2891,67 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     store_u32(stubs, ld_target_offset, riscv_ld(5, 5,
       (int32_t) target_data_offset - (int32_t) auipc_target_pc));
     store_u32(stubs, ld_return_offset, riscv_ld(6, 6,
+      (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+    *stub_addr = start_addr;
+    return 0;
+  }
+
+  return -1;
+}
+
+static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
+    size_t *stub_offset, int caller_arch, uint64_t target,
+    uint64_t *stub_addr) {
+  if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
+    return -1;
+
+  const size_t start = *stub_offset;
+  const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
+
+  if (caller_arch == POLY_ARCH_AARCH64) {
+    if (stub_limit - start < 96)
+      return -1;
+    const uint64_t return_addr = start_addr + 76;
+    emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
+    emit_u32(stubs, stub_offset, 0xf90003f3U); // str x19, [sp]
+    emit_aarch64_movabs(stubs, stub_offset, 16, target);
+    emit_aarch64_movabs(stubs, stub_offset, 17, 0);
+    emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
+    emit_aarch64_movabs(stubs, stub_offset, 19, 1);
+    emit_u32(stubs, stub_offset, 0xd5032f5fU); // aarch64 PCALL_SIG
+    emit_u32(stubs, stub_offset, 0xf94003f3U); // ldr x19, [sp]
+    emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
+    emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
+    *stub_addr = start_addr;
+    return 0;
+  }
+
+  if (caller_arch == POLY_ARCH_RISCV) {
+    if (stub_limit - start < 80)
+      return -1;
+    const size_t auipc_target_pc = *stub_offset;
+    emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
+    const size_t ld_target_offset = *stub_offset;
+    emit_u32(stubs, stub_offset, 0);
+    emit_u32(stubs, stub_offset, riscv_addi(6, 0, 0)); // frontend x86_64
+    const size_t auipc_return_pc = *stub_offset;
+    emit_u32(stubs, stub_offset, 0x00000397U); // auipc x7,0
+    const size_t ld_return_offset = *stub_offset;
+    emit_u32(stubs, stub_offset, 0);
+    emit_u32(stubs, stub_offset, riscv_addi(28, 0, 1)); // signature slot 1
+    emit_u32(stubs, stub_offset, 0x1400700bU); // riscv PCALL_SIG
+    const size_t return_pc = *stub_offset;
+    emit_u32(stubs, stub_offset, 0x00008067U); // ret
+    if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
+      return -1;
+    const size_t target_data_offset = *stub_offset;
+    emit_u64(stubs, stub_offset, target);
+    const size_t return_data_offset = *stub_offset;
+    emit_u64(stubs, stub_offset,
+      (uint64_t) (uintptr_t) (stubs + return_pc));
+    store_u32(stubs, ld_target_offset, riscv_ld(5, 5,
+      (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+    store_u32(stubs, ld_return_offset, riscv_ld(7, 7,
       (int32_t) return_data_offset - (int32_t) auipc_return_pc));
     *stub_addr = start_addr;
     return 0;
@@ -5143,13 +5222,14 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     *base_kind = RELOC_BASE_IMPORT_PAGE;
     return 0;
   }
+  if (resolve_direct_x86_register_import(symbol_name, symbol_value) == 0) {
+    *base_kind = RELOC_BASE_X86_DIRECT_IMPORT_STUB;
+    return 0;
+  }
   if (resolve_import_function(symbol_name, symbol_value) == 0) {
     if (strcmp(symbol_name, "__errno_location") == 0)
       program->needs_errno_location = 1;
-    if (strcmp(symbol_name, "poly_import_x86_add") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_mul") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_sum6") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_sum8") == 0 ||
+    if (strcmp(symbol_name, "poly_import_x86_sum8") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
@@ -7396,6 +7476,27 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       }
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_PAGE)
         reloc_base = (uint64_t) (uintptr_t) import_page;
+      else if (dep->relocs[r].base_kind ==
+          RELOC_BASE_X86_DIRECT_IMPORT_STUB) {
+        const uint64_t target = x86_descriptor_target_for_import_id(dep->arch,
+          dep->relocs[r].value);
+        uint64_t stub_addr = 0;
+        if (target == 0 ||
+            emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
+              &cross_stub_offset, dep->arch, target, &stub_addr) < 0) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency x86 direct import stub overflow: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        write_le64(dep_foreign[d] + dep->relocs[r].offset, stub_addr);
+        continue;
+      }
       else if (dep->relocs[r].base_kind == RELOC_BASE_IMPORT_CALL)
         reloc_base = import_contract.call_base;
       else if (dep->relocs[r].base_kind == RELOC_BASE_TLS_OFFSET)
@@ -7609,6 +7710,27 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       reloc_base = load_bias;
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_PAGE)
       reloc_base = (uint64_t) (uintptr_t) import_page;
+    else if (program->relocs[n].base_kind ==
+        RELOC_BASE_X86_DIRECT_IMPORT_STUB) {
+      const uint64_t target = x86_descriptor_target_for_import_id(program->arch,
+        program->relocs[n].value);
+      uint64_t stub_addr = 0;
+      if (target == 0 ||
+          emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
+            &cross_stub_offset, program->arch, target, &stub_addr) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: x86 direct import stub overflow: %s\n",
+          program->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      write_le64(foreign + program->relocs[n].offset, stub_addr);
+      continue;
+    }
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_CALL)
       reloc_base = import_contract.call_base;
     else if (program->relocs[n].base_kind == RELOC_BASE_TLS_OFFSET)
