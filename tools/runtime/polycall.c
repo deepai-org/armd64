@@ -8345,7 +8345,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     code[offset++] = 0x3a;
     code[offset++] = 0xfc;
     code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
-    code[offset++] = (uint8_t) import_contract.signature_slot_x86_sysv_regs;
+    code[offset++] = (uint8_t) import_contract.signature_slot_native_regs;
   }
   else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
