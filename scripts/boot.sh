@@ -367,10 +367,7 @@ compile_poly_tool() {
   local src="$1"
   local bin="$2"
   local requested_compiler="$3"
-
-  if [[ -x "$bin" && "$bin" -nt "$src" && "$bin" -nt "$POLY_CPUID_HEADER" ]]; then
-    return
-  fi
+  local link_mode="${4:-static}"
 
   local compiler=""
   for candidate in "$requested_compiler" x86_64-linux-gnu-gcc gcc-x86-64-linux-gnu cc gcc; do
@@ -388,7 +385,19 @@ compile_poly_tool() {
     exit 1
   fi
 
-  local -a compiler_args=(-O2 -static -s -fno-stack-protector)
+  if [[ -x "$bin" && "$bin" -nt "$src" && "$bin" -nt "$POLY_CPUID_HEADER" ]]; then
+    if [[ "$link_mode" != "static-pie" ]] ||
+        readelf -h "$bin" 2>/dev/null | grep -q 'Type:[[:space:]]*DYN'; then
+      return
+    fi
+  fi
+
+  local -a compiler_args=(-O2 -s -fno-stack-protector)
+  if [[ "$link_mode" == "static-pie" ]]; then
+    compiler_args+=(-static-pie -fPIE)
+  else
+    compiler_args+=(-static)
+  fi
   if [[ "$compiler" == x86_64-linux-gnu-gcc || "$compiler" == gcc-x86-64-linux-gnu ]]; then
     compiler_args+=(--sysroot=/usr/x86_64-linux-gnu)
   fi
@@ -404,7 +413,7 @@ build_poly_app() {
 }
 
 build_poly_exec() {
-  compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}"
+  compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}" static-pie
 }
 
 build_poly_call() {
@@ -2826,7 +2835,7 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocesscopy-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fno-pic \
     -no-pie -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
-    -mcmodel=medany -DPOLY_PROCESS_COPY_MAIN \
+    -DPOLY_PROCESS_COPY_MAIN \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \

@@ -19,6 +19,10 @@
 
 extern char **environ;
 
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
+
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
@@ -243,6 +247,7 @@ struct poly_program {
   const char *path;
   const char *arch_name;
   int arch;
+  int is_et_exec;
   uint64_t base_vaddr;
   size_t entry_offset;
   uint64_t phdr_vaddr;
@@ -2878,7 +2883,8 @@ static int protect_load_segments(const struct poly_program *program,
 }
 
 static uint32_t aarch64_adr(unsigned rd, int64_t byte_offset);
-static int aarch64_b(int64_t byte_offset, uint32_t *insn);
+static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
+    uint64_t value);
 static uint32_t riscv_auipc(unsigned rd, int64_t byte_offset);
 static uint32_t riscv_addi(unsigned rd, unsigned rs1, int64_t byte_offset);
 static uint32_t riscv_jalr(unsigned rd, unsigned rs1, int16_t byte_offset);
@@ -3090,14 +3096,8 @@ static int emit_poly_trampoline(const struct poly_program *program,
     emit_x86_penter_frontend(code, &offset, POLY_ARCH_AARCH64);
     emit_u32(code, &offset, aarch64_adr(30,
       (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset)));
-    uint32_t branch = 0;
-    if (aarch64_b((int64_t) target_pc - (int64_t) (uintptr_t) (code + offset),
-          &branch) < 0) {
-      fprintf(stderr, "POLYEXEC_FAIL: AArch64 target branch out of range: %s\n",
-        program->path);
-      return -1;
-    }
-    emit_u32(code, &offset, branch);
+    emit_aarch64_movabs(code, &offset, 16, target_pc);
+    emit_u32(code, &offset, 0xd61f0200U); // br x16
   }
   else {
     emit_x86_penter_frontend(code, &offset, POLY_ARCH_RISCV);
@@ -3122,15 +3122,6 @@ static int emit_poly_trampoline(const struct poly_program *program,
 static uint32_t aarch64_adr(unsigned rd, int64_t byte_offset) {
   uint32_t imm = (uint32_t) byte_offset & 0x1fffffU;
   return 0x10000000U | ((imm & 0x3U) << 29) | (((imm >> 2) & 0x7ffffU) << 5) | (rd & 0x1fU);
-}
-
-static int aarch64_b(int64_t byte_offset, uint32_t *insn) {
-  if ((byte_offset & 3) != 0 ||
-      byte_offset < -(INT64_C(1) << 27) ||
-      byte_offset >= (INT64_C(1) << 27))
-    return -1;
-  *insn = 0x14000000U | (((uint32_t) (byte_offset >> 2)) & 0x03ffffffU);
-  return 0;
 }
 
 static uint32_t riscv_auipc(unsigned rd, int64_t byte_offset) {
@@ -4093,6 +4084,7 @@ static int load_elf_program(const char *path, const char *symbol_name,
     free(data);
     return -1;
   }
+  program->is_et_exec = ehdr->e_type == ET_EXEC;
 
   if (ehdr->e_phentsize < sizeof(Elf64_Phdr) ||
       ehdr->e_phoff > size ||
@@ -4660,7 +4652,7 @@ static int map_process_dependencies(struct poly_program *program,
 
 static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
-  const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
+  const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 20 : 12;
   const size_t raw_switch_size = POLY_X86_PENTER_GENERIC_SIZE;
   const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
   const size_t load_base_offset = 4096;
@@ -4774,41 +4766,77 @@ static int emit_and_run_process(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
-  const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
+  const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 20 : 12;
   const size_t raw_switch_size = POLY_X86_PENTER_GENERIC_SIZE;
   const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
   const size_t load_base_offset = 4096;
   const size_t branch_offset = load_base_offset - branch_size;
   const size_t code_offset = branch_offset - raw_switch_size - return_setup_size;
   const size_t escape_return_size = 5;
+  const size_t fixed_control_size = 64 * 1024;
+  const int fixed_main_image = program->is_et_exec;
   const uint64_t image_mapping_size_u64 =
-    align_up_u64((uint64_t) program->code_size + escape_return_size, 0x1000);
-  if (image_mapping_size_u64 > SIZE_MAX - load_base_offset - 4096) {
+    align_up_u64((uint64_t) program->code_size +
+      (fixed_main_image ? 0 : escape_return_size), 0x1000);
+  if (image_mapping_size_u64 == 0 ||
+      image_mapping_size_u64 > SIZE_MAX ||
+      (!fixed_main_image &&
+       image_mapping_size_u64 > SIZE_MAX - load_base_offset - 4096) ||
+      (fixed_main_image &&
+       image_mapping_size_u64 > SIZE_MAX - fixed_control_size)) {
     fprintf(stderr, "POLYEXEC_FAIL: ELF image mapping is too large: %s\n",
       program->path);
     return -1;
   }
   const size_t image_mapping_size = (size_t) image_mapping_size_u64;
-  const size_t return_page_offset = load_base_offset + image_mapping_size;
-  const size_t mapping_size = return_page_offset + 4096;
-  uint8_t *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE | PROT_EXEC,
-    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (mapping == MAP_FAILED) {
-    fprintf(stderr, "POLYEXEC_FAIL: mmap failed: %s\n", strerror(errno));
+  const size_t image_offset = fixed_main_image ? 0 : load_base_offset;
+  const size_t control_offset =
+    fixed_main_image ? image_mapping_size : code_offset;
+  const size_t return_page_offset = fixed_main_image ?
+    image_mapping_size + 4096 : load_base_offset + image_mapping_size;
+  const size_t mapping_size = fixed_main_image ?
+    image_mapping_size + fixed_control_size : return_page_offset + 4096;
+  if (fixed_main_image &&
+      (program->base_vaddr > UINTPTR_MAX ||
+       (uint64_t) mapping_size > UINTPTR_MAX - program->base_vaddr)) {
+    fprintf(stderr, "POLYEXEC_FAIL: fixed ET_EXEC image address is invalid: %s\n",
+      program->path);
     return -1;
   }
 
-  uint8_t *code = mapping + code_offset;
+  void *desired_mapping = fixed_main_image ?
+    (void *) (uintptr_t) program->base_vaddr : NULL;
+  const int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS |
+    (fixed_main_image ? MAP_FIXED_NOREPLACE : 0);
+  uint8_t *mapping = mmap(desired_mapping, mapping_size,
+    PROT_READ | PROT_WRITE | PROT_EXEC, mmap_flags, -1, 0);
+  if (mapping == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: %s mmap failed: %s: %s\n",
+      fixed_main_image ? "fixed ET_EXEC" : "process",
+      program->path, strerror(errno));
+    return -1;
+  }
+  if (fixed_main_image && mapping != (uint8_t *) desired_mapping) {
+    fprintf(stderr, "POLYEXEC_FAIL: fixed ET_EXEC mmap used wrong address: %s\n",
+      program->path);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+
+  uint8_t *loaded_image = mapping + image_offset;
+  uint8_t *code = mapping + control_offset;
   const uint64_t return_pc = (uint64_t) (uintptr_t)
     (mapping + return_page_offset);
   const uint64_t entry_pc = (uint64_t) (uintptr_t)
-    (mapping + load_base_offset + program->entry_offset);
+    (loaded_image + program->entry_offset);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
     0xd5032e1fU : 0x0000700bU;
-  size_t offset = load_base_offset;
+  size_t offset = image_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
-  emit_u32(mapping, &offset, escape);
-  mapping[offset++] = 0xc3;
+  if (!fixed_main_image) {
+    emit_u32(mapping, &offset, escape);
+    mapping[offset++] = 0xc3;
+  }
   offset = return_page_offset;
   emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
@@ -4838,7 +4866,7 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  set_process_dependency_root_scope(program, program, mapping + load_base_offset);
+  set_process_dependency_root_scope(program, program, loaded_image);
   size_t process_tls_size = 0;
   if (reserve_process_tls_tree(program, &process_tls_size) < 0) {
     munmap(scratch, scratch_size);
@@ -4852,7 +4880,7 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (apply_relative_relocations(program, mapping + load_base_offset, code,
+  if (apply_relative_relocations(program, loaded_image, code,
         prefix_size, return_pc, tlsdesc_helper_pc, tls_get_addr_helper_pc,
         scratch) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
@@ -4880,7 +4908,7 @@ static int emit_and_run_process(struct poly_program *program,
       munmap(mapping, mapping_size);
       return -1;
     }
-    if (copy_process_tls_image(program, mapping + load_base_offset,
+    if (copy_process_tls_image(program, loaded_image,
           process_tls, process_tls_size) < 0 ||
         copy_process_dependency_tls_images(program, process_tls,
           process_tls_size) < 0) {
@@ -4891,7 +4919,7 @@ static int emit_and_run_process(struct poly_program *program,
       return -1;
     }
   }
-  if (protect_load_segments(program, mapping + load_base_offset) < 0) {
+  if (protect_load_segments(program, loaded_image) < 0) {
     if (process_tls)
       munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
@@ -4899,7 +4927,7 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (protect_image_range(program, mapping + load_base_offset,
+  if (protect_image_range(program, loaded_image,
         program->relro_vaddr, program->relro_size, PROT_READ,
         "PT_GNU_RELRO") < 0) {
     if (process_tls)
@@ -4909,7 +4937,7 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (run_process_initializers(program, mapping + load_base_offset, code,
+  if (run_process_initializers(program, loaded_image, code,
         prefix_size, return_pc, scratch, "root") < 0) {
     if (process_tls)
       munmap(process_tls, process_tls_size);
@@ -4940,7 +4968,7 @@ static int emit_and_run_process(struct poly_program *program,
   uint8_t *process_stack = NULL;
   size_t process_stack_size = 0;
   uint64_t initial_sp = 0;
-  if (build_process_stack(program, request, mapping + load_base_offset,
+  if (build_process_stack(program, request, loaded_image,
         extra_argc, extra_argv, &process_stack, &process_stack_size,
         &initial_sp) < 0) {
     if (process_tls)
