@@ -902,6 +902,36 @@ static inline void pcall_signature_imm_mode_riscv_sysv_args_probe(void) {
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
+static inline void pcall_signature_imm_mode_x86_sysv_args_probe(void) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq $1, %%rdi\n"
+    "movq $2, %%rsi\n"
+    "movq $3, %%rdx\n"
+    "movq $4, %%rcx\n"
+    "movq $5, %%r8\n"
+    "movq $6, %%r9\n"
+    "movq %0, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    "movq %%rdi, %%rax\n"
+    "addq %%rsi, %%rax\n"
+    "addq %%rdx, %%rax\n"
+    "addq %%rcx, %%rax\n"
+    "addq %%r8, %%rax\n"
+    "addq %%r9, %%rax\n"
+    "retq\n"
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    :
+    : "i"(POLY_FRONTEND_X86)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+}
+
 static inline void raw_fp64_aarch64_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -1590,6 +1620,11 @@ int main(void) {
   pcall_signature_imm_mode_riscv_sysv_args_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: immediate pcall signature riscv bridge mismatch\n");
+    return 1;
+  }
+  pcall_signature_imm_mode_x86_sysv_args_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: immediate pcall signature x86 bridge mismatch\n");
     return 1;
   }
 
