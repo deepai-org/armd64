@@ -217,6 +217,12 @@ psABI `a0..a7` all use the same architectural kind. The setup cost is paid when
 the loader programs the slot; the hot call-site cost is a frontend redirect
 plus cached rename-template selection.
 
+The lifecycle is intentionally simple: `PABI_SIG_SET` programs a compact
+register-renaming recipe, the CPU validates and stores it in the slot bank, and
+`PCALL ... sig_imm` applies that cached recipe in the rename/RAT stage. The
+instruction does not parse a call descriptor, read a user stack, split structs,
+or walk variadic metadata.
+
 For example, if a native-register slot is applied to an x86_64-to-AArch64 call,
 then `PCALL ..., slot` makes AArch64 `x0,x1,x2` name the physical registers
 currently named by x86_64 `RDI,RSI,RDX`. No argument data is copied, and no

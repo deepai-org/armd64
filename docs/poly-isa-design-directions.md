@@ -131,6 +131,18 @@ The immediate selects a prevalidated slot; the instruction does not fetch a
 user-memory descriptor or carry a dynamic per-call bitmask for hardware to
 interpret.
 
+This gives a concrete lifecycle:
+
+- At load time, the runtime writes a Poly ABI Signature Register with a compact
+  register-only mapping such as "SysV integer and scalar FP args to AAPCS64."
+- The CPU validates the mapping once and caches it as a RAT template in the
+  selected signature slot.
+- A hot call site encodes only the target frontend, target PC, and slot number.
+- During `PCALL`, the rename stage applies the cached template by rebinding
+  architectural names to the existing physical registers.
+- The data never moves, and the transition does not allocate a memory-side ABI
+  sequencer.
+
 The runtime should therefore program slots at load time, link time, or lazy
 binding time, not on every call. Call sites that match a cached signature become
 one frontend-control instruction. Call sites that need a custom layout branch
@@ -157,6 +169,13 @@ Adding stack or struct rewriting would require a memory walker, store
 generation, rollback state, and page-fault handling inside the transition
 instruction. That is a different class of machine, and it is not the Poly ISA
 contract.
+
+This is also where the design draws the line on "hardware ABI translation."
+Register renaming is architectural state selection. Stack and aggregate
+translation is memory transformation. The former fits naturally into the
+rename/checkpoint machinery already required by an OoO frontend; the latter
+creates variable-latency execution and precise-exception complexity. Poly
+should expose the former and require software thunks for the latter.
 
 The hardware/software split is strict:
 
