@@ -1895,12 +1895,12 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
 static int validate_poly_monitor_packet(uint64_t reason, uint64_t mode,
     uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
     uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5) {
+    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
   const uint64_t header = poly_monitor_packet[0];
   const uint64_t packet_reason = header & 0xffffffffULL;
   const uint64_t packet_mode = header >> 32;
-  const uint64_t expected_args[6] = {
-    arg0, arg1, arg2, arg3, arg4, arg5
+  const uint64_t expected_args[8] = {
+    arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7
   };
 
   if (packet_reason != reason || packet_mode != mode ||
@@ -1924,7 +1924,7 @@ static int validate_poly_monitor_packet(uint64_t reason, uint64_t mode,
     return -1;
   }
 
-  for (size_t n = 0; n < 6; n++) {
+  for (size_t n = 0; n < 8; n++) {
     if (poly_monitor_packet[8 + n] != expected_args[n]) {
       fprintf(stderr,
         "POLYEXEC_FAIL: monitor packet arg%zu mismatch got=%llu expected=%llu\n",
@@ -1942,12 +1942,12 @@ __attribute__((noinline, used))
 uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
     uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5) {
+    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -ENOSYS;
 
   if (validate_poly_monitor_packet(reason, mode, number, pc, selector, arg0,
-        arg1, arg2, arg3, arg4, arg5) < 0)
+        arg1, arg2, arg3, arg4, arg5, arg6, arg7) < 0)
     return (uint64_t) -EIO;
 
   if (reason == POLY_TRAP_SYSCALL) {
@@ -1987,6 +1987,8 @@ static void poly_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
+    "pushq %r14\n"
+    "pushq %r13\n"
     "pushq %r12\n"
     "pushq %r11\n"
     "pushq %r10\n"
@@ -2000,7 +2002,7 @@ static void poly_trap_vector_handler(void) {
     "movq %rbx, %rsi\n"
     "movq %rax, %rdi\n"
     "call poly_trap_vector_dispatch\n"
-    "addq $40, %rsp\n"
+    "addq $56, %rsp\n"
     "popq %rbp\n"
     "popq %r15\n"
     "popq %r14\n"
