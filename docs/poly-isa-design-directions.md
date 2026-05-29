@@ -122,6 +122,15 @@ The area budget is intentionally small: several prevalidated mapping registers
 plus muxing/check logic in the rename path, not a second ABI engine beside the
 load/store unit.
 
+A useful way to specify this for hardware is "semi-persistent RAT
+configuration." The runtime programs a handful of ABI signature slots once,
+and hot `PCALL` sites carry a small immediate slot selector. On an OoO core,
+the selected slot changes the architectural-name to physical-register mapping
+during rename/checkpoint. On an FPGA or in-order core, it can be implemented as
+a small explicit alias table at the frontend boundary. In both cases the
+signature is strictly a register-renaming recipe; it is never a memory
+descriptor, stack-layout program, or aggregate pack/unpack engine.
+
 A signature slot is a lane map, not a data buffer. It records which source ABI
 register lanes become which destination ABI register lanes for a specific
 frontend pair and value class. For example, an x86_64-to-AArch64 native slot

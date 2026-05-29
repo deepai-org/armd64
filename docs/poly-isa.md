@@ -291,6 +291,13 @@ psABI `a0..a7` all use the same architectural kind. The setup cost is paid when
 the loader programs the slot; the hot call-site cost is a frontend redirect
 plus cached rename-template selection.
 
+This is the only intended reconfigurable hardware in the ABI bridge. The
+signature slot is a semi-persistent RAT template selected by a small immediate
+on `PCALL`; it can make target ABI register names point at already-live source
+physical registers without issuing move instructions. It must not describe
+stack layouts, by-value aggregate packing, variadic state, or lazy-binding
+policy.
+
 Typical slots are programmed for common ABI pairs such as SysV-to-AAPCS64,
 AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. For these
 all-register calls, the goal is zero execution-unit data moves: the rename/RAT
