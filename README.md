@@ -13,7 +13,7 @@ Requires Docker with `linux/arm64` support.
 ```bash
 make image
 make boot-poly-binfmt-arch-traps
-grep -a -E 'POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
+rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
 Other useful targets:
