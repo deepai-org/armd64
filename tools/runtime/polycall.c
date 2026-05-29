@@ -316,9 +316,11 @@ enum {
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS = 2,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 = 3,
+  POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT = 0,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT = 1,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT = 2,
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_DEFAULT = 3,
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
   POLY_IMPORT_FUNC_RESERVED_LEGACY_X86_ADD = 2,
@@ -554,6 +556,7 @@ struct poly_import_contract {
   uint32_t signature_slot_exchange;
   uint32_t signature_slot_x86_sysv_regs;
   uint32_t signature_slot_x86_sysv_regs_i128;
+  uint32_t signature_slot_native_regs;
 };
 
 struct poly_import_stub_stats {
@@ -851,19 +854,23 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
   const uint32_t slot_exchange = signature.ecx & 0xffU;
   const uint32_t slot_x86_sysv_regs = (signature.ecx >> 8) & 0xffU;
   const uint32_t slot_x86_sysv_regs_i128 = (signature.ecx >> 16) & 0xffU;
+  const uint32_t slot_native_regs = (signature.ecx >> 24) & 0xffU;
   const uint32_t kind_exchange = signature.edx & 0xffU;
   const uint32_t kind_x86_sysv_regs = (signature.edx >> 8) & 0xffU;
   const uint32_t kind_x86_sysv_regs_i128 = (signature.edx >> 16) & 0xffU;
+  const uint32_t kind_native_regs = (signature.edx >> 24) & 0xffU;
 
   if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
       signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
       slot_exchange >= signature.ebx ||
       slot_x86_sysv_regs >= signature.ebx ||
       slot_x86_sysv_regs_i128 >= signature.ebx ||
+      slot_native_regs >= signature.ebx ||
       kind_exchange != POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
       kind_x86_sysv_regs != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
       kind_x86_sysv_regs_i128 !=
-        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) {
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 ||
+      kind_native_regs != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx);
@@ -874,6 +881,7 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
   contract->signature_slot_exchange = slot_exchange;
   contract->signature_slot_x86_sysv_regs = slot_x86_sysv_regs;
   contract->signature_slot_x86_sysv_regs_i128 = slot_x86_sysv_regs_i128;
+  contract->signature_slot_native_regs = slot_native_regs;
   return 0;
 }
 
@@ -892,7 +900,9 @@ static int program_hot_abi_signature_slots(
   if (poly_abi_signature_set(contract->signature_slot_x86_sysv_regs,
         POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
       poly_abi_signature_set(contract->signature_slot_x86_sysv_regs_i128,
-        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0) {
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0 ||
+      poly_abi_signature_set(contract->signature_slot_native_regs,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU ABI signature slot programming failed\n");
     return -1;
@@ -3844,14 +3854,15 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       contract->signature_slot_x86_sysv_regs_i128 :
     x86_direct_import_uses_i128_signature(import_id) ?
       contract->signature_slot_x86_sysv_regs_i128 :
-      contract->signature_slot_x86_sysv_regs;
+      contract->signature_slot_native_regs;
 
   if (stats) {
     if (needs_x86_thunk)
       stats->x86_thunk_stubs++;
     else if (signature_slot == contract->signature_slot_x86_sysv_regs_i128)
       stats->x86_direct_i128_sigreg_stubs++;
-    else if (signature_slot == contract->signature_slot_x86_sysv_regs)
+    else if (signature_slot == contract->signature_slot_x86_sysv_regs ||
+        signature_slot == contract->signature_slot_native_regs)
       stats->x86_direct_sigreg_stubs++;
   }
 
@@ -8185,7 +8196,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     .signature_slot_x86_sysv_regs =
       POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT,
     .signature_slot_x86_sysv_regs_i128 =
-      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT
+      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT,
+    .signature_slot_native_regs =
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_DEFAULT
   };
   if (read_poly_base_contract() < 0)
     return -1;

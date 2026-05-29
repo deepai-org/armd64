@@ -33,9 +33,9 @@ Other useful targets:
 - Foreign code uses the same x86_64 virtual address space and page permissions.
 - Cross-ISA calls bridge real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
   psABI. This is compatibility glue, not a new `PolyFast` ABI.
-- Fast calls can use register-only ABI signature slots and integer/FP exchange
-  windows. Fixed 128-bit vector calls can also stay on the direct path when
-  both ABIs use SIMD/vector registers. Stack, aggregate, variadic, ABI
+- Fast calls can use neutral native-register ABI signature slots and integer/FP
+  exchange windows. Fixed 128-bit vector calls can also stay on the direct path
+  when both ABIs use SIMD/vector registers. Stack, aggregate, variadic, ABI
   reshaping, and loader policy stays in software.
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU

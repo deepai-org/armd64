@@ -99,6 +99,14 @@ small immediate slot selector. The hot path does not program a mapping, read a
 descriptor, or execute moves; it only applies the cached rename recipe while
 redirecting the frontend.
 
+The preferred generic signature kind is `native-registers`: source frontend
+native ABI argument/result registers are rebound to target frontend native ABI
+argument/result registers. For x86_64 this means SysV lanes such as
+`RDI,RSI,RDX,RCX,R8,R9`; for AArch64 it means AAPCS64 `x0..x7` and
+`v0..v7`; for RISC-V it means psABI `a0..a7` and `fa0..fa7`. This avoids
+encoding x86-specific policy into the architectural fast path while preserving
+compatibility with ordinary precompiled code.
+
 The slot contents are intentionally small enough to look like rename metadata,
 not microcode. A practical slot records the source frontend, destination
 frontend, argument/result register class mappings, and validity bits. Applying

@@ -65,14 +65,16 @@ coverage, but the preferred generic form is `PCALL_SIG_IMM_MODE`.
 | `0x6c` | `MONITOR_PACKET_GET` | returns the active monitor trap-packet buffer pointer in `RAX` |
 
 Prototype signature kinds are `0` for the baseline exchange window, `1` for the
-older x86_64 SysV compatibility mapping, `2` for the hardware-oriented x86_64
-SysV register-only mapping, and `3` for the same register argument mapping with
-a two-register integer return (`RAX/RDX` to the destination ABI's first two
-integer return registers). Fast `PCALL_SIG_*` code should use kind `2` or `3`
-when it wants RAT-style behavior: `RDI,RSI,RDX,RCX,R8,R9` are rebound to the
-target argument registers and stack arguments are left to software thunks.
-These kinds are a model of cached hardware control state, not a final x86
-opcode allocation.
+older stack-capable x86_64 SysV compatibility mapping, `2` for the older
+x86_64 SysV register-only mapping, `3` for the same register argument mapping
+with a two-register integer return (`RAX/RDX` to the destination ABI's first
+two integer return registers), and `4` for the preferred neutral native-ABI
+register mapping. Fast `PCALL_SIG_*` code should use kind `4` for ordinary
+register-only calls: the source frontend's native integer/FP argument lanes are
+rebound to the target frontend's native integer/FP argument lanes, and stack
+arguments are left to software thunks. Kinds `2` and `3` remain valid prototype
+aliases for existing x86-oriented tests and direct x86 imports. These kinds are
+a model of cached hardware control state, not a final x86 opcode allocation.
 
 Signature slots are register-renaming templates. A real CPU should apply them
 by updating RAT mappings during the `PCALL` control redirect, not by executing
@@ -97,8 +99,9 @@ architectural frontend IDs: `EAX=x86_64`, `EBX=AArch64`, `ECX=RISC-V64`, and
 CPUID leaf `0x40000002`, subleaf `7` reports the preferred x86 immediate-slot
 generic `PCALL` subop in `EAX`, the ABI signature-slot count in `EBX`, and the
 preferred hot slot manifest. `ECX` packs slot IDs as exchange, x86 SysV
-register-only, and x86 SysV register-only `__int128` return slots in bytes
-0..2. `EDX` packs the corresponding signature kinds in the same byte lanes.
+register-only, x86 SysV register-only `__int128` return, and neutral
+native-register slots in bytes 0..3. `EDX` packs the corresponding signature
+kinds in the same byte lanes.
 CPUID leaf `0x40000002`, subleaf `8` reports foreign signature `PCALL`
 controls: `EAX=AArch64 PCALL_SIG`, `EBX=RISC-V PCALL_SIG`, and `ECX` as the
 ABI signature-slot count.
@@ -212,11 +215,11 @@ ABI handoff does not require software moves or per-call descriptor parsing.
 The area cost should stay small because this is a RAT-template selection
 problem: a few prevalidated control registers plus muxing in the rename path.
 
-Conceptually, the slot is a semi-persistent rename recipe. If slot 0 describes
-SysV x86_64 to AAPCS64, then `PCALL ..., slot0` makes AArch64 `x0,x1,x2` name
-the physical registers currently named by x86_64 `RDI,RSI,RDX`. No argument
-data is copied, and no stack or descriptor memory is read by the transition
-instruction.
+Conceptually, the slot is a semi-persistent rename recipe. If a native-register
+slot is applied to an x86_64-to-AArch64 call, then `PCALL ..., slot` makes
+AArch64 `x0,x1,x2` name the physical registers currently named by x86_64
+`RDI,RSI,RDX`. No argument data is copied, and no stack or descriptor memory is
+read by the transition instruction.
 
 This is intentionally reconfigurable hardware, but only at the register-rename
 boundary. It is suitable for silicon because modern OoO cores already maintain
@@ -231,13 +234,13 @@ variadics, and ABI-specific memory layout remain software-thunk work because
 they require memory access, rollback, and page-fault policy.
 
 The intended silicon shape is a small cached slot bank, not per-call
-reconfiguration. A loader can program hot slots such as SysV-to-AAPCS64,
-AAPCS64-to-SysV, and SysV-to-RISC-V once, then emit `PCALL ... sig_imm` at
-register-only call sites. Typical slots map SysV x86_64
-`RDI,RSI,RDX,RCX,R8,R9` to AAPCS64 `x0..x5`, AAPCS64 `x0..x5` back to SysV,
-or SysV to RISC-V psABI `a0..a5`. The setup cost is paid when the loader
-programs the slot; the hot call-site cost is a frontend redirect plus cached
-rename-template selection.
+reconfiguration. A loader can program a neutral native-register slot once, then
+emit `PCALL ... sig_imm` at register-only call sites. The slot maps whichever
+frontend is currently the source onto the target frontend's native ABI lanes:
+SysV x86_64 `RDI,RSI,RDX,RCX,R8,R9`, AAPCS64 `x0..x7`, and RISC-V psABI
+`a0..a7` all use the same architectural kind. The setup cost is paid when the
+loader programs the slot; the hot call-site cost is a frontend redirect plus
+cached rename-template selection.
 
 The intended split is hybrid. Hardware handles the common all-register case,
 including compatible integer and FP/SIMD ABI register lanes. Software handles

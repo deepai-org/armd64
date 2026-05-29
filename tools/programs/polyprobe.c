@@ -1860,8 +1860,8 @@ int main(void) {
   }
 
   stage("POLY_STAGE: abi-signatures");
-  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
-      poly_abi_signature_get(3) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_abi_signature_get(3) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
       poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0 ||
       poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
       poly_abi_signature_set(7,
@@ -1877,7 +1877,7 @@ int main(void) {
         POLY_ERR_INVAL ||
       poly_abi_signature_set(3, 9) != POLY_ERR_INVAL ||
       poly_abi_signature_get(3) !=
-        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 ABI signature invalid control mismatch\n");
     return 1;
   }
@@ -1896,6 +1896,11 @@ int main(void) {
   if (read_rax() != POLY_ERR_INVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 ABI signature invalid kind mismatch\n");
+    return 1;
+  }
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr, "POLY_PROBE_FAIL: native ABI signature slot programming mismatch\n");
     return 1;
   }
   riscv_abi_signature_control_probe();

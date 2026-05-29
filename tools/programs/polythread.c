@@ -906,7 +906,7 @@ static void *worker_main(void *arg) {
     worker_id == 0 ? POLY_ABI_SIGNATURE_KIND_EXCHANGE :
     worker_id == 1 ? POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS :
     worker_id == 2 ? POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 :
-    POLY_ABI_SIGNATURE_KIND_X86_SYSV;
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS;
   if (poly_abi_signature_set(signature_slot, signature_kind) != 0) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu ABI signature set slot=%llu kind=%llu failed\n",
