@@ -160,6 +160,90 @@ static inline void poly_monitor_packet_get(void) {
   asm volatile(POLY_OP_MONITOR_PACKET_GET ::: "memory");
 }
 
+static uint64_t poly_aarch64_trap_vector_set_get(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032d1f\n" // aarch64 trap-vector set, x0=value.
+    ".long 0xd5032d3f\n" // aarch64 trap-vector get, x0=result.
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static uint64_t poly_aarch64_trap_vector_mode_set_get(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032d5f\n" // aarch64 trap-vector-mode set, x0=value.
+    ".long 0xd5032d7f\n" // aarch64 trap-vector-mode get, x0=result.
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static uint64_t poly_aarch64_monitor_packet_set_get(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032d9f\n" // aarch64 monitor-packet set, x0=value.
+    ".long 0xd5032dbf\n" // aarch64 monitor-packet get, x0=result.
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static uint64_t poly_riscv_trap_vector_set_get(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3000700b\n" // riscv trap-vector set, a0=value.
+    ".long 0x3200700b\n" // riscv trap-vector get, a0=result.
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static uint64_t poly_riscv_trap_vector_mode_set_get(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3400700b\n" // riscv trap-vector-mode set, a0=value.
+    ".long 0x3600700b\n" // riscv trap-vector-mode get, a0=result.
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static uint64_t poly_riscv_monitor_packet_set_get(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3800700b\n" // riscv monitor-packet set, a0=value.
+    ".long 0x3a00700b\n" // riscv monitor-packet get, a0=result.
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "memory");
+  return result;
+}
+
 static inline void poly_trap_vector_clear(void) {
   asm volatile(
     "xor %%eax,%%eax\n"
@@ -1428,6 +1512,44 @@ static int run_poly_trap_vector_probe(void) {
   if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly monitor packet get mismatch got=0x%llx\n",
       (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_aarch64_trap_vector_set_get((uint64_t) handler) !=
+      (uint64_t) handler) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 trap vector set/get mismatch\n",
+      stderr);
+    return 1;
+  }
+  if (poly_aarch64_trap_vector_mode_set_get(POLY_MODE_X86) !=
+      POLY_MODE_X86) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 trap vector mode set/get mismatch\n",
+      stderr);
+    return 1;
+  }
+  if (poly_aarch64_monitor_packet_set_get(
+        (uint64_t) (uintptr_t) &monitor_packet) !=
+      (uint64_t) (uintptr_t) &monitor_packet) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 monitor packet set/get mismatch\n",
+      stderr);
+    return 1;
+  }
+  if (poly_riscv_trap_vector_set_get((uint64_t) handler) !=
+      (uint64_t) handler) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv trap vector set/get mismatch\n",
+      stderr);
+    return 1;
+  }
+  if (poly_riscv_trap_vector_mode_set_get(POLY_MODE_X86) !=
+      POLY_MODE_X86) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv trap vector mode set/get mismatch\n",
+      stderr);
+    return 1;
+  }
+  if (poly_riscv_monitor_packet_set_get(
+        (uint64_t) (uintptr_t) &monitor_packet) !=
+      (uint64_t) (uintptr_t) &monitor_packet) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv monitor packet set/get mismatch\n",
+      stderr);
     return 1;
   }
   pid_t child = fork();
