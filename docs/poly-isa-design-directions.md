@@ -103,6 +103,11 @@ Architecturally, the mechanism should look like:
 - `PCALL frontend, target, sig_imm`: branch to another frontend while applying
   the selected cached mapping.
 
+`PABI_SIG_SET` and `PABI_SIG_GET` must be frontend-neutral controls. x86_64 can
+expose them for boot/runtime setup, but AArch64 and RISC-V code must be able to
+program or query the same architectural slot bank without first switching back
+to x86_64.
+
 This mechanism must be strictly limited to registers:
 
 - No hardware parsing of call descriptors.

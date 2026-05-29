@@ -89,6 +89,9 @@ generic `PCALL` subop in `EAX` and the ABI signature-slot count in `EBX`.
 CPUID leaf `0x40000002`, subleaf `8` reports foreign signature `PCALL`
 controls: `EAX=AArch64 PCALL_SIG`, `EBX=RISC-V PCALL_SIG`, and `ECX` as the
 ABI signature-slot count.
+CPUID leaf `0x40000002`, subleaf `10` reports foreign ABI signature-slot
+controls: `EAX=AArch64 SET`, `EBX=AArch64 GET`, `ECX=RISC-V SET`, and
+`EDX=RISC-V GET`.
 
 ## Foreign Escapes
 
@@ -102,6 +105,8 @@ ABI signature-slot count.
 | AArch64 | `HINT #0x79` / `0xd5032f3f` | `PCALL`: target in `x16`, frontend ID in `x17`, continuation in `x18` |
 | AArch64 | `HINT #0x7a` / `0xd5032f5f` | `PCALL_SIG`: target in `x16`, frontend ID in `x17`, continuation in `x18`, signature slot in `x19` |
 | AArch64 | `HINT #0x7b` / `0xd5032f7f` | landing-pad marker; decoded as a no-op today |
+| AArch64 | `HINT #0x7c` / `0xd5032f9f` | `ABI_SIGNATURE_SET`: `x0=slot`, `x1=kind`, returns `x0=0` or `-EINVAL` |
+| AArch64 | `HINT #0x7d` / `0xd5032fbf` | `ABI_SIGNATURE_GET`: `x0=slot`, returns signature kind in `x0` or `-EINVAL` |
 | RISC-V | custom-0, funct3=7, subop 0 / `0x0000700b` | exit to x86_64 |
 | RISC-V | custom-0, funct3=7, subop 1 / `0x0200700b` | switch to AArch64 |
 | RISC-V | custom-0, funct3=7, subop 2 / `0x0400700b` | call AArch64 target in `x5`, continuation in `x6` |
@@ -110,6 +115,8 @@ ABI signature-slot count.
 | RISC-V | custom-0, funct3=7, subop 9 / `0x1200700b` | `PCALL`: target in `x5`, frontend ID in `x6`, continuation in `x7` |
 | RISC-V | custom-0, funct3=7, subop 10 / `0x1400700b` | `PCALL_SIG`: target in `x5`, frontend ID in `x6`, continuation in `x7`, signature slot in `x28` |
 | RISC-V | custom-0, funct3=7, subop 11 / `0x1600700b` | landing-pad marker; decoded as a no-op today |
+| RISC-V | custom-0, funct3=7, subop 12 / `0x1800700b` | `ABI_SIGNATURE_SET`: `a0=slot`, `a1=kind`, returns `a0=0` or `-EINVAL` |
+| RISC-V | custom-0, funct3=7, subop 13 / `0x1a00700b` | `ABI_SIGNATURE_GET`: `a0=slot`, returns signature kind in `a0` or `-EINVAL` |
 
 These are decoded frontend-control instructions, not breakpoint or undefined
 instruction traps. AArch64 `BRK`/RISC-V `EBREAK` remain ordinary trap exits for
@@ -135,6 +142,9 @@ an ordinary x86 `ret` to that cookie restores the foreign frontend and resumes
 at the foreign continuation register. Loader/runtime thunks still own complex
 ABI policy, but the control transfer itself now uses the same frontend-neutral
 `PCALL` path as AArch64-to-RISC-V and RISC-V-to-AArch64.
+Foreign ABI signature-slot controls let AArch64 and RISC-V code program or
+query the same architectural slot bank directly. x86_64 remains the boot and
+system frontend, not the only frontend allowed to configure Poly call state.
 
 ## ABI Bridge
 

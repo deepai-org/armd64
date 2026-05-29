@@ -442,6 +442,30 @@ static inline void landing_pad_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void aarch64_abi_signature_control_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28000a0\n" // movz x0,#5
+    ".long 0xd2800041\n" // movz x1,#2 (x86 SysV register-only)
+    ".long 0xd5032f9f\n" // aarch64 ABI signature set
+    ".long 0xd28000a0\n" // movz x0,#5
+    ".long 0xd5032fbf\n" // aarch64 ABI signature get
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void riscv_abi_signature_control_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00600513\n" // addi a0,zero,6
+    ".long 0x00000593\n" // addi a1,zero,0 (exchange)
+    ".long 0x1800700b\n" // riscv ABI signature set
+    ".long 0x00600513\n" // addi a0,zero,6
+    ".long 0x1a00700b\n" // riscv ABI signature get
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 static inline void aarch64_generic_switch_riscv_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -1189,6 +1213,16 @@ int main(void) {
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
+  expected_escapes = poly_cpuid_expected_escape_leaf10();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 10);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID foreign ABI signature control manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
   struct poly_cpuid_regs expected_state =
     poly_cpuid_expected_state_leaf();
   struct poly_cpuid_regs poly_state =
@@ -1490,6 +1524,18 @@ int main(void) {
       poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0 ||
       poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr, "POLY_PROBE_FAIL: ABI signature slot programming mismatch\n");
+    return 1;
+  }
+  aarch64_abi_signature_control_probe();
+  if (read_rax() != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 ABI signature control mismatch\n");
+    return 1;
+  }
+  riscv_abi_signature_control_probe();
+  if (read_rax() != POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
+      poly_abi_signature_get(6) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI signature control mismatch\n");
     return 1;
   }
   pcall_signature_aarch64_sysv_args_probe();
