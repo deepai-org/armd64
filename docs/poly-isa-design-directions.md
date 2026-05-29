@@ -107,6 +107,13 @@ The area budget is intentionally small: several prevalidated mapping registers
 plus muxing/check logic in the rename path, not a second ABI engine beside the
 load/store unit.
 
+A signature slot is a lane map, not a data buffer. It records which source ABI
+register lanes become which destination ABI register lanes for a specific
+frontend pair and value class. For example, an x86_64-to-AArch64 native slot
+can map `RDI,RSI,RDX` onto `x0,x1,x2` by making those destination names refer
+to the already-live physical registers. The hardware never copies values into
+the slot and never follows pointers from the slot into user memory.
+
 The intended fast path is:
 
 1. The loader or runtime programs a slot with a common native ABI mapping.
@@ -225,6 +232,14 @@ variadic, lazy-binding, and incompatible vector cases stay in generated thunks
 where page faults, memory policy, and ABI-specific layout rules belong. The
 area cost is a small bank of signature registers, prevalidation logic, and
 rename-stage muxing, not a page-fault-capable ABI memory sequencer.
+
+The resulting split is deliberate:
+
+| Case | Mechanism |
+| --- | --- |
+| Integer/FP arguments and returns already classified into native ABI registers | `PCALL ... sig_imm` applies a cached RAT lane map. |
+| Compatible fixed-width SIMD lanes with matching ABI classification | Optional signature lanes if the hardware advertises them. |
+| Overflow stack arguments, by-value aggregates, variadics, hidden structure returns, lazy binding, or incompatible vectors | Loader/runtime thunk performs the memory-side ABI work, then uses a simple `PCALL`. |
 
 Put differently, the hardware should accelerate the common ABI case and refuse
 to become a general ABI interpreter. If a call's live ABI state is already in

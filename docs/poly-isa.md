@@ -268,6 +268,12 @@ names in rename/RAT state, installs the return cookie, and redirects the
 frontend. Operand data does not move through integer, FP, SIMD, load, or store
 execution pipes, and the transition does not read user memory.
 
+The slot is a compact ABI lane map. For an x86_64-to-AArch64 native-register
+call, a slot can make AArch64 `x0,x1,x2` name the same physical registers that
+currently back x86_64 `RDI,RSI,RDX`. The slot holds mapping metadata only; it
+does not hold argument values and cannot point the CPU at stack or descriptor
+memory.
+
 The intended silicon shape is a small semi-persistent cache of signature slots,
 for example 4 to 8 entries. A loader can program a neutral native-register slot
 once, then emit `PCALL ... sig_imm` at register-only call sites. The slot maps
@@ -309,6 +315,10 @@ stack arguments, by-value aggregates, variadics, lazy binding, PLT/GOT policy,
 cross-class vector reshaping, and every ABI case that requires memory
 inspection or rewriting. A thunk performs that memory-side ABI work and then
 finishes with a null, identity, or simple register signature `PCALL`.
+
+In short: register-only native ABI calls use a cached signature slot; anything
+that requires stack inspection, aggregate repacking, variadic metadata,
+lazy-binding policy, or incompatible vector layout uses a loader/runtime thunk.
 
 This is the intended 90/10 boundary. The CPU provides semi-persistent,
 reconfigurable register translation because RAT remapping is close to machinery
