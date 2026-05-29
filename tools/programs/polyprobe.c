@@ -33,6 +33,7 @@
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX "rcx", "rsi", "rdi", "r8", "r9"
+#define POLY_ERR_INVAL ((uint64_t) -22)
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 
@@ -502,6 +503,26 @@ static inline void aarch64_abi_signature_control_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void aarch64_abi_signature_invalid_slot_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800100\n" // movz x0,#8 (invalid slot)
+    ".long 0xd2800001\n" // movz x1,#0
+    ".long 0xd5032f9f\n" // aarch64 ABI signature set
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void aarch64_abi_signature_invalid_kind_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28000a0\n" // movz x0,#5
+    ".long 0xd2800121\n" // movz x1,#9 (invalid kind)
+    ".long 0xd5032f9f\n" // aarch64 ABI signature set
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 static inline void riscv_abi_signature_control_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
@@ -510,6 +531,26 @@ static inline void riscv_abi_signature_control_probe(void) {
     ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x00600513\n" // addi a0,zero,6
     ".long 0x1a00700b\n" // riscv ABI signature get
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void riscv_abi_signature_invalid_slot_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00800513\n" // addi a0,zero,8 (invalid slot)
+    ".long 0x00000593\n" // addi a1,zero,0
+    ".long 0x1800700b\n" // riscv ABI signature set
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void riscv_abi_signature_invalid_kind_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00600513\n" // addi a0,zero,6
+    ".long 0x00900593\n" // addi a1,zero,9 (invalid kind)
+    ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
@@ -1830,16 +1871,48 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: ABI signature slot programming mismatch\n");
     return 1;
   }
+  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_COUNT,
+        POLY_ABI_SIGNATURE_KIND_EXCHANGE) != POLY_ERR_INVAL ||
+      poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_COUNT) !=
+        POLY_ERR_INVAL ||
+      poly_abi_signature_set(3, 9) != POLY_ERR_INVAL ||
+      poly_abi_signature_get(3) !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 ABI signature invalid control mismatch\n");
+    return 1;
+  }
   aarch64_abi_signature_control_probe();
   if (read_rax() != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 ABI signature control mismatch\n");
     return 1;
   }
+  aarch64_abi_signature_invalid_slot_probe();
+  if (read_rax() != POLY_ERR_INVAL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 ABI signature invalid slot mismatch\n");
+    return 1;
+  }
+  aarch64_abi_signature_invalid_kind_probe();
+  if (read_rax() != POLY_ERR_INVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 ABI signature invalid kind mismatch\n");
+    return 1;
+  }
   riscv_abi_signature_control_probe();
   if (read_rax() != POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
       poly_abi_signature_get(6) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI signature control mismatch\n");
+    return 1;
+  }
+  riscv_abi_signature_invalid_slot_probe();
+  if (read_rax() != POLY_ERR_INVAL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI signature invalid slot mismatch\n");
+    return 1;
+  }
+  riscv_abi_signature_invalid_kind_probe();
+  if (read_rax() != POLY_ERR_INVAL ||
+      poly_abi_signature_get(6) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv ABI signature invalid kind mismatch\n");
     return 1;
   }
 
