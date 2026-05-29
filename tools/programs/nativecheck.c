@@ -2321,7 +2321,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_riscv_sum6(void) {
     ".long 0xd28000c5\n" // movz x5,#6
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c1f\n" // generic signature pcall, immediate slot 0
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -2356,7 +2356,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_aarch64_sum6(void) {
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2000700b\n" // generic signature pcall, immediate slot 0
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -2659,8 +2659,8 @@ static int run_poly_direct_x86_pcall_probe(void) {
 static int run_poly_foreign_signature_pcall_probe(void) {
   const uint64_t expected = 21;
 
-  if (poly_abi_signature_set(0, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
-    fputs("NATIVE_CHECK_FAIL: poly foreign signature slot exchange set failed\n",
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly foreign signature slot sysv-regs set failed\n",
       stderr);
     return 1;
   }
