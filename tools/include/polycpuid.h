@@ -281,6 +281,7 @@ enum {
   POLY_CPUID_STATE_IMPORT_RETURN_XSAVE = (1U << 12),
   POLY_CPUID_STATE_ABI_SIGNATURE_XSAVE = (1U << 13),
   POLY_CPUID_STATE_MONITOR_PACKET_XSAVE = (1U << 14),
+  POLY_CPUID_STATE_CROSS_RETURN_XSAVE = (1U << 15),
   POLY_STATE_STACK_KEY_SHIFT = 23,
   POLY_STATE_XSAVE_MAGIC = 0x31594c50, /* "PLY1" */
   POLY_STATE_XSAVE_COMPONENT_NONE = 0,
@@ -289,7 +290,7 @@ enum {
   POLY_STATE_XSAVE_OFFSET_ARCH = 0x3000,
   POLY_STATE_XSAVE_BYTES_ARCH = 4096,
   POLY_STATE_XSAVE_ALIGN_ARCH = 64,
-  POLY_STATE_XSAVE_LAYOUT_VERSION = 5,
+  POLY_STATE_XSAVE_LAYOUT_VERSION = 6,
   POLY_STATE_XSAVE_FLAG_XCR0_USER = (1U << 0),
   POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED = (1U << 1),
   POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME = (1U << 2),
@@ -298,6 +299,7 @@ enum {
   POLY_STATE_XSAVE_FLAG_IMPORT_RETURN = (1U << 5),
   POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES = (1U << 6),
   POLY_STATE_XSAVE_FLAG_MONITOR_PACKET = (1U << 7),
+  POLY_STATE_XSAVE_FLAG_CROSS_RETURN = (1U << 8),
   POLY_STATE_XSAVE_HEADER_OFFSET = 0x000,
   POLY_STATE_XSAVE_HEADER_BYTES = 0x040,
   POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
@@ -326,8 +328,12 @@ enum {
   POLY_STATE_XSAVE_ABI_SIGNATURE_BYTES = 0x080,
   POLY_STATE_XSAVE_ABI_SIGNATURE_SLOTS_OFFSET =
     POLY_STATE_XSAVE_ABI_SIGNATURE_OFFSET + 0x10,
-  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xd80,
-  POLY_STATE_XSAVE_RESERVED_BYTES = 0x280,
+  POLY_STATE_XSAVE_CROSS_RETURN_OFFSET = 0xd80,
+  POLY_STATE_XSAVE_CROSS_RETURN_BYTES = 0x120,
+  POLY_STATE_XSAVE_CROSS_RETURN_DEPTH = 8,
+  POLY_STATE_XSAVE_CROSS_RETURN_FRAME_BYTES = 0x20,
+  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xea0,
+  POLY_STATE_XSAVE_RESERVED_BYTES = 0x160,
   POLY_TRAP_PACKET_LAYOUT_VERSION = 2,
   POLY_TRAP_PACKET_HEADER_BYTES = 64,
   POLY_TRAP_PACKET_ARG_COUNT = 8,
@@ -394,7 +400,12 @@ enum {
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS = 2,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 = 3,
-  POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4
+  POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
+  POLY_CROSS_BRIDGE_DEFAULT = 0,
+  POLY_CROSS_BRIDGE_COMPACT_U32_F32 = 1,
+  POLY_CROSS_BRIDGE_COMPACT_F32_U32 = 2,
+  POLY_CROSS_BRIDGE_FP64_STACK = 3,
+  POLY_CROSS_BRIDGE_VEC128_U32 = 4
 };
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
@@ -490,6 +501,26 @@ struct poly_import_return_state {
       sizeof(struct poly_import_return_frame)];
 };
 
+struct poly_cross_return_frame {
+  uint64_t return_pc;
+  uint64_t return_sp;
+  uint32_t caller_mode;
+  uint32_t target_mode;
+  uint16_t abi_kind;
+  uint16_t flags;
+  uint32_t reserved0;
+};
+
+struct poly_cross_return_state {
+  uint64_t top;
+  uint64_t depth;
+  struct poly_cross_return_frame
+    frames[POLY_STATE_XSAVE_CROSS_RETURN_DEPTH];
+  uint8_t reserved[POLY_STATE_XSAVE_CROSS_RETURN_BYTES - 16 -
+    POLY_STATE_XSAVE_CROSS_RETURN_DEPTH *
+      sizeof(struct poly_cross_return_frame)];
+};
+
 struct poly_abi_signature_slot_state {
   uint32_t kind;
   uint32_t reserved;
@@ -518,6 +549,7 @@ struct poly_xsave_state {
   struct poly_riscv_status_state riscv_status;
   struct poly_import_return_state import_return;
   struct poly_abi_signature_state abi_signature;
+  struct poly_cross_return_state cross_return;
   uint8_t reserved[POLY_STATE_XSAVE_RESERVED_BYTES];
 };
 
@@ -548,6 +580,12 @@ POLY_STATIC_ASSERT(sizeof(struct poly_import_return_frame) ==
 POLY_STATIC_ASSERT(sizeof(struct poly_import_return_state) ==
   POLY_STATE_XSAVE_IMPORT_RETURN_BYTES,
   "poly import return area size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_cross_return_frame) ==
+  POLY_STATE_XSAVE_CROSS_RETURN_FRAME_BYTES,
+  "poly cross-return frame size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_cross_return_state) ==
+  POLY_STATE_XSAVE_CROSS_RETURN_BYTES,
+  "poly cross-return area size must match XSAVE layout");
 POLY_STATIC_ASSERT(sizeof(struct poly_abi_signature_state) ==
   POLY_STATE_XSAVE_ABI_SIGNATURE_BYTES,
   "poly ABI signature area size must match XSAVE layout");
@@ -587,6 +625,9 @@ POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, import_return) ==
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, abi_signature) ==
   POLY_STATE_XSAVE_ABI_SIGNATURE_OFFSET,
   "poly ABI signature offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, cross_return) ==
+  POLY_STATE_XSAVE_CROSS_RETURN_OFFSET,
+  "poly cross-return offset drifted");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, reserved) ==
   POLY_STATE_XSAVE_RESERVED_OFFSET,
   "poly reserved area offset drifted");
@@ -783,7 +824,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
     POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT |
     POLY_CPUID_STATE_IMPORT_RETURN_XSAVE |
     POLY_CPUID_STATE_ABI_SIGNATURE_XSAVE |
-    POLY_CPUID_STATE_MONITOR_PACKET_XSAVE;
+    POLY_CPUID_STATE_MONITOR_PACKET_XSAVE |
+    POLY_CPUID_STATE_CROSS_RETURN_XSAVE;
   regs.ebx = POLY_STATE_STACK_KEY_SHIFT;
   regs.ecx = POLY_STATE_XSAVE_COMPONENT_ARCH;
   regs.edx = POLY_STATE_XSAVE_BYTES_ARCH;
@@ -803,7 +845,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
     POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS |
     POLY_STATE_XSAVE_FLAG_IMPORT_RETURN |
     POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES |
-    POLY_STATE_XSAVE_FLAG_MONITOR_PACKET;
+    POLY_STATE_XSAVE_FLAG_MONITOR_PACKET |
+    POLY_STATE_XSAVE_FLAG_CROSS_RETURN;
   return regs;
 }
 

@@ -756,6 +756,45 @@ static void child_expect_bad_import_return_id_xsave_signal(void) {
   _exit(99);
 }
 
+__attribute__((noreturn, noinline))
+static void child_expect_malformed_cross_return_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH + 1;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_cross_return_mode_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = 1;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  bad.cross_return.frames[0].caller_mode = 255;
+  bad.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  bad.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_cross_return_bridge_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = 1;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  bad.cross_return.frames[0].caller_mode = POLY_MODE_RAW_AARCH64;
+  bad.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  bad.cross_return.frames[0].abi_kind = 99;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
 static int expect_child_signal(const char *name, int expected_signal,
     void (*child_func)(void)) {
   pid_t child = fork();
@@ -2122,6 +2161,60 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
   return 0;
 }
 
+static int run_poly_cross_return_xsave_roundtrip_probe(void) {
+  struct poly_xsave_state clean __attribute__((aligned(64)));
+  struct poly_xsave_state cross __attribute__((aligned(64)));
+  struct poly_xsave_state roundtrip __attribute__((aligned(64)));
+
+  memset(&clean, 0, sizeof(clean));
+  memset(&cross, 0, sizeof(cross));
+  memset(&roundtrip, 0, sizeof(roundtrip));
+  poly_state_export(&clean);
+
+  memcpy(&cross, &clean, sizeof(cross));
+  cross.cross_return.top = 2;
+  cross.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  cross.cross_return.frames[0].return_pc = 0x1111222233334444ULL;
+  cross.cross_return.frames[0].return_sp = 0x2222333344445555ULL;
+  cross.cross_return.frames[0].caller_mode = POLY_MODE_RAW_AARCH64;
+  cross.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  cross.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  cross.cross_return.frames[0].flags = 0x12;
+  cross.cross_return.frames[1].return_pc = 0x3333444455556666ULL;
+  cross.cross_return.frames[1].return_sp = 0x4444555566667777ULL;
+  cross.cross_return.frames[1].caller_mode = POLY_MODE_RAW_RISCV;
+  cross.cross_return.frames[1].target_mode = POLY_MODE_RAW_AARCH64;
+  cross.cross_return.frames[1].abi_kind = POLY_CROSS_BRIDGE_VEC128_U32;
+  cross.cross_return.frames[1].flags = 0x34;
+
+  poly_state_import(&cross);
+  poly_state_export(&roundtrip);
+  if (roundtrip.cross_return.top != 2 ||
+      roundtrip.cross_return.depth != POLY_STATE_XSAVE_CROSS_RETURN_DEPTH ||
+      memcmp(roundtrip.cross_return.frames, cross.cross_return.frames,
+        2 * sizeof(cross.cross_return.frames[0])) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly cross-return xsave roundtrip mismatch top=%llu depth=%llu\n",
+      (unsigned long long) roundtrip.cross_return.top,
+      (unsigned long long) roundtrip.cross_return.depth);
+    poly_state_import(&clean);
+    return 1;
+  }
+
+  poly_state_import(&clean);
+  poly_state_export(&roundtrip);
+  if (roundtrip.cross_return.top != 0 ||
+      roundtrip.cross_return.depth != POLY_STATE_XSAVE_CROSS_RETURN_DEPTH) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly cross-return xsave clean restore mismatch top=%llu depth=%llu\n",
+      (unsigned long long) roundtrip.cross_return.top,
+      (unsigned long long) roundtrip.cross_return.depth);
+    return 1;
+  }
+
+  return 0;
+}
+
 static int run_poly_state_save_restore_probe(void) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
   struct poly_xsave_state trap_snapshot __attribute__((aligned(64)));
@@ -2137,7 +2230,18 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad import-return id xstate", SIGILL,
         child_expect_bad_import_return_id_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly malformed cross-return xstate", SIGILL,
+        child_expect_malformed_cross_return_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad cross-return mode xstate", SIGILL,
+        child_expect_bad_cross_return_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad cross-return bridge xstate", SIGILL,
+        child_expect_bad_cross_return_bridge_xsave_signal) != 0)
+    return 1;
   if (run_poly_invalid_import_no_mutation_probe() != 0)
+    return 1;
+  if (run_poly_cross_return_xsave_roundtrip_probe() != 0)
     return 1;
 
   memset(&snapshot, 0, sizeof(snapshot));

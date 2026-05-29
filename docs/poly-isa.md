@@ -332,13 +332,13 @@ the normal x86_64 interrupt/fault path, and restores the recorded foreign
 frontend on `IRET64`, `SYSRET`, `SYSEXIT`, or signal return when required.
 
 The prototype CPUID contract exposes poly state as XCR0 component `20`.
-Component layout version `5` is 4096 bytes and contains the mode header, trap
+Component layout version `6` is 4096 bytes and contains the mode header, trap
 packet, active transition record, AArch64 GPR/FP state, RISC-V GPR/FP state,
 hardware transition-stack state, user-space monitor registers, and the ABI
 signature slot bank.
 
 Private CPUID leaves start at `0x40000000` and extend through `0x40000009`. The
-prototype software state import layout version is `5`; it is a Bochs fallback,
+prototype software state import layout version is `6`; it is a Bochs fallback,
 not the silicon context-switch contract.
 
 ## Runtime Boundary
