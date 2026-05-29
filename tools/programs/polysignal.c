@@ -364,6 +364,58 @@ static uint64_t pcall_riscv_hidden_fp_signal(uint64_t left_bits,
   return read_xmm0_u64();
 }
 
+static uint64_t pcall_sig_imm_aarch64_fp_signal(uint64_t left_bits,
+    uint64_t right_bits, uint64_t loops) {
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %0, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0xf1000421\n" // subs x1,x1,#1
+    ".long 0x54ffffe1\n" // b.ne -4
+    ".long 0x1e612800\n" // fadd d0,d0,d1
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64), "S"(loops)
+    : "rax", "rcx", "rdx", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
+static uint64_t pcall_sig_imm_riscv_fp_signal(uint64_t left_bits,
+    uint64_t right_bits, uint64_t loops) {
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %0, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0xfff58593\n" // addi a1,a1,-1
+    ".long 0xfe059ee3\n" // bnez a1,-4
+    ".long 0x02b50553\n" // fadd.d fa0,fa0,fa1
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    :
+    : "i"(POLY_FRONTEND_RISCV), "S"(loops)
+    : "rax", "rcx", "rdx", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
 static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
     uint64_t loops) {
   const size_t code_size = 256;
@@ -649,6 +701,16 @@ int main(void) {
   signal_expected_snapshot_value = double_to_bits((double) 0x56000000ULL);
   if (check_arch_fp("riscv-hidden-fp", 0x56000000ULL,
       pcall_riscv_hidden_fp_signal) != 0)
+    return 1;
+  signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_NONE;
+  if (check_arch_fp("aarch64-sig-imm-fp", 0x5b000000ULL,
+      pcall_sig_imm_aarch64_fp_signal) != 0)
+    return 1;
+  signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_NONE;
+  if (check_arch_fp("riscv-sig-imm-fp", 0x5c000000ULL,
+      pcall_sig_imm_riscv_fp_signal) != 0)
     return 1;
   signal_expected_mode = POLY_MODE_RAW_RISCV;
   signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_RISCV_X20;
