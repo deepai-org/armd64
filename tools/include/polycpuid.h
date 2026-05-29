@@ -790,8 +790,10 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf4(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_AARCH64_CTRL_TRAP_RETURN;
   regs.ebx = POLY_RISCV_CTRL_TRAP_RETURN;
-  regs.ecx = POLY_AARCH64_CTRL_RISCV_CALL_VEC128_U32;
-  regs.edx = POLY_RISCV_CTRL_AARCH64_CALL_VEC128_U32;
+  regs.ecx = POLY_AARCH64_CTRL_CALL_SIG_IMM(
+    POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32);
+  regs.edx = POLY_RISCV_CTRL_CALL_SIG_IMM(
+    POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32);
   return regs;
 }
 
