@@ -161,6 +161,7 @@ enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
+  POLY_X86_PENTER_GENERIC_SIZE = 10,
   POLY_MODE_X86 = 0,
   POLY_MODE_RAW_AARCH64 = 3,
   POLY_MODE_RAW_RISCV = 4,
@@ -2579,6 +2580,17 @@ static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes, size
   *offset += size;
 }
 
+static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
+    uint32_t frontend) {
+  code[(*offset)++] = 0x41; // mov r15d,frontend
+  code[(*offset)++] = 0xbf;
+  emit_u32(code, offset, frontend);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = 0x03; // generic PENTER frontend in r15
+}
+
 static int load_segment_prot(uint32_t flags) {
   int prot = 0;
   if ((flags & PF_R) != 0)
@@ -2849,11 +2861,7 @@ static int emit_poly_trampoline(const struct poly_program *program,
     uint64_t target_pc) {
   size_t offset = 0;
   if (program->arch == POLY_ARCH_AARCH64) {
-    const uint8_t raw_switch[] = {
-      0x0f, 0x3a, 0xfc, 0x01
-    };
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
+    emit_x86_penter_frontend(code, &offset, POLY_ARCH_AARCH64);
     emit_u32(code, &offset, aarch64_adr(30,
       (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset)));
     uint32_t branch = 0;
@@ -2866,11 +2874,7 @@ static int emit_poly_trampoline(const struct poly_program *program,
     emit_u32(code, &offset, branch);
   }
   else {
-    const uint8_t raw_switch[] = {
-      0x0f, 0x3a, 0xfc, 0x02
-    };
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
+    emit_x86_penter_frontend(code, &offset, POLY_ARCH_RISCV);
     int64_t escape_offset =
       (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset);
     emit_u32(code, &offset, riscv_auipc(1, escape_offset));
@@ -2963,20 +2967,16 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
   (void) return_pc;
   size_t offset = 0;
   if (program->arch == POLY_ARCH_AARCH64) {
-    if (code_size < 37)
+    if (code_size < 43)
       return -1;
-    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 32);
-    const uint8_t raw_switch[] = {
-      0x0f, 0x3a, 0xfc, 0x01
-    };
+    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 38);
     code[offset++] = 0x48; // movabs rax,target_pc -> AArch64 x0
     code[offset++] = 0xb8;
     emit_u64(code, &offset, target_pc);
     code[offset++] = 0x48; // movabs rdx,return_pc -> AArch64 x1
     code[offset++] = 0xba;
     emit_u64(code, &offset, resolver_return_pc);
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
+    emit_x86_penter_frontend(code, &offset, POLY_ARCH_AARCH64);
     emit_u32(code, &offset, 0xaa0103feU); // mov x30,x1
     emit_u32(code, &offset, 0xd61f0000U); // br x0
     emit_u32(code, &offset, 0xd5032e1fU); // AArch64 polyctrl escape
@@ -2985,20 +2985,16 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
   }
 
   if (program->arch == POLY_ARCH_RISCV) {
-    if (code_size < 37)
+    if (code_size < 43)
       return -1;
-    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 32);
-    const uint8_t raw_switch[] = {
-      0x0f, 0x3a, 0xfc, 0x02
-    };
+    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 38);
     code[offset++] = 0x48; // movabs rax,target_pc -> RISC-V a0
     code[offset++] = 0xb8;
     emit_u64(code, &offset, target_pc);
     code[offset++] = 0x48; // movabs rdx,return_pc -> RISC-V a1
     code[offset++] = 0xba;
     emit_u64(code, &offset, resolver_return_pc);
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
+    emit_x86_penter_frontend(code, &offset, POLY_ARCH_RISCV);
     emit_u32(code, &offset, riscv_addi(1, 11, 0)); // mv ra,a1
     emit_u32(code, &offset, riscv_jalr(0, 10, 0)); // jr a0
     emit_u32(code, &offset, 0x0000700bU); // RISC-V polyctrl escape
@@ -3133,8 +3129,8 @@ static int run_irelative_resolver(const struct poly_program *program,
   const uint64_t resolver_pc = load_bias + resolver_vaddr;
 
   const size_t expected_prefix_size =
-    program->arch == POLY_ARCH_AARCH64 ? 12 :
-    program->arch == POLY_ARCH_RISCV ? 24 : 0;
+    program->arch == POLY_ARCH_AARCH64 ? 18 :
+    program->arch == POLY_ARCH_RISCV ? 30 : 0;
   if (expected_prefix_size != 0 && prefix_size == expected_prefix_size) {
     if (emit_poly_trampoline(program, trampoline_code, prefix_size,
           return_pc, resolver_pc) < 0)
@@ -4402,7 +4398,7 @@ static int map_process_dependencies(struct poly_program *program,
 static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
   const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
-  const size_t raw_switch_size = POLY_X86_CONTROL_OPCODE_SIZE;
+  const size_t raw_switch_size = POLY_X86_PENTER_GENERIC_SIZE;
   const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
   const size_t load_base_offset = 4096;
   const size_t branch_offset = load_base_offset - branch_size;
@@ -4513,7 +4509,7 @@ static int emit_and_run_process(struct poly_program *program,
     uint64_t *result) {
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
   const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 12;
-  const size_t raw_switch_size = POLY_X86_CONTROL_OPCODE_SIZE;
+  const size_t raw_switch_size = POLY_X86_PENTER_GENERIC_SIZE;
   const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
   const size_t load_base_offset = 4096;
   const size_t branch_offset = load_base_offset - branch_size;
