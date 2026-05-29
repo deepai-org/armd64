@@ -11,6 +11,7 @@
 
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
+#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
 
 enum {
   POLYSIGNAL_LOOP_COUNT = 200000,
@@ -250,6 +251,52 @@ static uint64_t pcall_riscv_signal(uint64_t seed, uint64_t loops) {
     "2:\n"
     : "=a"(result), "+D"(seed), "+S"(loops)
     :
+    : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
+static uint64_t pcall_sig_imm_aarch64_signal(uint64_t seed, uint64_t loops) {
+  uint64_t result;
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %3, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0xf1000421\n" // subs x1,x1,#1
+    ".long 0x54ffffe1\n" // b.ne -4
+    ".long 0x91000400\n" // add x0,x0,#1
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    : "=a"(result), "+D"(seed), "+S"(loops)
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
+static uint64_t pcall_sig_imm_riscv_signal(uint64_t seed, uint64_t loops) {
+  uint64_t result;
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %3, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0xfff58593\n" // addi a1,a1,-1
+    ".long 0xfe059ee3\n" // bnez a1,-4
+    ".long 0x00150513\n" // addi a0,a0,1
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    : "=a"(result), "+D"(seed), "+S"(loops)
+    : "i"(POLY_FRONTEND_RISCV)
     : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
   return result;
 }
@@ -568,6 +615,16 @@ int main(void) {
   signal_expected_mode = POLY_MODE_RAW_RISCV;
   signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_NONE;
   if (check_arch("riscv", 0x52000000ULL, 1, pcall_riscv_signal) != 0)
+    return 1;
+  signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_NONE;
+  if (check_arch("aarch64-sig-imm", 0x59000000ULL, 1,
+      pcall_sig_imm_aarch64_signal) != 0)
+    return 1;
+  signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_NONE;
+  if (check_arch("riscv-sig-imm", 0x5a000000ULL, 1,
+      pcall_sig_imm_riscv_signal) != 0)
     return 1;
   signal_expected_mode = POLY_MODE_RAW_AARCH64;
   signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_AARCH64_X20;
