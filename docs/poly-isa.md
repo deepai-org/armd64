@@ -74,6 +74,14 @@ target argument registers and stack arguments are left to software thunks.
 These kinds are a model of cached hardware control state, not a final x86
 opcode allocation.
 
+Signature slots are register-renaming templates. A real CPU should apply them
+by updating RAT mappings during the `PCALL` control redirect, not by executing
+move instructions or reading an ABI descriptor from memory. They are suitable
+for integer and FP register arguments/results that already match ABI classes.
+They deliberately do not describe stack arguments, by-value aggregate layout,
+variadic calls, or vector reshaping; those cases use loader/runtime thunks and
+then finish with a null, identity, or simple signature `PCALL`.
+
 The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
 `R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V
 enter controls.

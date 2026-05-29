@@ -99,6 +99,14 @@ small immediate slot selector. The hot path does not program a mapping, read a
 descriptor, or execute moves; it only applies the cached rename recipe while
 redirecting the frontend.
 
+The slot contents are intentionally small enough to look like rename metadata,
+not microcode. A practical slot records the source frontend, destination
+frontend, argument/result register class mappings, and validity bits. Applying
+it is a rename checkpoint operation: destination architectural names are made
+to point at the physical registers already holding the caller's live argument
+values. No integer, FP, SIMD, load, or store execution unit needs to move the
+data.
+
 This is a hardware ABI accelerator, not a hardware ABI interpreter. For
 example, a loader can program slot 0 with the standard SysV x86_64 to AAPCS64
 register mapping. A hot call then executes a form such as
@@ -114,6 +122,12 @@ psABI-to-SysV. A hot call site then executes `PCALL frontend, target, sig_imm`.
 The immediate selects a prevalidated slot; the instruction does not fetch a
 user-memory descriptor or carry a dynamic per-call bitmask for hardware to
 interpret.
+
+The runtime should therefore program slots at load time, link time, or lazy
+binding time, not on every call. Call sites that match a cached signature become
+one frontend-control instruction. Call sites that need a custom layout branch
+to a generated thunk; the thunk can still end with `PCALL` using a null,
+identity, or simple cached signature after it has finished the memory work.
 
 This is the only kind of reconfigurable ABI hardware that should be in the
 ISA. Semi-persistent register remapping fits existing OoO machinery because it
@@ -192,6 +206,11 @@ call: the transition still pays normal control-redirect, frontend-switch,
 return-cookie, and rename-checkpoint costs. The important property is that a
 register-only cross-ISA call does not dispatch move instructions, enter a
 software thunk, parse a descriptor, or touch stack memory.
+
+This is also the area target. The hardware addition should be a handful of
+architectural signature registers, prevalidation logic, and muxing in the
+rename path. It must not grow into a stack-layout transformer, struct splitter,
+variadic argument scanner, or page-fault-capable memory sequencer.
 
 This is the intended hybrid model. Common precompiled functions whose arguments
 and returns fit in standard integer or FP registers can cross frontends through
