@@ -8,6 +8,7 @@
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
+#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLYBENCH_AARCH64_PCALL_SIG_IMM(slot) \
   (0xd5032c1fU | (((uint32_t) (slot) & 0x7U) << 5))
 #define POLYBENCH_RISCV_PCALL_SIG_IMM(slot) \
@@ -22,26 +23,83 @@ enum {
   POLY_TRAP_SYSCALL = 1,
   POLY_TRAP_BREAK = 2,
   POLY_TRAP_IMPORT = 3,
+  POLY_CPUID_BASE = 0x40000000,
+  POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
+  POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
+  POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   LOOP_ITERS = 200,
   POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
   POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA = 7,
-  POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA = 11,
-  POLYBENCH_NATIVE_SIGNATURE_SLOT = 3
+  POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA = 11
 };
 
 typedef uint32_t polybench_vec128_u32 __attribute__((vector_size(16)));
+
+struct polybench_cpuid_regs {
+  uint32_t eax;
+  uint32_t ebx;
+  uint32_t ecx;
+  uint32_t edx;
+};
 
 union polybench_vec128_u32_bits {
   polybench_vec128_u32 v;
   uint32_t u[4];
 };
 
+static uint32_t polybench_native_signature_slot = 3;
+
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x42" ::: "memory"); }
+
+static struct polybench_cpuid_regs read_cpuid(uint32_t leaf,
+    uint32_t subleaf) {
+  struct polybench_cpuid_regs regs;
+  asm volatile("cpuid"
+      : "=a"(regs.eax), "=b"(regs.ebx), "=c"(regs.ecx), "=d"(regs.edx)
+      : "a"(leaf), "c"(subleaf)
+      : "memory");
+  return regs;
+}
+
+static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t rax = slot;
+  uint64_t rdx = kind;
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+    : "+a"(rax), "+d"(rdx)
+    :
+    : "memory");
+  return rax;
+}
+
+static int setup_polybench_native_signature_slot(void) {
+  const struct polybench_cpuid_regs signature =
+    read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
+  const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
+      signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      native_slot >= signature.ebx ||
+      native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
+      signature.eax, signature.ebx, signature.ecx, signature.edx);
+    return -1;
+  }
+  if (poly_abi_signature_set(native_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: native signature slot setup failed slot=%u\n",
+      native_slot);
+    return -1;
+  }
+  polybench_native_signature_slot = native_slot;
+  return 0;
+}
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
@@ -861,7 +919,7 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -916,7 +974,7 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -986,7 +1044,7 @@ static int run_cross_call_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1042,7 +1100,7 @@ static int run_cross_call_fp_riscv_to_aarch64(uint64_t *result_bits,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -1111,7 +1169,7 @@ static int run_cross_call_fp8_aarch64_to_riscv(uint64_t *result_bits,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -1168,7 +1226,7 @@ static int run_cross_call_fp8_riscv_to_aarch64(uint64_t *result_bits,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -1540,7 +1598,7 @@ static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1598,7 +1656,7 @@ static int run_cross_call_mixed_riscv_to_aarch64(uint64_t *result_bits,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -1673,7 +1731,7 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x910043ffU); // add sp,sp,#16
   emit_u32(code, &offset, 0x91003400U); // add x0,x0,#13
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
@@ -1733,7 +1791,7 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
   emit_u32(code, &offset, 0x00d50513U); // addi a0,a0,13
@@ -1806,7 +1864,7 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x8b130000U); // add x0,x0,x19
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1862,7 +1920,7 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00850533U); // add a0,a0,s0
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -1934,7 +1992,7 @@ static int run_cross_call_saved_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 8));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1992,7 +2050,7 @@ static int run_cross_call_saved_fp_riscv_to_aarch64(uint64_t *result_bits,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_fadd_d(10, 10, 8));
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -2062,7 +2120,7 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x8b010000U); // add x0,x0,x1
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -2117,7 +2175,7 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00b50533U); // add a0,a0,a1
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -2439,7 +2497,7 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2493,7 +2551,7 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2561,7 +2619,7 @@ static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2615,7 +2673,7 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2682,7 +2740,7 @@ static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2750,7 +2808,7 @@ static int run_cross_call_direct_x86_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2821,7 +2879,7 @@ static int run_cross_call_direct_x86_memcmp_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2891,7 +2949,7 @@ static int run_cross_call_direct_x86_memcmp_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -2964,7 +3022,7 @@ static int run_cross_call_direct_x86_memops_aarch64_to_riscv(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -3065,7 +3123,7 @@ static int run_cross_call_direct_x86_memops_riscv_to_aarch64(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -3157,7 +3215,7 @@ static int run_nested_cross_call(uint64_t *result,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_outer_return_offset));
   emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -3174,7 +3232,7 @@ static int run_nested_cross_call(uint64_t *result,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(POLYBENCH_NATIVE_SIGNATURE_SLOT));
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x00008067U); // ret
@@ -4019,6 +4077,8 @@ static int check_cross_calls(void) {
 
 int main(void) {
   puts("POLYBENCH: start");
+  if (setup_polybench_native_signature_slot() < 0)
+    return 1;
   install_polybench_trap_vector();
   if (check_loop("aarch64", POLY_ARCH_AARCH64) < 0)
     return 1;
