@@ -217,13 +217,16 @@ cookie.
 Foreign generic `PSWITCH` controls use the existing scratch branch registers:
 AArch64 `x16=target, x17=frontend ID`; RISC-V `x5=target, x6=frontend ID`.
 Foreign generic `PCALL` adds one scratch continuation register: AArch64
-`x18=return PC`; RISC-V `x7=return PC`. The callee still returns with its
-ordinary native return instruction through the hardware return cookie.
+`x18=return PC`; RISC-V `x7=return PC`. Foreign `PCALL_SIG` adds a
+signature-slot operand: AArch64 `x19`, and RISC-V `x28`. The callee still
+returns with its ordinary native return instruction through the hardware return
+cookie.
 
 The frontend ID space includes x86_64 as frontend `0`; it should not be a
 privileged special case. In the prototype, foreign `PCALL frontend=0` supports
 both descriptor-backed import targets in the reserved import range and direct
-x86 targets. Direct calls place a hardware return cookie on the x86 stack, and
+x86 targets. Direct signature calls select a cached register-only slot before
+entering x86. The CPU places a hardware return cookie on the x86 stack, and
 ordinary x86 `ret` consumes that cookie to restore the foreign frontend and
 continuation. Software thunks still own ABI and loader policy while the CPU
 control path stays frontend-neutral.

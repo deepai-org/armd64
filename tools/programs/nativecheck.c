@@ -33,6 +33,7 @@
 #define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x32\n"
 #define POLY_OP_BREAK_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x39\n"
 #define POLY_OP_BREAK_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x3a\n"
+#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 
 #ifndef ARCH_GET_XCOMP_SUPP
 #define ARCH_GET_XCOMP_SUPP 0x1021
@@ -114,6 +115,16 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
 
 static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
+}
+
+static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t rax = slot;
+  uint64_t rdx = kind;
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+      : "+a"(rax), "+d"(rdx)
+      :
+      : "memory");
+  return rax;
 }
 
 struct nativecheck_import_descriptor {
@@ -2021,6 +2032,61 @@ static uint64_t nativecheck_generic_pcall_riscv_x86_direct_sum6(void) {
   return result;
 }
 
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_pcall_aarch64_x86_direct_sum6(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_sum6;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd28000e6\n" // movz x6,#7
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0x10000072\n" // adr x18,return
+    ".long 0xd2800073\n" // movz x19,#3 (signature slot)
+    ".long 0xd5032f5f\n" // generic signature pcall
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_pcall_riscv_x86_direct_sum6(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_sum6;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x00700813\n" // addi a6,zero,7
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x01038393\n" // addi t2,t2,16 -> return
+    ".long 0x00300e13\n" // addi t3,zero,3 (signature slot)
+    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
 static int check_poly_import_return_xsave_frame(uint32_t expected_mode) {
   const struct poly_import_return_state *state =
     &nativecheck_import_live_state.import_return;
@@ -2133,6 +2199,7 @@ static int run_poly_import_return_xsave_probe(void) {
 
 static int run_poly_direct_x86_pcall_probe(void) {
   const uint64_t expected = 21;
+  const uint64_t exchange_expected = 27;
   nativecheck_direct_x86_helper_calls = 0;
 
   uint64_t result =
@@ -2150,6 +2217,60 @@ static int run_poly_direct_x86_pcall_probe(void) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv direct x86 pcall result=%llu calls=%u\n",
       (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot sysv set failed\n",
+      stderr);
+    return 1;
+  }
+
+  nativecheck_direct_x86_helper_calls = 0;
+  result = nativecheck_signature_pcall_aarch64_x86_direct_sum6();
+  if (result != expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_helper_calls = 0;
+  result = nativecheck_signature_pcall_riscv_x86_direct_sum6();
+  if (result != expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot exchange set failed\n",
+      stderr);
+    return 1;
+  }
+
+  nativecheck_direct_x86_helper_calls = 0;
+  result = nativecheck_signature_pcall_aarch64_x86_direct_sum6();
+  if (result != exchange_expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 exchange signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_helper_calls = 0;
+  result = nativecheck_signature_pcall_riscv_x86_direct_sum6();
+  if (result != exchange_expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv exchange signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot restore failed\n",
+      stderr);
     return 1;
   }
 
@@ -2346,6 +2467,19 @@ int main(void) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID immediate pcall manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         pcall_imm_manifest.eax, pcall_imm_manifest.ebx,
         pcall_imm_manifest.ecx, pcall_imm_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_foreign_sig_manifest =
+      poly_cpuid_expected_escape_leaf8();
+    struct poly_cpuid_regs foreign_sig_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 8);
+    if (foreign_sig_manifest.eax != expected_foreign_sig_manifest.eax ||
+        foreign_sig_manifest.ebx != expected_foreign_sig_manifest.ebx ||
+        foreign_sig_manifest.ecx != expected_foreign_sig_manifest.ecx ||
+        foreign_sig_manifest.edx != expected_foreign_sig_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID foreign signature pcall manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        foreign_sig_manifest.eax, foreign_sig_manifest.ebx,
+        foreign_sig_manifest.ecx, foreign_sig_manifest.edx);
       return 1;
     }
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
