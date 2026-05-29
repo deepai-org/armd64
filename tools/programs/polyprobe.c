@@ -39,6 +39,11 @@
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 
+struct polyprobe_monitor_packet {
+  struct poly_trap_packet trap;
+  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+};
+
 static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x30" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x31" ::: "memory"); }
@@ -189,6 +194,25 @@ static void stage(const char *msg) {
 
 static int poly_is_raw_foreign_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
+}
+
+static int expect_monitor_packet_header(const char *label,
+    const struct polyprobe_monitor_packet *packet, uint32_t reason,
+    uint32_t source_mode, uint64_t number, uint64_t selector) {
+  if (packet->trap.reason != reason ||
+      packet->trap.source_mode != source_mode ||
+      packet->trap.number != number ||
+      packet->trap.selector != selector ||
+      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu flags=0x%llx\n",
+      label, packet->trap.reason, packet->trap.source_mode,
+      (unsigned long long) packet->trap.number,
+      (unsigned long long) packet->trap.selector,
+      (unsigned long long) packet->trap.flags);
+    return 1;
+  }
+  return 0;
 }
 
 __attribute__((noinline, used))
@@ -2353,7 +2377,11 @@ int main(void) {
 
   stage("POLY_STAGE: raw-break");
   const char break_string[] = "polyglot";
-  raw_aarch64_break_probe((uint64_t) break_string);
+  volatile uint64_t break_arg = (uint64_t) (uintptr_t) break_string;
+  struct polyprobe_monitor_packet monitor_packet __attribute__((aligned(64)));
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  raw_aarch64_break_probe(break_arg);
   if (read_rax() != 0x4c000301ULL) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap vector mismatch\n");
     return 1;
@@ -2373,7 +2401,17 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap selector mismatch\n");
     return 1;
   }
-  raw_riscv_break_probe((uint64_t) break_string);
+  if (expect_monitor_packet_header("aarch64 break", &monitor_packet,
+        POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 1, 1) != 0)
+    return 1;
+  if (monitor_packet.args[0] != break_arg) {
+    fprintf(stderr, "POLY_PROBE_FAIL: monitor packet aarch64 break arg0 mismatch got=%llu expected=%llu\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) break_arg);
+    return 1;
+  }
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_riscv_break_probe(break_arg);
   if (read_rax() != 0x4c000401ULL) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap vector mismatch\n");
     return 1;
@@ -2409,12 +2447,22 @@ int main(void) {
     return 1;
   }
   poly_trap_arg0_status();
-  if (read_rax() != (uint64_t) break_string) {
+  if (read_rax() != break_arg) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw break trap arg0 mismatch\n");
+    return 1;
+  }
+  if (expect_monitor_packet_header("riscv break", &monitor_packet,
+        POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 1, 0) != 0)
+    return 1;
+  if (monitor_packet.args[0] != break_arg) {
+    fprintf(stderr, "POLY_PROBE_FAIL: monitor packet riscv break arg0 mismatch got=%llu expected=%llu\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) break_arg);
     return 1;
   }
 
   stage("POLY_STAGE: raw-syscall");
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   raw_aarch64_getpid_probe();
   if (read_rax() != 4242) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall mismatch\n");
@@ -2435,6 +2483,10 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall selector mismatch\n");
     return 1;
   }
+  if (expect_monitor_packet_header("aarch64 syscall", &monitor_packet,
+        POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 0) != 0)
+    return 1;
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   raw_riscv_getpid_probe();
   if (read_rax() != 4242) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall mismatch\n");
@@ -2470,6 +2522,10 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall selector mismatch\n");
     return 1;
   }
+  if (expect_monitor_packet_header("riscv syscall", &monitor_packet,
+        POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0) != 0)
+    return 1;
+  poly_monitor_packet_set_value(0);
 
   stage("POLY_STAGE: counters");
   poly_foreign_insn_count_status();
@@ -2492,7 +2548,7 @@ int main(void) {
 
   poly_foreign_break_count_status();
   uint64_t breaks_before = read_rax();
-  raw_aarch64_break_probe((uint64_t) break_string);
+  raw_aarch64_break_probe(break_arg);
   poly_foreign_break_count_status();
   if (read_rax() != breaks_before + 1) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw foreign break count mismatch\n");
