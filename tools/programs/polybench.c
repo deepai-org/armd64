@@ -721,7 +721,7 @@ static int run_direct_x86_pcall_riscv(uint64_t *result,
 }
 
 static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 3 + 8 + 3 * 4 + 2 * 4 + 1;
+  const size_t code_size = 3 + 8 + 5 * 4 + 2 * 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -738,7 +738,9 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
   emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
-  emit_u32(code, &offset, 0xd5032e3fU); // aarch64 polyctrl riscv switch, switch directly to RISC-V
+  emit_u32(code, &offset, 0x10000070U); // adr x16,riscv target
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_u32(code, &offset, 0xd5032f1fU); // generic poly switch
 
   emit_u32(code, &offset, 0x01b50513U); // addi a0,a0,27
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -761,7 +763,7 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
 
 static int run_compressed_mixed_program(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 2 + 8 + 3 * 4 + 2 + 4 + 1;
+  const size_t code_size = 2 + 8 + 5 * 4 + 2 + 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -778,7 +780,9 @@ static int run_compressed_mixed_program(uint64_t *result,
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
   emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
-  emit_u32(code, &offset, 0xd5032e3fU); // aarch64 polyctrl riscv switch, switch directly to RISC-V
+  emit_u32(code, &offset, 0x10000070U); // adr x16,riscv target
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_u32(code, &offset, 0xd5032f1fU); // generic poly switch
 
   emit_u16(code, &offset, 0x056dU); // c.addi a0,27
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -801,7 +805,7 @@ static int run_compressed_mixed_program(uint64_t *result,
 
 static int run_compressed_reverse_mixed_program(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 2 + 8 + 2 + 4 + 2 * 4 + 1;
+  const size_t code_size = 2 + 8 + 2 + 4 * 4 + 2 * 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -817,10 +821,18 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
   const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u16(code, &offset, 0x451dU); // c.li a0,7
-  emit_u32(code, &offset, 0x0200700bU); // riscv polyctrl switch directly to AArch64
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t addi_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  emit_u32(code, &offset, 0x1000700bU); // generic poly switch
+  const size_t aarch64_target_offset = offset;
   emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
+  store_u32(code, addi_target_offset, riscv_addi(5, 5,
+    (int32_t) aarch64_target_offset - (int32_t) auipc_target_pc));
 
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
@@ -838,7 +850,7 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
 }
 
 static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 3 + 8 + 2 * 4 + 2 * 4 + 1;
+  const size_t code_size = 3 + 8 + 5 * 4 + 2 * 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -854,10 +866,18 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, 0x00700513U); // addi a0,zero,7
-  emit_u32(code, &offset, 0x0200700bU); // riscv polyctrl switch directly to AArch64
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t addi_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  emit_u32(code, &offset, 0x1000700bU); // generic poly switch
+  const size_t aarch64_target_offset = offset;
   emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
+  store_u32(code, addi_target_offset, riscv_addi(5, 5,
+    (int32_t) aarch64_target_offset - (int32_t) auipc_target_pc));
 
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
