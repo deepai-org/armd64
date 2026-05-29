@@ -1218,6 +1218,10 @@ static int resolve_direct_x86_register_import(const char *symbol_name,
     *import_id = POLY_IMPORT_FUNC_X86_SLOT6;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_fpair64") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_FPAIR64;
+    return 0;
+  }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT7;
     return 0;
@@ -5251,7 +5255,6 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_i128") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fpair64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fpair32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64") == 0 ||
