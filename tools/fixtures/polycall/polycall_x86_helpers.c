@@ -1477,6 +1477,16 @@ float POLY_HOST_HELPER poly_host_x86_fabsf(float value)
   return bits.f;
 }
 
+double POLY_HOST_HELPER poly_host_x86_fabs(double value)
+{
+  union {
+    double d;
+    uint64_t u;
+  } bits = { value };
+  bits.u &= 0x7fffffffffffffffULL;
+  return bits.d;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
 {
   uint64_t result = 0;

@@ -547,7 +547,8 @@ enum {
   POLY_IMPORT_FUNC_STRTOD = 201,
   POLY_IMPORT_FUNC_STRTOF = 202,
   POLY_IMPORT_FUNC_FABSF = 203,
-  POLY_IMPORT_FUNC_COUNT = 204,
+  POLY_IMPORT_FUNC_FABS = 204,
+  POLY_IMPORT_FUNC_COUNT = 205,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1104,6 +1105,7 @@ extern uint64_t poly_host_x86_snprintf_u64(uint8_t *dest, uint64_t size,
 extern double poly_host_x86_strtod(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_strtof(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_fabsf(float value);
+extern double poly_host_x86_fabs(double value);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1476,6 +1478,7 @@ static int resolve_direct_x86_register_import(int arch,
     { "strtod", POLY_IMPORT_FUNC_STRTOD },
     { "strtof", POLY_IMPORT_FUNC_STRTOF },
     { "fabsf", POLY_IMPORT_FUNC_FABSF },
+    { "fabs", POLY_IMPORT_FUNC_FABS },
     { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
@@ -1823,6 +1826,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_strtof;
     case POLY_IMPORT_FUNC_FABSF:
       return (uint64_t) (uintptr_t) poly_host_x86_fabsf;
+    case POLY_IMPORT_FUNC_FABS:
+      return (uint64_t) (uintptr_t) poly_host_x86_fabs;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -2181,6 +2186,7 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
     case POLY_IMPORT_FUNC_X86_FPAIR32:
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FPAIR32;
     case POLY_IMPORT_FUNC_STRTOD:
+    case POLY_IMPORT_FUNC_FABS:
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP64;
     case POLY_IMPORT_FUNC_STRTOF:
     case POLY_IMPORT_FUNC_FABSF:
@@ -4402,6 +4408,10 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "fabsf") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_FABSF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "fabs") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FABS * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
