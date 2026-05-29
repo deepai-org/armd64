@@ -234,6 +234,16 @@ More precisely, the goal is zero execution-unit data-move latency for ABI
 register handoff; the transition still has normal branch/frontend redirect
 costs.
 
+This is practical in OoO silicon because it extends existing register-renaming
+machinery instead of adding a new data-movement engine. The implementation cost
+is a small bank of semi-persistent signature records plus muxing and validation
+in the rename path. A valid signature only changes which destination frontend
+architectural names point at already-live physical registers. It does not
+schedule moves, allocate stack temporaries, inspect user memory, or trigger page
+faults. That gives the hardware a fixed-latency fast path for the common case:
+ordinary precompiled functions whose arguments and return values fit in
+standard integer or FP ABI registers.
+
 The silicon cost is intentionally bounded: a few architectural control
 registers or XSAVE-backed slot records, validation logic for the slot number,
 and muxing in the rename path. The design must not grow into a memory-layout

@@ -185,6 +185,11 @@ architectural names in rename/RAT state, installs the return cookie, and
 redirects the frontend. Operand data does not move through execution pipes, and
 the transition does not read user memory.
 
+This is the only ABI translation hardware does. A slot is a cached rename
+template for register arguments and register returns; it is not a microcoded
+thunk and it is not allowed to reformat stacks, split aggregates, or inspect
+variadic metadata. Those cases intentionally stay in loader/runtime thunks.
+
 Example slots include SysV x86_64 `RDI,RSI,RDX,RCX,R8,R9` to AAPCS64
 `x0..x5`, the reverse AAPCS64-to-SysV mapping, and SysV-to-RISC-V psABI. A hot
 call site should encode only the target frontend, target PC, and signature
