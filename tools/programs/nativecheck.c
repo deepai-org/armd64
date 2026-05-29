@@ -291,16 +291,6 @@ static inline void poly_trap_vector_clear(void) {
     "rax", "memory");
 }
 
-static inline void poly_state_key_set_value(uint64_t value) {
-  asm volatile(POLY_OP_STATE_KEY_SET :: "a"(value) : "memory");
-}
-
-static inline uint64_t poly_state_key_get(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
-  return value;
-}
-
 static inline void poly_state_export(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
 }
@@ -994,6 +984,20 @@ static void child_expect_invalid_generic_enter_frontend_signal(void) {
     POLY_OP_ENTER_MODE
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_state_key_set_signal(void) {
+  uint64_t value = 0x53544154454b4559ULL;
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_state_key_get_signal(void) {
+  uint64_t value = 0;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
   _exit(99);
 }
 
@@ -2798,65 +2802,14 @@ static int run_poly_trap_vector_probe(void) {
 }
 
 static int run_poly_state_key_probe(void) {
-  const uint64_t key_a = 0x51544154454b4501ULL;
-  const uint64_t key_b = 0x51544154454b4502ULL;
-  void *handler = (void *) poly_trap_vector_handler;
+  if (expect_child_signal("poly reserved state-key set", SIGILL,
+        child_expect_state_key_set_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly reserved state-key get", SIGILL,
+        child_expect_state_key_get_signal) != 0)
+    return 1;
 
-  poly_state_key_set_value(key_a);
-  if (poly_state_key_get() != key_a) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key A get mismatch got=0x%llx\n",
-      (unsigned long long) poly_state_key_get());
-    return 1;
-  }
-  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
-  poly_trap_vector_set_value((uint64_t) handler);
-
-  poly_state_key_set_value(key_b);
-  if (poly_state_key_get() != key_b) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key B get mismatch got=0x%llx\n",
-      (unsigned long long) poly_state_key_get());
-    return 1;
-  }
-  poly_trap_vector_get();
-  if (read_rax() != 0) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key B inherited trap vector got=0x%llx\n",
-      (unsigned long long) read_rax());
-    return 1;
-  }
-  poly_trap_vector_mode_get();
-  if (read_rax() != POLY_MODE_X86) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key B inherited trap mode got=%llu\n",
-      (unsigned long long) read_rax());
-    return 1;
-  }
-
-  poly_state_key_set_value(key_a);
-  poly_trap_vector_get();
-  if (read_rax() != (uint64_t) handler) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key A lost trap vector got=0x%llx\n",
-      (unsigned long long) read_rax());
-    return 1;
-  }
-  poly_trap_vector_mode_get();
-  if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key A lost trap mode got=%llu\n",
-      (unsigned long long) read_rax());
-    return 1;
-  }
-
-  poly_trap_vector_set_value(0);
-  poly_trap_vector_mode_set_value(POLY_MODE_X86);
-  poly_state_key_set_value(key_b);
-  poly_trap_vector_set_value(0);
-  poly_trap_vector_mode_set_value(POLY_MODE_X86);
-  poly_state_key_set_value(0);
-  if (poly_state_key_get() != 0) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state key disable mismatch got=0x%llx\n",
-      (unsigned long long) poly_state_key_get());
-    return 1;
-  }
-
-  puts("NATIVE_POLY_STATE_KEY_OK");
+  puts("NATIVE_POLY_STATE_KEY_REJECT_OK");
   return 0;
 }
 
@@ -4899,7 +4852,6 @@ static int run_poly_state_register_bank_probe(void) {
   const uint64_t twelve_bits = 0x4028000000000000ULL;
 
   memset(&snapshot, 0, sizeof(snapshot));
-  poly_state_key_set_value(0x5354415445524547ULL);
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
 
@@ -4932,7 +4884,6 @@ static int run_poly_state_register_bank_probe(void) {
       (unsigned long long) snapshot.aarch64_fp[20].lo,
       (unsigned long long) snapshot.riscv_gpr[20],
       (unsigned long long) snapshot.riscv_fp[20].lo);
-    poly_state_key_set_value(0);
     return 1;
   }
 
@@ -4965,7 +4916,6 @@ static int run_poly_state_register_bank_probe(void) {
   if (read_rax() != 77) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import aarch64 x20 mismatch got=%llu\n",
       (unsigned long long) read_rax());
-    poly_state_key_set_value(0);
     return 1;
   }
 
@@ -4979,7 +4929,6 @@ static int run_poly_state_register_bank_probe(void) {
   if (read_xmm0_u64() != ten_bits) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import aarch64 d20 mismatch got=0x%llx\n",
       (unsigned long long) read_xmm0_u64());
-    poly_state_key_set_value(0);
     return 1;
   }
 
@@ -4992,7 +4941,6 @@ static int run_poly_state_register_bank_probe(void) {
   if (read_rax() != 88) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv s4 mismatch got=%llu\n",
       (unsigned long long) read_rax());
-    poly_state_key_set_value(0);
     return 1;
   }
 
@@ -5006,11 +4954,9 @@ static int run_poly_state_register_bank_probe(void) {
   if (read_xmm0_u64() != twelve_bits) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv f20 mismatch got=0x%llx\n",
       (unsigned long long) read_xmm0_u64());
-    poly_state_key_set_value(0);
     return 1;
   }
 
-  poly_state_key_set_value(0);
   puts("NATIVE_POLY_STATE_REGISTER_BANK_OK");
   return 0;
 }

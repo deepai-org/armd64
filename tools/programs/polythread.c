@@ -34,24 +34,6 @@ static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
 static uint32_t polythread_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
 
-static inline void poly_state_key_set(uint64_t value) {
-  asm volatile(
-    ".byte 0x0f,0x3a,0xfc,0x65\n"
-    : "+a"(value)
-    :
-    : "memory");
-}
-
-static inline uint64_t poly_state_key_get(void) {
-  uint64_t value;
-  asm volatile(
-    ".byte 0x0f,0x3a,0xfc,0x66\n"
-    : "=a"(value)
-    :
-    : "memory");
-  return value;
-}
-
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
   uint64_t rdx = kind;
@@ -222,24 +204,6 @@ static int wait_for_workers(uintptr_t worker_id, const char *phase) {
   if (barrier_status != 0 && barrier_status != PTHREAD_BARRIER_SERIAL_THREAD) {
     fprintf(stderr, "POLYTHREAD_FAIL: barrier worker=%lu phase=%s status=%d\n",
       (unsigned long) worker_id, phase, barrier_status);
-    return -1;
-  }
-  return 0;
-}
-
-static __attribute__((noinline)) int check_state_key_after_stack_growth(
-  uintptr_t worker_id, uint64_t expected) {
-  volatile unsigned char stack_pad[12288];
-  for (unsigned n = 0; n < sizeof(stack_pad); n += 4096)
-    stack_pad[n] = (unsigned char) n;
-  asm volatile("" : : "m"(stack_pad) : "memory");
-  uint64_t got = poly_state_key_get();
-  if (got != expected) {
-    fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-growth explicit-state-key got=0x%llx expected=0x%llx\n",
-      (unsigned long) worker_id,
-      (unsigned long long) got,
-      (unsigned long long) expected);
     return -1;
   }
   return 0;
@@ -1081,7 +1045,6 @@ static void pcall_riscv_atomic_add(uint64_t *ptr, uint64_t iterations) {
 static void *worker_main(void *arg) {
   uintptr_t worker_id = (uintptr_t) arg;
   uint64_t base = 0x10000000ULL + worker_id * 0x10000ULL;
-  uint64_t state_key = 0x504f4c5954480000ULL + worker_id + 1;
 
   if (wait_for_workers(worker_id, "start") != 0)
     return (void *) 1;
@@ -1515,19 +1478,7 @@ static void *worker_main(void *arg) {
   if (wait_for_workers(worker_id, "direct-x86-call-done") != 0)
     return (void *) 1;
 
-  poly_state_key_set(state_key);
-  if (wait_for_workers(worker_id, "state-key-set") != 0)
-    return (void *) 1;
-  uint64_t current_state_key = poly_state_key_get();
-  if (current_state_key != state_key) {
-    fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu explicit-state-key got=0x%llx expected=0x%llx\n",
-      (unsigned long) worker_id,
-      (unsigned long long) current_state_key,
-      (unsigned long long) state_key);
-    return (void *) 1;
-  }
-  if (check_state_key_after_stack_growth(worker_id, state_key) != 0)
+  if (wait_for_workers(worker_id, "thread-state-bound") != 0)
     return (void *) 1;
 
   const uint64_t signature_slot = 5;
@@ -1613,15 +1564,6 @@ static void *worker_main(void *arg) {
       double_to_bits((double) hidden_aarch64_fp_seed + 7.0);
     uint64_t expected_riscv_fp =
       double_to_bits((double) hidden_riscv_fp_seed + 7.0);
-    current_state_key = poly_state_key_get();
-    if (current_state_key != state_key) {
-      fprintf(stderr,
-        "POLYTHREAD_FAIL: worker=%lu round=%u explicit-state-key got=0x%llx expected=0x%llx\n",
-        (unsigned long) worker_id, round,
-        (unsigned long long) current_state_key,
-        (unsigned long long) state_key);
-      return (void *) 1;
-    }
     got_signature_kind = poly_abi_signature_get(signature_slot);
     if (got_signature_kind != signature_kind) {
       fprintf(stderr,
@@ -1656,7 +1598,6 @@ static void *worker_main(void *arg) {
       sched_yield();
   }
 
-  poly_state_key_set(0);
   return 0;
 }
 
