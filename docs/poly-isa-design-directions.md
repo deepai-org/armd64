@@ -63,6 +63,12 @@ ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
 `x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine
 by exposing a small bank of register-only ABI signature slots.
 
+The design point is semi-persistent, reconfigurable hardware for register
+translation only. Reconfiguring register aliases fits the machinery an OoO CPU
+already needs for rename, while reconfiguring stack or memory layouts would turn
+`PCALL` into a variable-latency memory operation with page-fault and recovery
+complexity.
+
 Modern out-of-order CPUs already rename architectural registers through a
 register alias table (RAT). A Poly ABI signature is a semi-persistent RAT update
 recipe: source frontend architectural names are rebound to destination frontend
@@ -133,6 +139,11 @@ The deliberate hybrid model is:
   and unusual vector cases before making the final fixed-latency transition.
 - The null signature is the exchange-window ABI, so every implementation has a
   simple fallback even without RAT remapping.
+
+This is the intended "90/10" split: hot calls whose arguments and returns fit in
+native ABI registers should avoid thunks entirely through RAT remapping, while
+the uncommon stack, aggregate, vector, or variadic cases stay in software where
+memory access and policy belong.
 
 The performance target for a hot signature `PCALL` is a frontend redirect plus
 a rename-map selection, not a sequence of register moves. Slot programming is a
