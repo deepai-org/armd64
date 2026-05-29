@@ -378,6 +378,8 @@ The cleaner contract is:
 - Long-lived non-current frontend registers live in explicit poly XSAVE state.
 - There is no hidden CR3-keyed or thread-hashed emulator state in the hardware
   contract.
+- Bochs-only state-key controls are diagnostics for the prototype, not
+  advertised architectural features.
 
 This is more compatible with threads, signals, debuggers, and precompiled ABI
 expectations.

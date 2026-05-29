@@ -249,6 +249,10 @@ is saved and restored by the Poly XSAVE component, not stored in a process-wide
 global or inferred from CR3. That lets thread switches and explicit
 `XSAVE`/`XRSTOR` preserve the active ABI signature configuration.
 
+Older Bochs state-key controls may still exist as prototype diagnostics, but
+they are not advertised as architectural hardware features. Software should use
+the Poly XSAVE component as the context-switch contract.
+
 The hardware boundary is strict: signatures can reconfigure register names,
 not memory layouts. Stack arguments, by-value aggregate layout, variadics, lazy
 binding, PLT/GOT policy, and unusual vector conventions remain
