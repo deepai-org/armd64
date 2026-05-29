@@ -573,7 +573,7 @@ static uint64_t direct_aarch64_x86_sum6(uint64_t a0, uint64_t a1,
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032f3f\n" // generic pcall frontend=x17 target=x16
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
@@ -593,7 +593,7 @@ static uint64_t direct_riscv_x86_sum6(uint64_t a0, uint64_t a1,
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x1200700b\n" // generic pcall frontend=t1 target=t0 return=t2
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
