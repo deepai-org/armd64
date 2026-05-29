@@ -1074,6 +1074,46 @@ static inline void riscv_signature_imm_call_x86_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
 }
 
+static inline void aarch64_signature_imm_call_x86_stack_probe(void) {
+  asm volatile(
+    "movabsq $0x5141524348535431, %%rcx\n"
+    "pushq %%rcx\n"
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0003f0\n" // mov x16,x0 (target)
+    ".long 0xaa0103f2\n" // mov x18,x1 (return)
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    "1:\n"
+    "movq (%%r11), %%rax\n"
+    "retq\n"
+    "2:\n"
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    "addq $8, %%rsp\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+}
+
+static inline void riscv_signature_imm_call_x86_stack_probe(void) {
+  asm volatile(
+    "movabsq $0x5152564353544b31, %%rcx\n"
+    "pushq %%rcx\n"
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00050293\n" // mv x5,a0 (target)
+    ".long 0x00058393\n" // mv x7,a1 (return)
+    ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
+    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    "1:\n"
+    "movq (%%r11), %%rax\n"
+    "retq\n"
+    "2:\n"
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    "addq $8, %%rsp\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+}
+
 static inline void aarch64_signature_imm_call_x86_fp64_probe(void) {
   asm volatile(
     "leaq 1f(%%rip), %%rax\n"
@@ -1881,6 +1921,16 @@ int main(void) {
   riscv_signature_imm_call_x86_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv immediate signature pcall x86 bridge mismatch\n");
+    return 1;
+  }
+  aarch64_signature_imm_call_x86_stack_probe();
+  if (read_rax() != 0x5141524348535431ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 signature pcall x86 stack handoff mismatch\n");
+    return 1;
+  }
+  riscv_signature_imm_call_x86_stack_probe();
+  if (read_rax() != 0x5152564353544b31ULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv signature pcall x86 stack handoff mismatch\n");
     return 1;
   }
 
