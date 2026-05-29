@@ -246,6 +246,8 @@ uint64_t polybench_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
+  if (reason == POLY_TRAP_IMPORT && number == 8 && arg0 == 77)
+    return 5555;
   return (uint64_t) -38;
 }
 
@@ -2720,6 +2722,135 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   return 0;
 }
 
+static int run_cross_call_import_aarch64_to_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv import call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+
+  const size_t aarch64_body_offset = offset;
+  const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
+  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+
+  emit_aarch64_movabs(code, &offset, 16,
+    (uint64_t) (uintptr_t) (code + riscv_target_offset));
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_aarch64_movabs(code, &offset, 18,
+    (uint64_t) (uintptr_t) (code + aarch64_return_offset));
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
+  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while (offset < riscv_target_offset)
+    code[offset++] = 0x90;
+  emit_u32(code, &offset, 0xffffe2b7U); // lui t0,0xffffe
+  emit_u32(code, &offset, 0x08028293U); // addi t0,t0,0x80 -> import id 8
+  emit_u32(code, &offset, 0x04d00513U); // addi a0,zero,77
+  emit_u32(code, &offset, 0x05800813U); // addi a6,zero,88
+  emit_u32(code, &offset, 0x06300893U); // addi a7,zero,99
+  emit_u32(code, &offset, 0x00028367U); // jalr t1,0(t0), preserve ra cookie
+  emit_u32(code, &offset, 0x00008067U); // ret
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_cross_call_import_riscv_to_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 import call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
+  const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  emit_aarch64_movabs(code, &offset, 16, UINT64_C(0xffffffffffffe080));
+  emit_u32(code, &offset, 0xd28009a0U); // movz x0,#77
+  emit_u32(code, &offset, 0xd2800b06U); // movz x6,#88
+  emit_u32(code, &offset, 0xd2800c67U); // movz x7,#99
+  emit_u32(code, &offset, 0xd61f0200U); // br x16, preserve x30 cookie
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
+
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 512;
@@ -3837,6 +3968,37 @@ static int check_cross_call_break_direction(const char *name,
   return 0;
 }
 
+static int check_cross_call_import_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+  uint64_t result = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  printf("POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta);
+
+  if (result != 5555) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call import %s expected 5555 got %llu\n",
+      name, (unsigned long long) result);
+    return -1;
+  }
+  if (insn_delta < 9) {
+    fprintf(stderr, "POLYBENCH_FAIL: cross call import %s raw instruction delta expected at least 9 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (check_switch_delta_exact("cross call import", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_switch_delta_max("cross call import", name, switch_delta,
+        POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  return 0;
+}
+
 static int check_cross_call_string_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
@@ -4039,6 +4201,12 @@ static int check_cross_calls(void) {
     return -1;
   if (check_cross_call_break_direction("riscv-calls-aarch64-break",
         run_cross_call_break_riscv_to_aarch64, UINT64_C(0x4c000301)) < 0)
+    return -1;
+  if (check_cross_call_import_direction("aarch64-calls-riscv-import",
+        run_cross_call_import_aarch64_to_riscv) < 0)
+    return -1;
+  if (check_cross_call_import_direction("riscv-calls-aarch64-import",
+        run_cross_call_import_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_string_direction("aarch64-calls-riscv-direct-x86",
         run_cross_call_direct_x86_aarch64_to_riscv) < 0)
