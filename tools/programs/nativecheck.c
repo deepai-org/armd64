@@ -2758,7 +2758,7 @@ static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
       frame->return_pc == 0 ||
       frame->return_sp == 0 ||
       frame->import_id != expected_import_id ||
-      frame->descriptor_flags != 0) {
+      frame->return_flags != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly import xsave frame mismatch expected_mode=%u mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu flags=0x%llx\n",
       expected_mode,
@@ -2767,7 +2767,7 @@ static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
       (unsigned long long) frame->return_pc,
       (unsigned long long) frame->return_sp,
       (unsigned long long) frame->import_id,
-      (unsigned long long) frame->descriptor_flags);
+      (unsigned long long) frame->return_flags);
     return 1;
   }
 

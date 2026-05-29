@@ -475,7 +475,7 @@ struct poly_import_return_frame {
   uint64_t return_pc;
   uint64_t return_sp;
   uint64_t import_id;
-  uint64_t descriptor_flags;
+  uint64_t return_flags;
   uint64_t alias[6];
   uint64_t reserved[5];
 };
