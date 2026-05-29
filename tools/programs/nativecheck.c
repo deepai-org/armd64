@@ -2730,6 +2730,11 @@ static int run_poly_state_save_restore_probe(void) {
 static int run_poly_real_xsave_probe(uint64_t xcr0) {
   const uint64_t poly_mask = 1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH;
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+  const uint64_t three_bits = 0x4008000000000000ULL;
+  const uint64_t five_bits = 0x4014000000000000ULL;
+  const uint64_t seven_bits = 0x401c000000000000ULL;
+  const uint64_t ten_bits = 0x4024000000000000ULL;
+  const uint64_t twelve_bits = 0x4028000000000000ULL;
   struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
   struct poly_xsave_state *saved =
     (struct poly_xsave_state *) (void *)
@@ -2750,6 +2755,22 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     fputs("NATIVE_CHECK_FAIL: real XSAVE signature set failed\n", stderr);
     return 1;
   }
+  write_xmm0_u64(three_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800c75\n" // movz x21,#99
+    ".long 0x1e604015\n" // fmov d21,d0
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+  write_xmm0_u64(five_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x06f00a93\n" // addi s5,zero,111
+    ".long 0x22a50ad3\n" // fsgnj.d f21,fa0,fa0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
   native_xsave64(nativecheck_real_xsave_area, poly_mask);
 
   if (saved->header.magic != POLY_STATE_XSAVE_MAGIC ||
@@ -2779,6 +2800,18 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->abi_signature.slots[4].kind);
     return 1;
   }
+  if (saved->aarch64_gpr[21] != 99 ||
+      saved->aarch64_fp[21].lo != three_bits ||
+      saved->riscv_gpr[21] != 111 ||
+      saved->riscv_fp[21].lo != five_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XSAVE register bank mismatch a64x21=%llu a64v21=0x%llx rvx21=%llu rvf21=0x%llx\n",
+      (unsigned long long) saved->aarch64_gpr[21],
+      (unsigned long long) saved->aarch64_fp[21].lo,
+      (unsigned long long) saved->riscv_gpr[21],
+      (unsigned long long) saved->riscv_fp[21].lo);
+    return 1;
+  }
 
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(0);
@@ -2787,6 +2820,22 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     fputs("NATIVE_CHECK_FAIL: real XRSTOR signature mutate failed\n", stderr);
     return 1;
   }
+  write_xmm0_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28001b5\n" // movz x21,#13
+    ".long 0x1e604015\n" // fmov d21,d0
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+  write_xmm0_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00d00a93\n" // addi s5,zero,13
+    ".long 0x22a50ad3\n" // fsgnj.d f21,fa0,fa0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
   native_xrstor64(nativecheck_real_xsave_area, poly_mask);
 
   poly_trap_vector_get();
@@ -2815,6 +2864,56 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR monitor packet mismatch got=0x%llx\n",
       (unsigned long long) read_rax());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1503e0\n" // mov x0,x21
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 99) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR aarch64 x21 mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  write_xmm1_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x1e612aa0\n" // fadd d0,d21,d1
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+  if (read_xmm0_u64() != ten_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR aarch64 d21 mismatch got=0x%llx\n",
+      (unsigned long long) read_xmm0_u64());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x000a8513\n" // addi a0,s5,0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 111) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR riscv s5 mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  write_xmm1_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x02baf553\n" // fadd.d fa0,f21,fa1
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+  if (read_xmm0_u64() != twelve_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR riscv f21 mismatch got=0x%llx\n",
+      (unsigned long long) read_xmm0_u64());
     return 1;
   }
 
