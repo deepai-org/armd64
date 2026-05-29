@@ -91,6 +91,13 @@ The area budget is intentionally small: several prevalidated mapping registers
 plus muxing/check logic in the rename path, not a second ABI engine beside the
 load/store unit.
 
+This is a semi-persistent configuration cache, not per-call metadata. The
+loader/runtime programs a slot once, for example "SysV x86_64 to AAPCS64
+register arguments", and hot sites use `PCALL frontend, target, sig_imm` to
+select that slot. The fast path should be a frontend redirect plus RAT-template
+selection; it should not execute a register-shuffle thunk, reprogram the slot,
+or fetch an ABI descriptor on every call.
+
 Example signature action:
 
 - x86_64 `RDI` to AArch64 `x0`
@@ -99,6 +106,24 @@ Example signature action:
 - x86_64 `RCX` to AArch64 `x3`
 - x86_64 `R8` to AArch64 `x4`
 - x86_64 `R9` to AArch64 `x5`
+
+Allowed signature work:
+
+- Rebind integer argument/result registers between compatible native ABI lanes.
+- Rebind FP argument/result registers between compatible native ABI lanes.
+- Rebind fixed-width SIMD lanes only when both ABIs classify the value the same
+  way and the width is architecturally supported.
+- Install the cross-frontend return cookie and update the hardware transition
+  stack as part of the same branch-like operation.
+
+Forbidden signature work:
+
+- Read or write the user stack.
+- Parse a user-memory call descriptor.
+- Split, pack, or repack by-value aggregates.
+- Scan variadic metadata.
+- Lazy-bind symbols or walk PLT/GOT structures.
+- Reshape incompatible vector formats such as AVX-512, SVE, or RVV.
 
 The preferred generic signature kind is `native-registers`: source frontend
 native ABI argument/result registers are rebound to target frontend native ABI
