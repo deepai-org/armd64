@@ -1,40 +1,44 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
 Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 CPU. x86_64
-remains the system ISA for boot, paging, privilege, interrupts, atomics, and
-the global TSO memory model.
+stays the system ISA for boot, paging, privilege, interrupts, atomics, and the
+global TSO memory model.
 
 ## Frontends
 
-| ID | Frontend | Fetch |
-| -- | -------- | ----- |
+| ID | Frontend | Fetch model |
+| -- | -------- | ----------- |
 | `0` | x86_64 | normal variable-length x86 decode |
 | `1` | AArch64 | direct 32-bit fetch from `RIP` |
 | `2` | RISC-V64 | direct RV64/RVC fetch from `RIP` |
 
-## x86_64 Differences
+## What Changes From x86_64
 
-- Foreign code is fetched directly. There are no per-instruction `#UD`
-  envelopes.
+- Foreign instructions are fetched directly; there are no per-instruction
+  `#UD` envelopes or legacy single-instruction wrappers.
 - All frontends share one virtual address space, TLB, page-fault path,
-  permission model, and TSO memory model.
-- Foreign register state is architectural XSAVE-style state.
+  permission model, and x86-style TSO ordering.
 - Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI.
-- Register-only calls use cached ABI signature slots. Complex ABI cases use
+  RISC-V psABI. Poly is not a new compiler-only ABI.
+- Register-only calls use cached ABI signature slots. Stack arguments,
+  aggregates, variadics, lazy binding, and other ABI reshaping stay in
   loader/runtime thunks.
-- Traps are OS-neutral packets, not Linux syscall or libc emulation.
+- Trap packets are OS-neutral. Foreign `svc`/`ecall`, illegal instructions,
+  unresolved imports, and breakpoints report the source frontend, PC, status,
+  and the first eight native foreign ABI argument registers.
+- Foreign register state is explicit XSAVE-style architectural state. Hidden
+  CR3/TLS-keyed emulator banks are not the hardware contract.
 
-## Controls
+## Control Surface
 
-- x86_64: `0f 3a fc <subop>`
-- AArch64: reserved `HINT` space
-- RISC-V64: `custom-0` space
-- Poly XSAVE component: `20`
-- `PENTER frontend`
-- `PSWITCH frontend, target`
-- `PCALL frontend, target, sig`
-- `PTRAPRET`
+- Generic operations: `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`.
+- x86_64 prototype controls: decoded Poly control opcode page.
+- AArch64 prototype controls: reserved `HINT` subspace.
+- RISC-V64 prototype controls: `custom-0` subspace.
+- Poly XSAVE component: `20`.
 
-Design rationale: `docs/poly-isa-design-directions.md`.
-Constants: `tools/include/polycpuid.h`.
+## Pointers
+
+- Run instructions and current prototype status: `README.md`.
+- Design rationale and hardware direction: `docs/poly-isa-design-directions.md`.
+- Shared constants: `tools/include/polycpuid.h`.
