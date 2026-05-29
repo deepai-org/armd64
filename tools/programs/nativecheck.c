@@ -2274,13 +2274,15 @@ static int run_poly_state_save_restore_probe(void) {
   if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
       poly_syscall_status_number() != 172 ||
       poly_syscall_status_mode() != POLY_MODE_RAW_RISCV ||
+      poly_trap_status_selector() != 0 ||
       poly_trap_status_arg6() != 27 ||
       poly_trap_status_arg7() != 172) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state import syscall trap mismatch reason=%llu number=%llu mode=%llu arg6=%llu arg7=%llu\n",
+      "NATIVE_CHECK_FAIL: poly state import syscall trap mismatch reason=%llu number=%llu mode=%llu selector=%llu arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_reason(),
       (unsigned long long) poly_syscall_status_number(),
       (unsigned long long) poly_syscall_status_mode(),
+      (unsigned long long) poly_trap_status_selector(),
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return 1;

@@ -13,6 +13,7 @@
 #define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x3a,0xfc,0x50\n"
 #define POLY_OP_TRAP_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x51\n"
 #define POLY_OP_TRAP_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x52\n"
+#define POLY_OP_TRAP_STATUS_SELECTOR ".byte 0x0f,0x3a,0xfc,0x5a\n"
 #define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x3a,0xfc,0x5c\n"
 #define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x3a,0xfc,0x5d\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
@@ -89,6 +90,12 @@ static inline uint64_t poly_trap_status_mode(void) {
 static inline uint64_t poly_trap_status_number(void) {
   uint64_t value;
   asm volatile(POLY_OP_TRAP_STATUS_NUMBER : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_trap_status_selector(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_TRAP_STATUS_SELECTOR : "=a"(value) :: "memory");
   return value;
 }
 
@@ -730,14 +737,16 @@ static void *worker_main(void *arg) {
   if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
       poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
       poly_trap_status_number() != aarch64_trap_number ||
+      poly_trap_status_selector() != 7 ||
       poly_trap_status_arg6() != aarch64_trap_arg6 ||
       poly_trap_status_arg7() != aarch64_trap_arg7) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default aarch64 trap packet reason=%llu mode=%llu number=%llu arg6=%llu arg7=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 trap packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) poly_trap_status_reason(),
       (unsigned long long) poly_trap_status_mode(),
       (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_selector(),
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return (void *) 1;
@@ -764,14 +773,16 @@ static void *worker_main(void *arg) {
   if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
       poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
       poly_trap_status_number() != riscv_trap_number ||
+      poly_trap_status_selector() != 0 ||
       poly_trap_status_arg6() != riscv_trap_arg6 ||
       poly_trap_status_arg7() != riscv_trap_number) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default riscv trap packet reason=%llu mode=%llu number=%llu arg6=%llu arg7=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu default riscv trap packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) poly_trap_status_reason(),
       (unsigned long long) poly_trap_status_mode(),
       (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_selector(),
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return (void *) 1;
@@ -800,14 +811,16 @@ static void *worker_main(void *arg) {
   if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
       poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
       poly_trap_status_number() != import_id ||
+      poly_trap_status_selector() != 0 ||
       poly_trap_status_arg6() != aarch64_import_arg6 ||
       poly_trap_status_arg7() != aarch64_import_arg7) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default aarch64 import packet reason=%llu mode=%llu number=%llu arg6=%llu arg7=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 import packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) poly_trap_status_reason(),
       (unsigned long long) poly_trap_status_mode(),
       (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_selector(),
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return (void *) 1;
@@ -835,14 +848,16 @@ static void *worker_main(void *arg) {
   if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
       poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
       poly_trap_status_number() != import_id ||
+      poly_trap_status_selector() != 0 ||
       poly_trap_status_arg6() != riscv_import_arg6 ||
       poly_trap_status_arg7() != riscv_import_arg7) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default riscv import packet reason=%llu mode=%llu number=%llu arg6=%llu arg7=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu default riscv import packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) poly_trap_status_reason(),
       (unsigned long long) poly_trap_status_mode(),
       (unsigned long long) poly_trap_status_number(),
+      (unsigned long long) poly_trap_status_selector(),
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return (void *) 1;
