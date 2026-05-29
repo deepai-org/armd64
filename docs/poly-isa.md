@@ -1,27 +1,32 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly lets an x86_64 system CPU directly fetch AArch64 and RISC-V64 userspace
-code in the same x86_64 virtual address space.
+Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system CPU.
+All code runs in the same x86_64 virtual address space; x86_64 remains the
+system ISA.
 
-## What Changes From x86_64
+## Contract
 
-- x86_64 still owns boot, privilege, paging, interrupts, faults, syscalls,
-  virtual memory, atomics, and TSO ordering.
-- AArch64 and RISC-V64 are userspace frontends fetched directly from `RIP`, not
-  per-instruction `#UD` envelopes.
+- x86_64 owns boot, privilege, paging, interrupts, faults, syscalls, atomics,
+  and TSO memory ordering.
+- AArch64 and RISC-V64 are direct-fetch user frontends, not `#UD` envelopes.
 - Frontend ids are x86_64=`0`, AArch64=`1`, RISC-V64=`2`; `3..255` reserved.
-- AArch64 fetches aligned 32-bit words; RISC-V64 fetches standard 16/32-bit
-  instructions.
+- AArch64 fetches aligned 32-bit instructions from `RIP`.
+- RISC-V64 fetches standard compressed and uncompressed instructions from `RIP`.
 - All frontends share x86_64 virtual memory, TLBs, permissions, and precise
   fault behavior.
-- Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI.
-- Fast register-only calls use ABI signature slots and exchange registers.
-  Stack args, aggregates, variadics, loader policy, and incompatible vectors use
-  software thunks.
-- Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults emit
-  OS-neutral trap records.
-- Non-x86 state is explicit XSAVE-style Poly state, not hidden CR3 state.
+- Non-x86 architectural state is explicit Poly XSAVE-style state, not hidden
+  CR3-scoped emulator state.
+
+## Interop
+
+- Calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
+  psABI.
+- Register-only calls use cached ABI signature slots to alias exchange
+  registers.
+- Stack arguments, aggregates, variadics, lazy binding, and incompatible vector
+  layouts are handled by loader/runtime thunks.
+- Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
+  OS-neutral trap records for the runtime or OS policy layer.
 
 ## Prototype Encodings
 
@@ -30,5 +35,5 @@ code in the same x86_64 virtual address space.
 - RISC-V64 controls: `custom-0` subspace.
 - Poly XSAVE component: `20`.
 
-Design rationale: `docs/poly-isa-design-directions.md`.
-ABI constants: `tools/include/polycpuid.h`.
+Full design rationale: `docs/poly-isa-design-directions.md`.
+Shared constants: `tools/include/polycpuid.h`.
