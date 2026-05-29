@@ -4843,6 +4843,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-sum8.elf" 0x00b50533 0x00c50533 0x00d50533 0x00e50533 0x00f50533 0x01050533 0x01150533 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-sum9.elf" 0x00b50533 0x00c50533 0x00d50533 0x00e50533 0x00f50533 0x01050533 0x01150533 0x00013283 0x00550533 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-frame.elf" 0xff010113 0x00b50533 0x00c50533 0x00d50533 0x00e50533 0x00f50533 0x01050533 0x01150533 0x01013283 0x00550533 0x00a13423 0x00813503 0x01010113 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pair-frame.elf" 0x01b00513 0x00800593 0xff010113 0x00a13023 0x00b13423 0x00000513 0x00000593 0x00013503 0x00813583 0x00b50533 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-split-load.elf" --split-data64 0x7b 0x00002517 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-none-reloc.elf" --dyn-none64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-dynrel.elf" --dyn-relative64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
@@ -5520,6 +5521,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-ret.elf=55 \
     /usr/lib/polyapps/riscv-mem.elf=77 \
     /usr/lib/polyapps/riscv-memwidth.elf=0x1000000e0 \
+    /usr/lib/polyapps/riscv-pair-frame.elf=35 \
     /usr/lib/polyapps/riscv-pcall-split-load.elf=123 \
     /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
@@ -6478,6 +6480,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-import-x86-mul.elf=202 \
     /usr/lib/polyapps/aarch64-pcall-import-x86-sum6.elf=221 \
     /usr/lib/polyapps/riscv-pcall-frame.elf=45 \
+    /usr/lib/polyapps/riscv-pair-frame.elf=35 \
     /usr/lib/polyapps/riscv-pcall-split-load.elf=123 \
     /usr/lib/polyapps/riscv-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf#poly_entry=123 \
@@ -7090,6 +7093,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-ret.elf \
       /usr/lib/polyapps/riscv-mem.elf \
       /usr/lib/polyapps/riscv-memwidth.elf \
+      /usr/lib/polyapps/riscv-pair-frame.elf \
       /usr/lib/polyapps/riscv-pcall-split-load.elf \
       /usr/lib/polyapps/riscv-polyexec-gnu-hash-real.so \
       /usr/lib/polyapps/riscv-polyexec-gnu-hash-rv64gc.so \
@@ -7511,6 +7515,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-ret.elf \
     /usr/lib/polyapps/riscv-mem.elf \
     /usr/lib/polyapps/riscv-memwidth.elf \
+    /usr/lib/polyapps/riscv-pair-frame.elf \
     /usr/lib/polyapps/riscv-pcall-split-load.elf \
     /usr/lib/polyapps/riscv-pcall-dynrel.elf \
     /usr/lib/polyapps/riscv-pcall-rel.elf \

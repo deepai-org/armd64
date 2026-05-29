@@ -238,6 +238,7 @@ case "$path" in
   */riscv-ret.elf) expected=55 ;;
   */riscv-mem.elf) expected=77 ;;
   */riscv-memwidth.elf) expected=0x1000000e0 ;;
+  */riscv-pair-frame.elf) expected=35 ;;
   */riscv-pcall-split-load.elf) expected=123 ;;
   */riscv-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-syscall-real.elf) expected=42; process_mode=1 ;;
