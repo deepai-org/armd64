@@ -234,6 +234,8 @@ uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
+  if (reason == POLY_TRAP_IMPORT && number == 8)
+    return 5555;
   return (uint64_t) -38;
 }
 
@@ -1528,6 +1530,36 @@ static inline void raw_riscv_break_probe(uint64_t arg0) {
     : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
 }
 
+static inline void raw_aarch64_import_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd29c1010\n" // movz x16,#0xe080 (import id 8)
+    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
+    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
+    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd2800b06\n" // movz x6,#88
+    ".long 0xd2800c67\n" // movz x7,#99
+    ".long 0xd63f0200\n" // blr x16, reserved import must trap
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "r12", "r13", "r14",
+        "memory");
+}
+
+static inline void raw_riscv_import_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> import id 8
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x05800813\n" // addi a6,zero,88
+    ".long 0x06300893\n" // addi a7,zero,99
+    ".long 0x000280e7\n" // jalr ra,0(t0), reserved import must trap
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "r12", "r13", "r14",
+        "memory");
+}
+
 static inline void raw_aarch64_getpid_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -2525,6 +2557,85 @@ int main(void) {
   if (expect_monitor_packet_header("riscv syscall", &monitor_packet,
         POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0) != 0)
     return 1;
+
+  stage("POLY_STAGE: raw-import");
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_aarch64_import_probe();
+  if (read_rax() != 5555) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap vector mismatch\n");
+    return 1;
+  }
+  poly_trap_reason_status();
+  if (read_rax() != POLY_TRAP_IMPORT) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap reason mismatch\n");
+    return 1;
+  }
+  poly_trap_mode_status();
+  if (read_rax() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap mode mismatch\n");
+    return 1;
+  }
+  poly_trap_number_status();
+  if (read_rax() != 8) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap number mismatch\n");
+    return 1;
+  }
+  poly_trap_arg0_status();
+  if (read_rax() != 77) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap arg0 mismatch\n");
+    return 1;
+  }
+  if (expect_monitor_packet_header("aarch64 import", &monitor_packet,
+        POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0) != 0)
+    return 1;
+  if (monitor_packet.args[0] != 77 || monitor_packet.args[6] != 88 ||
+      monitor_packet.args[7] != 99) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: monitor packet aarch64 import args mismatch arg0=%llu arg6=%llu arg7=%llu\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) monitor_packet.args[6],
+      (unsigned long long) monitor_packet.args[7]);
+    return 1;
+  }
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_riscv_import_probe();
+  if (read_rax() != 5555) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap vector mismatch\n");
+    return 1;
+  }
+  poly_trap_reason_status();
+  if (read_rax() != POLY_TRAP_IMPORT) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap reason mismatch\n");
+    return 1;
+  }
+  poly_trap_mode_status();
+  if (read_rax() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap mode mismatch\n");
+    return 1;
+  }
+  poly_trap_number_status();
+  if (read_rax() != 8) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap number mismatch\n");
+    return 1;
+  }
+  poly_trap_arg0_status();
+  if (read_rax() != 77) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap arg0 mismatch\n");
+    return 1;
+  }
+  if (expect_monitor_packet_header("riscv import", &monitor_packet,
+        POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0) != 0)
+    return 1;
+  if (monitor_packet.args[0] != 77 || monitor_packet.args[6] != 88 ||
+      monitor_packet.args[7] != 99) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: monitor packet riscv import args mismatch arg0=%llu arg6=%llu arg7=%llu\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) monitor_packet.args[6],
+      (unsigned long long) monitor_packet.args[7]);
+    return 1;
+  }
   poly_monitor_packet_set_value(0);
 
   stage("POLY_STAGE: counters");
