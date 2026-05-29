@@ -23,6 +23,22 @@ Other useful targets:
 - `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
 - `make boot-poly-full-arch-traps`: broad regression run.
 
+## Current Prototype Status
+
+- The broad regression target boots an Alpine-based x86_64 initramfs under
+  Bochs and runs native x86 checks plus AArch64/RISC-V raw execution,
+  syscalls/traps, cross-ISA calls, threads, signals, benchmarks, and binfmt
+  smoke tests.
+- The Bochs prototype implements a large compatibility subset for compiled
+  AArch64 and RISC-V userspace, including integer, FP, fixed 128-bit vector,
+  atomics, TLS, ELF relocation, dynamic linking, and import/syscall trap paths.
+- It is not yet a complete implementation of every AArch64/RISC-V extension or
+  every possible precompiled binary. Unsupported foreign instructions still
+  produce architectural trap records.
+- The current performance evidence is Bochs-level switch and instruction-count
+  benchmarking. "Few-cycle" frontend switching is the hardware target; Bochs is
+  a functional ISA prototype, not a cycle-accurate silicon performance model.
+
 ## ISA Differences From x86_64
 
 - x86_64 stays the system ISA for privilege, page tables, interrupts, faults,
