@@ -1193,6 +1193,42 @@ static inline void riscv_signature_imm_call_x86_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
 }
 
+static inline void aarch64_landing_policy_call_x86_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0003f0\n" // mov x16,x0 (target)
+    ".long 0xaa0103f2\n" // mov x18,x1 (return)
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    "1:\n"
+    POLY_OP_LANDING
+    "movq $61, %%rax\n"
+    "retq\n"
+    "2:\n"
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+}
+
+static inline void riscv_landing_policy_call_x86_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00050293\n" // mv x5,a0 (target)
+    ".long 0x00058393\n" // mv x7,a1 (return)
+    ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
+    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    "1:\n"
+    POLY_OP_LANDING
+    "movq $62, %%rax\n"
+    "retq\n"
+    "2:\n"
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+}
+
 static inline void aarch64_signature_imm_call_x86_stack_probe(void) {
   asm volatile(
     "movabsq $0x5141524348535431, %%rcx\n"
@@ -2081,6 +2117,20 @@ int main(void) {
       poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv landing policy invalid control mismatch got=0x%llx\n",
       (unsigned long long) poly_landing_policy_get());
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  aarch64_landing_policy_call_x86_probe();
+  if (read_rax() != 61) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 landing policy x86 call mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  riscv_landing_policy_call_x86_probe();
+  if (read_rax() != 62) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv landing policy x86 call mismatch got=%llu\n",
+      (unsigned long long) read_rax());
     poly_landing_policy_set(0);
     return 1;
   }
