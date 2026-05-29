@@ -550,6 +550,51 @@ static uint64_t direct_riscv_x86_sum6(uint64_t a0, uint64_t a1,
   return a0;
 }
 
+static uint64_t direct_aarch64_x86_signature_sum6(uint64_t a0) {
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) polythread_x86_import_sum6;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
+    ".long 0x91000401\n" // add x1,x0,#1
+    ".long 0x91000802\n" // add x2,x0,#2
+    ".long 0x91000c03\n" // add x3,x0,#3
+    ".long 0x91001004\n" // add x4,x0,#4
+    ".long 0x91001405\n" // add x5,x0,#5
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(a0), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return a0;
+}
+
+static uint64_t direct_riscv_x86_signature_sum6(uint64_t a0) {
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) polythread_x86_import_sum6;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
+    ".long 0x00150593\n" // addi a1,a0,1
+    ".long 0x00250613\n" // addi a2,a0,2
+    ".long 0x00350693\n" // addi a3,a0,3
+    ".long 0x00450713\n" // addi a4,a0,4
+    ".long 0x00550793\n" // addi a5,a0,5
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(a0), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return a0;
+}
+
 static uint64_t pcall_aarch64_hidden_set(uint64_t value) {
   uint64_t result;
   uint64_t arg0 = value;
@@ -1006,6 +1051,33 @@ static void *worker_main(void *arg) {
       (unsigned long) worker_id,
       (unsigned long long) direct_riscv_result,
       (unsigned long long) direct_riscv_expected);
+    return (void *) 1;
+  }
+
+  uint64_t direct_sig_aarch64_arg0 = base + 0xf0000ULL + 1;
+  uint64_t direct_sig_aarch64_result =
+    direct_aarch64_x86_signature_sum6(direct_sig_aarch64_arg0);
+  uint64_t direct_sig_aarch64_expected =
+    direct_sig_aarch64_arg0 * 6 + 15;
+  if (direct_sig_aarch64_result != direct_sig_aarch64_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu direct sig aarch64 x86 call got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) direct_sig_aarch64_result,
+      (unsigned long long) direct_sig_aarch64_expected);
+    return (void *) 1;
+  }
+
+  uint64_t direct_sig_riscv_arg0 = base + 0x100000ULL + 1;
+  uint64_t direct_sig_riscv_result =
+    direct_riscv_x86_signature_sum6(direct_sig_riscv_arg0);
+  uint64_t direct_sig_riscv_expected = direct_sig_riscv_arg0 * 6 + 15;
+  if (direct_sig_riscv_result != direct_sig_riscv_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu direct sig riscv x86 call got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) direct_sig_riscv_result,
+      (unsigned long long) direct_sig_riscv_expected);
     return (void *) 1;
   }
   if (wait_for_workers(worker_id, "direct-x86-call-done") != 0)
