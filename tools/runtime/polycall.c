@@ -561,14 +561,19 @@ enum {
   POLY_IMPORT_FUNC_ISSPACE = 215,
   POLY_IMPORT_FUNC_ISUPPER = 216,
   POLY_IMPORT_FUNC_ISXDIGIT = 217,
-  POLY_IMPORT_FUNC_TOLOWER = 218,
-  POLY_IMPORT_FUNC_TOUPPER = 219,
-  POLY_IMPORT_FUNC_ABS = 220,
-  POLY_IMPORT_FUNC_LABS = 221,
-  POLY_IMPORT_FUNC_LLABS = 222,
-  POLY_IMPORT_FUNC_ATOL = 223,
-  POLY_IMPORT_FUNC_ATOLL = 224,
-  POLY_IMPORT_FUNC_COUNT = 225,
+  POLY_IMPORT_FUNC_ISBLANK = 218,
+  POLY_IMPORT_FUNC_ISCNTRL = 219,
+  POLY_IMPORT_FUNC_ISGRAPH = 220,
+  POLY_IMPORT_FUNC_ISPRINT = 221,
+  POLY_IMPORT_FUNC_ISPUNCT = 222,
+  POLY_IMPORT_FUNC_TOLOWER = 223,
+  POLY_IMPORT_FUNC_TOUPPER = 224,
+  POLY_IMPORT_FUNC_ABS = 225,
+  POLY_IMPORT_FUNC_LABS = 226,
+  POLY_IMPORT_FUNC_LLABS = 227,
+  POLY_IMPORT_FUNC_ATOL = 228,
+  POLY_IMPORT_FUNC_ATOLL = 229,
+  POLY_IMPORT_FUNC_COUNT = 230,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1141,6 +1146,11 @@ extern uint64_t poly_host_x86_islower(uint64_t value);
 extern uint64_t poly_host_x86_isspace(uint64_t value);
 extern uint64_t poly_host_x86_isupper(uint64_t value);
 extern uint64_t poly_host_x86_isxdigit(uint64_t value);
+extern uint64_t poly_host_x86_isblank(uint64_t value);
+extern uint64_t poly_host_x86_iscntrl(uint64_t value);
+extern uint64_t poly_host_x86_isgraph(uint64_t value);
+extern uint64_t poly_host_x86_isprint(uint64_t value);
+extern uint64_t poly_host_x86_ispunct(uint64_t value);
 extern uint64_t poly_host_x86_tolower(uint64_t value);
 extern uint64_t poly_host_x86_toupper(uint64_t value);
 extern uint64_t poly_host_x86_abs(uint64_t value);
@@ -1534,6 +1544,11 @@ static int resolve_direct_x86_register_import(int arch,
     { "isspace", POLY_IMPORT_FUNC_ISSPACE },
     { "isupper", POLY_IMPORT_FUNC_ISUPPER },
     { "isxdigit", POLY_IMPORT_FUNC_ISXDIGIT },
+    { "isblank", POLY_IMPORT_FUNC_ISBLANK },
+    { "iscntrl", POLY_IMPORT_FUNC_ISCNTRL },
+    { "isgraph", POLY_IMPORT_FUNC_ISGRAPH },
+    { "isprint", POLY_IMPORT_FUNC_ISPRINT },
+    { "ispunct", POLY_IMPORT_FUNC_ISPUNCT },
     { "tolower", POLY_IMPORT_FUNC_TOLOWER },
     { "toupper", POLY_IMPORT_FUNC_TOUPPER },
     { "abs", POLY_IMPORT_FUNC_ABS },
@@ -1918,6 +1933,16 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_isupper;
     case POLY_IMPORT_FUNC_ISXDIGIT:
       return (uint64_t) (uintptr_t) poly_host_x86_isxdigit;
+    case POLY_IMPORT_FUNC_ISBLANK:
+      return (uint64_t) (uintptr_t) poly_host_x86_isblank;
+    case POLY_IMPORT_FUNC_ISCNTRL:
+      return (uint64_t) (uintptr_t) poly_host_x86_iscntrl;
+    case POLY_IMPORT_FUNC_ISGRAPH:
+      return (uint64_t) (uintptr_t) poly_host_x86_isgraph;
+    case POLY_IMPORT_FUNC_ISPRINT:
+      return (uint64_t) (uintptr_t) poly_host_x86_isprint;
+    case POLY_IMPORT_FUNC_ISPUNCT:
+      return (uint64_t) (uintptr_t) poly_host_x86_ispunct;
     case POLY_IMPORT_FUNC_TOLOWER:
       return (uint64_t) (uintptr_t) poly_host_x86_tolower;
     case POLY_IMPORT_FUNC_TOUPPER:
@@ -4578,6 +4603,26 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "isxdigit") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_ISXDIGIT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "isblank") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ISBLANK * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "iscntrl") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ISCNTRL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "isgraph") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ISGRAPH * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "isprint") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ISPRINT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "ispunct") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ISPUNCT * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "tolower") == 0) {

@@ -2178,6 +2178,35 @@ uint64_t POLY_HOST_HELPER poly_host_x86_isxdigit(uint64_t value)
     (byte >= 'A' && byte <= 'F');
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_isblank(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return byte == ' ' || byte == '\t';
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_iscntrl(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return byte < 0x20 || byte == 0x7f;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_isgraph(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return byte > 0x20 && byte < 0x7f;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_isprint(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return byte >= 0x20 && byte < 0x7f;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_ispunct(uint64_t value)
+{
+  return poly_host_x86_isgraph(value) && !poly_host_x86_isalnum(value);
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_tolower(uint64_t value)
 {
   uint8_t byte = (uint8_t) value;
