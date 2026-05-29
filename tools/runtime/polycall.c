@@ -8296,7 +8296,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     program->dep_count == 0 &&
     !needs_x86_import;
   const int use_native_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
-    call_kind == POLY_CALL_SIGREGS_FP64;
+    call_kind == POLY_CALL_SIGREGS_FP64 ||
+    call_kind == POLY_CALL_VEC128_U32;
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_native_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
@@ -8447,6 +8448,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   else if (use_native_sig_imm_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
+    const uint32_t signature_slot = call_kind == POLY_CALL_VEC128_U32 ?
+      import_contract.signature_slot_native_regs_vec128_u32 :
+      import_contract.signature_slot_native_regs;
     code[offset++] = 0x4c; // mov rbx,r10: target operand.
     code[offset++] = 0x89;
     code[offset++] = 0xd3;
@@ -8457,7 +8461,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     code[offset++] = 0x3a;
     code[offset++] = 0xfc;
     code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
-    code[offset++] = (uint8_t) import_contract.signature_slot_native_regs;
+    code[offset++] = (uint8_t) signature_slot;
   }
   else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
