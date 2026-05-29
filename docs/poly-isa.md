@@ -186,6 +186,13 @@ architectural names in rename/RAT state, installs the return cookie, and
 redirects the frontend. Operand data does not move through execution pipes, and
 the transition does not read user memory.
 
+This is intentionally reconfigurable hardware, but only at the register-rename
+boundary. It is suitable for silicon because modern OoO cores already maintain
+rename maps from architectural registers to physical registers. A Poly
+signature slot selects a cached rename template; it does not ask hardware to
+repack stacks, copy overflow arguments, split structs, or interpret variadic
+metadata.
+
 Signatures are intentionally limited to register renaming. They are the fast
 path for ordinary precompiled functions whose arguments and return values fit
 in native ABI registers. Stack arguments, by-value structs, variadic calls, and
@@ -200,6 +207,12 @@ recipe; it does not parse a fresh descriptor at the call site. Calls that need
 stack arguments, aggregate repacking, variadic metadata, or lazy binding still
 route through software thunks, which can finish with an identity or simple
 signature `PCALL`.
+
+Typical slots are small and ABI-specific: slot 0 can map SysV x86_64
+`RDI,RSI,RDX` onto AAPCS64 `x0,x1,x2`; another slot can map AAPCS64 `x0..x5`
+back onto SysV `RDI,RSI,RDX,RCX,R8,R9`; another can cover SysV-to-RISC-V
+`a0..a5`. The setup cost is paid when the loader programs the slot, not at
+every call site.
 
 This is the narrow place where reconfigurable hardware helps. Modern OoO cores
 already map architectural names such as `RDI` or `x0` onto physical registers.

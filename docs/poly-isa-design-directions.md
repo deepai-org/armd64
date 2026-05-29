@@ -85,6 +85,14 @@ The immediate selects a prevalidated slot; the instruction does not fetch a
 user-memory descriptor or carry a dynamic per-call bitmask for hardware to
 interpret.
 
+This is the only kind of reconfigurable ABI hardware that should be in the
+ISA. Semi-persistent register remapping fits existing OoO machinery because it
+is just a controlled rename-map update. The hardware is not asked to understand
+stack layouts, copy overflow arguments, split by-value structs, or inspect
+variadic metadata. Trying to extend the same mechanism from registers into
+memory would turn `PCALL` into a variable-latency microcoded ABI engine with
+new page-fault points in the transition path.
+
 This is the silicon-realistic middle ground between a fixed exchange window and
 a hardware ABI interpreter. The exchange window remains the null signature and
 portable fallback. Signature slots remove thunks whose only job is register
@@ -118,6 +126,14 @@ Architecturally, the controls should be:
 - `PABI_SIG_GET slot`: report the active slot kind for discovery/debugging.
 - `PCALL frontend, target, sig_imm`: branch to another frontend while applying
   the selected cached mapping.
+
+For example, a runtime can program slot 0 as SysV x86_64 to AAPCS64 so
+`RDI,RSI,RDX` become `x0,x1,x2`, slot 1 as AAPCS64 to SysV, and slot 2 as
+SysV to RISC-V psABI. Register-only call sites then use `PCALL` with an
+immediate slot selector. Calls with stack arguments, structs, vectors that need
+class conversion, or variadics branch to a generated software thunk first; that
+thunk performs memory-side ABI work and then finishes with an identity or
+simple signature `PCALL`.
 
 `PABI_SIG_SET` and `PABI_SIG_GET` must be frontend-neutral controls. x86_64 can
 expose them for boot/runtime setup, but AArch64 and RISC-V code must be able to
