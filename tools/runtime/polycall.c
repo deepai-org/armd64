@@ -8266,6 +8266,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
+  // Signature PCALL is register-only. The default U64 probe intentionally
+  // passes overflow arguments, so it must stay on the stack-capable bridge.
   const int use_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
     call_kind == POLY_CALL_SIGREGS_FP64;
   const size_t pcall_sequence_size = use_sig_imm_pcall ?
