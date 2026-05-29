@@ -208,6 +208,16 @@ This is the highest-performance silicon-realistic point: reconfigurable
 hardware is used only where modern CPUs already have indirection, namely
 register renaming. Memory layout remains software policy.
 
+The key design rule is that "reconfigurable ABI hardware" means
+semi-persistent register-alias configuration, not general call marshalling. A
+small signature bank is area-efficient because it adds control inputs to
+existing rename logic. A memory or stack reformatter is the opposite: it creates
+variable-latency control flow, page-fault exposure, data-cache traffic, and
+precise recovery work inside the ISA switch itself. Keeping the hardware scope
+to RAT remaps gives hot register-only native calls the fewest possible data
+moves while preserving a clean software escape path for the cases that are
+actually ABI-policy dependent.
+
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
 compatibility mapping, and kind `2` is the hardware-oriented x86_64 SysV

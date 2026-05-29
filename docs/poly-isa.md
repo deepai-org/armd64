@@ -60,6 +60,8 @@ coverage, but the preferred generic form is `PCALL_SIG_IMM_MODE`.
 | `0x2e <slot>` | `PCALL_SIG_IMM_MODE` | frontend ID in `R15`, target in `RBX`, return PC in `R11`, signature slot as immediate byte |
 | `0x69` | `ABI_SIGNATURE_SET` | `RAX=slot`, `RDX=kind`, returns `RAX=0` or `-EINVAL` |
 | `0x6a` | `ABI_SIGNATURE_GET` | `RAX=slot`, returns signature kind in `RAX` or `-EINVAL` |
+| `0x6b` | `MONITOR_PACKET_SET` | `RAX=user pointer` for the monitor trap-packet buffer, `0` disables memory packet writes |
+| `0x6c` | `MONITOR_PACKET_GET` | returns the active monitor trap-packet buffer pointer in `RAX` |
 
 Prototype signature kinds are `0` for the baseline exchange window, `1` for the
 older x86_64 SysV compatibility mapping, and `2` for the hardware-oriented
@@ -209,7 +211,8 @@ records for foreign `svc`, `ecall`, `brk`, `ebreak`, unresolved imports,
 illegal instructions, and unsupported instructions.
 
 A `POLYTRAP` record contains the reason, source mode, selector/immediate, trap
-PC, resume PC, all eight POLYTRAP argument lanes, and the first eight native foreign ABI argument registers.
+PC, resume PC, all eight POLYTRAP argument lanes, and the first eight native
+foreign ABI argument registers.
 If a per-thread user-space poly monitor is installed, hardware writes the trap
 packet to the registered user address and transfers to the monitor in Ring 3.
 Otherwise syscall/import traps surface as x86 `#UD`, and breakpoint traps
@@ -226,13 +229,13 @@ the normal x86_64 interrupt/fault path, and restores the recorded foreign
 frontend on `IRET64`, `SYSRET`, `SYSEXIT`, or signal return when required.
 
 The prototype CPUID contract exposes poly state as XCR0 component `20`.
-Component layout version `4` is 4096 bytes and contains the mode header, trap
+Component layout version `5` is 4096 bytes and contains the mode header, trap
 packet, active transition record, AArch64 GPR/FP state, RISC-V GPR/FP state,
 hardware transition-stack state, user-space monitor registers, and the ABI
 signature slot bank.
 
 Private CPUID leaves start at `0x40000000` and extend through `0x40000009`. The
-prototype software state import layout version is `4`; it is a Bochs fallback,
+prototype software state import layout version is `5`; it is a Bochs fallback,
 not the silicon context-switch contract.
 
 ## Runtime Boundary

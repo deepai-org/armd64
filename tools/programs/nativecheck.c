@@ -35,6 +35,8 @@
 #define POLY_OP_BREAK_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x3a\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
+#define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
+#define POLY_OP_MONITOR_PACKET_GET ".byte 0x0f,0x3a,0xfc,0x6c\n"
 
 #ifndef ARCH_GET_XCOMP_SUPP
 #define ARCH_GET_XCOMP_SUPP 0x1021
@@ -53,6 +55,11 @@ typedef uint8_t poly_native_xsave_area_t[POLY_NATIVE_XSAVE_AREA_BYTES];
 
 static uint8_t nativecheck_real_xsave_area[POLY_NATIVE_XSAVE_AREA_BYTES]
   __attribute__((aligned(64)));
+
+struct nativecheck_monitor_packet {
+  struct poly_trap_packet trap;
+  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+};
 
 static inline uint64_t read_rax(void) {
   uint64_t value;
@@ -90,12 +97,22 @@ static inline void poly_trap_vector_mode_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "memory");
 }
 
+static inline void poly_monitor_packet_set_value(uint64_t value) {
+  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
+}
+
+static inline void poly_monitor_packet_get(void) {
+  asm volatile(POLY_OP_MONITOR_PACKET_GET ::: "memory");
+}
+
 static inline void poly_trap_vector_clear(void) {
   asm volatile(
     "xor %%eax,%%eax\n"
     POLY_OP_TRAP_VECTOR_SET
     "xor %%eax,%%eax\n"
     POLY_OP_TRAP_VECTOR_MODE_SET
+    "xor %%eax,%%eax\n"
+    POLY_OP_MONITOR_PACKET_SET
     :::
     "rax", "memory");
 }
@@ -767,8 +784,11 @@ __asm__(
 static int run_poly_trap_vector_probe(void) {
   void *handler = (void *) poly_trap_vector_handler;
   uint64_t expected_pid = (uint64_t) getpid();
+  struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) handler);
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   poly_trap_vector_get();
   if (read_rax() != (uint64_t) handler) {
     fputs("NATIVE_CHECK_FAIL: poly trap vector get mismatch\n", stderr);
@@ -777,6 +797,12 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_mode_get();
   if (read_rax() != POLY_MODE_X86) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly trap vector mode get mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly monitor packet get mismatch got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
@@ -792,6 +818,9 @@ static int run_poly_trap_vector_probe(void) {
     poly_trap_vector_mode_get();
     if (read_rax() != POLY_MODE_X86)
       _exit(12);
+    poly_monitor_packet_get();
+    if (read_rax() != 0)
+      _exit(13);
     _exit(0);
   }
   int status = 0;
@@ -806,7 +835,14 @@ static int run_poly_trap_vector_probe(void) {
     fputs("NATIVE_CHECK_FAIL: poly parent trap vector lost after fork\n", stderr);
     return 1;
   }
+  poly_monitor_packet_get();
+  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+    fputs("NATIVE_CHECK_FAIL: poly parent monitor packet address lost after fork\n",
+      stderr);
+    return 1;
+  }
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800366\n" // movz x6,#27
@@ -838,6 +874,22 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 syscall packet extended args mismatch arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
+    return 1;
+  }
+  if (monitor_packet.trap.reason != POLY_TRAP_SYSCALL ||
+      monitor_packet.trap.source_mode != POLY_MODE_RAW_AARCH64 ||
+      monitor_packet.trap.number != 172 ||
+      monitor_packet.trap.selector != 7 ||
+      monitor_packet.args[6] != 27 || monitor_packet.args[7] != 5 ||
+      (monitor_packet.trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly monitor packet aarch64 mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
+      monitor_packet.trap.reason, monitor_packet.trap.source_mode,
+      (unsigned long long) monitor_packet.trap.number,
+      (unsigned long long) monitor_packet.trap.selector,
+      (unsigned long long) monitor_packet.args[6],
+      (unsigned long long) monitor_packet.args[7],
+      (unsigned long long) monitor_packet.trap.flags);
     return 1;
   }
   pid_t trap_child = fork();
@@ -874,6 +926,7 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x01b00813\n" // addi a6,zero,27
@@ -899,6 +952,20 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_syscall_status_mode(),
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
+    return 1;
+  }
+  if (monitor_packet.trap.reason != POLY_TRAP_SYSCALL ||
+      monitor_packet.trap.source_mode != POLY_MODE_RAW_RISCV ||
+      monitor_packet.trap.number != 172 ||
+      monitor_packet.args[6] != 27 || monitor_packet.args[7] != 172 ||
+      (monitor_packet.trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly monitor packet riscv mismatch reason=%u mode=%u number=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
+      monitor_packet.trap.reason, monitor_packet.trap.source_mode,
+      (unsigned long long) monitor_packet.trap.number,
+      (unsigned long long) monitor_packet.args[6],
+      (unsigned long long) monitor_packet.args[7],
+      (unsigned long long) monitor_packet.trap.flags);
     return 1;
   }
 
@@ -1680,6 +1747,7 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
 static int run_poly_state_save_restore_probe(void) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
   struct poly_xsave_state trap_snapshot __attribute__((aligned(64)));
+  struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
 
   if (expect_child_signal("poly malformed import-return xstate", SIGILL,
@@ -1695,8 +1763,10 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
 
   memset(&snapshot, 0, sizeof(snapshot));
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value(trap_vector);
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
     fputs("NATIVE_CHECK_FAIL: poly state export signature set failed\n",
       stderr);
@@ -1714,10 +1784,13 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   }
   if (snapshot.header.trap_vector_pc != trap_vector ||
-      snapshot.header.trap_vector_mode != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export trap vector mismatch pc=0x%llx mode=%u\n",
+      snapshot.header.trap_vector_mode != POLY_MODE_RAW_RISCV ||
+      snapshot.header.monitor_packet_addr !=
+        (uint64_t) (uintptr_t) &monitor_packet) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export trap vector mismatch pc=0x%llx mode=%u packet=0x%llx\n",
       (unsigned long long) snapshot.header.trap_vector_pc,
-      snapshot.header.trap_vector_mode);
+      snapshot.header.trap_vector_mode,
+      (unsigned long long) snapshot.header.monitor_packet_addr);
     return 1;
   }
   if (snapshot.abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
@@ -1811,6 +1884,13 @@ static int run_poly_state_save_restore_probe(void) {
       (unsigned long long) poly_abi_signature_get(3));
     return 1;
   }
+  poly_monitor_packet_get();
+  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state import monitor packet mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
 
   poly_state_import(&trap_snapshot);
   if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
@@ -1841,6 +1921,7 @@ static int run_poly_state_save_restore_probe(void) {
 static int run_poly_real_xsave_probe(uint64_t xcr0) {
   const uint64_t poly_mask = 1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH;
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+  struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
   struct poly_xsave_state *saved =
     (struct poly_xsave_state *) (void *)
     (nativecheck_real_xsave_area + POLY_STATE_XSAVE_OFFSET_ARCH);
@@ -1852,8 +1933,10 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
 
   memset(nativecheck_real_xsave_area, 0,
     sizeof(nativecheck_real_xsave_area));
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value(trap_vector);
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
     fputs("NATIVE_CHECK_FAIL: real XSAVE signature set failed\n", stderr);
     return 1;
@@ -1865,14 +1948,17 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->header.header_bytes != POLY_STATE_XSAVE_HEADER_BYTES ||
       saved->header.total_bytes != POLY_STATE_XSAVE_BYTES_ARCH ||
       saved->header.trap_vector_pc != trap_vector ||
-      saved->header.trap_vector_mode != POLY_MODE_RAW_RISCV) {
+      saved->header.trap_vector_mode != POLY_MODE_RAW_RISCV ||
+      saved->header.monitor_packet_addr !=
+        (uint64_t) (uintptr_t) &monitor_packet) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XSAVE poly state mismatch magic=0x%x version=%u bytes=%u pc=0x%llx mode=%u\n",
+      "NATIVE_CHECK_FAIL: real XSAVE poly state mismatch magic=0x%x version=%u bytes=%u pc=0x%llx mode=%u packet=0x%llx\n",
       saved->header.magic,
       saved->header.layout_version,
       saved->header.total_bytes,
       (unsigned long long) saved->header.trap_vector_pc,
-      saved->header.trap_vector_mode);
+      saved->header.trap_vector_mode,
+      (unsigned long long) saved->header.monitor_packet_addr);
     return 1;
   }
   if (saved->abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
@@ -1887,6 +1973,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
 
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(0);
+  poly_monitor_packet_set_value(0);
   if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
     fputs("NATIVE_CHECK_FAIL: real XRSTOR signature mutate failed\n", stderr);
     return 1;
@@ -1912,6 +1999,13 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR ABI signature mismatch got=%llu\n",
       (unsigned long long) poly_abi_signature_get(4));
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR monitor packet mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
     return 1;
   }
 
