@@ -69,6 +69,17 @@ already needs for rename, while reconfiguring stack or memory layouts would turn
 `PCALL` into a variable-latency memory operation with page-fault and recovery
 complexity.
 
+This is the useful middle ground between a fixed exchange window and a
+hardware ABI interpreter. A fixed exchange window is a portable fallback, but
+it leaves hot native ABI calls paying software register moves. A programmable
+RAT signature lets the loader cache the common register-only ABI pairings once,
+then lets each hot `PCALL ... sig_imm` select a prevalidated rename template.
+The expected silicon cost is small: explicit slot state, validation, and muxing
+in the rename path. The design must stop there; once the CPU tries to rewrite
+stack layouts, split structs, or service variadic save areas, it becomes a
+page-fault-capable memory marshaller rather than a fixed-latency frontend
+transition.
+
 The hardware/software split is therefore strict:
 
 - Hardware handles the all-register fast path by selecting a cached signature
