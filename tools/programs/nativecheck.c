@@ -13,7 +13,6 @@
 
 #define POLY_OP_ENTER_A64 ".byte 0x0f,0x3a,0xfc,0x01\n"
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
-#define POLY_OP_PIRET ".byte 0x0f,0x3a,0xfc,0x20\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
@@ -156,15 +155,6 @@ poly_abi_signature_get(uint64_t slot) {
   return rax;
 }
 
-struct nativecheck_import_descriptor {
-  uint64_t target;
-  uint64_t trampoline;
-  uint64_t flags;
-  uint64_t stack_arg_qwords;
-};
-
-static struct nativecheck_import_descriptor
-  nativecheck_imports[POLY_IMPORT_FUNC_COUNT];
 static struct poly_xsave_state
   nativecheck_import_live_state __attribute__((aligned(64)));
 static struct poly_xsave_state
@@ -180,13 +170,6 @@ static void nativecheck_sigill_handler(int signal_number) {
   if (nativecheck_expect_sigill)
     siglongjmp(nativecheck_sigill_env, 1);
   _exit(98);
-}
-
-__attribute__((naked, noinline, used))
-static void nativecheck_import_return_trampoline(void) {
-  __asm__(
-    POLY_OP_PIRET
-    "ud2\n");
 }
 
 __attribute__((noinline, used))
@@ -214,14 +197,6 @@ static unsigned __int128 nativecheck_direct_x86_i128(uint64_t lo,
     uint64_t hi) {
   nativecheck_direct_x86_i128_helper_calls++;
   return ((unsigned __int128) (hi + 0x20) << 64) | (lo + 0x10);
-}
-
-static void nativecheck_setup_import_descriptors(void) {
-  memset(nativecheck_imports, 0, sizeof(nativecheck_imports));
-  nativecheck_imports[8].target =
-    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
-  nativecheck_imports[8].trampoline =
-    (uint64_t) (uintptr_t) nativecheck_import_return_trampoline;
 }
 
 static inline uint64_t read_xcr0(void) {
@@ -2067,83 +2042,43 @@ static void request_poly_xsave_permission(uint64_t *xcr0) {
 }
 
 __attribute__((noinline, noipa))
-static uint64_t nativecheck_descriptor_aarch64_import_sum6(uint64_t a0,
+static uint64_t nativecheck_direct_pcall_aarch64_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   register uint64_t r8_arg asm("r8") = a5;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
   asm volatile(
-    "movq %[imports], %%r12\n"
     POLY_OP_ENTER_A64
-    ".long 0xd29c1010\n" // movz x16,#0xe080
-    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
-    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
-    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
-    ".long 0xd63f0200\n" // blr x16, descriptor-backed import
-    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg)
-    : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
-    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
-  return a0;
-}
-
-__attribute__((noinline, noipa))
-static uint64_t nativecheck_descriptor_riscv_import_sum6(uint64_t a0,
-    uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
-  register uint64_t r8_arg asm("r8") = a5;
-  asm volatile(
-    "movq %[imports], %%r12\n"
-    POLY_OP_ENTER_RV64
-    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
-    ".long 0x08028293\n" // addi t0,t0,0x80 -> import id 8
-    ".long 0x000280e7\n" // jalr ra,0(t0), descriptor-backed import
-    ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg)
-    : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
-    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
-  return a0;
-}
-
-__attribute__((noinline, noipa))
-static uint64_t nativecheck_generic_pcall_aarch64_import_sum6(uint64_t a0,
-    uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
-  register uint64_t r8_arg asm("r8") = a5;
-  asm volatile(
-    "movq %[imports], %%r12\n"
-    POLY_OP_ENTER_A64
-    ".long 0xd29c1010\n" // movz x16,#0xe080
-    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
-    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
-    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
     ".long 0xd5032f3f\n" // generic pcall frontend=x17 target=x16
-    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg)
-    : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
-    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+      "+r"(r8_arg), "+r"(target)
+    :
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
   return a0;
 }
 
 __attribute__((noinline, noipa))
-static uint64_t nativecheck_generic_pcall_riscv_import_sum6(uint64_t a0,
+static uint64_t nativecheck_direct_pcall_riscv_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   register uint64_t r8_arg asm("r8") = a5;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
   asm volatile(
-    "movq %[imports], %%r12\n"
     POLY_OP_ENTER_RV64
-    ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
-    ".long 0x08028293\n" // addi t0,t0,0x80 -> descriptor-backed import
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
     ".long 0x1200700b\n" // generic pcall frontend=t1 target=t0 return=t2
-    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg)
-    : [imports] "r"((uint64_t) (uintptr_t) nativecheck_imports)
-    : "rbx", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+      "+r"(r8_arg), "+r"(target)
+    :
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
   return a0;
 }
 
@@ -2422,7 +2357,8 @@ static uint64_t nativecheck_signature_pcall_riscv_x86_direct_i128(void) {
   return result;
 }
 
-static int check_poly_import_return_xsave_frame(uint32_t expected_mode) {
+static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
+    uint64_t expected_import_id) {
   const struct poly_import_return_state *state =
     &nativecheck_import_live_state.import_return;
   if (nativecheck_import_live_state.header.layout_version !=
@@ -2443,7 +2379,7 @@ static int check_poly_import_return_xsave_frame(uint32_t expected_mode) {
       frame->alias_valid != 1 ||
       frame->return_pc == 0 ||
       frame->return_sp == 0 ||
-      frame->import_id != 8 ||
+      frame->import_id != expected_import_id ||
       frame->descriptor_flags != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly import xsave frame mismatch expected_mode=%u mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu flags=0x%llx\n",
@@ -2467,17 +2403,17 @@ static int run_poly_import_return_xsave_probe(void) {
   memset(&nativecheck_import_restore_state, 0,
     sizeof(nativecheck_import_restore_state));
   nativecheck_import_helper_calls = 0;
-  nativecheck_setup_import_descriptors();
 
-  uint64_t result = nativecheck_descriptor_aarch64_import_sum6(
+  uint64_t result = nativecheck_direct_pcall_aarch64_import_sum6(
     1, 2, 3, 4, 5, 6);
   if (result != expected || nativecheck_import_helper_calls != 1) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly import xsave helper result=%llu calls=%u\n",
+      "NATIVE_CHECK_FAIL: poly direct aarch64 import xsave helper result=%llu calls=%u\n",
       (unsigned long long) result, nativecheck_import_helper_calls);
     return 1;
   }
-  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_AARCH64) != 0)
+  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_AARCH64,
+        UINT64_MAX) != 0)
     return 1;
 
   memset(&nativecheck_import_live_state, 0,
@@ -2486,46 +2422,15 @@ static int run_poly_import_return_xsave_probe(void) {
     sizeof(nativecheck_import_restore_state));
   nativecheck_import_helper_calls = 0;
 
-  result = nativecheck_descriptor_riscv_import_sum6(1, 2, 3, 4, 5, 6);
+  result = nativecheck_direct_pcall_riscv_import_sum6(1, 2, 3, 4, 5, 6);
   if (result != expected || nativecheck_import_helper_calls != 1) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly riscv import xsave helper result=%llu calls=%u\n",
+      "NATIVE_CHECK_FAIL: poly direct riscv import xsave helper result=%llu calls=%u\n",
       (unsigned long long) result, nativecheck_import_helper_calls);
     return 1;
   }
-  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_RISCV) != 0)
-    return 1;
-
-  memset(&nativecheck_import_live_state, 0,
-    sizeof(nativecheck_import_live_state));
-  memset(&nativecheck_import_restore_state, 0,
-    sizeof(nativecheck_import_restore_state));
-  nativecheck_import_helper_calls = 0;
-
-  result = nativecheck_generic_pcall_aarch64_import_sum6(1, 2, 3, 4, 5, 6);
-  if (result != expected || nativecheck_import_helper_calls != 1) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly aarch64 generic pcall x86 import result=%llu calls=%u\n",
-      (unsigned long long) result, nativecheck_import_helper_calls);
-    return 1;
-  }
-  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_AARCH64) != 0)
-    return 1;
-
-  memset(&nativecheck_import_live_state, 0,
-    sizeof(nativecheck_import_live_state));
-  memset(&nativecheck_import_restore_state, 0,
-    sizeof(nativecheck_import_restore_state));
-  nativecheck_import_helper_calls = 0;
-
-  result = nativecheck_generic_pcall_riscv_import_sum6(1, 2, 3, 4, 5, 6);
-  if (result != expected || nativecheck_import_helper_calls != 1) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly riscv generic pcall x86 import result=%llu calls=%u\n",
-      (unsigned long long) result, nativecheck_import_helper_calls);
-    return 1;
-  }
-  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_RISCV) != 0)
+  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_RISCV,
+        UINT64_MAX) != 0)
     return 1;
 
   puts("NATIVE_POLY_IMPORT_RETURN_XSAVE_OK");
