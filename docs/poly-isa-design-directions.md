@@ -132,8 +132,9 @@ For example, a SysV-to-AAPCS64 slot can map:
 The slot bank should be small, for example 4 to 8 slots. The loader or runtime
 programs common mappings once, such as SysV-to-AAPCS64, AAPCS64-to-SysV,
 SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. Hot call sites then encode only
-the target frontend, target PC, and signature slot. A rare mapping can either
-reuse a cold slot outside the hot path or fall back to a software thunk.
+the target frontend, target PC, and signature slot, preferably as an immediate
+operand. A rare mapping can either reuse a cold slot outside the hot path or
+fall back to a software thunk.
 
 This is the silicon-realistic sweet spot: common precompiled functions whose
 arguments and returns fit in integer or FP registers can cross frontends without
@@ -199,6 +200,12 @@ This is the intended "90/10" split: hot calls whose arguments and returns fit in
 native ABI registers should avoid thunks entirely through RAT remapping, while
 the uncommon stack, aggregate, vector, or variadic cases stay in software where
 memory access and policy belong.
+
+This should be understood as zero execution-unit data-move latency, not a
+literal zero-cycle call. A signature `PCALL` still pays the normal costs of a
+control-flow redirect, frontend-mode switch, return-cookie installation, and
+rename checkpointing. What it avoids is dispatching move instructions or
+entering a software thunk when the ABI difference is only register naming.
 
 Put another way, the hardware should remove thunks that only shuffle registers.
 It should not attempt to remove thunks whose job is ABI memory semantics. Stack

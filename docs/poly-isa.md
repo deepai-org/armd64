@@ -174,9 +174,10 @@ argument/result handoff:
 | `P7` | `R10` | `x7` | `a7` |
 
 Loader/runtime thunks can translate native ABI argument order into this window
-before issuing `PSWITCH` or `PCALL`. For hot register-only native ABI calls,
-silicon may avoid those move thunks with a small bank of programmable ABI
-signature slots.
+before issuing `PSWITCH` or `PCALL`. The preferred silicon fast path for hot
+register-only native ABI calls is a small bank of programmable ABI signature
+slots, so calls that only need register shuffling do not need software move
+thunks.
 
 A signature slot is semi-persistent hardware control state programmed by the
 loader or runtime. It is a register-alias-table recipe, not a call descriptor:
@@ -184,6 +185,13 @@ when `PCALL` names a slot, the CPU rebinds source architectural names to target
 architectural names in rename/RAT state, installs the return cookie, and
 redirects the frontend. Operand data does not move through execution pipes, and
 the transition does not read user memory.
+
+This is the narrow place where reconfigurable hardware helps. Modern OoO cores
+already map architectural names such as `RDI` or `x0` onto physical registers.
+A Poly ABI signature reuses that machinery by selecting a cached rename
+template during the `PCALL` redirect. The hot instruction should encode the
+target frontend, target PC, and a small signature-slot immediate; slot
+programming is a cold loader/runtime operation.
 
 This is the only ABI translation hardware does. A slot is a cached rename
 template for register arguments and register returns; it is not a microcoded
@@ -196,6 +204,12 @@ call site should encode only the target frontend, target PC, and signature
 slot, preferably as an immediate. The setup cost is paid when the loader
 programs the slot; the call-site cost is a frontend redirect plus cached rename
 selection.
+
+The intended split is hybrid: hardware covers the common all-register case,
+including compatible integer and FP/SIMD ABI register lanes; software covers
+stack arguments, by-value aggregates, variadics, lazy binding, and ABI cases
+that require memory inspection or rewriting. The CPU must not grow a
+page-fault-capable memory repacker inside `PCALL`.
 
 The slot bank is explicit Poly architectural state. In the Bochs prototype it
 is saved and restored by the Poly XSAVE component, not stored in a process-wide
