@@ -3893,6 +3893,24 @@ static int run_poly_direct_x86_pcall_probe(void) {
     return 1;
   }
 
+  nativecheck_direct_x86_i128_helper_calls = 0;
+  result = nativecheck_signature_pcall_aarch64_x86_direct_i128();
+  if (result != 51 || nativecheck_direct_x86_i128_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 native i128 signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_i128_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_i128_helper_calls = 0;
+  result = nativecheck_signature_pcall_riscv_x86_direct_i128();
+  if (result != 51 || nativecheck_direct_x86_i128_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv native i128 signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_i128_helper_calls);
+    return 1;
+  }
+
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
     fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot exchange set failed\n",
       stderr);
