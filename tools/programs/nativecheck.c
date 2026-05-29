@@ -424,6 +424,21 @@ nativecheck_aarch64_abi_signature_set_get_slot6_i128(void) {
 }
 
 static __attribute__((noinline)) uint64_t
+nativecheck_aarch64_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t result = slot;
+  register uint64_t kind_reg asm("rdx") = kind;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032f9f\n" // aarch64 ABI_SIGNATURE_SET, x0=slot, x1=kind
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(result), "+d"(kind_reg)
+    :
+    : "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
 nativecheck_riscv_abi_signature_set_get_slot6_i128(void) {
   uint64_t result;
   asm volatile(
@@ -437,6 +452,21 @@ nativecheck_riscv_abi_signature_set_get_slot6_i128(void) {
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
+nativecheck_riscv_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t result = slot;
+  register uint64_t kind_reg asm("rdx") = kind;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x1800700b\n" // riscv ABI_SIGNATURE_SET, a0=slot, a1=kind
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(result), "+d"(kind_reg)
+    :
+    : "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
       "r13", "r14", "memory");
   return result;
 }
@@ -4592,6 +4622,51 @@ static int run_poly_foreign_signature_pcall_probe(void) {
       stderr);
     return 1;
   }
+
+  result = nativecheck_aarch64_abi_signature_set(5,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 + 1);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 ABI signature invalid kind mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
+  result = nativecheck_aarch64_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_COUNT,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 ABI signature invalid slot mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
+  result = nativecheck_riscv_abi_signature_set(5,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 + 1);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv ABI signature invalid kind mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
+  result = nativecheck_riscv_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_COUNT,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv ABI signature invalid slot mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
   if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32) != 0) {
     fputs("NATIVE_CHECK_FAIL: poly foreign vec128 signature slot set failed\n",
