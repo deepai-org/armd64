@@ -738,8 +738,6 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_COMPACT_U32_F32 |
     POLY_CPUID_FEATURE_COMPACT_F32_U32 |
     POLY_CPUID_FEATURE_NEUTRAL_COMPACT |
-    POLY_CPUID_FEATURE_FP64_STACK_ARGS |
-    POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
     POLY_CPUID_FEATURE_TRAP_VECTOR |
     POLY_CPUID_FEATURE_VEC128_BRIDGE |
     POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
@@ -780,8 +778,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf3(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_AARCH64_CTRL_RISCV_CALL_COMPACT_F32_U32;
   regs.ebx = POLY_RISCV_CTRL_AARCH64_CALL_COMPACT_F32_U32;
-  regs.ecx = POLY_AARCH64_CTRL_RISCV_CALL_FP64_STACK;
-  regs.edx = POLY_RISCV_CTRL_AARCH64_CALL_FP64_STACK;
+  regs.ecx = 0;
+  regs.edx = 0;
   return regs;
 }
 
@@ -1044,7 +1042,6 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_abi_bridge_leaf(void) {
     POLY_ABI_BRIDGE_FLAG_SRET |
     POLY_ABI_BRIDGE_FLAG_SCALAR_FP |
     POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES |
-    POLY_ABI_BRIDGE_FLAG_FP64_STACK |
     POLY_ABI_BRIDGE_FLAG_TLS_BASE |
     POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK |
     POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET |
