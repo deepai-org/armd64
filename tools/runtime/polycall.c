@@ -1206,6 +1206,22 @@ static int resolve_direct_x86_register_import(const char *symbol_name,
     *import_id = POLY_IMPORT_FUNC_X86_SLOT2;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_fp64_add") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT3;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_fp32_add") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT4;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_fp64_sum8") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT6;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT7;
+    return 0;
+  }
   return -1;
 }
 
@@ -5234,8 +5250,6 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_sum14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_i128") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fp64_add") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fp64_sum8") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fpair64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fpair32") == 0 ||
@@ -5243,8 +5257,6 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_sret_u64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64_stack") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64_stack10") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fp32_add") == 0 ||
         import_symbol_uses_x86_descriptor(symbol_name))
       program->needs_x86_import = 1;
     *base_kind = RELOC_BASE_IMPORT_CALL;
