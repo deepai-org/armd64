@@ -3395,7 +3395,112 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     return 1;
   }
 
-  poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128);
+  memset(nativecheck_real_xsave_area, 0,
+    sizeof(nativecheck_real_xsave_area));
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
+  poly_trap_vector_set_value(trap_vector);
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XRSTOR init signature mutate failed\n",
+      stderr);
+    return 1;
+  }
+  write_xmm0_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2801155\n" // movz x21,#138
+    ".long 0x1e604015\n" // fmov d21,d0
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+  write_xmm0_u64(seven_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x08a00a93\n" // addi s5,zero,138
+    ".long 0x22a50ad3\n" // fsgnj.d f21,fa0,fa0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+  native_xrstor64(nativecheck_real_xsave_area, poly_mask);
+
+  poly_trap_vector_get();
+  if (read_rax() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init trap vector not cleared got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init trap mode not reset got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init monitor packet not cleared got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init ABI signature mismatch got=%llu\n",
+      (unsigned long long) poly_abi_signature_get(4));
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1503e0\n" // mov x0,x21
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init aarch64 x21 not cleared got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  write_xmm1_u64(0);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x1e612aa0\n" // fadd d0,d21,d1
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+  if (read_xmm0_u64() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init aarch64 d21 not cleared got=0x%llx\n",
+      (unsigned long long) read_xmm0_u64());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x000a8513\n" // addi a0,s5,0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init riscv s5 not cleared got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  write_xmm1_u64(0);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x02baf553\n" // fadd.d fa0,f21,fa1
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+  if (read_xmm0_u64() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init riscv f21 not cleared got=0x%llx\n",
+      (unsigned long long) read_xmm0_u64());
+    return 1;
+  }
+
   poly_trap_vector_clear();
   puts("NATIVE_POLY_REAL_XSAVE_OK");
   return 0;
