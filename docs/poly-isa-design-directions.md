@@ -84,6 +84,14 @@ selects a cached mapping, for example:
 - x86_64 `R8` to AArch64 `x4`
 - x86_64 `R9` to AArch64 `x5`
 
+Architecturally, each slot is a semi-persistent Poly ABI Signature Register:
+it holds a compact, prevalidated register-renaming recipe such as "SysV
+x86_64 integer args to AAPCS64 integer args" or "AAPCS64 scalar FP args to
+SysV scalar FP args." A `PCALL` carries the target frontend, target PC, and a
+small immediate slot selector. The hot path does not program a mapping, read a
+descriptor, or execute moves; it only applies the cached rename recipe while
+redirecting the frontend.
+
 The slot bank is semi-persistent hardware state. A loader or runtime programs a
 small number of slots, for example 4 to 8, with common register-only ABI pairs:
 SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V
@@ -105,6 +113,13 @@ a hardware ABI interpreter. The exchange window remains the null signature and
 portable fallback. Signature slots remove thunks whose only job is register
 shuffling, but they deliberately do not remove thunks whose job is ABI memory
 semantics.
+
+The area argument is the same as the latency argument. A few signature
+registers plus muxing in rename/dispatch is small, deterministic hardware.
+Adding stack or struct rewriting would require a memory walker, store
+generation, rollback state, and page-fault handling inside the transition
+instruction. That is a different class of machine, and it is not the Poly ISA
+contract.
 
 The hardware/software split is strict:
 

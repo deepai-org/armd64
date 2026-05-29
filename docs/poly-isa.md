@@ -196,12 +196,23 @@ architectural names in rename/RAT state, installs the return cookie, and
 redirects the frontend. Operand data does not move through execution pipes, and
 the transition does not read user memory.
 
+The intended architectural shape is a small set of Poly ABI Signature Registers
+or slots. The loader programs common mappings once, such as SysV x86_64
+`RDI,RSI,RDX` to AAPCS64 `x0,x1,x2`; a hot call then encodes the slot in
+`PCALL`. The cached slot is applied during rename/dispatch, so register-only
+ABI handoff does not require software moves or per-call descriptor parsing.
+
 This is intentionally reconfigurable hardware, but only at the register-rename
 boundary. It is suitable for silicon because modern OoO cores already maintain
 rename maps from architectural registers to physical registers. A Poly
 signature slot selects a cached rename template; it does not ask hardware to
 repack stacks, copy overflow arguments, split structs, or interpret variadic
 metadata.
+
+The limit is strict. Hardware can cheaply rename registers; it must not
+reconfigure stack or memory layouts. Stack arguments, by-value aggregates,
+variadics, and ABI-specific memory layout remain software-thunk work because
+they require memory access, rollback, and page-fault policy.
 
 The intended silicon shape is a small cached slot bank, not per-call
 reconfiguration. A loader can program hot slots such as SysV-to-AAPCS64,
