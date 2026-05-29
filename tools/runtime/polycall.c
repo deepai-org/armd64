@@ -856,14 +856,18 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
 static int read_poly_signature_contract(struct poly_import_contract *contract) {
   const struct poly_cpuid_regs signature =
     read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const struct poly_cpuid_regs signature_ext =
+    read_cpuid(POLY_CPUID_BASE + 2, 17);
   const uint32_t slot_exchange = signature.ecx & 0xffU;
   const uint32_t slot_x86_sysv_regs = (signature.ecx >> 8) & 0xffU;
   const uint32_t slot_x86_sysv_regs_i128 = (signature.ecx >> 16) & 0xffU;
   const uint32_t slot_native_regs = (signature.ecx >> 24) & 0xffU;
+  const uint32_t slot_native_regs_i128 = signature_ext.eax;
   const uint32_t kind_exchange = signature.edx & 0xffU;
   const uint32_t kind_x86_sysv_regs = (signature.edx >> 8) & 0xffU;
   const uint32_t kind_x86_sysv_regs_i128 = (signature.edx >> 16) & 0xffU;
   const uint32_t kind_native_regs = (signature.edx >> 24) & 0xffU;
+  const uint32_t kind_native_regs_i128 = signature_ext.ebx;
 
   if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
       signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
@@ -875,10 +879,16 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
       kind_x86_sysv_regs != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
       kind_x86_sysv_regs_i128 !=
         POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 ||
-      kind_native_regs != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+      kind_native_regs != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
+      slot_native_regs_i128 >= signature.ebx ||
+      kind_native_regs_i128 != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128 ||
+      signature_ext.ecx != 0 ||
+      signature_ext.edx != 0) {
     fprintf(stderr,
-      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
-      signature.eax, signature.ebx, signature.ecx, signature.edx);
+      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x)\n",
+      signature.eax, signature.ebx, signature.ecx, signature.edx,
+      signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
+      signature_ext.edx);
     return -1;
   }
 
@@ -887,6 +897,7 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
   contract->signature_slot_x86_sysv_regs = slot_x86_sysv_regs;
   contract->signature_slot_x86_sysv_regs_i128 = slot_x86_sysv_regs_i128;
   contract->signature_slot_native_regs = slot_native_regs;
+  contract->signature_slot_native_regs_i128 = slot_native_regs_i128;
   return 0;
 }
 

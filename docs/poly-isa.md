@@ -187,6 +187,9 @@ mode encodings: `EAX=TRAP_VECTOR_GET`, `EBX=TRAP_VECTOR_MODE_SET`,
 `ECX=TRAP_VECTOR_MODE_GET`, and `EDX=MONITOR_PACKET_GET`.
 CPUID leaf `0x40000002`, subleaf `14` reports the same query and mode
 encodings for RISC-V.
+CPUID leaf `0x40000002`, subleaf `17` reports the extended ABI signature
+manifest: `EAX` is the preferred neutral native two-GPR integer return
+signature slot and `EBX` is the corresponding signature kind.
 
 ## Foreign Escapes
 

@@ -4741,6 +4741,19 @@ int main(void) {
         landing_policy_manifest2.ecx, landing_policy_manifest2.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_signature_manifest2 =
+      poly_cpuid_expected_escape_leaf17();
+    struct poly_cpuid_regs signature_manifest2 =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 17);
+    if (signature_manifest2.eax != expected_signature_manifest2.eax ||
+        signature_manifest2.ebx != expected_signature_manifest2.ebx ||
+        signature_manifest2.ecx != expected_signature_manifest2.ecx ||
+        signature_manifest2.edx != expected_signature_manifest2.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID extended ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        signature_manifest2.eax, signature_manifest2.ebx,
+        signature_manifest2.ecx, signature_manifest2.edx);
+      return 1;
+    }
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
     uint32_t forbidden_state_bits = POLY_CPUID_STATE_SYNTHETIC_BANKS |

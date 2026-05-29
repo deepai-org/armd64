@@ -420,6 +420,7 @@ enum {
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS = 1,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128 = 2,
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS = 3,
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_I128 = 4,
   POLY_ABI_SIGNATURE_KIND_EXCHANGE = 0,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS = 2,
@@ -903,6 +904,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf16(void) {
   regs.ebx = POLY_RISCV_CTRL_LANDING_POLICY_GET;
   regs.ecx = (uint32_t) POLY_LANDING_POLICY_SUPPORTED;
   regs.edx = POLY_STATE_XSAVE_LANDING_POLICY_OFFSET;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf17(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_I128;
+  regs.ebx = POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128;
+  regs.ecx = 0;
+  regs.edx = 0;
   return regs;
 }
 
