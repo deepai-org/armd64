@@ -3139,6 +3139,11 @@ int main(void) {
         abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);
       return 1;
     }
+    if ((abi_bridge.ebx & POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS) != 0) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: descriptor imports advertised as ABI bridge hardware ebx=0x%x\n",
+        abi_bridge.ebx);
+      return 1;
+    }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_trap_vector_probe() != 0)
       return 1;
