@@ -147,22 +147,14 @@ fits silicon because modern cores already maintain RAT state; stack and
 aggregate conversion does not, because it needs memory access, page-fault
 recovery, and ABI-specific policy in the transition path.
 
-The Bochs prototype currently models this with eight signature slots. Slot kind
-`0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
-compatibility mapping, and kind `2` is the hardware-oriented x86_64 SysV
-register-only mapping. Kind `3` uses the same argument mapping but treats the
-x86 `RAX/RDX` pair as a two-register integer return for ABIs that return
-`unsigned __int128`-class values in two GPRs. Kind `4` is the preferred
-silicon-facing form: it maps the source frontend's native integer and FP ABI
-lanes onto the target frontend's native lanes without stack access. Kind `4`
-is the ordinary single-result native-register fast path; multi-GPR return
-classes such as `unsigned __int128` must use an explicit return-shape
-signature rather than being inferred from the argument mapping. Kind `5` is the
-prototype neutral native-register mapping with a two-GPR integer return. Kinds
-`2` and `3` remain valid prototype aliases for x86-oriented tests and direct
-x86 imports, but hot neutral cross-frontend calls should use kind `4` or typed
-native variants such as kind `5`. The final silicon-oriented encoding should
-use a compact slot immediate.
+The Bochs prototype currently models this with eight signature slots. Kind `0`
+is the exchange-window mapping. Kind `1` is reserved for the removed
+stack-capable SysV signature and must be rejected. Kinds `2` and `3` are
+x86_64 SysV register-only forms, with kind `3` treating the x86 `RAX/RDX` pair
+as a two-register integer return. Kind `4` is the preferred silicon-facing
+single-result native-register fast path; kind `5` is the matching two-GPR
+return form; kind `6` is the current fixed 128-bit vector lane form. The final
+silicon-oriented encoding should use a compact slot immediate.
 
 The current preferred Bochs generic `PCALL` form uses frontend ID in `R15`,
 target PC in `RBX`, return PC in `R11`, and an immediate signature-slot byte.

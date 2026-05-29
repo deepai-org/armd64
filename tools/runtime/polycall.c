@@ -3264,6 +3264,66 @@ static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
   return 0x11;
 }
 
+static int align_stub_offset(size_t *offset, size_t alignment,
+    size_t limit);
+
+static void emit_x86_push_callee_regs(uint8_t *code, size_t *offset) {
+  code[(*offset)++] = 0x53; // push rbx
+  code[(*offset)++] = 0x55; // push rbp
+  code[(*offset)++] = 0x41; // push r12
+  code[(*offset)++] = 0x54;
+  code[(*offset)++] = 0x41; // push r13
+  code[(*offset)++] = 0x55;
+  code[(*offset)++] = 0x41; // push r14
+  code[(*offset)++] = 0x56;
+  code[(*offset)++] = 0x41; // push r15
+  code[(*offset)++] = 0x57;
+}
+
+static void emit_x86_pop_callee_regs(uint8_t *code, size_t *offset) {
+  code[(*offset)++] = 0x41; // pop r15
+  code[(*offset)++] = 0x5f;
+  code[(*offset)++] = 0x41; // pop r14
+  code[(*offset)++] = 0x5e;
+  code[(*offset)++] = 0x41; // pop r13
+  code[(*offset)++] = 0x5d;
+  code[(*offset)++] = 0x41; // pop r12
+  code[(*offset)++] = 0x5c;
+  code[(*offset)++] = 0x5d; // pop rbp
+  code[(*offset)++] = 0x5b; // pop rbx
+}
+
+static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
+    size_t *stub_offset, int arch, int call_kind, uint64_t target,
+    uint64_t tls, uint64_t heap, uint64_t import_x86_table,
+    int needs_x86_import, uint64_t *stub_addr, size_t *target_imm_offset) {
+  if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
+    return -1;
+  const size_t start = *stub_offset;
+  if (stub_limit - start < 96)
+    return -1;
+
+  emit_x86_push_callee_regs(stubs, stub_offset);
+  *target_imm_offset = *stub_offset + 2 - start;
+  emit_movabs_r10(stubs, stub_offset, target);
+  const size_t return_imm_offset = *stub_offset + 2;
+  emit_movabs_r11(stubs, stub_offset, 0);
+  emit_movabs_r13(stubs, stub_offset, tls);
+  emit_movabs_r14(stubs, stub_offset, heap);
+  if (needs_x86_import)
+    emit_movabs_r12(stubs, stub_offset, import_x86_table);
+  stubs[(*stub_offset)++] = 0x0f;
+  stubs[(*stub_offset)++] = 0x3a;
+  stubs[(*stub_offset)++] = 0xfc;
+  stubs[(*stub_offset)++] = pcall_opcode_for_call_kind(arch, call_kind);
+  write_le64(stubs + return_imm_offset,
+    (uint64_t) (uintptr_t) (stubs + *stub_offset));
+  emit_x86_pop_callee_regs(stubs, stub_offset);
+  stubs[(*stub_offset)++] = 0xc3;
+  *stub_addr = (uint64_t) (uintptr_t) (stubs + start);
+  return 0;
+}
+
 static int reloc_base_is_root_cross_stub(int base_kind) {
   return base_kind == RELOC_BASE_ROOT_CROSS_STUB ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_VEC128 ||
@@ -8325,14 +8385,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
-  // The generic signature PCALL is register-only. Leaf U64 executables can use
-  // a generated x86 thunk to handle overflow stack args before switching
+  // The generic signature PCALL is register-only. U64 root calls use a
+  // generated x86 thunk to handle overflow stack args before switching
   // frontends, keeping stack parsing out of the CPU control instruction.
-  const int use_exchange_u64_pcall = call_kind == POLY_CALL_U64 &&
-    program->elf_type == ET_EXEC &&
-    program->reloc_count == 0 &&
-    program->dep_count == 0 &&
-    !needs_x86_import;
+  const int use_exchange_u64_pcall = call_kind == POLY_CALL_U64 ||
+    call_kind == POLY_CALL_PAIR_U64 ||
+    call_kind == POLY_CALL_MIXED_STACK_ARGS ||
+    call_kind == POLY_CALL_FINI_RESULT ||
+    call_kind == POLY_CALL_DEP_FINI_RESULT;
   const int use_native_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
     call_kind == POLY_CALL_SIGREGS_FP64 ||
     call_kind == POLY_CALL_VEC128_U32;
@@ -8350,11 +8410,21 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     import_contract.import_count : 0;
   const size_t import_descriptor_size = needs_x86_import ?
     import_descriptor_count * import_contract.x86_descriptor_size : 0;
-  const size_t stub_size = main_stub_size + import_return_size +
-    import_descriptor_size;
+  const size_t callback_pcall_sequence_size =
+    POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
+  const size_t callback_pcall_return_delta = callee_save_size + 10 + 10 +
+    tls_setup_size + heap_setup_size + import_setup_size +
+    callback_pcall_sequence_size;
+  const size_t callback_stub_size =
+    callback_pcall_return_delta + callee_restore_size + 1;
+  const size_t callback_stub_offset =
+    main_stub_size + import_return_size + import_descriptor_size;
+  const size_t stub_size = callback_stub_offset + callback_stub_size;
   const size_t cross_stub_size = 4096;
+  const size_t callback_callee_save_area_size = 48;
   const size_t cross_stub_base_offset =
-    (stub_size + callee_save_area_size + 7U) & ~((size_t) 7U);
+    (stub_size + callee_save_area_size + callback_callee_save_area_size + 7U) &
+      ~((size_t) 7U);
   const size_t code_size = cross_stub_base_offset + cross_stub_size;
   const size_t foreign_size = program->image_size;
   uint8_t *dep_foreign[MAX_NEEDED_DEPS];
@@ -8424,6 +8494,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint64_t import_x86_table = import_x86_return + import_return_size;
   const size_t import_x86_table_offset = main_stub_size + import_return_size;
   const uint64_t callee_save_area = (uint64_t) (uintptr_t) (code + stub_size);
+  const uint64_t callback_callee_save_area =
+    callee_save_area + callee_save_area_size;
   uint8_t *cross_stubs = code + cross_stub_base_offset;
   size_t cross_stub_offset = 0;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
@@ -8591,6 +8663,45 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         x86_descriptor_stack_arg_count_for_import_id(import_id));
     }
   }
+  if (offset != callback_stub_offset) {
+    fprintf(stderr, "POLYCALL_FAIL: internal x86 callback stub offset mismatch\n");
+    if (tls)
+      munmap(tls, tls_size);
+    munmap(import_page, 4096);
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
+  }
+  const uint64_t callback_return_rip =
+    (uint64_t) (uintptr_t) (code + callback_stub_offset +
+      callback_pcall_return_delta);
+  emit_save_callee_regs(code, &offset, callback_callee_save_area);
+  const size_t callback_target_imm_offset = offset + 2;
+  emit_movabs_r10(code, &offset, 0);
+  emit_movabs_r11(code, &offset, callback_return_rip);
+  const size_t callback_tls_imm_offset = offset + 2;
+  emit_movabs_r13(code, &offset, 0);
+  const size_t callback_heap_imm_offset = offset + 2;
+  emit_movabs_r14(code, &offset, 0);
+  if (needs_x86_import)
+    emit_movabs_r12(code, &offset, import_x86_table);
+  {
+    const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
+      POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
+    code[offset++] = 0x4c; // mov rbx,r10: target operand.
+    code[offset++] = 0x89;
+    code[offset++] = 0xd3;
+    code[offset++] = 0x41; // mov r15d,frontend ID.
+    code[offset++] = 0xbf;
+    emit_u32(code, &offset, pcall_frontend);
+    code[offset++] = 0x0f;
+    code[offset++] = 0x3a;
+    code[offset++] = 0xfc;
+    code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+    code[offset++] = (uint8_t) import_contract.signature_slot_native_regs;
+  }
+  emit_restore_callee_regs(code, &offset, callback_callee_save_area);
+  code[offset++] = 0xc3;
   if (offset != stub_size) {
     fprintf(stderr, "POLYCALL_FAIL: internal x86 stub size mismatch\n");
     if (tls)
@@ -8889,11 +9000,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   if (tls) {
     write_le64(code + tls_imm_offset, (uint64_t) (uintptr_t) tls);
+    write_le64(code + callback_tls_imm_offset, (uint64_t) (uintptr_t) tls);
   }
   else {
     write_le64(code + tls_imm_offset, 0);
+    write_le64(code + callback_tls_imm_offset, 0);
   }
   write_le64(code + heap_imm_offset, (uint64_t) (uintptr_t) import_page);
+  write_le64(code + callback_heap_imm_offset,
+    (uint64_t) (uintptr_t) import_page);
   const uint64_t load_bias = root_load_bias;
   for (size_t n = 0; n < program->reloc_count; n++) {
     if (reloc_base_is_resolver(program->relocs[n].base_kind))
@@ -9126,7 +9241,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
 
   poly_runtime_reset_atexit_callbacks();
-  poly_runtime_set_atexit_call_stub(code, target_imm_offset);
+  poly_runtime_set_atexit_call_stub(code + callback_stub_offset,
+    callback_target_imm_offset - callback_stub_offset);
 
   if (program->preinit_array_size != 0) {
     size_t preinit_array_offset = 0;
@@ -9343,7 +9459,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint64_t fini_target = load_bias + program->fini_vaddr;
     (void) call_poly_stub(code, target_imm_offset, fini_target, POLY_CALL_U64);
   }
-  run_poly_atexit_callbacks(code, target_imm_offset);
+  run_poly_atexit_callbacks(code + callback_stub_offset,
+    callback_target_imm_offset - callback_stub_offset);
   if (call_kind == POLY_CALL_FINI_RESULT) {
     if (program->fini_result_vaddr == 0) {
       fprintf(stderr, "POLYCALL_FAIL: fini result symbol missing: %s\n",
@@ -9362,12 +9479,40 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         fini_result_target, POLY_CALL_U64);
     const int result_call_kind = call_kind_for_bridge_result(program->arch,
       POLY_CALL_U64, program->fini_result_bridge_kind);
-    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 3];
-    code[pcall_opcode_offset + 3] =
-      pcall_opcode_for_call_kind(program->arch, result_call_kind);
-    *result = call_poly_stub(code, target_imm_offset, fini_result_target,
-      result_call_kind);
-    code[pcall_opcode_offset + 3] = saved_pcall_op;
+    if (use_exchange_u64_pcall && result_call_kind != POLY_CALL_U64) {
+      uint64_t direct_stub = 0;
+      size_t direct_target_imm_offset = 0;
+      if (emit_x86_direct_pcall_stub(cross_stubs, cross_stub_size,
+            &cross_stub_offset, program->arch, result_call_kind,
+            fini_result_target, (uint64_t) (uintptr_t) tls,
+            (uint64_t) (uintptr_t) import_page, import_x86_table,
+            needs_x86_import, &direct_stub, &direct_target_imm_offset) < 0) {
+        fprintf(stderr,
+          "POLYCALL_FAIL: fini result direct x86 stub overflow: %s\n",
+          program->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      *result = call_poly_stub((uint8_t *) (uintptr_t) direct_stub,
+        direct_target_imm_offset, fini_result_target, result_call_kind);
+    }
+    else {
+      const int patch_pcall_op = result_call_kind != POLY_CALL_U64;
+      const uint8_t saved_pcall_op = patch_pcall_op ?
+        code[pcall_opcode_offset + 3] : 0;
+      if (patch_pcall_op)
+        code[pcall_opcode_offset + 3] =
+          pcall_opcode_for_call_kind(program->arch, result_call_kind);
+      *result = call_poly_stub(code, target_imm_offset, fini_result_target,
+        result_call_kind);
+      if (patch_pcall_op)
+        code[pcall_opcode_offset + 3] = saved_pcall_op;
+    }
   }
   for (size_t fini_depth = 0; fini_depth <= max_dep_depth; fini_depth++) {
     for (size_t d = program->dep_count; d > 0; d--) {
@@ -9445,7 +9590,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       }
     }
   }
-  run_poly_atexit_callbacks(code, target_imm_offset);
+  run_poly_atexit_callbacks(code + callback_stub_offset,
+    callback_target_imm_offset - callback_stub_offset);
   if (call_kind == POLY_CALL_DEP_FINI_RESULT) {
     uint64_t fini_result_vaddr = 0;
     int base_kind = RELOC_BASE_ABSOLUTE;
@@ -9499,17 +9645,55 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
     const int result_call_kind = call_kind_for_bridge_result(program->arch,
       POLY_CALL_U64, bridge_kind);
-    const uint8_t saved_pcall_op = code[pcall_opcode_offset + 3];
-    code[pcall_opcode_offset + 3] =
-      pcall_opcode_for_call_kind(program->arch, result_call_kind);
-    const int call_status = call_target_from_root_arch(code,
-      target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
-      cross_signature_slot, cross_vec128_signature_slot, &cross_stub_stats,
-      program->arch,
-      program->deps[dep_index].arch, fini_result_target, result_call_kind,
-      bridge_kind,
-      program->deps[dep_index].path, "dependency fini result", result);
-    code[pcall_opcode_offset + 3] = saved_pcall_op;
+    int call_status = 0;
+    if (use_exchange_u64_pcall && result_call_kind != POLY_CALL_U64) {
+      uint64_t call_target = fini_result_target;
+      if (program->arch != program->deps[dep_index].arch &&
+          emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
+            &cross_stub_offset, program->arch, program->deps[dep_index].arch,
+            fini_result_target, bridge_kind, cross_signature_slot,
+            cross_vec128_signature_slot, &cross_stub_stats, &call_target) < 0) {
+        fprintf(stderr,
+          "POLYCALL_FAIL: dependency fini result cross-ISA call stub overflow: %s\n",
+          program->deps[dep_index].path);
+        call_status = -1;
+      }
+      if (call_status == 0) {
+        uint64_t direct_stub = 0;
+        size_t direct_target_imm_offset = 0;
+        if (emit_x86_direct_pcall_stub(cross_stubs, cross_stub_size,
+              &cross_stub_offset, program->arch, result_call_kind,
+              call_target, (uint64_t) (uintptr_t) tls,
+              (uint64_t) (uintptr_t) import_page, import_x86_table,
+              needs_x86_import, &direct_stub, &direct_target_imm_offset) < 0) {
+          fprintf(stderr,
+            "POLYCALL_FAIL: dependency fini result direct x86 stub overflow: %s\n",
+            program->deps[dep_index].path);
+          call_status = -1;
+        }
+        else {
+          *result = call_poly_stub((uint8_t *) (uintptr_t) direct_stub,
+            direct_target_imm_offset, call_target, result_call_kind);
+        }
+      }
+    }
+    else {
+      const int patch_pcall_op = result_call_kind != POLY_CALL_U64;
+      const uint8_t saved_pcall_op = patch_pcall_op ?
+        code[pcall_opcode_offset + 3] : 0;
+      if (patch_pcall_op)
+        code[pcall_opcode_offset + 3] =
+          pcall_opcode_for_call_kind(program->arch, result_call_kind);
+      call_status = call_target_from_root_arch(code,
+        target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
+        cross_signature_slot, cross_vec128_signature_slot, &cross_stub_stats,
+        program->arch,
+        program->deps[dep_index].arch, fini_result_target, result_call_kind,
+        bridge_kind,
+        program->deps[dep_index].path, "dependency fini result", result);
+      if (patch_pcall_op)
+        code[pcall_opcode_offset + 3] = saved_pcall_op;
+    }
     if (call_status < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
