@@ -7935,6 +7935,14 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=aarch64 exchange_u64=1 .*aarch64-pcall-sum9\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=riscv exchange_u64=1 .*riscv-pcall-sum9\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
       fi
       if [[ "$RUN_POLY_THREAD" == "1" ]]; then
         if ! grep -q "POLYTHREAD_OK" "$SERIAL_LOG"; then

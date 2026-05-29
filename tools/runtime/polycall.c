@@ -9473,6 +9473,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       cross_stub_stats.aarch64_to_riscv_bridge_stubs,
       cross_stub_stats.riscv_to_aarch64_bridge_stubs, program->path);
   }
+  if (use_exchange_u64_pcall) {
+    printf("POLYCALL_ROOT_PCALL: arch=%s exchange_u64=1 path=%s\n",
+      program->arch_name, program->path);
+  }
   if (tls)
     munmap(tls, tls_size);
   unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
