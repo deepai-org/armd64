@@ -138,6 +138,12 @@ transition path small: `PCALL` selects a slot, applies register-name aliases,
 installs native return-cookie state, and redirects fetch to the target frontend.
 No operand data moves through the integer execution pipes.
 
+Signature slots are architectural Poly state. They must be saved and restored
+by the explicit Poly/XSAVE component with the foreign register files and
+transition-stack state. A runtime can rely on a slot remaining configured across
+thread preemption or explicit `XSAVE`/`XRSTOR`; hardware must not keep the slot
+bank as hidden CR3-scoped or process-global emulator state.
+
 The architectural contract for applying a signature must be as strict as a
 branch-class operation:
 
@@ -351,6 +357,7 @@ contain at least:
 - interrupted frontend mode and PC
 - current trap packet
 - hardware transition stack state
+- ABI signature slot state
 - AArch64 GPR state
 - AArch64 FP/SIMD state
 - RISC-V GPR state

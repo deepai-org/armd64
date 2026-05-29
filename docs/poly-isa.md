@@ -154,6 +154,11 @@ target frontend, target PC, and signature slot, preferably as an immediate; the
 CPU applies the cached register map in the rename path instead of executing
 move instructions.
 
+The slot bank is explicit Poly architectural state. In the Bochs prototype it
+is saved and restored by the Poly XSAVE component, not stored in a process-wide
+global or inferred from CR3. That lets thread switches and explicit
+`XSAVE`/`XRSTOR` preserve the active ABI signature configuration.
+
 This is a programmable RAT mechanism, not a descriptor parser. The hot
 transition path selects an already-programmed slot; it does not fetch a call
 descriptor from user memory. Register-only native ABI calls can therefore avoid
@@ -221,12 +226,13 @@ the normal x86_64 interrupt/fault path, and restores the recorded foreign
 frontend on `IRET64`, `SYSRET`, `SYSEXIT`, or signal return when required.
 
 The prototype CPUID contract exposes poly state as XCR0 component `20`.
-Component layout version `3` is 4096 bytes and contains the mode header, trap
+Component layout version `4` is 4096 bytes and contains the mode header, trap
 packet, active transition record, AArch64 GPR/FP state, RISC-V GPR/FP state,
-hardware transition-stack state, and user-space monitor registers.
+hardware transition-stack state, user-space monitor registers, and the ABI
+signature slot bank.
 
 Private CPUID leaves start at `0x40000000` and extend through `0x40000009`. The
-prototype software state import layout version is `3`; it is a Bochs fallback,
+prototype software state import layout version is `4`; it is a Bochs fallback,
 not the silicon context-switch contract.
 
 ## Runtime Boundary

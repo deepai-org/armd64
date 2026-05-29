@@ -215,6 +215,7 @@ enum {
   POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE = (1U << 10),
   POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT = (1U << 11),
   POLY_CPUID_STATE_IMPORT_RETURN_XSAVE = (1U << 12),
+  POLY_CPUID_STATE_ABI_SIGNATURE_XSAVE = (1U << 13),
   POLY_STATE_STACK_KEY_SHIFT = 23,
   POLY_STATE_XSAVE_MAGIC = 0x31594c50, /* "PLY1" */
   POLY_STATE_XSAVE_COMPONENT_NONE = 0,
@@ -223,13 +224,14 @@ enum {
   POLY_STATE_XSAVE_OFFSET_ARCH = 0x3000,
   POLY_STATE_XSAVE_BYTES_ARCH = 4096,
   POLY_STATE_XSAVE_ALIGN_ARCH = 64,
-  POLY_STATE_XSAVE_LAYOUT_VERSION = 3,
+  POLY_STATE_XSAVE_LAYOUT_VERSION = 4,
   POLY_STATE_XSAVE_FLAG_XCR0_USER = (1U << 0),
   POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED = (1U << 1),
   POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME = (1U << 2),
   POLY_STATE_XSAVE_FLAG_TRAP_STATE = (1U << 3),
   POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS = (1U << 4),
   POLY_STATE_XSAVE_FLAG_IMPORT_RETURN = (1U << 5),
+  POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES = (1U << 6),
   POLY_STATE_XSAVE_HEADER_OFFSET = 0x000,
   POLY_STATE_XSAVE_HEADER_BYTES = 0x040,
   POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
@@ -254,8 +256,12 @@ enum {
   POLY_STATE_XSAVE_IMPORT_RETURN_BYTES = 0x500,
   POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH = 8,
   POLY_STATE_XSAVE_IMPORT_RETURN_FRAME_BYTES = 0x80,
-  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xd00,
-  POLY_STATE_XSAVE_RESERVED_BYTES = 0x300,
+  POLY_STATE_XSAVE_ABI_SIGNATURE_OFFSET = 0xd00,
+  POLY_STATE_XSAVE_ABI_SIGNATURE_BYTES = 0x080,
+  POLY_STATE_XSAVE_ABI_SIGNATURE_SLOTS_OFFSET =
+    POLY_STATE_XSAVE_ABI_SIGNATURE_OFFSET + 0x10,
+  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xd80,
+  POLY_STATE_XSAVE_RESERVED_BYTES = 0x280,
   POLY_TRAP_PACKET_LAYOUT_VERSION = 2,
   POLY_TRAP_PACKET_HEADER_BYTES = 64,
   POLY_TRAP_PACKET_ARG_COUNT = 8,
@@ -410,6 +416,21 @@ struct poly_import_return_state {
       sizeof(struct poly_import_return_frame)];
 };
 
+struct poly_abi_signature_slot_state {
+  uint32_t kind;
+  uint32_t reserved;
+};
+
+struct poly_abi_signature_state {
+  uint64_t slot_count;
+  uint64_t flags;
+  struct poly_abi_signature_slot_state
+    slots[POLY_ABI_SIGNATURE_SLOT_COUNT];
+  uint8_t reserved[POLY_STATE_XSAVE_ABI_SIGNATURE_BYTES - 16 -
+    POLY_ABI_SIGNATURE_SLOT_COUNT *
+      sizeof(struct poly_abi_signature_slot_state)];
+};
+
 struct poly_xsave_state {
   struct poly_xsave_header header;
   struct poly_trap_packet trap;
@@ -422,6 +443,7 @@ struct poly_xsave_state {
   struct poly_u128 riscv_fp[32];
   struct poly_riscv_status_state riscv_status;
   struct poly_import_return_state import_return;
+  struct poly_abi_signature_state abi_signature;
   uint8_t reserved[POLY_STATE_XSAVE_RESERVED_BYTES];
 };
 
@@ -452,6 +474,9 @@ POLY_STATIC_ASSERT(sizeof(struct poly_import_return_frame) ==
 POLY_STATIC_ASSERT(sizeof(struct poly_import_return_state) ==
   POLY_STATE_XSAVE_IMPORT_RETURN_BYTES,
   "poly import return area size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_abi_signature_state) ==
+  POLY_STATE_XSAVE_ABI_SIGNATURE_BYTES,
+  "poly ABI signature area size must match XSAVE layout");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, header) ==
   POLY_STATE_XSAVE_HEADER_OFFSET,
   "poly XSAVE header offset drifted");
@@ -485,6 +510,9 @@ POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, riscv_status) ==
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, import_return) ==
   POLY_STATE_XSAVE_IMPORT_RETURN_OFFSET,
   "poly import return offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, abi_signature) ==
+  POLY_STATE_XSAVE_ABI_SIGNATURE_OFFSET,
+  "poly ABI signature offset drifted");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, reserved) ==
   POLY_STATE_XSAVE_RESERVED_OFFSET,
   "poly reserved area offset drifted");
@@ -644,7 +672,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
     POLY_CPUID_STATE_TRANSITION_FRAME_32 |
     POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE |
     POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT |
-    POLY_CPUID_STATE_IMPORT_RETURN_XSAVE;
+    POLY_CPUID_STATE_IMPORT_RETURN_XSAVE |
+    POLY_CPUID_STATE_ABI_SIGNATURE_XSAVE;
   regs.ebx = POLY_STATE_STACK_KEY_SHIFT;
   regs.ecx = POLY_STATE_XSAVE_COMPONENT_ARCH;
   regs.edx = POLY_STATE_XSAVE_BYTES_ARCH;
@@ -662,7 +691,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
     POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME |
     POLY_STATE_XSAVE_FLAG_TRAP_STATE |
     POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS |
-    POLY_STATE_XSAVE_FLAG_IMPORT_RETURN;
+    POLY_STATE_XSAVE_FLAG_IMPORT_RETURN |
+    POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES;
   return regs;
 }
 

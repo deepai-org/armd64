@@ -34,6 +34,7 @@
 #define POLY_OP_BREAK_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x39\n"
 #define POLY_OP_BREAK_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x3a\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
+#define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 
 #ifndef ARCH_GET_XCOMP_SUPP
 #define ARCH_GET_XCOMP_SUPP 0x1021
@@ -117,11 +118,22 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
 }
 
-static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+static __attribute__((noinline)) uint64_t
+poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
   uint64_t rdx = kind;
   asm volatile(POLY_OP_ABI_SIGNATURE_SET
       : "+a"(rax), "+d"(rdx)
+      :
+      : "memory");
+  return rax;
+}
+
+static __attribute__((noinline)) uint64_t
+poly_abi_signature_get(uint64_t slot) {
+  uint64_t rax = slot;
+  asm volatile(POLY_OP_ABI_SIGNATURE_GET
+      : "+a"(rax)
       :
       : "memory");
   return rax;
@@ -1685,6 +1697,11 @@ static int run_poly_state_save_restore_probe(void) {
   memset(&snapshot, 0, sizeof(snapshot));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value(trap_vector);
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly state export signature set failed\n",
+      stderr);
+    return 1;
+  }
   poly_state_export(&snapshot);
 
   if (snapshot.header.magic != POLY_STATE_XSAVE_MAGIC ||
@@ -1701,6 +1718,14 @@ static int run_poly_state_save_restore_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export trap vector mismatch pc=0x%llx mode=%u\n",
       (unsigned long long) snapshot.header.trap_vector_pc,
       snapshot.header.trap_vector_mode);
+    return 1;
+  }
+  if (snapshot.abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      snapshot.abi_signature.slots[3].kind !=
+        POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export ABI signature mismatch count=%llu slot3=%u\n",
+      (unsigned long long) snapshot.abi_signature.slot_count,
+      snapshot.abi_signature.slots[3].kind);
     return 1;
   }
 
@@ -1762,6 +1787,11 @@ static int run_poly_state_save_restore_probe(void) {
   }
 
   poly_trap_vector_clear();
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly state import signature mutate failed\n",
+      stderr);
+    return 1;
+  }
   poly_state_import(&snapshot);
 
   poly_trap_vector_get();
@@ -1774,6 +1804,11 @@ static int run_poly_state_save_restore_probe(void) {
   if (read_rax() != POLY_MODE_RAW_RISCV) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import trap mode mismatch got=%llu\n",
       (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_abi_signature_get(3) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import ABI signature mismatch got=%llu\n",
+      (unsigned long long) poly_abi_signature_get(3));
     return 1;
   }
 
@@ -1793,6 +1828,11 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   }
 
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly state signature restore failed\n",
+      stderr);
+    return 1;
+  }
   poly_trap_vector_clear();
   puts("NATIVE_POLY_STATE_SAVE_RESTORE_OK");
   return 0;
@@ -1814,6 +1854,10 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     sizeof(nativecheck_real_xsave_area));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value(trap_vector);
+  if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XSAVE signature set failed\n", stderr);
+    return 1;
+  }
   native_xsave64(nativecheck_real_xsave_area, poly_mask);
 
   if (saved->header.magic != POLY_STATE_XSAVE_MAGIC ||
@@ -1831,9 +1875,22 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->header.trap_vector_mode);
     return 1;
   }
+  if (saved->abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      saved->abi_signature.slots[4].kind !=
+        POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XSAVE ABI signature mismatch count=%llu slot4=%u\n",
+      (unsigned long long) saved->abi_signature.slot_count,
+      saved->abi_signature.slots[4].kind);
+    return 1;
+  }
 
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(0);
+  if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XRSTOR signature mutate failed\n", stderr);
+    return 1;
+  }
   native_xrstor64(nativecheck_real_xsave_area, poly_mask);
 
   poly_trap_vector_get();
@@ -1851,7 +1908,14 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       (unsigned long long) read_rax());
     return 1;
   }
+  if (poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR ABI signature mismatch got=%llu\n",
+      (unsigned long long) poly_abi_signature_get(4));
+    return 1;
+  }
 
+  poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS);
   poly_trap_vector_clear();
   puts("NATIVE_POLY_REAL_XSAVE_OK");
   return 0;
