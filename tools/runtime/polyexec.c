@@ -22,6 +22,7 @@ extern char **environ;
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
+#define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 
 #ifndef R_AARCH64_NONE
@@ -260,6 +261,8 @@ struct poly_request {
 };
 
 static uint32_t process_native_signature_slot = 3;
+static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
+static volatile uint64_t poly_monitor_packet_count;
 
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
@@ -359,6 +362,10 @@ static inline void poly_trap_vector_set_value(uint64_t value) {
 
 static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
+}
+
+static inline void poly_monitor_packet_set_value(uint64_t value) {
+  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
 }
 
 static int poly_is_raw_foreign_mode(uint64_t mode) {
@@ -1653,16 +1660,63 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
   }
 }
 
+static int validate_poly_monitor_packet(uint64_t reason, uint64_t mode,
+    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
+    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
+    uint64_t arg5) {
+  const uint64_t header = poly_monitor_packet[0];
+  const uint64_t packet_reason = header & 0xffffffffULL;
+  const uint64_t packet_mode = header >> 32;
+  const uint64_t expected_args[6] = {
+    arg0, arg1, arg2, arg3, arg4, arg5
+  };
+
+  if (packet_reason != reason || packet_mode != mode ||
+      poly_monitor_packet[1] != number ||
+      poly_monitor_packet[2] != selector ||
+      poly_monitor_packet[3] != pc ||
+      poly_monitor_packet[4] == 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: monitor packet header mismatch got=(%llu,%llu,%llu,%llu,%llu,%llu) expected=(%llu,%llu,%llu,%llu,%llu,next!=0)\n",
+      (unsigned long long) packet_reason,
+      (unsigned long long) packet_mode,
+      (unsigned long long) poly_monitor_packet[1],
+      (unsigned long long) poly_monitor_packet[2],
+      (unsigned long long) poly_monitor_packet[3],
+      (unsigned long long) poly_monitor_packet[4],
+      (unsigned long long) reason,
+      (unsigned long long) mode,
+      (unsigned long long) number,
+      (unsigned long long) selector,
+      (unsigned long long) pc);
+    return -1;
+  }
+
+  for (size_t n = 0; n < 6; n++) {
+    if (poly_monitor_packet[8 + n] != expected_args[n]) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: monitor packet arg%zu mismatch got=%llu expected=%llu\n",
+        n, (unsigned long long) poly_monitor_packet[8 + n],
+        (unsigned long long) expected_args[n]);
+      return -1;
+    }
+  }
+
+  poly_monitor_packet_count++;
+  return 0;
+}
+
 __attribute__((noinline, used))
 uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
     uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
     uint64_t arg5) {
-  (void) pc;
-  (void) selector;
-
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -ENOSYS;
+
+  if (validate_poly_monitor_packet(reason, mode, number, pc, selector, arg0,
+        arg1, arg2, arg3, arg4, arg5) < 0)
+    return (uint64_t) -EIO;
 
   if (reason == POLY_TRAP_SYSCALL) {
     uint64_t structured_result = 0;
@@ -1734,6 +1788,9 @@ static void poly_trap_vector_handler(void) {
 }
 
 static void install_poly_trap_vector(void) {
+  memset((void *) poly_monitor_packet, 0, sizeof(poly_monitor_packet));
+  poly_monitor_packet_count = 0;
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) poly_monitor_packet);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
 }
@@ -1741,6 +1798,14 @@ static void install_poly_trap_vector(void) {
 static void clear_poly_trap_vector(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_monitor_packet_set_value(0);
+}
+
+static void report_poly_monitor_packets(void) {
+  if (poly_monitor_packet_count != 0) {
+    printf("POLYEXEC_MONITOR_PACKETS: count=%llu\n",
+      (unsigned long long) poly_monitor_packet_count);
+  }
 }
 
 static int prepare_syscall_fixture_file(void) {
@@ -4791,6 +4856,7 @@ int main(int argc, char **argv) {
     }
     free_program(&program);
     clear_poly_trap_vector();
+    report_poly_monitor_packets();
     puts("POLYEXEC_OK");
     return 0;
   }
@@ -4834,6 +4900,7 @@ int main(int argc, char **argv) {
   }
 
   clear_poly_trap_vector();
+  report_poly_monitor_packets();
   puts("POLYEXEC_OK");
   return 0;
 }
