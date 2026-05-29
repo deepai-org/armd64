@@ -144,6 +144,11 @@ is encoded by adding `n` to the reported control subop.
 CPUID leaf `0x40000002`, subleaf `12` reports foreign trap-control setup
 encodings: `EAX=AArch64 TRAP_VECTOR_SET`, `EBX=AArch64 MONITOR_PACKET_SET`,
 `ECX=RISC-V TRAP_VECTOR_SET`, and `EDX=RISC-V MONITOR_PACKET_SET`.
+CPUID leaf `0x40000002`, subleaf `13` reports AArch64 trap-control query and
+mode encodings: `EAX=TRAP_VECTOR_GET`, `EBX=TRAP_VECTOR_MODE_SET`,
+`ECX=TRAP_VECTOR_MODE_GET`, and `EDX=MONITOR_PACKET_GET`.
+CPUID leaf `0x40000002`, subleaf `14` reports the same query and mode
+encodings for RISC-V.
 
 ## Foreign Escapes
 

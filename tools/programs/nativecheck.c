@@ -3362,6 +3362,92 @@ int main(void) {
         foreign_sig_manifest.ecx, foreign_sig_manifest.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_landing_manifest =
+      poly_cpuid_expected_escape_leaf9();
+    struct poly_cpuid_regs landing_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 9);
+    if (landing_manifest.eax != expected_landing_manifest.eax ||
+        landing_manifest.ebx != expected_landing_manifest.ebx ||
+        landing_manifest.ecx != expected_landing_manifest.ecx ||
+        landing_manifest.edx != expected_landing_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID landing manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        landing_manifest.eax, landing_manifest.ebx,
+        landing_manifest.ecx, landing_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_abi_manifest =
+      poly_cpuid_expected_escape_leaf10();
+    struct poly_cpuid_regs abi_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 10);
+    if (abi_manifest.eax != expected_abi_manifest.eax ||
+        abi_manifest.ebx != expected_abi_manifest.ebx ||
+        abi_manifest.ecx != expected_abi_manifest.ecx ||
+        abi_manifest.edx != expected_abi_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID ABI control manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        abi_manifest.eax, abi_manifest.ebx, abi_manifest.ecx,
+        abi_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_foreign_imm_manifest =
+      poly_cpuid_expected_escape_leaf11();
+    struct poly_cpuid_regs foreign_imm_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 11);
+    if (foreign_imm_manifest.eax != expected_foreign_imm_manifest.eax ||
+        foreign_imm_manifest.ebx != expected_foreign_imm_manifest.ebx ||
+        foreign_imm_manifest.ecx != expected_foreign_imm_manifest.ecx ||
+        foreign_imm_manifest.edx != expected_foreign_imm_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID foreign immediate pcall manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        foreign_imm_manifest.eax, foreign_imm_manifest.ebx,
+        foreign_imm_manifest.ecx, foreign_imm_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_trap_setup_manifest =
+      poly_cpuid_expected_escape_leaf12();
+    struct poly_cpuid_regs trap_setup_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 12);
+    if (trap_setup_manifest.eax != expected_trap_setup_manifest.eax ||
+        trap_setup_manifest.ebx != expected_trap_setup_manifest.ebx ||
+        trap_setup_manifest.ecx != expected_trap_setup_manifest.ecx ||
+        trap_setup_manifest.edx != expected_trap_setup_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID trap setup manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        trap_setup_manifest.eax, trap_setup_manifest.ebx,
+        trap_setup_manifest.ecx, trap_setup_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_aarch64_trap_query_manifest =
+      poly_cpuid_expected_escape_leaf13();
+    struct poly_cpuid_regs aarch64_trap_query_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 13);
+    if (aarch64_trap_query_manifest.eax !=
+          expected_aarch64_trap_query_manifest.eax ||
+        aarch64_trap_query_manifest.ebx !=
+          expected_aarch64_trap_query_manifest.ebx ||
+        aarch64_trap_query_manifest.ecx !=
+          expected_aarch64_trap_query_manifest.ecx ||
+        aarch64_trap_query_manifest.edx !=
+          expected_aarch64_trap_query_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID aarch64 trap query manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        aarch64_trap_query_manifest.eax, aarch64_trap_query_manifest.ebx,
+        aarch64_trap_query_manifest.ecx, aarch64_trap_query_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_riscv_trap_query_manifest =
+      poly_cpuid_expected_escape_leaf14();
+    struct poly_cpuid_regs riscv_trap_query_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 14);
+    if (riscv_trap_query_manifest.eax !=
+          expected_riscv_trap_query_manifest.eax ||
+        riscv_trap_query_manifest.ebx !=
+          expected_riscv_trap_query_manifest.ebx ||
+        riscv_trap_query_manifest.ecx !=
+          expected_riscv_trap_query_manifest.ecx ||
+        riscv_trap_query_manifest.edx !=
+          expected_riscv_trap_query_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID riscv trap query manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        riscv_trap_query_manifest.eax, riscv_trap_query_manifest.ebx,
+        riscv_trap_query_manifest.ecx, riscv_trap_query_manifest.edx);
+      return 1;
+    }
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
     uint32_t forbidden_state_bits = POLY_CPUID_STATE_SYNTHETIC_BANKS |
