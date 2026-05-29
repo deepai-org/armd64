@@ -208,6 +208,7 @@ enum {
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
 static const uint32_t POLY_CPUID_MAX = 0x40000009U;
 static const uint32_t POLY_CPUID_ABI_VERSION = 1U;
+static const uint32_t POLY_STATE_XSAVE_COMPONENT_ARCH = 20U;
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10;
 static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 32;
@@ -794,14 +795,15 @@ static int read_poly_base_contract(void) {
 
   const struct poly_cpuid_regs features = read_cpuid(POLY_CPUID_BASE + 1, 0);
   if (features.eax != POLY_CPUID_ABI_VERSION ||
-      (features.ebx & POLY_CPUID_REQUIRED_MODES) !=
-        POLY_CPUID_REQUIRED_MODES ||
+      features.ebx != POLY_CPUID_REQUIRED_MODES ||
       (features.ecx & POLY_CPUID_REQUIRED_FEATURES) !=
         POLY_CPUID_REQUIRED_FEATURES ||
+      features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH ||
       (features.ecx & POLY_CPUID_FORBIDDEN_FEATURES) != 0) {
     fprintf(stderr,
-      "POLYCALL_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
-      features.eax, features.ebx, features.ecx, features.edx);
+      "POLYCALL_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x) expected_modes=0x%x expected_xsave=%u\n",
+      features.eax, features.ebx, features.ecx, features.edx,
+      POLY_CPUID_REQUIRED_MODES, POLY_STATE_XSAVE_COMPONENT_ARCH);
     return -1;
   }
 

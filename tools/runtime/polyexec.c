@@ -171,6 +171,7 @@ enum {
   POLY_CPUID_BASE = 0x40000000,
   POLY_CPUID_MAX = 0x40000009,
   POLY_CPUID_ABI_VERSION = 1,
+  POLY_STATE_XSAVE_COMPONENT_ARCH = 20,
   POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
@@ -344,12 +345,14 @@ static int read_poly_base_contract(int require_trap_vector) {
 
   const struct poly_cpuid_regs features = read_cpuid(POLY_CPUID_BASE + 1, 0);
   if (features.eax != POLY_CPUID_ABI_VERSION ||
-      (features.ebx & required_modes) != required_modes ||
+      features.ebx != required_modes ||
       (features.ecx & required_features) != required_features ||
+      features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH ||
       (features.ecx & POLY_CPUID_FORBIDDEN_FEATURES) != 0) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
-      features.eax, features.ebx, features.ecx, features.edx);
+      "POLYEXEC_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x) expected_modes=0x%x expected_xsave=%u\n",
+      features.eax, features.ebx, features.ecx, features.edx,
+      required_modes, POLY_STATE_XSAVE_COMPONENT_ARCH);
     return -1;
   }
 
