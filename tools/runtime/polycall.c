@@ -1389,6 +1389,8 @@ static int resolve_direct_x86_register_import(int arch,
     { "__fixunssfti", POLY_IMPORT_FUNC_FIXUNSSFTI },
     { "__floattisf", POLY_IMPORT_FUNC_FLOATTISF },
     { "__floatuntisf", POLY_IMPORT_FUNC_FLOATUNTISF },
+    { "__atomic_compare_exchange_16",
+      POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16 },
     { "__atomic_load_16", POLY_IMPORT_FUNC_ATOMIC_LOAD_16 },
     { "__atomic_store_16", POLY_IMPORT_FUNC_ATOMIC_STORE_16 },
     { "__tls_get_addr", POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR },
@@ -3389,7 +3391,9 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     return -1;
 
   uint32_t int_stack_arg_count = 0;
-  if (import_id == POLY_IMPORT_FUNC_X86_SLOT5)
+  if (import_id == POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16)
+    int_stack_arg_count = 1;
+  else if (import_id == POLY_IMPORT_FUNC_X86_SLOT5)
     int_stack_arg_count = 2;
   else if (import_id == POLY_IMPORT_FUNC_X86_SUM10)
     int_stack_arg_count = 4;
