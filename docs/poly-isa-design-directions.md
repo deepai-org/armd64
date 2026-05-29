@@ -69,6 +69,15 @@ already needs for rename, while reconfiguring stack or memory layouts would turn
 `PCALL` into a variable-latency memory operation with page-fault and recovery
 complexity.
 
+The intended concrete mechanism is a Poly ABI Signature Register backed by a
+small slot bank. The runtime or loader programs each slot with a standard
+register-only ABI pair, for example SysV x86_64 to AAPCS64. A hot `PCALL`
+encodes or supplies only the target frontend, target PC, and signature slot.
+The hardware action is a rename-map update: source architectural register names
+such as x86_64 `RDI,RSI,RDX` are rebound to destination names such as AArch64
+`x0,x1,x2`. No operand bytes move through ALUs, no stack memory is touched, and
+no call descriptor is fetched.
+
 An ABI signature slot is a cached rename template, not a data-moving program.
 At minimum, a slot records source frontend, destination frontend, register
 class, destination architectural register, source architectural register, and a
@@ -177,6 +186,9 @@ cold control operation performed by the loader or runtime; applying a slot at a
 call site should be comparable to selecting a cached RAT template in the rename
 stage. This is why the slot count should stay small and explicit, such as 4 to
 8 entries, and why signatures must describe only architectural-register aliasing.
+More precisely, the goal is zero execution-unit data-move latency for ABI
+register handoff; the transition still has normal branch/frontend redirect
+costs.
 
 The silicon cost is intentionally bounded: a few architectural control
 registers or XSAVE-backed slot records, validation logic for the slot number,

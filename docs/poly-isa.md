@@ -202,6 +202,13 @@ AAPCS64-to-SysV, then many call sites reuse those slots by immediate number.
 This is semi-persistent reconfigurable hardware state, not a per-call memory
 descriptor.
 
+This mechanism is intended to remove software move thunks for the common
+all-register case. It is not a promise that every native ABI crossing is
+thunk-free: stack arguments, by-value aggregate layout, variadics, lazy binding,
+and unusual vector conventions remain software responsibilities. The hardware
+sweet spot is cached register renaming; memory or stack repacking would make
+`PCALL` variable-latency and page-fault-capable.
+
 Applying a signature is a fixed-latency control operation. It does not read a
 descriptor, touch the user stack, allocate temporary architectural registers, or
 perform ABI memory conversion. Invalid slot use should trap before changing
