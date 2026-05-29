@@ -333,12 +333,15 @@ the same model: when a call fits entirely in registers, the signature maps the
 native source ABI registers directly onto the native destination ABI registers
 without executing moves.
 
-Non-window GPRs, FP/SIMD registers, vector state, and special registers remain
-separate architectural state preserved through the poly XSAVE component.
+Non-window GPRs, non-ABI FP/SIMD registers, vector state, and special
+registers remain separate architectural state preserved through the poly XSAVE
+component.
 
-The same idea can be extended to a fixed FP exchange window later, but integer
-lanes should come first because they cover most loader, syscall, and simple C
-function boundaries.
+Scalar FP and compatible fixed 128-bit SIMD ABI lanes should use the same
+direct-register principle as the integer window when source and destination ABI
+classes match. Wider AVX, SVE, RVV, cross-class vector reshaping, stack FP
+overflow, and aggregate/vector layout conversion stay in software thunks unless
+a future signature kind explicitly covers them.
 
 ## Native Cross-ISA Returns
 
