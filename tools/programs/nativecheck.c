@@ -148,6 +148,15 @@ static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
 }
 
+static inline uint64_t poly_trap_vector_mode_set_result(uint64_t value) {
+  uint64_t result = value;
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET
+      : "+a"(result)
+      :
+      : "memory");
+  return result;
+}
+
 static inline void poly_trap_vector_mode_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "memory");
 }
@@ -1725,6 +1734,18 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_mode_get();
   if (read_rax() != POLY_MODE_X86) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly trap vector mode get mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_trap_vector_mode_set_result(255) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 trap vector mode accepted invalid mode\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 invalid trap vector mode mutated state got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
