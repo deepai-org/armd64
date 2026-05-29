@@ -1313,6 +1313,7 @@ static int resolve_direct_x86_register_import(int arch,
     { "strtoul", POLY_IMPORT_FUNC_STRTOUL },
     { "strtoll", POLY_IMPORT_FUNC_STRTOLL },
     { "strtoull", POLY_IMPORT_FUNC_STRTOULL },
+    { "__tls_get_addr", POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR },
     { "__stack_chk_fail", POLY_IMPORT_FUNC_STACK_CHK_FAIL },
     { "__errno_location", POLY_IMPORT_FUNC_ERRNO_LOCATION },
     { "getauxval", POLY_IMPORT_FUNC_GETAUXVAL },
@@ -6212,8 +6213,8 @@ static int process_rela_table(struct poly_program *program,
         return -1;
       }
       if (append_dynamic_reloc(program, relocation_offset,
-            POLY_IMPORT_FUNC_AARCH64_TLSDESC * POLY_IMPORT_CALL_STRIDE,
-            RELOC_BASE_IMPORT_CALL) < 0 ||
+            POLY_IMPORT_FUNC_AARCH64_TLSDESC,
+            RELOC_BASE_X86_DIRECT_IMPORT_STUB) < 0 ||
           append_dynamic_reloc(program, relocation_offset + 8,
             tls_offset + (uint64_t) rela[n].r_addend,
             tls_base_kind) < 0)
