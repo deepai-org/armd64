@@ -68,6 +68,13 @@ ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
 `x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine
 by exposing a small bank of register-only ABI signature slots.
 
+The core decision is to use semi-persistent, reconfigurable hardware only where
+it matches modern CPU structure: register renaming. A runtime can program a
+small set of ABI signatures, and a hot call can select one by immediate. The
+CPU then changes which destination architectural names point to which existing
+physical registers. The argument data is not copied, no execution unit performs
+register moves, and no user memory is inspected.
+
 The design rule is narrow: semi-persistent, reconfigurable hardware is useful
 only for register renaming. It must not become a configurable stack or memory
 layout engine. Register aliasing fits the existing rename stage of an OoO CPU;
@@ -277,6 +284,12 @@ It also keeps the implementation realistic for FPGA and silicon prototypes:
 the small hardware addition is a bank of prevalidated mapping registers plus
 rename-stage muxing, while all page-fault-capable memory layout work remains
 ordinary software.
+
+The target is zero data-move latency for the ABI handoff, not a magic
+zero-cycle call. The call still pays for control redirection, frontend
+selection, return-cookie state, and rename checkpointing. The important
+architectural property is that the hot path avoids software shims and avoids
+turning `PCALL` into a memory-touching ABI interpreter.
 
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
