@@ -669,38 +669,46 @@ static inline void riscv_generic_call_aarch64_probe(void) {
 
 static inline void raw_aarch64_abi_args_probe(void) {
   asm volatile(
-    "movq $1, %%rdx\n"
-    "movq $2, %%rcx\n"
-    "movq $3, %%rdi\n"
-    "movq $4, %%rsi\n"
-    "movq $5, %%r8\n"
-    "movq $6, %%r9\n"
+    "movq $1, %%rax\n"
+    "movq $2, %%rdx\n"
+    "movq $3, %%rcx\n"
+    "movq $4, %%rdi\n"
+    "movq $5, %%rsi\n"
+    "movq $6, %%r8\n"
+    "movq $7, %%r9\n"
+    "movq $8, %%r10\n"
     POLY_OP_ENTER_A64
-    ".long 0x8b020020\n"
+    ".long 0x8b010000\n"
+    ".long 0x8b020000\n"
     ".long 0x8b030000\n"
     ".long 0x8b040000\n"
     ".long 0x8b050000\n"
     ".long 0x8b060000\n"
+    ".long 0x8b070000\n"
     ".long 0xd5032e1f\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "memory");
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "memory");
 }
 
 static inline void raw_riscv_abi_args_probe(void) {
   asm volatile(
-    "movq $1, %%rdx\n"
-    "movq $2, %%rcx\n"
-    "movq $3, %%rdi\n"
-    "movq $4, %%rsi\n"
-    "movq $5, %%r8\n"
-    "movq $6, %%r9\n"
+    "movq $1, %%rax\n"
+    "movq $2, %%rdx\n"
+    "movq $3, %%rcx\n"
+    "movq $4, %%rdi\n"
+    "movq $5, %%rsi\n"
+    "movq $6, %%r8\n"
+    "movq $7, %%r9\n"
+    "movq $8, %%r10\n"
     POLY_OP_ENTER_RV64
-    ".long 0x00c58533\n"
+    ".long 0x00b50533\n"
+    ".long 0x00c50533\n"
     ".long 0x00d50533\n"
     ".long 0x00e50533\n"
     ".long 0x00f50533\n"
     ".long 0x01050533\n"
+    ".long 0x01150533\n"
     ".long 0x0000700b\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "memory");
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "memory");
 }
 
 static inline void pcall_aarch64_sysv_args_probe(void) {
@@ -1830,12 +1838,12 @@ int main(void) {
 
   stage("POLY_STAGE: abi-args");
   raw_aarch64_abi_args_probe();
-  if (read_rax() != 21) {
+  if (read_rax() != 36) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 ABI argument bridge mismatch\n");
     return 1;
   }
   raw_riscv_abi_args_probe();
-  if (read_rax() != 21) {
+  if (read_rax() != 36) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv ABI argument bridge mismatch\n");
     return 1;
   }
