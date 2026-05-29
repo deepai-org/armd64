@@ -1134,10 +1134,12 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   if (poly_syscall_status_number() != 172 ||
-      poly_syscall_status_mode() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall status mismatch number=%llu mode=%llu\n",
+      poly_syscall_status_mode() != POLY_MODE_RAW_AARCH64 ||
+      poly_trap_status_selector() != 7) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall status mismatch number=%llu mode=%llu selector=%llu\n",
       (unsigned long long) poly_syscall_status_number(),
-      (unsigned long long) poly_syscall_status_mode());
+      (unsigned long long) poly_syscall_status_mode(),
+      (unsigned long long) poly_trap_status_selector());
     return 1;
   }
   if (poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
@@ -1214,12 +1216,14 @@ static int run_poly_trap_vector_probe(void) {
   if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
       poly_syscall_status_number() != 172 ||
       poly_syscall_status_mode() != POLY_MODE_RAW_RISCV ||
+      poly_trap_status_selector() != 0 ||
       poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 172) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly riscv syscall packet mismatch reason=%llu number=%llu mode=%llu arg6=%llu arg7=%llu\n",
+      "NATIVE_CHECK_FAIL: poly riscv syscall packet mismatch reason=%llu number=%llu mode=%llu selector=%llu arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_reason(),
       (unsigned long long) poly_syscall_status_number(),
       (unsigned long long) poly_syscall_status_mode(),
+      (unsigned long long) poly_trap_status_selector(),
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return 1;
@@ -1227,12 +1231,14 @@ static int run_poly_trap_vector_probe(void) {
   if (monitor_packet.trap.reason != POLY_TRAP_SYSCALL ||
       monitor_packet.trap.source_mode != POLY_MODE_RAW_RISCV ||
       monitor_packet.trap.number != 172 ||
+      monitor_packet.trap.selector != 0 ||
       monitor_packet.args[6] != 27 || monitor_packet.args[7] != 172 ||
       (monitor_packet.trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly monitor packet riscv mismatch reason=%u mode=%u number=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly monitor packet riscv mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
       monitor_packet.trap.reason, monitor_packet.trap.source_mode,
       (unsigned long long) monitor_packet.trap.number,
+      (unsigned long long) monitor_packet.trap.selector,
       (unsigned long long) monitor_packet.args[6],
       (unsigned long long) monitor_packet.args[7],
       (unsigned long long) monitor_packet.trap.flags);
