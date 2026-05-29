@@ -3805,6 +3805,94 @@ static int run_poly_direct_x86_pcall_probe(void) {
     return 1;
   }
 
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot native set failed\n",
+      stderr);
+    return 1;
+  }
+
+  nativecheck_direct_x86_helper_calls = 0;
+  result = nativecheck_signature_imm_pcall_aarch64_x86_direct_sum6();
+  if (result != expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 native signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_helper_calls = 0;
+  result = nativecheck_signature_imm_pcall_riscv_x86_direct_sum6();
+  if (result != expected || nativecheck_direct_x86_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv native signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_fp64_helper_calls = 0;
+  result = nativecheck_signature_imm_pcall_aarch64_x86_direct_fp64(
+    fp_left_bits, fp_right_bits);
+  if (result != fp_expected_bits ||
+      nativecheck_direct_x86_fp64_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 native signature direct x86 fp64 result=0x%llx calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_fp64_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_fp64_helper_calls = 0;
+  result = nativecheck_signature_imm_pcall_riscv_x86_direct_fp64(
+    fp_left_bits, fp_right_bits);
+  if (result != fp_expected_bits ||
+      nativecheck_direct_x86_fp64_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv native signature direct x86 fp64 result=0x%llx calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_fp64_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_vec128_helper_calls = 0;
+  vec_result = nativecheck_signature_imm_pcall_aarch64_x86_direct_vec128();
+  if (vec_result.lo != 4 || vec_result.hi != 6 ||
+      nativecheck_direct_x86_vec128_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 native signature direct x86 vec128 result=0x%llx:0x%llx calls=%u\n",
+      (unsigned long long) vec_result.hi,
+      (unsigned long long) vec_result.lo,
+      nativecheck_direct_x86_vec128_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_vec128_helper_calls = 0;
+  vec_result = nativecheck_signature_imm_pcall_riscv_x86_direct_vec128();
+  if (vec_result.lo != 4 || vec_result.hi != 6 ||
+      nativecheck_direct_x86_vec128_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv native signature direct x86 vec128 result=0x%llx:0x%llx calls=%u\n",
+      (unsigned long long) vec_result.hi,
+      (unsigned long long) vec_result.lo,
+      nativecheck_direct_x86_vec128_helper_calls);
+    return 1;
+  }
+
+  result = nativecheck_aarch64_signature_imm_direct_x86_source_sp_matches();
+  if (result != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 native signature direct x86 source stack pointer result=%llu expected_sp=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) nativecheck_expected_source_sp);
+    return 1;
+  }
+
+  result = nativecheck_riscv_signature_imm_direct_x86_source_sp_matches();
+  if (result != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv native signature direct x86 source stack pointer result=%llu expected_sp=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) nativecheck_expected_source_sp);
+    return 1;
+  }
+
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
     fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot exchange set failed\n",
       stderr);
