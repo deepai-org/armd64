@@ -151,6 +151,7 @@ enum {
   POLY_CALL_AARCH64_HFA4_F32_ARG = 30,
   POLY_CALL_MIXED_STACK_ARGS = 31,
   POLY_CALL_SIGREGS_U64 = 32,
+  POLY_CALL_SIGREGS_FP64 = 33,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -2132,7 +2133,11 @@ static int parse_request(const char *arg, struct poly_request *request) {
     request->repeat_count = 2;
     arg += 7;
   }
-  if (strncmp(arg, "sigregs:", 8) == 0) {
+  if (strncmp(arg, "sigregs-fp64:", 13) == 0) {
+    request->call_kind = POLY_CALL_SIGREGS_FP64;
+    arg += 13;
+  }
+  else if (strncmp(arg, "sigregs:", 8) == 0) {
     request->call_kind = POLY_CALL_SIGREGS_U64;
     arg += 8;
   }
@@ -7491,7 +7496,8 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
     vec128_u32 v;
     uint32_t u[4];
   };
-  if (call_kind == POLY_CALL_FP64) {
+  if (call_kind == POLY_CALL_FP64 ||
+      call_kind == POLY_CALL_SIGREGS_FP64) {
     union {
       double d;
       uint64_t u;
@@ -8149,7 +8155,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
-  const int use_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64;
+  const int use_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
+    call_kind == POLY_CALL_SIGREGS_FP64;
   const size_t pcall_sequence_size = use_sig_imm_pcall ?
     POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE : POLY_X86_CONTROL_OPCODE_SIZE;
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
@@ -9348,6 +9355,10 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_FP64) {
       printf("POLYCALL_RESULT_FP64: arch=%s bits=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_SIGREGS_FP64) {
+      printf("POLYCALL_RESULT_SIGREGS_FP64: arch=%s bits=0x%016llx path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.call_kind == POLY_CALL_FP32) {
