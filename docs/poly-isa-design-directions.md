@@ -169,6 +169,19 @@ a few-slot RAT-remap fast path. Stack-heavy, aggregate-heavy, variadic, vector
 layout, and lazy-binding cases stay in generated thunks where page faults,
 memory policy, and ABI-specific layout rules belong.
 
+The practical target is a 90/10 split:
+
+- Hardware handles the common register-only calls with a semi-persistent,
+  reconfigurable slot bank. A hot `PCALL` names the target frontend, target PC,
+  and signature slot; the rename stage applies the cached RAT template.
+- Software handles the uncommon but semantically complex cases. The thunk
+  marshals stack arguments, structs, variadics, lazy binding, or vector layout,
+  then performs the final jump with a null, identity, or simple register
+  signature.
+
+This keeps the architectural fast path sympathetic to real precompiled code
+without bloating the CPU into an ABI-specific memory transformer.
+
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
 compatibility mapping, and kind `2` is the hardware-oriented x86_64 SysV

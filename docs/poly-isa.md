@@ -203,57 +203,26 @@ signature slot selects a cached rename template; it does not ask hardware to
 repack stacks, copy overflow arguments, split structs, or interpret variadic
 metadata.
 
-Signatures are intentionally limited to register renaming. They are the fast
-path for ordinary precompiled functions whose arguments and return values fit
-in native ABI registers. Stack arguments, by-value structs, variadic calls, and
-memory-side ABI layout remain software thunk work.
-
 The intended silicon shape is a small cached slot bank, not per-call
 reconfiguration. A loader can program hot slots such as SysV-to-AAPCS64,
 AAPCS64-to-SysV, and SysV-to-RISC-V once, then emit `PCALL ... sig_imm` at
-register-only call sites. The hot path is therefore a frontend redirect plus
-cached RAT-template selection. The hardware applies a semi-persistent rename
-recipe; it does not parse a fresh descriptor at the call site. Calls that need
-stack arguments, aggregate repacking, variadic metadata, or lazy binding still
-route through software thunks, which can finish with an identity or simple
-signature `PCALL`.
+register-only call sites. Typical slots map SysV x86_64
+`RDI,RSI,RDX,RCX,R8,R9` to AAPCS64 `x0..x5`, AAPCS64 `x0..x5` back to SysV,
+or SysV to RISC-V psABI `a0..a5`. The setup cost is paid when the loader
+programs the slot; the hot call-site cost is a frontend redirect plus cached
+rename-template selection.
 
-Typical slots are small and ABI-specific: slot 0 can map SysV x86_64
-`RDI,RSI,RDX` onto AAPCS64 `x0,x1,x2`; another slot can map AAPCS64 `x0..x5`
-back onto SysV `RDI,RSI,RDX,RCX,R8,R9`; another can cover SysV-to-RISC-V
-`a0..a5`. The setup cost is paid when the loader programs the slot, not at
-every call site.
+The intended split is hybrid. Hardware handles the common all-register case,
+including compatible integer and FP/SIMD ABI register lanes. Software handles
+stack arguments, by-value aggregates, variadics, lazy binding, PLT/GOT policy,
+and ABI cases that require memory inspection or rewriting. A thunk can perform
+that memory-side ABI work and then finish with a null, identity, or simple
+register signature `PCALL`.
 
-This is the narrow place where reconfigurable hardware helps. Modern OoO cores
-already map architectural names such as `RDI` or `x0` onto physical registers.
-A Poly ABI signature reuses that machinery by selecting a cached rename
-template during the `PCALL` redirect. The hot instruction should encode the
-target frontend, target PC, and a small signature-slot immediate; slot
-programming is a cold loader/runtime operation.
-
-This is the only ABI translation hardware does. A slot is a cached rename
-template for register arguments and register returns; it is not a microcoded
-thunk and it is not allowed to reformat stacks, split aggregates, or inspect
-variadic metadata. Those cases intentionally stay in loader/runtime thunks.
-That boundary is architectural, not just an implementation preference:
-register-only ABI translation may be implemented as a RAT update during
-rename, while stack, aggregate, varargs, lazy binding, and PLT/GOT policy
-remain software because they require memory access and ABI-specific policy.
-
-Example slots include SysV x86_64 `RDI,RSI,RDX,RCX,R8,R9` to AAPCS64
-`x0..x5`, the reverse AAPCS64-to-SysV mapping, and SysV-to-RISC-V psABI. A hot
-call site should encode only the target frontend, target PC, and signature
-slot, preferably as an immediate. The setup cost is paid when the loader
-programs the slot; the call-site cost is a frontend redirect plus cached rename
-selection.
-
-The intended split is hybrid: hardware covers the common all-register case,
-including compatible integer and FP/SIMD ABI register lanes; software covers
-stack arguments, by-value aggregates, variadics, lazy binding, and ABI cases
-that require memory inspection or rewriting. This keeps the common register
-case on a few-slot RAT-remap fast path while keeping complex ABI memory policy
-in generated thunks. The CPU must not grow a page-fault-capable memory repacker
-inside `PCALL`.
+This keeps the common precompiled-code path on a few-slot RAT-remap fast path
+while keeping complex ABI memory policy in generated thunks. The CPU must not
+grow a page-fault-capable memory repacker inside `PCALL`; signatures can
+reconfigure register names, not memory layouts.
 
 The slot bank is explicit Poly architectural state. In the Bochs prototype it
 is saved and restored by the Poly XSAVE component, not stored in a process-wide
