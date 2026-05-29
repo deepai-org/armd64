@@ -28,8 +28,11 @@ enum {
   POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   LOOP_ITERS = 200,
+  POLYBENCH_MIXED_EXPECTED_SWITCH_DELTA = 4,
   POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
+  POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA = 5,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
+  POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA = 7,
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
   POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA = 7,
@@ -3306,6 +3309,17 @@ static int check_switch_delta_max(const char *kind, const char *name,
   return 0;
 }
 
+static int check_switch_delta_exact(const char *kind, const char *name,
+    uint64_t switch_delta, uint64_t expected_switch_delta) {
+  if (switch_delta != expected_switch_delta) {
+    fprintf(stderr, "POLYBENCH_FAIL: %s %s switch delta expected exactly %llu got %llu\n",
+      kind, name, (unsigned long long) expected_switch_delta,
+      (unsigned long long) switch_delta);
+    return -1;
+  }
+  return 0;
+}
+
 static int check_mixed_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
@@ -3328,11 +3342,9 @@ static int check_mixed_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 3) {
-    fprintf(stderr, "POLYBENCH_FAIL: mixed %s switch delta expected at least 3 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("mixed", name, switch_delta,
+        POLYBENCH_MIXED_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("mixed", name, switch_delta,
         POLYBENCH_MIXED_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3355,6 +3367,7 @@ static int check_mixed(void) {
 
 static int check_cross_call_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *),
+    uint64_t expected_switch_delta,
     uint64_t max_switch_delta) {
   uint64_t result = 0;
   uint64_t insn_delta = 0;
@@ -3376,11 +3389,9 @@ static int check_cross_call_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call", name, switch_delta,
+        expected_switch_delta) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call", name, switch_delta,
         max_switch_delta) < 0)
     return -1;
@@ -3952,14 +3963,17 @@ static int check_cross_call_direct_x86_memops_direction(const char *name,
 static int check_cross_calls(void) {
   if (check_cross_call_direction("aarch64-calls-riscv",
         run_cross_call_aarch64_to_riscv,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_direction("riscv-calls-aarch64",
         run_cross_call_riscv_to_aarch64,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_direction("nested-aarch64-riscv-aarch64",
         run_nested_cross_call,
+        POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_direct_x86_pcall_direction("aarch64-calls-x86-direct",
