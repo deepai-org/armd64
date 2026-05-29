@@ -1521,6 +1521,54 @@ double POLY_HOST_HELPER poly_host_x86_sqrt(double value)
   return guess;
 }
 
+float POLY_HOST_HELPER poly_host_x86_floorf(float value)
+{
+  if (value != value || value >= 9223372036854775808.0f ||
+      value <= -9223372036854775808.0f)
+    return value;
+  long long integer = (long long) value;
+  float result = (float) integer;
+  if (result > value)
+    result -= 1.0f;
+  return result;
+}
+
+double POLY_HOST_HELPER poly_host_x86_floor(double value)
+{
+  if (value != value || value >= 9223372036854775808.0 ||
+      value <= -9223372036854775808.0)
+    return value;
+  long long integer = (long long) value;
+  double result = (double) integer;
+  if (result > value)
+    result -= 1.0;
+  return result;
+}
+
+float POLY_HOST_HELPER poly_host_x86_ceilf(float value)
+{
+  if (value != value || value >= 9223372036854775808.0f ||
+      value <= -9223372036854775808.0f)
+    return value;
+  long long integer = (long long) value;
+  float result = (float) integer;
+  if (result < value)
+    result += 1.0f;
+  return result;
+}
+
+double POLY_HOST_HELPER poly_host_x86_ceil(double value)
+{
+  if (value != value || value >= 9223372036854775808.0 ||
+      value <= -9223372036854775808.0)
+    return value;
+  long long integer = (long long) value;
+  double result = (double) integer;
+  if (result < value)
+    result += 1.0;
+  return result;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
 {
   uint64_t result = 0;

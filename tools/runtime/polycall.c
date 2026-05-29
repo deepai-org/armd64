@@ -550,7 +550,11 @@ enum {
   POLY_IMPORT_FUNC_FABS = 204,
   POLY_IMPORT_FUNC_SQRTF = 205,
   POLY_IMPORT_FUNC_SQRT = 206,
-  POLY_IMPORT_FUNC_COUNT = 207,
+  POLY_IMPORT_FUNC_FLOORF = 207,
+  POLY_IMPORT_FUNC_FLOOR = 208,
+  POLY_IMPORT_FUNC_CEILF = 209,
+  POLY_IMPORT_FUNC_CEIL = 210,
+  POLY_IMPORT_FUNC_COUNT = 211,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1110,6 +1114,10 @@ extern float poly_host_x86_fabsf(float value);
 extern double poly_host_x86_fabs(double value);
 extern float poly_host_x86_sqrtf(float value);
 extern double poly_host_x86_sqrt(double value);
+extern float poly_host_x86_floorf(float value);
+extern double poly_host_x86_floor(double value);
+extern float poly_host_x86_ceilf(float value);
+extern double poly_host_x86_ceil(double value);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1485,6 +1493,10 @@ static int resolve_direct_x86_register_import(int arch,
     { "fabs", POLY_IMPORT_FUNC_FABS },
     { "sqrtf", POLY_IMPORT_FUNC_SQRTF },
     { "sqrt", POLY_IMPORT_FUNC_SQRT },
+    { "floorf", POLY_IMPORT_FUNC_FLOORF },
+    { "floor", POLY_IMPORT_FUNC_FLOOR },
+    { "ceilf", POLY_IMPORT_FUNC_CEILF },
+    { "ceil", POLY_IMPORT_FUNC_CEIL },
     { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
@@ -1838,6 +1850,14 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_sqrtf;
     case POLY_IMPORT_FUNC_SQRT:
       return (uint64_t) (uintptr_t) poly_host_x86_sqrt;
+    case POLY_IMPORT_FUNC_FLOORF:
+      return (uint64_t) (uintptr_t) poly_host_x86_floorf;
+    case POLY_IMPORT_FUNC_FLOOR:
+      return (uint64_t) (uintptr_t) poly_host_x86_floor;
+    case POLY_IMPORT_FUNC_CEILF:
+      return (uint64_t) (uintptr_t) poly_host_x86_ceilf;
+    case POLY_IMPORT_FUNC_CEIL:
+      return (uint64_t) (uintptr_t) poly_host_x86_ceil;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -2198,10 +2218,14 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
     case POLY_IMPORT_FUNC_STRTOD:
     case POLY_IMPORT_FUNC_FABS:
     case POLY_IMPORT_FUNC_SQRT:
+    case POLY_IMPORT_FUNC_FLOOR:
+    case POLY_IMPORT_FUNC_CEIL:
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP64;
     case POLY_IMPORT_FUNC_STRTOF:
     case POLY_IMPORT_FUNC_FABSF:
     case POLY_IMPORT_FUNC_SQRTF:
+    case POLY_IMPORT_FUNC_FLOORF:
+    case POLY_IMPORT_FUNC_CEILF:
       return POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP32;
     case POLY_IMPORT_FUNC_X86_VEC128_U32:
       if (arch == POLY_ARCH_RISCV)
@@ -4432,6 +4456,22 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "sqrt") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_SQRT * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "floorf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOORF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "floor") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_FLOOR * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "ceilf") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CEILF * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "ceil") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_CEIL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
