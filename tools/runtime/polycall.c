@@ -1325,6 +1325,14 @@ static int resolve_direct_x86_register_import(int arch,
     { "__umodti3", POLY_IMPORT_FUNC_UMODTI3 },
     { "__divti3", POLY_IMPORT_FUNC_DIVTI3 },
     { "__modti3", POLY_IMPORT_FUNC_MODTI3 },
+    { "__fixdfti", POLY_IMPORT_FUNC_FIXDFTI },
+    { "__fixunsdfti", POLY_IMPORT_FUNC_FIXUNSDFTI },
+    { "__floattidf", POLY_IMPORT_FUNC_FLOATTIDF },
+    { "__floatuntidf", POLY_IMPORT_FUNC_FLOATUNTIDF },
+    { "__fixsfti", POLY_IMPORT_FUNC_FIXSFTI },
+    { "__fixunssfti", POLY_IMPORT_FUNC_FIXUNSSFTI },
+    { "__floattisf", POLY_IMPORT_FUNC_FLOATTISF },
+    { "__floatuntisf", POLY_IMPORT_FUNC_FLOATUNTISF },
     { "__atomic_load_16", POLY_IMPORT_FUNC_ATOMIC_LOAD_16 },
     { "__atomic_store_16", POLY_IMPORT_FUNC_ATOMIC_STORE_16 },
     { "__tls_get_addr", POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR },
@@ -3274,6 +3282,10 @@ static int x86_direct_import_uses_i128_signature(uint64_t import_id) {
     import_id == POLY_IMPORT_FUNC_UMODTI3 ||
     import_id == POLY_IMPORT_FUNC_DIVTI3 ||
     import_id == POLY_IMPORT_FUNC_MODTI3 ||
+    import_id == POLY_IMPORT_FUNC_FIXDFTI ||
+    import_id == POLY_IMPORT_FUNC_FIXUNSDFTI ||
+    import_id == POLY_IMPORT_FUNC_FIXSFTI ||
+    import_id == POLY_IMPORT_FUNC_FIXUNSSFTI ||
     import_id == POLY_IMPORT_FUNC_ATOMIC_LOAD_16 ||
     import_id == POLY_IMPORT_FUNC_X86_I128;
 }
