@@ -3193,7 +3193,7 @@ static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
     return 0xd5032ebfU; // aarch64 polyctrl FP64-stack call
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return 0xd5032effU; // aarch64 polyctrl vec128 call
-  return 0xd5032e5fU; // aarch64 polyctrl riscv call
+  return 0; // Default register-only calls must use PCALL_SIG_IMM.
 }
 
 static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
@@ -3205,7 +3205,7 @@ static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
     return 0x0a00700bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return 0x0e00700bU;
-  return 0x0400700bU;
+  return 0; // Default register-only calls must use PCALL_SIG_IMM.
 }
 
 static uint32_t fallback_ret_for_arch(int arch) {
@@ -3246,10 +3246,13 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       return -1;
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
       const uint64_t return_addr = start_addr + 36;
+      const uint32_t call_opcode =
+        aarch64_cross_call_opcode_for_bridge(bridge_kind);
+      if (call_opcode == 0)
+        return -1;
       emit_aarch64_movabs(stubs, stub_offset, 16, target);
       emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
-      emit_u32(stubs, stub_offset,
-        aarch64_cross_call_opcode_for_bridge(bridge_kind));
+      emit_u32(stubs, stub_offset, call_opcode);
       emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
       *stub_addr = start_addr;
       return 0;
@@ -3267,9 +3270,12 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
     }
     else {
+      const uint32_t call_opcode =
+        aarch64_cross_call_opcode_for_bridge(bridge_kind);
+      if (call_opcode == 0)
+        return -1;
       emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
-      emit_u32(stubs, stub_offset,
-        aarch64_cross_call_opcode_for_bridge(bridge_kind));
+      emit_u32(stubs, stub_offset, call_opcode);
     }
     emit_u32(stubs, stub_offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
@@ -3309,9 +3315,13 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     }
     if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
       emit_u32(stubs, stub_offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
-    else
-      emit_u32(stubs, stub_offset,
-        riscv_cross_call_opcode_for_bridge(bridge_kind));
+    else {
+      const uint32_t call_opcode =
+        riscv_cross_call_opcode_for_bridge(bridge_kind);
+      if (call_opcode == 0)
+        return -1;
+      emit_u32(stubs, stub_offset, call_opcode);
+    }
     const size_t return_pc = *stub_offset;
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
       emit_u32(stubs, stub_offset, riscv_ld(1, 2, 72)); // ld ra,72(sp)
