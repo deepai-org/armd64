@@ -308,11 +308,15 @@ static const uint32_t POLY_CPUID_REQUIRED_FEATURES =
   POLY_CPUID_FEATURE_FOREIGN_PCALL_SIG_IMM;
 
 enum {
+  POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
+  POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
+  POLY_ABI_SIGNATURE_KIND_EXCHANGE = 0,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS = 2,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 = 3,
-  POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS = 1,
-  POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128 = 2,
+  POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT = 0,
+  POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT = 1,
+  POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT = 2,
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
   POLY_IMPORT_FUNC_RESERVED_LEGACY_X86_ADD = 2,
@@ -543,6 +547,10 @@ struct poly_import_contract {
   uint32_t gpr_arg_count;
   uint32_t fp_arg_count;
   uint32_t stack_align;
+  uint32_t signature_slot_count;
+  uint32_t signature_slot_exchange;
+  uint32_t signature_slot_x86_sysv_regs;
+  uint32_t signature_slot_x86_sysv_regs_i128;
 };
 
 struct poly_dynamic_reloc {
@@ -821,6 +829,38 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
   return 0;
 }
 
+static int read_poly_signature_contract(struct poly_import_contract *contract) {
+  const struct poly_cpuid_regs signature =
+    read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const uint32_t slot_exchange = signature.ecx & 0xffU;
+  const uint32_t slot_x86_sysv_regs = (signature.ecx >> 8) & 0xffU;
+  const uint32_t slot_x86_sysv_regs_i128 = (signature.ecx >> 16) & 0xffU;
+  const uint32_t kind_exchange = signature.edx & 0xffU;
+  const uint32_t kind_x86_sysv_regs = (signature.edx >> 8) & 0xffU;
+  const uint32_t kind_x86_sysv_regs_i128 = (signature.edx >> 16) & 0xffU;
+
+  if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
+      signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      slot_exchange >= signature.ebx ||
+      slot_x86_sysv_regs >= signature.ebx ||
+      slot_x86_sysv_regs_i128 >= signature.ebx ||
+      kind_exchange != POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
+      kind_x86_sysv_regs != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
+      kind_x86_sysv_regs_i128 !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
+      signature.eax, signature.ebx, signature.ecx, signature.edx);
+    return -1;
+  }
+
+  contract->signature_slot_count = signature.ebx;
+  contract->signature_slot_exchange = slot_exchange;
+  contract->signature_slot_x86_sysv_regs = slot_x86_sysv_regs;
+  contract->signature_slot_x86_sysv_regs_i128 = slot_x86_sysv_regs_i128;
+  return 0;
+}
+
 static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
   uint64_t rdx = kind;
@@ -831,10 +871,11 @@ static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
-static int program_hot_abi_signature_slots(void) {
-  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS,
+static int program_hot_abi_signature_slots(
+    const struct poly_import_contract *contract) {
+  if (poly_abi_signature_set(contract->signature_slot_x86_sysv_regs,
         POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
-      poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128,
+      poly_abi_signature_set(contract->signature_slot_x86_sysv_regs_i128,
         POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU ABI signature slot programming failed\n");
@@ -2999,7 +3040,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
 
 static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int caller_arch, uint64_t import_id, uint64_t target,
-    uint64_t *stub_addr) {
+    const struct poly_import_contract *contract, uint64_t *stub_addr) {
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
 
@@ -3009,8 +3050,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     import_id == POLY_IMPORT_FUNC_X86_FPAIR32;
   const uint32_t signature_slot =
     import_id == POLY_IMPORT_FUNC_X86_I128 ?
-      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128 :
-      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS;
+      contract->signature_slot_x86_sysv_regs_i128 :
+      contract->signature_slot_x86_sysv_regs;
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 96)
@@ -7264,13 +7305,21 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     .import_count = POLY_IMPORT_FUNC_COUNT,
     .x86_slot0 = POLY_IMPORT_FUNC_X86_SLOT0,
     .x86_slot_count = POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1,
-    .x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE
+    .x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE,
+    .signature_slot_count = POLY_ABI_SIGNATURE_SLOT_COUNT,
+    .signature_slot_exchange = POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT,
+    .signature_slot_x86_sysv_regs =
+      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT,
+    .signature_slot_x86_sysv_regs_i128 =
+      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT
   };
   if (read_poly_base_contract() < 0)
     return -1;
   if (read_poly_abi_bridge_contract(&import_contract) < 0)
     return -1;
-  if (program_hot_abi_signature_slots() < 0)
+  if (read_poly_signature_contract(&import_contract) < 0)
+    return -1;
+  if (program_hot_abi_signature_slots(&import_contract) < 0)
     return -1;
   if (needs_x86_import && read_poly_import_contract(&import_contract) < 0)
     return -1;
@@ -7589,7 +7638,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         if (target == 0 ||
             emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
               &cross_stub_offset, dep->arch, dep->relocs[r].value,
-              target, &stub_addr) < 0) {
+              target, &import_contract, &stub_addr) < 0) {
           fprintf(stderr, "POLYCALL_FAIL: dependency x86 direct import stub overflow: %s\n",
             dep->path);
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -7824,7 +7873,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       if (target == 0 ||
           emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, program->arch, program->relocs[n].value,
-            target, &stub_addr) < 0) {
+            target, &import_contract, &stub_addr) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: x86 direct import stub overflow: %s\n",
           program->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
