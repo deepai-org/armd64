@@ -7891,6 +7891,14 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=aarch64 .*a64_to_rv_sigregs=[1-9].*aarch64-pcall-cross-needed-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=riscv .*rv_to_a64_sigregs=[1-9].*riscv-pcall-cross-needed-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
       fi
       if [[ "$RUN_POLY_THREAD" == "1" ]]; then
         if ! grep -q "POLYTHREAD_OK" "$SERIAL_LOG"; then

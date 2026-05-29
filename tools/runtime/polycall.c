@@ -562,6 +562,13 @@ struct poly_import_stub_stats {
   uint32_t x86_thunk_stubs;
 };
 
+struct poly_cross_stub_stats {
+  uint32_t aarch64_to_riscv_sigreg_stubs;
+  uint32_t riscv_to_aarch64_sigreg_stubs;
+  uint32_t aarch64_to_riscv_bridge_stubs;
+  uint32_t riscv_to_aarch64_bridge_stubs;
+};
+
 struct poly_dynamic_reloc {
   size_t offset;
   size_t size;
@@ -3242,9 +3249,29 @@ static int align_stub_offset(size_t *offset, size_t alignment,
   return 0;
 }
 
+static void record_cross_stub_stats(struct poly_cross_stub_stats *stats,
+    int caller_arch, int callee_arch, int bridge_kind) {
+  if (!stats)
+    return;
+  if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
+    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+      stats->aarch64_to_riscv_sigreg_stubs++;
+    else
+      stats->aarch64_to_riscv_bridge_stubs++;
+  }
+  else if (caller_arch == POLY_ARCH_RISCV &&
+      callee_arch == POLY_ARCH_AARCH64) {
+    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+      stats->riscv_to_aarch64_sigreg_stubs++;
+    else
+      stats->riscv_to_aarch64_bridge_stubs++;
+  }
+}
+
 static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int caller_arch, int callee_arch, uint64_t target,
-    int bridge_kind, uint64_t *stub_addr) {
+    int bridge_kind, struct poly_cross_stub_stats *stats,
+    uint64_t *stub_addr) {
   if (caller_arch == callee_arch) {
     *stub_addr = target;
     return 0;
@@ -3271,6 +3298,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
       emit_u32(stubs, stub_offset, call_opcode);
       emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
+      record_cross_stub_stats(stats, caller_arch, callee_arch, bridge_kind);
       *stub_addr = start_addr;
       return 0;
     }
@@ -3297,6 +3325,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
+    record_cross_stub_stats(stats, caller_arch, callee_arch, bridge_kind);
     *stub_addr = start_addr;
     return 0;
   }
@@ -3364,6 +3393,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     else
       store_u32(stubs, ld_return_offset, riscv_ld(6, 6,
         (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+    record_cross_stub_stats(stats, caller_arch, callee_arch, bridge_kind);
     *stub_addr = start_addr;
     return 0;
   }
@@ -8083,13 +8113,14 @@ static int protect_relro_region(const char *path, uint8_t *image,
 
 static int call_target_from_root_arch(uint8_t *code, size_t target_imm_offset,
     uint8_t *cross_stubs, size_t cross_stub_size, size_t *cross_stub_offset,
+    struct poly_cross_stub_stats *cross_stub_stats,
     int root_arch, int target_arch, uint64_t target, int call_kind,
     int bridge_kind, const char *path, const char *label, uint64_t *result) {
   uint64_t call_target = target;
   if (root_arch != target_arch &&
       emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
         cross_stub_offset, root_arch, target_arch, target,
-        bridge_kind, &call_target) < 0) {
+        bridge_kind, cross_stub_stats, &call_target) < 0) {
     fprintf(stderr, "POLYCALL_FAIL: %s cross-ISA call stub overflow: %s\n",
       label, path);
     return -1;
@@ -8104,13 +8135,14 @@ static int call_target_from_root_arch(uint8_t *code, size_t target_imm_offset,
 static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     uint8_t *dep_image, size_t dep_size, uint64_t dep_load_bias,
     uint8_t *code, size_t target_imm_offset, uint8_t *cross_stubs,
-    size_t cross_stub_size, size_t *cross_stub_offset, int root_arch) {
+    size_t cross_stub_size, size_t *cross_stub_offset,
+    struct poly_cross_stub_stats *cross_stub_stats, int root_arch) {
   if (dep->init_vaddr != 0) {
     const uint64_t init_target = dep_load_bias + dep->init_vaddr;
     if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-          cross_stub_size, cross_stub_offset, root_arch, dep->arch,
-          init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, dep->path,
-          "dependency INIT", NULL) < 0)
+          cross_stub_size, cross_stub_offset, cross_stub_stats, root_arch,
+          dep->arch, init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT,
+          dep->path, "dependency INIT", NULL) < 0)
       return -1;
   }
   if (dep->init_array_size == 0)
@@ -8129,9 +8161,9 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     uint64_t init_target = read_le64(dep_image + init_array_offset + n * 8);
     if (init_target != 0 &&
         call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-          cross_stub_size, cross_stub_offset, root_arch, dep->arch,
-          init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, dep->path,
-          "dependency INIT_ARRAY", NULL) < 0)
+          cross_stub_size, cross_stub_offset, cross_stub_stats, root_arch,
+          dep->arch, init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT,
+          dep->path, "dependency INIT_ARRAY", NULL) < 0)
       return -1;
   }
   return 0;
@@ -8167,6 +8199,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   struct poly_import_stub_stats import_stub_stats;
   memset(&import_stub_stats, 0, sizeof(import_stub_stats));
+  struct poly_cross_stub_stats cross_stub_stats;
+  memset(&cross_stub_stats, 0, sizeof(cross_stub_stats));
   const size_t callee_save_size = 33;
   const size_t callee_restore_size = 33;
   const size_t callee_save_area_size = 48;
@@ -8477,7 +8511,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               &cross_stub_offset, dep->arch, program->arch,
               root_load_bias + dep->relocs[r].value,
               cross_bridge_kind_for_base(dep->relocs[r].base_kind),
-              &stub_addr) < 0) {
+              &cross_stub_stats, &stub_addr) < 0) {
           fprintf(stderr, "POLYCALL_FAIL: dependency root cross-ISA stub overflow: %s\n",
             dep->path);
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8535,7 +8569,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               &cross_stub_offset, dep->arch, program->deps[dep_index].arch,
               dep_load_bias[dep_index] + dep->relocs[r].value,
               cross_bridge_kind_for_base(dep->relocs[r].base_kind),
-              &stub_addr) < 0) {
+              &cross_stub_stats, &stub_addr) < 0) {
           fprintf(stderr, "POLYCALL_FAIL: dependency cross-ISA stub overflow: %s\n",
             dep->path);
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8604,7 +8638,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       }
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-            cross_stub_size, &cross_stub_offset, program->arch,
+            cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+            program->arch,
             resolver_arch, resolver, POLY_CALL_U64,
             POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency IFUNC resolver",
             &resolved) < 0) {
@@ -8621,7 +8656,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, dep->arch, resolver_arch, resolved,
             cross_bridge_kind_for_ifunc_base(dep->relocs[r].base_kind),
-            &reloc_value) < 0) {
+            &cross_stub_stats, &reloc_value) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: dependency IFUNC cross-ISA stub overflow: %s\n",
           dep->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8770,7 +8805,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             &cross_stub_offset, program->arch, program->deps[dep_index].arch,
             dep_load_bias[dep_index] + program->relocs[n].value,
             cross_bridge_kind_for_base(program->relocs[n].base_kind),
-            &stub_addr) < 0) {
+            &cross_stub_stats, &stub_addr) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: cross-ISA stub overflow: %s\n",
           program->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8825,7 +8860,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       const uint64_t resolver = root_load_bias + dep->relocs[r].value;
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-            cross_stub_size, &cross_stub_offset, program->arch,
+            cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+            program->arch,
             program->arch, resolver, POLY_CALL_U64,
             POLY_CROSS_BRIDGE_DEFAULT, dep->path,
             "dependency root IFUNC resolver", &resolved) < 0) {
@@ -8842,7 +8878,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, dep->arch, program->arch, resolved,
             cross_bridge_kind_for_ifunc_base(dep->relocs[r].base_kind),
-            &reloc_value) < 0) {
+            &cross_stub_stats, &reloc_value) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: dependency root IFUNC cross-ISA stub overflow: %s\n",
           dep->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8940,7 +8976,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       continue;
     if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
           dep_load_bias[d], code, target_imm_offset, cross_stubs,
-          cross_stub_size, &cross_stub_offset, program->arch) < 0) {
+          cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+          program->arch) < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
@@ -8959,7 +8996,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         continue;
       if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
             dep_load_bias[d], code, target_imm_offset, cross_stubs,
-            cross_stub_size, &cross_stub_offset, program->arch) < 0) {
+            cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+            program->arch) < 0) {
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
         if (tls)
           munmap(tls, tls_size);
@@ -9017,7 +9055,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
     uint64_t resolved = 0;
     if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-          cross_stub_size, &cross_stub_offset, program->arch, resolver_arch,
+          cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+          program->arch, resolver_arch,
           resolver, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, program->path,
           "IFUNC resolver", &resolved) < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9033,7 +9072,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
           &cross_stub_offset, program->arch, resolver_arch, resolved,
           cross_bridge_kind_for_ifunc_base(program->relocs[n].base_kind),
-          &reloc_value) < 0) {
+          &cross_stub_stats, &reloc_value) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: IFUNC cross-ISA stub overflow: %s\n",
         program->path);
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9187,7 +9226,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             fini_array_offset + (n - 1) * 8);
           if (fini_target != 0 &&
               call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-                cross_stub_size, &cross_stub_offset, program->arch,
+                cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+                program->arch,
                 dep->arch, fini_target, POLY_CALL_U64,
                 POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency FINI_ARRAY",
                 NULL) < 0) {
@@ -9206,7 +9246,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         const uint64_t fini_target =
           dep_load_bias[dep_index] + dep->fini_vaddr;
         if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-              cross_stub_size, &cross_stub_offset, program->arch, dep->arch,
+              cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+              program->arch, dep->arch,
               fini_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT,
               dep->path, "dependency FINI", NULL) < 0) {
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9257,7 +9298,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (is_cross_ifunc || is_dep_ifunc) {
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
-            cross_stub_size, &cross_stub_offset, program->arch,
+            cross_stub_size, &cross_stub_offset, &cross_stub_stats,
+            program->arch,
             program->deps[dep_index].arch, fini_result_target, POLY_CALL_U64,
             POLY_CROSS_BRIDGE_DEFAULT, program->deps[dep_index].path,
             "dependency fini result IFUNC resolver", &resolved) < 0) {
@@ -9278,9 +9320,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_opcode_for_call_kind(program->arch, result_call_kind);
     const int call_status = call_target_from_root_arch(code,
       target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
-      program->arch, program->deps[dep_index].arch, fini_result_target,
-      result_call_kind, bridge_kind, program->deps[dep_index].path,
-      "dependency fini result", result);
+      &cross_stub_stats, program->arch, program->deps[dep_index].arch,
+      fini_result_target, result_call_kind, bridge_kind,
+      program->deps[dep_index].path, "dependency fini result", result);
     code[pcall_opcode_offset + 3] = saved_pcall_op;
     if (call_status < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9301,6 +9343,18 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       program->arch_name, import_stub_stats.x86_direct_sigreg_stubs,
       import_stub_stats.x86_direct_i128_sigreg_stubs,
       import_stub_stats.x86_thunk_stubs, program->path);
+  }
+  const uint32_t cross_stub_total =
+    cross_stub_stats.aarch64_to_riscv_sigreg_stubs +
+    cross_stub_stats.riscv_to_aarch64_sigreg_stubs +
+    cross_stub_stats.aarch64_to_riscv_bridge_stubs +
+    cross_stub_stats.riscv_to_aarch64_bridge_stubs;
+  if (cross_stub_total != 0) {
+    printf("POLYCALL_CROSS_STUBS: arch=%s a64_to_rv_sigregs=%u rv_to_a64_sigregs=%u a64_to_rv_bridges=%u rv_to_a64_bridges=%u path=%s\n",
+      program->arch_name, cross_stub_stats.aarch64_to_riscv_sigreg_stubs,
+      cross_stub_stats.riscv_to_aarch64_sigreg_stubs,
+      cross_stub_stats.aarch64_to_riscv_bridge_stubs,
+      cross_stub_stats.riscv_to_aarch64_bridge_stubs, program->path);
   }
   if (tls)
     munmap(tls, tls_size);
