@@ -1332,6 +1332,10 @@ static int resolve_direct_x86_register_import(int arch,
     *import_id = POLY_IMPORT_FUNC_X86_SRET_U64_STACK;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_sret_u64_stack10") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SRET_U64_STACK10;
+    return 0;
+  }
   if ((arch == POLY_ARCH_AARCH64 || arch == POLY_ARCH_RISCV) &&
       strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_VEC128_U32;
@@ -3113,9 +3117,12 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     import_id == POLY_IMPORT_FUNC_X86_FP64_SUM10;
   const int needs_sret_stack_x86_thunk =
     import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK;
+  const int needs_sret_stack10_x86_thunk =
+    import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10;
   const int needs_x86_thunk =
     needs_int_stack_x86_thunk || needs_riscv_vec128_x86_thunk ||
-    needs_fp64_stack_x86_thunk || needs_sret_stack_x86_thunk;
+    needs_fp64_stack_x86_thunk || needs_sret_stack_x86_thunk ||
+    needs_sret_stack10_x86_thunk;
   uint64_t x86_thunk_addr = 0;
   if (needs_int_stack_x86_thunk) {
     if (stub_limit - *stub_offset < 160)
@@ -3316,6 +3323,65 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     stubs[(*stub_offset)++] = 0x08;
     stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
   }
+  else if (needs_sret_stack10_x86_thunk) {
+    if (stub_limit - *stub_offset < 128)
+      return -1;
+    const uint8_t source_arg7_disp =
+      caller_arch == POLY_ARCH_AARCH64 ? 0 : 0;
+    const uint8_t source_arg8_disp =
+      caller_arch == POLY_ARCH_AARCH64 ? 16 : 8;
+    const uint8_t source_arg9_disp =
+      caller_arch == POLY_ARCH_AARCH64 ? 24 : 16;
+    x86_thunk_addr = (uint64_t) (uintptr_t) (stubs + *stub_offset);
+    stubs[(*stub_offset)++] = 0x48; // sub rsp,40: align and reserve five stack args.
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xec;
+    stubs[(*stub_offset)++] = 0x28;
+    emit_x86_mov_mrsp_disp8_r9(stubs, stub_offset, 0); // stack arg 5
+    emit_x86_mov_mrsp_disp8_r10(stubs, stub_offset, 8); // stack arg 6
+    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+      source_arg7_disp, 16);
+    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+      source_arg8_disp, 24);
+    emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+      source_arg9_disp, 32);
+    stubs[(*stub_offset)++] = 0x49; // mov r10,rdi (arg2)
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xfa;
+    stubs[(*stub_offset)++] = 0x49; // mov r11,rsi (arg3)
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xf3;
+    stubs[(*stub_offset)++] = 0x48; // mov rdi,rax (sret pointer)
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc7;
+    stubs[(*stub_offset)++] = 0x48; // mov rsi,rdx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd6;
+    stubs[(*stub_offset)++] = 0x48; // mov rdx,rcx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xca;
+    stubs[(*stub_offset)++] = 0x4c; // mov rcx,r10
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd1;
+    stubs[(*stub_offset)++] = 0x4d; // mov r10,r8 (arg4)
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc2;
+    stubs[(*stub_offset)++] = 0x4d; // mov r8,r11
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd8;
+    stubs[(*stub_offset)++] = 0x4d; // mov r9,r10
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd1;
+    emit_movabs_r11(stubs, stub_offset, target);
+    stubs[(*stub_offset)++] = 0x41; // call r11
+    stubs[(*stub_offset)++] = 0xff;
+    stubs[(*stub_offset)++] = 0xd3;
+    stubs[(*stub_offset)++] = 0x48; // add rsp,40
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xc4;
+    stubs[(*stub_offset)++] = 0x28;
+    stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
+  }
 
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
@@ -3330,6 +3396,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     needs_int_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_fp64_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_sret_stack_x86_thunk ? contract->signature_slot_exchange :
+    needs_sret_stack10_x86_thunk ? contract->signature_slot_exchange :
     needs_riscv_vec128_x86_thunk ?
       contract->signature_slot_x86_sysv_regs_i128 :
     import_id == POLY_IMPORT_FUNC_X86_I128 ?
@@ -3344,9 +3411,23 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       aarch64_sret_arg_shift_insns = 4;
     else if (import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK)
       aarch64_sret_arg_shift_insns = 7;
+    else if (import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10)
+      aarch64_sret_arg_shift_insns = 10;
+    const int needs_aarch64_sret_stack10_stage =
+      import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10;
     const uint64_t return_addr =
       start_addr + 52 + (uint64_t) aarch64_sret_arg_shift_insns * 4;
+    if (needs_aarch64_sret_stack10_stage) {
+      emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
+      emit_u32(stubs, stub_offset, 0xf90003e7U); // str x7, [sp]
+      emit_u32(stubs, stub_offset, 0xaa0603e7U); // mov x7,x6
+    }
     if (aarch64_sret_arg_shift_insns == 7) {
+      emit_u32(stubs, stub_offset, 0xaa0503e6U); // mov x6,x5
+      emit_u32(stubs, stub_offset, 0xaa0403e5U); // mov x5,x4
+      emit_u32(stubs, stub_offset, 0xaa0303e4U); // mov x4,x3
+    }
+    else if (aarch64_sret_arg_shift_insns == 10) {
       emit_u32(stubs, stub_offset, 0xaa0503e6U); // mov x6,x5
       emit_u32(stubs, stub_offset, 0xaa0403e5U); // mov x5,x4
       emit_u32(stubs, stub_offset, 0xaa0303e4U); // mov x4,x3
@@ -3366,6 +3447,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, 0x0e0c3c09U); // umov w9, v0.s[1]
       emit_u32(stubs, stub_offset, 0x1e270121U); // fmov s1, w9
     }
+    if (needs_aarch64_sret_stack10_stage)
+      emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
     *stub_addr = start_addr;
     return 0;
@@ -5681,7 +5764,6 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     if (strcmp(symbol_name, "__errno_location") == 0)
       program->needs_errno_location = 1;
     if (strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_sret_u64_stack10") == 0 ||
         import_symbol_uses_x86_descriptor(symbol_name))
       program->needs_x86_import = 1;
     *base_kind = RELOC_BASE_IMPORT_CALL;
