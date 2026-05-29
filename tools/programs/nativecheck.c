@@ -64,6 +64,32 @@ struct nativecheck_monitor_packet {
   uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
 };
 
+static int expect_monitor_packet(const char *label,
+    const struct nativecheck_monitor_packet *packet, uint32_t reason,
+    uint32_t source_mode, uint64_t number, uint64_t selector,
+    uint64_t arg0, uint64_t arg6, uint64_t arg7) {
+  if (packet->trap.reason != reason ||
+      packet->trap.source_mode != source_mode ||
+      packet->trap.number != number ||
+      packet->trap.selector != selector ||
+      packet->args[0] != arg0 ||
+      packet->args[6] != arg6 ||
+      packet->args[7] != arg7 ||
+      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
+      label, packet->trap.reason, packet->trap.source_mode,
+      (unsigned long long) packet->trap.number,
+      (unsigned long long) packet->trap.selector,
+      (unsigned long long) packet->args[0],
+      (unsigned long long) packet->args[6],
+      (unsigned long long) packet->args[7],
+      (unsigned long long) packet->trap.flags);
+    return 1;
+  }
+  return 0;
+}
+
 static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
@@ -1280,6 +1306,7 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800160\n" // movz x0,#11
@@ -1318,6 +1345,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("aarch64 break", &monitor_packet, POLY_TRAP_BREAK,
+      POLY_MODE_RAW_AARCH64, 5, 5, 11, 17, 18) != 0)
+    return 1;
   pid_t break_child = fork();
   if (break_child < 0) {
     fputs("NATIVE_CHECK_FAIL: poly break packet fork failed\n", stderr);
@@ -1352,6 +1382,7 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x01500513\n" // addi a0,zero,21
@@ -1385,7 +1416,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("riscv break", &monitor_packet, POLY_TRAP_BREAK,
+      POLY_MODE_RAW_RISCV, 5, 0, 21, 27, 5) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x01500513\n" // addi a0,zero,21
@@ -1424,7 +1459,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("riscv compressed break", &monitor_packet,
+      POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0, 21, 27, 5) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_A64
@@ -1461,7 +1500,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("aarch64 import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 77, 88, 99) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_RV64
@@ -1496,7 +1539,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("riscv import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_RV64
@@ -1531,7 +1578,11 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  if (expect_monitor_packet("riscv compressed import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xffffffff\n" // unallocated in the supported AArch64 subset
@@ -1555,7 +1606,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_selector());
     return 1;
   }
+  if (expect_monitor_packet("aarch64 illegal", &monitor_packet,
+      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xffffffffULL, 4, 0, 0,
+      0) != 0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
@@ -1579,7 +1635,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_selector());
     return 1;
   }
+  if (expect_monitor_packet("riscv illegal", &monitor_packet,
+      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4, 0, 0, 0) !=
+      0)
+    return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
     ".short 0x0000\n" // reserved 16-bit compressed encoding
@@ -1603,6 +1664,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_selector());
     return 1;
   }
+  if (expect_monitor_packet("riscv compressed illegal", &monitor_packet,
+      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0, 2, 0, 0, 0) != 0)
+    return 1;
 
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
   poly_trap_vector_set_value((uint64_t) (void *) poly_aarch64_trap_vector_raw);
