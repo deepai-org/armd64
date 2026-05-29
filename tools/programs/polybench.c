@@ -1646,7 +1646,8 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
-  const size_t aarch64_return_offset = aarch64_body_offset + 4 * 4 + 16 + 16 + 4;
+  const size_t aarch64_return_offset =
+    aarch64_body_offset + 4 * 4 + 16 + 4 + 16 + 4;
   const size_t riscv_target_offset = aarch64_return_offset + 3 * 4 + 1;
 
   emit_u32(code, &offset, 0xd10043ffU); // sub sp,sp,#16
@@ -1655,9 +1656,10 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xf90003e8U); // str x8,[sp]
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
-  emit_aarch64_movabs(code, &offset, 17,
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032e5fU); // aarch64 polyctrl riscv call, call RISC-V
+  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
   emit_u32(code, &offset, 0x910043ffU); // add sp,sp,#16
   emit_u32(code, &offset, 0x91003400U); // add x0,x0,#13
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
@@ -1711,11 +1713,12 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
   const size_t auipc_return_pc = offset;
-  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0400700bU); // riscv polyctrl call AArch64
+  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
   emit_u32(code, &offset, 0x00d50513U); // addi a0,a0,13
@@ -1738,7 +1741,7 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
 
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   poly_foreign_insn_count_status();
