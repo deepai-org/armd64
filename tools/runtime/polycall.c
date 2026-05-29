@@ -1222,6 +1222,10 @@ static int resolve_direct_x86_register_import(const char *symbol_name,
     *import_id = POLY_IMPORT_FUNC_X86_FPAIR64;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_fpair32") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_FPAIR32;
+    return 0;
+  }
   if (strcmp(symbol_name, "poly_import_x86_mixed_u64_fp64") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT7;
     return 0;
@@ -2104,6 +2108,19 @@ static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
     (rs1 << 15) | (0x0U << 12) | (rd << 7) | 0x13U;
 }
 
+static uint32_t riscv_srli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
+  return ((shamt & 0x3fU) << 20) |
+    (rs1 << 15) | (0x5U << 12) | (rd << 7) | 0x13U;
+}
+
+static uint32_t riscv_fmv_x_d(uint32_t rd, uint32_t rs1) {
+  return (0x71U << 25) | (rs1 << 15) | (rd << 7) | 0x53U;
+}
+
+static uint32_t riscv_fmv_w_x(uint32_t rd, uint32_t rs1) {
+  return (0x78U << 25) | (rs1 << 15) | (rd << 7) | 0x53U;
+}
+
 static void emit_save_callee_regs(uint8_t *code, size_t *offset,
     uint64_t save_area) {
   emit_movabs_r10(code, offset, save_area);
@@ -2920,13 +2937,15 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
 }
 
 static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
-    size_t *stub_offset, int caller_arch, uint64_t target,
+    size_t *stub_offset, int caller_arch, uint64_t import_id, uint64_t target,
     uint64_t *stub_addr) {
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
 
   const size_t start = *stub_offset;
   const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
+  const int split_fp32_pair_return =
+    import_id == POLY_IMPORT_FUNC_X86_FPAIR32;
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 96)
@@ -2939,6 +2958,10 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
     emit_aarch64_movabs(stubs, stub_offset, 19, 1);
     emit_u32(stubs, stub_offset, 0xd5032f5fU); // aarch64 PCALL_SIG
+    if (split_fp32_pair_return) {
+      emit_u32(stubs, stub_offset, 0x0e0c3c09U); // umov w9, v0.s[1]
+      emit_u32(stubs, stub_offset, 0x1e270121U); // fmov s1, w9
+    }
     emit_u32(stubs, stub_offset, 0xf94003f3U); // ldr x19, [sp]
     emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
@@ -2961,6 +2984,11 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, riscv_addi(28, 0, 1)); // signature slot 1
     emit_u32(stubs, stub_offset, 0x1400700bU); // riscv PCALL_SIG
     const size_t return_pc = *stub_offset;
+    if (split_fp32_pair_return) {
+      emit_u32(stubs, stub_offset, riscv_fmv_x_d(5, 10)); // fmv.x.d t0,fa0
+      emit_u32(stubs, stub_offset, riscv_srli(5, 5, 32)); // srli t0,t0,32
+      emit_u32(stubs, stub_offset, riscv_fmv_w_x(11, 5)); // fmv.w.x fa1,t0
+    }
     emit_u32(stubs, stub_offset, 0x00008067U); // ret
     if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
       return -1;
@@ -5255,7 +5283,6 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_i128") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fpair32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64_stack") == 0 ||
@@ -7498,7 +7525,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         uint64_t stub_addr = 0;
         if (target == 0 ||
             emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
-              &cross_stub_offset, dep->arch, target, &stub_addr) < 0) {
+              &cross_stub_offset, dep->arch, dep->relocs[r].value,
+              target, &stub_addr) < 0) {
           fprintf(stderr, "POLYCALL_FAIL: dependency x86 direct import stub overflow: %s\n",
             dep->path);
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -7732,7 +7760,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       uint64_t stub_addr = 0;
       if (target == 0 ||
           emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
-            &cross_stub_offset, program->arch, target, &stub_addr) < 0) {
+            &cross_stub_offset, program->arch, program->relocs[n].value,
+            target, &stub_addr) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: x86 direct import stub overflow: %s\n",
           program->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
