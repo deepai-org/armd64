@@ -778,14 +778,9 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf12(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_CPUID_STATE_OVERLAP_GPRS |
-    POLY_CPUID_STATE_SYNTHETIC_BANKS |
-    POLY_CPUID_STATE_KEY_CR3 |
-    POLY_CPUID_STATE_KEY_FSBASE |
-    POLY_CPUID_STATE_KEY_STACK_REGION |
     POLY_CPUID_STATE_USER_RETURN_RESTORE |
     POLY_CPUID_STATE_X86_TSO |
     POLY_CPUID_STATE_XSAVE_VISIBLE |
-    POLY_CPUID_STATE_KEY_EXPLICIT |
     POLY_CPUID_STATE_TRANSITION_FRAME_32 |
     POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE |
     POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT |

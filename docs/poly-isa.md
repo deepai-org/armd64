@@ -17,6 +17,8 @@ Forward-looking design directions live in `docs/poly-isa-design-directions.md`.
 - Foreign register state is explicit XSAVE-style architectural state.
 - Foreign syscalls, breakpoints, illegal instructions, unsupported operations,
   and unresolved imports produce OS-neutral trap records.
+- Programmable ABI signature slots are register-only RAT mappings; stack and
+  aggregate ABI translation remains software thunk work.
 
 ## Frontend Transitions
 

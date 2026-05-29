@@ -1702,15 +1702,18 @@ int main(void) {
   raw_aarch64_state_seed_probe();
   raw_riscv_state_seed_probe();
   poly_state_export(&polyprobe_state);
+  const uint64_t expected_xsave_flags =
+    poly_cpuid_expected_arch_state_leaf().edx;
   if (polyprobe_state.header.magic != POLY_STATE_XSAVE_MAGIC ||
       polyprobe_state.header.layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION ||
       polyprobe_state.header.header_bytes != POLY_STATE_XSAVE_HEADER_BYTES ||
       polyprobe_state.header.total_bytes != sizeof(polyprobe_state) ||
-      (polyprobe_state.header.flags & POLY_STATE_XSAVE_FLAG_NO_HIDDEN_BANKS) == 0) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly state export header mismatch magic=0x%x version=%u header=%u bytes=%u flags=0x%llx\n",
+      polyprobe_state.header.flags != expected_xsave_flags) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly state export header mismatch magic=0x%x version=%u header=%u bytes=%u flags=0x%llx expected_flags=0x%llx\n",
       polyprobe_state.header.magic, polyprobe_state.header.layout_version,
       polyprobe_state.header.header_bytes, polyprobe_state.header.total_bytes,
-      (unsigned long long) polyprobe_state.header.flags);
+      (unsigned long long) polyprobe_state.header.flags,
+      (unsigned long long) expected_xsave_flags);
     return 1;
   }
   if (polyprobe_state.aarch64_gpr[19] != 0x1234 ||

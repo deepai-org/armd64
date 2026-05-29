@@ -15,6 +15,11 @@ architectural state, register-only ABI handoff, and native return recovery. It
 should not parse dynamic-linker descriptors, rewrite stack layouts, or know
 Linux, libc, dynamic linker policy, or helper-function semantics.
 
+The only intended reconfigurable ABI hardware is a semi-persistent register
+alias/signature slot bank. It may rebind architectural register names through
+rename/RAT state, but stack layouts, by-value aggregates, variadics, and other
+memory-side ABI work stay in software thunks.
+
 ## Generic Frontend IDs
 
 Avoid baking the ISA around pairwise x86-to-AArch64 and x86-to-RISC-V
