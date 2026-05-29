@@ -63,6 +63,13 @@ ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
 `x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine
 by exposing a small bank of register-only ABI signature slots.
 
+The design rule is narrow: semi-persistent, reconfigurable hardware is useful
+only for register renaming. It must not become a configurable stack or memory
+layout engine. Register aliasing fits the existing rename stage of an OoO CPU;
+stack repacking, by-value aggregate conversion, and variadic argument handling
+would require memory reads, memory writes, ABI policy, and page-fault-capable
+microcode in the transition path.
+
 The mechanism is a programmable register alias table (RAT) template. Modern
 OoO cores already rename architectural registers onto physical registers; a
 Poly ABI signature reuses that machinery by rebinding destination frontend
