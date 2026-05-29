@@ -233,6 +233,33 @@ where page faults, memory policy, and ABI-specific layout rules belong. The
 area cost is a small bank of signature registers, prevalidation logic, and
 rename-stage muxing, not a page-fault-capable ABI memory sequencer.
 
+The design should be evaluated as semi-persistent reconfigurable hardware, not
+as a dynamic marshalling engine. Register renaming is the useful hardware
+boundary because modern OoO CPUs already rename architectural registers through
+RAT state. A cached Poly signature can therefore make `RDI`, `RSI`, and `RDX`
+become AArch64 `x0`, `x1`, and `x2` by retargeting architectural names to
+existing physical registers. The data never moves through an execution unit.
+
+This only stays small and fast while it is limited to registers. Reconfiguring
+stack layouts, by-value structures, or variadic call state would require memory
+reads, memory writes, page-fault recovery, and ABI-specific microcode in the
+transition path. That is the line this ISA should not cross.
+
+The intended call-site shape is therefore:
+
+- Runtime or loader programs 4 to 8 ABI signature slots for common native ABI
+  pairs.
+- Hot calls use an immediate form such as `PCALL frontend, target, sig_imm`.
+- The frontend redirect selects the cached slot and the rename stage applies
+  the RAT template.
+- Calls with stack arguments, complex aggregates, variadics, lazy binding, or
+  incompatible vector layouts go through a software thunk first.
+
+This gives the common all-register case the hardware path while preserving a
+correct software path for the full native ABI. The hardware accelerates the
+90 percent case only when the live ABI state is already in registers; the
+loader/runtime owns the 10 percent case where memory layout must change.
+
 The resulting split is deliberate:
 
 | Case | Mechanism |
