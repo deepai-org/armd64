@@ -1757,7 +1757,6 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
 static uint64_t x86_descriptor_flags_for_import_id(int arch,
     uint64_t import_id) {
   switch (import_id) {
-    case POLY_IMPORT_FUNC_X86_SLOT5:
     case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
     case POLY_IMPORT_FUNC_X86_SUM10:
     case POLY_IMPORT_FUNC_X86_SUM14:
@@ -1833,7 +1832,6 @@ static uint64_t x86_descriptor_stack_arg_count_for_import_id(
       return 1;
     case POLY_IMPORT_FUNC_X86_SRET_U64_STACK10:
       return 5;
-    case POLY_IMPORT_FUNC_X86_SLOT5:
     case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
       return 2;
     default:
@@ -5447,8 +5445,7 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
   if (resolve_import_function(symbol_name, symbol_value) == 0) {
     if (strcmp(symbol_name, "__errno_location") == 0)
       program->needs_errno_location = 1;
-    if (strcmp(symbol_name, "poly_import_x86_sum8") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_sum10") == 0 ||
+    if (strcmp(symbol_name, "poly_import_x86_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sum14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||

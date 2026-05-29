@@ -225,6 +225,12 @@ and unusual vector conventions remain software responsibilities. The hardware
 sweet spot is cached register renaming; memory or stack repacking would make
 `PCALL` variable-latency and page-fault-capable.
 
+The practical rule is hybrid ABI translation. Hardware handles the common
+register-only case by selecting a semi-persistent signature slot and rebinding
+architectural names in rename/RAT state. Software thunks handle calls that need
+stack layout conversion, aggregate copying, variadic metadata, or other ABI
+memory policy, then use a simple `PCALL` for the final frontend transfer.
+
 The design rule is strict: hardware can reconfigure register names, not memory
 layouts. If the transition needs stack argument repacking, aggregate splitting,
 variadic metadata, or PLT/GOT policy, a software thunk performs that work and

@@ -69,6 +69,15 @@ already needs for rename, while reconfiguring stack or memory layouts would turn
 `PCALL` into a variable-latency memory operation with page-fault and recovery
 complexity.
 
+The hardware/software split is therefore strict:
+
+- Hardware handles the all-register fast path by selecting a cached signature
+  slot and rebinding architectural names in the RAT.
+- Software handles stack arguments, aggregate layout, variadics, lazy binding,
+  and any ABI rule that requires memory inspection or rewriting.
+- A software thunk can still finish with `PCALL` using an identity, null, or
+  simple register signature after it has completed the memory-side ABI work.
+
 The intended concrete mechanism is a Poly ABI Signature Register backed by a
 small slot bank. The runtime or loader programs each slot with a standard
 register-only ABI pair, for example SysV x86_64 to AAPCS64. A hot `PCALL`
@@ -125,6 +134,11 @@ programs common mappings once, such as SysV-to-AAPCS64, AAPCS64-to-SysV,
 SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. Hot call sites then encode only
 the target frontend, target PC, and signature slot. A rare mapping can either
 reuse a cold slot outside the hot path or fall back to a software thunk.
+
+This is the silicon-realistic sweet spot: common precompiled functions whose
+arguments and returns fit in integer or FP registers can cross frontends without
+software move thunks, while uncommon or layout-heavy calls pay the software
+translation cost outside the CPU pipeline.
 
 The preferred hot encoding is therefore `PCALL frontend, target, signature_slot`
 or an equivalent immediate-slot form. The instruction must not point at a
