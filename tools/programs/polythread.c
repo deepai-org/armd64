@@ -19,6 +19,7 @@
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
+#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
 
 enum {
   POLYTHREAD_THREADS = 4,
@@ -231,6 +232,50 @@ static uint64_t pcall_riscv_busy(uint64_t seed) {
     : "=a"(result), "+D"(arg0), "+S"(arg1)
     :
     : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
+static uint64_t pcall_sig_imm_aarch64_add1(uint64_t seed) {
+  uint64_t result;
+  uint64_t arg0 = seed;
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %2, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0x91000400\n" // add x0,x0,#1
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    : "=a"(result), "+D"(arg0)
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
+  return result;
+}
+
+static uint64_t pcall_sig_imm_riscv_add1(uint64_t seed) {
+  uint64_t result;
+  uint64_t arg0 = seed;
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r15\n"
+    "movq %2, %%r15\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0x00150513\n" // addi a0,a0,1
+    ".long 0x00008067\n" // ret
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%rbx\n"
+    : "=a"(result), "+D"(arg0)
+    : "i"(POLY_FRONTEND_RISCV)
+    : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
   return result;
 }
 
@@ -659,6 +704,37 @@ static void *worker_main(void *arg) {
   uint64_t state_key = 0x504f4c5954480000ULL + worker_id + 1;
 
   if (wait_for_workers(worker_id, "start") != 0)
+    return (void *) 1;
+
+  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS,
+      POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu native ABI signature setup failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  uint64_t sig_imm_seed = base + 0x12000ULL;
+  uint64_t sig_imm_aarch64_result =
+    pcall_sig_imm_aarch64_add1(sig_imm_seed);
+  if (sig_imm_aarch64_result != sig_imm_seed + 1) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu sig-imm aarch64 got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) sig_imm_aarch64_result,
+      (unsigned long long) (sig_imm_seed + 1));
+    return (void *) 1;
+  }
+  uint64_t sig_imm_riscv_result =
+    pcall_sig_imm_riscv_add1(sig_imm_seed + 1);
+  if (sig_imm_riscv_result != sig_imm_seed + 2) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu sig-imm riscv got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) sig_imm_riscv_result,
+      (unsigned long long) (sig_imm_seed + 2));
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "native-sig-imm-pcall") != 0)
     return (void *) 1;
 
   uint64_t default_aarch64_seed = base + 0x20000ULL;
