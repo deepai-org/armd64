@@ -275,8 +275,11 @@ both descriptor-backed import targets in the reserved import range and direct
 x86 targets. Direct signature calls select a cached register-only slot before
 entering x86. The CPU places a hardware return cookie on the x86 stack, and
 ordinary x86 `ret` consumes that cookie to restore the foreign frontend and
-continuation. Software thunks still own ABI and loader policy while the CPU
-control path stays frontend-neutral.
+continuation. The source frontend stack pointer is exposed to x86 in volatile
+`R11`, giving software thunks enough information to copy overflow stack
+arguments without making `PCALL` parse descriptors or rewrite memory. Software
+thunks still own ABI and loader policy while the CPU control path stays
+frontend-neutral.
 
 ## Register Exchange Window
 

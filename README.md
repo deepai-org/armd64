@@ -37,6 +37,9 @@ Other useful targets:
   windows. Fixed 128-bit vector calls can also stay on the direct path when
   both ABIs use SIMD/vector registers. Stack, aggregate, variadic, ABI
   reshaping, and loader policy stays in software.
+- Direct x86 calls expose the source frontend stack pointer in volatile `R11`
+  so user-space thunks can marshal overflow stack arguments without CPU
+  descriptor parsing.
 - Hot signature calls encode the slot in the control instruction where
   possible, so foreign callers do not need an extra temporary-register move
   before the frontend switch.

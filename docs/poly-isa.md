@@ -231,6 +231,11 @@ architectural names in rename/RAT state. Software thunks handle calls that need
 stack layout conversion, aggregate copying, variadic metadata, or other ABI
 memory policy, then use a simple `PCALL` for the final frontend transfer.
 
+When a direct `PCALL` enters x86_64, the Bochs prototype places the source
+frontend stack pointer in volatile `R11`. This gives user-space x86 thunks a
+fixed way to copy overflow stack arguments from the caller ABI into an x86 SysV
+call frame without asking the CPU to parse descriptors or repack memory.
+
 The design rule is strict: hardware can reconfigure register names, not memory
 layouts. If the transition needs stack argument repacking, aggregate splitting,
 variadic metadata, or PLT/GOT policy, a software thunk performs that work and

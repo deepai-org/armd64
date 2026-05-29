@@ -1280,6 +1280,18 @@ static int resolve_direct_x86_register_import(int arch,
     *import_id = POLY_IMPORT_FUNC_X86_SLOT5;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_sum10") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SUM10;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_sum14") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SUM14;
+    return 0;
+  }
+  if (strcmp(symbol_name, "poly_import_x86_align14") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_ALIGN14;
+    return 0;
+  }
   if (strcmp(symbol_name, "poly_import_x86_fp64_add") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT3;
     return 0;
@@ -2151,6 +2163,33 @@ static void emit_movabs_r12(uint8_t *code, size_t *offset, uint64_t value) {
   code[(*offset)++] = 0x49;
   code[(*offset)++] = 0xbc;
   emit_u64(code, offset, value);
+}
+
+static void emit_x86_mov_mrsp_disp8_r9(uint8_t *code, size_t *offset,
+    uint8_t disp) {
+  code[(*offset)++] = 0x4c;
+  code[(*offset)++] = 0x89;
+  code[(*offset)++] = 0x4c;
+  code[(*offset)++] = 0x24;
+  code[(*offset)++] = disp;
+}
+
+static void emit_x86_mov_mrsp_disp8_r10(uint8_t *code, size_t *offset,
+    uint8_t disp) {
+  code[(*offset)++] = 0x4c;
+  code[(*offset)++] = 0x89;
+  code[(*offset)++] = 0x54;
+  code[(*offset)++] = 0x24;
+  code[(*offset)++] = disp;
+}
+
+static void emit_x86_mov_mrsp_disp8_r9_from_r11(uint8_t *code,
+    size_t *offset, uint8_t source_disp, uint8_t dest_disp) {
+  code[(*offset)++] = 0x4d; // mov r9,[r11+source_disp]
+  code[(*offset)++] = 0x8b;
+  code[(*offset)++] = 0x4b;
+  code[(*offset)++] = source_disp;
+  emit_x86_mov_mrsp_disp8_r9(code, offset, dest_disp);
 }
 
 static void emit_movabs_r13(uint8_t *code, size_t *offset, uint64_t value) {
@@ -3050,30 +3089,36 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
 
-  const int needs_sum8_x86_thunk = import_id == POLY_IMPORT_FUNC_X86_SLOT5;
+  uint32_t int_stack_arg_count = 0;
+  if (import_id == POLY_IMPORT_FUNC_X86_SLOT5)
+    int_stack_arg_count = 2;
+  else if (import_id == POLY_IMPORT_FUNC_X86_SUM10)
+    int_stack_arg_count = 4;
+  else if (import_id == POLY_IMPORT_FUNC_X86_SUM14 ||
+      import_id == POLY_IMPORT_FUNC_X86_ALIGN14)
+    int_stack_arg_count = 8;
+  const int needs_int_stack_x86_thunk = int_stack_arg_count != 0;
   const int needs_riscv_vec128_x86_thunk =
     caller_arch == POLY_ARCH_RISCV &&
     import_id == POLY_IMPORT_FUNC_X86_VEC128_U32;
   const int needs_x86_thunk =
-    needs_sum8_x86_thunk || needs_riscv_vec128_x86_thunk;
+    needs_int_stack_x86_thunk || needs_riscv_vec128_x86_thunk;
   uint64_t x86_thunk_addr = 0;
-  if (needs_sum8_x86_thunk) {
-    if (stub_limit - *stub_offset < 96)
+  if (needs_int_stack_x86_thunk) {
+    if (stub_limit - *stub_offset < 160)
       return -1;
     x86_thunk_addr = (uint64_t) (uintptr_t) (stubs + *stub_offset);
-    stubs[(*stub_offset)++] = 0x48; // sub rsp,24: align and reserve two stack args.
+    const uint8_t stack_bytes = (uint8_t) (int_stack_arg_count * 8 + 8);
+    stubs[(*stub_offset)++] = 0x48; // sub rsp: align and reserve stack args.
     stubs[(*stub_offset)++] = 0x83;
     stubs[(*stub_offset)++] = 0xec;
-    stubs[(*stub_offset)++] = 0x18;
-    stubs[(*stub_offset)++] = 0x4c; // mov [rsp],r9
-    stubs[(*stub_offset)++] = 0x89;
-    stubs[(*stub_offset)++] = 0x0c;
-    stubs[(*stub_offset)++] = 0x24;
-    stubs[(*stub_offset)++] = 0x4c; // mov [rsp+8],r10
-    stubs[(*stub_offset)++] = 0x89;
-    stubs[(*stub_offset)++] = 0x54;
-    stubs[(*stub_offset)++] = 0x24;
-    stubs[(*stub_offset)++] = 0x08;
+    stubs[(*stub_offset)++] = stack_bytes;
+    emit_x86_mov_mrsp_disp8_r9(stubs, stub_offset, 0);
+    emit_x86_mov_mrsp_disp8_r10(stubs, stub_offset, 8);
+    for (uint32_t n = 2; n < int_stack_arg_count; n++) {
+      emit_x86_mov_mrsp_disp8_r9_from_r11(stubs, stub_offset,
+        (uint8_t) ((n - 2) * 8), (uint8_t) (n * 8));
+    }
     stubs[(*stub_offset)++] = 0x49; // mov r10,rdi
     stubs[(*stub_offset)++] = 0x89;
     stubs[(*stub_offset)++] = 0xfa;
@@ -3105,10 +3150,10 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     stubs[(*stub_offset)++] = 0x41; // call r11
     stubs[(*stub_offset)++] = 0xff;
     stubs[(*stub_offset)++] = 0xd3;
-    stubs[(*stub_offset)++] = 0x48; // add rsp,24
+    stubs[(*stub_offset)++] = 0x48; // add rsp
     stubs[(*stub_offset)++] = 0x83;
     stubs[(*stub_offset)++] = 0xc4;
-    stubs[(*stub_offset)++] = 0x18;
+    stubs[(*stub_offset)++] = stack_bytes;
     stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
   }
   else if (needs_riscv_vec128_x86_thunk) {
@@ -3187,7 +3232,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   const int split_fp32_pair_return =
     import_id == POLY_IMPORT_FUNC_X86_FPAIR32;
   const uint32_t signature_slot =
-    needs_sum8_x86_thunk ? contract->signature_slot_exchange :
+    needs_int_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_riscv_vec128_x86_thunk ?
       contract->signature_slot_x86_sysv_regs_i128 :
     import_id == POLY_IMPORT_FUNC_X86_I128 ?
@@ -5530,10 +5575,7 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
   if (resolve_import_function(symbol_name, symbol_value) == 0) {
     if (strcmp(symbol_name, "__errno_location") == 0)
       program->needs_errno_location = 1;
-    if (strcmp(symbol_name, "poly_import_x86_sum10") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_sum14") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
+    if (strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64_stack") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64_stack10") == 0 ||
