@@ -155,6 +155,16 @@ uint64_t poly_process_tls_trad_dep_add(uint64_t left, uint64_t right) {
   return poly_process_tls_trad_dep_counter;
 }
 
+#elif defined(POLY_PROCESS_COPY_DEP)
+
+__attribute__((visibility("default")))
+uint64_t poly_process_copy_value = 0x123456789abcdef0ULL;
+
+__attribute__((visibility("default")))
+uint64_t poly_process_copy_ping(void) {
+  return poly_process_copy_value;
+}
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
@@ -186,6 +196,8 @@ extern uint64_t poly_process_tls_default_dep_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_TLS_TRAD_DEP_MAIN)
 extern __thread uint64_t poly_process_tls_trad_dep_counter;
 extern uint64_t poly_process_tls_trad_dep_add(uint64_t, uint64_t);
+#elif defined(POLY_PROCESS_COPY_MAIN)
+extern uint64_t poly_process_copy_value;
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_IFUNC_MAIN)
@@ -348,6 +360,13 @@ uint64_t poly_process_main(void) {
       poly_process_tls_trad_dep_counter != 0x103)
     return 40;
   static const char marker[] = "POLY_PROCESS_DEP_TLS_TRAD_OK\n";
+#elif defined(POLY_PROCESS_COPY_MAIN)
+  if (poly_process_copy_value != 0x123456789abcdef0ULL)
+    return 41;
+  poly_process_copy_value += 0x10;
+  if (poly_process_copy_value != 0x123456789abcdf00ULL)
+    return 43;
+  static const char marker[] = "POLY_PROCESS_COPY_RELOC_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;

@@ -45,6 +45,10 @@ extern char **environ;
 #define R_AARCH64_JUMP_SLOT 1026
 #endif
 
+#ifndef R_AARCH64_COPY
+#define R_AARCH64_COPY 1024
+#endif
+
 #ifndef R_AARCH64_IRELATIVE
 #define R_AARCH64_IRELATIVE 1032
 #endif
@@ -71,6 +75,10 @@ extern char **environ;
 
 #ifndef R_RISCV_RELATIVE
 #define R_RISCV_RELATIVE 3
+#endif
+
+#ifndef R_RISCV_COPY
+#define R_RISCV_COPY 4
 #endif
 
 #ifndef R_RISCV_64
@@ -593,6 +601,14 @@ static uint32_t none_reloc_type_for_arch(int arch) {
   return UINT32_MAX;
 }
 
+static uint32_t copy_reloc_type_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return R_AARCH64_COPY;
+  if (arch == POLY_ARCH_RISCV)
+    return R_RISCV_COPY;
+  return UINT32_MAX;
+}
+
 static int elf_vaddr_to_image_offset(const struct poly_program *program,
     uint64_t vaddr, uint64_t size, size_t *offset) {
   if (vaddr < program->base_vaddr || vaddr > UINT64_MAX - size)
@@ -737,6 +753,39 @@ static int dynamic_symbol_name_by_index(const struct poly_program *program,
   *symbol_name = (const char *) (loaded_image + strtab_offset + sym->st_name);
   if (symbol_info)
     *symbol_info = sym->st_info;
+  return 0;
+}
+
+static int dynamic_symbol_by_index(const struct poly_program *program,
+    const uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
+    uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
+    uint64_t gnu_hash_vaddr, uint64_t symbol_index, const Elf64_Sym **symbol,
+    const char **symbol_name) {
+  size_t symbol_count = 0;
+  if (!symtab_vaddr || !strtab_vaddr || !strsz ||
+      syment < sizeof(Elf64_Sym) ||
+      dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
+        syment, hash_vaddr, gnu_hash_vaddr, &symbol_count) < 0 ||
+      symbol_index >= symbol_count)
+    return -1;
+
+  size_t symtab_offset = 0;
+  const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, symtab_size,
+        &symtab_offset) < 0)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+
+  const Elf64_Sym *sym = (const Elf64_Sym *) (loaded_image + symtab_offset +
+    symbol_index * syment);
+  if (sym->st_name >= strsz)
+    return -1;
+  *symbol = sym;
+  *symbol_name = (const char *) (loaded_image + strtab_offset + sym->st_name);
   return 0;
 }
 
@@ -1151,6 +1200,88 @@ static int resolve_loaded_dependency_tls_symbol(
     requested_version, tls_offset, 0);
 }
 
+static int resolve_loaded_program_object_symbol_ex(
+    const struct poly_program *program, const uint8_t *loaded_image,
+    const char *symbol_name, const char *requested_version,
+    uint64_t *symbol_vaddr, size_t *symbol_size) {
+  uint64_t symtab_vaddr = 0, strtab_vaddr = 0, strsz = 0;
+  uint64_t syment = sizeof(Elf64_Sym), hash_vaddr = 0, gnu_hash_vaddr = 0;
+  if (dynamic_symbol_table_info(program, loaded_image, &symtab_vaddr,
+        &strtab_vaddr, &strsz, &syment, &hash_vaddr, &gnu_hash_vaddr) < 0)
+    return -1;
+
+  size_t symbol_count = 0;
+  if (dynamic_symbol_count_from_hash(program, loaded_image, symtab_vaddr,
+        syment, hash_vaddr, gnu_hash_vaddr, &symbol_count) < 0)
+    return -1;
+
+  size_t symtab_offset = 0;
+  const uint64_t symtab_size = (uint64_t) symbol_count * syment;
+  if (elf_vaddr_to_image_offset(program, symtab_vaddr, symtab_size,
+        &symtab_offset) < 0)
+    return -1;
+
+  size_t strtab_offset = 0;
+  if (elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+        &strtab_offset) < 0)
+    return -1;
+
+  for (size_t index = 0; index < symbol_count; index++) {
+    const Elf64_Sym *sym = (const Elf64_Sym *) (loaded_image +
+      symtab_offset + (uint64_t) index * syment);
+    if (sym->st_name >= strsz || !symbol_is_dependency_export(sym))
+      continue;
+    const uint8_t type = ELF64_ST_TYPE(sym->st_info);
+    if (type != STT_OBJECT && type != STT_NOTYPE)
+      continue;
+    const char *name = (const char *) (loaded_image + strtab_offset +
+      sym->st_name);
+    if (strcmp(name, symbol_name) != 0)
+      continue;
+    if (!symbol_definition_matches_version(program, loaded_image, strtab_vaddr,
+          strsz, index, requested_version))
+      continue;
+    *symbol_vaddr = sym->st_value;
+    *symbol_size = (size_t) sym->st_size;
+    return 0;
+  }
+  return -1;
+}
+
+static int resolve_loaded_dependency_object_symbol_at_depth(
+    const struct poly_program *program, const char *symbol_name,
+    const char *requested_version, const struct poly_process_dependency **source_dep,
+    uint64_t *source_vaddr, size_t *source_size, size_t depth) {
+  if (depth >= MAX_PROCESS_DEP_DEPTH)
+    return -1;
+
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_process_dependency *dep = &program->deps[d];
+    if (!dep->program || !dep->loaded_image)
+      continue;
+
+    if (resolve_loaded_program_object_symbol_ex(dep->program,
+          dep->loaded_image, symbol_name, requested_version, source_vaddr,
+          source_size) == 0) {
+      *source_dep = dep;
+      return 0;
+    }
+    if (resolve_loaded_dependency_object_symbol_at_depth(dep->program,
+          symbol_name, requested_version, source_dep, source_vaddr,
+          source_size, depth + 1) == 0)
+      return 0;
+  }
+  return -1;
+}
+
+static int resolve_loaded_dependency_object_symbol(
+    const struct poly_program *program, const char *symbol_name,
+    const char *requested_version, const struct poly_process_dependency **source_dep,
+    uint64_t *source_vaddr, size_t *source_size) {
+  return resolve_loaded_dependency_object_symbol_at_depth(program, symbol_name,
+    requested_version, source_dep, source_vaddr, source_size, 0);
+}
+
 static int resolve_root_scope_symbol(const struct poly_program *program,
     const char *symbol_name, const char *requested_version,
     uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
@@ -1232,6 +1363,49 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
     return 0;
   }
   return -1;
+}
+
+static int apply_process_copy_relocation(const struct poly_program *program,
+    uint8_t *loaded_image, uint64_t symtab_vaddr, uint64_t strtab_vaddr,
+    uint64_t strsz, uint64_t syment, uint64_t hash_vaddr,
+    uint64_t gnu_hash_vaddr, uint64_t symbol_index, uint64_t target_vaddr) {
+  const Elf64_Sym *target_sym = NULL;
+  const char *symbol_name = NULL;
+  if (dynamic_symbol_by_index(program, loaded_image, symtab_vaddr,
+        strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
+        symbol_index, &target_sym, &symbol_name) < 0)
+    return -1;
+
+  const char *requested_version = NULL;
+  if (relocation_requested_version_name(program, loaded_image, strtab_vaddr,
+        strsz, symbol_index, &requested_version) < 0)
+    return -1;
+
+  const struct poly_process_dependency *source_dep = NULL;
+  uint64_t source_vaddr = 0;
+  size_t source_size = 0;
+  if (resolve_loaded_dependency_object_symbol(program, symbol_name,
+        requested_version, &source_dep, &source_vaddr, &source_size) < 0)
+    return -1;
+
+  const size_t copy_size = target_sym->st_size ?
+    (size_t) target_sym->st_size : source_size;
+  if (copy_size == 0 || (source_size != 0 && copy_size > source_size))
+    return -1;
+
+  size_t target_offset = 0;
+  if (elf_vaddr_to_image_offset(program, target_vaddr, copy_size,
+        &target_offset) < 0)
+    return -1;
+
+  size_t source_offset = 0;
+  if (elf_vaddr_to_image_offset(source_dep->program, source_vaddr, copy_size,
+        &source_offset) < 0)
+    return -1;
+
+  memcpy(loaded_image + target_offset, source_dep->loaded_image + source_offset,
+    copy_size);
+  return 0;
 }
 
 static int resolve_process_tls_reloc_symbol(const struct poly_program *program,
@@ -3277,6 +3451,7 @@ static int apply_relative_relocations(const struct poly_program *program,
   const uint32_t irelative_type = irelative_reloc_type_for_arch(program->arch);
   const uint32_t tls_tprel_type = tls_tprel_reloc_type_for_arch(program->arch);
   const uint32_t none_type = none_reloc_type_for_arch(program->arch);
+  const uint32_t copy_type = copy_reloc_type_for_arch(program->arch);
   const uint32_t tlsdesc_type = program->arch == POLY_ARCH_AARCH64 ?
     R_AARCH64_TLSDESC : UINT32_MAX;
   const uint32_t tls_dtpmod_type = program->arch == POLY_ARCH_AARCH64 ?
@@ -3298,6 +3473,13 @@ static int apply_relative_relocations(const struct poly_program *program,
       const uint32_t reloc_type = ELF64_R_TYPE(rela->r_info);
       if (reloc_type == none_type)
         continue;
+      if (symbol_index != 0 && reloc_type == copy_type) {
+        if (apply_process_copy_relocation(program, loaded_image, symtab_vaddr,
+              strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
+              symbol_index, rela->r_offset) < 0)
+          return -1;
+        continue;
+      }
       size_t target = 0;
       if (elf_vaddr_to_image_offset(program, rela->r_offset, 8, &target) < 0)
         return -1;
@@ -3391,6 +3573,13 @@ static int apply_relative_relocations(const struct poly_program *program,
       const uint32_t reloc_type = ELF64_R_TYPE(rel->r_info);
       if (reloc_type == none_type)
         continue;
+      if (symbol_index != 0 && reloc_type == copy_type) {
+        if (apply_process_copy_relocation(program, loaded_image, symtab_vaddr,
+              strtab_vaddr, strsz, syment, hash_vaddr, gnu_hash_vaddr,
+              symbol_index, rel->r_offset) < 0)
+          return -1;
+        continue;
+      }
       size_t target = 0;
       if (elf_vaddr_to_image_offset(program, rel->r_offset, 8, &target) < 0)
         return -1;
