@@ -7894,9 +7894,17 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
       fi
       if [[ "$RUN_POLY_ARCH_TRAP_EXEC" == "1" ]]; then
         if ! grep -q "POLY_ARCH_TRAP_EXEC_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
