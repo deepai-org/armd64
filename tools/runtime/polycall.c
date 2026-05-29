@@ -1308,6 +1308,10 @@ static int resolve_direct_x86_register_import(int arch,
     *import_id = POLY_IMPORT_FUNC_X86_I128;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_sret_u64") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SRET_U64;
+    return 0;
+  }
   if ((arch == POLY_ARCH_AARCH64 || arch == POLY_ARCH_RISCV) &&
       strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_VEC128_U32;
@@ -3193,7 +3197,16 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 96)
       return -1;
-    const uint64_t return_addr = start_addr + 52;
+    const int needs_aarch64_sret_arg_shift =
+      import_id == POLY_IMPORT_FUNC_X86_SRET_U64;
+    const uint64_t return_addr =
+      start_addr + 52 + (needs_aarch64_sret_arg_shift ? 16 : 0);
+    if (needs_aarch64_sret_arg_shift) {
+      emit_u32(stubs, stub_offset, 0xaa0203e3U); // mov x3,x2
+      emit_u32(stubs, stub_offset, 0xaa0103e2U); // mov x2,x1
+      emit_u32(stubs, stub_offset, 0xaa0003e1U); // mov x1,x0
+      emit_u32(stubs, stub_offset, 0xaa0803e0U); // mov x0,x8 (sret pointer)
+    }
     emit_aarch64_movabs(stubs, stub_offset, 16, pcall_target);
     emit_aarch64_movabs(stubs, stub_offset, 17, 0);
     emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
@@ -5522,7 +5535,6 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
         strcmp(symbol_name, "poly_import_x86_align14") == 0 ||
         strcmp(symbol_name, "poly_import_x86_fp64_sum10") == 0 ||
         strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
-        strcmp(symbol_name, "poly_import_x86_sret_u64") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64_stack") == 0 ||
         strcmp(symbol_name, "poly_import_x86_sret_u64_stack10") == 0 ||
         import_symbol_uses_x86_descriptor(symbol_name))
