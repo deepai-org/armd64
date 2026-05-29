@@ -2126,6 +2126,62 @@ uint64_t POLY_HOST_HELPER poly_host_x86_strtoull(const uint8_t *text,
   return poly_host_x86_strtoul(text, endptr, base);
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_isdigit(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return byte >= '0' && byte <= '9';
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_islower(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return byte >= 'a' && byte <= 'z';
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_isupper(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return byte >= 'A' && byte <= 'Z';
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_isalpha(uint64_t value)
+{
+  return poly_host_x86_islower(value) || poly_host_x86_isupper(value);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_isalnum(uint64_t value)
+{
+  return poly_host_x86_isalpha(value) || poly_host_x86_isdigit(value);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_isspace(uint64_t value)
+{
+  return poly_host_x86_is_space((uint8_t) value);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_isxdigit(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  return poly_host_x86_isdigit(byte) || (byte >= 'a' && byte <= 'f') ||
+    (byte >= 'A' && byte <= 'F');
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_tolower(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  if (byte >= 'A' && byte <= 'Z')
+    return (uint64_t) (byte - 'A' + 'a');
+  return (uint64_t) byte;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_toupper(uint64_t value)
+{
+  uint8_t byte = (uint8_t) value;
+  if (byte >= 'a' && byte <= 'z')
+    return (uint64_t) (byte - 'a' + 'A');
+  return (uint64_t) byte;
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_bcopy(const uint8_t *src,
     uint8_t *dest, uint64_t size)
 {
