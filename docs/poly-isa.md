@@ -96,6 +96,23 @@ overflow stack arguments, by-value structs, variadics, stack realignment,
 lazy-binding policy, and any conversion that would require memory reads or
 writes during the transition.
 
+The silicon reason for this boundary is that register-only ABI translation can
+reuse machinery that an out-of-order core already has. Architectural registers
+such as x86_64 `RDI` or AArch64 `x0` are rename-table entries pointing at
+physical registers. A cached Poly ABI signature is therefore a small RAT
+template: on `PCALL`, the rename stage can make target ABI names point at the
+physical registers that already hold the source ABI arguments. No integer or FP
+move instructions are dispatched, and no stack memory is inspected.
+
+This is intentionally semi-persistent hardware state, not per-call metadata.
+The runtime programs signature slots at load time, link time, or lazy binding
+time. A hot call uses `PCALL ... sig_imm` to select one prevalidated slot. The
+fast path is deterministic: frontend redirect, return-cookie setup, and
+rename-map rebinding. Calls that need stack arguments, by-value aggregate
+repacking, variadic handling, or incompatible vector layout must still enter a
+software thunk. That thunk performs the memory-side ABI work and then finishes
+with a null, identity, or simple register signature.
+
 The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
 `R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V
 enter controls.
