@@ -158,6 +158,11 @@ CPUID leaf `0x40000002`, subleaf `6` reports foreign generic frontend controls:
 `EDX=RISC-V PCALL`. CPUID leaf `0x40000008`, subleaf `1` reports the
 architectural frontend IDs: `EAX=x86_64`, `EBX=AArch64`, `ECX=RISC-V64`, and
 `EDX` as the supported frontend-ID bitmask.
+CPUID leaf `0x40000009`, subleaf `0` reports ABI bridge capabilities. `EBX`
+advertises register-only ABI signature slots, ordinary native return-cookie
+returns, 128-bit fixed-vector lanes, and explicit native two-GPR integer return
+signature support. Descriptor imports are intentionally not advertised as a
+hardware ABI bridge capability.
 CPUID leaf `0x40000002`, subleaf `7` reports the preferred x86 immediate-slot
 generic `PCALL` subop in `EAX`, the ABI signature-slot count in `EBX`, and the
 preferred hot slot manifest. `ECX` packs slot IDs as exchange, x86 SysV
