@@ -309,7 +309,10 @@ static const uint32_t POLY_CPUID_REQUIRED_FEATURES =
 
 enum {
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS = 2,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128 = 3,
+  POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS = 1,
+  POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128 = 2,
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
   POLY_IMPORT_FUNC_RESERVED_LEGACY_X86_ADD = 2,
@@ -815,6 +818,28 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
   contract->x86_slot0 = descriptor.eax;
   contract->x86_slot_count = descriptor.ebx;
   contract->x86_descriptor_size = descriptor.ecx;
+  return 0;
+}
+
+static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t rax = slot;
+  uint64_t rdx = kind;
+  asm volatile(".byte 0x0f,0x3a,0xfc,0x69\n"
+      : "+a"(rax), "+d"(rdx)
+      :
+      : "memory");
+  return rax;
+}
+
+static int program_hot_abi_signature_slots(void) {
+  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
+      poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: CPU ABI signature slot programming failed\n");
+    return -1;
+  }
   return 0;
 }
 
@@ -2931,8 +2956,8 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     }
     else {
       emit_u32(stubs, stub_offset, 0xff010113U); // addi sp,sp,-16
-      emit_u32(stubs, stub_offset, riscv_ld(7, 2, 16)); // ld t2,16(sp)
-      emit_u32(stubs, stub_offset, riscv_sd(7, 2, 0)); // sd t2,0(sp)
+      emit_u32(stubs, stub_offset, riscv_ld(29, 2, 16)); // ld t4,16(sp)
+      emit_u32(stubs, stub_offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
       emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
     }
     if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
@@ -2983,7 +3008,9 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   const int split_fp32_pair_return =
     import_id == POLY_IMPORT_FUNC_X86_FPAIR32;
   const uint32_t signature_slot =
-    import_id == POLY_IMPORT_FUNC_X86_I128 ? 2U : 1U;
+    import_id == POLY_IMPORT_FUNC_X86_I128 ?
+      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128 :
+      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS;
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 96)
@@ -7242,6 +7269,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (read_poly_base_contract() < 0)
     return -1;
   if (read_poly_abi_bridge_contract(&import_contract) < 0)
+    return -1;
+  if (program_hot_abi_signature_slots() < 0)
     return -1;
   if (needs_x86_import && read_poly_import_contract(&import_contract) < 0)
     return -1;
