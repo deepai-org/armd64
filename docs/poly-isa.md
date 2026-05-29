@@ -177,10 +177,15 @@ remap source architectural registers onto destination architectural registers
 through rename/RAT state, without moving data and without reading memory.
 
 These slots are semi-persistent hardware control state, typically programmed by
-the loader or runtime and reused by many call sites. A final `PCALL` names the
-target frontend, target PC, and signature slot, preferably as an immediate; the
-CPU applies the cached register map in the rename path instead of executing
-move instructions.
+the loader or runtime and reused by many call sites. A final hot-path `PCALL`
+names only the target frontend, target PC, and signature slot, preferably as an
+immediate. The CPU applies the cached register map in the rename path instead
+of executing move instructions.
+
+This is more flexible than a single fixed exchange-window alias. The loader can
+program one slot for SysV x86_64 argument registers to AAPCS64 `x0..x7`,
+another for the reverse direction, and another for RISC-V psABI. Hot call sites
+then select the slot instead of running a register-shuffle thunk.
 
 The slot bank is explicit Poly architectural state. In the Bochs prototype it
 is saved and restored by the Poly XSAVE component, not stored in a process-wide
@@ -216,6 +221,11 @@ thunk-free: stack arguments, by-value aggregate layout, variadics, lazy binding,
 and unusual vector conventions remain software responsibilities. The hardware
 sweet spot is cached register renaming; memory or stack repacking would make
 `PCALL` variable-latency and page-fault-capable.
+
+The design rule is strict: hardware can reconfigure register names, not memory
+layouts. If the transition needs stack argument repacking, aggregate splitting,
+variadic metadata, or PLT/GOT policy, a software thunk performs that work and
+then uses a null, identity, or simple register signature for the final `PCALL`.
 
 Applying a signature is a fixed-latency control operation. It does not read a
 descriptor, touch the user stack, allocate temporary architectural registers, or

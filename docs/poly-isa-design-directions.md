@@ -94,6 +94,14 @@ selects a cached signature slot and applies those mappings in or near the
 rename stage. The data does not move through integer or FP execution pipes; only
 the architectural names are rebound to existing physical registers.
 
+This is intentionally different from defining one fixed physical register file
+where, for example, x86_64 `RDI` always aliases AArch64 `x0`. Fixed aliases are
+simple, but they only fit one ABI ordering well. A programmable RAT signature
+lets the same silicon support multiple common precompiled-code pairings:
+SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and their return paths.
+The runtime pays the setup cost when programming the slot, while hot call sites
+pay only the frontend redirect and cached rename-map selection.
+
 The precise-exception rule should stay simple: an invalid slot traps before
 changing frontend mode or architectural PC, while a valid slot cannot fault
 because it performs no memory access. RAT ownership, physical-register lifetime,
@@ -117,6 +125,13 @@ programs common mappings once, such as SysV-to-AAPCS64, AAPCS64-to-SysV,
 SysV-to-RISC-V psABI, and RISC-V psABI-to-SysV. Hot call sites then encode only
 the target frontend, target PC, and signature slot. A rare mapping can either
 reuse a cold slot outside the hot path or fall back to a software thunk.
+
+The preferred hot encoding is therefore `PCALL frontend, target, signature_slot`
+or an equivalent immediate-slot form. The instruction must not point at a
+user-memory descriptor and must not carry a dynamic bitmask for hardware to
+interpret at the call site. If a symbol needs a custom register arrangement, the
+loader can program a cold slot before patching or entering that call path; if it
+needs memory layout conversion, the loader emits a thunk.
 
 This is hardware-assisted thunk elision, not hardware ABI interpretation. The
 architectural contract for applying a signature is branch-like:
@@ -170,6 +185,13 @@ This is the intended "90/10" split: hot calls whose arguments and returns fit in
 native ABI registers should avoid thunks entirely through RAT remapping, while
 the uncommon stack, aggregate, vector, or variadic cases stay in software where
 memory access and policy belong.
+
+Put another way, the hardware should remove thunks that only shuffle registers.
+It should not attempt to remove thunks whose job is ABI memory semantics. Stack
+overflow arguments, by-value structs, variadic save areas, PLT/GOT policy, and
+lazy binding are all observable software ABI contracts; putting them in `PCALL`
+would require page-fault-capable memory reads and writes inside the transition
+operation and would make the instruction unsuitable as a fast silicon primitive.
 
 Fixed-width vector values are eligible for this fast path only when both native
 ABIs place the value in compatible vector/SIMD architectural registers. A
