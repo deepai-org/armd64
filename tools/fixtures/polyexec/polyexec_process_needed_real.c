@@ -144,6 +144,17 @@ uint64_t poly_process_tls_default_dep_add(uint64_t left, uint64_t right) {
   return poly_process_tls_default_dep_counter;
 }
 
+#elif defined(POLY_PROCESS_TLS_TRAD_DEP)
+
+__thread uint64_t poly_process_tls_trad_dep_counter
+    __attribute__((visibility("default"))) = 0xa0;
+
+__attribute__((visibility("default")))
+uint64_t poly_process_tls_trad_dep_add(uint64_t left, uint64_t right) {
+  poly_process_tls_trad_dep_counter += left + right;
+  return poly_process_tls_trad_dep_counter;
+}
+
 #else
 
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
@@ -172,6 +183,9 @@ extern uint64_t poly_process_tls_dep_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_TLS_DEFAULT_DEP_MAIN)
 extern __thread uint64_t poly_process_tls_default_dep_counter;
 extern uint64_t poly_process_tls_default_dep_add(uint64_t, uint64_t);
+#elif defined(POLY_PROCESS_TLS_TRAD_DEP_MAIN)
+extern __thread uint64_t poly_process_tls_trad_dep_counter;
+extern uint64_t poly_process_tls_trad_dep_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_IFUNC_MAIN)
@@ -220,6 +234,10 @@ __thread uint64_t poly_process_tls_counter
 
 #if defined(POLY_PROCESS_TLS_DEFAULT_MAIN)
 __thread uint64_t poly_process_tls_default_counter = 0x41;
+#endif
+
+#if defined(POLY_PROCESS_TLS_TRAD_MAIN)
+__thread uint64_t poly_process_tls_trad_counter = 0x51;
 #endif
 
 #if defined(POLY_PROCESS_ROOT_IFUNC_MAIN)
@@ -318,6 +336,18 @@ uint64_t poly_process_main(void) {
       poly_process_tls_default_dep_counter != 0xd3)
     return 37;
   static const char marker[] = "POLY_PROCESS_DEP_TLS_DEFAULT_OK\n";
+#elif defined(POLY_PROCESS_TLS_TRAD_MAIN)
+  poly_process_tls_trad_counter += 0x11;
+  if (poly_process_tls_trad_counter != 0x62)
+    return 39;
+  static const char marker[] = "POLY_PROCESS_TLS_TRAD_OK\n";
+#elif defined(POLY_PROCESS_TLS_TRAD_DEP_MAIN)
+  const uint64_t before = poly_process_tls_trad_dep_counter;
+  const uint64_t after = poly_process_tls_trad_dep_add(0x31, 0x32);
+  if (before != 0xa0 || after != 0x103 ||
+      poly_process_tls_trad_dep_counter != 0x103)
+    return 40;
+  static const char marker[] = "POLY_PROCESS_DEP_TLS_TRAD_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;

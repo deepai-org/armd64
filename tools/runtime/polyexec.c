@@ -49,6 +49,14 @@ extern char **environ;
 #define R_AARCH64_IRELATIVE 1032
 #endif
 
+#ifndef R_AARCH64_TLS_DTPMOD64
+#define R_AARCH64_TLS_DTPMOD64 1028
+#endif
+
+#ifndef R_AARCH64_TLS_DTPREL64
+#define R_AARCH64_TLS_DTPREL64 1029
+#endif
+
 #ifndef R_AARCH64_TLS_TPREL64
 #define R_AARCH64_TLS_TPREL64 1030
 #endif
@@ -1200,7 +1208,9 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
   if (relocation_requested_version_name(program, loaded_image, strtab_vaddr,
         strsz, symbol_index, &requested_version) < 0)
     return -1;
-  if (program->arch == POLY_ARCH_RISCV && tls_get_addr_helper_pc != 0 &&
+  if ((program->arch == POLY_ARCH_AARCH64 ||
+       program->arch == POLY_ARCH_RISCV) &&
+      tls_get_addr_helper_pc != 0 &&
       strcmp(symbol_name, "__tls_get_addr") == 0) {
     *symbol_value = tls_get_addr_helper_pc;
     if (symbol_type)
@@ -3141,20 +3151,40 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   return 0;
 }
 
-static int emit_process_tls_helper(const struct poly_program *program,
+static int emit_process_tlsdesc_helper(const struct poly_program *program,
     uint8_t *mapping, size_t *offset, uint64_t *helper_pc) {
   if (*offset > SIZE_MAX - 16)
     return -1;
+  if (program->arch != POLY_ARCH_AARCH64) {
+    *helper_pc = 0;
+    return 0;
+  }
+  *helper_pc = (uint64_t) (uintptr_t) (mapping + *offset);
+  emit_u32(mapping, offset, 0xf9400400U); // ldr x0, [x0, #8]
+  emit_u32(mapping, offset, 0xd65f03c0U); // ret
+  return 0;
+}
+
+static int emit_process_tls_get_addr_helper(const struct poly_program *program,
+    uint8_t *mapping, size_t *offset, uint64_t *helper_pc) {
+  if (*offset > SIZE_MAX - 16)
+    return -1;
+  if (program->arch != POLY_ARCH_AARCH64 &&
+      program->arch != POLY_ARCH_RISCV) {
+    *helper_pc = 0;
+    return 0;
+  }
   *helper_pc = (uint64_t) (uintptr_t) (mapping + *offset);
   if (program->arch == POLY_ARCH_AARCH64) {
+    emit_u32(mapping, offset, 0xd53bd041U); // mrs x1, tpidr_el0
     emit_u32(mapping, offset, 0xf9400400U); // ldr x0, [x0, #8]
+    emit_u32(mapping, offset, 0x8b000020U); // add x0, x1, x0
     emit_u32(mapping, offset, 0xd65f03c0U); // ret
+    return 0;
   }
-  else {
-    emit_u32(mapping, offset, riscv_ld(10, 10, 8)); // ld a0, 8(a0)
-    emit_u32(mapping, offset, riscv_add(10, 10, 4)); // add a0, a0, tp
-    emit_u32(mapping, offset, riscv_jalr(0, 1, 0)); // ret
-  }
+  emit_u32(mapping, offset, riscv_ld(10, 10, 8)); // ld a0, 8(a0)
+  emit_u32(mapping, offset, riscv_add(10, 10, 4)); // add a0, a0, tp
+  emit_u32(mapping, offset, riscv_jalr(0, 1, 0)); // ret
   return 0;
 }
 
@@ -3249,10 +3279,12 @@ static int apply_relative_relocations(const struct poly_program *program,
   const uint32_t none_type = none_reloc_type_for_arch(program->arch);
   const uint32_t tlsdesc_type = program->arch == POLY_ARCH_AARCH64 ?
     R_AARCH64_TLSDESC : UINT32_MAX;
-  const uint32_t tls_dtpmod_type = program->arch == POLY_ARCH_RISCV ?
-    R_RISCV_TLS_DTPMOD64 : UINT32_MAX;
-  const uint32_t tls_dtprel_type = program->arch == POLY_ARCH_RISCV ?
-    R_RISCV_TLS_DTPREL64 : UINT32_MAX;
+  const uint32_t tls_dtpmod_type = program->arch == POLY_ARCH_AARCH64 ?
+    R_AARCH64_TLS_DTPMOD64 :
+    program->arch == POLY_ARCH_RISCV ? R_RISCV_TLS_DTPMOD64 : UINT32_MAX;
+  const uint32_t tls_dtprel_type = program->arch == POLY_ARCH_AARCH64 ?
+    R_AARCH64_TLS_DTPREL64 :
+    program->arch == POLY_ARCH_RISCV ? R_RISCV_TLS_DTPREL64 : UINT32_MAX;
   const uint64_t load_bias = (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   if (rela_vaddr && rela_size) {
     if (rela_ent < sizeof(Elf64_Rela) || rela_size % rela_ent)
@@ -4479,15 +4511,18 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     munmap(mapping, mapping_size);
     return -1;
   }
-  uint64_t tls_helper_pc = 0;
-  if (emit_process_tls_helper(program, mapping, &offset, &tls_helper_pc) < 0) {
+  uint64_t tlsdesc_helper_pc = 0;
+  if (emit_process_tlsdesc_helper(program, mapping, &offset,
+        &tlsdesc_helper_pc) < 0) {
     munmap(mapping, mapping_size);
     return -1;
   }
-  const uint64_t tlsdesc_helper_pc =
-    program->arch == POLY_ARCH_AARCH64 ? tls_helper_pc : 0;
-  const uint64_t tls_get_addr_helper_pc =
-    program->arch == POLY_ARCH_RISCV ? tls_helper_pc : 0;
+  uint64_t tls_get_addr_helper_pc = 0;
+  if (emit_process_tls_get_addr_helper(program, mapping, &offset,
+        &tls_get_addr_helper_pc) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
 
   size_t scratch_size = 4096;
   uint8_t *scratch = mmap(NULL, scratch_size, PROT_READ | PROT_WRITE,
@@ -4592,15 +4627,18 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  uint64_t tls_helper_pc = 0;
-  if (emit_process_tls_helper(program, mapping, &offset, &tls_helper_pc) < 0) {
+  uint64_t tlsdesc_helper_pc = 0;
+  if (emit_process_tlsdesc_helper(program, mapping, &offset,
+        &tlsdesc_helper_pc) < 0) {
     munmap(mapping, mapping_size);
     return -1;
   }
-  const uint64_t tlsdesc_helper_pc =
-    program->arch == POLY_ARCH_AARCH64 ? tls_helper_pc : 0;
-  const uint64_t tls_get_addr_helper_pc =
-    program->arch == POLY_ARCH_RISCV ? tls_helper_pc : 0;
+  uint64_t tls_get_addr_helper_pc = 0;
+  if (emit_process_tls_get_addr_helper(program, mapping, &offset,
+        &tls_get_addr_helper_pc) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
 
   size_t scratch_size = 4096;
   uint8_t *scratch = mmap(NULL, scratch_size, PROT_READ | PROT_WRITE,
