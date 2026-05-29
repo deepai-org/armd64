@@ -118,7 +118,7 @@ enum {
   POLY_ARCH_RISCV = 2,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 14,
-  POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 45,
+  POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 88,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -8761,8 +8761,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
   // U64 root calls use a generated x86 thunk to populate the eight-register
-  // exchange window before switching frontends. Overflow stack slots are
-  // copied by the current Bochs prototype from the source ABI stack layout.
+  // exchange window and marshal overflow stack slots before switching
+  // frontends. The CPU transition itself remains register-only.
   const int use_exchange_u64_pcall = call_kind == POLY_CALL_U64 ||
     call_kind == POLY_CALL_PAIR_U64 ||
     call_kind == POLY_CALL_MIXED_STACK_ARGS ||
@@ -8890,8 +8890,19 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
     const uint8_t shuffle_prefix[] = {
-      0x4d, 0x89, 0xcf,                   // mov r15,r9: save SysV arg5.
       0x4c, 0x89, 0xd3,                   // mov rbx,r10: target operand.
+      0x4c, 0x8d, 0xbc, 0x24, 0x00, 0xc0,
+        0xff, 0xff,                       // lea r15,[rsp-0x4000].
+      0x49, 0x83, 0xe7, 0xf0,             // and r15,-16: foreign SP.
+      0x48, 0x8d, 0x6c, 0x24, 0x18,       // lea rbp,[rsp+24]: arg8.
+      0x41, 0xba, 0x10, 0x00, 0x00, 0x00, // mov r10d,16.
+      0x48, 0x8b, 0x45, 0x00,             // mov rax,[rbp].
+      0x49, 0x89, 0x07,                   // mov [r15],rax.
+      0x48, 0x83, 0xc5, 0x08,             // add rbp,8.
+      0x49, 0x83, 0xc7, 0x08,             // add r15,8.
+      0x41, 0xff, 0xca,                   // dec r10d.
+      0x75, 0xec,                         // jne copy loop.
+      0x4d, 0x89, 0xcf,                   // mov r15,r9: save SysV arg5.
       0x4c, 0x8b, 0x54, 0x24, 0x10,       // mov r10,[rsp+16]: SysV arg7.
       0x4c, 0x8b, 0x4c, 0x24, 0x08,       // mov r9,[rsp+8]: SysV arg6.
       0x48, 0x89, 0xf8,                   // mov rax,rdi: exchange arg0.
