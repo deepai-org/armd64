@@ -32,10 +32,14 @@ enum {
   POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
   POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA = 5,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
+  POLYBENCH_CROSS_CALL_VEC128_EXPECTED_SWITCH_DELTA = 4,
   POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA = 7,
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
+  POLYBENCH_DIRECT_X86_PCALL_EXPECTED_SWITCH_DELTA = 5,
   POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA = 5,
+  POLYBENCH_DIRECT_X86_LIBCALL_EXPECTED_SWITCH_DELTA = 7,
   POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA = 7,
+  POLYBENCH_DIRECT_X86_MEMOPS_EXPECTED_SWITCH_DELTA = 11,
   POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA = 11
 };
 
@@ -3420,11 +3424,9 @@ static int check_direct_x86_pcall_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: direct x86 pcall %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("direct x86 pcall", name, switch_delta,
+        POLYBENCH_DIRECT_X86_PCALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("direct x86 pcall", name, switch_delta,
         POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3453,11 +3455,9 @@ static int check_direct_x86_fp64_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: direct x86 FP64 %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("direct x86 FP64", name, switch_delta,
+        POLYBENCH_DIRECT_X86_PCALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("direct x86 FP64", name, switch_delta,
         POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3486,11 +3486,9 @@ static int check_cross_call_fp_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call FP %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call FP", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call FP", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3519,11 +3517,9 @@ static int check_cross_call_fp8_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call FP8 %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call FP8", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call FP8", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3552,11 +3548,9 @@ static int check_cross_call_fp64_stack_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call FP64 stack %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call FP64 stack", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call FP64 stack", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3585,11 +3579,9 @@ static int check_cross_call_vec128_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call vec128 %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call vec128", name, switch_delta,
+        POLYBENCH_CROSS_CALL_VEC128_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call vec128", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3618,11 +3610,9 @@ static int check_cross_call_mixed_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call mixed %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call mixed", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call mixed", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3651,11 +3641,9 @@ static int check_cross_call_stack_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call stack %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call stack", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call stack", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3684,11 +3672,9 @@ static int check_cross_call_saved_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call saved %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call saved", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call saved", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3717,11 +3703,9 @@ static int check_cross_call_saved_fp_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call saved-fp %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call saved-fp", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call saved-fp", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3750,11 +3734,9 @@ static int check_cross_call_pair_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call pair %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call pair", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call pair", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3783,11 +3765,9 @@ static int check_cross_call_compact_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call compact %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call compact", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call compact", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3816,11 +3796,9 @@ static int check_cross_call_syscall_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call syscall %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call syscall", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call syscall", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3850,11 +3828,9 @@ static int check_cross_call_break_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call break %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call break", name, switch_delta,
+        POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call break", name, switch_delta,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3883,11 +3859,9 @@ static int check_cross_call_string_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call string %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call string", name, switch_delta,
+        POLYBENCH_DIRECT_X86_LIBCALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call string", name, switch_delta,
         POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3916,11 +3890,9 @@ static int check_cross_call_direct_x86_memcmp_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memcmp %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call direct x86 memcmp", name,
+        switch_delta, POLYBENCH_DIRECT_X86_LIBCALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call direct x86 memcmp", name,
         switch_delta, POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA) < 0)
     return -1;
@@ -3949,11 +3921,9 @@ static int check_cross_call_direct_x86_memops_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
-  if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memops %s switch delta expected at least 4 got %llu\n",
-      name, (unsigned long long) switch_delta);
+  if (check_switch_delta_exact("cross call direct x86 memops", name,
+        switch_delta, POLYBENCH_DIRECT_X86_MEMOPS_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
-  }
   if (check_switch_delta_max("cross call direct x86 memops", name,
         switch_delta, POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA) < 0)
     return -1;

@@ -87,6 +87,15 @@ by-value aggregate layout, variadic calls, or vector reshaping; those cases use
 loader/runtime thunks and then finish with a null, identity, or simple
 signature `PCALL`.
 
+This is the intended hardware/software boundary. The loader or runtime may
+program a small bank of signature slots, for example 4 to 8 common ABI pairs,
+and hot call sites select one with an immediate. Hardware handles the
+register-only majority by rebinding architectural names to existing physical
+registers in the rename/RAT stage. Software handles the memory-side minority:
+overflow stack arguments, by-value structs, variadics, stack realignment,
+lazy-binding policy, and any conversion that would require memory reads or
+writes during the transition.
+
 The prototype also exposes `0x03` as `PENTER_MODE`, with the frontend ID in
 `R15`. This is the generic frontend-ID form of the older fixed AArch64/RISC-V
 enter controls.
