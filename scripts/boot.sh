@@ -69,6 +69,7 @@ POLYCALL_SYSCONF_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_sysconf_re
 POLYCALL_ENV_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_env_real.c"
 POLYCALL_PUTS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_puts_real.c"
 POLYCALL_SNPRINTF_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_snprintf_real.c"
+POLYCALL_STRTOD_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_strtod_real.c"
 POLYCALL_ALLOC_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_alloc_real.c"
 POLYCALL_STRDUP_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_strdup_real.c"
 POLYCALL_ALIGNED_ALLOC_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aligned_alloc_real.c"
@@ -883,6 +884,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_SNPRINTF_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-snprintf-real.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_STRTOD_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-strtod-real.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2861,6 +2867,12 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_SNPRINTF_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-snprintf-real.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_STRTOD_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-strtod-real.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
@@ -6045,6 +6057,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-env-real.so#poly_entry=53 \
     /usr/lib/polyapps/aarch64-pcall-puts-real.so#poly_entry=145 \
     /usr/lib/polyapps/aarch64-pcall-snprintf-real.so#poly_entry=706 \
+    /usr/lib/polyapps/aarch64-pcall-strtod-real.so#poly_entry=1376 \
     /usr/lib/polyapps/aarch64-pcall-alloc-real.so#poly_entry=90 \
     /usr/lib/polyapps/aarch64-pcall-strdup-real.so#poly_entry=911 \
     /usr/lib/polyapps/aarch64-pcall-aligned-alloc-real.so#poly_entry=177 \
@@ -6279,6 +6292,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-env-real.so#poly_entry=53 \
     /usr/lib/polyapps/riscv-pcall-puts-real.so#poly_entry=145 \
     /usr/lib/polyapps/riscv-pcall-snprintf-real.so#poly_entry=706 \
+    /usr/lib/polyapps/riscv-pcall-strtod-real.so#poly_entry=1376 \
     /usr/lib/polyapps/riscv-pcall-alloc-real.so#poly_entry=90 \
     /usr/lib/polyapps/riscv-pcall-strdup-real.so#poly_entry=911 \
     /usr/lib/polyapps/riscv-pcall-aligned-alloc-real.so#poly_entry=177 \
@@ -6995,6 +7009,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pcall-env-real.so \
       /usr/lib/polyapps/aarch64-pcall-alloc-real.so \
       /usr/lib/polyapps/aarch64-pcall-snprintf-real.so \
+      /usr/lib/polyapps/aarch64-pcall-strtod-real.so \
       /usr/lib/polyapps/aarch64-pcall-strdup-real.so \
       /usr/lib/polyapps/aarch64-pcall-atexit-real.so \
       /usr/lib/polyapps/aarch64-pcall-cxa-guard-real.so \
@@ -7169,6 +7184,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-pcall-env-real.so \
       /usr/lib/polyapps/riscv-pcall-alloc-real.so \
       /usr/lib/polyapps/riscv-pcall-snprintf-real.so \
+      /usr/lib/polyapps/riscv-pcall-strtod-real.so \
       /usr/lib/polyapps/riscv-pcall-strdup-real.so \
       /usr/lib/polyapps/riscv-pcall-atexit-real.so \
       /usr/lib/polyapps/riscv-pcall-cxa-guard-real.so \
@@ -7935,11 +7951,13 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_sigregs=[1-9].*aarch64-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_sigregs=[1-9]" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT_FP64: arch=aarch64 .*aarch64-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_sigregs=[1-9].*riscv-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_sigregs=[1-9]" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT_FP64: arch=riscv .*riscv-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

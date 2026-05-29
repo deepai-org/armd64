@@ -4,6 +4,7 @@
 typedef unsigned long size_t;
 
 extern int snprintf(char *, size_t, const char *, ...);
+extern double strtod(const char *, char **);
 
 #if defined(__GNUC__)
 #define POLY_HOST_HELPER __attribute__((noinline, noclone, used))
@@ -1451,6 +1452,12 @@ uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_u64(uint8_t *dest,
 {
   return (uint64_t) snprintf((char *) dest, (size_t) size,
     (const char *) format, (const char *) text, left, right);
+}
+
+double POLY_HOST_HELPER poly_host_x86_strtod(const uint8_t *text,
+    uint8_t **endptr)
+{
+  return strtod((const char *) text, (char **) endptr);
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_strlen(const char *text)
