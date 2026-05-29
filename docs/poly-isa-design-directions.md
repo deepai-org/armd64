@@ -99,6 +99,14 @@ small immediate slot selector. The hot path does not program a mapping, read a
 descriptor, or execute moves; it only applies the cached rename recipe while
 redirecting the frontend.
 
+This is a hardware ABI accelerator, not a hardware ABI interpreter. For
+example, a loader can program slot 0 with the standard SysV x86_64 to AAPCS64
+register mapping. A hot call then executes a form such as
+`PCALL mode, target, slot0`; the hardware action is only to make destination
+names like AArch64 `x0,x1,x2` refer to the same physical registers currently
+named by x86_64 `RDI,RSI,RDX`. The data never moves, and the instruction does
+not inspect memory.
+
 The slot bank is semi-persistent hardware state. A loader or runtime programs a
 small number of slots, for example 4 to 8, with common register-only ABI pairs:
 SysV-to-AAPCS64, AAPCS64-to-SysV, SysV-to-RISC-V psABI, and RISC-V
@@ -203,6 +211,10 @@ The practical target is a 90/10 split:
 
 This keeps the architectural fast path sympathetic to real precompiled code
 without bloating the CPU into an ABI-specific memory transformer.
+It also keeps the implementation realistic for FPGA and silicon prototypes:
+the small hardware addition is a bank of prevalidated mapping registers plus
+rename-stage muxing, while all page-fault-capable memory layout work remains
+ordinary software.
 
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV

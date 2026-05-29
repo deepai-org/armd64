@@ -204,6 +204,12 @@ ABI handoff does not require software moves or per-call descriptor parsing.
 The area cost should stay small because this is a RAT-template selection
 problem: a few prevalidated control registers plus muxing in the rename path.
 
+Conceptually, the slot is a semi-persistent rename recipe. If slot 0 describes
+SysV x86_64 to AAPCS64, then `PCALL ..., slot0` makes AArch64 `x0,x1,x2` name
+the physical registers currently named by x86_64 `RDI,RSI,RDX`. No argument
+data is copied, and no stack or descriptor memory is read by the transition
+instruction.
+
 This is intentionally reconfigurable hardware, but only at the register-rename
 boundary. It is suitable for silicon because modern OoO cores already maintain
 rename maps from architectural registers to physical registers. A Poly
