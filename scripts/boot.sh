@@ -8297,6 +8297,24 @@ EOF
         fi
       fi
       if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
+        native_markers=(
+          "NATIVE_POLY_TRAP_VECTOR_OK"
+          "NATIVE_POLY_NO_VECTOR_SIGNALS_OK"
+          "NATIVE_POLY_INVALID_GENERIC_CONTROLS_OK"
+          "NATIVE_POLY_LANDING_POLICY_OK"
+          "NATIVE_POLY_STATE_KEY_REJECT_OK"
+          "NATIVE_POLY_STATE_SAVE_RESTORE_OK"
+          "NATIVE_POLY_IMPORT_RETURN_XSAVE_OK"
+          "NATIVE_POLY_DIRECT_X86_PCALL_OK"
+          "NATIVE_POLY_FOREIGN_SIGNATURE_PCALL_OK"
+          "NATIVE_POLY_STATE_REGISTER_BANK_OK"
+        )
+        for marker in "${native_markers[@]}"; do
+          if ! grep -q "$marker" "$SERIAL_LOG"; then
+            sleep 1
+            continue 2
+          fi
+        done
         if ! grep -q "NATIVE_CHECK_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
