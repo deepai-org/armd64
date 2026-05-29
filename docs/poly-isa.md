@@ -76,7 +76,10 @@ two integer return registers), and `4` for the preferred neutral native-ABI
 register mapping. Fast `PCALL_SIG_*` code should use kind `4` for ordinary
 register-only calls: the source frontend's native integer/FP argument lanes are
 rebound to the target frontend's native integer/FP argument lanes, and stack
-arguments are left to software thunks. Kinds `2` and `3` remain valid prototype
+arguments are left to software thunks. Kind `4` does not implicitly request a
+multi-GPR return import; calls with `unsigned __int128`-class returns use an
+explicit return-shape signature such as kind `3` until richer native return
+classes are added. Kinds `2` and `3` remain valid prototype
 aliases for existing x86-oriented tests and direct x86 imports. These kinds are
 a model of cached hardware control state, not a final x86 opcode allocation.
 
