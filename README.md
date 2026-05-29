@@ -38,6 +38,10 @@ Other useful targets:
 - The current performance evidence is Bochs-level switch and instruction-count
   benchmarking. "Few-cycle" frontend switching is the hardware target; Bochs is
   a functional ISA prototype, not a cycle-accurate silicon performance model.
+- Bochs exposes Poly as XSAVE component 20 and implements XSAVE/XRSTOR handlers.
+  The current stock Alpine guest kernel does not enable that custom XCR0 bit, so
+  tests also use explicit Poly state save/restore controls for prototype
+  scheduling and signal coverage.
 
 ## ISA Differences From x86_64
 
