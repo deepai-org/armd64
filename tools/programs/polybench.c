@@ -76,6 +76,7 @@ enum {
   POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   LOOP_ITERS = 200,
+  POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA = 3,
   POLYBENCH_MIXED_EXPECTED_SWITCH_DELTA = 4,
   POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
   POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA = 5,
@@ -667,7 +668,8 @@ static uint64_t call_code_fp64_6(const uint8_t *code) {
   return fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
 }
 
-static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
+static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
+    uint64_t *switch_delta) {
   const size_t code_size = 3 + 8 + 4 * 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -702,11 +704,15 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta) {
 
   poly_foreign_insn_count_status();
   uint64_t before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
   *result = call_code_no_args(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   uint64_t after = read_rax();
   *insn_delta = after - before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3586,12 +3592,14 @@ static int run_nested_cross_call(uint64_t *result,
 static int check_loop(const char *name, int arch) {
   uint64_t result = 0;
   uint64_t delta = 0;
-  if (run_loop_program(arch, &result, &delta) < 0)
+  uint64_t switch_delta = 0;
+  if (run_loop_program(arch, &result, &delta, &switch_delta) < 0)
     return -1;
 
   const uint64_t min_expected_delta = 1 + (uint64_t) LOOP_ITERS * 2 + 1;
-  printf("POLYBENCH_RESULT: arch=%s result=%llu raw_insn_delta=%llu\n",
-    name, (unsigned long long) result, (unsigned long long) delta);
+  printf("POLYBENCH_RESULT: arch=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) delta,
+    (unsigned long long) switch_delta);
 
   if (result != 0) {
     fprintf(stderr, "POLYBENCH_FAIL: %s loop result expected 0 got %llu\n",
@@ -3601,6 +3609,12 @@ static int check_loop(const char *name, int arch) {
   if (delta < min_expected_delta) {
     fprintf(stderr, "POLYBENCH_FAIL: %s raw instruction delta expected at least %llu got %llu\n",
       name, (unsigned long long) min_expected_delta, (unsigned long long) delta);
+    return -1;
+  }
+  if (switch_delta != POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA) {
+    fprintf(stderr, "POLYBENCH_FAIL: %s loop switch delta expected exactly %u got %llu\n",
+      name, POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA,
+      (unsigned long long) switch_delta);
     return -1;
   }
   return 0;
