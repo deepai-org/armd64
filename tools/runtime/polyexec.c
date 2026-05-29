@@ -176,9 +176,17 @@ enum {
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
   POLY_CPUID_FEATURE_NATIVE_RET = (1U << 3),
   POLY_CPUID_FEATURE_TRAP_RECORDS = (1U << 7),
+  POLY_CPUID_FEATURE_THREAD_BANKS = (1U << 10),
   POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS = (1U << 11),
   POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
+  POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS = (1U << 22),
+  POLY_CPUID_FEATURE_FP64_STACK_ARGS = (1U << 23),
+  POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK = (1U << 24),
   POLY_CPUID_FEATURE_TRAP_VECTOR = (1U << 25),
+  POLY_CPUID_FEATURE_STATE_KEY = (1U << 26),
+  POLY_ABI_BRIDGE_FLAG_FP64_STACK = (1U << 5),
+  POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS = (1U << 6),
+  POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS = (1U << 8),
   POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   MAX_PROGRAM_BYTES = 1024 * 1024,
@@ -265,6 +273,18 @@ static uint32_t process_native_signature_slot = 3;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
 
+static const uint32_t POLY_CPUID_FORBIDDEN_FEATURES =
+  POLY_CPUID_FEATURE_THREAD_BANKS |
+  POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS |
+  POLY_CPUID_FEATURE_FP64_STACK_ARGS |
+  POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
+  POLY_CPUID_FEATURE_STATE_KEY;
+
+static const uint32_t POLY_ABI_BRIDGE_FORBIDDEN_FLAGS =
+  POLY_ABI_BRIDGE_FLAG_FP64_STACK |
+  POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS |
+  POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS;
+
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
@@ -325,10 +345,20 @@ static int read_poly_base_contract(int require_trap_vector) {
   const struct poly_cpuid_regs features = read_cpuid(POLY_CPUID_BASE + 1, 0);
   if (features.eax != POLY_CPUID_ABI_VERSION ||
       (features.ebx & required_modes) != required_modes ||
-      (features.ecx & required_features) != required_features) {
+      (features.ecx & required_features) != required_features ||
+      (features.ecx & POLY_CPUID_FORBIDDEN_FEATURES) != 0) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
       features.eax, features.ebx, features.ecx, features.edx);
+    return -1;
+  }
+
+  const struct poly_cpuid_regs abi_bridge =
+    read_cpuid(POLY_CPUID_BASE + 9, 0);
+  if ((abi_bridge.ebx & POLY_ABI_BRIDGE_FORBIDDEN_FLAGS) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: CPU ABI bridge advertises non-register hardware abi=(%u,0x%x,0x%x,0x%x)\n",
+      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);
     return -1;
   }
 
