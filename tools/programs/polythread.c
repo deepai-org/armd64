@@ -595,6 +595,69 @@ static uint64_t direct_riscv_x86_signature_sum6(uint64_t a0) {
   return a0;
 }
 
+static uint64_t direct_aarch64_riscv_signature_sum6(uint64_t a0) {
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, RISC-V target from R10/P7
+    ".long 0x91000401\n" // add x1,x0,#1
+    ".long 0x91000802\n" // add x2,x0,#2
+    ".long 0x91000c03\n" // add x3,x0,#3
+    ".long 0x91001004\n" // add x4,x0,#4
+    ".long 0x91001405\n" // add x5,x0,#5
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x00b50533\n" // add a0,a0,a1
+    ".long 0x00c50533\n" // add a0,a0,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x00008067\n" // ret through hardware return cookie
+    "2:\n"
+    : "+a"(a0)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return a0;
+}
+
+static uint64_t direct_riscv_aarch64_signature_sum6(uint64_t a0) {
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, AArch64 target from R10/P7
+    ".long 0x00150593\n" // addi a1,a0,1
+    ".long 0x00250613\n" // addi a2,a0,2
+    ".long 0x00350693\n" // addi a3,a0,3
+    ".long 0x00450713\n" // addi a4,a0,4
+    ".long 0x00550793\n" // addi a5,a0,5
+    ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0x8b020000\n" // add x0,x0,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
+    "2:\n"
+    : "+a"(a0)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return a0;
+}
+
 static uint64_t pcall_aarch64_hidden_set(uint64_t value) {
   uint64_t result;
   uint64_t arg0 = value;
@@ -1078,6 +1141,36 @@ static void *worker_main(void *arg) {
       (unsigned long) worker_id,
       (unsigned long long) direct_sig_riscv_result,
       (unsigned long long) direct_sig_riscv_expected);
+    return (void *) 1;
+  }
+
+  uint64_t direct_sig_aarch64_riscv_arg0 = base + 0x110000ULL + 1;
+  uint64_t direct_sig_aarch64_riscv_result =
+    direct_aarch64_riscv_signature_sum6(direct_sig_aarch64_riscv_arg0);
+  uint64_t direct_sig_aarch64_riscv_expected =
+    direct_sig_aarch64_riscv_arg0 * 6 + 15;
+  if (direct_sig_aarch64_riscv_result !=
+      direct_sig_aarch64_riscv_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu direct sig aarch64 riscv call got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) direct_sig_aarch64_riscv_result,
+      (unsigned long long) direct_sig_aarch64_riscv_expected);
+    return (void *) 1;
+  }
+
+  uint64_t direct_sig_riscv_aarch64_arg0 = base + 0x120000ULL + 1;
+  uint64_t direct_sig_riscv_aarch64_result =
+    direct_riscv_aarch64_signature_sum6(direct_sig_riscv_aarch64_arg0);
+  uint64_t direct_sig_riscv_aarch64_expected =
+    direct_sig_riscv_aarch64_arg0 * 6 + 15;
+  if (direct_sig_riscv_aarch64_result !=
+      direct_sig_riscv_aarch64_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu direct sig riscv aarch64 call got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) direct_sig_riscv_aarch64_result,
+      (unsigned long long) direct_sig_riscv_aarch64_expected);
     return (void *) 1;
   }
   if (wait_for_workers(worker_id, "direct-x86-call-done") != 0)
