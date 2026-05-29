@@ -320,12 +320,13 @@ x86 `RAX/RDX` pair as a two-register integer return for ABIs that return
 silicon-facing form: it maps the source frontend's native integer and FP ABI
 lanes onto the target frontend's native lanes without stack access. Kind `4`
 is the ordinary single-result native-register fast path; multi-GPR return
-classes such as `unsigned __int128` must use an explicit return-shape signature
-or future typed native-register slot rather than being inferred from the
-argument mapping. Kinds `2` and `3` remain valid prototype aliases for
-x86-oriented tests and direct x86 imports, but hot neutral cross-frontend calls
-should use kind `4`. The final silicon-oriented encoding should use a compact
-slot immediate.
+classes such as `unsigned __int128` must use an explicit return-shape
+signature rather than being inferred from the argument mapping. Kind `5` is the
+prototype neutral native-register mapping with a two-GPR integer return. Kinds
+`2` and `3` remain valid prototype aliases for x86-oriented tests and direct
+x86 imports, but hot neutral cross-frontend calls should use kind `4` or typed
+native variants such as kind `5`. The final silicon-oriented encoding should
+use a compact slot immediate.
 
 The current preferred Bochs generic `PCALL` form uses frontend ID in `R15`,
 target PC in `RBX`, return PC in `R11`, and an immediate signature-slot byte.

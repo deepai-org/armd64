@@ -73,15 +73,16 @@ older stack-capable x86_64 SysV compatibility mapping, `2` for the older
 x86_64 SysV register-only mapping, `3` for the same register argument mapping
 with a two-register integer return (`RAX/RDX` to the destination ABI's first
 two integer return registers), and `4` for the preferred neutral native-ABI
-register mapping. Fast `PCALL_SIG_*` code should use kind `4` for ordinary
-register-only calls: the source frontend's native integer/FP argument lanes are
-rebound to the target frontend's native integer/FP argument lanes, and stack
-arguments are left to software thunks. Kind `4` does not implicitly request a
-multi-GPR return import; calls with `unsigned __int128`-class returns use an
-explicit return-shape signature such as kind `3` until richer native return
-classes are added. Kinds `2` and `3` remain valid prototype
-aliases for existing x86-oriented tests and direct x86 imports. These kinds are
-a model of cached hardware control state, not a final x86 opcode allocation.
+register mapping. Prototype kind `5` is the neutral native-register mapping
+with a two-GPR integer return. Fast `PCALL_SIG_*` code should use kind `4` for
+ordinary register-only calls: the source frontend's native integer/FP argument
+lanes are rebound to the target frontend's native integer/FP argument lanes,
+and stack arguments are left to software thunks. Kind `4` does not implicitly
+request a multi-GPR return import; calls with `unsigned __int128`-class returns
+use an explicit return-shape signature such as kind `5`. Kinds `2` and `3`
+remain valid prototype aliases for existing x86-oriented tests and direct x86
+imports. These kinds are a model of cached hardware control state, not a final
+x86 opcode allocation.
 
 Signature slots are semi-persistent register-renaming templates. A real CPU
 should apply them by updating RAT mappings during the `PCALL` control redirect,
