@@ -102,7 +102,9 @@ encodes or supplies only the target frontend, target PC, and signature slot.
 The hardware action is a rename-map update: source architectural register names
 such as x86_64 `RDI,RSI,RDX` are rebound to destination names such as AArch64
 `x0,x1,x2`. No operand bytes move through ALUs, no stack memory is touched, and
-no call descriptor is fetched.
+no call descriptor is fetched. The state is semi-persistent: slots are
+programmed outside the hot call path and reused by many call sites through a
+small immediate or register slot number.
 
 An ABI signature slot is a cached rename template, not a data-moving program.
 At minimum, a slot records source frontend, destination frontend, register
@@ -156,7 +158,8 @@ fall back to a software thunk.
 This is the silicon-realistic sweet spot: common precompiled functions whose
 arguments and returns fit in integer or FP registers can cross frontends without
 software move thunks, while uncommon or layout-heavy calls pay the software
-translation cost outside the CPU pipeline.
+translation cost outside the CPU pipeline. Put differently, hardware owns the
+register-only majority case, and software owns the memory-layout minority case.
 
 The preferred hot encoding is therefore `PCALL frontend, target, signature_slot`
 or an equivalent immediate-slot form. The instruction must not point at a
@@ -304,16 +307,15 @@ on hot paths. The older foreign `PCALL_SIG` register-slot controls use AArch64
 return instruction through the hardware return cookie.
 
 The frontend ID space includes x86_64 as frontend `0`; it should not be a
-privileged special case. In the prototype, foreign `PCALL frontend=0` supports
-both descriptor-backed import targets in the reserved import range and direct
-x86 targets. Direct signature calls select a cached register-only slot before
-entering x86. The CPU places a hardware return cookie on the x86 stack, and
-ordinary x86 `ret` consumes that cookie to restore the foreign frontend and
-continuation. The source frontend stack pointer is exposed to x86 in volatile
-`R11`, giving software thunks enough information to copy overflow stack
-arguments without making `PCALL` parse descriptors or rewrite memory. Software
-thunks still own ABI and loader policy while the CPU control path stays
-frontend-neutral.
+privileged special case. Direct signature calls select a cached register-only
+slot before entering x86. The CPU places a hardware return cookie on the x86
+stack, and ordinary x86 `ret` consumes that cookie to restore the foreign
+frontend and continuation. The source frontend stack pointer is exposed to x86
+in volatile `R11`, giving software thunks enough information to copy overflow
+stack arguments without making `PCALL` parse descriptors or rewrite memory.
+Software thunks still own ABI and loader policy while the CPU control path
+stays frontend-neutral. The Bochs reserved import-call descriptor range is a
+compatibility fallback, not a required silicon ABI.
 
 ## Register Exchange Window
 

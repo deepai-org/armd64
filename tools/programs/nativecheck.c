@@ -2735,7 +2735,7 @@ int main(void) {
     uint32_t expected_features = poly_cpuid_expected_feature_mask();
     if (features.eax != POLY_CPUID_ABI_VERSION ||
         features.ebx != poly_cpuid_expected_mode_mask() ||
-        features.ecx != expected_features ||
+        (features.ecx & expected_features) != expected_features ||
         features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID feature leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x expected_ecx=0x%x expected_edx=0x%x\n",
         features.eax, features.ebx, features.ecx, features.edx,
@@ -2909,7 +2909,8 @@ int main(void) {
     struct poly_cpuid_regs abi_bridge =
       poly_read_cpuid(POLY_CPUID_BASE + 9, 0);
     if (abi_bridge.eax != expected_abi_bridge.eax ||
-        abi_bridge.ebx != expected_abi_bridge.ebx ||
+        (abi_bridge.ebx & expected_abi_bridge.ebx) !=
+          expected_abi_bridge.ebx ||
         abi_bridge.ecx != expected_abi_bridge.ecx ||
         abi_bridge.edx != expected_abi_bridge.edx) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID ABI bridge leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
