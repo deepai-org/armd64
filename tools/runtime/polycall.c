@@ -563,7 +563,10 @@ enum {
   POLY_IMPORT_FUNC_ISXDIGIT = 217,
   POLY_IMPORT_FUNC_TOLOWER = 218,
   POLY_IMPORT_FUNC_TOUPPER = 219,
-  POLY_IMPORT_FUNC_COUNT = 220,
+  POLY_IMPORT_FUNC_ABS = 220,
+  POLY_IMPORT_FUNC_LABS = 221,
+  POLY_IMPORT_FUNC_LLABS = 222,
+  POLY_IMPORT_FUNC_COUNT = 223,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1136,6 +1139,9 @@ extern uint64_t poly_host_x86_isupper(uint64_t value);
 extern uint64_t poly_host_x86_isxdigit(uint64_t value);
 extern uint64_t poly_host_x86_tolower(uint64_t value);
 extern uint64_t poly_host_x86_toupper(uint64_t value);
+extern uint64_t poly_host_x86_abs(uint64_t value);
+extern uint64_t poly_host_x86_labs(uint64_t value);
+extern uint64_t poly_host_x86_llabs(uint64_t value);
 extern uint64_t poly_host_x86_bcopy(const uint8_t *src, uint8_t *dest,
     uint64_t size);
 extern uint64_t poly_host_x86_bzero(uint8_t *dest, uint64_t size);
@@ -1524,6 +1530,9 @@ static int resolve_direct_x86_register_import(int arch,
     { "isxdigit", POLY_IMPORT_FUNC_ISXDIGIT },
     { "tolower", POLY_IMPORT_FUNC_TOLOWER },
     { "toupper", POLY_IMPORT_FUNC_TOUPPER },
+    { "abs", POLY_IMPORT_FUNC_ABS },
+    { "labs", POLY_IMPORT_FUNC_LABS },
+    { "llabs", POLY_IMPORT_FUNC_LLABS },
     { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
     { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
     { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
@@ -1903,6 +1912,12 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_tolower;
     case POLY_IMPORT_FUNC_TOUPPER:
       return (uint64_t) (uintptr_t) poly_host_x86_toupper;
+    case POLY_IMPORT_FUNC_ABS:
+      return (uint64_t) (uintptr_t) poly_host_x86_abs;
+    case POLY_IMPORT_FUNC_LABS:
+      return (uint64_t) (uintptr_t) poly_host_x86_labs;
+    case POLY_IMPORT_FUNC_LLABS:
+      return (uint64_t) (uintptr_t) poly_host_x86_llabs;
     case POLY_IMPORT_FUNC_BCMP:
       return (uint64_t) (uintptr_t) poly_host_x86_memcmp;
     case POLY_IMPORT_FUNC_BCOPY:
@@ -4553,6 +4568,18 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "toupper") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_TOUPPER * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "abs") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ABS * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "labs") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_LABS * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "llabs") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_LLABS * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "qsort") == 0) {
