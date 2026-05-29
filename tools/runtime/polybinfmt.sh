@@ -35,6 +35,7 @@ case "$path" in
   */aarch64-ret.elf) expected=55 ;;
   */aarch64-mem.elf) expected=77 ;;
   */aarch64-memwidth.elf) expected=0x100001324 ;;
+  */aarch64-prfm.elf) expected=27 ;;
   */aarch64-pcall-split-load.elf) expected=123 ;;
   */aarch64-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-syscall-real.elf) expected=42; process_mode=1 ;;

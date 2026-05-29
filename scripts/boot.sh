@@ -4567,6 +4567,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-x86-sum6.elf" --dyn-import-func64 poly_import_x86_sum6 0xa9bf7bfd 0xd0000008 0x91000108 0xf9400108 0xd63f0100 0xa8c17bfd 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mem.elf" 0xd28009a0 0xf9000020 0xd2800000 0xf9400020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memwidth.elf" 0x928001a5 0x39000025 0x39400026 0x92800025 0xb9000425 0xb9400427 0xd2824685 0x79001025 0x79401028 0x8b0700c0 0x8b080000
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prfm.elf" 0xd2800360 0xf98003e0 0xf88003e0 0xf8a06be0 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-strlen.elf" 0xd4200020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memfill.elf" 0xd2800821 0xd2800082 0xd4200040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcmp.elf" 0x91000401 0xd2800082 0xd4200060
@@ -5250,6 +5251,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-ret.elf=55 \
     /usr/lib/polyapps/aarch64-mem.elf=77 \
     /usr/lib/polyapps/aarch64-memwidth.elf=0x100001324 \
+    /usr/lib/polyapps/aarch64-prfm.elf=27 \
     /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
@@ -6449,6 +6451,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-adrp.elf=42 \
     /usr/lib/polyapps/aarch64-pcall-cond.elf=42 \
     /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
+    /usr/lib/polyapps/aarch64-prfm.elf=27 \
     /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
@@ -6903,6 +6906,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-ret.elf \
       /usr/lib/polyapps/aarch64-mem.elf \
       /usr/lib/polyapps/aarch64-memwidth.elf \
+      /usr/lib/polyapps/aarch64-prfm.elf \
       /usr/lib/polyapps/aarch64-pcall-split-load.elf \
       /usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so \
       /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
@@ -7231,6 +7235,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-ret.elf \
     /usr/lib/polyapps/aarch64-mem.elf \
     /usr/lib/polyapps/aarch64-memwidth.elf \
+    /usr/lib/polyapps/aarch64-prfm.elf \
     /usr/lib/polyapps/aarch64-pcall-split-load.elf \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
     /usr/lib/polyapps/aarch64-pcall-rel.elf \
