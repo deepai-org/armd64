@@ -10,6 +10,7 @@
 #include "../include/polycpuid.h"
 
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
+#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 
 enum {
   POLYSIGNAL_LOOP_COUNT = 200000,
@@ -32,6 +33,8 @@ static volatile uint64_t signal_expected_snapshot_value;
 static uintptr_t signal_altstack_base;
 static uintptr_t signal_altstack_end;
 static struct poly_xsave_state signal_snapshot __attribute__((aligned(64)));
+static uint32_t polysignal_native_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
 
 static uint64_t double_to_bits(double value) {
   union {
@@ -58,6 +61,41 @@ static inline void write_xmm1_u64(uint64_t value) {
 
 static inline void poly_state_export(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
+}
+
+static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
+  uint64_t rax = slot;
+  uint64_t rdx = kind;
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+    : "+a"(rax), "+d"(rdx)
+    :
+    : "memory");
+  return rax;
+}
+
+static int setup_polysignal_native_signature_slot(void) {
+  const struct poly_cpuid_regs signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
+  const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
+      signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      native_slot >= signature.ebx ||
+      native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
+      signature.eax, signature.ebx, signature.ecx, signature.edx);
+    return -1;
+  }
+  if (poly_abi_signature_set(native_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: native signature slot setup failed slot=%u\n",
+      native_slot);
+    return -1;
+  }
+  polysignal_native_signature_slot = native_slot;
+  return 0;
 }
 
 static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
@@ -311,7 +349,7 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
-    POLY_AARCH64_CTRL_CALL_SIG_IMM(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS));
+    POLY_AARCH64_CTRL_CALL_SIG_IMM(polysignal_native_signature_slot));
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -370,7 +408,7 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset,
-    POLY_RISCV_CTRL_CALL_SIG_IMM(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS));
+    POLY_RISCV_CTRL_CALL_SIG_IMM(polysignal_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -491,6 +529,9 @@ static int check_arch_fp(const char *name, uint64_t seed,
 int main(void) {
   struct sigaction sa;
   stack_t altstack;
+  if (setup_polysignal_native_signature_slot() < 0)
+    return 1;
+
   void *altstack_mem = mmap(NULL, POLYSIGNAL_ALT_STACK_SIZE,
     PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (altstack_mem == MAP_FAILED) {
