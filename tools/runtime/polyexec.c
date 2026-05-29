@@ -168,6 +168,7 @@ enum {
   POLY_CPUID_BASE = 0x40000000,
   POLY_CPUID_MAX = 0x40000009,
   POLY_CPUID_ABI_VERSION = 1,
+  POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
   POLY_CPUID_FEATURE_NATIVE_RET = (1U << 3),
@@ -175,6 +176,8 @@ enum {
   POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS = (1U << 11),
   POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
   POLY_CPUID_FEATURE_TRAP_VECTOR = (1U << 25),
+  POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
+  POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
   MAX_PROCESS_DEPS = 4,
@@ -255,6 +258,8 @@ struct poly_request {
   int check_expected;
 };
 
+static uint32_t process_native_signature_slot = 3;
+
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
@@ -311,6 +316,21 @@ static int read_poly_base_contract(int require_trap_vector) {
       features.eax, features.ebx, features.ecx, features.edx);
     return -1;
   }
+
+  const struct poly_cpuid_regs signature =
+    read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
+  const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
+      signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      native_slot >= signature.ebx ||
+      native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
+      signature.eax, signature.ebx, signature.ecx, signature.edx);
+    return -1;
+  }
+  process_native_signature_slot = native_slot;
 
   return 0;
 }
@@ -2817,6 +2837,14 @@ static uint32_t riscv_jalr(unsigned rd, unsigned rs1, int16_t byte_offset) {
     ((rs1 & 0x1fU) << 15) | ((rd & 0x1fU) << 7) | 0x67U;
 }
 
+static uint32_t aarch64_pcall_sig_imm(uint32_t slot) {
+  return 0xd5032c1fU | ((slot & 0x7U) << 5);
+}
+
+static uint32_t riscv_pcall_sig_imm(uint32_t slot) {
+  return 0x2000700bU | ((slot & 0x7U) << 25);
+}
+
 static uint32_t riscv_ld(unsigned rd, unsigned rs1, int16_t byte_offset) {
   return (((uint32_t) byte_offset & 0xfffU) << 20) |
     ((rs1 & 0x1fU) << 15) | (3U << 12) | ((rd & 0x1fU) << 7) | 0x03U;
@@ -2945,7 +2973,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_aarch64_movabs(code, &offset, 16, target);
     emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
     emit_aarch64_movabs(code, &offset, 18, return_addr);
-    emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+    emit_u32(code, &offset,
+      aarch64_pcall_sig_imm(process_native_signature_slot));
     emit_u32(code, &offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(code, &offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(code, &offset, 0xd65f03c0U); // ret
@@ -2970,7 +2999,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u32(code, &offset, riscv_ld(29, 2, 16)); // ld t4,16(sp)
   emit_u32(code, &offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
   emit_u32(code, &offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset, riscv_pcall_sig_imm(process_native_signature_slot));
   const size_t return_pc = offset;
   emit_u32(code, &offset, 0x00813083U); // ld ra,8(sp)
   emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16

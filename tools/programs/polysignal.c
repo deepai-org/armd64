@@ -310,7 +310,8 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032c1fU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLY_AARCH64_CTRL_CALL_SIG_IMM(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS));
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -368,7 +369,8 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x2000700bU); // PCALL_SIG_IMM slot 0
+  emit_u32(code, &offset,
+    POLY_RISCV_CTRL_CALL_SIG_IMM(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
