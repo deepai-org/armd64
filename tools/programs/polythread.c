@@ -962,6 +962,70 @@ static uint64_t pcall_riscv_hidden_get(uint64_t addend) {
   return result;
 }
 
+__attribute__((noinline))
+static uint64_t pcall_aarch64_hidden_set_deep(uint64_t value) {
+  volatile uint64_t pad[257];
+  pad[0] = value;
+  pad[256] = value ^ 0x5a5a5a5a5a5a5a5aULL;
+  return pcall_aarch64_hidden_set(pad[0]);
+}
+
+__attribute__((noinline))
+static uint64_t pcall_aarch64_hidden_get_deep(uint64_t addend) {
+  volatile uint64_t pad[257];
+  pad[0] = addend;
+  pad[256] = addend ^ 0xa5a5a5a5a5a5a5a5ULL;
+  return pcall_aarch64_hidden_get(pad[0]);
+}
+
+__attribute__((noinline))
+static uint64_t pcall_riscv_hidden_set_deep(uint64_t value) {
+  volatile uint64_t pad[257];
+  pad[0] = value;
+  pad[256] = value ^ 0x6b6b6b6b6b6b6b6bULL;
+  return pcall_riscv_hidden_set(pad[0]);
+}
+
+__attribute__((noinline))
+static uint64_t pcall_riscv_hidden_get_deep(uint64_t addend) {
+  volatile uint64_t pad[257];
+  pad[0] = addend;
+  pad[256] = addend ^ 0xb6b6b6b6b6b6b6b6ULL;
+  return pcall_riscv_hidden_get(pad[0]);
+}
+
+__attribute__((noinline))
+static uint64_t pcall_aarch64_hidden_fp_set_deep(uint64_t value_bits) {
+  volatile uint64_t pad[257];
+  pad[0] = value_bits;
+  pad[256] = value_bits ^ 0x3c3c3c3c3c3c3c3cULL;
+  return pcall_aarch64_hidden_fp_set(pad[0]);
+}
+
+__attribute__((noinline))
+static uint64_t pcall_aarch64_hidden_fp_get_deep(uint64_t addend_bits) {
+  volatile uint64_t pad[257];
+  pad[0] = addend_bits;
+  pad[256] = addend_bits ^ 0xc3c3c3c3c3c3c3c3ULL;
+  return pcall_aarch64_hidden_fp_get(pad[0]);
+}
+
+__attribute__((noinline))
+static uint64_t pcall_riscv_hidden_fp_set_deep(uint64_t value_bits) {
+  volatile uint64_t pad[257];
+  pad[0] = value_bits;
+  pad[256] = value_bits ^ 0x4d4d4d4d4d4d4d4dULL;
+  return pcall_riscv_hidden_fp_set(pad[0]);
+}
+
+__attribute__((noinline))
+static uint64_t pcall_riscv_hidden_fp_get_deep(uint64_t addend_bits) {
+  volatile uint64_t pad[257];
+  pad[0] = addend_bits;
+  pad[256] = addend_bits ^ 0xd4d4d4d4d4d4d4d4ULL;
+  return pcall_riscv_hidden_fp_get(pad[0]);
+}
+
 static int check_exported_thread_banks(uintptr_t worker_id,
     uint64_t expected_aarch64_gpr, uint64_t expected_riscv_gpr,
     uint64_t expected_aarch64_fp, uint64_t expected_riscv_fp) {
@@ -1186,6 +1250,170 @@ static void *worker_main(void *arg) {
   if (check_exported_thread_banks(worker_id, default_aarch64_seed,
       default_riscv_seed, double_to_bits((double) default_aarch64_fp_seed),
       double_to_bits((double) default_riscv_fp_seed)) != 0)
+    return (void *) 1;
+
+  uint64_t stack_aarch64_seed = base + 0x36000ULL;
+  uint64_t stack_riscv_seed = base + 0x37000ULL;
+  uint64_t stack_aarch64_fp_seed = base + 0x38000ULL;
+  uint64_t stack_riscv_fp_seed = base + 0x39000ULL;
+  uint64_t stack_aarch64_fp_bits =
+    double_to_bits((double) stack_aarch64_fp_seed);
+  uint64_t stack_riscv_fp_bits =
+    double_to_bits((double) stack_riscv_fp_seed);
+  if (pcall_aarch64_hidden_set_deep(stack_aarch64_seed) !=
+      stack_aarch64_seed) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu deep aarch64 hidden set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_riscv_hidden_set_deep(stack_riscv_seed) != stack_riscv_seed) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu deep riscv hidden set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_aarch64_hidden_fp_set_deep(stack_aarch64_fp_bits) !=
+      stack_aarch64_fp_bits) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu deep aarch64 hidden fp set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_riscv_hidden_fp_set_deep(stack_riscv_fp_bits) !=
+      stack_riscv_fp_bits) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu deep riscv hidden fp set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "stack-depth-hidden-set") != 0)
+    return (void *) 1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+  uint64_t stack_aarch64_result = pcall_aarch64_hidden_get(13);
+  if (stack_aarch64_result != stack_aarch64_seed + 13) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-depth aarch64 bank got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_aarch64_result,
+      (unsigned long long) (stack_aarch64_seed + 13));
+    return (void *) 1;
+  }
+  uint64_t stack_riscv_result = pcall_riscv_hidden_get(17);
+  if (stack_riscv_result != stack_riscv_seed + 17) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-depth riscv bank got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_riscv_result,
+      (unsigned long long) (stack_riscv_seed + 17));
+    return (void *) 1;
+  }
+  uint64_t stack_aarch64_fp_result =
+    pcall_aarch64_hidden_fp_get(double_to_bits(13.0));
+  uint64_t stack_aarch64_fp_expected =
+    double_to_bits((double) stack_aarch64_fp_seed + 13.0);
+  if (stack_aarch64_fp_result != stack_aarch64_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-depth aarch64 fp bank got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_aarch64_fp_result,
+      (unsigned long long) stack_aarch64_fp_expected);
+    return (void *) 1;
+  }
+  uint64_t stack_riscv_fp_result =
+    pcall_riscv_hidden_fp_get(double_to_bits(17.0));
+  uint64_t stack_riscv_fp_expected =
+    double_to_bits((double) stack_riscv_fp_seed + 17.0);
+  if (stack_riscv_fp_result != stack_riscv_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-depth riscv fp bank got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_riscv_fp_result,
+      (unsigned long long) stack_riscv_fp_expected);
+    return (void *) 1;
+  }
+
+  stack_aarch64_seed = base + 0x3a000ULL;
+  stack_riscv_seed = base + 0x3b000ULL;
+  stack_aarch64_fp_seed = base + 0x3c000ULL;
+  stack_riscv_fp_seed = base + 0x3d000ULL;
+  stack_aarch64_fp_bits = double_to_bits((double) stack_aarch64_fp_seed);
+  stack_riscv_fp_bits = double_to_bits((double) stack_riscv_fp_seed);
+  if (pcall_aarch64_hidden_set(stack_aarch64_seed) != stack_aarch64_seed) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack reset aarch64 hidden set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_riscv_hidden_set(stack_riscv_seed) != stack_riscv_seed) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack reset riscv hidden set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_aarch64_hidden_fp_set(stack_aarch64_fp_bits) !=
+      stack_aarch64_fp_bits) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack reset aarch64 hidden fp set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (pcall_riscv_hidden_fp_set(stack_riscv_fp_bits) !=
+      stack_riscv_fp_bits) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack reset riscv hidden fp set failed\n",
+      (unsigned long) worker_id);
+    return (void *) 1;
+  }
+  if (wait_for_workers(worker_id, "stack-depth-hidden-reset") != 0)
+    return (void *) 1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+  stack_aarch64_result = pcall_aarch64_hidden_get_deep(19);
+  if (stack_aarch64_result != stack_aarch64_seed + 19) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-reset aarch64 bank got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_aarch64_result,
+      (unsigned long long) (stack_aarch64_seed + 19));
+    return (void *) 1;
+  }
+  stack_riscv_result = pcall_riscv_hidden_get_deep(23);
+  if (stack_riscv_result != stack_riscv_seed + 23) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-reset riscv bank got=%llu expected=%llu\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_riscv_result,
+      (unsigned long long) (stack_riscv_seed + 23));
+    return (void *) 1;
+  }
+  stack_aarch64_fp_result =
+    pcall_aarch64_hidden_fp_get_deep(double_to_bits(19.0));
+  stack_aarch64_fp_expected =
+    double_to_bits((double) stack_aarch64_fp_seed + 19.0);
+  if (stack_aarch64_fp_result != stack_aarch64_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-reset aarch64 fp bank got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_aarch64_fp_result,
+      (unsigned long long) stack_aarch64_fp_expected);
+    return (void *) 1;
+  }
+  stack_riscv_fp_result =
+    pcall_riscv_hidden_fp_get_deep(double_to_bits(23.0));
+  stack_riscv_fp_expected =
+    double_to_bits((double) stack_riscv_fp_seed + 23.0);
+  if (stack_riscv_fp_result != stack_riscv_fp_expected) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu stack-reset riscv fp bank got=0x%llx expected=0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) stack_riscv_fp_result,
+      (unsigned long long) stack_riscv_fp_expected);
+    return (void *) 1;
+  }
+  if (check_exported_thread_banks(worker_id, stack_aarch64_seed,
+      stack_riscv_seed, stack_aarch64_fp_bits, stack_riscv_fp_bits) != 0)
     return (void *) 1;
 
   poly_trap_vector_mode_set(POLY_MODE_X86);
