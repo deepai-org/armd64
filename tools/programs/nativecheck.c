@@ -13,6 +13,10 @@
 
 #define POLY_OP_ENTER_A64 ".byte 0x0f,0x3a,0xfc,0x01\n"
 #define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
+#define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
+#define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
+#define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
+#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT8 ".byte 0x0f,0x3a,0xfc,0x2e,0x08\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
@@ -472,6 +476,89 @@ static void child_expect_riscv_compressed_illegal_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_enter_frontend_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "movq $255, %%r15\n"
+    POLY_OP_ENTER_MODE
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_switch_frontend_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "movq $255, %%r15\n"
+    POLY_OP_SWITCH_MODE
+    "1:\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_pcall_frontend_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "xorq %%r12, %%r12\n"
+    "movq $255, %%r15\n"
+    POLY_OP_PCALL_SIG_MODE
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_pcall_slot_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "movq $8, %%r12\n"
+    "movq %0, %%r15\n"
+    POLY_OP_PCALL_SIG_MODE
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_pcall_imm_slot_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "movq %0, %%r15\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT8
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_malformed_import_return_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -570,6 +657,27 @@ static int run_poly_no_vector_signal_probe(void) {
     return 1;
 
   puts("NATIVE_POLY_NO_VECTOR_SIGNALS_OK");
+  return 0;
+}
+
+static int run_poly_invalid_generic_control_signal_probe(void) {
+  if (expect_child_signal("poly invalid generic enter frontend", SIGILL,
+        child_expect_invalid_generic_enter_frontend_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly invalid generic switch frontend", SIGILL,
+        child_expect_invalid_generic_switch_frontend_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly invalid generic pcall frontend", SIGILL,
+        child_expect_invalid_generic_pcall_frontend_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly invalid generic pcall slot", SIGILL,
+        child_expect_invalid_generic_pcall_slot_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly invalid generic pcall immediate slot", SIGILL,
+        child_expect_invalid_generic_pcall_imm_slot_signal) != 0)
+    return 1;
+
+  puts("NATIVE_POLY_INVALID_GENERIC_CONTROLS_OK");
   return 0;
 }
 
@@ -2921,6 +3029,8 @@ int main(void) {
     if (run_poly_trap_vector_probe() != 0)
       return 1;
     if (run_poly_no_vector_signal_probe() != 0)
+      return 1;
+    if (run_poly_invalid_generic_control_signal_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;
