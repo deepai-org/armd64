@@ -1274,6 +1274,8 @@ static int resolve_direct_x86_register_import(int arch,
     const char *name;
     uint64_t import_id;
   } register_only_imports[] = {
+    { "poly_import_add", POLY_IMPORT_FUNC_ADD },
+    { "poly_import_mul", POLY_IMPORT_FUNC_MUL },
     { "strlen", POLY_IMPORT_FUNC_STRLEN },
     { "strcmp", POLY_IMPORT_FUNC_STRCMP },
     { "strncmp", POLY_IMPORT_FUNC_STRNCMP },
@@ -1313,6 +1315,10 @@ static int resolve_direct_x86_register_import(int arch,
     { "strtoul", POLY_IMPORT_FUNC_STRTOUL },
     { "strtoll", POLY_IMPORT_FUNC_STRTOLL },
     { "strtoull", POLY_IMPORT_FUNC_STRTOULL },
+    { "__clzdi2", POLY_IMPORT_FUNC_CLZDI2 },
+    { "__ctzdi2", POLY_IMPORT_FUNC_CTZDI2 },
+    { "__paritydi2", POLY_IMPORT_FUNC_PARITYDI2 },
+    { "__popcountdi2", POLY_IMPORT_FUNC_POPCOUNTDI2 },
     { "__tls_get_addr", POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR },
     { "__stack_chk_fail", POLY_IMPORT_FUNC_STACK_CHK_FAIL },
     { "__errno_location", POLY_IMPORT_FUNC_ERRNO_LOCATION },
@@ -1396,6 +1402,14 @@ static int resolve_direct_x86_register_import(int arch,
       *import_id = register_only_imports[n].import_id;
       return 0;
     }
+  }
+
+  uint64_t outline_atomic_value = 0;
+  if (arch == POLY_ARCH_AARCH64 &&
+      resolve_aarch64_outline_atomic_import(symbol_name,
+        &outline_atomic_value) == 0) {
+    *import_id = outline_atomic_value / POLY_IMPORT_CALL_STRIDE;
+    return 0;
   }
 
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
