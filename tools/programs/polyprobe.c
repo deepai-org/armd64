@@ -2213,6 +2213,11 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall mode mismatch\n");
     return 1;
   }
+  poly_trap_selector_status();
+  if (read_rax() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall selector mismatch\n");
+    return 1;
+  }
   raw_riscv_getpid_probe();
   if (read_rax() != 4242) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall mismatch\n");
@@ -2241,6 +2246,11 @@ int main(void) {
   poly_trap_number_status();
   if (read_rax() != 172) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw syscall trap number mismatch\n");
+    return 1;
+  }
+  poly_trap_selector_status();
+  if (read_rax() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall selector mismatch\n");
     return 1;
   }
 
