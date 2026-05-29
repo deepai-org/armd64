@@ -3376,6 +3376,53 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_x86_direct_fp64(
 }
 
 __attribute__((noinline, noipa))
+static uint64_t
+nativecheck_signature_imm_pcall_aarch64_x86_direct_fp64_raw_consume(
+    uint64_t left_bits, uint64_t right_bits) {
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_fp64_mul;
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0x1e602800\n" // return: fadd d0,d0,d0
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+r"(target)
+    :
+    : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
+      "r13", "r14", "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
+__attribute__((noinline, noipa))
+static uint64_t
+nativecheck_signature_imm_pcall_riscv_x86_direct_fp64_raw_consume(
+    uint64_t left_bits, uint64_t right_bits) {
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_fp64_mul;
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x02a50553\n" // return: fadd.d fa0,fa0,fa0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+r"(target)
+    :
+    : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
+      "r13", "r14", "xmm0", "xmm1", "memory");
+  return read_xmm0_u64();
+}
+
+__attribute__((noinline, noipa))
 static struct nativecheck_u128
 nativecheck_signature_imm_pcall_aarch64_x86_direct_vec128(void) {
   register uint64_t target asm("r10") =
@@ -3660,6 +3707,7 @@ static int run_poly_direct_x86_pcall_probe(void) {
   const uint64_t fp_left_bits = 0x3ff8000000000000ULL;
   const uint64_t fp_right_bits = 0x4002000000000000ULL;
   const uint64_t fp_expected_bits = 0x400b000000000000ULL;
+  const uint64_t fp_raw_consume_expected_bits = 0x401b000000000000ULL;
   nativecheck_direct_x86_helper_calls = 0;
 
   uint64_t result =
@@ -3847,6 +3895,29 @@ static int run_poly_direct_x86_pcall_probe(void) {
       nativecheck_direct_x86_fp64_helper_calls != 1) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv native signature direct x86 fp64 result=0x%llx calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_fp64_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_fp64_helper_calls = 0;
+  result =
+    nativecheck_signature_imm_pcall_aarch64_x86_direct_fp64_raw_consume(
+      fp_left_bits, fp_right_bits);
+  if (result != fp_raw_consume_expected_bits ||
+      nativecheck_direct_x86_fp64_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 native signature direct x86 fp64 raw consume result=0x%llx calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_fp64_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_fp64_helper_calls = 0;
+  result = nativecheck_signature_imm_pcall_riscv_x86_direct_fp64_raw_consume(
+    fp_left_bits, fp_right_bits);
+  if (result != fp_raw_consume_expected_bits ||
+      nativecheck_direct_x86_fp64_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv native signature direct x86 fp64 raw consume result=0x%llx calls=%u\n",
       (unsigned long long) result, nativecheck_direct_x86_fp64_helper_calls);
     return 1;
   }
