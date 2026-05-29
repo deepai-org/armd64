@@ -2098,6 +2098,18 @@ uint64_t POLY_HOST_HELPER poly_host_x86_atoi(const uint8_t *text)
   return (uint64_t) (int64_t) result;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_atol(const uint8_t *text)
+{
+  bool negative = false;
+  uint64_t value = poly_host_x86_parse_integer(text, 0, 10, &negative);
+  return negative ? (uint64_t) -(int64_t) value : value;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_atoll(const uint8_t *text)
+{
+  return poly_host_x86_atol(text);
+}
+
 uint64_t POLY_HOST_HELPER poly_host_x86_strtol(const uint8_t *text,
     uint8_t **endptr, uint64_t base)
 {

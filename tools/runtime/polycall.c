@@ -566,7 +566,9 @@ enum {
   POLY_IMPORT_FUNC_ABS = 220,
   POLY_IMPORT_FUNC_LABS = 221,
   POLY_IMPORT_FUNC_LLABS = 222,
-  POLY_IMPORT_FUNC_COUNT = 223,
+  POLY_IMPORT_FUNC_ATOL = 223,
+  POLY_IMPORT_FUNC_ATOLL = 224,
+  POLY_IMPORT_FUNC_COUNT = 225,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
 
@@ -1109,6 +1111,8 @@ extern uint64_t poly_host_x86_mempcpy(uint8_t *dest, const uint8_t *src,
 extern uint64_t poly_host_x86_rawmemchr(const uint8_t *text, uint64_t needle);
 extern uint64_t poly_host_x86_strchrnul(const uint8_t *text, uint64_t needle);
 extern uint64_t poly_host_x86_atoi(const uint8_t *text);
+extern uint64_t poly_host_x86_atol(const uint8_t *text);
+extern uint64_t poly_host_x86_atoll(const uint8_t *text);
 extern uint64_t poly_host_x86_strtol(const uint8_t *text, uint8_t **endptr,
     uint64_t base);
 extern uint64_t poly_host_x86_strtoul(const uint8_t *text, uint8_t **endptr,
@@ -1506,6 +1510,8 @@ static int resolve_direct_x86_register_import(int arch,
     { "bcopy", POLY_IMPORT_FUNC_BCOPY },
     { "bzero", POLY_IMPORT_FUNC_BZERO },
     { "atoi", POLY_IMPORT_FUNC_ATOI },
+    { "atol", POLY_IMPORT_FUNC_ATOL },
+    { "atoll", POLY_IMPORT_FUNC_ATOLL },
     { "strtol", POLY_IMPORT_FUNC_STRTOL },
     { "strtoul", POLY_IMPORT_FUNC_STRTOUL },
     { "strtoll", POLY_IMPORT_FUNC_STRTOLL },
@@ -1864,6 +1870,10 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
       return (uint64_t) (uintptr_t) poly_host_x86_strchrnul;
     case POLY_IMPORT_FUNC_ATOI:
       return (uint64_t) (uintptr_t) poly_host_x86_atoi;
+    case POLY_IMPORT_FUNC_ATOL:
+      return (uint64_t) (uintptr_t) poly_host_x86_atol;
+    case POLY_IMPORT_FUNC_ATOLL:
+      return (uint64_t) (uintptr_t) poly_host_x86_atoll;
     case POLY_IMPORT_FUNC_STRTOL:
       return (uint64_t) (uintptr_t) poly_host_x86_strtol;
     case POLY_IMPORT_FUNC_STRTOUL:
@@ -4472,6 +4482,14 @@ static int resolve_import_function(const char *symbol_name,
   }
   if (strcmp(symbol_name, "atoi") == 0) {
     *symbol_value = POLY_IMPORT_FUNC_ATOI * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "atol") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ATOL * POLY_IMPORT_CALL_STRIDE;
+    return 0;
+  }
+  if (strcmp(symbol_name, "atoll") == 0) {
+    *symbol_value = POLY_IMPORT_FUNC_ATOLL * POLY_IMPORT_CALL_STRIDE;
     return 0;
   }
   if (strcmp(symbol_name, "strtol") == 0) {
