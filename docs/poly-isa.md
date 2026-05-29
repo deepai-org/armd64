@@ -174,89 +174,41 @@ argument/result handoff:
 | `P7` | `R10` | `x7` | `a7` |
 
 Loader/runtime thunks can translate native ABI argument order into this window
-before issuing `PSWITCH` or `PCALL`. Silicon may also expose a small set of
-programmable ABI signature slots. A signature is register-only: it lets `PCALL`
-remap source architectural registers onto destination architectural registers
-through rename/RAT state, without moving data and without reading memory.
+before issuing `PSWITCH` or `PCALL`. For hot register-only native ABI calls,
+silicon may avoid those move thunks with a small bank of programmable ABI
+signature slots.
 
-These slots are semi-persistent hardware control state, typically programmed by
-the loader or runtime and reused by many call sites. A final hot-path `PCALL`
-names only the target frontend, target PC, and signature slot, preferably as an
-immediate. The CPU applies the cached register map in the rename path instead
-of executing move instructions.
+A signature slot is semi-persistent hardware control state programmed by the
+loader or runtime. It is a register-alias-table recipe, not a call descriptor:
+when `PCALL` names a slot, the CPU rebinds source architectural names to target
+architectural names in rename/RAT state, installs the return cookie, and
+redirects the frontend. Operand data does not move through execution pipes, and
+the transition does not read user memory.
 
-This is more flexible than a single fixed exchange-window alias. The loader can
-program one slot for SysV x86_64 argument registers to AAPCS64 `x0..x7`,
-another for the reverse direction, and another for RISC-V psABI. Hot call sites
-then select the slot instead of running a register-shuffle thunk.
+Example slots include SysV x86_64 `RDI,RSI,RDX,RCX,R8,R9` to AAPCS64
+`x0..x5`, the reverse AAPCS64-to-SysV mapping, and SysV-to-RISC-V psABI. A hot
+call site should encode only the target frontend, target PC, and signature
+slot, preferably as an immediate. The setup cost is paid when the loader
+programs the slot; the call-site cost is a frontend redirect plus cached rename
+selection.
 
 The slot bank is explicit Poly architectural state. In the Bochs prototype it
 is saved and restored by the Poly XSAVE component, not stored in a process-wide
 global or inferred from CR3. That lets thread switches and explicit
 `XSAVE`/`XRSTOR` preserve the active ABI signature configuration.
 
-This is a programmable RAT mechanism, not a descriptor parser. The hot
-transition path selects an already-programmed slot; it does not fetch a call
-descriptor from user memory. Register-only native ABI calls can therefore avoid
-software move thunks, while complex calls still use loader/runtime thunks.
-
-The intended use is semi-persistent signature caching. A runtime can program a
-small slot set once for common ABI pairs, then let many `PCALL` sites name only
-the slot. This keeps the crossing close to a branch plus rename-table update:
-the CPU changes which target architectural names reference existing physical
-registers, instead of moving operand data through execution pipes.
-
-The intended silicon implementation is a programmable register-alias-table
-update, not a data-moving microcode loop. Slot programming is rare control
-state setup. The hot `PCALL` path selects a cached slot, rebinds architectural
-source names to destination names in rename/RAT state, installs the return
-cookie, and branches.
-
-The slot bank is the hardware-visible Poly ABI Signature Register model. A
-runtime can program, for example, one slot for SysV-to-AAPCS64 and another for
-AAPCS64-to-SysV, then many call sites reuse those slots by immediate number.
-This is semi-persistent reconfigurable hardware state, not a per-call memory
-descriptor.
-
-This mechanism is intended to remove software move thunks for the common
-all-register case. It is not a promise that every native ABI crossing is
-thunk-free: stack arguments, by-value aggregate layout, variadics, lazy binding,
-and unusual vector conventions remain software responsibilities. The hardware
-sweet spot is cached register renaming; memory or stack repacking would make
-`PCALL` variable-latency and page-fault-capable.
-
-The practical rule is hybrid ABI translation. Hardware handles the common
-register-only case by selecting a semi-persistent signature slot and rebinding
-architectural names in rename/RAT state. Software thunks handle calls that need
-stack layout conversion, aggregate copying, variadic metadata, or other ABI
-memory policy, then use a simple `PCALL` for the final frontend transfer.
+The hardware boundary is strict: signatures can reconfigure register names,
+not memory layouts. Stack arguments, by-value aggregate layout, variadics, lazy
+binding, PLT/GOT policy, and unusual vector conventions remain
+loader/runtime-thunk responsibilities. A thunk performs that memory-side ABI
+work and then uses a null, identity, or simple register signature for the final
+`PCALL`. This keeps `PCALL` fixed-latency and prevents page-fault-capable
+memory marshalling from entering the CPU transition path.
 
 When a direct `PCALL` enters x86_64, the Bochs prototype places the source
 frontend stack pointer in volatile `R11`. This gives user-space x86 thunks a
 fixed way to copy overflow stack arguments from the caller ABI into an x86 SysV
 call frame without asking the CPU to parse descriptors or repack memory.
-
-The design rule is strict: hardware can reconfigure register names, not memory
-layouts. If the transition needs stack argument repacking, aggregate splitting,
-variadic metadata, or PLT/GOT policy, a software thunk performs that work and
-then uses a null, identity, or simple register signature for the final `PCALL`.
-
-Applying a signature is a fixed-latency control operation. It does not read a
-descriptor, touch the user stack, allocate temporary architectural registers, or
-perform ABI memory conversion. Invalid slot use should trap before changing
-frontends; valid slot use should be no more complex than selecting cached
-rename mappings plus the normal transition-stack update.
-
-This is intentionally limited to register renaming. Hardware does not repack
-stack arguments, copy by-value structs, interpret variadic call layouts, or read
-ABI descriptors from user memory. Those cases remain software-thunk
-responsibilities. The result is a small silicon mechanism that makes ordinary
-all-register calls fast while keeping complex ABI policy outside the CPU
-pipeline.
-
-The intended split is simple: hardware handles all-register calls with cached
-RAT remaps; software thunks handle stack and aggregate ABI conversion, then use
-a null, identity, or simple signature for the final `PCALL`.
 
 The prototype also treats the first eight scalar FP argument/result lanes as a
 fast exchange window: x86_64 `XMM0..XMM7`, AArch64 `v0..v7`, and RISC-V
