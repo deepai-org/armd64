@@ -1276,6 +1276,10 @@ static int resolve_direct_x86_register_import(int arch,
     *import_id = POLY_IMPORT_FUNC_X86_SLOT2;
     return 0;
   }
+  if (strcmp(symbol_name, "poly_import_x86_sum8") == 0) {
+    *import_id = POLY_IMPORT_FUNC_X86_SLOT5;
+    return 0;
+  }
   if (strcmp(symbol_name, "poly_import_x86_fp64_add") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT3;
     return 0;
@@ -3044,11 +3048,74 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
 
+  const int needs_sum8_x86_thunk = import_id == POLY_IMPORT_FUNC_X86_SLOT5;
+  uint64_t x86_thunk_addr = 0;
+  if (needs_sum8_x86_thunk) {
+    if (stub_limit - *stub_offset < 96)
+      return -1;
+    x86_thunk_addr = (uint64_t) (uintptr_t) (stubs + *stub_offset);
+    stubs[(*stub_offset)++] = 0x48; // sub rsp,24: align and reserve two stack args.
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xec;
+    stubs[(*stub_offset)++] = 0x18;
+    stubs[(*stub_offset)++] = 0x4c; // mov [rsp],r9
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0x0c;
+    stubs[(*stub_offset)++] = 0x24;
+    stubs[(*stub_offset)++] = 0x4c; // mov [rsp+8],r10
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0x54;
+    stubs[(*stub_offset)++] = 0x24;
+    stubs[(*stub_offset)++] = 0x08;
+    stubs[(*stub_offset)++] = 0x49; // mov r10,rdi
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xfa;
+    stubs[(*stub_offset)++] = 0x49; // mov r11,rsi
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xf3;
+    stubs[(*stub_offset)++] = 0x48; // mov rdi,rax
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc7;
+    stubs[(*stub_offset)++] = 0x4c; // mov rax,r8
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc0;
+    stubs[(*stub_offset)++] = 0x48; // mov rsi,rdx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd6;
+    stubs[(*stub_offset)++] = 0x48; // mov rdx,rcx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xca;
+    stubs[(*stub_offset)++] = 0x4c; // mov rcx,r10
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd1;
+    stubs[(*stub_offset)++] = 0x4d; // mov r8,r11
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd8;
+    stubs[(*stub_offset)++] = 0x49; // mov r9,rax
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc1;
+    emit_movabs_r11(stubs, stub_offset, target);
+    stubs[(*stub_offset)++] = 0x41; // call r11
+    stubs[(*stub_offset)++] = 0xff;
+    stubs[(*stub_offset)++] = 0xd3;
+    stubs[(*stub_offset)++] = 0x48; // add rsp,24
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xc4;
+    stubs[(*stub_offset)++] = 0x18;
+    stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
+  }
+
+  if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
+    return -1;
+
   const size_t start = *stub_offset;
   const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
+  const uint64_t pcall_target =
+    needs_sum8_x86_thunk ? x86_thunk_addr : target;
   const int split_fp32_pair_return =
     import_id == POLY_IMPORT_FUNC_X86_FPAIR32;
   const uint32_t signature_slot =
+    needs_sum8_x86_thunk ? contract->signature_slot_exchange :
     import_id == POLY_IMPORT_FUNC_X86_I128 ?
       contract->signature_slot_x86_sysv_regs_i128 :
       contract->signature_slot_x86_sysv_regs;
@@ -3057,7 +3124,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     if (stub_limit - start < 96)
       return -1;
     const uint64_t return_addr = start_addr + 52;
-    emit_aarch64_movabs(stubs, stub_offset, 16, target);
+    emit_aarch64_movabs(stubs, stub_offset, 16, pcall_target);
     emit_aarch64_movabs(stubs, stub_offset, 17, 0);
     emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
     emit_u32(stubs, stub_offset,
@@ -3095,7 +3162,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
       return -1;
     const size_t target_data_offset = *stub_offset;
-    emit_u64(stubs, stub_offset, target);
+    emit_u64(stubs, stub_offset, pcall_target);
     const size_t return_data_offset = *stub_offset;
     emit_u64(stubs, stub_offset,
       (uint64_t) (uintptr_t) (stubs + return_pc));
