@@ -3184,18 +3184,18 @@ int main(void) {
     uint32_t forbidden_feature_bits = POLY_CPUID_FEATURE_THREAD_BANKS |
       POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS |
       POLY_CPUID_FEATURE_STATE_KEY;
+    if ((features.ecx & forbidden_feature_bits) != 0) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: prototype CPUID feature bits advertised ecx=0x%x forbidden=0x%x\n",
+        features.ecx, forbidden_feature_bits);
+      return 1;
+    }
     if (features.eax != POLY_CPUID_ABI_VERSION ||
         features.ebx != poly_cpuid_expected_mode_mask() ||
-        (features.ecx & expected_features) != expected_features ||
+        features.ecx != expected_features ||
         features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID feature leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x expected_ecx=0x%x expected_edx=0x%x\n",
         features.eax, features.ebx, features.ecx, features.edx,
         expected_features, POLY_STATE_XSAVE_COMPONENT_ARCH);
-      return 1;
-    }
-    if ((features.ecx & forbidden_feature_bits) != 0) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: prototype CPUID feature bits advertised ecx=0x%x forbidden=0x%x\n",
-        features.ecx, forbidden_feature_bits);
       return 1;
     }
     struct poly_cpuid_regs expected_import_manifest =
