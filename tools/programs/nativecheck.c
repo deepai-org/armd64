@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -17,6 +18,7 @@
 #define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT0 ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
+#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT8 ".byte 0x0f,0x3a,0xfc,0x2e,0x08\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
@@ -792,6 +794,74 @@ static inline uint64_t poly_break_status_mode(void) {
   return value;
 }
 
+__attribute__((naked, noinline, used))
+static uint64_t nativecheck_call_on_stack(uint64_t (*target)(void),
+    void *stack_top) {
+  __asm__(
+    "pushq %r12\n"
+    "movq %rsp,%r12\n"
+    "movq %rsi,%rsp\n"
+    "andq $-16,%rsp\n"
+    "call *%rdi\n"
+    "movq %r12,%rsp\n"
+    "popq %r12\n"
+    "ret\n");
+}
+
+__attribute__((naked, noinline, used))
+static uint64_t nativecheck_x86_signature_pcall_aarch64_leaf(void) {
+  __asm__(
+    "leaq 1f(%rip),%rbx\n"
+    "leaq 2f(%rip),%r11\n"
+    "movq $1,%r15\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    "1:\n"
+    ".long 0xd2800540\n" // movz x0,#42
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "ret\n");
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_signature_pcall_stackless(void) {
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0)
+    _exit(97);
+
+  const long page_size = sysconf(_SC_PAGESIZE);
+  if (page_size <= 0)
+    _exit(97);
+  const size_t mapping_size = (size_t) page_size * 20U;
+  void *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mapping == MAP_FAILED)
+    _exit(97);
+
+  uint8_t *base = (uint8_t *) mapping;
+  void *stack_top = base + ((size_t) page_size * 12U);
+  uint64_t *source_stack = (uint64_t *) stack_top;
+  uintptr_t foreign_rsp =
+    (((uintptr_t) stack_top - 8U - 0x4000U) & ~(uintptr_t) 0xfU);
+  uint64_t *foreign_stack = (uint64_t *) foreign_rsp;
+
+  for (unsigned i = 0; i < 16; ++i) {
+    source_stack[i] = 0x1111000000000000ULL + i;
+    foreign_stack[i] = 0x2222000000000000ULL + i;
+  }
+
+  const uint64_t result = nativecheck_call_on_stack(
+    nativecheck_x86_signature_pcall_aarch64_leaf,
+    stack_top);
+  if (result != 42)
+    _exit(96);
+
+  for (unsigned i = 0; i < 16; ++i) {
+    if (foreign_stack[i] == 0x1111000000000000ULL + i)
+      _exit(80 + i);
+  }
+
+  _exit(0);
+}
+
 __attribute__((noreturn, noinline))
 static void child_expect_aarch64_svc_signal(void) {
   poly_trap_vector_set_value(0);
@@ -1304,6 +1374,30 @@ static int expect_child_signal(const char *name, int expected_signal,
   if (!WIFSIGNALED(status) || WTERMSIG(status) != expected_signal) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: %s expected signal %d status=0x%x\n",
       name, expected_signal, status);
+    return 1;
+  }
+  return 0;
+}
+
+static int expect_child_exit(const char *name, int expected_status,
+    void (*child_func)(void)) {
+  pid_t child = fork();
+  if (child < 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: %s fork failed\n", name);
+    return 1;
+  }
+  if (child == 0)
+    child_func();
+
+  int status = 0;
+  if (waitpid(child, &status, 0) != child) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: %s wait failed\n", name);
+    return 1;
+  }
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != expected_status) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: %s expected exit %d status=0x%x\n",
+      name, expected_status, status);
     return 1;
   }
   return 0;
@@ -4972,6 +5066,10 @@ static int run_poly_foreign_signature_pcall_probe(void) {
       (unsigned long long) vec_result.lo);
     return 1;
   }
+
+  if (expect_child_exit("poly signature pcall stackless transition",
+        0, child_expect_signature_pcall_stackless) != 0)
+    return 1;
 
   puts("NATIVE_POLY_FOREIGN_SIGNATURE_PCALL_OK");
   return 0;
