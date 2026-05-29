@@ -1,43 +1,40 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-```sh
-make image
-make boot-poly-binfmt-arch-traps
-make boot-poly-full-arch-traps
-rg -n "POLY.*(OK|FAIL)|NATIVE_CHECK|Kernel panic|Segmentation fault|BUG:" out/serial.log out/bochs*.log
-```
+Poly adds peer instruction frontends to an x86_64 system CPU. x86_64 still owns
+boot, privilege, paging, interrupts, faults, syscalls, virtual memory, and TSO
+ordering. AArch64 and RISC-V64 execute as raw userspace frontends in the same
+address space.
 
-Short tests: `make boot`, `make boot-poly-arch-traps`, `make boot-poly-call-arch-traps`.
+## Contract
 
-## What Changes From x86_64
+- Foreign code is fetched directly from `RIP`: AArch64 as aligned 32-bit words,
+  RISC-V64 as 16/32-bit instructions. There are no per-instruction `#UD`
+  envelopes.
+- All frontends share the x86_64 virtual address space, TLBs, page permissions,
+  and precise fault model.
+- Cross-ISA calls target existing ABIs: x86_64 SysV, AArch64 AAPCS64, and
+  RISC-V psABI. This is not a new compiler-only ABI.
+- Fast hardware transitions are branch-like and register-only. Stack arguments,
+  aggregates, variadics, dynamic linking, and incompatible vectors stay in
+  loader/runtime thunks.
+- Non-x86 registers are explicit XSAVE-style Poly architectural state, not
+  hidden CR3-scoped emulator state.
 
-- x86_64 remains the system ISA: boot, paging, privilege, interrupts, faults,
-  syscalls, and TSO.
-- Foreign code is direct fetched from `RIP`: AArch64 32-bit aligned words;
-  RISC-V64 16/32-bit instructions. No per-instruction `#UD` envelopes.
-- All frontends share the x86_64 virtual address space, TLBs, permissions, and
-  precise fault behavior.
-- Cross-ISA calls target real ABIs: x86_64 SysV, AAPCS64, and RISC-V psABI.
-- Hardware-facing transitions are register-only. Software thunks handle stack
-  arguments, aggregates, variadics, dynamic linking, and incompatible vectors.
-- Non-x86 state is explicit XSAVE-style Poly state, not hidden emulator state.
-
-## Frontends
+## Frontend IDs
 
 | ID | Frontend |
 | --- | --- |
 | `0` | x86_64 |
 | `1` | AArch64 |
 | `2` | RISC-V64 |
+| `3..255` | Reserved |
 
-## Encodings
+## Prototype Encodings
 
 - x86_64 controls: decoded `0f 3a fc <subop>` Poly control page.
 - AArch64 controls: reserved `HINT` subspace.
 - RISC-V64 controls: `custom-0` subspace.
-- Poly XSAVE prototype component: `20`
+- Poly XSAVE prototype component: `20`.
 
-## More Detail
-
-- Design notes: `docs/poly-isa-design-directions.md`
-- Constants and ABI-visible structs: `tools/include/polycpuid.h`
+See `docs/poly-isa-design-directions.md` for rationale and
+`tools/include/polycpuid.h` for ABI-visible constants.
