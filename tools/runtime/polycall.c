@@ -3288,6 +3288,11 @@ static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
   return 0; // Default register-only calls must use PCALL_SIG_IMM.
 }
 
+static int cross_bridge_uses_signature_slot(int bridge_kind) {
+  return bridge_kind == POLY_CROSS_BRIDGE_DEFAULT ||
+    bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32;
+}
+
 static uint32_t fallback_ret_for_arch(int arch) {
   if (arch == POLY_ARCH_AARCH64)
     return 0xd65f03c0U;
@@ -3310,14 +3315,14 @@ static void record_cross_stub_stats(struct poly_cross_stub_stats *stats,
   if (!stats)
     return;
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
-    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+    if (cross_bridge_uses_signature_slot(bridge_kind))
       stats->aarch64_to_riscv_sigreg_stubs++;
     else
       stats->aarch64_to_riscv_bridge_stubs++;
   }
   else if (caller_arch == POLY_ARCH_RISCV &&
       callee_arch == POLY_ARCH_AARCH64) {
-    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+    if (cross_bridge_uses_signature_slot(bridge_kind))
       stats->riscv_to_aarch64_sigreg_stubs++;
     else
       stats->riscv_to_aarch64_bridge_stubs++;
@@ -3327,6 +3332,7 @@ static void record_cross_stub_stats(struct poly_cross_stub_stats *stats,
 static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int caller_arch, int callee_arch, uint64_t target,
     int bridge_kind, uint32_t signature_slot,
+    uint32_t vec128_signature_slot,
     struct poly_cross_stub_stats *stats,
     uint64_t *stub_addr) {
   if (caller_arch == callee_arch) {
@@ -3345,6 +3351,8 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
     if (stub_limit - start < 80)
       return -1;
+    const int uses_signature_slot =
+      cross_bridge_uses_signature_slot(bridge_kind);
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
       const uint64_t return_addr = start_addr + 36;
       const uint32_t call_opcode =
@@ -3360,17 +3368,21 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       return 0;
     }
     const uint64_t return_addr = start_addr +
-      (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT ? 56 : 52);
+      (uses_signature_slot ? 56 : 52);
     emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
     emit_u32(stubs, stub_offset, 0xf9400bf2U); // ldr x18, [sp, #16]
     emit_u32(stubs, stub_offset, 0xf90003f2U); // str x18, [sp]
     emit_u32(stubs, stub_offset, 0xf90007feU); // str x30, [sp, #8]
     emit_aarch64_movabs(stubs, stub_offset, 16, target);
-    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT) {
+    if (uses_signature_slot) {
+      const uint32_t selected_signature_slot =
+        bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32 ?
+          vec128_signature_slot : signature_slot;
       emit_u32(stubs, stub_offset, 0xd2800051U); // movz x17,#2 (RISC-V)
       emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
       emit_u32(stubs, stub_offset,
-        0xd5032c1fU | ((signature_slot & 0x7U) << 5)); // PCALL_SIG_IMM
+        0xd5032c1fU |
+        ((selected_signature_slot & 0x7U) << 5)); // PCALL_SIG_IMM
     }
     else {
       const uint32_t call_opcode =
@@ -3391,12 +3403,14 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 64)
       return -1;
+    const int uses_signature_slot =
+      cross_bridge_uses_signature_slot(bridge_kind);
     const size_t auipc_target_pc = *stub_offset;
     emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
     const size_t ld_target_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
     size_t auipc_return_pc = 0;
-    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT) {
+    if (uses_signature_slot) {
       emit_u32(stubs, stub_offset, riscv_addi(6, 0, 1)); // frontend AArch64
       auipc_return_pc = *stub_offset;
       emit_u32(stubs, stub_offset, 0x00000397U); // auipc x7,0
@@ -3417,9 +3431,14 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
       emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
     }
-    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+    if (uses_signature_slot) {
+      const uint32_t selected_signature_slot =
+        bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32 ?
+          vec128_signature_slot : signature_slot;
       emit_u32(stubs, stub_offset,
-        0x2000700bU | ((signature_slot & 0x7U) << 25)); // PCALL_SIG_IMM
+        0x2000700bU |
+        ((selected_signature_slot & 0x7U) << 25)); // PCALL_SIG_IMM
+    }
     else {
       const uint32_t call_opcode =
         riscv_cross_call_opcode_for_bridge(bridge_kind);
@@ -3446,7 +3465,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       (uint64_t) (uintptr_t) (stubs + return_pc));
     store_u32(stubs, ld_target_offset, riscv_ld(5, 5,
       (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-    if (bridge_kind == POLY_CROSS_BRIDGE_DEFAULT)
+    if (uses_signature_slot)
       store_u32(stubs, ld_return_offset, riscv_ld(7, 7,
         (int32_t) return_data_offset - (int32_t) auipc_return_pc));
     else
@@ -8181,7 +8200,7 @@ static int protect_relro_region(const char *path, uint8_t *image,
 
 static int call_target_from_root_arch(uint8_t *code, size_t target_imm_offset,
     uint8_t *cross_stubs, size_t cross_stub_size, size_t *cross_stub_offset,
-    uint32_t cross_signature_slot,
+    uint32_t cross_signature_slot, uint32_t cross_vec128_signature_slot,
     struct poly_cross_stub_stats *cross_stub_stats,
     int root_arch, int target_arch, uint64_t target, int call_kind,
     int bridge_kind, const char *path, const char *label, uint64_t *result) {
@@ -8189,8 +8208,8 @@ static int call_target_from_root_arch(uint8_t *code, size_t target_imm_offset,
   if (root_arch != target_arch &&
       emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
         cross_stub_offset, root_arch, target_arch, target,
-        bridge_kind, cross_signature_slot, cross_stub_stats,
-        &call_target) < 0) {
+        bridge_kind, cross_signature_slot, cross_vec128_signature_slot,
+        cross_stub_stats, &call_target) < 0) {
     fprintf(stderr, "POLYCALL_FAIL: %s cross-ISA call stub overflow: %s\n",
       label, path);
     return -1;
@@ -8206,14 +8225,15 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     uint8_t *dep_image, size_t dep_size, uint64_t dep_load_bias,
     uint8_t *code, size_t target_imm_offset, uint8_t *cross_stubs,
     size_t cross_stub_size, size_t *cross_stub_offset,
-    uint32_t cross_signature_slot,
+    uint32_t cross_signature_slot, uint32_t cross_vec128_signature_slot,
     struct poly_cross_stub_stats *cross_stub_stats, int root_arch) {
   if (dep->init_vaddr != 0) {
     const uint64_t init_target = dep_load_bias + dep->init_vaddr;
     if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
           cross_stub_size, cross_stub_offset, cross_signature_slot,
-          cross_stub_stats, root_arch, dep->arch, init_target, POLY_CALL_U64,
-          POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency INIT", NULL) < 0)
+          cross_vec128_signature_slot, cross_stub_stats, root_arch, dep->arch,
+          init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, dep->path,
+          "dependency INIT", NULL) < 0)
       return -1;
   }
   if (dep->init_array_size == 0)
@@ -8233,9 +8253,9 @@ static int call_dependency_init_callbacks(const struct poly_dependency *dep,
     if (init_target != 0 &&
         call_target_from_root_arch(code, target_imm_offset, cross_stubs,
           cross_stub_size, cross_stub_offset, cross_signature_slot,
-          cross_stub_stats, root_arch, dep->arch, init_target, POLY_CALL_U64,
-          POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency INIT_ARRAY",
-          NULL) < 0)
+          cross_vec128_signature_slot, cross_stub_stats, root_arch, dep->arch,
+          init_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, dep->path,
+          "dependency INIT_ARRAY", NULL) < 0)
       return -1;
   }
   return 0;
@@ -8277,6 +8297,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   const uint32_t cross_signature_slot =
     import_contract.signature_slot_native_regs;
+  const uint32_t cross_vec128_signature_slot =
+    import_contract.signature_slot_native_regs_vec128_u32;
   struct poly_import_stub_stats import_stub_stats;
   memset(&import_stub_stats, 0, sizeof(import_stub_stats));
   struct poly_cross_stub_stats cross_stub_stats;
@@ -8649,7 +8671,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               &cross_stub_offset, dep->arch, program->arch,
               root_load_bias + dep->relocs[r].value,
               cross_bridge_kind_for_base(dep->relocs[r].base_kind),
-              cross_signature_slot, &cross_stub_stats, &stub_addr) < 0) {
+              cross_signature_slot, cross_vec128_signature_slot,
+              &cross_stub_stats, &stub_addr) < 0) {
           fprintf(stderr, "POLYCALL_FAIL: dependency root cross-ISA stub overflow: %s\n",
             dep->path);
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8707,7 +8730,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               &cross_stub_offset, dep->arch, program->deps[dep_index].arch,
               dep_load_bias[dep_index] + dep->relocs[r].value,
               cross_bridge_kind_for_base(dep->relocs[r].base_kind),
-              cross_signature_slot, &cross_stub_stats, &stub_addr) < 0) {
+              cross_signature_slot, cross_vec128_signature_slot,
+              &cross_stub_stats, &stub_addr) < 0) {
           fprintf(stderr, "POLYCALL_FAIL: dependency cross-ISA stub overflow: %s\n",
             dep->path);
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8777,7 +8801,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
             cross_stub_size, &cross_stub_offset, cross_signature_slot,
-            &cross_stub_stats, program->arch,
+            cross_vec128_signature_slot, &cross_stub_stats, program->arch,
             resolver_arch, resolver, POLY_CALL_U64,
             POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency IFUNC resolver",
             &resolved) < 0) {
@@ -8794,7 +8818,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, dep->arch, resolver_arch, resolved,
             cross_bridge_kind_for_ifunc_base(dep->relocs[r].base_kind),
-            cross_signature_slot, &cross_stub_stats, &reloc_value) < 0) {
+            cross_signature_slot, cross_vec128_signature_slot,
+            &cross_stub_stats, &reloc_value) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: dependency IFUNC cross-ISA stub overflow: %s\n",
           dep->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8943,7 +8968,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             &cross_stub_offset, program->arch, program->deps[dep_index].arch,
             dep_load_bias[dep_index] + program->relocs[n].value,
             cross_bridge_kind_for_base(program->relocs[n].base_kind),
-            cross_signature_slot, &cross_stub_stats, &stub_addr) < 0) {
+            cross_signature_slot, cross_vec128_signature_slot,
+            &cross_stub_stats, &stub_addr) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: cross-ISA stub overflow: %s\n",
           program->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8999,7 +9025,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
             cross_stub_size, &cross_stub_offset, cross_signature_slot,
-            &cross_stub_stats, program->arch,
+            cross_vec128_signature_slot, &cross_stub_stats, program->arch,
             program->arch, resolver, POLY_CALL_U64,
             POLY_CROSS_BRIDGE_DEFAULT, dep->path,
             "dependency root IFUNC resolver", &resolved) < 0) {
@@ -9016,7 +9042,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, dep->arch, program->arch, resolved,
             cross_bridge_kind_for_ifunc_base(dep->relocs[r].base_kind),
-            cross_signature_slot, &cross_stub_stats, &reloc_value) < 0) {
+            cross_signature_slot, cross_vec128_signature_slot,
+            &cross_stub_stats, &reloc_value) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: dependency root IFUNC cross-ISA stub overflow: %s\n",
           dep->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9115,8 +9142,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
           dep_load_bias[d], code, target_imm_offset, cross_stubs,
           cross_stub_size, &cross_stub_offset, cross_signature_slot,
-          &cross_stub_stats,
-          program->arch) < 0) {
+          cross_vec128_signature_slot, &cross_stub_stats, program->arch) < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
         munmap(tls, tls_size);
@@ -9136,8 +9162,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       if (call_dependency_init_callbacks(dep, dep_foreign[d], dep_sizes[d],
             dep_load_bias[d], code, target_imm_offset, cross_stubs,
             cross_stub_size, &cross_stub_offset, cross_signature_slot,
-            &cross_stub_stats,
-            program->arch) < 0) {
+            cross_vec128_signature_slot, &cross_stub_stats, program->arch) < 0) {
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
         if (tls)
           munmap(tls, tls_size);
@@ -9196,8 +9221,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     uint64_t resolved = 0;
     if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
           cross_stub_size, &cross_stub_offset, cross_signature_slot,
-          &cross_stub_stats, program->arch, resolver_arch,
-          resolver, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT, program->path,
+          cross_vec128_signature_slot, &cross_stub_stats, program->arch,
+          resolver_arch, resolver, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT,
+          program->path,
           "IFUNC resolver", &resolved) < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
       if (tls)
@@ -9212,7 +9238,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
           &cross_stub_offset, program->arch, resolver_arch, resolved,
           cross_bridge_kind_for_ifunc_base(program->relocs[n].base_kind),
-          cross_signature_slot, &cross_stub_stats, &reloc_value) < 0) {
+          cross_signature_slot, cross_vec128_signature_slot,
+          &cross_stub_stats, &reloc_value) < 0) {
       fprintf(stderr, "POLYCALL_FAIL: IFUNC cross-ISA stub overflow: %s\n",
         program->path);
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9367,7 +9394,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           if (fini_target != 0 &&
               call_target_from_root_arch(code, target_imm_offset, cross_stubs,
                 cross_stub_size, &cross_stub_offset, cross_signature_slot,
-                &cross_stub_stats, program->arch,
+                cross_vec128_signature_slot, &cross_stub_stats, program->arch,
                 dep->arch, fini_target, POLY_CALL_U64,
                 POLY_CROSS_BRIDGE_DEFAULT, dep->path, "dependency FINI_ARRAY",
                 NULL) < 0) {
@@ -9387,7 +9414,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           dep_load_bias[dep_index] + dep->fini_vaddr;
         if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
               cross_stub_size, &cross_stub_offset, cross_signature_slot,
-              &cross_stub_stats, program->arch, dep->arch,
+              cross_vec128_signature_slot, &cross_stub_stats, program->arch,
+              dep->arch,
               fini_target, POLY_CALL_U64, POLY_CROSS_BRIDGE_DEFAULT,
               dep->path, "dependency FINI", NULL) < 0) {
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9439,7 +9467,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       uint64_t resolved = 0;
       if (call_target_from_root_arch(code, target_imm_offset, cross_stubs,
             cross_stub_size, &cross_stub_offset, cross_signature_slot,
-            &cross_stub_stats, program->arch,
+            cross_vec128_signature_slot, &cross_stub_stats, program->arch,
             program->deps[dep_index].arch, fini_result_target, POLY_CALL_U64,
             POLY_CROSS_BRIDGE_DEFAULT, program->deps[dep_index].path,
             "dependency fini result IFUNC resolver", &resolved) < 0) {
@@ -9460,7 +9488,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_opcode_for_call_kind(program->arch, result_call_kind);
     const int call_status = call_target_from_root_arch(code,
       target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
-      cross_signature_slot, &cross_stub_stats, program->arch,
+      cross_signature_slot, cross_vec128_signature_slot, &cross_stub_stats,
+      program->arch,
       program->deps[dep_index].arch, fini_result_target, result_call_kind,
       bridge_kind,
       program->deps[dep_index].path, "dependency fini result", result);
