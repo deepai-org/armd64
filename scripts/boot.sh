@@ -480,6 +480,8 @@ build_poly_elf_generator() {
 build_poly_elf_payloads() {
   build_poly_elf_generator
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps"
+  mkdir -p "$TMP_DIR/poly-link/aarch64"
+  mkdir -p "$TMP_DIR/poly-link/riscv"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$AARCH64_POLYCALL_REAL_SRC" \
@@ -515,6 +517,18 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocessneeded-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
+    -Wl,-soname,libpolyprocesscrossneeded-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocesscrossneeded-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
+    -Wl,-soname,libpolyprocesscrossneeded-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/aarch64/libpolyprocesscrossneeded-riscv.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocessrunpath-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
@@ -532,6 +546,13 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessneeded-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-needed-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/aarch64" \
+    -Wl,--no-as-needed -l:libpolyprocesscrossneeded-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-cross-needed-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2374,6 +2395,20 @@ build_poly_elf_payloads() {
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_NEEDED_DEP \
+    -Wl,-soname,libpolyprocesscrossneeded-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocesscrossneeded-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_NEEDED_DEP \
+    -Wl,-soname,libpolyprocesscrossneeded-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/riscv/libpolyprocesscrossneeded-aarch64.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocessrunpath-riscv.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
@@ -2392,6 +2427,13 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessneeded-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-needed-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/riscv" \
+    -Wl,--no-as-needed -l:libpolyprocesscrossneeded-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-cross-needed-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -5631,6 +5673,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 \
     /usr/lib/polyapps/riscv-ecall.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
+    echo "POLY_EXEC_BLOCK_OK" >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
@@ -5740,6 +5783,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-cross-needed-real.elf=42 \
+      cross-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-runpath-real.elf=42 \
       runpath-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -5803,6 +5849,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/riscv-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-cross-needed-real.elf=42 \
+      cross-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-runpath-real.elf=42 \
       runpath-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -5853,6 +5902,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-tls-default-needed-real.elf=42 \
       tls-default-needed >/dev/ttyS0 2>&1
+    echo "POLY_ARCH_TRAP_EXEC_OK" >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_CALL" = "1" ]; then
@@ -7731,13 +7781,13 @@ EOF
         fi
       fi
       if [[ "$RUN_POLY_EXEC" == "1" ]]; then
-        if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
+        if ! grep -q "POLY_EXEC_BLOCK_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
       fi
       if [[ "$RUN_POLY_ARCH_TRAP_EXEC" == "1" ]]; then
-        if ! grep -q "POLYEXEC_OK" "$SERIAL_LOG"; then
+        if ! grep -q "POLY_ARCH_TRAP_EXEC_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

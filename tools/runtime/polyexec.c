@@ -181,6 +181,7 @@ enum {
   MAX_PROCESS_DEP_DEPTH = 4,
   MAX_DEP_PATH = 160,
   MAX_PROCESS_TLS_BYTES = 64 * 1024,
+  PROCESS_CROSS_STUB_BYTES = 64 * 1024,
   SCRATCH_SECOND_PATH_OFFSET = 128
 };
 
@@ -239,6 +240,14 @@ struct poly_program {
   uint8_t *scope_root_loaded_image;
 };
 
+struct poly_cross_stub_arena {
+  uint8_t *mapping;
+  size_t size;
+  size_t offset;
+};
+
+static struct poly_cross_stub_arena process_cross_stubs;
+
 struct poly_request {
   char path[160];
   char symbol[80];
@@ -250,6 +259,8 @@ static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
     uint64_t *resolved);
+static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
+    uint64_t target, uint64_t *stub_addr);
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 
@@ -974,9 +985,9 @@ static int resolve_loaded_program_tls_symbol_ex(
 }
 
 static int resolve_loaded_dependency_symbol_at_depth(
-    const struct poly_program *program, const char *symbol_name,
-    const char *requested_version, uint64_t *symbol_value,
-    uint8_t *symbol_type, size_t depth) {
+    const struct poly_program *program, int caller_arch,
+    const char *symbol_name, const char *requested_version,
+    uint64_t *symbol_value, uint8_t *symbol_type, size_t depth) {
   if (depth >= MAX_PROCESS_DEP_DEPTH)
     return -1;
 
@@ -987,10 +998,18 @@ static int resolve_loaded_dependency_symbol_at_depth(
 
     if (resolve_loaded_program_symbol_ex(dep->program, dep->loaded_image,
           symbol_name, requested_version, symbol_value, symbol_type,
-          NULL) == 0)
+          NULL) == 0) {
+      const uint8_t type = symbol_type ? *symbol_type : STT_NOTYPE;
+      if (caller_arch != dep->program->arch &&
+          (type == STT_FUNC || type == STT_NOTYPE) &&
+          emit_process_cross_isa_call_stub(caller_arch, dep->program->arch,
+            *symbol_value, symbol_value) < 0)
+        return -1;
       return 0;
-    if (resolve_loaded_dependency_symbol_at_depth(dep->program, symbol_name,
-          requested_version, symbol_value, symbol_type, depth + 1) == 0)
+    }
+    if (resolve_loaded_dependency_symbol_at_depth(dep->program, caller_arch,
+          symbol_name, requested_version, symbol_value, symbol_type,
+          depth + 1) == 0)
       return 0;
   }
   return -1;
@@ -999,8 +1018,8 @@ static int resolve_loaded_dependency_symbol_at_depth(
 static int resolve_loaded_dependency_symbol(const struct poly_program *program,
     const char *symbol_name, const char *requested_version,
     uint64_t *symbol_value, uint8_t *symbol_type) {
-  return resolve_loaded_dependency_symbol_at_depth(program, symbol_name,
-    requested_version, symbol_value, symbol_type, 0);
+  return resolve_loaded_dependency_symbol_at_depth(program, program->arch,
+    symbol_name, requested_version, symbol_value, symbol_type, 0);
 }
 
 static int resolve_loaded_dependency_tls_symbol_at_depth(
@@ -1050,6 +1069,12 @@ static int resolve_root_scope_symbol(const struct poly_program *program,
           return_pc, scratch, ifunc_resolver_vaddr, symbol_value) < 0)
       return -1;
   }
+  if (program->arch != program->scope_root_program->arch &&
+      (resolved_type == STT_FUNC || resolved_type == STT_NOTYPE ||
+       resolved_type == STT_GNU_IFUNC) &&
+      emit_process_cross_isa_call_stub(program->arch,
+        program->scope_root_program->arch, *symbol_value, symbol_value) < 0)
+    return -1;
   if (symbol_type)
     *symbol_type = resolved_type;
   return 0;
@@ -2419,6 +2444,18 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
 }
 
+static void store_u32(uint8_t *code, size_t offset, uint32_t value) {
+  code[offset] = (uint8_t) (value & 0xff);
+  code[offset + 1] = (uint8_t) ((value >> 8) & 0xff);
+  code[offset + 2] = (uint8_t) ((value >> 16) & 0xff);
+  code[offset + 3] = (uint8_t) ((value >> 24) & 0xff);
+}
+
+static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
+  for (unsigned n = 0; n < 8; n++)
+    code[(*offset)++] = (uint8_t) ((value >> (n * 8)) & 0xff);
+}
+
 static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes, size_t size) {
   memcpy(code + *offset, bytes, size);
   *offset += size;
@@ -2770,9 +2807,119 @@ static uint32_t riscv_ld(unsigned rd, unsigned rs1, int16_t byte_offset) {
     ((rs1 & 0x1fU) << 15) | (3U << 12) | ((rd & 0x1fU) << 7) | 0x03U;
 }
 
+static uint32_t riscv_sd(unsigned rs2, unsigned rs1, int16_t byte_offset) {
+  const uint32_t imm = (uint32_t) byte_offset & 0xfffU;
+  return ((imm >> 5) << 25) | ((rs2 & 0x1fU) << 20) |
+    ((rs1 & 0x1fU) << 15) | (3U << 12) |
+    ((imm & 0x1fU) << 7) | 0x23U;
+}
+
 static uint32_t riscv_add(unsigned rd, unsigned rs1, unsigned rs2) {
   return ((rs2 & 0x1fU) << 20) | ((rs1 & 0x1fU) << 15) |
     ((rd & 0x1fU) << 7) | 0x33U;
+}
+
+static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
+    uint64_t value) {
+  emit_u32(code, offset, 0xd2800000U |
+    (((uint32_t) value & 0xffffU) << 5) | (rd & 0x1fU));
+  emit_u32(code, offset, 0xf2a00000U |
+    ((((uint32_t) (value >> 16)) & 0xffffU) << 5) | (rd & 0x1fU));
+  emit_u32(code, offset, 0xf2c00000U |
+    ((((uint32_t) (value >> 32)) & 0xffffU) << 5) | (rd & 0x1fU));
+  emit_u32(code, offset, 0xf2e00000U |
+    ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | (rd & 0x1fU));
+}
+
+static int ensure_process_cross_stub_arena(void) {
+  if (process_cross_stubs.mapping)
+    return 0;
+  process_cross_stubs.size = PROCESS_CROSS_STUB_BYTES;
+  process_cross_stubs.offset = 0;
+  process_cross_stubs.mapping = mmap(NULL, process_cross_stubs.size,
+    PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (process_cross_stubs.mapping == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: cross-ISA stub mmap failed: %s\n",
+      strerror(errno));
+    process_cross_stubs.mapping = NULL;
+    process_cross_stubs.size = 0;
+    return -1;
+  }
+  return 0;
+}
+
+static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
+    uint64_t target, uint64_t *stub_addr) {
+  if (caller_arch == callee_arch) {
+    *stub_addr = target;
+    return 0;
+  }
+  if (!((caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) ||
+        (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)))
+    return -1;
+  if (ensure_process_cross_stub_arena() < 0 ||
+      align_up_size(process_cross_stubs.offset, 8,
+        &process_cross_stubs.offset) < 0)
+    return -1;
+
+  uint8_t *code = process_cross_stubs.mapping;
+  const size_t start = process_cross_stubs.offset;
+  const uint64_t start_addr = (uint64_t) (uintptr_t) (code + start);
+
+  if (caller_arch == POLY_ARCH_AARCH64) {
+    if (process_cross_stubs.size - start < 80)
+      return -1;
+    size_t offset = start;
+    const uint64_t return_addr = start_addr + 52;
+    emit_u32(code, &offset, 0xd10043ffU); // sub sp, sp, #16
+    emit_u32(code, &offset, 0xf9400bf2U); // ldr x18, [sp, #16]
+    emit_u32(code, &offset, 0xf90003f2U); // str x18, [sp]
+    emit_u32(code, &offset, 0xf90007feU); // str x30, [sp, #8]
+    emit_aarch64_movabs(code, &offset, 16, target);
+    emit_aarch64_movabs(code, &offset, 17, return_addr);
+    emit_u32(code, &offset, 0xd5032e5fU); // AArch64 polyctrl call RISC-V
+    emit_u32(code, &offset, 0xf94007feU); // ldr x30, [sp, #8]
+    emit_u32(code, &offset, 0x910043ffU); // add sp, sp, #16
+    emit_u32(code, &offset, 0xd65f03c0U); // ret
+    process_cross_stubs.offset = offset;
+    *stub_addr = start_addr;
+    return 0;
+  }
+
+  if (process_cross_stubs.size - start < 72)
+    return -1;
+  size_t offset = start;
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0xff010113U); // addi sp,sp,-16
+  emit_u32(code, &offset, riscv_ld(7, 2, 16)); // ld t2,16(sp)
+  emit_u32(code, &offset, riscv_sd(7, 2, 0)); // sd t2,0(sp)
+  emit_u32(code, &offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
+  emit_u32(code, &offset, 0x0400700bU); // RISC-V polyctrl call AArch64
+  const size_t return_pc = offset;
+  emit_u32(code, &offset, 0x00813083U); // ld ra,8(sp)
+  emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
+  emit_u32(code, &offset, 0x00008067U); // ret
+  if (align_up_size(offset, 8, &offset) < 0 ||
+      process_cross_stubs.size - offset < 16)
+    return -1;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, target);
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + return_pc));
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int16_t) ((int64_t) target_data_offset - (int64_t) auipc_target_pc)));
+  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+    (int16_t) ((int64_t) return_data_offset - (int64_t) auipc_return_pc)));
+  process_cross_stubs.offset = offset;
+  *stub_addr = start_addr;
+  return 0;
 }
 
 static int emit_process_tls_helper(const struct poly_program *program,
@@ -3905,14 +4052,6 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
       return -1;
     }
     if (load_elf_program(dep->path, "", dep->program) < 0) {
-      free(dep->program);
-      dep->program = NULL;
-      return -1;
-    }
-    if (dep->program->arch != program->arch) {
-      fprintf(stderr, "POLYEXEC_FAIL: cross-arch DT_NEEDED not supported yet: %s\n",
-        dep->path);
-      free_program(dep->program);
       free(dep->program);
       dep->program = NULL;
       return -1;
