@@ -1,12 +1,9 @@
 # Poly ISA
 
-Poly keeps x86_64 as the system ISA and adds user-mode AArch64 and RISC-V64
-frontends in the same virtual address space.
+Poly keeps x86_64 as the system ISA and adds user-mode AArch64/RISC-V64
+frontends for existing precompiled code and cross-ISA shared libraries.
 
-The goal is compatibility with existing precompiled code and cross-ISA shared
-libraries, not a new compiler-only ABI.
-
-## Run It
+## Run
 
 ```sh
 make image
@@ -16,23 +13,20 @@ rg -n "POLY.*(OK|FAIL)|NATIVE_CHECK|Kernel panic|Segmentation fault|BUG:" \
   out/serial.log out/bochs*.log
 ```
 
-Useful shorter targets: `make boot`, `make boot-poly-arch-traps`,
+Short smoke tests: `make boot`, `make boot-poly-arch-traps`,
 `make boot-poly-call-arch-traps`.
 
-## What Changes From x86_64
+## x86_64 Differences
 
-- x86_64 still owns boot, paging, privilege, interrupts, faults, syscalls, and
-  TSO memory ordering.
-- Frontend IDs are `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
-- AArch64 fetches aligned 4-byte instructions from `RIP`.
-- RISC-V64 fetches 2-byte or 4-byte instructions from `RIP`.
-- All frontends share x86_64 virtual addresses, TLBs, page permissions, and
-  faults.
+- x86_64 owns boot, paging, privilege, interrupts, faults, syscalls, and TSO.
+- Frontend IDs: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
+- Foreign code fetches from `RIP` in the same virtual address space.
+- Fetch width is native: AArch64 aligned 32-bit, RISC-V64 16/32-bit.
+- All frontends share x86_64 TLBs, page permissions, and fault behavior.
 - `PENTER`, `PSWITCH`, `PCALL`, and `PIRET` are decoded control-flow operations,
   not `#UD` envelopes.
-- Non-x86 state is explicit XSAVE-style architectural state, currently component
-  `20` in the prototype.
-- Hardware accelerates register-only handoff. Software thunks handle stack args,
+- Non-x86 architectural state is XSAVE-style state, prototype component `20`.
+- Hardware handles register-only transitions; software thunks handle stack args,
   aggregates, variadics, PLT/GOT, lazy binding, and incompatible vectors.
 
 ## Prototype Encodings
@@ -41,7 +35,5 @@ Useful shorter targets: `make boot`, `make boot-poly-arch-traps`,
 - AArch64 controls: reserved `HINT`
 - RISC-V64 controls: `custom-0`
 
-## References
-
-- Design rationale: `docs/poly-isa-design-directions.md`
-- Public constants: `tools/include/polycpuid.h`
+Design rationale lives in `docs/poly-isa-design-directions.md`; public constants
+live in `tools/include/polycpuid.h`.

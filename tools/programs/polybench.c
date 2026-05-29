@@ -26,6 +26,7 @@ enum {
   POLY_CPUID_BASE = 0x40000000,
   POLY_CPUID_MAX = 0x40000009,
   POLY_CPUID_ABI_VERSION = 1,
+  POLY_STATE_XSAVE_COMPONENT_ARCH = 20,
   POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
@@ -34,6 +35,9 @@ enum {
   POLY_CPUID_FEATURE_PCALL_SYSV = (1U << 4),
   POLY_CPUID_FEATURE_PCALL_SRET = (1U << 5),
   POLY_CPUID_FEATURE_FP_BRIDGE = (1U << 6),
+  POLY_CPUID_FEATURE_TRAP_RECORDS = (1U << 7),
+  POLY_CPUID_FEATURE_USER_RETURN_RESTORE = (1U << 8),
+  POLY_CPUID_FEATURE_X86_TSO = (1U << 9),
   POLY_CPUID_FEATURE_THREAD_BANKS = (1U << 10),
   POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS = (1U << 11),
   POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
@@ -45,9 +49,11 @@ enum {
   POLY_CPUID_FEATURE_HETERO_F32_U64 = (1U << 18),
   POLY_CPUID_FEATURE_COMPACT_U32_F32 = (1U << 19),
   POLY_CPUID_FEATURE_COMPACT_F32_U32 = (1U << 20),
+  POLY_CPUID_FEATURE_NEUTRAL_COMPACT = (1U << 21),
   POLY_CPUID_FEATURE_X86_IMPORT_DESCRIPTORS = (1U << 22),
   POLY_CPUID_FEATURE_FP64_STACK_ARGS = (1U << 23),
   POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK = (1U << 24),
+  POLY_CPUID_FEATURE_TRAP_VECTOR = (1U << 25),
   POLY_CPUID_FEATURE_STATE_KEY = (1U << 26),
   POLY_CPUID_FEATURE_VEC128_BRIDGE = (1U << 27),
   POLY_CPUID_FEATURE_AARCH64_HFA64_RET = (1U << 28),
@@ -121,6 +127,9 @@ static const uint32_t POLYBENCH_REQUIRED_FEATURES =
   POLY_CPUID_FEATURE_PCALL_SYSV |
   POLY_CPUID_FEATURE_PCALL_SRET |
   POLY_CPUID_FEATURE_FP_BRIDGE |
+  POLY_CPUID_FEATURE_TRAP_RECORDS |
+  POLY_CPUID_FEATURE_USER_RETURN_RESTORE |
+  POLY_CPUID_FEATURE_X86_TSO |
   POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS |
   POLY_CPUID_FEATURE_X86_POLY_OPCODES |
   POLY_CPUID_FEATURE_FPAIR32_RET |
@@ -131,6 +140,8 @@ static const uint32_t POLYBENCH_REQUIRED_FEATURES =
   POLY_CPUID_FEATURE_HETERO_F32_U64 |
   POLY_CPUID_FEATURE_COMPACT_U32_F32 |
   POLY_CPUID_FEATURE_COMPACT_F32_U32 |
+  POLY_CPUID_FEATURE_NEUTRAL_COMPACT |
+  POLY_CPUID_FEATURE_TRAP_VECTOR |
   POLY_CPUID_FEATURE_VEC128_BRIDGE |
   POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
   POLY_CPUID_FEATURE_AARCH64_HFA32_RET |
@@ -195,14 +206,15 @@ static int check_polybench_contract(void) {
   const struct polybench_cpuid_regs features =
     read_cpuid(POLY_CPUID_BASE + 1, 0);
   if (features.eax != POLY_CPUID_ABI_VERSION ||
-      (features.ebx & POLYBENCH_REQUIRED_MODES) !=
-        POLYBENCH_REQUIRED_MODES ||
-      (features.ecx & POLYBENCH_REQUIRED_FEATURES) !=
-        POLYBENCH_REQUIRED_FEATURES ||
+      features.ebx != POLYBENCH_REQUIRED_MODES ||
+      features.ecx != POLYBENCH_REQUIRED_FEATURES ||
+      features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH ||
       (features.ecx & POLYBENCH_FORBIDDEN_FEATURES) != 0) {
     fprintf(stderr,
-      "POLYBENCH_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
-      features.eax, features.ebx, features.ecx, features.edx);
+      "POLYBENCH_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x) expected=(%u,0x%x,0x%x,%u)\n",
+      features.eax, features.ebx, features.ecx, features.edx,
+      POLY_CPUID_ABI_VERSION, POLYBENCH_REQUIRED_MODES,
+      POLYBENCH_REQUIRED_FEATURES, POLY_STATE_XSAVE_COMPONENT_ARCH);
     return -1;
   }
 
@@ -214,8 +226,7 @@ static int check_polybench_contract(void) {
   const uint32_t descriptor_size = abi_bridge.edx & 0xffffU;
   const uint32_t call_stride = (abi_bridge.edx >> 16) & 0xffffU;
   if (abi_bridge.eax != POLY_ABI_BRIDGE_ABI_VERSION ||
-      (abi_bridge.ebx & POLYBENCH_REQUIRED_ABI_BRIDGE_FLAGS) !=
-        POLYBENCH_REQUIRED_ABI_BRIDGE_FLAGS ||
+      abi_bridge.ebx != POLYBENCH_REQUIRED_ABI_BRIDGE_FLAGS ||
       (abi_bridge.ebx & POLYBENCH_FORBIDDEN_ABI_BRIDGE_FLAGS) != 0 ||
       gpr_arg_count != POLY_ABI_BRIDGE_GPR_ARG_COUNT ||
       fp_arg_count != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
@@ -223,8 +234,13 @@ static int check_polybench_contract(void) {
       descriptor_size != 0 ||
       call_stride != POLY_IMPORT_CALL_STRIDE) {
     fprintf(stderr,
-      "POLYBENCH_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x)\n",
-      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);
+      "POLYBENCH_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x) expected=(%u,0x%x,0x%x,0x%x)\n",
+      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx,
+      POLY_ABI_BRIDGE_ABI_VERSION, POLYBENCH_REQUIRED_ABI_BRIDGE_FLAGS,
+      (uint32_t) (POLY_ABI_BRIDGE_GPR_ARG_COUNT |
+        (POLY_ABI_BRIDGE_FP_ARG_COUNT << 8) |
+        (POLY_ABI_BRIDGE_STACK_ALIGN << 16)),
+      (uint32_t) (POLY_IMPORT_CALL_STRIDE << 16));
     return -1;
   }
 
