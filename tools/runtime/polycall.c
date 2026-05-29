@@ -1270,6 +1270,59 @@ static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
 
 static int resolve_direct_x86_register_import(int arch,
     const char *symbol_name, uint64_t *import_id) {
+  static const struct {
+    const char *name;
+    uint64_t import_id;
+  } register_only_imports[] = {
+    { "strlen", POLY_IMPORT_FUNC_STRLEN },
+    { "strcmp", POLY_IMPORT_FUNC_STRCMP },
+    { "strncmp", POLY_IMPORT_FUNC_STRNCMP },
+    { "strcasecmp", POLY_IMPORT_FUNC_STRCASECMP },
+    { "strncasecmp", POLY_IMPORT_FUNC_STRNCASECMP },
+    { "strcasestr", POLY_IMPORT_FUNC_STRCASESTR },
+    { "memcpy", POLY_IMPORT_FUNC_MEMCPY },
+    { "memmove", POLY_IMPORT_FUNC_MEMMOVE },
+    { "memset", POLY_IMPORT_FUNC_MEMSET },
+    { "memcmp", POLY_IMPORT_FUNC_MEMCMP },
+    { "memchr", POLY_IMPORT_FUNC_MEMCHR },
+    { "memrchr", POLY_IMPORT_FUNC_MEMRCHR },
+    { "memmem", POLY_IMPORT_FUNC_MEMMEM },
+    { "strchr", POLY_IMPORT_FUNC_STRCHR },
+    { "index", POLY_IMPORT_FUNC_STRCHR },
+    { "strrchr", POLY_IMPORT_FUNC_STRRCHR },
+    { "rindex", POLY_IMPORT_FUNC_STRRCHR },
+    { "strstr", POLY_IMPORT_FUNC_STRSTR },
+    { "strcpy", POLY_IMPORT_FUNC_STRCPY },
+    { "strncpy", POLY_IMPORT_FUNC_STRNCPY },
+    { "strnlen", POLY_IMPORT_FUNC_STRNLEN },
+    { "strcat", POLY_IMPORT_FUNC_STRCAT },
+    { "strncat", POLY_IMPORT_FUNC_STRNCAT },
+    { "strspn", POLY_IMPORT_FUNC_STRSPN },
+    { "strcspn", POLY_IMPORT_FUNC_STRCSPN },
+    { "strpbrk", POLY_IMPORT_FUNC_STRPBRK },
+    { "stpcpy", POLY_IMPORT_FUNC_STPCPY },
+    { "stpncpy", POLY_IMPORT_FUNC_STPNCPY },
+    { "mempcpy", POLY_IMPORT_FUNC_MEMPCPY },
+    { "rawmemchr", POLY_IMPORT_FUNC_RAWMEMCHR },
+    { "strchrnul", POLY_IMPORT_FUNC_STRCHRNUL },
+    { "bcmp", POLY_IMPORT_FUNC_BCMP },
+    { "bcopy", POLY_IMPORT_FUNC_BCOPY },
+    { "bzero", POLY_IMPORT_FUNC_BZERO },
+    { "atoi", POLY_IMPORT_FUNC_ATOI },
+    { "strtol", POLY_IMPORT_FUNC_STRTOL },
+    { "strtoul", POLY_IMPORT_FUNC_STRTOUL },
+    { "strtoll", POLY_IMPORT_FUNC_STRTOLL },
+    { "strtoull", POLY_IMPORT_FUNC_STRTOULL }
+  };
+
+  for (size_t n = 0; n < sizeof(register_only_imports) /
+      sizeof(register_only_imports[0]); n++) {
+    if (strcmp(symbol_name, register_only_imports[n].name) == 0) {
+      *import_id = register_only_imports[n].import_id;
+      return 0;
+    }
+  }
+
   if (strcmp(symbol_name, "poly_import_x86_add") == 0) {
     *import_id = POLY_IMPORT_FUNC_X86_SLOT0;
     return 0;
