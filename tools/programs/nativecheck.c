@@ -3008,6 +3008,49 @@ static uint64_t nativecheck_direct_pcall_riscv_import_sum6(uint64_t a0,
 }
 
 __attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_imm_direct_pcall_aarch64_import_sum6(
+    uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,
+    uint64_t a5) {
+  register uint64_t r8_arg asm("r8") = a5;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0x10000052\n" // adr x18,return
+    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
+      "+r"(r8_arg), "+r"(target)
+    :
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+  return a0;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_imm_direct_pcall_riscv_import_sum6(
+    uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,
+    uint64_t a5) {
+  register uint64_t r8_arg asm("r8") = a5;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
+      "+r"(r8_arg), "+r"(target)
+    :
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+  return a0;
+}
+
+__attribute__((noinline, noipa))
 static uint64_t nativecheck_generic_pcall_aarch64_x86_direct_sum6(void) {
   uint64_t result;
   register uint64_t target asm("r10") =
@@ -3433,6 +3476,48 @@ static int run_poly_import_return_xsave_probe(void) {
   if (result != expected || nativecheck_import_helper_calls != 1) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly direct riscv import xsave helper result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_import_helper_calls);
+    return 1;
+  }
+  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_RISCV,
+        UINT64_MAX) != 0)
+    return 1;
+
+  if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly import-return signature slot sysv set failed\n",
+      stderr);
+    return 1;
+  }
+
+  memset(&nativecheck_import_live_state, 0,
+    sizeof(nativecheck_import_live_state));
+  memset(&nativecheck_import_restore_state, 0,
+    sizeof(nativecheck_import_restore_state));
+  nativecheck_import_helper_calls = 0;
+
+  result = nativecheck_signature_imm_direct_pcall_aarch64_import_sum6(
+    1, 2, 3, 4, 5, 6);
+  if (result != expected || nativecheck_import_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly signature direct aarch64 import xsave helper result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_import_helper_calls);
+    return 1;
+  }
+  if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_AARCH64,
+        UINT64_MAX) != 0)
+    return 1;
+
+  memset(&nativecheck_import_live_state, 0,
+    sizeof(nativecheck_import_live_state));
+  memset(&nativecheck_import_restore_state, 0,
+    sizeof(nativecheck_import_restore_state));
+  nativecheck_import_helper_calls = 0;
+
+  result = nativecheck_signature_imm_direct_pcall_riscv_import_sum6(
+    1, 2, 3, 4, 5, 6);
+  if (result != expected || nativecheck_import_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly signature direct riscv import xsave helper result=%llu calls=%u\n",
       (unsigned long long) result, nativecheck_import_helper_calls);
     return 1;
   }
