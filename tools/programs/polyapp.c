@@ -849,23 +849,35 @@ static int read_polyapp_base_contract(void) {
     return -1;
   }
 
-  const uint32_t required_modes = poly_cpuid_expected_mode_mask();
-  const uint32_t required_features =
-    POLY_CPUID_FEATURE_RAW_AARCH64 |
-    POLY_CPUID_FEATURE_RAW_RISCV |
-    POLY_CPUID_FEATURE_NEUTRAL_SWITCH |
-    POLY_CPUID_FEATURE_TRAP_RECORDS |
-    POLY_CPUID_FEATURE_X86_TSO |
-    POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS |
-    POLY_CPUID_FEATURE_X86_POLY_OPCODES |
-    POLY_CPUID_FEATURE_TRAP_VECTOR;
   const struct poly_cpuid_regs features = poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
+  const uint32_t forbidden_features = poly_cpuid_forbidden_feature_mask();
   if (features.eax != POLY_CPUID_ABI_VERSION ||
-      (features.ebx & required_modes) != required_modes ||
-      (features.ecx & required_features) != required_features) {
+      features.ebx != poly_cpuid_expected_mode_mask() ||
+      features.ecx != poly_cpuid_expected_feature_mask() ||
+      features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH ||
+      (features.ecx & forbidden_features) != 0) {
     fprintf(stderr,
-      "POLYAPP_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x)\n",
-      features.eax, features.ebx, features.ecx, features.edx);
+      "POLYAPP_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x) forbidden=0x%x\n",
+      features.eax, features.ebx, features.ecx, features.edx,
+      forbidden_features);
+    return -1;
+  }
+
+  const struct poly_cpuid_regs expected_abi_bridge =
+    poly_cpuid_expected_abi_bridge_leaf();
+  const struct poly_cpuid_regs abi_bridge =
+    poly_read_cpuid(POLY_CPUID_BASE + 9, 0);
+  const uint32_t forbidden_abi_bridge =
+    poly_cpuid_forbidden_abi_bridge_mask();
+  if (abi_bridge.eax != expected_abi_bridge.eax ||
+      abi_bridge.ebx != expected_abi_bridge.ebx ||
+      abi_bridge.ecx != expected_abi_bridge.ecx ||
+      abi_bridge.edx != expected_abi_bridge.edx ||
+      (abi_bridge.ebx & forbidden_abi_bridge) != 0) {
+    fprintf(stderr,
+      "POLYAPP_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x) forbidden=0x%x\n",
+      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx,
+      forbidden_abi_bridge);
     return -1;
   }
 
