@@ -89,6 +89,14 @@ by-value aggregate layout, variadic calls, or vector reshaping; those cases use
 loader/runtime thunks and then finish with a null, identity, or simple
 signature `PCALL`.
 
+The required hardware invariant is that a signature slot is a cached RAT
+template, not a marshalling program. It can rename compatible register lanes
+during a frontend transition; it cannot touch user memory, inspect a stack
+frame, split an aggregate, scan variadic state, or participate in lazy binding.
+That line is what makes the feature practical for silicon or FPGA: register
+aliasing fits rename hardware, while memory-layout conversion belongs in
+software thunks where page faults and ABI policy are already manageable.
+
 The design intentionally limits reconfigurable hardware to register names.
 Modern OoO CPUs already map architectural registers such as `RDI`, `x0`, or
 `a0` onto physical registers through rename/RAT state, so a cached ABI

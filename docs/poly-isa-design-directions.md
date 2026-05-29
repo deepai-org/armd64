@@ -68,6 +68,21 @@ ordinary native ABI calls such as SysV x86_64 `RDI,RSI,RDX` to AArch64
 `x0,x1,x2`. Silicon can do better without becoming a memory-marshalling engine:
 make the reconfigurable hardware strictly register-only.
 
+The non-negotiable hardware boundary is:
+
+- A Poly ABI signature is a cached RAT template for architectural register
+  names.
+- It may remap compatible integer, FP, and fixed SIMD ABI lanes at a frontend
+  transition.
+- It must not read user memory, rewrite stacks, split aggregates, scan
+  variadic metadata, or perform lazy binding.
+
+This keeps the mechanism silicon- and FPGA-friendly. Register remapping fits
+the rename machinery that an OoO core already needs, and it can be modeled as a
+small alias table in an in-order or FPGA implementation. Memory-layout
+translation would require a page-fault-capable ABI sequencer in the control
+path, which is intentionally outside the ISA fast path.
+
 The key architectural bet is narrow reconfiguration. Semi-persistent ABI
 hardware can be fast and small when it only changes register names. It stops
 being silicon-realistic when it starts transforming stacks, structs, varargs,
