@@ -165,6 +165,16 @@ where page faults, memory policy, and ABI-specific layout rules belong. The
 area cost is a small bank of signature registers, prevalidation logic, and
 rename-stage muxing, not a page-fault-capable ABI memory sequencer.
 
+Put differently, the hardware should accelerate the common ABI case and refuse
+to become a general ABI interpreter. If a call's live ABI state is already in
+ordinary argument/result registers, a signature slot can make the transition
+look like a frontend branch plus RAT remap. If the call needs stack arguments,
+by-value struct packing, variadic layout, lazy symbol binding, or vector-shape
+conversion, it is not a hardware signature call anymore; it is a software thunk
+that may end with a simple `PCALL`. This keeps the fast path small enough for
+silicon while still giving loaders and runtimes a correct path for the full
+native ABI.
+
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
 compatibility mapping, and kind `2` is the hardware-oriented x86_64 SysV

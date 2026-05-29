@@ -302,6 +302,14 @@ cross-class vector reshaping, and every ABI case that requires memory
 inspection or rewriting. A thunk performs that memory-side ABI work and then
 finishes with a null, identity, or simple register signature `PCALL`.
 
+This is the intended 90/10 boundary. The CPU provides semi-persistent,
+reconfigurable register translation because RAT remapping is close to machinery
+already present in an OoO core. The CPU does not provide semi-persistent stack
+or aggregate translation, because that would require memory reads, writes,
+page-fault handling, ABI-specific layout engines, and variable-latency control
+flow. Register-only calls get the hardware fast path; memory-shaped calls use
+loader/runtime thunks.
+
 The slot bank is explicit Poly architectural state. In the Bochs prototype it
 is saved and restored by the Poly XSAVE component, not stored in a process-wide
 global or inferred from CR3. That lets thread switches and explicit
