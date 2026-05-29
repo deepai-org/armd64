@@ -134,6 +134,21 @@ The deliberate hybrid model is:
 - The null signature is the exchange-window ABI, so every implementation has a
   simple fallback even without RAT remapping.
 
+The performance target for a hot signature `PCALL` is a frontend redirect plus
+a rename-map selection, not a sequence of register moves. Slot programming is a
+cold control operation performed by the loader or runtime; applying a slot at a
+call site should be comparable to selecting a cached RAT template in the rename
+stage. This is why the slot count should stay small and explicit, such as 4 to
+8 entries, and why signatures must describe only architectural-register aliasing.
+
+The silicon cost is intentionally bounded: a few architectural control
+registers or XSAVE-backed slot records, validation logic for the slot number,
+and muxing in the rename path. The design must not grow into a memory-layout
+engine. If a call requires stack argument repacking, by-value struct conversion,
+variadic metadata, or page-fault-capable memory reads, the loader/runtime emits
+or enters a software thunk and then uses a null, identity, or simple register
+signature for the final cross-ISA branch.
+
 The Bochs prototype currently models this with eight signature slots. Slot kind
 `0` is the exchange-window mapping, kind `1` is the older x86_64 SysV
 compatibility mapping, and kind `2` is the hardware-oriented x86_64 SysV
