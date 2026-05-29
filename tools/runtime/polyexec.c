@@ -1363,6 +1363,36 @@ static void poly_store_linux_generic_epoll_event(uint64_t destination,
   event->data = source->data;
 }
 
+static uint64_t poly_dispatch_epoll_wait_events(long x86_number,
+    uint64_t epoll_fd, uint64_t events, uint64_t maxevents, uint64_t timeout,
+    uint64_t sigmask, uint64_t sigsetsize) {
+  if (maxevents == 0)
+    return (uint64_t) -EINVAL;
+  if (events == 0)
+    return (uint64_t) -EFAULT;
+  if (maxevents > SIZE_MAX / sizeof(struct poly_x86_epoll_event))
+    return (uint64_t) -EINVAL;
+
+  size_t event_count = (size_t) maxevents;
+  size_t event_bytes = event_count * sizeof(struct poly_x86_epoll_event);
+  struct poly_x86_epoll_event *x86_events = malloc(event_bytes);
+  if (x86_events == NULL)
+    return (uint64_t) -ENOMEM;
+
+  long status = poly_x86_syscall6(x86_number, epoll_fd,
+    (uint64_t) (uintptr_t) x86_events, maxevents, timeout, sigmask,
+    sigsetsize);
+  if (status > 0) {
+    for (long i = 0; i < status; i++) {
+      poly_store_linux_generic_epoll_event(events +
+        (uint64_t) i * sizeof(struct poly_linux_generic_epoll_event),
+        &x86_events[i]);
+    }
+  }
+  free(x86_events);
+  return (uint64_t) status;
+}
+
 static int poly_handle_structured_foreign_syscall(uint64_t number,
     uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
     uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t *result) {
@@ -1383,69 +1413,13 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
       return 1;
     }
     case 22: {
-      if (arg2 == 0) {
-        *result = (uint64_t) -EINVAL;
-        return 1;
-      }
-      if (arg1 == 0) {
-        *result = (uint64_t) -EFAULT;
-        return 1;
-      }
-      if (arg2 > SIZE_MAX / sizeof(struct poly_x86_epoll_event)) {
-        *result = (uint64_t) -EINVAL;
-        return 1;
-      }
-      size_t event_count = (size_t) arg2;
-      size_t event_bytes = event_count * sizeof(struct poly_x86_epoll_event);
-      struct poly_x86_epoll_event *x86_events = malloc(event_bytes);
-      if (x86_events == NULL) {
-        *result = (uint64_t) -ENOMEM;
-        return 1;
-      }
-      status = poly_x86_syscall6(SYS_epoll_pwait, arg0,
-        (uint64_t) (uintptr_t) x86_events, arg2, arg3, arg4, arg5);
-      if (status > 0) {
-        for (long i = 0; i < status; i++) {
-          poly_store_linux_generic_epoll_event(arg1 +
-            (uint64_t) i * sizeof(struct poly_linux_generic_epoll_event),
-            &x86_events[i]);
-        }
-      }
-      free(x86_events);
-      *result = (uint64_t) status;
+      *result = poly_dispatch_epoll_wait_events(SYS_epoll_pwait, arg0, arg1,
+        arg2, arg3, arg4, arg5);
       return 1;
     }
     case 441: {
-      if (arg2 == 0) {
-        *result = (uint64_t) -EINVAL;
-        return 1;
-      }
-      if (arg1 == 0) {
-        *result = (uint64_t) -EFAULT;
-        return 1;
-      }
-      if (arg2 > SIZE_MAX / sizeof(struct poly_x86_epoll_event)) {
-        *result = (uint64_t) -EINVAL;
-        return 1;
-      }
-      size_t event_count = (size_t) arg2;
-      size_t event_bytes = event_count * sizeof(struct poly_x86_epoll_event);
-      struct poly_x86_epoll_event *x86_events = malloc(event_bytes);
-      if (x86_events == NULL) {
-        *result = (uint64_t) -ENOMEM;
-        return 1;
-      }
-      status = poly_x86_syscall6(SYS_epoll_pwait2, arg0,
-        (uint64_t) (uintptr_t) x86_events, arg2, arg3, arg4, arg5);
-      if (status > 0) {
-        for (long i = 0; i < status; i++) {
-          poly_store_linux_generic_epoll_event(arg1 +
-            (uint64_t) i * sizeof(struct poly_linux_generic_epoll_event),
-            &x86_events[i]);
-        }
-      }
-      free(x86_events);
-      *result = (uint64_t) status;
+      *result = poly_dispatch_epoll_wait_events(SYS_epoll_pwait2, arg0, arg1,
+        arg2, arg3, arg4, arg5);
       return 1;
     }
     case 43:
