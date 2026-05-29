@@ -3152,7 +3152,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     return 1;
   }
 
-  poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS);
+  poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128);
   poly_trap_vector_clear();
   puts("NATIVE_POLY_REAL_XSAVE_OK");
   return 0;
@@ -3791,7 +3791,7 @@ static uint64_t nativecheck_signature_pcall_aarch64_x86_direct_i128(void) {
     ".long 0xd2800041\n" // movz x1,#2
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000072\n" // adr x18,return
-    ".long 0xd2800073\n" // movz x19,#3 (i128 signature slot)
+    ".long 0xd2800093\n" // movz x19,#4 (native i128 signature slot)
     ".long 0xd5032f5f\n" // generic signature pcall
     ".long 0x8b010000\n" // return: add x0,x0,x1
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
@@ -3815,7 +3815,7 @@ static uint64_t nativecheck_signature_pcall_riscv_x86_direct_i128(void) {
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x01038393\n" // addi t2,t2,16 -> return
-    ".long 0x00300e13\n" // addi t3,zero,3 (i128 signature slot)
+    ".long 0x00400e13\n" // addi t3,zero,4 (native i128 signature slot)
     ".long 0x1400700b\n" // generic signature pcall
     ".long 0x00b50533\n" // return: add a0,a0,a1
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
@@ -4211,9 +4211,9 @@ static int run_poly_direct_x86_pcall_probe(void) {
     return 1;
   }
 
-  if (poly_abi_signature_set(3,
+  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_I128,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) != 0) {
-    fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot native i128 set failed\n",
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 native i128 signature slot set failed\n",
       stderr);
     return 1;
   }
@@ -4260,9 +4260,9 @@ static int run_poly_direct_x86_pcall_probe(void) {
     return 1;
   }
 
-  if (poly_abi_signature_set(3,
+  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_I128,
         POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0) {
-    fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot i128 set failed\n",
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 preferred i128 signature slot set failed\n",
       stderr);
     return 1;
   }
@@ -4287,6 +4287,12 @@ static int run_poly_direct_x86_pcall_probe(void) {
 
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
     fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot restore failed\n",
+      stderr);
+    return 1;
+  }
+  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_I128,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 native i128 signature slot restore failed\n",
       stderr);
     return 1;
   }
