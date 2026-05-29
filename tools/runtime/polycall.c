@@ -117,6 +117,7 @@ enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
+  POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 14,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -149,6 +150,7 @@ enum {
   POLY_CALL_AARCH64_HFA3_F32_ARG = 29,
   POLY_CALL_AARCH64_HFA4_F32_ARG = 30,
   POLY_CALL_MIXED_STACK_ARGS = 31,
+  POLY_CALL_SIGREGS_U64 = 32,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -2130,7 +2132,11 @@ static int parse_request(const char *arg, struct poly_request *request) {
     request->repeat_count = 2;
     arg += 7;
   }
-  if (strncmp(arg, "fp64:", 5) == 0) {
+  if (strncmp(arg, "sigregs:", 8) == 0) {
+    request->call_kind = POLY_CALL_SIGREGS_U64;
+    arg += 8;
+  }
+  else if (strncmp(arg, "fp64:", 5) == 0) {
     request->call_kind = POLY_CALL_FP64;
     arg += 5;
   }
@@ -8143,9 +8149,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t import_setup_size = needs_x86_import ? 10 : 0;
   const size_t tls_setup_size = 10;
   const size_t heap_setup_size = 10;
+  const int use_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64;
+  const size_t pcall_sequence_size = use_sig_imm_pcall ?
+    POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE : POLY_X86_CONTROL_OPCODE_SIZE;
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
-    POLY_X86_CONTROL_OPCODE_SIZE;
+    pcall_sequence_size;
   const size_t main_stub_size = pcall_return_offset + callee_restore_size + 1;
   const size_t import_return_size = needs_x86_import ?
     POLY_X86_CONTROL_OPCODE_SIZE : 0;
@@ -8242,7 +8251,22 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_movabs_r12(code, &offset, import_x86_table);
   }
   const size_t pcall_opcode_offset = offset;
-  if (program->arch == POLY_ARCH_AARCH64) {
+  if (use_sig_imm_pcall) {
+    const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
+      POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
+    code[offset++] = 0x4c; // mov rbx,r10: target operand.
+    code[offset++] = 0x89;
+    code[offset++] = 0xd3;
+    code[offset++] = 0x41; // mov r15d,frontend ID.
+    code[offset++] = 0xbf;
+    emit_u32(code, &offset, pcall_frontend);
+    code[offset++] = 0x0f;
+    code[offset++] = 0x3a;
+    code[offset++] = 0xfc;
+    code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+    code[offset++] = (uint8_t) import_contract.signature_slot_x86_sysv_regs;
+  }
+  else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
     if (call_kind == POLY_CALL_FPAIR32)
       pcall_op = 0x14;
@@ -9384,6 +9408,10 @@ int main(int argc, char **argv) {
     }
     if (request.call_kind == POLY_CALL_VEC128_U32) {
       printf("POLYCALL_RESULT_VEC128_U32: arch=%s packed=0x%016llx path=%s\n",
+        program.arch_name, (unsigned long long) result, program.path);
+    }
+    if (request.call_kind == POLY_CALL_SIGREGS_U64) {
+      printf("POLYCALL_RESULT_SIGREGS_U64: arch=%s value=%llu path=%s\n",
         program.arch_name, (unsigned long long) result, program.path);
     }
     if (request.call_kind == POLY_CALL_AARCH64_HFA3_F64) {
