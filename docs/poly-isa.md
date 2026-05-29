@@ -1,41 +1,44 @@
 # Poly ISA
 
-Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends in the same
-virtual address space. The goal is compatibility with existing native ABI
-objects, not a new compiler-only ABI.
+Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system CPU so
+precompiled native ABI objects can share one virtual address space.
 
-## Frontends
+## Run
 
-| ID | ISA | Fetch |
+```bash
+make image
+make boot-poly-binfmt-arch-traps
+rg -a 'POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
+```
+
+## Model
+
+| ID | Frontend | Fetch |
 | --- | --- | --- |
 | `0` | x86_64 | normal x86 byte stream |
 | `1` | AArch64 | raw 32-bit words from `RIP` |
 | `2` | RISC-V64 | raw RV64/RVC from `RIP` |
 
-## Contract
+## Differences From x86_64
 
 - x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  faults, atomics, and the global TSO memory model.
-- Foreign code is direct-fetched. There is no `#UD` envelope and no trap per
-  instruction on the fast path.
-- All frontends share virtual memory, page permissions, TLB behavior, fault
-  delivery, and x86-style TSO ordering.
+  faults, atomics, and TSO memory ordering.
+- Foreign code is direct-fetched. There is no per-instruction `#UD` envelope.
 - Cross-ISA calls target real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
   psABI.
-- Register-only ABI cases may use cached signature slots. Stack arguments,
-  aggregates, variadics, lazy binding, and ABI reshaping remain software thunk
-  work.
-- Foreign `svc`/`ecall`, breakpoints, illegal instructions, unresolved imports,
-  and recoverable faults produce OS-neutral trap packets.
-- Foreign register state is explicit XSAVE-style architectural state, not
-  hidden CR3/TLS-keyed emulator state.
+- Register-only ABI cases can use cached signature slots. Stack arguments,
+  aggregates, variadics, lazy binding, and ABI reshaping stay in software.
+- Foreign traps produce OS-neutral trap packets, not Linux/libc-specific CPU
+  behavior.
+- Foreign register state is explicit XSAVE-style state, not hidden emulator
+  state.
 
 ## Controls
 
-- Operations: `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`.
-- Temporary encodings: x86_64 Poly control page, AArch64 reserved `HINT`
-  subspace, and RISC-V `custom-0`.
+- Operations: `PENTER`, `PSWITCH`, `PCALL frontend,target,sig`, `PTRAPRET`.
+- Prototype encodings: x86_64 `0f 3a fc <subop>`, AArch64 `HINT`, RISC-V
+  `custom-0`.
 - Prototype XSAVE component: `20`.
 
-See `README.md` for build/run status and `docs/poly-isa-design-directions.md`
-for design rationale.
+See `README.md` for current build/test status and
+`docs/poly-isa-design-directions.md` for design rationale.
