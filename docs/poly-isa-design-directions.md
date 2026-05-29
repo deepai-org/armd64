@@ -76,6 +76,13 @@ physical registers already holding source ABI arguments. No integer, FP, SIMD,
 load, or store execution unit moves the data, and the transition instruction
 does not inspect user memory.
 
+This is the right level of reconfigurable hardware because it fits existing
+rename machinery. The hardware changes are a small slot bank, decode-visible
+slot selection, prevalidation, and muxing in the rename path. The data path does
+not gain a stack-layout engine, descriptor walker, or ABI-specific memory
+sequencer. In a real OoO implementation, applying a signature is closer to
+selecting a rename-map template than executing a register-copy routine.
+
 The hard design rule is that a signature slot reconfigures names, not layouts.
 It may change which physical register backs `RDI`, `x0`, or `a0`; it must not
 read a call descriptor, inspect a stack frame, split an aggregate, or rewrite
@@ -90,6 +97,18 @@ PC, and signature slot immediate. The mapping is not programmed on every call.
 The area budget is intentionally small: several prevalidated mapping registers
 plus muxing/check logic in the rename path, not a second ABI engine beside the
 load/store unit.
+
+The intended fast path is:
+
+1. The loader or runtime programs a slot with a common native ABI mapping.
+2. A hot call site executes `PCALL frontend, target, sig_imm`.
+3. Decode selects the cached slot and redirects to the target frontend.
+4. Rename applies the register alias template.
+5. The callee observes its ordinary native ABI argument registers already
+   populated.
+
+No per-call software register shuffle is required for calls that fit in the
+mapped lanes. No per-call hardware descriptor fetch is allowed.
 
 This is a semi-persistent configuration cache, not per-call metadata. The
 loader/runtime programs a slot once, for example "SysV x86_64 to AAPCS64
@@ -124,6 +143,14 @@ Forbidden signature work:
 - Scan variadic metadata.
 - Lazy-bind symbols or walk PLT/GOT structures.
 - Reshape incompatible vector formats such as AVX-512, SVE, or RVV.
+
+These forbidden cases are exactly where software thunks remain necessary.
+Stack arguments, by-value structs, variadic functions such as `printf`, hidden
+structure-return pointers, and incompatible vector layouts are memory and
+language-ABI problems, not rename problems. Handling them in hardware would
+require page-fault-capable microcode and OS-visible recovery state inside the
+transition instruction, which would make the common case slower and less
+portable.
 
 The preferred generic signature kind is `native-registers`: source frontend
 native ABI argument/result registers are rebound to target frontend native ABI
