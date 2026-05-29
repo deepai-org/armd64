@@ -76,4 +76,4 @@ Other useful targets:
   custom-0 opcode family. Breakpoint instructions remain traps, not fast mode
   switches.
 
-Full architecture details are in `docs/poly-isa.md`.
+Quick ISA reference: `docs/poly-isa.md`. Design rationale and future directions: `docs/poly-isa-design-directions.md`.
