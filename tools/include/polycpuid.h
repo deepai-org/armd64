@@ -771,7 +771,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf2(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_IMPORT_FUNC_X86_SLOT0;
   regs.ebx = POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1;
-  regs.ecx = POLY_IMPORT_X86_DESCRIPTOR_SIZE;
+  regs.ecx = 0;
   regs.edx = POLY_IMPORT_CALL_STRIDE;
   return regs;
 }

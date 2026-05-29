@@ -1,31 +1,45 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly keeps x86_64 as the system ISA and adds AArch64 and RISC-V64 user-mode frontends in the same virtual address space.
+Poly keeps x86_64 as the system ISA and adds AArch64 and RISC-V64
+user-mode frontends in the same virtual address space.
 
-Design rationale lives in `docs/poly-isa-design-directions.md`; opcode and CPUID constants live in `tools/include/polycpuid.h`.
+Detailed rationale: `docs/poly-isa-design-directions.md`
 
-## Run
+Constants and test contract: `tools/include/polycpuid.h`
+
+## Run It
 
 ```sh
 make image
 make boot-poly-call-arch-traps
 make boot-poly-binfmt-arch-traps
 make boot-poly-full-arch-traps
-rg -n "POLY.*(OK|FAIL)|Kernel panic|Segmentation fault|BUG:" out/serial.log out/bochs*.log
+rg -n "POLY.*(OK|FAIL)|Kernel panic|Segmentation fault|BUG:" \
+  out/serial.log out/bochs*.log
 ```
 
-## x86_64 Differences
+## How It Differs From x86_64
 
-- x86_64 remains the system ISA for boot, privilege, paging, interrupts, and faults.
-- User-mode frontends are `0=x86_64`, `1=AArch64`, and `2=RISC-V64`.
-- `PENTER`, `PSWITCH`, `PCALL`, and `PIRET` switch fetch/decode frontends without an exception path.
-- Foreign instructions fetch from `RIP`: AArch64 is 4-byte aligned; RISC-V64 is 2-byte aligned.
-- Prototype controls use x86 `0f 3a fc <subop>`, AArch64 reserved `HINT`, and RISC-V `custom-0`.
-- Non-x86 frontend state is explicit XSAVE-style state: component `20`, layout version `8`, size `4096`.
-- Hardware stays OS-neutral: no Linux, libc, import, or stack-layout emulation.
+- x86_64 still owns boot, paging, privilege, interrupts, faults, and OS entry.
+- User frontends are `0=x86_64`, `1=AArch64`, and `2=RISC-V64`.
+- `PENTER`, `PSWITCH`, `PCALL`, and `PIRET` switch the fetch/decode frontend.
+- Frontend switches are normal control-flow operations, not `#UD` traps.
+- AArch64 fetches 4-byte instructions from `RIP`.
+- RISC-V64 fetches 2-byte or 4-byte instructions from `RIP`.
+- Prototype x86 controls use `0f 3a fc <subop>`.
+- Prototype AArch64 controls use reserved `HINT` encodings.
+- Prototype RISC-V controls use `custom-0` encodings.
+- Non-x86 architectural state is exposed as XSAVE-style state component `20`.
 
-## Compatibility
+## Compatibility Model
 
-- Targets existing SysV x86_64, AAPCS64, and RISC-V psABI objects.
-- Fast calls use cached register-signature slots for register-only ABI mapping.
-- Software thunks handle stack arguments, aggregates, variadics, PLT/GOT, lazy binding, and incompatible vector layouts.
+- The goal is compatibility with existing SysV x86_64, AAPCS64, and RISC-V psABI objects.
+- Register-only calls can use cached ABI signature slots for fast register remapping.
+- Complex calls still use software thunks.
+- Thunks handle stack arguments, aggregates, variadics, PLT/GOT, lazy binding, and incompatible vector layouts.
+
+## Hardware Boundary
+
+- Hardware provides frontend switching, explicit architectural state, trap packets, and register-signature slots.
+- Hardware does not know Linux, libc, ELF imports, symbol binding, or stack object layouts.
+- OS-neutral runtime code handles syscall/libcall policy in user space where possible.

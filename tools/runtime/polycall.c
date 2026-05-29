@@ -835,7 +835,7 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
   if (descriptor.eax != POLY_IMPORT_FUNC_X86_SLOT0 ||
       descriptor.ebx !=
         POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1 ||
-      descriptor.ecx != POLY_X86_IMPORT_DESCRIPTOR_SIZE ||
+      descriptor.ecx != 0 ||
       descriptor.edx != POLY_IMPORT_CALL_STRIDE ||
       manifest.eax != POLY_IMPORT_FUNC_COUNT ||
       call_base != POLY_IMPORT_CALL_BASE ||
@@ -852,7 +852,7 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
   contract->import_count = manifest.eax;
   contract->x86_slot0 = descriptor.eax;
   contract->x86_slot_count = descriptor.ebx;
-  contract->x86_descriptor_size = descriptor.ecx;
+  contract->x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE;
   return 0;
 }
 
