@@ -138,6 +138,27 @@ static inline void write_xmm1_u64(uint64_t value) {
   asm volatile("movq %0, %%xmm1" :: "r"(value) : "xmm1", "memory");
 }
 
+struct polyprobe_u128 {
+  uint64_t lo;
+  uint64_t hi;
+} __attribute__((aligned(16)));
+
+static inline void write_xmm0_u128(uint64_t lo, uint64_t hi) {
+  struct polyprobe_u128 value = { lo, hi };
+  asm volatile("movdqu %0, %%xmm0" :: "m"(value) : "xmm0", "memory");
+}
+
+static inline void write_xmm1_u128(uint64_t lo, uint64_t hi) {
+  struct polyprobe_u128 value = { lo, hi };
+  asm volatile("movdqu %0, %%xmm1" :: "m"(value) : "xmm1", "memory");
+}
+
+static inline struct polyprobe_u128 read_xmm0_u128(void) {
+  struct polyprobe_u128 value;
+  asm volatile("movdqu %%xmm0, %0" : "=m"(value) :: "memory");
+  return value;
+}
+
 static void stage(const char *msg) {
   if (write(1, msg, strlen(msg)) < 0)
     return;
@@ -1087,6 +1108,40 @@ static inline void riscv_signature_imm_call_x86_fp64_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "xmm0", "memory");
 }
 
+static inline void aarch64_signature_imm_call_x86_vec128_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0003f0\n" // mov x16,x0 (target)
+    ".long 0xaa0103f2\n" // mov x18,x1 (return)
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    "1:\n"
+    "paddq %%xmm1, %%xmm0\n"
+    "retq\n"
+    "2:\n"
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "xmm0", "memory");
+}
+
+static inline void riscv_signature_imm_call_x86_vec128_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00050293\n" // mv x5,a0 (target)
+    ".long 0x00058393\n" // mv x7,a1 (return)
+    ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
+    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    "1:\n"
+    "paddq %%xmm1, %%xmm0\n"
+    "retq\n"
+    "2:\n"
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "xmm0", "memory");
+}
+
 static inline void raw_fp64_aarch64_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -1896,6 +1951,26 @@ int main(void) {
   if (riscv_call_x86_fp64 != 0x400b000000000000ULL) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv signature pcall x86 FP64 mismatch got=0x%llx\n",
             (unsigned long long) riscv_call_x86_fp64);
+    return 1;
+  }
+  write_xmm0_u128(1, 2);
+  write_xmm1_u128(3, 4);
+  aarch64_signature_imm_call_x86_vec128_probe();
+  struct polyprobe_u128 aarch64_call_x86_vec128 = read_xmm0_u128();
+  if (aarch64_call_x86_vec128.lo != 4 || aarch64_call_x86_vec128.hi != 6) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 signature pcall x86 vec128 mismatch got=0x%llx:0x%llx\n",
+            (unsigned long long) aarch64_call_x86_vec128.hi,
+            (unsigned long long) aarch64_call_x86_vec128.lo);
+    return 1;
+  }
+  write_xmm0_u128(1, 2);
+  write_xmm1_u128(3, 4);
+  riscv_signature_imm_call_x86_vec128_probe();
+  struct polyprobe_u128 riscv_call_x86_vec128 = read_xmm0_u128();
+  if (riscv_call_x86_vec128.lo != 4 || riscv_call_x86_vec128.hi != 6) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv signature pcall x86 vec128 mismatch got=0x%llx:0x%llx\n",
+            (unsigned long long) riscv_call_x86_vec128.hi,
+            (unsigned long long) riscv_call_x86_vec128.lo);
     return 1;
   }
 
