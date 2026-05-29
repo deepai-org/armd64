@@ -1522,7 +1522,11 @@ int main(void) {
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
       poly_abi_signature_get(3) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
       poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0 ||
-      poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+      poly_abi_signature_get(4) != POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
+      poly_abi_signature_set(7,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0 ||
+      poly_abi_signature_get(7) !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) {
     fprintf(stderr, "POLY_PROBE_FAIL: ABI signature slot programming mismatch\n");
     return 1;
   }

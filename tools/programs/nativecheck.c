@@ -171,6 +171,7 @@ static struct poly_xsave_state
   nativecheck_import_restore_state __attribute__((aligned(64)));
 static unsigned nativecheck_import_helper_calls;
 static unsigned nativecheck_direct_x86_helper_calls;
+static unsigned nativecheck_direct_x86_i128_helper_calls;
 static sigjmp_buf nativecheck_sigill_env;
 static volatile sig_atomic_t nativecheck_expect_sigill;
 
@@ -206,6 +207,13 @@ static uint64_t nativecheck_direct_x86_sum6(uint64_t a0, uint64_t a1,
     uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   nativecheck_direct_x86_helper_calls++;
   return a0 + a1 + a2 + a3 + a4 + a5;
+}
+
+__attribute__((noinline, noipa, used))
+static unsigned __int128 nativecheck_direct_x86_i128(uint64_t lo,
+    uint64_t hi) {
+  nativecheck_direct_x86_i128_helper_calls++;
+  return ((unsigned __int128) (hi + 0x20) << 64) | (lo + 0x10);
 }
 
 static void nativecheck_setup_import_descriptors(void) {
@@ -2245,6 +2253,53 @@ static uint64_t nativecheck_signature_pcall_riscv_x86_direct_sum6(void) {
   return result;
 }
 
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_pcall_aarch64_x86_direct_i128(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_i128;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0x10000072\n" // adr x18,return
+    ".long 0xd2800073\n" // movz x19,#3 (i128 signature slot)
+    ".long 0xd5032f5f\n" // generic signature pcall
+    ".long 0x8b010000\n" // return: add x0,x0,x1
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_signature_pcall_riscv_x86_direct_i128(void) {
+  uint64_t result;
+  register uint64_t target asm("r10") =
+    (uint64_t) (uintptr_t) nativecheck_direct_x86_i128;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x01038393\n" // addi t2,t2,16 -> return
+    ".long 0x00300e13\n" // addi t3,zero,3 (i128 signature slot)
+    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x00b50533\n" // return: add a0,a0,a1
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result), "+r"(target)
+    :
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
+      "r14", "memory");
+  return result;
+}
+
 static int check_poly_import_return_xsave_frame(uint32_t expected_mode) {
   const struct poly_import_return_state *state =
     &nativecheck_import_live_state.import_return;
@@ -2423,6 +2478,31 @@ static int run_poly_direct_x86_pcall_probe(void) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv exchange signature direct x86 pcall result=%llu calls=%u\n",
       (unsigned long long) result, nativecheck_direct_x86_helper_calls);
+    return 1;
+  }
+
+  if (poly_abi_signature_set(3,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly direct x86 signature slot i128 set failed\n",
+      stderr);
+    return 1;
+  }
+
+  nativecheck_direct_x86_i128_helper_calls = 0;
+  result = nativecheck_signature_pcall_aarch64_x86_direct_i128();
+  if (result != 51 || nativecheck_direct_x86_i128_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 i128 signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_i128_helper_calls);
+    return 1;
+  }
+
+  nativecheck_direct_x86_i128_helper_calls = 0;
+  result = nativecheck_signature_pcall_riscv_x86_direct_i128();
+  if (result != 51 || nativecheck_direct_x86_i128_helper_calls != 1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv i128 signature direct x86 pcall result=%llu calls=%u\n",
+      (unsigned long long) result, nativecheck_direct_x86_i128_helper_calls);
     return 1;
   }
 
