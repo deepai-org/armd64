@@ -477,12 +477,40 @@ nativecheck_aarch64_landing_policy_set_get(uint64_t policy) {
 }
 
 static __attribute__((noinline)) uint64_t
+nativecheck_aarch64_landing_policy_set(uint64_t policy) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032fdf\n" // aarch64 LANDING_POLICY_SET, x0=policy
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result)
+    : "0"(policy)
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
 nativecheck_riscv_landing_policy_set_get(uint64_t policy) {
   uint64_t result;
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x3c00700b\n" // riscv LANDING_POLICY_SET, a0=policy
     ".long 0x3e00700b\n" // riscv LANDING_POLICY_GET, a0=result
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result)
+    : "0"(policy)
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
+      "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
+nativecheck_riscv_landing_policy_set(uint64_t policy) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3c00700b\n" // riscv LANDING_POLICY_SET, a0=policy
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "=a"(result)
     : "0"(policy)
@@ -1340,6 +1368,20 @@ static int run_poly_landing_policy_probe(void) {
   if (poly_landing_policy_set(0) != 0)
     return 1;
 
+  const uint64_t aarch64_invalid_policy =
+    nativecheck_aarch64_landing_policy_set(
+      POLY_LANDING_POLICY_SUPPORTED << 1);
+  const uint64_t aarch64_invalid_policy_x86 = poly_landing_policy_get();
+  if (aarch64_invalid_policy != (uint64_t) -EINVAL ||
+      aarch64_invalid_policy_x86 != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 landing policy invalid set mismatch result=0x%llx x86=0x%llx\n",
+      (unsigned long long) aarch64_invalid_policy,
+      (unsigned long long) aarch64_invalid_policy_x86);
+    poly_landing_policy_set(0);
+    return 1;
+  }
+
   const uint64_t riscv_policy = nativecheck_riscv_landing_policy_set_get(
     POLY_LANDING_POLICY_REQUIRE_CALL);
   const uint64_t riscv_policy_x86 = poly_landing_policy_get();
@@ -1354,6 +1396,20 @@ static int run_poly_landing_policy_probe(void) {
   }
   if (poly_landing_policy_set(0) != 0)
     return 1;
+
+  const uint64_t riscv_invalid_policy =
+    nativecheck_riscv_landing_policy_set(
+      POLY_LANDING_POLICY_SUPPORTED << 1);
+  const uint64_t riscv_invalid_policy_x86 = poly_landing_policy_get();
+  if (riscv_invalid_policy != (uint64_t) -EINVAL ||
+      riscv_invalid_policy_x86 != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv landing policy invalid set mismatch result=0x%llx x86=0x%llx\n",
+      (unsigned long long) riscv_invalid_policy,
+      (unsigned long long) riscv_invalid_policy_x86);
+    poly_landing_policy_set(0);
+    return 1;
+  }
 
   if (poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_CALL) != 0)
     return 1;
