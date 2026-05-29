@@ -19,18 +19,12 @@ enum {
   POLY_TRAP_BREAK = 2,
   POLY_TRAP_IMPORT = 3,
   LOOP_ITERS = 200,
-  POLY_IMPORT_FUNC_STRLEN = 8,
-  POLY_IMPORT_FUNC_MEMCPY = 9,
-  POLY_IMPORT_FUNC_MEMSET = 10,
-  POLY_IMPORT_FUNC_MEMCMP = 11,
-  POLY_IMPORT_FUNC_STRNLEN = 24,
-  POLY_IMPORT_FUNC_COUNT = 149,
   POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
   POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA = 5,
-  POLYBENCH_DESCRIPTOR_MAX_SWITCH_DELTA = 7,
-  POLYBENCH_DESCRIPTOR_MEMOPS_MAX_SWITCH_DELTA = 11
+  POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA = 7,
+  POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA = 11
 };
 
 typedef uint32_t polybench_vec128_u32 __attribute__((vector_size(16)));
@@ -39,49 +33,6 @@ union polybench_vec128_u32_bits {
   polybench_vec128_u32 v;
   uint32_t u[4];
 };
-
-static const uint32_t POLY_CPUID_BASE = 0x40000000U;
-static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
-static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10ULL;
-static const uint64_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 32ULL;
-
-enum {
-  POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
-  POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 = (1U << 1),
-  POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 = (1U << 2),
-  POLY_ABI_BRIDGE_ABI_VERSION = 1,
-  POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64 = (1U << 0),
-  POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV = (1U << 1),
-  POLY_ABI_BRIDGE_FLAG_SRET = (1U << 2),
-  POLY_ABI_BRIDGE_FLAG_SCALAR_FP = (1U << 3),
-  POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES = (1U << 4),
-  POLY_ABI_BRIDGE_FLAG_FP64_STACK = (1U << 5),
-  POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS = (1U << 6),
-  POLY_ABI_BRIDGE_FLAG_TLS_BASE = (1U << 7),
-  POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS = (1U << 8),
-  POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK = (1U << 9),
-  POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET = (1U << 10),
-  POLY_ABI_BRIDGE_FLAG_VEC128 = (1U << 11),
-  POLY_ABI_BRIDGE_FLAG_REGISTER_SIGNATURES = (1U << 12),
-  POLY_ABI_BRIDGE_GPR_ARG_COUNT = 8,
-  POLY_ABI_BRIDGE_FP_ARG_COUNT = 8,
-  POLY_ABI_BRIDGE_STACK_ALIGN = 16
-};
-
-static const uint32_t POLY_ABI_BRIDGE_REQUIRED_FLAGS =
-  POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64 |
-  POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV |
-  POLY_ABI_BRIDGE_FLAG_SRET |
-  POLY_ABI_BRIDGE_FLAG_SCALAR_FP |
-  POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES |
-  POLY_ABI_BRIDGE_FLAG_FP64_STACK |
-  POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS |
-  POLY_ABI_BRIDGE_FLAG_TLS_BASE |
-  POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS |
-  POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK |
-  POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET |
-  POLY_ABI_BRIDGE_FLAG_VEC128 |
-  POLY_ABI_BRIDGE_FLAG_REGISTER_SIGNATURES;
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
@@ -99,23 +50,6 @@ static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
   return value;
-}
-
-struct polybench_cpuid_regs {
-  uint32_t eax;
-  uint32_t ebx;
-  uint32_t ecx;
-  uint32_t edx;
-};
-
-static struct polybench_cpuid_regs read_cpuid(uint32_t leaf,
-    uint32_t subleaf) {
-  struct polybench_cpuid_regs regs;
-  asm volatile("cpuid"
-      : "=a"(regs.eax), "=b"(regs.ebx), "=c"(regs.ecx), "=d"(regs.edx)
-      : "a"(leaf), "c"(subleaf)
-      : "memory");
-  return regs;
 }
 
 static void emit_u16(uint8_t *code, size_t *offset, uint16_t value) {
@@ -158,6 +92,16 @@ static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
   emit_u32(code, offset, 0xf2a00000U | ((((uint32_t) (value >> 16)) & 0xffffU) << 5) | rd);
   emit_u32(code, offset, 0xf2c00000U | ((((uint32_t) (value >> 32)) & 0xffffU) << 5) | rd);
   emit_u32(code, offset, 0xf2e00000U | ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | rd);
+}
+
+static void emit_aarch64_direct_x86_pcall(uint8_t *code, size_t *offset,
+    uint64_t target) {
+  emit_aarch64_movabs(code, offset, 16, target);
+  emit_u32(code, offset, 0xd2800011U); // movz x17,#0 (x86 frontend)
+  const uint64_t return_pc =
+    (uint64_t) (uintptr_t) (code + *offset + 16 + 4);
+  emit_aarch64_movabs(code, offset, 18, return_pc);
+  emit_u32(code, offset, 0xd5032c3fU); // PCALL_SIG_IMM slot 1 (x86 SysV regs)
 }
 
 static size_t emit_x86_movabs_r10(uint8_t *code, size_t *offset,
@@ -288,18 +232,6 @@ static void install_polybench_trap_vector(void) {
   poly_trap_vector_set_value((uint64_t) (void *) polybench_trap_vector_handler);
 }
 
-struct polybench_x86_import_descriptor {
-  uint64_t target;
-  uint64_t trampoline;
-  uint64_t flags;
-  uint64_t reserved;
-};
-
-static struct polybench_x86_import_descriptor
-  polybench_x86_imports[POLY_IMPORT_FUNC_COUNT];
-static uint8_t *polybench_x86_import_trampoline;
-static const size_t POLYBENCH_X86_IMPORT_TRAMPOLINE_OFFSET = 64;
-
 __attribute__((noinline, used))
 static uint64_t polybench_x86_strlen(const char *text) {
   uint64_t length = 0;
@@ -350,66 +282,6 @@ static uint64_t polybench_x86_sum6_direct(uint64_t a0, uint64_t a1,
   return a0 + a1 + a2 + a3 + a4 + a5;
 }
 
-static int setup_polybench_x86_imports(void) {
-  if (polybench_x86_import_trampoline != NULL)
-    return 0;
-
-  const struct polybench_cpuid_regs abi_bridge =
-    read_cpuid(POLY_CPUID_BASE + 9, 0);
-  const uint32_t abi_gpr_arg_count = abi_bridge.ecx & 0xffU;
-  const uint32_t abi_fp_arg_count = (abi_bridge.ecx >> 8) & 0xffU;
-  const uint32_t abi_stack_align = (abi_bridge.ecx >> 16) & 0xffffU;
-  const uint32_t abi_descriptor_size = abi_bridge.edx & 0xffffU;
-  const uint32_t abi_call_stride = (abi_bridge.edx >> 16) & 0xffffU;
-  if (abi_bridge.eax != POLY_ABI_BRIDGE_ABI_VERSION ||
-      (abi_bridge.ebx & POLY_ABI_BRIDGE_REQUIRED_FLAGS) !=
-        POLY_ABI_BRIDGE_REQUIRED_FLAGS ||
-      abi_gpr_arg_count != POLY_ABI_BRIDGE_GPR_ARG_COUNT ||
-      abi_fp_arg_count != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
-      abi_stack_align != POLY_ABI_BRIDGE_STACK_ALIGN ||
-      abi_descriptor_size != POLY_X86_IMPORT_DESCRIPTOR_SIZE ||
-      abi_call_stride != POLY_IMPORT_CALL_STRIDE) {
-    fprintf(stderr,
-      "POLYBENCH_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x)\n",
-      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);
-    return -1;
-  }
-
-  uint8_t *page = mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC,
-    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (page == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: x86 import trampoline mmap failed: %s\n",
-      strerror(errno));
-    return -1;
-  }
-
-  const uint8_t import_return[] = {
-    0x0f, 0x3a, 0xfc, 0x20
-  };
-  memcpy(page + POLYBENCH_X86_IMPORT_TRAMPOLINE_OFFSET, import_return,
-    sizeof(import_return));
-
-  memset(polybench_x86_imports, 0, sizeof(polybench_x86_imports));
-  polybench_x86_imports[POLY_IMPORT_FUNC_STRLEN].target =
-    (uint64_t) (uintptr_t) polybench_x86_strlen;
-  polybench_x86_imports[POLY_IMPORT_FUNC_MEMCPY].target =
-    (uint64_t) (uintptr_t) polybench_x86_memcpy;
-  polybench_x86_imports[POLY_IMPORT_FUNC_MEMSET].target =
-    (uint64_t) (uintptr_t) polybench_x86_memset;
-  polybench_x86_imports[POLY_IMPORT_FUNC_MEMCMP].target =
-    (uint64_t) (uintptr_t) polybench_x86_memcmp;
-  polybench_x86_imports[POLY_IMPORT_FUNC_STRNLEN].target =
-    (uint64_t) (uintptr_t) polybench_x86_strnlen;
-  for (size_t n = 0; n < POLY_IMPORT_FUNC_COUNT; n++) {
-    if (polybench_x86_imports[n].target != 0)
-      polybench_x86_imports[n].trampoline =
-        (uint64_t) (uintptr_t) (page + POLYBENCH_X86_IMPORT_TRAMPOLINE_OFFSET);
-  }
-
-  polybench_x86_import_trampoline = page;
-  return 0;
-}
-
 static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
@@ -418,6 +290,17 @@ static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
 static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (rd << 7) | 0x13U;
+}
+
+static void emit_riscv_direct_x86_pcall(uint8_t *code, size_t *offset) {
+  emit_u32(code, offset, riscv_addi(6, 0, 0)); // t1 = x86 frontend
+  const size_t auipc_return_pc = *offset;
+  emit_u32(code, offset, 0x00000397U); // auipc t2,0
+  const size_t addi_return_offset = *offset;
+  emit_u32(code, offset, 0);
+  emit_u32(code, offset, 0x2200700bU); // PCALL_SIG_IMM slot 1 (x86 SysV regs)
+  store_u32(code, addi_return_offset, riscv_addi(7, 7,
+    (int32_t) *offset - (int32_t) auipc_return_pc));
 }
 
 static uint32_t riscv_addw(uint32_t rd, uint32_t rs1, uint32_t rs2) {
@@ -500,32 +383,6 @@ static uint64_t call_code_with_rax_arg(const uint8_t *code, const char *payload)
   return rax;
 }
 
-static uint64_t call_code_with_rax_arg_and_imports(const uint8_t *code,
-    const char *payload) {
-  register uint64_t rax asm("rax") = (uint64_t) (uintptr_t) payload;
-  uint64_t import_base = (uint64_t) (uintptr_t) polybench_x86_imports;
-  asm volatile(
-    "pushq %%rbx\n"
-    "pushq %%rbp\n"
-    "pushq %%r12\n"
-    "pushq %%r13\n"
-    "pushq %%r14\n"
-    "pushq %%r15\n"
-    "movq %2, %%r12\n"
-    "call *%1\n"
-    "popq %%r15\n"
-    "popq %%r14\n"
-    "popq %%r13\n"
-    "popq %%r12\n"
-    "popq %%rbp\n"
-    "popq %%rbx"
-    : "+a"(rax)
-    : "r"(code), "r"(import_base)
-    : "r12", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "memory");
-  return rax;
-}
-
 static uint64_t call_code_with_poly3_args(const uint8_t *code,
     const void *arg0, const void *arg1, uint64_t arg2) {
   uint64_t rax = (uint64_t) (uintptr_t) arg0;
@@ -548,33 +405,6 @@ static uint64_t call_code_with_poly3_args(const uint8_t *code,
     : "+a"(rax), "+d"(rdx), "+c"(rcx)
     : "r"(code)
     : "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
-  return rax;
-}
-
-static uint64_t call_code_with_poly3_args_and_imports(const uint8_t *code,
-    const void *arg0, const void *arg1, uint64_t arg2) {
-  uint64_t rax = (uint64_t) (uintptr_t) arg0;
-  uint64_t rdx = (uint64_t) (uintptr_t) arg1;
-  uint64_t rcx = arg2;
-  uint64_t import_base = (uint64_t) (uintptr_t) polybench_x86_imports;
-  asm volatile(
-    "pushq %%rbx\n"
-    "pushq %%rbp\n"
-    "pushq %%r12\n"
-    "pushq %%r13\n"
-    "pushq %%r14\n"
-    "pushq %%r15\n"
-    "movq %4, %%r12\n"
-    "call *%3\n"
-    "popq %%r15\n"
-    "popq %%r14\n"
-    "popq %%r13\n"
-    "popq %%r12\n"
-    "popq %%rbp\n"
-    "popq %%rbx"
-    : "+a"(rax), "+d"(rdx), "+c"(rcx)
-    : "r"(code), "r"(import_base)
-    : "r12", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
   return rax;
 }
 
@@ -2674,13 +2504,13 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_descriptor_aarch64_to_riscv(uint64_t *result,
+static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 512;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv descriptor call mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv direct x86 call mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -2708,33 +2538,28 @@ static int run_cross_call_descriptor_aarch64_to_riscv(uint64_t *result,
   while (offset < riscv_target_offset)
     code[offset++] = 0x90;
   emit_u32(code, &offset, 0x00008413U); // addi s0,ra,0; save cross-return cookie
-  const size_t auipc_descriptor_pc = offset;
+  const size_t auipc_target_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
-  const size_t ld_descriptor_offset = offset;
+  const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor strlen
+  emit_riscv_direct_x86_pcall(code, &offset);
   emit_u32(code, &offset, 0x00040093U); // addi ra,s0,0; restore cross-return cookie
   emit_u32(code, &offset, 0x00008067U); // ret
 
   while ((offset & 7U) != 0)
     code[offset++] = 0;
-  const size_t descriptor_data_offset = offset;
-  emit_u64(code, &offset,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRLEN * POLY_IMPORT_CALL_STRIDE);
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) polybench_x86_strlen);
 
-  store_u32(code, ld_descriptor_offset, riscv_ld(5, 5,
-    (int32_t) descriptor_data_offset - (int32_t) auipc_descriptor_pc));
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
   static const char payload[] = "polyglot";
-  if (setup_polybench_x86_imports() < 0) {
-    munmap(code, code_size);
-    return -1;
-  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_rax_arg_and_imports(code, payload);
+  *result = call_code_with_rax_arg(code, payload);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2745,13 +2570,13 @@ static int run_cross_call_descriptor_aarch64_to_riscv(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
+static int run_cross_call_direct_x86_riscv_to_aarch64(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 512;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 descriptor call mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 direct x86 call mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -2781,9 +2606,8 @@ static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
     code[offset++] = 0x90;
   const size_t aarch64_target_offset = offset;
   emit_u32(code, &offset, 0xaa1e03f3U); // mov x19,x30; save cross-return cookie
-  emit_aarch64_movabs(code, &offset, 17,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRLEN * POLY_IMPORT_CALL_STRIDE);
-  emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor strlen
+  emit_aarch64_direct_x86_pcall(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_strlen);
   emit_u32(code, &offset, 0xaa1303feU); // mov x30,x19; restore cross-return cookie
   emit_u32(code, &offset, 0xd65f03c0U); // ret
 
@@ -2800,15 +2624,11 @@ static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   static const char payload[] = "polyglot";
-  if (setup_polybench_x86_imports() < 0) {
-    munmap(code, code_size);
-    return -1;
-  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_rax_arg_and_imports(code, payload);
+  *result = call_code_with_rax_arg(code, payload);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2819,13 +2639,13 @@ static int run_cross_call_descriptor_riscv_to_aarch64(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_descriptor_memcmp_aarch64_to_riscv(uint64_t *result,
+static int run_cross_call_direct_x86_memcmp_aarch64_to_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 512;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv descriptor memcmp mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv direct x86 memcmp mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -2853,36 +2673,30 @@ static int run_cross_call_descriptor_memcmp_aarch64_to_riscv(uint64_t *result,
   while (offset < riscv_target_offset)
     code[offset++] = 0x90;
   emit_u32(code, &offset, 0x00008413U); // addi s0,ra,0; save cross-return cookie
-  const size_t auipc_descriptor_pc = offset;
+  const size_t auipc_target_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
-  const size_t ld_descriptor_offset = offset;
+  const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor memcmp
+  emit_riscv_direct_x86_pcall(code, &offset);
   emit_u32(code, &offset, 0x00040093U); // addi ra,s0,0; restore cross-return cookie
   emit_u32(code, &offset, 0x02a50513U); // addi a0,a0,42
   emit_u32(code, &offset, 0x00008067U); // ret
 
   while ((offset & 7U) != 0)
     code[offset++] = 0;
-  const size_t descriptor_data_offset = offset;
-  emit_u64(code, &offset,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMCMP * POLY_IMPORT_CALL_STRIDE);
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) polybench_x86_memcmp);
 
-  store_u32(code, ld_descriptor_offset, riscv_ld(5, 5,
-    (int32_t) descriptor_data_offset - (int32_t) auipc_descriptor_pc));
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
   static const char left[] = "polyglot";
   static const char right[] = "polyglot";
-  if (setup_polybench_x86_imports() < 0) {
-    munmap(code, code_size);
-    return -1;
-  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_poly3_args_and_imports(code, left, right,
-    sizeof(left));
+  *result = call_code_with_poly3_args(code, left, right, sizeof(left));
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2893,13 +2707,13 @@ static int run_cross_call_descriptor_memcmp_aarch64_to_riscv(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_descriptor_memcmp_riscv_to_aarch64(uint64_t *result,
+static int run_cross_call_direct_x86_memcmp_riscv_to_aarch64(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 512;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 descriptor memcmp mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 direct x86 memcmp mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -2929,9 +2743,8 @@ static int run_cross_call_descriptor_memcmp_riscv_to_aarch64(uint64_t *result,
     code[offset++] = 0x90;
   const size_t aarch64_target_offset = offset;
   emit_u32(code, &offset, 0xaa1e03f3U); // mov x19,x30; save cross-return cookie
-  emit_aarch64_movabs(code, &offset, 17,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMCMP * POLY_IMPORT_CALL_STRIDE);
-  emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor memcmp
+  emit_aarch64_direct_x86_pcall(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_memcmp);
   emit_u32(code, &offset, 0xaa1303feU); // mov x30,x19; restore cross-return cookie
   emit_u32(code, &offset, 0x9100a800U); // add x0,x0,#42
   emit_u32(code, &offset, 0xd65f03c0U); // ret
@@ -2950,16 +2763,11 @@ static int run_cross_call_descriptor_memcmp_riscv_to_aarch64(uint64_t *result,
 
   static const char left[] = "polyglot";
   static const char right[] = "polyglot";
-  if (setup_polybench_x86_imports() < 0) {
-    munmap(code, code_size);
-    return -1;
-  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  *result = call_code_with_poly3_args_and_imports(code, left, right,
-    sizeof(left));
+  *result = call_code_with_poly3_args(code, left, right, sizeof(left));
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -2970,13 +2778,13 @@ static int run_cross_call_descriptor_memcmp_riscv_to_aarch64(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
+static int run_cross_call_direct_x86_memops_aarch64_to_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 512;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv descriptor memops mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64-to-riscv direct x86 memops mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -3012,7 +2820,7 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_memset_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor memset
+  emit_riscv_direct_x86_pcall(code, &offset);
   emit_u32(code, &offset, riscv_addi(10, 19, 0)); // a0=s3
   emit_u32(code, &offset, riscv_addi(11, 9, 0));  // a1=s1
   emit_u32(code, &offset, riscv_addi(12, 18, 0)); // a2=s2
@@ -3020,14 +2828,14 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_memcpy_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor memcpy
+  emit_riscv_direct_x86_pcall(code, &offset);
   emit_u32(code, &offset, riscv_addi(10, 9, 0)); // a0=s1
   emit_u32(code, &offset, riscv_addi(11, 0, 4)); // a1=4
   const size_t auipc_strnlen_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_strnlen_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x000280e7U); // jalr ra,0(x5), descriptor strnlen
+  emit_riscv_direct_x86_pcall(code, &offset);
   emit_u32(code, &offset, riscv_addi(10, 10, 38)); // a0=42
   emit_u32(code, &offset, riscv_addi(1, 8, 0)); // ra=s0
   emit_u32(code, &offset, 0x00008067U); // ret
@@ -3035,14 +2843,11 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   while ((offset & 7U) != 0)
     code[offset++] = 0;
   const size_t memset_data_offset = offset;
-  emit_u64(code, &offset,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMSET * POLY_IMPORT_CALL_STRIDE);
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) polybench_x86_memset);
   const size_t memcpy_data_offset = offset;
-  emit_u64(code, &offset,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMCPY * POLY_IMPORT_CALL_STRIDE);
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) polybench_x86_memcpy);
   const size_t strnlen_data_offset = offset;
-  emit_u64(code, &offset,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRNLEN * POLY_IMPORT_CALL_STRIDE);
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) polybench_x86_strnlen);
 
   store_u32(code, ld_memset_offset, riscv_ld(5, 5,
     (int32_t) memset_data_offset - (int32_t) auipc_memset_pc));
@@ -3054,15 +2859,11 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   static const char source[] = "polyglot";
   char dest[sizeof(source)];
   memset(dest, 0, sizeof(dest));
-  if (setup_polybench_x86_imports() < 0) {
-    munmap(code, code_size);
-    return -1;
-  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t raw_result = call_code_with_poly3_args_and_imports(code, dest,
+  uint64_t raw_result = call_code_with_poly3_args(code, dest,
     source, sizeof(source));
   poly_mode_x86();
   poly_foreign_insn_count_status();
@@ -3076,13 +2877,13 @@ static int run_cross_call_descriptor_memops_aarch64_to_riscv(uint64_t *result,
   return 0;
 }
 
-static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
+static int run_cross_call_direct_x86_memops_riscv_to_aarch64(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 512;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
-    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 descriptor memops mmap failed: %s\n",
+    fprintf(stderr, "POLYBENCH_FAIL: riscv-to-aarch64 direct x86 memops mmap failed: %s\n",
       strerror(errno));
     return -1;
   }
@@ -3116,20 +2917,17 @@ static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, aarch64_mov_reg(21, 2));  // save count
   emit_u32(code, &offset, aarch64_mov_reg(22, 0));  // save destination
   emit_u32(code, &offset, 0xd2800b01U); // movz x1,#'X'
-  emit_aarch64_movabs(code, &offset, 17,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMSET * POLY_IMPORT_CALL_STRIDE);
-  emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor memset
+  emit_aarch64_direct_x86_pcall(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_memset);
   emit_u32(code, &offset, aarch64_mov_reg(0, 22));
   emit_u32(code, &offset, aarch64_mov_reg(1, 20));
   emit_u32(code, &offset, aarch64_mov_reg(2, 21));
-  emit_aarch64_movabs(code, &offset, 17,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_MEMCPY * POLY_IMPORT_CALL_STRIDE);
-  emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor memcpy
+  emit_aarch64_direct_x86_pcall(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_memcpy);
   emit_u32(code, &offset, aarch64_mov_reg(0, 20));
   emit_u32(code, &offset, 0xd2800081U); // movz x1,#4
-  emit_aarch64_movabs(code, &offset, 17,
-    POLY_IMPORT_CALL_BASE + POLY_IMPORT_FUNC_STRNLEN * POLY_IMPORT_CALL_STRIDE);
-  emit_u32(code, &offset, 0xd63f0220U); // blr x17, descriptor strnlen
+  emit_aarch64_direct_x86_pcall(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_strnlen);
   emit_u32(code, &offset, 0x91009800U); // add x0,x0,#38
   emit_u32(code, &offset, aarch64_mov_reg(30, 19)); // restore cross-return cookie
   emit_u32(code, &offset, 0xd65f03c0U); // ret
@@ -3149,15 +2947,11 @@ static int run_cross_call_descriptor_memops_riscv_to_aarch64(uint64_t *result,
   static const char source[] = "polyglot";
   char dest[sizeof(source)];
   memset(dest, 0, sizeof(dest));
-  if (setup_polybench_x86_imports() < 0) {
-    munmap(code, code_size);
-    return -1;
-  }
   poly_foreign_insn_count_status();
   uint64_t insns_before = read_rax();
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
-  uint64_t raw_result = call_code_with_poly3_args_and_imports(code, dest,
+  uint64_t raw_result = call_code_with_poly3_args(code, dest,
     source, sizeof(source));
   poly_mode_x86();
   poly_foreign_insn_count_status();
@@ -3826,12 +3620,12 @@ static int check_cross_call_string_direction(const char *name,
     return -1;
   }
   if (check_switch_delta_max("cross call string", name, switch_delta,
-        POLYBENCH_DESCRIPTOR_MAX_SWITCH_DELTA) < 0)
+        POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   return 0;
 }
 
-static int check_cross_call_descriptor_memcmp_direction(const char *name,
+static int check_cross_call_direct_x86_memcmp_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
   uint64_t insn_delta = 0;
@@ -3839,32 +3633,32 @@ static int check_cross_call_descriptor_memcmp_direction(const char *name,
   if (runner(&result, &insn_delta, &switch_delta) < 0)
     return -1;
 
-  printf("POLYBENCH_CROSS_CALL_DESCRIPTOR_MEMCMP_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+  printf("POLYBENCH_CROSS_CALL_DIRECT_X86_MEMCMP_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
     name, (unsigned long long) result, (unsigned long long) insn_delta,
     (unsigned long long) switch_delta);
 
   if (result != 42) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memcmp %s expected 42 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memcmp %s expected 42 got %llu\n",
       name, (unsigned long long) result);
     return -1;
   }
   if (insn_delta < 10) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memcmp %s raw instruction delta expected at least 10 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memcmp %s raw instruction delta expected at least 10 got %llu\n",
       name, (unsigned long long) insn_delta);
     return -1;
   }
   if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memcmp %s switch delta expected at least 4 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memcmp %s switch delta expected at least 4 got %llu\n",
       name, (unsigned long long) switch_delta);
     return -1;
   }
-  if (check_switch_delta_max("cross call descriptor memcmp", name,
-        switch_delta, POLYBENCH_DESCRIPTOR_MAX_SWITCH_DELTA) < 0)
+  if (check_switch_delta_max("cross call direct x86 memcmp", name,
+        switch_delta, POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   return 0;
 }
 
-static int check_cross_call_descriptor_memops_direction(const char *name,
+static int check_cross_call_direct_x86_memops_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
   uint64_t insn_delta = 0;
@@ -3872,27 +3666,27 @@ static int check_cross_call_descriptor_memops_direction(const char *name,
   if (runner(&result, &insn_delta, &switch_delta) < 0)
     return -1;
 
-  printf("POLYBENCH_CROSS_CALL_DESCRIPTOR_MEMOPS_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
+  printf("POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
     name, (unsigned long long) result, (unsigned long long) insn_delta,
     (unsigned long long) switch_delta);
 
   if (result != 42) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memops %s expected 42 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memops %s expected 42 got %llu\n",
       name, (unsigned long long) result);
     return -1;
   }
   if (insn_delta < 20) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memops %s raw instruction delta expected at least 20 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memops %s raw instruction delta expected at least 20 got %llu\n",
       name, (unsigned long long) insn_delta);
     return -1;
   }
   if (switch_delta < 4) {
-    fprintf(stderr, "POLYBENCH_FAIL: cross call descriptor memops %s switch delta expected at least 4 got %llu\n",
+    fprintf(stderr, "POLYBENCH_FAIL: cross call direct x86 memops %s switch delta expected at least 4 got %llu\n",
       name, (unsigned long long) switch_delta);
     return -1;
   }
-  if (check_switch_delta_max("cross call descriptor memops", name,
-        switch_delta, POLYBENCH_DESCRIPTOR_MEMOPS_MAX_SWITCH_DELTA) < 0)
+  if (check_switch_delta_max("cross call direct x86 memops", name,
+        switch_delta, POLYBENCH_DIRECT_X86_MEMOPS_MAX_SWITCH_DELTA) < 0)
     return -1;
   return 0;
 }
@@ -3998,23 +3792,23 @@ static int check_cross_calls(void) {
   if (check_cross_call_break_direction("riscv-calls-aarch64-break",
         run_cross_call_break_riscv_to_aarch64, UINT64_C(0x4c000301)) < 0)
     return -1;
-  if (check_cross_call_string_direction("aarch64-calls-riscv-descriptor",
-        run_cross_call_descriptor_aarch64_to_riscv) < 0)
+  if (check_cross_call_string_direction("aarch64-calls-riscv-direct-x86",
+        run_cross_call_direct_x86_aarch64_to_riscv) < 0)
     return -1;
-  if (check_cross_call_string_direction("riscv-calls-aarch64-descriptor",
-        run_cross_call_descriptor_riscv_to_aarch64) < 0)
+  if (check_cross_call_string_direction("riscv-calls-aarch64-direct-x86",
+        run_cross_call_direct_x86_riscv_to_aarch64) < 0)
     return -1;
-  if (check_cross_call_descriptor_memcmp_direction("aarch64-calls-riscv-descriptor-memcmp",
-        run_cross_call_descriptor_memcmp_aarch64_to_riscv) < 0)
+  if (check_cross_call_direct_x86_memcmp_direction("aarch64-calls-riscv-direct-x86-memcmp",
+        run_cross_call_direct_x86_memcmp_aarch64_to_riscv) < 0)
     return -1;
-  if (check_cross_call_descriptor_memcmp_direction("riscv-calls-aarch64-descriptor-memcmp",
-        run_cross_call_descriptor_memcmp_riscv_to_aarch64) < 0)
+  if (check_cross_call_direct_x86_memcmp_direction("riscv-calls-aarch64-direct-x86-memcmp",
+        run_cross_call_direct_x86_memcmp_riscv_to_aarch64) < 0)
     return -1;
-  if (check_cross_call_descriptor_memops_direction("aarch64-calls-riscv-descriptor-memops",
-        run_cross_call_descriptor_memops_aarch64_to_riscv) < 0)
+  if (check_cross_call_direct_x86_memops_direction("aarch64-calls-riscv-direct-x86-memops",
+        run_cross_call_direct_x86_memops_aarch64_to_riscv) < 0)
     return -1;
-  if (check_cross_call_descriptor_memops_direction("riscv-calls-aarch64-descriptor-memops",
-        run_cross_call_descriptor_memops_riscv_to_aarch64) < 0)
+  if (check_cross_call_direct_x86_memops_direction("riscv-calls-aarch64-direct-x86-memops",
+        run_cross_call_direct_x86_memops_riscv_to_aarch64) < 0)
     return -1;
   return 0;
 }
