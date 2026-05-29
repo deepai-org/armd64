@@ -1273,6 +1273,34 @@ static int resolve_direct_x86_register_import(int arch,
   static const struct {
     const char *name;
     uint64_t import_id;
+  } aarch64_fp128_imports[] = {
+    { "__addtf3", POLY_IMPORT_FUNC_ADDTF3 },
+    { "__subtf3", POLY_IMPORT_FUNC_SUBTF3 },
+    { "__multf3", POLY_IMPORT_FUNC_MULTF3 },
+    { "__divtf3", POLY_IMPORT_FUNC_DIVTF3 },
+    { "__floatunditf", POLY_IMPORT_FUNC_FLOATUNDITF },
+    { "__fixunstfdi", POLY_IMPORT_FUNC_FIXUNSTFDI },
+    { "__floatditf", POLY_IMPORT_FUNC_FLOATDITF },
+    { "__floatsitf", POLY_IMPORT_FUNC_FLOATSITF },
+    { "__fixtfdi", POLY_IMPORT_FUNC_FIXTFDI },
+    { "__eqtf2", POLY_IMPORT_FUNC_EQTF2 },
+    { "__lttf2", POLY_IMPORT_FUNC_LTTF2 },
+    { "__letf2", POLY_IMPORT_FUNC_LETF2 },
+    { "__gttf2", POLY_IMPORT_FUNC_GTTF2 },
+    { "__getf2", POLY_IMPORT_FUNC_GETF2 },
+    { "__extendsftf2", POLY_IMPORT_FUNC_EXTENDSFTF2 },
+    { "__extenddftf2", POLY_IMPORT_FUNC_EXTENDDFTF2 },
+    { "__trunctfsf2", POLY_IMPORT_FUNC_TRUNCTFSF2 },
+    { "__trunctfdf2", POLY_IMPORT_FUNC_TRUNCTFDF2 },
+    { "__netf2", POLY_IMPORT_FUNC_NETF2 },
+    { "__unordtf2", POLY_IMPORT_FUNC_UNORDTF2 },
+    { "__floatunsitf", POLY_IMPORT_FUNC_FLOATUNSITF },
+    { "__fixtfsi", POLY_IMPORT_FUNC_FIXTFSI },
+    { "__fixunstfsi", POLY_IMPORT_FUNC_FIXUNSTFSI },
+  };
+  static const struct {
+    const char *name;
+    uint64_t import_id;
   } register_only_imports[] = {
     { "poly_import_add", POLY_IMPORT_FUNC_ADD },
     { "poly_import_mul", POLY_IMPORT_FUNC_MUL },
@@ -1411,6 +1439,16 @@ static int resolve_direct_x86_register_import(int arch,
     { "pthread_cond_signal", POLY_IMPORT_FUNC_PTHREAD_COND_SIGNAL },
     { "pthread_cond_broadcast", POLY_IMPORT_FUNC_PTHREAD_COND_BROADCAST }
   };
+
+  if (arch == POLY_ARCH_AARCH64) {
+    for (size_t n = 0; n < sizeof(aarch64_fp128_imports) /
+        sizeof(aarch64_fp128_imports[0]); n++) {
+      if (strcmp(symbol_name, aarch64_fp128_imports[n].name) == 0) {
+        *import_id = aarch64_fp128_imports[n].import_id;
+        return 0;
+      }
+    }
+  }
 
   for (size_t n = 0; n < sizeof(register_only_imports) /
       sizeof(register_only_imports[0]); n++) {
