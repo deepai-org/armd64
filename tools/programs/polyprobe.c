@@ -997,6 +997,62 @@ static inline void pcall_signature_imm_mode_x86_sysv_args_probe(void) {
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
+static inline void aarch64_signature_imm_call_x86_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0003f0\n" // mov x16,x0 (target)
+    ".long 0xaa0103f2\n" // mov x18,x1 (return)
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    "1:\n"
+    "movq %%rdi, %%rax\n"
+    "addq %%rsi, %%rax\n"
+    "addq %%rdx, %%rax\n"
+    "addq %%rcx, %%rax\n"
+    "addq %%r8, %%rax\n"
+    "addq %%r9, %%rax\n"
+    "retq\n"
+    "2:\n"
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+}
+
+static inline void riscv_signature_imm_call_x86_probe(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    "leaq 2f(%%rip), %%rdx\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00050293\n" // mv x5,a0 (target)
+    ".long 0x00058393\n" // mv x7,a1 (return)
+    ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    "1:\n"
+    "movq %%rdi, %%rax\n"
+    "addq %%rsi, %%rax\n"
+    "addq %%rdx, %%rax\n"
+    "addq %%rcx, %%rax\n"
+    "addq %%r8, %%rax\n"
+    "addq %%r9, %%rax\n"
+    "retq\n"
+    "2:\n"
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+}
+
 static inline void raw_fp64_aarch64_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -1726,6 +1782,16 @@ int main(void) {
   pcall_signature_imm_mode_x86_sysv_args_probe();
   if (read_rax() != 21) {
     fprintf(stderr, "POLY_PROBE_FAIL: immediate pcall signature x86 bridge mismatch\n");
+    return 1;
+  }
+  aarch64_signature_imm_call_x86_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 immediate signature pcall x86 bridge mismatch\n");
+    return 1;
+  }
+  riscv_signature_imm_call_x86_probe();
+  if (read_rax() != 21) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv immediate signature pcall x86 bridge mismatch\n");
     return 1;
   }
 
