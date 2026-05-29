@@ -7883,6 +7883,14 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_sigregs=[1-9]" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_sigregs=[1-9]" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
       fi
       if [[ "$RUN_POLY_THREAD" == "1" ]]; then
         if ! grep -q "POLYTHREAD_OK" "$SERIAL_LOG"; then

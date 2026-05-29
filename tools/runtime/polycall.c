@@ -556,6 +556,12 @@ struct poly_import_contract {
   uint32_t signature_slot_x86_sysv_regs_i128;
 };
 
+struct poly_import_stub_stats {
+  uint32_t x86_direct_sigreg_stubs;
+  uint32_t x86_direct_i128_sigreg_stubs;
+  uint32_t x86_thunk_stubs;
+};
+
 struct poly_dynamic_reloc {
   size_t offset;
   size_t size;
@@ -3405,7 +3411,8 @@ static int x86_direct_import_needs_riscv_fp128_return_thunk(int caller_arch,
 
 static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int caller_arch, uint64_t import_id, uint64_t target,
-    const struct poly_import_contract *contract, uint64_t *stub_addr) {
+    const struct poly_import_contract *contract,
+    struct poly_import_stub_stats *stats, uint64_t *stub_addr) {
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
 
@@ -3808,6 +3815,15 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     x86_direct_import_uses_i128_signature(import_id) ?
       contract->signature_slot_x86_sysv_regs_i128 :
       contract->signature_slot_x86_sysv_regs;
+
+  if (stats) {
+    if (needs_x86_thunk)
+      stats->x86_thunk_stubs++;
+    else if (signature_slot == contract->signature_slot_x86_sysv_regs_i128)
+      stats->x86_direct_i128_sigreg_stubs++;
+    else if (signature_slot == contract->signature_slot_x86_sysv_regs)
+      stats->x86_direct_sigreg_stubs++;
+  }
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (stub_limit - start < 128)
@@ -8149,6 +8165,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   if (needs_x86_import && read_poly_import_contract(&import_contract) < 0)
     return -1;
+  struct poly_import_stub_stats import_stub_stats;
+  memset(&import_stub_stats, 0, sizeof(import_stub_stats));
   const size_t callee_save_size = 33;
   const size_t callee_restore_size = 33;
   const size_t callee_save_area_size = 48;
@@ -8483,7 +8501,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         if (target == 0 ||
             emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
               &cross_stub_offset, dep->arch, dep->relocs[r].value,
-              target, &import_contract, &stub_addr) < 0) {
+              target, &import_contract, &import_stub_stats, &stub_addr) < 0) {
           fprintf(stderr, "POLYCALL_FAIL: dependency x86 direct import stub overflow: %s\n",
             dep->path);
           unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -8718,7 +8736,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       if (target == 0 ||
           emit_x86_direct_import_stub(cross_stubs, cross_stub_size,
             &cross_stub_offset, program->arch, program->relocs[n].value,
-            target, &import_contract, &stub_addr) < 0) {
+            target, &import_contract, &import_stub_stats, &stub_addr) < 0) {
         fprintf(stderr, "POLYCALL_FAIL: x86 direct import stub overflow: %s\n",
           program->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -9273,6 +9291,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       munmap(code, code_size);
       return -1;
     }
+  }
+  if (needs_x86_import) {
+    printf("POLYCALL_X86_IMPORT_STUBS: arch=%s direct_sigregs=%u direct_i128=%u thunks=%u path=%s\n",
+      program->arch_name, import_stub_stats.x86_direct_sigreg_stubs,
+      import_stub_stats.x86_direct_i128_sigreg_stubs,
+      import_stub_stats.x86_thunk_stubs, program->path);
   }
   if (tls)
     munmap(tls, tls_size);
