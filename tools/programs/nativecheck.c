@@ -357,6 +357,18 @@ poly_abi_signature_get(uint64_t slot) {
   return rax;
 }
 
+static int check_poly_abi_signature_slot_default(uint32_t slot, uint32_t kind,
+    const char *name) {
+  uint64_t actual = poly_abi_signature_get(slot);
+  if (actual != kind) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: ABI signature default mismatch %s slot=%u expected=%u actual=%llu\n",
+      name, slot, kind, (unsigned long long) actual);
+    return 1;
+  }
+  return 0;
+}
+
 static __attribute__((noinline)) uint64_t
 nativecheck_aarch64_abi_signature_set_get_slot5(void) {
   uint64_t result;
@@ -4760,6 +4772,23 @@ int main(void) {
         signature_manifest2.ecx, signature_manifest2.edx);
       return 1;
     }
+    if (check_poly_abi_signature_slot_default(
+          pcall_imm_manifest.ecx & 0xffU,
+          pcall_imm_manifest.edx & 0xffU, "exchange") != 0 ||
+        check_poly_abi_signature_slot_default(
+          (pcall_imm_manifest.ecx >> 8) & 0xffU,
+          (pcall_imm_manifest.edx >> 8) & 0xffU, "x86-sysv-regs") != 0 ||
+        check_poly_abi_signature_slot_default(
+          (pcall_imm_manifest.ecx >> 16) & 0xffU,
+          (pcall_imm_manifest.edx >> 16) & 0xffU,
+          "x86-sysv-regs-i128") != 0 ||
+        check_poly_abi_signature_slot_default(
+          (pcall_imm_manifest.ecx >> 24) & 0xffU,
+          (pcall_imm_manifest.edx >> 24) & 0xffU, "native-regs") != 0 ||
+        check_poly_abi_signature_slot_default(
+          signature_manifest2.eax, signature_manifest2.ebx,
+          "native-regs-i128") != 0)
+      return 1;
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
     uint32_t forbidden_state_bits = POLY_CPUID_STATE_SYNTHETIC_BANKS |
