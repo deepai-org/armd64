@@ -314,6 +314,31 @@ void poly_process_dt_init_root(void) {
 }
 #endif
 
+#if defined(POLY_PROCESS_FINI_MAIN)
+static void poly_process_fini_dtor(void) __attribute__((destructor));
+static void poly_process_fini_dtor(void) {
+#if defined(__aarch64__)
+  static const char marker[] = "POLY_PROCESS_AARCH64_FINI_ARRAY_OK\n";
+#elif defined(__riscv)
+  static const char marker[] = "POLY_PROCESS_RISCV_FINI_ARRAY_OK\n";
+#endif
+  (void) poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
+    sizeof(marker) - 1);
+}
+#endif
+
+#if defined(POLY_PROCESS_DT_FINI_MAIN)
+void poly_process_dt_fini_root(void) {
+#if defined(__aarch64__)
+  static const char marker[] = "POLY_PROCESS_AARCH64_DT_FINI_OK\n";
+#elif defined(__riscv)
+  static const char marker[] = "POLY_PROCESS_RISCV_DT_FINI_OK\n";
+#endif
+  (void) poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
+    sizeof(marker) - 1);
+}
+#endif
+
 uint64_t poly_process_main(void) {
 #if defined(POLY_PROCESS_NEEDED_INDIRECT_MAIN)
   if (poly_process_needed_leaf(0x12, 0x23) != 0x46)
@@ -355,6 +380,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_dt_init_dep() != 0x6c)
     return 32;
   static const char marker[] = "POLY_PROCESS_DEP_DT_INIT_OK\n";
+#elif defined(POLY_PROCESS_FINI_MAIN)
+  static const char marker[] = "POLY_PROCESS_FINI_MAIN_OK\n";
+#elif defined(POLY_PROCESS_DT_FINI_MAIN)
+  static const char marker[] = "POLY_PROCESS_DT_FINI_MAIN_OK\n";
 #elif defined(POLY_PROCESS_VERSIONED_MAIN)
   if (poly_process_versioned_add_v1(0x20, 0x30) != 0x150)
     return 33;

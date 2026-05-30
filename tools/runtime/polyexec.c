@@ -246,6 +246,9 @@ struct poly_program {
   uint64_t preinit_array_size;
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
+  uint64_t fini_vaddr;
+  uint64_t fini_array_vaddr;
+  uint64_t fini_array_size;
   uint8_t *code_bytes;
   size_t code_size;
   char soname[MAX_DEP_PATH];
@@ -273,6 +276,23 @@ struct poly_request {
 static uint32_t process_native_signature_slot = 3;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
+
+struct poly_process_exit_finalizer_context {
+  struct poly_program *program;
+  uint8_t *loaded_image;
+  uint8_t *trampoline_code;
+  size_t prefix_size;
+  uint64_t return_pc;
+  uint8_t *scratch;
+  int active;
+  int running;
+  int completed;
+};
+
+static struct poly_process_exit_finalizer_context
+  poly_process_exit_finalizers;
+
+static int run_process_exit_finalizers(void);
 
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
@@ -1960,6 +1980,9 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     long x86_number = -1;
     if (!poly_generic_linux_syscall_to_x86(number, &x86_number))
       return (uint64_t) -ENOSYS;
+    if ((x86_number == SYS_exit || x86_number == SYS_exit_group) &&
+        run_process_exit_finalizers() < 0)
+      arg0 = 125;
     return (uint64_t) poly_x86_syscall6(x86_number, arg0, arg1, arg2, arg3,
       arg4, arg5);
   }
@@ -3831,7 +3854,7 @@ static int call_process_initializer(const struct poly_program *program,
     const char *kind) {
   if (emit_poly_trampoline(program, trampoline_code, prefix_size, return_pc,
         target_pc) < 0) {
-    fprintf(stderr, "POLYEXEC_FAIL: unsupported %s initializer branch: %s\n",
+    fprintf(stderr, "POLYEXEC_FAIL: unsupported %s lifecycle branch: %s\n",
       kind, program->path);
     return -1;
   }
@@ -3896,6 +3919,90 @@ static int run_process_initializers(const struct poly_program *program,
   return run_process_initializer_array(program, loaded_image, trampoline_code,
     prefix_size, return_pc, scratch, program->init_array_vaddr,
     program->init_array_size, kind_prefix);
+}
+
+static int run_process_finalizer_array(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch, uint64_t array_vaddr,
+    uint64_t array_size, const char *kind) {
+  if (array_size == 0)
+    return 0;
+  if (array_vaddr == 0 || array_size % sizeof(uint64_t) != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: bad %s finalizer array: %s\n", kind,
+      program->path);
+    return -1;
+  }
+  size_t array_offset = 0;
+  if (elf_vaddr_to_image_offset(program, array_vaddr, array_size,
+        &array_offset) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: %s finalizer array escaped image: %s\n",
+      kind, program->path);
+    return -1;
+  }
+  const size_t fini_count = (size_t) (array_size / sizeof(uint64_t));
+  for (size_t n = fini_count; n > 0; n--) {
+    const uint64_t fini_target =
+      read_u64_le(loaded_image + array_offset + (n - 1) * sizeof(uint64_t));
+    if (fini_target != 0 &&
+        call_process_initializer(program, loaded_image, trampoline_code,
+          prefix_size, return_pc, fini_target, scratch, kind) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int run_process_finalizers(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch, const char *kind_prefix) {
+  const uint64_t load_bias =
+    (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
+  if (run_process_finalizer_array(program, loaded_image, trampoline_code,
+        prefix_size, return_pc, scratch, program->fini_array_vaddr,
+        program->fini_array_size, kind_prefix) < 0)
+    return -1;
+  if (program->fini_vaddr != 0) {
+    if (call_process_initializer(program, loaded_image, trampoline_code,
+          prefix_size, return_pc, load_bias + program->fini_vaddr, scratch,
+          kind_prefix) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int run_process_dependency_finalizers(struct poly_program *program,
+    uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
+    uint8_t *scratch) {
+  for (size_t d = program->dep_count; d > 0; d--) {
+    struct poly_process_dependency *dep = &program->deps[d - 1];
+    if (dep->shared_from)
+      continue;
+    if (run_process_finalizers(dep->program, dep->loaded_image,
+          trampoline_code, prefix_size, return_pc, scratch,
+          "dependency") < 0)
+      return -1;
+    if (run_process_dependency_finalizers(dep->program, trampoline_code,
+          prefix_size, return_pc, scratch) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int run_process_exit_finalizers(void) {
+  struct poly_process_exit_finalizer_context *ctx =
+    &poly_process_exit_finalizers;
+  if (!ctx->active || ctx->completed || ctx->running)
+    return 0;
+  ctx->running = 1;
+  int status = 0;
+  if (run_process_finalizers(ctx->program, ctx->loaded_image,
+        ctx->trampoline_code, ctx->prefix_size, ctx->return_pc, ctx->scratch,
+        "root") < 0 ||
+      run_process_dependency_finalizers(ctx->program, ctx->trampoline_code,
+        ctx->prefix_size, ctx->return_pc, ctx->scratch) < 0)
+    status = -1;
+  ctx->completed = status == 0;
+  ctx->running = 0;
+  return status;
 }
 
 static int detect_arch(uint16_t machine, struct poly_program *program) {
@@ -4312,6 +4419,15 @@ static int load_elf_program(const char *path, const char *symbol_name,
           break;
         case DT_INIT_ARRAYSZ:
           program->init_array_size = dyn[n].d_un.d_val;
+          break;
+        case DT_FINI:
+          program->fini_vaddr = dyn[n].d_un.d_ptr;
+          break;
+        case DT_FINI_ARRAY:
+          program->fini_array_vaddr = dyn[n].d_un.d_ptr;
+          break;
+        case DT_FINI_ARRAYSZ:
+          program->fini_array_size = dyn[n].d_un.d_val;
           break;
         default:
           break;
@@ -5301,6 +5417,17 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
+
+  poly_process_exit_finalizers =
+    (struct poly_process_exit_finalizer_context) {
+      .program = program,
+      .loaded_image = loaded_image,
+      .trampoline_code = code,
+      .prefix_size = prefix_size,
+      .return_pc = return_pc,
+      .scratch = scratch,
+      .active = 1,
+    };
 
   (void) result;
   run_poly_process_entry(code, initial_sp,
