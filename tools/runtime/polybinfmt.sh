@@ -38,6 +38,8 @@ case "$path" in
   */aarch64-pair-frame.elf) expected=35 ;;
   */aarch64-hints.elf) expected=27 ;;
   */aarch64-prfm.elf) expected=27 ;;
+  */aarch64-cacheops.elf) expected=27 ;;
+  */aarch64-dczva.elf) expected=0 ;;
   */aarch64-pcall-split-load.elf) expected=123 ;;
   */aarch64-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-syscall-real.elf) expected=42; process_mode=1 ;;
@@ -232,6 +234,9 @@ case "$path" in
   */riscv-fp-int-move.elf) expected=0xffffffff8000002a ;;
   */riscv-fp-class.elf) expected=32 ;;
   */riscv-fp32-to-int.elf) expected=12 ;;
+  */riscv-fp-csr.elf) expected=286 ;;
+  */riscv-counters.elf) expected=1 ;;
+  */riscv-fp-round.elf) expected=16 ;;
   */riscv-upper.elf) expected=0x1234567c ;;
   */riscv-immops.elf) expected=42 ;;
   */riscv-wordops.elf) expected=42 ;;
