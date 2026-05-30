@@ -5064,7 +5064,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ctr.elf" 0xd53b0020 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-tpidrro.elf" 0xd53bd060 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-counters.elf" 0xd53be000 0xd53be041 0xd53be022 0xaa010000 0xaa020000 0xf100001f 0x9a9f07e0 0xd65f03c0
-  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-idregs.elf" 0xd5380600 0xd5380621 0xd5380402 0xd5380423 0xd5380704 0xd5380725 0xd5380506 0xaa010000 0xaa020000 0xaa030000 0xaa040000 0xaa050000 0xaa060000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-idregs.elf" 0xd5380600 0xd5380621 0xd5380402 0xd5380423 0xd5380704 0xd5380725 0xd5380506 0xd5380447 0xd5380488 0xd53804a9 0xd538052a 0xd538064b 0xd538074c 0xd538076d 0xd538078e 0xaa010000 0xaa020000 0xaa030000 0xaa040000 0xaa050000 0xaa060000 0xaa070000 0xaa080000 0xaa090000 0xaa0a0000 0xaa0b0000 0xaa0c0000 0xaa0d0000 0xaa0e0000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-strlen.elf" 0xd4200020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memfill.elf" 0xd2800821 0xd2800082 0xd4200040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcmp.elf" 0x91000401 0xd2800082 0xd4200060
