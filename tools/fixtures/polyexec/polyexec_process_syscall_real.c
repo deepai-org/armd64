@@ -151,6 +151,9 @@ enum {
   POLY_SYS_SCHED_GET_PRIORITY_MAX = 125,
   POLY_SYS_SCHED_GET_PRIORITY_MIN = 126,
   POLY_SYS_KILL = 129,
+  POLY_SYS_TKILL = 130,
+  POLY_SYS_TGKILL = 131,
+  POLY_SYS_SIGALTSTACK = 132,
   POLY_SYS_RT_SIGPROCMASK = 135,
   POLY_SYS_GETPRIORITY = 141,
   POLY_SYS_GETRESUID = 148,
@@ -366,6 +369,13 @@ struct poly_tms {
 
 struct poly_sched_param {
   int32_t priority;
+};
+
+struct poly_stack {
+  uint64_t sp;
+  int32_t flags;
+  uint32_t pad;
+  uint64_t size;
 };
 
 struct poly_rlimit64 {
@@ -609,6 +619,14 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 235;
   if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
     return 236;
+  if (poly_syscall2(POLY_SYS_TKILL, tid, 0) != 0)
+    return 369;
+  if (poly_syscall3(POLY_SYS_TGKILL, pid0, tid, 0) != 0)
+    return 370;
+  struct poly_stack current_sigaltstack;
+  if (poly_syscall2(POLY_SYS_SIGALTSTACK, 0,
+        (long) &current_sigaltstack) != 0)
+    return 371;
   long current_ioprio = poly_syscall2(POLY_SYS_IOPRIO_GET,
     POLY_IOPRIO_WHO_PROCESS, 0);
   if (current_ioprio < 0)
