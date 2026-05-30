@@ -45,9 +45,9 @@ Other useful targets:
 - Bochs exposes Poly as XSAVE component 20 and implements XSAVE/XRSTOR handlers.
   The default broad tests still use explicit Poly state save/restore controls
   for prototype scheduling and signal coverage. `make
-  boot-poly-real-xsave-arch-traps` additionally builds and inserts a small guest
-  kernel module that enables the Poly XCR0 component for direct XSAVE/XRSTOR
-  validation.
+  boot-poly-full-real-xsave-arch-traps` additionally builds and inserts a small
+  guest kernel module that enables the Poly XCR0 component for direct
+  XSAVE/XRSTOR validation in the broad regression run.
 - The prototype also exposes its thread-bank state key through CPUID: foreign
   synthetic banks are separated by `CR3+FSBASE`, with a stack-region fallback
   for code without a TLS base. That is prototype isolation plumbing; the
