@@ -392,100 +392,18 @@ static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
-struct polyexec_cpuid_check {
-  const char *name;
-  uint32_t leaf;
-  uint32_t subleaf;
-  struct poly_cpuid_regs expected;
-};
-
-static int polyexec_check_cpuid_regs(const struct polyexec_cpuid_check *check) {
-  const struct poly_cpuid_regs actual =
-    poly_read_cpuid(check->leaf, check->subleaf);
-  if (actual.eax != check->expected.eax ||
-      actual.ebx != check->expected.ebx ||
-      actual.ecx != check->expected.ecx ||
-      actual.edx != check->expected.edx) {
+static int polyexec_check_arch_state_contract(void) {
+  struct poly_cpuid_contract_failure failure;
+  if (!poly_cpuid_verify_arch_state_contract(&failure)) {
     fprintf(stderr,
       "POLYEXEC_FAIL: %s mismatch leaf=0x%x subleaf=%u got=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
-      check->name, check->leaf, check->subleaf,
-      actual.eax, actual.ebx, actual.ecx, actual.edx,
-      check->expected.eax, check->expected.ebx,
-      check->expected.ecx, check->expected.edx);
+      failure.name, failure.leaf, failure.subleaf,
+      failure.actual.eax, failure.actual.ebx,
+      failure.actual.ecx, failure.actual.edx,
+      failure.expected.eax, failure.expected.ebx,
+      failure.expected.ecx, failure.expected.edx);
     return -1;
   }
-  return 0;
-}
-
-static int polyexec_check_arch_state_contract(void) {
-  const struct polyexec_cpuid_check checks[] = {
-    { "poly state contract", POLY_CPUID_BASE + 3, 0,
-      poly_cpuid_expected_state_leaf() },
-    { "poly XSAVE state contract", POLY_CPUID_BASE + 4, 0,
-      poly_cpuid_expected_arch_state_leaf() },
-    { "poly XSAVE header layout", POLY_CPUID_BASE + 4, 1,
-      poly_cpuid_expected_arch_state_header_leaf() },
-    { "poly XSAVE trap layout", POLY_CPUID_BASE + 4, 2,
-      poly_cpuid_expected_arch_state_trap_leaf() },
-    { "poly AArch64 GPR layout", POLY_CPUID_BASE + 4, 3,
-      poly_cpuid_expected_arch_state_aarch64_gpr_leaf() },
-    { "poly AArch64 FP layout", POLY_CPUID_BASE + 4, 4,
-      poly_cpuid_expected_arch_state_aarch64_fp_leaf() },
-    { "poly AArch64 status layout", POLY_CPUID_BASE + 4, 5,
-      poly_cpuid_expected_arch_state_aarch64_status_leaf() },
-    { "poly RISC-V GPR layout", POLY_CPUID_BASE + 4, 6,
-      poly_cpuid_expected_arch_state_riscv_gpr_leaf() },
-    { "poly RISC-V FP layout", POLY_CPUID_BASE + 4, 7,
-      poly_cpuid_expected_arch_state_riscv_fp_leaf() },
-    { "poly RISC-V status layout", POLY_CPUID_BASE + 4, 8,
-      poly_cpuid_expected_arch_state_riscv_status_leaf() },
-    { "poly ABI signature layout", POLY_CPUID_BASE + 4, 9,
-      poly_cpuid_expected_arch_state_abi_signature_leaf() },
-    { "poly frontend TLS layout", POLY_CPUID_BASE + 4, 10,
-      poly_cpuid_expected_arch_state_frontend_tls_leaf() },
-    { "poly landing policy layout", POLY_CPUID_BASE + 4, 11,
-      poly_cpuid_expected_arch_state_landing_policy_leaf() },
-    { "poly state-key layout", POLY_CPUID_BASE + 4, 12,
-      poly_cpuid_expected_arch_state_state_key_leaf() },
-    { "poly XSAVE reserved layout", POLY_CPUID_BASE + 4, 13,
-      poly_cpuid_expected_arch_state_reserved_leaf() },
-    { "poly transition contract", POLY_CPUID_BASE + 8, 0,
-      poly_cpuid_expected_transition_leaf() },
-    { "poly transition frame layout", POLY_CPUID_BASE + 8, 2,
-      poly_cpuid_expected_transition_layout_leaf() },
-    { "poly cross-return layout", POLY_CPUID_BASE + 8, 3,
-      poly_cpuid_expected_transition_cross_return_leaf() },
-    { "poly import-return layout", POLY_CPUID_BASE + 8, 4,
-      poly_cpuid_expected_transition_import_return_leaf() },
-  };
-
-  for (size_t i = 0; i < sizeof(checks) / sizeof(checks[0]); i++) {
-    if (polyexec_check_cpuid_regs(&checks[i]) != 0)
-      return -1;
-  }
-
-  const struct poly_cpuid_regs xsave0 = poly_read_cpuid(0x0000000d, 0);
-  if ((xsave0.eax & (1U << POLY_STATE_XSAVE_COMPONENT_ARCH)) == 0 ||
-      xsave0.ecx < POLY_STATE_XSAVE_OFFSET_ARCH +
-        POLY_STATE_XSAVE_BYTES_ARCH) {
-    fprintf(stderr,
-      "POLYEXEC_FAIL: standard XSAVE Poly component missing leaf0=(0x%x,0x%x,0x%x,0x%x)\n",
-      xsave0.eax, xsave0.ebx, xsave0.ecx, xsave0.edx);
-    return -1;
-  }
-
-  const struct poly_cpuid_regs xsave_poly =
-    poly_read_cpuid(0x0000000d, POLY_STATE_XSAVE_COMPONENT_ARCH);
-  if (xsave_poly.eax != POLY_STATE_XSAVE_BYTES_ARCH ||
-      xsave_poly.ebx != POLY_STATE_XSAVE_OFFSET_ARCH ||
-      xsave_poly.ecx != 0x2 ||
-      xsave_poly.edx != 0) {
-    fprintf(stderr,
-      "POLYEXEC_FAIL: standard XSAVE Poly component mismatch got=(0x%x,0x%x,0x%x,0x%x)\n",
-      xsave_poly.eax, xsave_poly.ebx, xsave_poly.ecx, xsave_poly.edx);
-    return -1;
-  }
-
   return 0;
 }
 
