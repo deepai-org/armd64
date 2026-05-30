@@ -1679,9 +1679,14 @@ static inline uint64_t raw_mixed_probe(uint64_t value) {
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0x91000400\n"
-    ".long 0xd5032e3f\n"
+    ".long 0x10000070\n"
+    ".long 0xd2800051\n"
+    ".long 0xd5032f1f\n"
     ".long 0x00550513\n"
-    ".long 0x0200700b\n"
+    ".long 0x00000297\n"
+    ".long 0x01028293\n"
+    ".long 0x00100313\n"
+    ".long 0x1000700b\n"
     ".long 0x91000400\n"
     ".long 0xd5032e1f\n"
     : "+a"(rax)
@@ -1695,9 +1700,14 @@ static inline uint64_t raw_switch_stress_step(uint64_t value) {
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0x91000400\n"
-    ".long 0xd5032e3f\n"
+    ".long 0x10000070\n"
+    ".long 0xd2800051\n"
+    ".long 0xd5032f1f\n"
     ".long 0x00550513\n"
-    ".long 0x0200700b\n"
+    ".long 0x00000297\n"
+    ".long 0x01028293\n"
+    ".long 0x00100313\n"
+    ".long 0x1000700b\n"
     ".long 0x91000400\n"
     ".long 0xd5032e1f\n"
     : "+a"(rax)

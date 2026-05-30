@@ -419,7 +419,9 @@ nativecheck_aarch64_switch_riscv_read_tls(uint64_t tls_base) {
   asm volatile(
     "movq %1, %%r13\n"
     POLY_OP_ENTER_A64
-    ".long 0xd5032e3f\n" // aarch64 polyctrl switch to RISC-V
+    ".long 0x10000070\n" // adr x16,target
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xd5032f1f\n" // generic switch frontend=x17 target=x16
     ".long 0x00020513\n" // addi a0,tp,0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "=a"(result)
@@ -435,7 +437,10 @@ nativecheck_riscv_switch_aarch64_read_tls(uint64_t tls_base) {
   asm volatile(
     "movq %1, %%r13\n"
     POLY_OP_ENTER_RV64
-    ".long 0x0200700b\n" // riscv polyctrl switch to AArch64
+    ".long 0x00000297\n" // auipc t0,0
+    ".long 0x01028293\n" // addi t0,t0,16
+    ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
+    ".long 0x1000700b\n" // generic switch frontend=t1 target=t0
     ".long 0xd53bd040\n" // mrs x0,tpidr_el0
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "=a"(result)
