@@ -242,7 +242,9 @@ static int expect_monitor_packet_header(const char *label,
       packet->trap.resume_pc == 0 ||
       (require_linear_resume &&
        packet->trap.resume_pc != packet->trap.trap_pc + 4) ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
+      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0 ||
+      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY) == 0 ||
+      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0) {
     fprintf(stderr,
       "POLY_PROBE_FAIL: monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx\n",
       label, packet->trap.reason, packet->trap.source_mode,
