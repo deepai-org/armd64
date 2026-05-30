@@ -45,6 +45,7 @@ enum {
   POLY_SIGUSR1 = 10,
   POLY_S_IFMT = 0170000,
   POLY_S_IFDIR = 0040000,
+  POLY_S_IFIFO = 0010000,
   POLY_S_IFREG = 0100000,
   POLY_S_IFLNK = 0120000,
   POLY_DIRENT64_NAME_OFFSET = 19,
@@ -74,6 +75,7 @@ enum {
   POLY_SYS_INOTIFY_ADD_WATCH = 27,
   POLY_SYS_INOTIFY_RM_WATCH = 28,
   POLY_SYS_FLOCK = 32,
+  POLY_SYS_MKNODAT = 33,
   POLY_SYS_MKDIRAT = 34,
   POLY_SYS_UNLINKAT = 35,
   POLY_SYS_SYMLINKAT = 36,
@@ -1775,6 +1777,7 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
 
   static const char namespace_dir[] = "/polyproc-syscall-real";
   static const char namespace_file[] = "/polyproc-syscall-real/file";
+  static const char namespace_fifo[] = "/polyproc-syscall-real/fifo";
   static const char namespace_renamed[] = "/polyproc-syscall-real/renamed";
   static const char namespace_temp[] = "/polyproc-syscall-real/temp";
   static const char namespace_hard[] = "/polyproc-syscall-real/hard";
@@ -1783,12 +1786,22 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_symlink, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_temp, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_renamed, 0);
+  poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_fifo, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_file, 0);
   poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD, (long) namespace_dir,
     POLY_AT_REMOVEDIR);
   if (poly_syscall3(POLY_SYS_MKDIRAT, POLY_AT_FDCWD,
         (long) namespace_dir, 0700) != 0)
     return 243;
+  if (poly_syscall4(POLY_SYS_MKNODAT, POLY_AT_FDCWD,
+        (long) namespace_fifo, POLY_S_IFIFO | 0600, 0) != 0)
+    return 331;
+  struct poly_linux_generic_stat namespace_fifo_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_fifo, (long) &namespace_fifo_stat, 0) != 0)
+    return 332;
+  if ((namespace_fifo_stat.mode & POLY_S_IFMT) != POLY_S_IFIFO)
+    return 333;
   struct poly_linux_generic_stat namespace_dir_stat;
   if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
         (long) namespace_dir, (long) &namespace_dir_stat, 0) != 0)
@@ -2014,6 +2027,9 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD,
         (long) namespace_renamed, 0) != 0)
     return 264;
+  if (poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD,
+        (long) namespace_fifo, 0) != 0)
+    return 334;
   if (poly_syscall3(POLY_SYS_UNLINKAT, POLY_AT_FDCWD,
         (long) namespace_dir, POLY_AT_REMOVEDIR) != 0)
     return 265;
