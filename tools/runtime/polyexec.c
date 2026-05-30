@@ -277,6 +277,17 @@ static uint32_t process_native_signature_slot = 3;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
 
+struct poly_runtime_trap_packet {
+  uint64_t reason;
+  uint64_t mode;
+  uint64_t number;
+  uint64_t selector;
+  uint64_t pc;
+  uint64_t next_pc;
+  uint64_t flags;
+  uint64_t args[8];
+};
+
 struct poly_process_exit_finalizer_context {
   struct poly_program *program;
   uint8_t *loaded_image;
@@ -1913,43 +1924,67 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
   }
 }
 
-static int validate_poly_monitor_packet(uint64_t reason, uint64_t mode,
-    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
-    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
+static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
   const uint64_t header = poly_monitor_packet[0];
-  const uint64_t packet_reason = header & 0xffffffffULL;
-  const uint64_t packet_mode = header >> 32;
+  packet->reason = header & 0xffffffffULL;
+  packet->mode = header >> 32;
+  packet->number = poly_monitor_packet[1];
+  packet->selector = poly_monitor_packet[2];
+  packet->pc = poly_monitor_packet[3];
+  packet->next_pc = poly_monitor_packet[4];
+  packet->flags = poly_monitor_packet[5];
+  for (size_t n = 0; n < 8; n++)
+    packet->args[n] = poly_monitor_packet[8 + n];
+
+  if (packet->next_pc == 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: monitor packet missing next_pc reason=%llu mode=%llu number=%llu selector=%llu pc=%llu flags=0x%llx\n",
+      (unsigned long long) packet->reason,
+      (unsigned long long) packet->mode,
+      (unsigned long long) packet->number,
+      (unsigned long long) packet->selector,
+      (unsigned long long) packet->pc,
+      (unsigned long long) packet->flags);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int validate_poly_register_trap_echo(
+    const struct poly_runtime_trap_packet *packet, uint64_t reason,
+    uint64_t mode, uint64_t number, uint64_t pc, uint64_t selector,
+    uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3,
+    uint64_t arg4, uint64_t arg5, uint64_t arg6, uint64_t arg7) {
   const uint64_t expected_args[8] = {
     arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7
   };
 
-  if (packet_reason != reason || packet_mode != mode ||
-      poly_monitor_packet[1] != number ||
-      poly_monitor_packet[2] != selector ||
-      poly_monitor_packet[3] != pc ||
-      poly_monitor_packet[4] == 0) {
+  if (packet->reason != reason || packet->mode != mode ||
+      packet->number != number || packet->selector != selector ||
+      packet->pc != pc) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: monitor packet header mismatch got=(%llu,%llu,%llu,%llu,%llu,%llu) expected=(%llu,%llu,%llu,%llu,%llu,next!=0)\n",
-      (unsigned long long) packet_reason,
-      (unsigned long long) packet_mode,
-      (unsigned long long) poly_monitor_packet[1],
-      (unsigned long long) poly_monitor_packet[2],
-      (unsigned long long) poly_monitor_packet[3],
-      (unsigned long long) poly_monitor_packet[4],
+      "POLYEXEC_FAIL: register trap echo mismatch packet=(%llu,%llu,%llu,%llu,%llu,%llu,0x%llx) regs=(%llu,%llu,%llu,%llu,%llu)\n",
+      (unsigned long long) packet->reason,
+      (unsigned long long) packet->mode,
+      (unsigned long long) packet->number,
+      (unsigned long long) packet->selector,
+      (unsigned long long) packet->pc,
+      (unsigned long long) packet->next_pc,
+      (unsigned long long) packet->flags,
       (unsigned long long) reason,
       (unsigned long long) mode,
       (unsigned long long) number,
-      (unsigned long long) selector,
-      (unsigned long long) pc);
+      (unsigned long long) pc,
+      (unsigned long long) selector);
     return -1;
   }
 
   for (size_t n = 0; n < 8; n++) {
-    if (poly_monitor_packet[8 + n] != expected_args[n]) {
+    if (packet->args[n] != expected_args[n]) {
       fprintf(stderr,
-        "POLYEXEC_FAIL: monitor packet arg%zu mismatch got=%llu expected=%llu\n",
-        n, (unsigned long long) poly_monitor_packet[8 + n],
+        "POLYEXEC_FAIL: register trap arg%zu echo mismatch packet=%llu reg=%llu\n",
+        n, (unsigned long long) packet->args[n],
         (unsigned long long) expected_args[n]);
       return -1;
     }
@@ -1964,31 +1999,37 @@ uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
     uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
     uint64_t arg5, uint64_t arg6, uint64_t arg7) {
-  if (!poly_is_raw_foreign_mode(mode))
-    return (uint64_t) -ENOSYS;
+  struct poly_runtime_trap_packet packet;
 
-  if (validate_poly_monitor_packet(reason, mode, number, pc, selector, arg0,
-        arg1, arg2, arg3, arg4, arg5, arg6, arg7) < 0)
+  if (read_poly_monitor_packet(&packet) < 0)
+    return (uint64_t) -EIO;
+  if (validate_poly_register_trap_echo(&packet, reason, mode, number, pc,
+        selector, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) < 0)
     return (uint64_t) -EIO;
 
-  if (reason == POLY_TRAP_SYSCALL) {
+  if (!poly_is_raw_foreign_mode(packet.mode))
+    return (uint64_t) -ENOSYS;
+
+  if (packet.reason == POLY_TRAP_SYSCALL) {
     uint64_t structured_result = 0;
-    if (poly_handle_structured_foreign_syscall(number, mode, arg0, arg1, arg2,
-          arg3, arg4, arg5, &structured_result))
+    if (poly_handle_structured_foreign_syscall(packet.number, packet.mode,
+          packet.args[0], packet.args[1], packet.args[2], packet.args[3],
+          packet.args[4], packet.args[5], &structured_result))
       return structured_result;
 
     long x86_number = -1;
-    if (!poly_generic_linux_syscall_to_x86(number, &x86_number))
+    if (!poly_generic_linux_syscall_to_x86(packet.number, &x86_number))
       return (uint64_t) -ENOSYS;
     if ((x86_number == SYS_exit || x86_number == SYS_exit_group) &&
         run_process_exit_finalizers() < 0)
-      arg0 = 125;
-    return (uint64_t) poly_x86_syscall6(x86_number, arg0, arg1, arg2, arg3,
-      arg4, arg5);
+      packet.args[0] = 125;
+    return (uint64_t) poly_x86_syscall6(x86_number, packet.args[0],
+      packet.args[1], packet.args[2], packet.args[3], packet.args[4],
+      packet.args[5]);
   }
 
-  if (reason == POLY_TRAP_BREAK) {
-    return 0x4c000000ULL | (mode << 8) | number;
+  if (packet.reason == POLY_TRAP_BREAK) {
+    return 0x4c000000ULL | (packet.mode << 8) | packet.number;
   }
 
   return (uint64_t) -ENOSYS;
