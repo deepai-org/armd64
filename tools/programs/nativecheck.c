@@ -345,6 +345,30 @@ static inline uint64_t poly_state_key_get_value(void) {
   return value;
 }
 
+static inline uint64_t poly_aarch64_state_key_set_get(uint64_t value) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032ddf\n" // aarch64 polyctrl state key set
+    ".long 0xd5032dff\n" // aarch64 polyctrl state key get
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(value)
+    :
+    : "memory");
+  return value;
+}
+
+static inline uint64_t poly_riscv_state_key_set_get(uint64_t value) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x1c00700b\n" // riscv polyctrl state key set
+    ".long 0x1e00700b\n" // riscv polyctrl state key get
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(value)
+    :
+    : "memory");
+  return value;
+}
+
 static int nativecheck_bytes_are_zero(const void *ptr, size_t bytes,
     const char *label) {
   const unsigned char *data = (const unsigned char *) ptr;
@@ -3403,6 +3427,8 @@ static int run_poly_trap_vector_probe(void) {
 static int run_poly_state_key_probe(void) {
   const uint64_t key_a = 0x53544154454b4101ULL;
   const uint64_t key_b = 0x53544154454b4202ULL;
+  const uint64_t key_c = 0x53544154454b4303ULL;
+  const uint64_t key_d = 0x53544154454b4404ULL;
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
   uint64_t result;
 
@@ -3532,6 +3558,73 @@ static int run_poly_state_key_probe(void) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state-key XSAVE import bank mismatch got=%llu\n",
       (unsigned long long) result);
+    return 1;
+  }
+
+  result = poly_aarch64_state_key_set_get(key_c);
+  if (result != key_c || poly_state_key_get_value() != key_c) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 state-key set/get mismatch raw=0x%llx x86=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_state_key_get_value());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800434\n" // movz x20,#33
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+
+  result = poly_riscv_state_key_set_get(key_d);
+  if (result != key_d || poly_state_key_get_value() != key_d) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv state-key set/get mismatch raw=0x%llx x86=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_state_key_get_value());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv-selected state-key inherited aarch64 bank got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  result = poly_aarch64_state_key_set_get(key_c);
+  if (result != key_c) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 state-key restore mismatch got=0x%llx\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 33) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64-selected state-key bank mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  result = poly_riscv_state_key_set_get(0);
+  if (result != 0 || poly_state_key_get_value() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly raw state-key clear mismatch raw=0x%llx x86=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_state_key_get_value());
     return 1;
   }
 
@@ -6713,6 +6806,19 @@ int main(void) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID ABI register map manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         signature_map_manifest.eax, signature_map_manifest.ebx,
         signature_map_manifest.ecx, signature_map_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_state_key_manifest =
+      poly_cpuid_expected_escape_leaf19();
+    struct poly_cpuid_regs state_key_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 19);
+    if (state_key_manifest.eax != expected_state_key_manifest.eax ||
+        state_key_manifest.ebx != expected_state_key_manifest.ebx ||
+        state_key_manifest.ecx != expected_state_key_manifest.ecx ||
+        state_key_manifest.edx != expected_state_key_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID state-key manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        state_key_manifest.eax, state_key_manifest.ebx,
+        state_key_manifest.ecx, state_key_manifest.edx);
       return 1;
     }
     if (check_poly_abi_signature_slot_default(
