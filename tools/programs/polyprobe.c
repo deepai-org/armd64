@@ -265,7 +265,10 @@ uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
 
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -38;
-  if (reason == POLY_TRAP_SYSCALL && number == 172)
+  if (reason == POLY_TRAP_SYSCALL && number == 172 &&
+      arg0 == 77 && arg6 == 88 &&
+      ((mode == POLY_MODE_RAW_AARCH64 && arg7 == 99) ||
+       (mode == POLY_MODE_RAW_RISCV && arg7 == 172)))
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
@@ -1691,19 +1694,24 @@ static inline void raw_riscv_import_probe(void) {
 static inline void raw_aarch64_getpid_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
-    ".long 0xd2801588\n"
+    ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd2800b06\n" // movz x6,#88
+    ".long 0xd2800c67\n" // movz x7,#99
+    ".long 0xd2801588\n" // movz x8,#172
     ".long 0xd4000001\n"
     ".long 0xd5032e1f\n"
-    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
 }
 
 static inline void raw_riscv_getpid_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
-    ".long 0x0ac00893\n"
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x05800813\n" // addi a6,zero,88
+    ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n"
     ".long 0x0000700b\n"
-    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+    ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
 }
 
 static inline void raw_aarch64_illegal_probe(void) {
@@ -2751,6 +2759,15 @@ int main(void) {
   if (expect_monitor_packet_header("aarch64 syscall", &monitor_packet,
         POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 0, 1) != 0)
     return 1;
+  if (monitor_packet.args[0] != 77 || monitor_packet.args[6] != 88 ||
+      monitor_packet.args[7] != 99) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: monitor packet aarch64 syscall args mismatch arg0=%llu arg6=%llu arg7=%llu\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) monitor_packet.args[6],
+      (unsigned long long) monitor_packet.args[7]);
+    return 1;
+  }
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   raw_riscv_getpid_probe();
   if (read_rax() != 4242) {
@@ -2790,6 +2807,15 @@ int main(void) {
   if (expect_monitor_packet_header("riscv syscall", &monitor_packet,
         POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0, 1) != 0)
     return 1;
+  if (monitor_packet.args[0] != 77 || monitor_packet.args[6] != 88 ||
+      monitor_packet.args[7] != 172) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: monitor packet riscv syscall args mismatch arg0=%llu arg6=%llu arg7=%llu\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) monitor_packet.args[6],
+      (unsigned long long) monitor_packet.args[7]);
+    return 1;
+  }
 
   stage("POLY_STAGE: raw-import");
   memset(&monitor_packet, 0, sizeof(monitor_packet));
