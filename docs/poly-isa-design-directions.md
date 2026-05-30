@@ -1,72 +1,52 @@
 # Poly ISA Design Directions
 
-This document records the ISA direction for making Poly a hardware-plausible,
-OS-neutral multi-frontend CPU extension. The goal is compatibility with
-existing precompiled x86_64, AArch64, and RISC-V64 code, including cross-ISA
-library calls.
+Poly is an OS-neutral multi-frontend CPU extension for running existing
+precompiled x86_64, AArch64, and RISC-V64 code in one virtual address space.
+For commands and prototype encodings, see `docs/poly-isa.md`.
 
-For the short reference, see `docs/poly-isa.md`.
+## Contract
 
-## Non-Negotiable Contract
-
-- x86_64 is the system frontend for boot, privilege, paging, interrupts, and
-  the global memory model.
-- AArch64 and RISC-V64 are peer user-mode frontends, not high-level emulated
-  coprocessors.
-- Foreign code executes real frontend instructions from the shared virtual
-  address space.
-- The hardware contract is OS-neutral: no Linux syscall policy, libc helpers,
-  dynamic-linker descriptors, or hidden emulator state.
-- Compatibility targets existing native ABIs: x86_64 SysV, AArch64 AAPCS64,
+- x86_64 is the system ISA: boot, privilege, paging, faults, interrupts,
+  atomics, VM control, and global TSO memory ordering stay x86-owned.
+- AArch64 and RISC-V64 are peer user-mode frontends that fetch real aligned
+  32-bit instructions from the same address space.
+- Hardware must not implement Linux, libc, libgcc, libatomic, dynamic-linker
+  policy, stack repacking, or user-memory call descriptors.
+- Poly state is explicit XSAVE-style architectural state, not hidden
+  CR3/TLS-keyed emulator state.
+- Compatibility targets ordinary native ABIs: x86_64 SysV, AArch64 AAPCS64,
   and RISC-V psABI.
 
-## Frontend Model
+## Operations
 
-Frontend IDs are architectural and generic:
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
 
-| ID | Frontend |
+| Operation | Purpose |
 | --- | --- |
-| `0` | x86_64 |
-| `1` | AArch64 |
-| `2` | RISC-V64 |
-| `3..255` | Reserved |
+| `PENTER frontend` | Enter a frontend from trusted runtime/system code. |
+| `PSWITCH frontend, target` | Branch to another frontend without return. |
+| `PCALL frontend, target, sig` | Call another frontend using ABI signature slot `sig`. |
+| `PTRAPRET` | Resume after a precise Poly trap. |
+| `PLANDING` | Validate an indirect cross-frontend target when enabled. |
 
-The control operations should be fixed-latency and frontend-neutral:
-
-- `PENTER frontend`: enter a frontend from system/runtime code.
-- `PSWITCH frontend, target`: branch to another frontend without a return.
-- `PCALL frontend, target, sig`: call another frontend and select an ABI
-  signature slot.
-- `PTRAPRET`: resume after a precise poly trap.
-
-The Bochs prototype can keep temporary compact encodings, but the architecture
-should be described in terms of these generic operations.
+These are decoded control instructions, not `#UD` envelopes.
 
 ## ABI Boundary
 
-Hardware must not parse user-memory call descriptors. That path creates
-variable-latency control flow, page-fault points during call execution, and ABI
-policy in the CPU pipeline.
-
-The split is:
+Hardware handles the fixed-latency part only: register aliasing at a mode
+switch. Software thunks handle every memory-shaped ABI problem.
 
 | Case | Mechanism |
 | --- | --- |
-| Integer, FP, and compatible fixed SIMD arguments already in native ABI registers | `PCALL ... sig` applies a cached register-only signature. |
-| Stack arguments, by-value aggregates, variadics, hidden structure returns, lazy binding, incompatible vectors | Loader/runtime thunk performs memory-side ABI work, then uses `PCALL`. |
+| Integer, FP, and compatible fixed SIMD args already in native ABI registers | `PCALL ... sig` applies a cached register alias signature. |
+| Stack args, by-value aggregates, variadics, hidden structure returns, lazy binding, incompatible vectors | Loader/runtime thunk marshals memory state, then uses `PCALL`. |
 
-This preserves compatibility with ordinary precompiled objects while keeping
-the hardware transition path small.
+## Register Alias Signatures
 
-## ABI Signature Slots
-
-The only intended reconfigurable ABI hardware is register-only aliasing.
-
-A loader/runtime programs a small bank of ABI signature slots. A hot `PCALL`
-selects one slot with an immediate or compact operand. On an out-of-order CPU,
-the rename stage applies the slot by rebinding architectural names to physical
-registers already holding the source ABI values. No execution unit moves the
-data, and no memory is touched.
+The loader/runtime programs a small bank of signature slots. A hot `PCALL`
+selects one slot. On an out-of-order CPU this can be implemented in the rename
+stage by rebinding architectural names to existing physical registers. No data
+moves through execution units, and no memory is touched.
 
 Example x86_64 SysV to AArch64 AAPCS64 slot:
 
@@ -80,13 +60,10 @@ Example x86_64 SysV to AArch64 AAPCS64 slot:
 | `R9` | `x5` |
 | `XMM0..XMM7` | `v0..v7` |
 
-Invalid or unsupported slots trap before changing frontend mode or PC. Valid
-slots cannot fault because they do not read memory.
+Invalid slots trap before changing frontend or PC. Valid slots cannot fault
+because they only rename registers.
 
-## Baseline Exchange Window
-
-The baseline/null signature is a small integer exchange window that all
-frontends can use:
+The null signature exposes a simple exchange window for thunks:
 
 | Window | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
@@ -99,99 +76,40 @@ frontends can use:
 | `P6` | `R9` | `x6` | `a6` |
 | `P7` | `R10` | `x7` | `a7` |
 
-This is not a replacement ABI. It is the low-level handoff window used by
-thunks and simple signatures. Native-register signatures remain preferred for
-direct precompiled-code calls.
+Native ABI signatures are preferred for direct precompiled-code calls; the
+exchange window is a low-level handoff path, not a replacement ABI.
 
 ## Returns
 
-Cross-ISA calls should return through ordinary native return instructions:
+Cross-ISA calls return through ordinary native return instructions: x86_64
+`ret`, AArch64 `ret x30`, and RISC-V `ret` / `jalr x0, ra, 0`.
 
-- x86_64 `ret`
-- AArch64 `ret x30`
-- RISC-V `ret` / `jalr x0, ra, 0`
+`PCALL` pushes caller frontend, PC, SP, and flags to a hardware transition stack
+and installs a reserved return cookie in the callee's native return location. A
+native return to that cookie pops the transition stack and resumes the caller.
+Same-ISA returns stay normal.
 
-`PCALL` pushes caller frontend, PC, SP, and flags to a hardware transition
-stack, then installs a reserved return cookie in the callee's native return
-location. A native return to that cookie pops the transition stack and resumes
-the caller frontend. Same-ISA returns remain normal.
+## State And Traps
 
-## Architectural State
+The XSAVE-style Poly state component contains frontend state, interrupted PC,
+trap packet, hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD
+state, RISC-V GPR/FP state, per-frontend TLS bases, user monitor addresses, and
+landing-pad policy. The OS saves/restores the component without knowing foreign
+register semantics.
 
-Poly state must be explicit XSAVE-style architectural state. It must not be a
-hidden CR3-keyed or TLS-keyed emulator bank.
+Hardware emits precise trap packets for foreign `svc`/`ecall`, breakpoints,
+illegal or unsupported instructions, unresolved imports, and recoverable
+frontend exits. Recoverable events may enter a registered Ring 3 Poly monitor;
+the monitor owns syscall translation, lazy binding, helper calls, and debugger
+policy. The kernel still owns hard page faults, signals, scheduling,
+interrupts, and real syscalls issued by the monitor.
 
-The Poly state component should include:
+## Priority
 
-- active frontend and interrupted frontend
-- interrupted PC and trap packet
-- hardware transition stack state
-- ABI signature slots
-- AArch64 GPR and FP/SIMD state
-- RISC-V GPR and FP state
-- per-frontend TLS bases
-- user-space poly monitor PC and trap-packet address
-- landing-pad policy bits
-
-The OS only needs to save and restore the component. It does not need to know
-AArch64 or RISC-V register semantics.
-
-## Trap Delivery
-
-Hardware emits precise trap packets. It does not emulate syscalls, libcalls,
-libgcc, libatomic, or dynamic-linker policy.
-
-Trap-producing events include:
-
-- foreign `svc` / `ecall`
-- breakpoints
-- illegal or unsupported instructions
-- unresolved imports
-- page faults during foreign execution
-- asynchronous interrupts during foreign execution
-
-Recoverable user events may enter a registered Ring 3 poly monitor with a
-trap packet in user memory. The monitor owns syscall translation, lazy binding,
-helper calls, and debugger policy. The kernel remains responsible for hard
-faults, signals, scheduling, and real syscalls issued by the monitor.
-
-## Memory Model
-
-All frontends share x86-style TSO. This is stronger than native AArch64 and
-RISC-V ordering, so correctly synchronized foreign code remains correct.
-AArch64 barriers and RISC-V fences can be implemented as cheap ordering points
-or no-ops when TSO already satisfies the required ordering.
-
-## Landing Pads
-
-Cross-frontend indirect targets should optionally begin with frontend-specific
-landing pads:
-
-- x86_64 poly landing opcode: prototype subop `0x05`
-- AArch64 reserved `HINT`: prototype `HINT #0x7b`
-- RISC-V custom-0 marker: prototype subop `11`
-
-Landing pads give hardware a validation point for wrong-frontend targets and
-CET/BTI-like hardening. The policy is explicit Poly state, not hidden emulator
-state.
-
-## Prototype Notes
-
-- Bochs currently models signature slots and frontend controls with temporary
-  encodings.
-- Bochs-only state-key controls are diagnostics, not architecture.
-- The reserved import-call range is a trap surface for unresolved imports, not
-  a CPU-parsed descriptor ABI.
-- Temporary encodings should keep evolving toward dedicated, silicon-suitable
-  control opcodes.
-
-## Implementation Priority
-
-1. Keep generic frontend IDs as the main ISA abstraction.
-2. Keep `PSWITCH` and `PCALL` fixed-latency with no descriptor parsing.
-3. Use register-only ABI signatures for fast native-ABI calls.
-4. Route complex ABI cases through loader/runtime thunks.
-5. Make XSAVE-style Poly state the only context-switch contract.
-6. Support native return-cookie recovery through the hardware transition stack.
-7. Deliver recoverable traps through OS-neutral trap packets and a Ring 3
+1. Keep `PSWITCH` and `PCALL` fixed-latency with no descriptor parsing.
+2. Use register-only ABI signatures for fast native-ABI calls.
+3. Route complex ABI cases through loader/runtime thunks.
+4. Make XSAVE-style Poly state the only context-switch contract.
+5. Support native return-cookie recovery through the hardware transition stack.
+6. Deliver recoverable exits through OS-neutral trap packets and a Ring 3
    monitor.
