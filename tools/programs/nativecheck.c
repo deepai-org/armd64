@@ -4534,12 +4534,16 @@ static int run_poly_state_save_restore_probe(void) {
 static int run_poly_real_xsave_probe(uint64_t xcr0) {
   const uint64_t poly_mask = 1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH;
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+  const uint64_t real_xsave_state_key = 0x5152535455565758ULL;
   const uint64_t three_bits = 0x4008000000000000ULL;
   const uint64_t five_bits = 0x4014000000000000ULL;
   const uint64_t seven_bits = 0x401c000000000000ULL;
   const uint64_t ten_bits = 0x4024000000000000ULL;
   const uint64_t twelve_bits = 0x4028000000000000ULL;
   struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
+  struct poly_xsave_state complex __attribute__((aligned(64)));
+  struct poly_xsave_state clean __attribute__((aligned(64)));
+  struct poly_xsave_state roundtrip __attribute__((aligned(64)));
   struct poly_xsave_state *saved =
     (struct poly_xsave_state *) (void *)
     (nativecheck_real_xsave_area + POLY_STATE_XSAVE_OFFSET_ARCH);
@@ -4871,6 +4875,112 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       (unsigned long long) read_xmm0_u64());
     return 1;
   }
+
+  memset(&clean, 0, sizeof(clean));
+  memset(&complex, 0, sizeof(complex));
+  memset(&roundtrip, 0, sizeof(roundtrip));
+  poly_state_export(&clean);
+  memcpy(&complex, &clean, sizeof(complex));
+  complex.frontend_tls.flags = 1;
+  complex.frontend_tls.active_mode = POLY_MODE_X86;
+  complex.frontend_tls.aarch64_tls_base = 0x1111222233334444ULL;
+  complex.frontend_tls.riscv_tls_base = 0x5555666677778888ULL;
+  complex.state_key.flags = 1;
+  complex.state_key.explicit_key = real_xsave_state_key;
+  complex.state_key.supported_flags = 1;
+  complex.import_return.top = 1;
+  complex.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  complex.import_return.frames[0].source_mode = POLY_MODE_RAW_AARCH64;
+  complex.import_return.frames[0].alias_valid = 1;
+  complex.import_return.frames[0].return_pc = 0x1000010000100001ULL;
+  complex.import_return.frames[0].return_sp = 0x2000020000200002ULL;
+  complex.import_return.frames[0].import_id = POLY_IMPORT_FUNC_X86_SLOT0;
+  complex.import_return.frames[0].return_flags = 0x3000030000300003ULL;
+  for (unsigned n = 0; n < 6; n++)
+    complex.import_return.frames[0].alias[n] =
+      0x4000040000400000ULL + n;
+  complex.cross_return.top = 1;
+  complex.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  complex.cross_return.frames[0].return_pc = 0x5000050000500005ULL;
+  complex.cross_return.frames[0].return_sp = 0x6000060000600006ULL;
+  complex.cross_return.frames[0].caller_mode = POLY_MODE_RAW_AARCH64;
+  complex.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  complex.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+
+  poly_state_import(&complex);
+  memset(nativecheck_real_xsave_area, 0,
+    sizeof(nativecheck_real_xsave_area));
+  native_xsave64(nativecheck_real_xsave_area, poly_mask);
+  if (saved->frontend_tls.flags != 1 ||
+      saved->frontend_tls.aarch64_tls_base !=
+        complex.frontend_tls.aarch64_tls_base ||
+      saved->frontend_tls.riscv_tls_base !=
+        complex.frontend_tls.riscv_tls_base ||
+      saved->state_key.flags != 1 ||
+      saved->state_key.explicit_key != real_xsave_state_key ||
+      saved->state_key.supported_flags != 1 ||
+      saved->import_return.top != 1 ||
+      saved->import_return.depth != POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH ||
+      memcmp(&saved->import_return.frames[0],
+        &complex.import_return.frames[0],
+        sizeof(saved->import_return.frames[0])) != 0 ||
+      saved->cross_return.top != 1 ||
+      saved->cross_return.depth != POLY_STATE_XSAVE_CROSS_RETURN_DEPTH ||
+      memcmp(&saved->cross_return.frames[0],
+        &complex.cross_return.frames[0],
+        sizeof(saved->cross_return.frames[0])) != 0 ||
+      saved->transition.active.return_pc !=
+        complex.cross_return.frames[0].return_pc ||
+      saved->transition.active.cookie !=
+        complex.cross_return.frames[0].return_sp ||
+      saved->transition.active.caller_mode != POLY_MODE_RAW_AARCH64 ||
+      saved->transition.active.target_mode != POLY_MODE_RAW_RISCV ||
+      saved->transition.active.abi_kind != POLY_CROSS_BRIDGE_DEFAULT) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XSAVE complex state mismatch tls=0x%llx/0x%llx key=0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
+      (unsigned long long) saved->frontend_tls.aarch64_tls_base,
+      (unsigned long long) saved->frontend_tls.riscv_tls_base,
+      (unsigned long long) saved->state_key.explicit_key,
+      (unsigned long long) saved->import_return.top,
+      (unsigned long long) saved->cross_return.top,
+      (unsigned long long) saved->transition.active.return_pc);
+    poly_state_import(&clean);
+    return 1;
+  }
+
+  poly_state_import(&clean);
+  native_xrstor64(nativecheck_real_xsave_area, poly_mask);
+  poly_state_export(&roundtrip);
+  if (roundtrip.frontend_tls.aarch64_tls_base !=
+        complex.frontend_tls.aarch64_tls_base ||
+      roundtrip.frontend_tls.riscv_tls_base !=
+        complex.frontend_tls.riscv_tls_base ||
+      roundtrip.state_key.flags != 1 ||
+      roundtrip.state_key.explicit_key != real_xsave_state_key ||
+      roundtrip.import_return.top != 1 ||
+      roundtrip.cross_return.top != 1 ||
+      memcmp(&roundtrip.import_return.frames[0],
+        &complex.import_return.frames[0],
+        sizeof(roundtrip.import_return.frames[0])) != 0 ||
+      memcmp(&roundtrip.cross_return.frames[0],
+        &complex.cross_return.frames[0],
+        sizeof(roundtrip.cross_return.frames[0])) != 0 ||
+      roundtrip.transition.active.return_pc !=
+        complex.cross_return.frames[0].return_pc ||
+      roundtrip.transition.active.cookie !=
+        complex.cross_return.frames[0].return_sp) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR complex state mismatch tls=0x%llx/0x%llx key=0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
+      (unsigned long long) roundtrip.frontend_tls.aarch64_tls_base,
+      (unsigned long long) roundtrip.frontend_tls.riscv_tls_base,
+      (unsigned long long) roundtrip.state_key.explicit_key,
+      (unsigned long long) roundtrip.import_return.top,
+      (unsigned long long) roundtrip.cross_return.top,
+      (unsigned long long) roundtrip.transition.active.return_pc);
+    poly_state_import(&clean);
+    return 1;
+  }
+  poly_state_import(&clean);
 
   poly_trap_vector_clear();
   puts("NATIVE_POLY_REAL_XSAVE_OK");
