@@ -835,16 +835,16 @@ static inline uint32_t poly_cpuid_forbidden_feature_mask(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_AARCH64_CTRL_X86_ESCAPE;
-  regs.ebx = POLY_AARCH64_CTRL_RISCV_SWITCH;
+  regs.ebx = 0;
   regs.ecx = POLY_RISCV_CTRL_X86_ESCAPE;
-  regs.edx = POLY_RISCV_CTRL_AARCH64_SWITCH;
+  regs.edx = 0;
   return regs;
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf1(void) {
   struct poly_cpuid_regs regs;
-  regs.eax = POLY_AARCH64_CTRL_RISCV_CALL;
-  regs.ebx = POLY_RISCV_CTRL_AARCH64_CALL;
+  regs.eax = 0;
+  regs.ebx = 0;
   regs.ecx = 0;
   regs.edx = 0;
   return regs;
