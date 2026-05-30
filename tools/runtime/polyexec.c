@@ -17,6 +17,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "../include/polycpuid.h"
+
 extern char **environ;
 
 #ifndef MAP_FIXED_NOREPLACE
@@ -178,38 +180,10 @@ extern char **environ;
 #endif
 
 enum {
-  POLY_ARCH_AARCH64 = 1,
-  POLY_ARCH_RISCV = 2,
+  POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
+  POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_X86_PENTER_GENERIC_SIZE = 10,
-  POLY_MODE_X86 = 0,
-  POLY_MODE_RAW_AARCH64 = POLY_ARCH_AARCH64,
-  POLY_MODE_RAW_RISCV = POLY_ARCH_RISCV,
-  POLY_TRAP_SYSCALL = 1,
-  POLY_TRAP_BREAK = 2,
-  POLY_TRAP_IMPORT = 3,
-  POLY_CPUID_BASE = 0x40000000,
-  POLY_CPUID_MAX = 0x40000009,
-  POLY_CPUID_ABI_VERSION = 1,
-  POLY_STATE_XSAVE_COMPONENT_ARCH = 20,
-  POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
-  POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
-  POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
-  POLY_CPUID_FEATURE_NATIVE_RET = (1U << 3),
-  POLY_CPUID_FEATURE_TRAP_RECORDS = (1U << 7),
-  POLY_CPUID_FEATURE_THREAD_BANKS = (1U << 10),
-  POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS = (1U << 11),
-  POLY_CPUID_FEATURE_X86_POLY_OPCODES = (1U << 12),
-  POLY_CPUID_FEATURE_RESERVED_IMPORT_DESCRIPTORS = (1U << 22),
-  POLY_CPUID_FEATURE_FP64_STACK_ARGS = (1U << 23),
-  POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK = (1U << 24),
-  POLY_CPUID_FEATURE_TRAP_VECTOR = (1U << 25),
-  POLY_CPUID_FEATURE_STATE_KEY = (1U << 26),
-  POLY_ABI_BRIDGE_FLAG_FP64_STACK = (1U << 5),
-  POLY_ABI_BRIDGE_FLAG_RESERVED_DESCRIPTOR_IMPORTS = (1U << 6),
-  POLY_ABI_BRIDGE_FLAG_RESERVED_USER_DESCRIPTORS = (1U << 8),
-  POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
-  POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
   MAX_PROCESS_DEPS = 4,
@@ -218,13 +192,6 @@ enum {
   MAX_PROCESS_TLS_BYTES = 64 * 1024,
   PROCESS_CROSS_STUB_BYTES = 64 * 1024,
   SCRATCH_SECOND_PATH_OFFSET = 128
-};
-
-struct poly_cpuid_regs {
-  uint32_t eax;
-  uint32_t ebx;
-  uint32_t ecx;
-  uint32_t edx;
 };
 
 struct poly_load_segment {
@@ -295,18 +262,6 @@ static uint32_t process_native_signature_slot = 3;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
 
-static const uint32_t POLY_CPUID_FORBIDDEN_FEATURES =
-  POLY_CPUID_FEATURE_THREAD_BANKS |
-  POLY_CPUID_FEATURE_RESERVED_IMPORT_DESCRIPTORS |
-  POLY_CPUID_FEATURE_FP64_STACK_ARGS |
-  POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
-  POLY_CPUID_FEATURE_STATE_KEY;
-
-static const uint32_t POLY_ABI_BRIDGE_FORBIDDEN_FLAGS =
-  POLY_ABI_BRIDGE_FLAG_FP64_STACK |
-  POLY_ABI_BRIDGE_FLAG_RESERVED_DESCRIPTOR_IMPORTS |
-  POLY_ABI_BRIDGE_FLAG_RESERVED_USER_DESCRIPTORS;
-
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
@@ -315,21 +270,6 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t target, uint64_t *stub_addr);
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
-
-static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
-  struct poly_cpuid_regs regs;
-  asm volatile("cpuid"
-      : "=a"(regs.eax), "=b"(regs.ebx), "=c"(regs.ecx), "=d"(regs.edx)
-      : "a"(leaf), "c"(subleaf)
-      : "memory");
-  return regs;
-}
-
-static int poly_cpuid_vendor_matches(const struct poly_cpuid_regs *regs) {
-  return regs->ebx == 0x796c6f50U &&
-    regs->edx == 0x746f6c67U &&
-    regs->ecx == 0x21555043U;
-}
 
 static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
@@ -342,7 +282,7 @@ static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
 }
 
 static int read_poly_base_contract(int require_trap_vector) {
-  const struct poly_cpuid_regs base = read_cpuid(POLY_CPUID_BASE, 0);
+  const struct poly_cpuid_regs base = poly_read_cpuid(POLY_CPUID_BASE, 0);
   if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly CPUID missing base=(0x%x,0x%x,0x%x,0x%x)\n",
@@ -351,25 +291,19 @@ static int read_poly_base_contract(int require_trap_vector) {
   }
 
   const uint32_t required_modes =
-    (1U << POLY_MODE_X86) |
-    (1U << POLY_MODE_RAW_AARCH64) |
-    (1U << POLY_MODE_RAW_RISCV);
-  uint32_t required_features =
-    POLY_CPUID_FEATURE_RAW_AARCH64 |
-    POLY_CPUID_FEATURE_RAW_RISCV |
-    POLY_CPUID_FEATURE_NATIVE_RET |
-    POLY_CPUID_FEATURE_TRAP_RECORDS |
-    POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS |
-    POLY_CPUID_FEATURE_X86_POLY_OPCODES;
-  if (require_trap_vector)
-    required_features |= POLY_CPUID_FEATURE_TRAP_VECTOR;
+    poly_cpuid_expected_mode_mask();
+  uint32_t required_features = poly_cpuid_expected_feature_mask();
+  if (!require_trap_vector)
+    required_features &= ~POLY_CPUID_FEATURE_TRAP_VECTOR;
+  const uint32_t forbidden_features = poly_cpuid_forbidden_feature_mask();
 
-  const struct poly_cpuid_regs features = read_cpuid(POLY_CPUID_BASE + 1, 0);
+  const struct poly_cpuid_regs features =
+    poly_read_cpuid(POLY_CPUID_BASE + 1, 0);
   if (features.eax != POLY_CPUID_ABI_VERSION ||
       features.ebx != required_modes ||
       (features.ecx & required_features) != required_features ||
       features.edx != POLY_STATE_XSAVE_COMPONENT_ARCH ||
-      (features.ecx & POLY_CPUID_FORBIDDEN_FEATURES) != 0) {
+      (features.ecx & forbidden_features) != 0) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly CPUID feature mismatch features=(%u,0x%x,0x%x,0x%x) expected_modes=0x%x expected_xsave=%u\n",
       features.eax, features.ebx, features.ecx, features.edx,
@@ -378,20 +312,34 @@ static int read_poly_base_contract(int require_trap_vector) {
   }
 
   const struct poly_cpuid_regs abi_bridge =
-    read_cpuid(POLY_CPUID_BASE + 9, 0);
-  if ((abi_bridge.ebx & POLY_ABI_BRIDGE_FORBIDDEN_FLAGS) != 0) {
+    poly_read_cpuid(POLY_CPUID_BASE + 9, 0);
+  const struct poly_cpuid_regs expected_abi_bridge =
+    poly_cpuid_expected_abi_bridge_leaf();
+  const uint32_t forbidden_abi_bridge =
+    poly_cpuid_forbidden_abi_bridge_mask();
+  if (abi_bridge.eax != expected_abi_bridge.eax ||
+      abi_bridge.ebx != expected_abi_bridge.ebx ||
+      abi_bridge.ecx != expected_abi_bridge.ecx ||
+      abi_bridge.edx != expected_abi_bridge.edx ||
+      (abi_bridge.ebx & forbidden_abi_bridge) != 0) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: CPU ABI bridge advertises non-register hardware abi=(%u,0x%x,0x%x,0x%x)\n",
-      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);
+      "POLYEXEC_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x) expected=(%u,0x%x,0x%x,0x%x)\n",
+      abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx,
+      expected_abi_bridge.eax, expected_abi_bridge.ebx,
+      expected_abi_bridge.ecx, expected_abi_bridge.edx);
     return -1;
   }
 
   const struct poly_cpuid_regs signature =
-    read_cpuid(POLY_CPUID_BASE + 2, 7);
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const struct poly_cpuid_regs expected_signature =
+    poly_cpuid_expected_escape_leaf7();
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
-  if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
-      signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
+  if (signature.eax != expected_signature.eax ||
+      signature.ebx != expected_signature.ebx ||
+      signature.ecx != expected_signature.ecx ||
+      signature.edx != expected_signature.edx ||
       native_slot >= signature.ebx ||
       native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr,
