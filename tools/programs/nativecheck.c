@@ -3789,25 +3789,36 @@ static int run_poly_state_key_probe(void) {
 }
 
 static int run_poly_invalid_import_no_mutation_probe(void) {
+  struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
   struct poly_xsave_state before __attribute__((aligned(64)));
   struct poly_xsave_state bad __attribute__((aligned(64)));
   struct sigaction action;
   struct sigaction old_action;
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   memset(&before, 0, sizeof(before));
   memset(&bad, 0, sizeof(bad));
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_CALL) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly invalid import mutation setup failed\n",
+      stderr);
+    return 1;
+  }
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value(trap_vector);
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   poly_state_export(&before);
 
   memcpy(&bad, &before, sizeof(bad));
   bad.header.trap_vector_pc = 0;
   bad.header.trap_vector_mode = POLY_MODE_X86;
-  bad.import_return.top = 1;
-  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
-  bad.import_return.frames[0].source_mode = POLY_MODE_X86;
-  bad.import_return.frames[0].import_id = 8;
+  bad.header.monitor_packet_addr = 0;
+  bad.landing_policy.flags = 0;
+  bad.transition.active.return_pc = 0x1111222233334444ULL;
+  bad.transition.active.caller_mode = POLY_MODE_RAW_RISCV;
+  bad.transition.active.target_mode = POLY_MODE_RAW_RISCV;
+  bad.transition.active.abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
 
   memset(&action, 0, sizeof(action));
   action.sa_handler = nativecheck_sigill_handler;
@@ -3847,8 +3858,33 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
       before.header.trap_vector_mode);
     return 1;
   }
+  poly_monitor_packet_get();
+  if (read_rax() != before.header.monitor_packet_addr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid import mutated monitor packet got=0x%llx expected=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) before.header.monitor_packet_addr);
+    return 1;
+  }
+  if (poly_landing_policy_get() != before.landing_policy.flags) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid import mutated landing policy got=0x%llx expected=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get(),
+      (unsigned long long) before.landing_policy.flags);
+    return 1;
+  }
+  if (poly_abi_signature_get(5) != before.abi_signature.slots[5].kind) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid import mutated ABI signature got=%llu expected=%u\n",
+      (unsigned long long) poly_abi_signature_get(5),
+      before.abi_signature.slots[5].kind);
+    return 1;
+  }
 
   poly_trap_vector_clear();
+  poly_monitor_packet_set_value(0);
+  poly_landing_policy_set(0);
+  poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE);
   return 0;
 }
 
