@@ -89,6 +89,9 @@ enum {
   POLY_SYS_CHDIR = 49,
   POLY_SYS_FCHDIR = 50,
   POLY_SYS_FCHMOD = 52,
+  POLY_SYS_FCHMODAT = 53,
+  POLY_SYS_FCHOWNAT = 54,
+  POLY_SYS_FCHOWN = 55,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
   POLY_SYS_PIPE2 = 59,
@@ -1892,6 +1895,52 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if ((namespace_fchmod_stat.mode & 0777) != 0640) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 322;
+  }
+  if (poly_syscall4(POLY_SYS_FCHMODAT, POLY_AT_FDCWD,
+        (long) namespace_file, 0600, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 335;
+  }
+  struct poly_linux_generic_stat namespace_fchmodat_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_file, (long) &namespace_fchmodat_stat, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 336;
+  }
+  if ((namespace_fchmodat_stat.mode & 0777) != 0600) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 337;
+  }
+  if (poly_syscall3(POLY_SYS_FCHOWN, fd, uid, gid) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 338;
+  }
+  struct poly_linux_generic_stat namespace_fchown_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_file, (long) &namespace_fchown_stat, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 339;
+  }
+  if (namespace_fchown_stat.uid != (uint32_t) uid ||
+      namespace_fchown_stat.gid != (uint32_t) gid) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 340;
+  }
+  if (poly_syscall5(POLY_SYS_FCHOWNAT, POLY_AT_FDCWD,
+        (long) namespace_file, uid, gid, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 341;
+  }
+  struct poly_linux_generic_stat namespace_fchownat_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_file, (long) &namespace_fchownat_stat, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 342;
+  }
+  if (namespace_fchownat_stat.uid != (uint32_t) uid ||
+      namespace_fchownat_stat.gid != (uint32_t) gid) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 343;
   }
   static const char xattr_name[] = "user.poly";
   static const char xattr_value_path[] = "PXA";
