@@ -147,10 +147,24 @@ static int check_polythread_contract(void) {
 }
 
 static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
+  const struct poly_cpuid_regs expected_x86_controls =
+    poly_cpuid_expected_escape_leaf5();
+  const struct poly_cpuid_regs x86_controls =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  if (x86_controls.eax != expected_x86_controls.eax ||
+      x86_controls.ebx != expected_x86_controls.ebx ||
+      x86_controls.ecx != expected_x86_controls.ecx ||
+      x86_controls.edx != expected_x86_controls.edx) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: x86 control manifest mismatch leaf5=(0x%x,0x%x,0x%x,0x%x)\n",
+      x86_controls.eax, x86_controls.ebx, x86_controls.ecx,
+      x86_controls.edx);
+    return -1;
+  }
   if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
       signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
       native_slot >= signature.ebx ||
