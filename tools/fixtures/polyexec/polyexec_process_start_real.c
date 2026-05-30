@@ -125,10 +125,19 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   const char *platform =
 #if defined(__aarch64__)
     "aarch64";
+  const uint64_t expected_hwcap = (1ULL << 0) | (1ULL << 1) |
+    (1ULL << 8) | (1ULL << 11);
 #elif defined(__riscv)
     "riscv64";
+  const uint64_t expected_hwcap = (1ULL << ('A' - 'A')) |
+    (1ULL << ('C' - 'A')) |
+    (1ULL << ('D' - 'A')) |
+    (1ULL << ('F' - 'A')) |
+    (1ULL << ('I' - 'A')) |
+    (1ULL << ('M' - 'A'));
 #else
     "";
+  const uint64_t expected_hwcap = 0;
 #endif
 
   if (((uintptr_t) initial_sp & 15U) != 0)
@@ -174,6 +183,10 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 36;
   if (!poly_aux_has(auxv, POLY_AT_HWCAP2))
     return 37;
+  if (poly_aux_get(auxv, POLY_AT_HWCAP) != expected_hwcap)
+    return 47;
+  if (poly_aux_get(auxv, POLY_AT_HWCAP2) != 0)
+    return 48;
   if (!poly_aux_has(auxv, POLY_AT_UID) ||
       poly_aux_get(auxv, POLY_AT_UID) !=
       (uint64_t) poly_syscall0(POLY_SYS_GETUID))

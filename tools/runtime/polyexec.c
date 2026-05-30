@@ -161,6 +161,18 @@ extern char **environ;
 #define POLY_RISCV_HWPROBE_KEY_ZICBOM_BLOCK_SIZE 12
 #define POLY_RISCV_HWPROBE_KEY_VENDOR_EXT_SIFIVE_0 13
 
+#define POLY_AARCH64_HWCAP_FP (1ULL << 0)
+#define POLY_AARCH64_HWCAP_ASIMD (1ULL << 1)
+#define POLY_AARCH64_HWCAP_ATOMICS (1ULL << 8)
+#define POLY_AARCH64_HWCAP_CPUID (1ULL << 11)
+
+#define POLY_RISCV_HWCAP_ISA_A (1ULL << ('A' - 'A'))
+#define POLY_RISCV_HWCAP_ISA_C (1ULL << ('C' - 'A'))
+#define POLY_RISCV_HWCAP_ISA_D (1ULL << ('D' - 'A'))
+#define POLY_RISCV_HWCAP_ISA_F (1ULL << ('F' - 'A'))
+#define POLY_RISCV_HWCAP_ISA_I (1ULL << ('I' - 'A'))
+#define POLY_RISCV_HWCAP_ISA_M (1ULL << ('M' - 'A'))
+
 #ifndef STT_GNU_IFUNC
 #define STT_GNU_IFUNC 10
 #endif
@@ -3228,6 +3240,21 @@ static int build_process_stack(const struct poly_program *program,
   long clock_tick = sysconf(_SC_CLK_TCK);
   if (clock_tick <= 0)
     clock_tick = 100;
+  uint64_t hwcap = 0;
+  uint64_t hwcap2 = 0;
+  if (program->arch == POLY_ARCH_AARCH64) {
+    hwcap = POLY_AARCH64_HWCAP_FP |
+      POLY_AARCH64_HWCAP_ASIMD |
+      POLY_AARCH64_HWCAP_ATOMICS |
+      POLY_AARCH64_HWCAP_CPUID;
+  } else if (program->arch == POLY_ARCH_RISCV) {
+    hwcap = POLY_RISCV_HWCAP_ISA_A |
+      POLY_RISCV_HWCAP_ISA_C |
+      POLY_RISCV_HWCAP_ISA_D |
+      POLY_RISCV_HWCAP_ISA_F |
+      POLY_RISCV_HWCAP_ISA_I |
+      POLY_RISCV_HWCAP_ISA_M;
+  }
   const struct {
     uint64_t type;
     uint64_t value;
@@ -3240,8 +3267,8 @@ static int build_process_stack(const struct poly_program *program,
     { AT_FLAGS, 0 },
     { AT_ENTRY, entry_addr },
     { AT_CLKTCK, (uint64_t) clock_tick },
-    { AT_HWCAP, 0 },
-    { AT_HWCAP2, 0 },
+    { AT_HWCAP, hwcap },
+    { AT_HWCAP2, hwcap2 },
     { AT_UID, (uint64_t) getuid() },
     { AT_EUID, (uint64_t) geteuid() },
     { AT_GID, (uint64_t) getgid() },
