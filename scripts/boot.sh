@@ -23,6 +23,7 @@ BOCHS_LOG="$OUT_DIR/bochs.log"
 BOCHSRC="$TMP_DIR/bochsrc.txt"
 BOCHS_RC="$TMP_DIR/bochs.rc"
 CONSOLE_LOG="$OUT_DIR/bochs-console.log"
+POLY_XCR0_MODULE="$OUT_DIR/poly_xcr0.ko"
 POLY_PROBE_SRC="$ROOT_DIR/tools/programs/polyprobe.c"
 POLY_PROBE_BIN="$OUT_DIR/polyprobe"
 POLY_CPUID_HEADER="$ROOT_DIR/tools/include/polycpuid.h"
@@ -5684,6 +5685,10 @@ build_initramfs() {
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
   build_poly_elf_payloads
   build_binfmt_module
+  if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" && -f "$POLY_XCR0_MODULE" ]]; then
+    mkdir -p "$TMP_DIR/initramfs-root/lib/modules/poly"
+    cp "$POLY_XCR0_MODULE" "$TMP_DIR/initramfs-root/lib/modules/poly/poly_xcr0.ko"
+  fi
 
   cat > "$TMP_DIR/initramfs-root/init" <<EOF
 #!/bin/busybox sh
@@ -5716,6 +5721,14 @@ fi
 
 echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
+
+if [ "$REQUIRE_POLY_REAL_XSAVE" = "1" ]; then
+  if [ -f /lib/modules/poly/poly_xcr0.ko ]; then
+    insmod /lib/modules/poly/poly_xcr0.ko >/dev/ttyS0 2>&1 || true
+  else
+    echo "NATIVE_POLY_REAL_XSAVE_MODULE_MISSING" >/dev/ttyS0
+  fi
+fi
 
 if [ "$RUN_NATIVE_CHECK" = "1" ]; then
   EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" \
