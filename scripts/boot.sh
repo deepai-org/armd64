@@ -9103,6 +9103,22 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYCALL_RESULT: arch=aarch64 value=8590005819 path=.*aarch64-pcall-atomic-lse\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_RESULT: arch=riscv value=8590005819 path=.*riscv-pcall-atomic\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_RESULT: arch=riscv value=45 path=.*riscv-pcall-real-rv64gc\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_RESULT: arch=riscv value=145 path=.*riscv-pcall-import-real-rv64gc\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
       fi
       if [[ "$RUN_POLY_THREAD" == "1" ]]; then
         if ! grep -q "POLYTHREAD_STATE_KEY_OK" "$SERIAL_LOG"; then
