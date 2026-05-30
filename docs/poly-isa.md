@@ -1,7 +1,7 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly is an x86_64 extension that can execute raw AArch64 and RISC-V64
-user-mode code in one virtual address space. x86_64 remains the system ISA.
+Poly extends x86_64 so precompiled AArch64 and RISC-V64 userspace code can run
+in the same virtual address space. x86_64 remains the system ISA.
 
 ## Run
 
@@ -13,27 +13,35 @@ make boot-poly-probe-arch-traps
 make boot-poly-bench-arch-traps
 ```
 
-## ISA Contract
+## Differences From x86_64
 
 - Frontends: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
-- Foreign frontends fetch raw 32-bit fixed-width instructions from the x86_64 address space.
-- x86_64 still owns paging, faults, traps, atomics, stack memory, interrupts, privilege, and TSO.
-- Mode changes use decoded Poly controls, not architectural `#UD` envelopes.
-- The target is existing SysV x86_64, AAPCS64, and RISC-V psABI objects.
+- x86_64 still owns privilege, paging, interrupts, faults, atomics, stacks, and
+  TSO ordering.
+- Foreign frontends fetch raw 32-bit instructions from x86_64 virtual memory.
+- Mode switches are decoded control instructions, not `#UD` envelopes.
+- Foreign state is XSAVE-style architectural state, not hidden emulator state.
 
-## Control
+## Control Operations
 
 - `PENTER frontend`: enter a foreign frontend.
 - `PSWITCH frontend,target`: switch frontend and branch.
-- `PCALL frontend,target,sig`: switch frontend, branch, save return state, and apply register-only ABI signature `sig`.
-- `PTRAPRET`: resume after a precise Poly trap.
+- `PCALL frontend,target,sig`: switch, branch, save cross-return state, and
+  apply register-only ABI signature `sig`.
+- `PTRAPRET`: resume from a precise Poly trap.
 
 ## ABI Boundary
 
-Hardware handles frontend switching, native-return recovery, XSAVE-style foreign state, precise trap packets, and register-only ABI remapping.
+The target is existing SysV x86_64, AAPCS64, and RISC-V psABI code. There is no
+separate `PolyFast` application ABI.
 
-Software handles stack arguments, aggregates, variadics, lazy binding, vector layout mismatches, syscall policy, and memory-side ABI work.
+Hardware handles frontend switching, cross-return recovery, XSAVE state, trap
+packets, and register-only ABI remapping. Software handles stack arguments,
+aggregates, variadics, lazy binding, syscall policy, and memory-side ABI work.
 
-Prototype encodings are isolated to the x86_64 Poly control page, AArch64 reserved `HINT`, RISC-V `custom-0`, and XSAVE component `20`.
+- x86_64: Poly Control Opcode Page, currently `0f 3a fc <subop>`.
+- AArch64: reserved `HINT` subspace.
+- RISC-V64: `custom-0` opcode family.
+- State: XSAVE component `20`.
 
-Design rationale: `docs/poly-isa-design-directions.md`.
+Design rationale and future directions: `docs/poly-isa-design-directions.md`.
