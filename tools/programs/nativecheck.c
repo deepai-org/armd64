@@ -1483,6 +1483,29 @@ static void child_expect_bad_active_transition_bridge_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_mismatched_active_transition_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = 1;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  bad.cross_return.frames[0].return_pc = 0x1111222233334444ULL;
+  bad.cross_return.frames[0].return_sp = 0x2222333344445555ULL;
+  bad.cross_return.frames[0].caller_mode = POLY_MODE_RAW_AARCH64;
+  bad.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  bad.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  bad.transition.active.return_pc =
+    bad.cross_return.frames[0].return_pc ^ 0x10;
+  bad.transition.active.cookie = bad.cross_return.frames[0].return_sp;
+  bad.transition.active.caller_mode = bad.cross_return.frames[0].caller_mode;
+  bad.transition.active.target_mode = bad.cross_return.frames[0].target_mode;
+  bad.transition.active.abi_kind = bad.cross_return.frames[0].abi_kind;
+  bad.transition.active.flags = bad.cross_return.frames[0].flags;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_interrupted_transition_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -3374,6 +3397,9 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad active transition bridge xstate", SIGILL,
         child_expect_bad_active_transition_bridge_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly mismatched active transition xstate", SIGILL,
+        child_expect_mismatched_active_transition_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad interrupted transition xstate", SIGILL,
         child_expect_bad_interrupted_transition_xsave_signal) != 0)
