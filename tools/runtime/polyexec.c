@@ -304,7 +304,10 @@ struct poly_cross_stub_arena {
 
 static struct poly_cross_stub_arena process_cross_stubs;
 static size_t process_cross_state_key_stub_count;
+static size_t process_cross_aarch64_to_riscv_stub_count;
+static size_t process_cross_riscv_to_aarch64_stub_count;
 static int process_cross_state_key_stub_reported;
+static const char *process_cross_report_path;
 
 struct poly_request {
   char path[160];
@@ -3501,6 +3504,25 @@ static int ensure_process_cross_stub_arena(void) {
   return 0;
 }
 
+static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
+  process_cross_state_key_stub_count++;
+  if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV)
+    process_cross_aarch64_to_riscv_stub_count++;
+  else if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)
+    process_cross_riscv_to_aarch64_stub_count++;
+
+  if (!process_cross_state_key_stub_reported) {
+    printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
+    process_cross_state_key_stub_reported = 1;
+  }
+  printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu total=%zu path=%s\n",
+    process_cross_aarch64_to_riscv_stub_count,
+    process_cross_riscv_to_aarch64_stub_count,
+    process_cross_state_key_stub_count,
+    process_cross_report_path ? process_cross_report_path : "(unknown)");
+  fflush(NULL);
+}
+
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t target, uint64_t *stub_addr) {
   if (caller_arch == callee_arch) {
@@ -3543,12 +3565,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_u32(code, &offset, 0x910083ffU); // add sp, sp, #32
     emit_u32(code, &offset, 0xd65f03c0U); // ret
     process_cross_stubs.offset = offset;
-    process_cross_state_key_stub_count++;
-    if (!process_cross_state_key_stub_reported) {
-      printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
-      fflush(NULL);
-      process_cross_state_key_stub_reported = 1;
-    }
+    note_process_cross_isa_call_stub(caller_arch, callee_arch);
     *stub_addr = start_addr;
     return 0;
   }
@@ -3598,12 +3615,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     (int16_t) ((int64_t) state_key_data_offset -
       (int64_t) auipc_state_key_pc)));
   process_cross_stubs.offset = offset;
-  process_cross_state_key_stub_count++;
-  if (!process_cross_state_key_stub_reported) {
-    printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
-    fflush(NULL);
-    process_cross_state_key_stub_reported = 1;
-  }
+  note_process_cross_isa_call_stub(caller_arch, callee_arch);
   *stub_addr = start_addr;
   return 0;
 }
@@ -5464,6 +5476,12 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
 static int emit_and_run_process(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result) {
+  process_cross_report_path = program->path;
+  process_cross_state_key_stub_count = 0;
+  process_cross_aarch64_to_riscv_stub_count = 0;
+  process_cross_riscv_to_aarch64_stub_count = 0;
+  process_cross_state_key_stub_reported = 0;
+
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
   const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 20 : 12;
   const size_t raw_switch_size = POLY_X86_PENTER_GENERIC_SIZE;
