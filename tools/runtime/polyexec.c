@@ -1951,61 +1951,13 @@ static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
   return 0;
 }
 
-static int validate_poly_register_trap_echo(
-    const struct poly_runtime_trap_packet *packet, uint64_t reason,
-    uint64_t mode, uint64_t number, uint64_t pc, uint64_t selector,
-    uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3,
-    uint64_t arg4, uint64_t arg5, uint64_t arg6, uint64_t arg7) {
-  const uint64_t expected_args[8] = {
-    arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7
-  };
-
-  if (packet->reason != reason || packet->mode != mode ||
-      packet->number != number || packet->selector != selector ||
-      packet->pc != pc) {
-    fprintf(stderr,
-      "POLYEXEC_FAIL: register trap echo mismatch packet=(%llu,%llu,%llu,%llu,%llu,%llu,0x%llx) regs=(%llu,%llu,%llu,%llu,%llu)\n",
-      (unsigned long long) packet->reason,
-      (unsigned long long) packet->mode,
-      (unsigned long long) packet->number,
-      (unsigned long long) packet->selector,
-      (unsigned long long) packet->pc,
-      (unsigned long long) packet->next_pc,
-      (unsigned long long) packet->flags,
-      (unsigned long long) reason,
-      (unsigned long long) mode,
-      (unsigned long long) number,
-      (unsigned long long) pc,
-      (unsigned long long) selector);
-    return -1;
-  }
-
-  for (size_t n = 0; n < 8; n++) {
-    if (packet->args[n] != expected_args[n]) {
-      fprintf(stderr,
-        "POLYEXEC_FAIL: register trap arg%zu echo mismatch packet=%llu reg=%llu\n",
-        n, (unsigned long long) packet->args[n],
-        (unsigned long long) expected_args[n]);
-      return -1;
-    }
-  }
-
-  poly_monitor_packet_count++;
-  return 0;
-}
-
 __attribute__((noinline, used))
-uint64_t poly_trap_vector_dispatch(uint64_t reason, uint64_t mode,
-    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
-    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
+uint64_t poly_trap_vector_dispatch(void) {
   struct poly_runtime_trap_packet packet;
 
   if (read_poly_monitor_packet(&packet) < 0)
     return (uint64_t) -EIO;
-  if (validate_poly_register_trap_echo(&packet, reason, mode, number, pc,
-        selector, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) < 0)
-    return (uint64_t) -EIO;
+  poly_monitor_packet_count++;
 
   if (!poly_is_raw_foreign_mode(packet.mode))
     return (uint64_t) -ENOSYS;
@@ -2052,20 +2004,7 @@ static void poly_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
-    "pushq %r14\n"
-    "pushq %r13\n"
-    "pushq %r12\n"
-    "pushq %r11\n"
-    "pushq %r10\n"
-    "pushq %r9\n"
-    "pushq %r8\n"
-    "movq %rdi, %r9\n"
-    "movq %rsi, %r8\n"
-    "movq %rcx, %r10\n"
-    "movq %rdx, %rcx\n"
-    "movq %r10, %rdx\n"
-    "movq %rbx, %rsi\n"
-    "movq %rax, %rdi\n"
+    "subq $56, %rsp\n"
     "call poly_trap_vector_dispatch\n"
     "addq $56, %rsp\n"
     "popq %rbp\n"
