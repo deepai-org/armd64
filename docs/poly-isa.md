@@ -1,8 +1,8 @@
 # Poly ISA Quick Reference
 
-Poly lets existing x86_64, AArch64, and RISC-V64 userspace code share one
-x86_64 virtual address space. x86_64 remains the system ISA; AArch64 and
-RISC-V64 are user-mode execution frontends.
+Poly is a Bochs prototype of a hardware-style CPU extension that runs existing
+x86_64, AArch64, and RISC-V64 userspace code in one x86_64 virtual address
+space.
 
 ## Run
 
@@ -12,37 +12,31 @@ make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|POLY.*OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-For a faster smoke test:
+Faster smoke test: `make boot-poly`.
 
-```bash
-make boot-poly
-```
+## Differences From x86_64
 
-## What Differs From x86_64
-
-- `RIP` is shared across frontends. AArch64 fetches 32-bit words; RISC-V64
-  fetches 16-bit or 32-bit instructions.
-- x86_64 owns privileged state: boot, paging, interrupts, exceptions, VM
-  control, and global TSO memory ordering.
-- Frontend switches use dedicated Poly control instructions, not `#UD`
-  envelopes.
-- Cross-ISA calls target native ABIs. Fast register-only calls use ABI
-  signature slots; stack/aggregate/variadic cases use software thunks.
-- Native return instructions can cross ISA boundaries through transition
-  cookies.
-- Foreign syscalls, breakpoints, unsupported instructions, and other recoverable
-  exits produce OS-neutral trap packets.
+- x86_64 remains the system ISA for privilege, paging, interrupts, faults,
+  atomics, VM control, and TSO memory ordering.
+- AArch64 and RISC-V64 are user-mode frontends that fetch native instructions
+  directly from the shared address space.
+- Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
+  RISC-V psABI.
+- Fast register-only calls use ABI signature slots; stack arguments,
+  aggregates, variadics, lazy binding, and policy use software thunks.
+- Cross-ISA returns use ordinary native return instructions plus hardware
+  transition cookies.
+- Recoverable foreign exits produce OS-neutral trap packets.
 
 Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 
-## Temporary Bochs Encodings
+## Prototype Encodings
 
-- x86_64: `0f 3a fc <subop>`
-- AArch64: `0xd503201f | ((subop & 0x7f) << 5)`
-- RISC-V64: `0x0000700b | ((subop & 0x7f) << 25)`
+- x86_64 Poly control: `0f 3a fc <subop>`
+- AArch64 Poly HINT: `0xd503201f | ((subop & 0x7f) << 5)`
+- RISC-V64 custom-0: `0x0000700b | ((subop & 0x7f) << 25)`
 
-## Source Links
+These are decoded control instructions, not `#UD` envelopes.
 
-- Constants and CPUID contract: [polycpuid.h](../tools/include/polycpuid.h)
-- Full design notes: [poly-isa-design-directions.md](poly-isa-design-directions.md)
-- Bochs implementation: [proc_ctrl.cc](../bochs-prepoly-src/bochs/cpu/proc_ctrl.cc)
+Details: [README.md](../README.md), [design](poly-isa-design-directions.md),
+[CPUID](../tools/include/polycpuid.h), [Bochs](../bochs-prepoly-src/bochs/cpu/proc_ctrl.cc).
