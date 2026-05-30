@@ -117,6 +117,7 @@ enum {
   POLY_MODE_RAW_AARCH64 = POLY_ARCH_AARCH64,
   POLY_MODE_RAW_RISCV = POLY_ARCH_RISCV,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
+  POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE = 14,
   POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 14,
   POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 88,
   POLY_CALL_U64 = 0,
@@ -812,6 +813,7 @@ static size_t poly_atexit_callback_count;
 static uint8_t *poly_atexit_call_code;
 static size_t poly_atexit_target_imm_offset;
 static __thread uint8_t poly_state_key_anchor;
+static size_t poly_stub_state_key_verified_count;
 
 void poly_runtime_reset_atexit_callbacks(void)
 {
@@ -2733,6 +2735,21 @@ static uint64_t read_le64(const uint8_t *bytes) {
   return value;
 }
 
+static void emit_movabs_rax(uint8_t *code, size_t *offset, uint64_t value) {
+  code[(*offset)++] = 0x48;
+  code[(*offset)++] = 0xb8;
+  emit_u64(code, offset, value);
+}
+
+static void emit_x86_state_key_set(uint8_t *code, size_t *offset,
+    uint64_t state_key) {
+  emit_movabs_rax(code, offset, state_key);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = 0x65;
+}
+
 static void emit_movabs_r10(uint8_t *code, size_t *offset, uint64_t value) {
   code[(*offset)++] = 0x49;
   code[(*offset)++] = 0xba;
@@ -3602,11 +3619,12 @@ static void emit_x86_pop_callee_regs(uint8_t *code, size_t *offset) {
 static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int arch, int call_kind, uint64_t target,
     uint64_t tls, uint64_t heap, uint64_t import_x86_table,
-    int needs_x86_import, uint64_t *stub_addr, size_t *target_imm_offset) {
+    int needs_x86_import, uint64_t state_key, uint64_t *stub_addr,
+    size_t *target_imm_offset) {
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
   const size_t start = *stub_offset;
-  if (stub_limit - start < 96)
+  if (stub_limit - start < 128)
     return -1;
 
   emit_x86_push_callee_regs(stubs, stub_offset);
@@ -3618,6 +3636,7 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
   emit_movabs_r14(stubs, stub_offset, heap);
   if (needs_x86_import)
     emit_movabs_r12(stubs, stub_offset, import_x86_table);
+  emit_x86_state_key_set(stubs, stub_offset, state_key);
   stubs[(*stub_offset)++] = 0x0f;
   stubs[(*stub_offset)++] = 0x3a;
   stubs[(*stub_offset)++] = 0xfc;
@@ -8918,13 +8937,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const int use_native_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
     call_kind == POLY_CALL_SIGREGS_FP64 ||
     call_kind == POLY_CALL_VEC128_U32;
+  const size_t state_key_setup_size = POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE;
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_native_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
       POLY_X86_CONTROL_OPCODE_SIZE);
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
-    pcall_sequence_size;
+    state_key_setup_size + pcall_sequence_size;
   const size_t main_stub_size = pcall_return_offset + callee_restore_size + 1;
   const size_t import_return_size = needs_x86_import ?
     POLY_X86_CONTROL_OPCODE_SIZE : 0;
@@ -8936,7 +8956,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
   const size_t callback_pcall_return_delta = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
-    callback_pcall_sequence_size;
+    state_key_setup_size + callback_pcall_sequence_size;
   const size_t callback_stub_size =
     callback_pcall_return_delta + callee_restore_size + 1;
   const size_t callback_stub_offset =
@@ -9021,6 +9041,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   uint8_t *cross_stubs = code + cross_stub_base_offset;
   size_t cross_stub_offset = 0;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
+  const uint64_t stub_state_key =
+    (uint64_t) (uintptr_t) &poly_state_key_anchor;
   emit_save_callee_regs(code, &offset, callee_save_area);
   const size_t target_imm_offset = offset + 2;
   emit_movabs_r10(code, &offset, 0);
@@ -9032,6 +9054,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (needs_x86_import) {
     emit_movabs_r12(code, &offset, import_x86_table);
   }
+  emit_x86_state_key_set(code, &offset, stub_state_key);
   const size_t pcall_opcode_offset = offset;
   if (use_exchange_u64_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
@@ -9199,6 +9222,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   emit_movabs_r14(code, &offset, 0);
   if (needs_x86_import)
     emit_movabs_r12(code, &offset, import_x86_table);
+  emit_x86_state_key_set(code, &offset, stub_state_key);
   {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
@@ -10000,7 +10024,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             &cross_stub_offset, program->arch, result_call_kind,
             fini_result_target, (uint64_t) (uintptr_t) tls,
             (uint64_t) (uintptr_t) import_page, import_x86_table,
-            needs_x86_import, &direct_stub, &direct_target_imm_offset) < 0) {
+            needs_x86_import, stub_state_key, &direct_stub,
+            &direct_target_imm_offset) < 0) {
         fprintf(stderr,
           "POLYCALL_FAIL: fini result direct x86 stub overflow: %s\n",
           program->path);
@@ -10179,7 +10204,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               &cross_stub_offset, program->arch, result_call_kind,
               call_target, (uint64_t) (uintptr_t) tls,
               (uint64_t) (uintptr_t) import_page, import_x86_table,
-              needs_x86_import, &direct_stub, &direct_target_imm_offset) < 0) {
+              needs_x86_import, stub_state_key, &direct_stub,
+              &direct_target_imm_offset) < 0) {
           fprintf(stderr,
             "POLYCALL_FAIL: dependency fini result direct x86 stub overflow: %s\n",
             program->deps[dep_index].path);
@@ -10244,6 +10270,21 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     printf("POLYCALL_ROOT_PCALL: arch=%s exchange_u64=1 path=%s\n",
       program->arch_name, program->path);
   }
+  if (poly_state_key_get() != stub_state_key) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: generated PCALL stub state-key mismatch key=0x%llx got=0x%llx path=%s\n",
+      (unsigned long long) stub_state_key,
+      (unsigned long long) poly_state_key_get(), program->path);
+    if (tls)
+      munmap(tls, tls_size);
+    unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+    munmap(heap, POLY_IMPORT_HEAP_SIZE);
+    munmap(import_page, 4096);
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
+  }
+  poly_stub_state_key_verified_count++;
   if (tls)
     munmap(tls, tls_size);
   unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
@@ -10444,6 +10485,8 @@ int main(int argc, char **argv) {
     free_program(&program);
   }
 
+  printf("POLYCALL_STUB_STATE_KEY: explicit=1 verified=%zu\n",
+    poly_stub_state_key_verified_count);
   puts("POLYCALL_OK");
   return 0;
 }
