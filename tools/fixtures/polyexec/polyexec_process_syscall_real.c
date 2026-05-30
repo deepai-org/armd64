@@ -16,6 +16,8 @@ enum {
   POLY_SOCK_STREAM = 1,
   POLY_GRND_NONBLOCK = 1,
   POLY_MFD_CLOEXEC = 1,
+  POLY_POSIX_FADV_NORMAL = 0,
+  POLY_MADV_NORMAL = 0,
   POLY_MREMAP_MAYMOVE = 1,
   POLY_MAP_PRIVATE = 2,
   POLY_MAP_ANONYMOUS = 0x20,
@@ -192,7 +194,9 @@ enum {
   POLY_SYS_MUNMAP = 215,
   POLY_SYS_MREMAP = 216,
   POLY_SYS_MMAP = 222,
+  POLY_SYS_FADVISE64 = 223,
   POLY_SYS_MPROTECT = 226,
+  POLY_SYS_MADVISE = 233,
   POLY_SYS_PRLIMIT64 = 261,
   POLY_SYS_GETRANDOM = 278,
   POLY_SYS_MEMFD_CREATE = 279,
@@ -2158,6 +2162,11 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     (long) "/usr/bin/polyexec", 0);
   if (fd < 0)
     return 41;
+  if (poly_syscall4(POLY_SYS_FADVISE64, fd, 0, 0,
+        POLY_POSIX_FADV_NORMAL) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 359;
+  }
   if (poly_syscall3(POLY_SYS_READV, fd, (long) read_iov, 2) != 4) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 43;
@@ -2179,6 +2188,10 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   mapped[1] = 0x4f;
   mapped[2] = 0x4c;
   mapped[3] = 0x59;
+  if (poly_syscall3(POLY_SYS_MADVISE, page, 4096, POLY_MADV_NORMAL) != 0) {
+    poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
+    return 360;
+  }
   if (poly_syscall3(POLY_SYS_MPROTECT, page, 4096, POLY_PROT_READ) != 0) {
     poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
     return 47;
