@@ -8419,6 +8419,38 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYBENCH_MIXED_RESULT: direction=aarch64-to-riscv .*switch_delta=4" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBENCH_MIXED_RESULT: direction=riscv-to-aarch64 .*switch_delta=4" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBENCH_CROSS_CALL_RESULT: direction=aarch64-calls-riscv .*switch_delta=5" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBENCH_CROSS_CALL_RESULT: direction=riscv-calls-aarch64 .*switch_delta=5" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=aarch64-calls-riscv-import .*switch_delta=5" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=riscv-calls-aarch64-import .*switch_delta=5" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=aarch64-calls-riscv-direct-x86-memops .*switch_delta=11" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=riscv-calls-aarch64-direct-x86-memops .*switch_delta=11" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
       fi
       if [[ "$RUN_POLY_BINFMT" == "1" ]]; then
         if ! grep -q "POLYBINFMT_OK" "$SERIAL_LOG"; then
