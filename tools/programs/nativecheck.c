@@ -135,6 +135,23 @@ static int expect_monitor_packet_args(const char *label,
   return 0;
 }
 
+static int expect_monitor_packet_pc(const char *label,
+    const struct nativecheck_monitor_packet *packet, uint64_t trap_pc,
+    uint64_t resume_pc) {
+  if (packet->trap.trap_pc != trap_pc ||
+      packet->trap.resume_pc != resume_pc) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly monitor packet %s pc mismatch trap=0x%llx/0x%llx resume=0x%llx/0x%llx\n",
+      label,
+      (unsigned long long) packet->trap.trap_pc,
+      (unsigned long long) trap_pc,
+      (unsigned long long) packet->trap.resume_pc,
+      (unsigned long long) resume_pc);
+    return 1;
+  }
+  return 0;
+}
+
 static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
@@ -2823,7 +2840,13 @@ static int run_poly_trap_vector_probe(void) {
   }
 
   memset(&monitor_packet, 0xa5, sizeof(monitor_packet));
+  uint64_t aarch64_syscall_trap_pc = 0;
+  uint64_t aarch64_syscall_resume_pc = 0;
   asm volatile(
+    "leaq 1f(%%rip), %%r15\n"
+    "movq %%r15, %[trap_pc]\n"
+    "leaq 2f(%%rip), %%r15\n"
+    "movq %%r15, %[resume_pc]\n"
     POLY_OP_ENTER_A64
     ".long 0xd28003e0\n" // movz x0,#31
     ".long 0xd2800401\n" // movz x1,#32
@@ -2834,10 +2857,13 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd28004a6\n" // movz x6,#37
     ".long 0xd28004c7\n" // movz x7,#38
     ".long 0xd2801588\n" // movz x8,#172
-    ".long 0xd40000e1\n" // svc #7
-    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+    "1: .long 0xd40000e1\n" // svc #7
+    "2: .long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : [trap_pc] "=m"(aarch64_syscall_trap_pc),
+      [resume_pc] "=m"(aarch64_syscall_resume_pc)
+    :
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   uint64_t result = read_rax();
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 svc trap vector result mismatch got=%llu expected=%llu\n",
@@ -2850,6 +2876,9 @@ static int run_poly_trap_vector_probe(void) {
   if (expect_monitor_packet_args("aarch64 syscall", &monitor_packet,
       POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7,
       aarch64_syscall_args) != 0)
+    return 1;
+  if (expect_monitor_packet_pc("aarch64 syscall", &monitor_packet,
+      aarch64_syscall_trap_pc, aarch64_syscall_resume_pc) != 0)
     return 1;
 
   uint64_t saved_r13 = 0;
@@ -2929,7 +2958,13 @@ static int run_poly_trap_vector_probe(void) {
   }
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
+  uint64_t riscv_syscall_trap_pc = 0;
+  uint64_t riscv_syscall_resume_pc = 0;
   asm volatile(
+    "leaq 1f(%%rip), %%r15\n"
+    "movq %%r15, %[trap_pc]\n"
+    "leaq 2f(%%rip), %%r15\n"
+    "movq %%r15, %[resume_pc]\n"
     POLY_OP_ENTER_RV64
     ".long 0x01f00513\n" // addi a0,zero,31
     ".long 0x02000593\n" // addi a1,zero,32
@@ -2939,10 +2974,13 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x02400793\n" // addi a5,zero,36
     ".long 0x02500813\n" // addi a6,zero,37
     ".long 0x0ac00893\n" // addi x17,x0,172
-    ".long 0x00000073\n" // ecall
-    ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+    "1: .long 0x00000073\n" // ecall
+    "2: .long 0x0000700b\n" // riscv polyctrl x86 escape
+    : [trap_pc] "=m"(riscv_syscall_trap_pc),
+      [resume_pc] "=m"(riscv_syscall_resume_pc)
+    :
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ecall trap vector result mismatch got=%llu expected=%llu\n",
@@ -2955,6 +2993,9 @@ static int run_poly_trap_vector_probe(void) {
   if (expect_monitor_packet_args("riscv syscall", &monitor_packet,
       POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0,
       riscv_syscall_args) != 0)
+    return 1;
+  if (expect_monitor_packet_pc("riscv syscall", &monitor_packet,
+      riscv_syscall_trap_pc, riscv_syscall_resume_pc) != 0)
     return 1;
 
   saved_r13 = 0;
