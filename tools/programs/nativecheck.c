@@ -676,6 +676,8 @@ static uint64_t nativecheck_import_x86_sum6(uint64_t a0, uint64_t a1,
   memcpy(&nativecheck_import_restore_state, &nativecheck_import_live_state,
     sizeof(nativecheck_import_restore_state));
   nativecheck_import_restore_state.import_return.top = 0;
+  memset(nativecheck_import_restore_state.import_return.frames, 0,
+    sizeof(nativecheck_import_restore_state.import_return.frames));
   poly_state_import(&nativecheck_import_restore_state);
   poly_state_import(&nativecheck_import_live_state);
   return a0 + a1 + a2 + a3 + a4 + a5;
@@ -1692,6 +1694,29 @@ static void child_expect_bad_import_return_alias_reserved_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_import_return_depth_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 0;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH - 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_inactive_import_return_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 0;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].return_pc = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_transition_reserved_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -1731,6 +1756,18 @@ static void child_expect_bad_cross_return_reserved_xsave_signal(void) {
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
   bad.cross_return.reserved[0] = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_inactive_cross_return_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = 0;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  bad.cross_return.frames[0].return_pc = 1;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3646,6 +3683,12 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad import-return alias reserved xstate",
         SIGILL, child_expect_bad_import_return_alias_reserved_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly bad import-return depth xstate", SIGILL,
+        child_expect_bad_import_return_depth_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad inactive import-return xstate", SIGILL,
+        child_expect_bad_inactive_import_return_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly bad transition reserved xstate", SIGILL,
         child_expect_bad_transition_reserved_xsave_signal) != 0)
     return 1;
@@ -3657,6 +3700,9 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad cross-return reserved xstate", SIGILL,
         child_expect_bad_cross_return_reserved_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad inactive cross-return xstate", SIGILL,
+        child_expect_bad_inactive_cross_return_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad top reserved xstate", SIGILL,
         child_expect_bad_top_reserved_xsave_signal) != 0)
