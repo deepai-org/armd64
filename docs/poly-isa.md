@@ -1,9 +1,8 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly is an x86_64 extension that lets user code execute AArch64 and RISC-V64
-basic blocks in the same virtual address space. x86_64 remains the system ISA:
-boot, privilege, paging, interrupts, atomics, scheduling, syscalls, and memory
-ordering are still x86-owned.
+Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU.
+x86_64 still owns boot, privilege, paging, interrupts, atomics, syscalls, and
+global TSO memory ordering.
 
 ## Run
 
@@ -16,35 +15,30 @@ rg -a 'BOOT_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 Smaller targets: `boot-poly`, `boot-poly-call-arch-traps`,
 `boot-poly-binfmt-arch-traps`, and `boot-poly-neutral-arch-traps`.
 
-## How It Differs From x86_64
+## Architecture Contract
 
-- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- Fetch: x86_64 uses normal variable-length decode. AArch64 fetches aligned
-  32-bit words from `RIP`. RISC-V64 fetches native 16-bit or 32-bit instructions
-  from `RIP`.
-- Memory: all frontends share the x86_64 virtual address space, page tables, page
-  permissions, and TSO ordering.
-- State: non-x86 architectural state is explicit XSAVE-style state, not hidden
-  emulator state.
-- Calls: cross-frontend calls use register-only ABI signature slots. Software
-  thunks handle stack arguments, aggregates, variadics, lazy binding, and policy.
-- Traps: foreign syscalls, breakpoints, unsupported instructions, and import
-  misses report OS-neutral trap packets. The ISA does not implement Linux, libc,
-  libgcc, libatomic, or dynamic-linker behavior.
+- Frontends are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+- Foreign code fetches native instructions from `RIP` in the same virtual
+  address space as x86_64 code.
+- Poly state is XSAVE-style architectural state, not hidden emulator state.
+- `PCALL` uses register-only ABI signature slots. Software thunks handle stack
+  arguments, aggregates, variadics, lazy binding, and policy.
+- Foreign syscalls, breakpoints, illegal instructions, and import misses produce
+  OS-neutral trap packets. Hardware does not implement Linux or libc behavior.
 
 ## Prototype Control Ops
 
-These Bochs encodings are temporary and should become real vendor-allocated
-opcodes before hardware work.
+These Bochs encodings are temporary. Real hardware should use vendor-allocated
+decoded opcodes, not `#UD` envelopes.
 
-| Op | x86_64 | AArch64 | RISC-V64 |
-| --- | --- | --- | --- |
-| Base | `0f 3a fc <subop>` | `0xd503201f | (subop << 5)` | `0x0000700b | (subop << 25)` |
-| `PENTER` | `0x03` | n/a | n/a |
-| `PSWITCH` | `0x04` | `0x78` | `8` |
-| `PCALL` | `0x2d` | `0x7a` | `10` |
-| `PCALL_SIG_IMM` | `0x2e <slot>` | `0x60 + slot` | `16 + slot` |
-| `PTRAPRET` | `0x62` | `0x76` | `6` |
-| `PLANDING` | `0x05` | `0x7b` | `11` |
+| Op | Meaning |
+| --- | --- |
+| `PENTER frontend` | Enter a foreign frontend from trusted runtime code. |
+| `PSWITCH frontend, target` | Tail-branch to another frontend. |
+| `PCALL frontend, target, sig` | Call another frontend with ABI slot `sig`. |
+| `PCALL_SIG_IMM slot` | Compact in-frontend call using signature slot `slot`. |
+| `PTRAPRET` | Resume after a precise Poly trap packet. |
+| `PLANDING` | Mark/validate indirect cross-frontend targets. |
 
-Long-form rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Current opcode details live in `tools/include/polycpuid.h`; hardware design
+rationale lives in [poly-isa-design-directions.md](poly-isa-design-directions.md).

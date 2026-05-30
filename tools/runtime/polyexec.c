@@ -251,7 +251,9 @@ struct poly_program;
 
 enum poly_process_bridge_kind {
   POLY_PROCESS_BRIDGE_DEFAULT = 0,
-  POLY_PROCESS_BRIDGE_VEC128_U32 = 1
+  POLY_PROCESS_BRIDGE_VEC128_U32 = 1,
+  POLY_PROCESS_BRIDGE_COMPACT_U32_F32 = 2,
+  POLY_PROCESS_BRIDGE_COMPACT_F32_U32 = 3
 };
 
 struct poly_process_bridge_spec {
@@ -331,6 +333,8 @@ struct poly_request {
 
 static uint32_t process_native_signature_slot = 3;
 static uint32_t process_vec128_signature_slot = 5;
+static uint32_t process_compact_u32_f32_signature_slot = 6;
+static uint32_t process_compact_f32_u32_signature_slot = 7;
 static __thread uint8_t poly_state_key_anchor;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
@@ -370,7 +374,8 @@ static int run_irelative_resolver(const struct poly_program *program,
     uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
     uint64_t *resolved);
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
-    uint64_t target, uint32_t signature_slot, uint64_t *stub_addr);
+    uint64_t target, int bridge_kind, uint32_t signature_slot,
+    uint64_t *stub_addr);
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 
@@ -501,8 +506,16 @@ static int read_poly_base_contract(int require_trap_vector) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 17);
   const struct poly_cpuid_regs expected_signature_ext =
     poly_cpuid_expected_escape_leaf17();
+  const struct poly_cpuid_regs signature_compact =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 20);
+  const struct poly_cpuid_regs expected_signature_compact =
+    poly_cpuid_expected_escape_leaf20();
   const uint32_t vec128_slot = signature_ext.ecx;
   const uint32_t vec128_kind = signature_ext.edx;
+  const uint32_t compact_u32_f32_slot = signature_compact.eax;
+  const uint32_t compact_u32_f32_kind = signature_compact.ebx;
+  const uint32_t compact_f32_u32_slot = signature_compact.ecx;
+  const uint32_t compact_f32_u32_kind = signature_compact.edx;
   if (signature.eax != expected_signature.eax ||
       signature.ebx != expected_signature.ebx ||
       signature.ecx != expected_signature.ecx ||
@@ -511,15 +524,26 @@ static int read_poly_base_contract(int require_trap_vector) {
       signature_ext.ebx != expected_signature_ext.ebx ||
       signature_ext.ecx != expected_signature_ext.ecx ||
       signature_ext.edx != expected_signature_ext.edx ||
+      signature_compact.eax != expected_signature_compact.eax ||
+      signature_compact.ebx != expected_signature_compact.ebx ||
+      signature_compact.ecx != expected_signature_compact.ecx ||
+      signature_compact.edx != expected_signature_compact.edx ||
       native_slot >= signature.ebx ||
       native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
       vec128_slot >= signature.ebx ||
-      vec128_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32) {
+      vec128_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 ||
+      compact_u32_f32_slot >= signature.ebx ||
+      compact_u32_f32_kind !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32 ||
+      compact_f32_u32_slot >= signature.ebx ||
+      compact_f32_u32_kind !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x)\n",
+      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
-      signature_ext.edx);
+      signature_ext.edx, signature_compact.eax, signature_compact.ebx,
+      signature_compact.ecx, signature_compact.edx);
     return -1;
   }
   if (poly_abi_signature_set(native_slot,
@@ -538,6 +562,17 @@ static int read_poly_base_contract(int require_trap_vector) {
     return -1;
   }
   process_vec128_signature_slot = vec128_slot;
+  if (poly_abi_signature_set(compact_u32_f32_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32) != 0 ||
+      poly_abi_signature_set(compact_f32_u32_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly native compact signature slot setup failed u32_f32=%u f32_u32=%u\n",
+      compact_u32_f32_slot, compact_f32_u32_slot);
+    return -1;
+  }
+  process_compact_u32_f32_signature_slot = compact_u32_f32_slot;
+  process_compact_f32_u32_signature_slot = compact_f32_u32_slot;
 
   return 0;
 }
@@ -701,6 +736,10 @@ static int process_bridge_kind_from_name(const char *name) {
     return POLY_PROCESS_BRIDGE_DEFAULT;
   if (strcmp(name, "vec128_u32") == 0)
     return POLY_PROCESS_BRIDGE_VEC128_U32;
+  if (strcmp(name, "compact_u32_f32") == 0)
+    return POLY_PROCESS_BRIDGE_COMPACT_U32_F32;
+  if (strcmp(name, "compact_f32_u32") == 0)
+    return POLY_PROCESS_BRIDGE_COMPACT_F32_U32;
   return -1;
 }
 
@@ -805,6 +844,10 @@ static int process_bridge_kind_for_symbol(const struct poly_program *program,
 static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
   if (bridge_kind == POLY_PROCESS_BRIDGE_VEC128_U32)
     return process_vec128_signature_slot;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_U32_F32)
+    return process_compact_u32_f32_signature_slot;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32)
+    return process_compact_f32_u32_signature_slot;
   return process_native_signature_slot;
 }
 
@@ -1399,13 +1442,15 @@ static int resolve_loaded_dependency_symbol_at_depth(
         return -1;
       if (symbol_type)
         *symbol_type = resolved_type;
-      const uint32_t signature_slot = process_signature_slot_for_bridge_kind(
-        process_bridge_kind_for_symbol(dep->program, symbol_name));
+      const int bridge_kind =
+        process_bridge_kind_for_symbol(dep->program, symbol_name);
+      const uint32_t signature_slot =
+        process_signature_slot_for_bridge_kind(bridge_kind);
       if (caller_arch != dep->program->arch &&
           (resolved_type == STT_FUNC || resolved_type == STT_NOTYPE ||
            resolved_type == STT_GNU_IFUNC) &&
           emit_process_cross_isa_call_stub(caller_arch, dep->program->arch,
-            *symbol_value, signature_slot, symbol_value) < 0)
+            *symbol_value, bridge_kind, signature_slot, symbol_value) < 0)
         return -1;
       return 0;
     }
@@ -1588,14 +1633,16 @@ static int resolve_root_scope_symbol(const struct poly_program *program,
           return_pc, scratch, ifunc_resolver_vaddr, symbol_value) < 0)
       return -1;
   }
-  const uint32_t signature_slot = process_signature_slot_for_bridge_kind(
-    process_bridge_kind_for_symbol(program->scope_root_program, symbol_name));
+  const int bridge_kind =
+    process_bridge_kind_for_symbol(program->scope_root_program, symbol_name);
+  const uint32_t signature_slot =
+    process_signature_slot_for_bridge_kind(bridge_kind);
   if (program->arch != program->scope_root_program->arch &&
       (resolved_type == STT_FUNC || resolved_type == STT_NOTYPE ||
        resolved_type == STT_GNU_IFUNC) &&
       emit_process_cross_isa_call_stub(program->arch,
-        program->scope_root_program->arch, *symbol_value, signature_slot,
-        symbol_value) < 0)
+        program->scope_root_program->arch, *symbol_value, bridge_kind,
+        signature_slot, symbol_value) < 0)
     return -1;
   if (symbol_type)
     *symbol_type = resolved_type;
@@ -3563,8 +3610,52 @@ static uint32_t aarch64_pcall_sig_imm(uint32_t slot) {
   return 0xd5032c1fU | ((slot & 0x7U) << 5);
 }
 
+static uint32_t aarch64_lsr_imm(uint32_t rd, uint32_t rn, uint32_t shift) {
+  return 0xd340fc00U | ((shift & 63U) << 16) | (rn << 5) | rd;
+}
+
+static uint32_t aarch64_lsl_imm(uint32_t rd, uint32_t rn, uint32_t shift) {
+  const uint32_t immr = (64U - shift) & 63U;
+  const uint32_t imms = 63U - shift;
+  return 0xd3400000U | (immr << 16) | (imms << 10) | (rn << 5) | rd;
+}
+
+static uint32_t aarch64_orr_reg(uint32_t rd, uint32_t rn, uint32_t rm) {
+  return 0xaa000000U | (rm << 16) | (rn << 5) | rd;
+}
+
+static uint32_t aarch64_fmov_s_from_w(uint32_t rd, uint32_t rn) {
+  return 0x1e270000U | (rn << 5) | rd;
+}
+
+static uint32_t aarch64_fmov_w_from_s(uint32_t rd, uint32_t rn) {
+  return 0x1e260000U | (rn << 5) | rd;
+}
+
 static uint32_t riscv_pcall_sig_imm(uint32_t slot) {
   return 0x2000700bU | ((slot & 0x7U) << 25);
+}
+
+static uint32_t riscv_srli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
+  return 0x00005013U | ((shamt & 63U) << 20) | (rs1 << 15) |
+    (rd << 7);
+}
+
+static uint32_t riscv_slli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
+  return 0x00001013U | ((shamt & 63U) << 20) | (rs1 << 15) |
+    (rd << 7);
+}
+
+static uint32_t riscv_or(unsigned rd, unsigned rs1, unsigned rs2) {
+  return 0x00006033U | (rs2 << 20) | (rs1 << 15) | (rd << 7);
+}
+
+static uint32_t riscv_fmv_x_w(uint32_t rd, uint32_t rs1) {
+  return 0xe0000053U | (rs1 << 15) | (rd << 7);
+}
+
+static uint32_t riscv_fmv_w_x(uint32_t rd, uint32_t rs1) {
+  return 0xf0000053U | (rs1 << 15) | (rd << 7);
 }
 
 static uint32_t riscv_ld(unsigned rd, unsigned rs1, int16_t byte_offset) {
@@ -3676,8 +3767,66 @@ static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
   fflush(NULL);
 }
 
+static int process_bridge_is_compact(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_U32_F32 ||
+    bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32;
+}
+
+static void emit_process_aarch64_compact_pre_pcall(uint8_t *code,
+    size_t *offset, int bridge_kind) {
+  if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(code, offset, aarch64_lsr_imm(9, 0, 32));
+    emit_u32(code, offset, aarch64_fmov_s_from_w(0, 9));
+  }
+  else if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(code, offset, aarch64_fmov_s_from_w(0, 0));
+    emit_u32(code, offset, aarch64_lsr_imm(0, 0, 32));
+  }
+}
+
+static void emit_process_aarch64_compact_post_pcall(uint8_t *code,
+    size_t *offset, int bridge_kind) {
+  if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(code, offset, aarch64_fmov_w_from_s(9, 0));
+    emit_u32(code, offset, aarch64_lsl_imm(9, 9, 32));
+    emit_u32(code, offset, aarch64_orr_reg(0, 0, 9));
+  }
+  else if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(code, offset, aarch64_fmov_w_from_s(9, 0));
+    emit_u32(code, offset, aarch64_lsl_imm(0, 0, 32));
+    emit_u32(code, offset, aarch64_orr_reg(0, 0, 9));
+  }
+}
+
+static void emit_process_riscv_compact_pre_pcall(uint8_t *code,
+    size_t *offset, int bridge_kind) {
+  if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(code, offset, riscv_fmv_x_w(28, 10));
+    emit_u32(code, offset, riscv_slli(28, 28, 32));
+    emit_u32(code, offset, riscv_or(10, 10, 28));
+  }
+  else if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(code, offset, riscv_fmv_x_w(28, 10));
+    emit_u32(code, offset, riscv_slli(10, 10, 32));
+    emit_u32(code, offset, riscv_or(10, 10, 28));
+  }
+}
+
+static void emit_process_riscv_compact_post_pcall(uint8_t *code,
+    size_t *offset, int bridge_kind) {
+  if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(code, offset, riscv_srli(28, 10, 32));
+    emit_u32(code, offset, riscv_fmv_w_x(10, 28));
+  }
+  else if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(code, offset, riscv_fmv_w_x(10, 10));
+    emit_u32(code, offset, riscv_srli(10, 10, 32));
+  }
+}
+
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
-    uint64_t target, uint32_t signature_slot, uint64_t *stub_addr) {
+    uint64_t target, int bridge_kind, uint32_t signature_slot,
+    uint64_t *stub_addr) {
   if (caller_arch == callee_arch) {
     *stub_addr = target;
     return 0;
@@ -3695,12 +3844,14 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   const uint64_t start_addr = (uint64_t) (uintptr_t) (code + start);
   const uint64_t state_key =
     (uint64_t) (uintptr_t) &poly_state_key_anchor;
+  const int is_compact_bridge = process_bridge_is_compact(bridge_kind);
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (process_cross_stubs.size - start < 128)
       return -1;
     size_t offset = start;
-    const uint64_t return_addr = start_addr + 84;
+    const uint64_t return_addr = start_addr + 84 +
+      (is_compact_bridge ? 8 : 0);
     emit_u32(code, &offset, 0xd10083ffU); // sub sp, sp, #32
     emit_u32(code, &offset, 0xf94013f2U); // ldr x18, [sp, #32]
     emit_u32(code, &offset, 0xf90003f2U); // str x18, [sp]
@@ -3709,10 +3860,14 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_aarch64_movabs(code, &offset, 0, state_key);
     emit_u32(code, &offset, POLY_AARCH64_CTRL_STATE_KEY_SET);
     emit_u32(code, &offset, 0xf9400be0U); // ldr x0, [sp, #16]
+    if (is_compact_bridge)
+      emit_process_aarch64_compact_pre_pcall(code, &offset, bridge_kind);
     emit_aarch64_movabs(code, &offset, 16, target);
     emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
     emit_aarch64_movabs(code, &offset, 18, return_addr);
     emit_u32(code, &offset, aarch64_pcall_sig_imm(signature_slot));
+    if (is_compact_bridge)
+      emit_process_aarch64_compact_post_pcall(code, &offset, bridge_kind);
     emit_u32(code, &offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(code, &offset, 0x910083ffU); // add sp, sp, #32
     emit_u32(code, &offset, 0xd65f03c0U); // ret
@@ -3745,8 +3900,12 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
   emit_u32(code, &offset, riscv_ld(10, 2, 16)); // ld a0,16(sp)
+  if (is_compact_bridge)
+    emit_process_riscv_compact_pre_pcall(code, &offset, bridge_kind);
   emit_u32(code, &offset, riscv_pcall_sig_imm(signature_slot));
   const size_t return_pc = offset;
+  if (is_compact_bridge)
+    emit_process_riscv_compact_post_pcall(code, &offset, bridge_kind);
   emit_u32(code, &offset, 0x00813083U); // ld ra,8(sp)
   emit_u32(code, &offset, 0x02010113U); // addi sp,sp,32
   emit_u32(code, &offset, 0x00008067U); // ret

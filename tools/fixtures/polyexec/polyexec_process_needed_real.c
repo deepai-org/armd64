@@ -2,6 +2,21 @@
 
 typedef uint32_t poly_u32x4 __attribute__((vector_size(16)));
 
+struct poly_compact_u32_f32 {
+  uint32_t i;
+  float f;
+};
+
+struct poly_compact_f32_u32 {
+  float f;
+  uint32_t i;
+};
+
+union poly_float_bits {
+  float f;
+  uint32_t u;
+};
+
 enum {
   POLY_SYS_WRITE = 64,
   POLY_SYS_EXIT = 93,
@@ -116,6 +131,40 @@ __attribute__((visibility("default")))
 poly_u32x4 poly_process_needed_vec128(poly_u32x4 left, poly_u32x4 right) {
   const poly_u32x4 bias = { 100, 200, 300, 400 };
   return left + right + bias;
+}
+
+#elif defined(POLY_PROCESS_NEEDED_COMPACT_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_compact_u32_f32 compact_u32_f32\\n\"\n"
+  "   .ascii \"poly_process_needed_compact_f32_u32 compact_f32_u32\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+struct poly_compact_u32_f32 poly_process_needed_compact_u32_f32(
+    struct poly_compact_u32_f32 in, uint32_t scale) {
+  struct poly_compact_u32_f32 out;
+  out.i = in.i + scale + 100;
+  out.f = in.f + (float) scale + 25.0f;
+  return out;
+}
+
+__attribute__((visibility("default")))
+struct poly_compact_f32_u32 poly_process_needed_compact_f32_u32(
+    struct poly_compact_f32_u32 in, uint32_t scale) {
+  struct poly_compact_f32_u32 out;
+  out.f = in.f + (float) scale + 50.0f;
+  out.i = in.i + scale + 200;
+  return out;
 }
 
 #elif defined(POLY_PROCESS_ROOT_EXPORT_DEP)
@@ -323,6 +372,11 @@ extern uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t);
 extern double poly_process_needed_fp64(double, double);
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
 extern poly_u32x4 poly_process_needed_vec128(poly_u32x4, poly_u32x4);
+#elif defined(POLY_PROCESS_NEEDED_COMPACT_MAIN)
+extern struct poly_compact_u32_f32 poly_process_needed_compact_u32_f32(
+    struct poly_compact_u32_f32, uint32_t);
+extern struct poly_compact_f32_u32 poly_process_needed_compact_f32_u32(
+    struct poly_compact_f32_u32, uint32_t);
 #else
 extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
 #endif
@@ -595,6 +649,19 @@ uint64_t poly_process_main(void) {
       result.u[2] != 333 || result.u[3] != 444)
     return 51;
   static const char marker[] = "POLY_PROCESS_CROSS_VEC128_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_COMPACT_MAIN)
+  const struct poly_compact_u32_f32 a = { 7, 2.5f };
+  const struct poly_compact_f32_u32 b = { 1.25f, 6 };
+  const struct poly_compact_u32_f32 ra =
+    poly_process_needed_compact_u32_f32(a, 5);
+  const struct poly_compact_f32_u32 rb =
+    poly_process_needed_compact_f32_u32(b, 8);
+  const union poly_float_bits fa = { .f = ra.f };
+  const union poly_float_bits fb = { .f = rb.f };
+  if (ra.i != 112 || fa.u != 0x42020000U ||
+      rb.i != 214 || fb.u != 0x426d0000U)
+    return 52;
+  static const char marker[] = "POLY_PROCESS_CROSS_COMPACT_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_PRELOAD_MAIN)
   if (poly_process_needed_add(0x20, 0x30) != 0x190)
     return 44;
