@@ -88,6 +88,13 @@ __attribute__((visibility("default")))
 uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t)
     __attribute__((ifunc("poly_process_needed_ifunc_add_resolver")));
 
+#elif defined(POLY_PROCESS_NEEDED_FP64_DEP)
+
+__attribute__((visibility("default")))
+double poly_process_needed_fp64(double left, double right) {
+  return left + right + 4.0;
+}
+
 #elif defined(POLY_PROCESS_ROOT_EXPORT_DEP)
 
 extern uint64_t poly_process_root_export(uint64_t);
@@ -289,6 +296,8 @@ extern uint64_t poly_soname_once_b(void);
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_IFUNC_MAIN)
 extern uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t);
+#elif defined(POLY_PROCESS_NEEDED_FP64_MAIN)
+extern double poly_process_needed_fp64(double, double);
 #else
 extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
 #endif
@@ -539,6 +548,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_needed_ifunc_add(0x20, 0x30) != 0x90)
     return 38;
   static const char marker[] = "POLY_PROCESS_IFUNC_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_FP64_MAIN)
+  if (poly_process_needed_fp64(1.5, 2.25) != 7.75)
+    return 50;
+  static const char marker[] = "POLY_PROCESS_CROSS_FP64_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_PRELOAD_MAIN)
   if (poly_process_needed_add(0x20, 0x30) != 0x190)
     return 44;
