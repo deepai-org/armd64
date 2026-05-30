@@ -35,6 +35,9 @@ struct polythread_monitor_packet {
   uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
 };
 
+static __thread const struct polythread_monitor_packet
+  *polythread_current_monitor_packet;
+
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
   uint64_t rdx = poly_abi_signature_control_value(kind);
@@ -173,21 +176,52 @@ static int expect_monitor_packet(uintptr_t worker_id, const char *label,
   return 0;
 }
 
+__attribute__((noinline, used))
+uint64_t polythread_trap_vector_dispatch(void) {
+  const struct polythread_monitor_packet *packet =
+    polythread_current_monitor_packet;
+  if (packet == 0)
+    return (uint64_t) -1;
+  if (packet->trap.reason != POLY_TRAP_SYSCALL &&
+      packet->trap.reason != POLY_TRAP_IMPORT)
+    return (uint64_t) -1;
+  return packet->trap.number + packet->args[6] + packet->args[7];
+}
+
 __attribute__((naked, noinline, used))
 static void polythread_trap_vector_handler(void) {
   __asm__(
-    "cmpq $1, %rax\n"
-    "je 1f\n"
-    "cmpq $3, %rax\n"
-    "jne 2f\n"
-    "1:\n"
-    "movq %rcx, %rax\n"
-    "addq %r13, %rax\n"
-    "addq %r14, %rax\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    "2:\n"
-    "movq $0xffffffffffffffff, %rax\n"
+    "pushq %rbx\n"
+    "pushq %rcx\n"
+    "pushq %rdx\n"
+    "pushq %rsi\n"
+    "pushq %rdi\n"
+    "pushq %r8\n"
+    "pushq %r9\n"
+    "pushq %r10\n"
+    "pushq %r11\n"
+    "pushq %r12\n"
+    "pushq %r13\n"
+    "pushq %r14\n"
+    "pushq %r15\n"
+    "pushq %rbp\n"
+    "subq $56, %rsp\n"
+    "call polythread_trap_vector_dispatch\n"
+    "addq $56, %rsp\n"
+    "popq %rbp\n"
+    "popq %r15\n"
+    "popq %r14\n"
+    "popq %r13\n"
+    "popq %r12\n"
+    "popq %r11\n"
+    "popq %r10\n"
+    "popq %r9\n"
+    "popq %r8\n"
+    "popq %rdi\n"
+    "popq %rsi\n"
+    "popq %rdx\n"
+    "popq %rcx\n"
+    "popq %rbx\n"
     POLY_OP_TRAP_RETURN
     "ud2\n");
 }
@@ -1422,6 +1456,7 @@ static void *worker_main(void *arg) {
     (uint64_t) (uintptr_t) polythread_trap_vector_handler);
   struct polythread_monitor_packet monitor_packet __attribute__((aligned(64)));
   memset(&monitor_packet, 0, sizeof(monitor_packet));
+  polythread_current_monitor_packet = &monitor_packet;
   poly_monitor_packet_set((uint64_t) (uintptr_t) &monitor_packet);
 
   uint64_t aarch64_trap_number = 200 + worker_id;
@@ -1525,6 +1560,8 @@ static void *worker_main(void *arg) {
       &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, import_id, 0,
       riscv_import_arg0, riscv_import_arg6, riscv_import_arg7) != 0)
     return (void *) 1;
+  poly_monitor_packet_set(0);
+  polythread_current_monitor_packet = 0;
 
   if (wait_for_workers(worker_id, "default-hidden-checked") != 0)
     return (void *) 1;
