@@ -8,14 +8,12 @@ For commands and prototype encodings, see `docs/poly-isa.md`.
 
 - x86_64 is the system ISA: boot, privilege, paging, faults, interrupts,
   atomics, VM control, and global TSO memory ordering stay x86-owned.
-- AArch64 and RISC-V64 are peer user-mode frontends that fetch real native
-  instructions from the same address space. AArch64 uses 4-byte instruction
-  alignment; RISC-V64 uses 2-byte alignment so common RVC objects run without
-  recompilation.
+- AArch64 and RISC-V64 are peer user-mode frontends fetching real native
+  instructions from the same address space.
 - Hardware must not implement Linux, libc, libgcc, libatomic, dynamic-linker
   policy, stack repacking, or user-memory call descriptors.
-- Poly state is explicit XSAVE-style architectural state, not hidden
-  CR3/TLS-keyed emulator state.
+- Poly state is explicit XSAVE-style architectural state, not hidden emulator
+  state.
 - Compatibility targets ordinary native ABIs: x86_64 SysV, AArch64 AAPCS64,
   and RISC-V psABI.
 
@@ -35,20 +33,14 @@ These are decoded control instructions, not `#UD` envelopes.
 
 ## ABI Boundary
 
-Hardware handles the fixed-latency part only: register aliasing at a mode
-switch. Software thunks handle every memory-shaped ABI problem.
+Hardware handles only fixed-latency register aliasing. Software thunks handle
+stack arguments, by-value aggregates, variadics, hidden structure returns, lazy
+binding, incompatible vectors, and all other memory-shaped ABI work.
 
-| Case | Mechanism |
-| --- | --- |
-| Integer, FP, and compatible fixed SIMD args already in native ABI registers | `PCALL ... sig` applies a cached register alias signature. |
-| Stack args, by-value aggregates, variadics, hidden structure returns, lazy binding, incompatible vectors | Loader/runtime thunk marshals memory state, then uses `PCALL`. |
-
-## Register Alias Signatures
-
-The loader/runtime programs a small bank of signature slots. A hot `PCALL`
-selects one slot. On an out-of-order CPU this can be implemented in the rename
-stage by rebinding architectural names to existing physical registers. No data
-moves through execution units, and no memory is touched.
+The loader/runtime programs a small bank of register alias signature slots. A
+hot `PCALL` selects one slot. On an out-of-order CPU this can be implemented in
+rename by rebinding architectural names to existing physical registers; no data
+moves through execution units and no memory is touched.
 
 Example x86_64 SysV to AArch64 AAPCS64 slot:
 
@@ -65,7 +57,7 @@ Example x86_64 SysV to AArch64 AAPCS64 slot:
 Invalid slots trap before changing frontend or PC. Valid slots cannot fault
 because they only rename registers.
 
-The null signature exposes a simple exchange window for thunks:
+The null signature exposes a simple exchange window for low-level thunks:
 
 | Window | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
@@ -77,9 +69,6 @@ The null signature exposes a simple exchange window for thunks:
 | `P5` | `R8` | `x5` | `a5` |
 | `P6` | `R9` | `x6` | `a6` |
 | `P7` | `R10` | `x7` | `a7` |
-
-Native ABI signatures are preferred for direct precompiled-code calls; the
-exchange window is a low-level handoff path, not a replacement ABI.
 
 ## Returns
 
@@ -93,11 +82,11 @@ Same-ISA returns stay normal.
 
 ## State And Traps
 
-The XSAVE-style Poly state component contains frontend state, interrupted PC,
-trap packet, hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD
+The XSAVE-style Poly component contains frontend state, interrupted PC, trap
+packet, hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD
 state, RISC-V GPR/FP state, per-frontend TLS bases, user monitor addresses, and
-landing-pad policy. The OS saves/restores the component without knowing foreign
-register semantics.
+landing-pad policy. The OS saves/restores it without knowing foreign register
+semantics.
 
 Hardware emits precise trap packets for foreign `svc`/`ecall`, breakpoints,
 illegal or unsupported instructions, unresolved imports, and recoverable

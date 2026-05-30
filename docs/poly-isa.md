@@ -1,26 +1,28 @@
 # Poly ISA
 
 Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends so existing
-precompiled libraries can share one virtual address space. It targets native ABI
-compatibility, not a new compiler ABI.
+precompiled libraries can run in one virtual address space. The goal is native
+ABI compatibility, not a new compiler target.
 
-## Difference From x86_64
+## How It Differs From x86_64
 
 - Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64 stays the system ISA for boot, privilege, paging, interrupts, real
-  syscalls, hard faults, atomics, scheduling, and TSO ordering.
-- AArch64 fetches native 32-bit instructions. RISC-V64 fetches native 16/32-bit
-  instructions, including RVC.
-- Cross-ISA calls use decoded control instructions plus register-only ABI
-  signature slots. Memory-shaped ABI work stays in software thunks.
-- Foreign state is explicit XSAVE-style state. Recoverable foreign events are
-  OS-neutral trap packets.
-- No per-instruction `ud2` envelopes, hardware-parsed call descriptors,
-  Linux/libc emulation, or CPU-side dynamic-linker policy.
+- x86_64 remains the system ISA for boot, privilege, paging, faults,
+  interrupts, scheduling, real syscalls, atomics, and TSO ordering.
+- AArch64 and RISC-V64 are user-mode native-instruction frontends.
+- Cross-ISA control uses decoded Poly opcodes, not per-instruction `ud2`
+  envelopes.
+- Fast interop is register-only ABI signature switching. Stack args,
+  aggregates, variadics, lazy binding, and other memory-shaped ABI cases stay in
+  loader/runtime thunks.
+- Foreign state is explicit XSAVE-style architectural state. Recoverable exits
+  are OS-neutral trap packets for a Ring 3 monitor/runtime.
+- Hardware does not emulate Linux, libc, libgcc, libatomic, dynamic-linker
+  policy, or user-memory call descriptors.
 
-## Prototype Encodings
+## Temporary Bochs Encodings
 
-Temporary Bochs encodings stand in for future decoded control opcodes:
+These are prototype encodings for future dedicated decoded control opcodes:
 
 | Frontend | Encoding |
 | --- | --- |
@@ -28,6 +30,12 @@ Temporary Bochs encodings stand in for future decoded control opcodes:
 | AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
-Details: [design directions](poly-isa-design-directions.md),
-[CPUID ABI](../tools/include/polycpuid.h),
-[Bochs control implementation](../bochs-prepoly-src/bochs/cpu/proc_ctrl.cc).
+## Checks
+
+```sh
+make image
+make boot-poly-probe-arch-traps
+make boot-poly-real-xsave-arch-traps
+```
+
+Details: [design directions](poly-isa-design-directions.md), [CPUID ABI](../tools/include/polycpuid.h), [Bochs control implementation](../bochs-prepoly-src/bochs/cpu/proc_ctrl.cc).
