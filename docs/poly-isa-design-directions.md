@@ -8,8 +8,10 @@ For commands and prototype encodings, see `docs/poly-isa.md`.
 
 - x86_64 is the system ISA: boot, privilege, paging, faults, interrupts,
   atomics, VM control, and global TSO memory ordering stay x86-owned.
-- AArch64 and RISC-V64 are peer user-mode frontends that fetch real aligned
-  32-bit instructions from the same address space.
+- AArch64 and RISC-V64 are peer user-mode frontends that fetch real native
+  instructions from the same address space. AArch64 uses 4-byte instruction
+  alignment; RISC-V64 uses 2-byte alignment so common RVC objects run without
+  recompilation.
 - Hardware must not implement Linux, libc, libgcc, libatomic, dynamic-linker
   policy, stack repacking, or user-memory call descriptors.
 - Poly state is explicit XSAVE-style architectural state, not hidden

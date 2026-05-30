@@ -62,6 +62,8 @@ Other useful targets:
   RISC-V can switch or call each other directly without bouncing through x86.
   Foreign instructions are fetched directly; there is no per-instruction `#UD`
   envelope.
+- Frontend fetch uses native ISA widths: AArch64 is 4-byte aligned, while
+  RISC-V uses 2-byte alignment so compressed RVC instructions are legal.
 - Foreign code uses the same x86_64 virtual address space and page permissions.
 - Cross-ISA calls bridge real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
   psABI. This is compatibility glue, not a new `PolyFast` ABI.

@@ -20,8 +20,9 @@ Use `make boot-poly-binfmt-arch-traps` for the binfmt-style loader path and
 - Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
 - x86_64 owns boot, paging, privilege, interrupts, faults, atomics, VM control,
   and TSO memory ordering.
-- Foreign frontends fetch aligned native 32-bit instructions from the same
-  linear address space; the shared frontend PC is `RIP`.
+- Foreign frontends fetch native instructions from the same linear address
+  space; alignment is 4 bytes for AArch64 and 2 bytes for RISC-V64 with RVC.
+  The shared frontend PC is `RIP`.
 - Transitions are decoded control instructions, not `#UD` envelopes.
 - Register-only cross-ISA calls use cached ABI signature slots so hardware can
   remap argument registers in rename/dispatch without moving data.
