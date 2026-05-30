@@ -3635,8 +3635,8 @@ static void emit_x86_pop_callee_regs(uint8_t *code, size_t *offset) {
 static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int arch, int call_kind, uint64_t target,
     uint64_t tls, uint64_t heap, uint64_t import_x86_table,
-    int needs_x86_import, uint64_t state_key, uint64_t *stub_addr,
-    size_t *target_imm_offset) {
+    int needs_x86_import, uint64_t state_key, uint32_t vec128_signature_slot,
+    uint64_t *stub_addr, size_t *target_imm_offset) {
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
   const size_t start = *stub_offset;
@@ -3653,10 +3653,25 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
   if (needs_x86_import)
     emit_movabs_r12(stubs, stub_offset, import_x86_table);
   emit_x86_state_key_set(stubs, stub_offset, state_key);
-  stubs[(*stub_offset)++] = 0x0f;
-  stubs[(*stub_offset)++] = 0x3a;
-  stubs[(*stub_offset)++] = 0xfc;
-  stubs[(*stub_offset)++] = pcall_opcode_for_call_kind(arch, call_kind);
+  if (call_kind == POLY_CALL_VEC128_U32) {
+    stubs[(*stub_offset)++] = 0x4c; // mov rbx,r10: target operand.
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd3;
+    stubs[(*stub_offset)++] = 0x41; // mov r15d,frontend ID.
+    stubs[(*stub_offset)++] = 0xbf;
+    emit_u32(stubs, stub_offset, (uint32_t) arch);
+    stubs[(*stub_offset)++] = 0x0f;
+    stubs[(*stub_offset)++] = 0x3a;
+    stubs[(*stub_offset)++] = 0xfc;
+    stubs[(*stub_offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+    stubs[(*stub_offset)++] = (uint8_t) vec128_signature_slot;
+  }
+  else {
+    stubs[(*stub_offset)++] = 0x0f;
+    stubs[(*stub_offset)++] = 0x3a;
+    stubs[(*stub_offset)++] = 0xfc;
+    stubs[(*stub_offset)++] = pcall_opcode_for_call_kind(arch, call_kind);
+  }
   write_le64(stubs + return_imm_offset,
     (uint64_t) (uintptr_t) (stubs + *stub_offset));
   emit_x86_pop_callee_regs(stubs, stub_offset);
@@ -10038,8 +10053,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             &cross_stub_offset, program->arch, result_call_kind,
             fini_result_target, (uint64_t) (uintptr_t) tls,
             (uint64_t) (uintptr_t) import_page, import_x86_table,
-            needs_x86_import, stub_state_key, &direct_stub,
-            &direct_target_imm_offset) < 0) {
+            needs_x86_import, stub_state_key, cross_vec128_signature_slot,
+            &direct_stub, &direct_target_imm_offset) < 0) {
         fprintf(stderr,
           "POLYCALL_FAIL: fini result direct x86 stub overflow: %s\n",
           program->path);
@@ -10218,8 +10233,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               &cross_stub_offset, program->arch, result_call_kind,
               call_target, (uint64_t) (uintptr_t) tls,
               (uint64_t) (uintptr_t) import_page, import_x86_table,
-              needs_x86_import, stub_state_key, &direct_stub,
-              &direct_target_imm_offset) < 0) {
+              needs_x86_import, stub_state_key, cross_vec128_signature_slot,
+              &direct_stub, &direct_target_imm_offset) < 0) {
           fprintf(stderr,
             "POLYCALL_FAIL: dependency fini result direct x86 stub overflow: %s\n",
             program->deps[dep_index].path);
