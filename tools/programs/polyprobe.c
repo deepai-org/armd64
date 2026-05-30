@@ -261,6 +261,15 @@ static int expect_monitor_packet_header(const char *label,
   return 0;
 }
 
+static int polyprobe_monitor_packet_contract_valid(
+    const struct polyprobe_monitor_packet *packet) {
+  return packet->trap.resume_pc != 0 &&
+    packet->trap.reserved[0] == 0 &&
+    packet->trap.reserved[1] == 0 &&
+    (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) ==
+      POLY_TRAP_PACKET_REQUIRED_FLAGS;
+}
+
 __attribute__((noinline, used))
 uint64_t polyprobe_trap_vector_dispatch(void) {
   const struct polyprobe_monitor_packet *monitor_packet =
@@ -268,6 +277,8 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
   if (monitor_packet == 0)
     return (uint64_t) -38;
   const struct polyprobe_monitor_packet packet = *monitor_packet;
+  if (!polyprobe_monitor_packet_contract_valid(&packet))
+    return (uint64_t) -38;
   const uint64_t reason = packet.trap.reason;
   const uint64_t mode = packet.trap.source_mode;
   const uint64_t number = packet.trap.number;
