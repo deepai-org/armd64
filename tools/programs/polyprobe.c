@@ -255,7 +255,7 @@ __attribute__((noinline, used))
 uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
     uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5) {
+    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
   (void) pc;
   (void) arg1;
   (void) arg2;
@@ -269,7 +269,8 @@ uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
-  if (reason == POLY_TRAP_IMPORT && number == 8)
+  if (reason == POLY_TRAP_IMPORT && number == 8 && arg0 == 77 &&
+      arg6 == 88 && arg7 == 99)
     return 5555;
   if (reason == POLY_TRAP_ILLEGAL && number == 0xffffffffULL &&
       selector == 4)
@@ -294,6 +295,8 @@ static void polyprobe_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
+    "pushq %r14\n"
+    "pushq %r13\n"
     "pushq %r12\n"
     "pushq %r11\n"
     "pushq %r10\n"
@@ -307,7 +310,7 @@ static void polyprobe_trap_vector_handler(void) {
     "movq %rbx, %rsi\n"
     "movq %rax, %rdi\n"
     "call polyprobe_trap_vector_dispatch\n"
-    "addq $40, %rsp\n"
+    "addq $56, %rsp\n"
     "popq %rbp\n"
     "popq %r15\n"
     "popq %r14\n"
