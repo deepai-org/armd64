@@ -1,9 +1,7 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly is a multi-frontend CPU extension. x86_64 remains the system ISA for boot,
-privilege, paging, interrupts, faults, atomics, and the effective TSO memory
-model. AArch64 and RISC-V64 are user-mode frontends that fetch real 32-bit
-instructions from the same x86_64 virtual address space.
+Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU.
+x86_64 still owns boot, privilege, paging, interrupts, faults, atomics, and TSO.
 
 ## Run
 
@@ -13,53 +11,48 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## What Changes From x86_64
+## Contract
 
-- x86_64 owns all privileged state; foreign frontends are user-mode only.
-- Foreign code uses the same addresses, page permissions, stack memory, and TSO
-  ordering as x86_64 code.
-- Foreign fetch is direct native fetch. There is no per-instruction `#UD`
-  envelope.
-- Mode switches use decoded Poly control operations, not exception side effects.
-- Compatibility targets ordinary precompiled SysV x86_64, AAPCS64, and RISC-V
-  psABI objects, not a new compiler-only ABI.
-- Fast cross-ISA calls are register-only. Stack arguments, aggregates,
-  variadics, lazy binding, and complex ABI reshaping stay in software thunks.
+- Foreign code fetches real 32-bit instructions from the same virtual address
+  space as x86_64.
+- Foreign frontends are user-mode only and share x86_64 page permissions, stack
+  memory, and memory ordering.
+- Mode switches are decoded Poly operations, not `#UD` exceptions.
+- The target is ordinary precompiled SysV x86_64, AAPCS64, and RISC-V psABI
+  code.
+- Hardware handles frontend switching, return state, explicit Poly state,
+  traps, and register-only ABI signatures.
+- Software handles stack arguments, aggregates, variadics, lazy binding, and
+  complex ABI reshaping.
 
-## Control Operations
+## Operations
 
 - `PENTER frontend`: enter a frontend from runtime/system code.
-- `PSWITCH frontend,target`: switch frontend and branch without a return.
-- `PCALL frontend,target,sig`: switch frontend, branch, and apply a cached
-  register ABI signature slot.
+- `PSWITCH frontend,target`: switch frontend and branch without return state.
+- `PCALL frontend,target,sig`: switch frontend, branch, save return state, and
+  apply cached register ABI signature `sig`.
 - `PTRAPRET`: resume after a precise Poly trap.
 
-Prototype encodings are temporary: x86_64 uses `0f 3a fc <subop>`, AArch64
-uses a reserved `HINT` subspace, RISC-V uses `custom-0`, and Poly architectural
-state is exposed as XSAVE component `20`.
+Prototype encodings are temporary: x86_64 `0f 3a fc <subop>`, AArch64 reserved
+`HINT`, RISC-V `custom-0`, Poly state XSAVE component `20`.
 
-## ABI Boundary
+## ABI
 
-`PCALL` is intentionally small: it changes frontend, target PC, return state,
-and optionally applies a register-only ABI signature. Hardware must not parse
-user-memory call descriptors or repack stack layouts.
+`PCALL` does not parse user-memory descriptors or repack stack layouts. Its
+optional signature only remaps register names, such as SysV
+`RDI,RSI,RDX,RCX,R8,R9` to AAPCS64 `x0..x5` or RISC-V `a0..a5`.
 
-Signature slots can map native ABI register lanes, for example SysV
-`RDI,RSI,RDX,RCX,R8,R9` to AAPCS64 `x0..x5` or RISC-V `a0..a5`. The first
-eight native foreign ABI argument registers are preserved in Poly trap/import
-packets, so runtimes can handle full AAPCS64 `x0..x7` and RISC-V `a0..a7`
-boundaries.
+The first eight native foreign argument registers are preserved in trap/import
+packets so runtimes can handle full `x0..x7` / `a0..a7` boundaries.
 
 ## State And Traps
 
 Foreign-only registers, ABI signature slots, trap packets, transition-stack
-state, and monitor controls are explicit XSAVE-style architectural state. The
-prototype's explicit state import layout version is `3`.
+state, and monitor controls are explicit XSAVE-style architectural state.
+Current explicit state import layout version: `3`.
 
 Foreign `svc`/`ecall`, breakpoints, illegal instructions, unresolved imports,
-and recoverable faults produce OS-neutral trap packets. The CPU reports facts;
-runtime or OS policy decides whether to translate syscalls, bind symbols, call
-helpers, deliver signals, or terminate.
+and recoverable faults produce OS-neutral trap packets. Hardware reports the
+event; runtime or OS policy decides how to handle it.
 
-Detailed rationale and future hardware direction live in
-`docs/poly-isa-design-directions.md`.
+Detailed rationale: `docs/poly-isa-design-directions.md`.
