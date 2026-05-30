@@ -1,8 +1,9 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds raw AArch64 and RISC-V64 userspace frontends to x86_64. x86_64
-remains the system ISA; compatibility targets existing SysV x86_64, AAPCS64,
-and RISC-V psABI code.
+Poly is an x86_64 extension that can execute raw AArch64 and RISC-V64
+userspace code in the same virtual address space. x86_64 stays the system ISA;
+the compatibility target is existing SysV x86_64, AAPCS64, and RISC-V psABI
+objects.
 
 ## Run
 
@@ -15,36 +16,29 @@ rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.
 Focused boots: `boot-poly-probe-arch-traps`, `boot-poly-bench-arch-traps`,
 `boot-poly-thread-arch-traps`.
 
-## x86_64 Delta
+## What Changes From x86_64
 
-- Frontends: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
+- Frontends are `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
 - Foreign modes fetch native 32-bit instructions from x86_64 virtual memory.
-- x86_64 page permissions and TSO ordering apply in every mode.
-- Poly controls are decoded instructions, not `#UD` envelopes.
-- Poly state is XSAVE-style component `20`.
-- Syscalls, imports, breakpoints, and illegal instructions produce userspace
+- x86_64 paging, protection, and TSO ordering apply in every mode.
+- `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING` are decoded control
+  instructions, not `#UD` envelopes.
+- `PCALL` switches frontend, branches, saves cross-return state, and applies a
+  register-only ABI signature.
+- Poly state is an XSAVE-style component, currently prototype component `20`.
+- Syscalls, imports, breakpoints, and illegal instructions become userspace
   monitor trap packets.
 
-## Instructions
+Hardware owns frontend switching, cross-return cookies, XSAVE state,
+register-only ABI remapping, landing checks, and precise trap packets. Runtime
+code owns stack arguments, aggregates, variadics, lazy binding, syscalls,
+libcalls, and memory-side ABI conversion.
 
-- `PENTER frontend`: enter a foreign frontend.
-- `PSWITCH frontend,target`: switch frontend and branch.
-- `PCALL frontend,target,sig`: switch, branch, save cross-return state, and
-  apply register-only ABI signature `sig`.
-- `PTRAPRET`: resume from a monitor trap.
-- `PLANDING`: mark a legal indirect landing site.
+## Prototype Encodings
 
-## Hardware Boundary
+- x86_64: `0f 3a fc <subop>`
+- AArch64: `0xd503201f | ((subop & 0x7f) << 5)`
+- RISC-V64: `0x0000700b | ((subop & 0x7f) << 25)`
+- CPUID base: `0x40000000`
 
-Hardware handles frontend switching, cross-return cookies, XSAVE state,
-register-only ABI remapping, landing checks, and precise trap packets.
-Runtime code handles stack arguments, aggregates, variadics, lazy binding,
-syscalls, libcalls, and memory-side ABI conversion.
-
-## Prototype
-
-Encodings: x86_64 `0f 3a fc <subop>`, AArch64
-`0xd503201f | ((subop & 0x7f) << 5)`, RISC-V64
-`0x0000700b | ((subop & 0x7f) << 25)`. CPUID base: `0x40000000`.
-
-Design rationale: `docs/poly-isa-design-directions.md`.
+Design details live in `docs/poly-isa-design-directions.md`.
