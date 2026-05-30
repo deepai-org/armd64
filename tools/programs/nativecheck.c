@@ -6896,6 +6896,12 @@ int main(void) {
         abi_bridge.ebx);
       return 1;
     }
+    if ((abi_bridge.ebx &
+          POLY_ABI_BRIDGE_FLAG_REGISTER_MAP_SIGNATURES) == 0) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: ABI register-map signature support not advertised ebx=0x%x\n",
+        abi_bridge.ebx);
+      return 1;
+    }
     if (abi_bridge.eax != expected_abi_bridge.eax ||
         abi_bridge.ebx != expected_abi_bridge.ebx ||
         abi_bridge.ecx != expected_abi_bridge.ecx ||

@@ -2118,6 +2118,12 @@ int main(void) {
       poly_abi_bridge.ebx, forbidden_abi_bridge);
     return 1;
   }
+  if ((poly_abi_bridge.ebx &
+        POLY_ABI_BRIDGE_FLAG_REGISTER_MAP_SIGNATURES) == 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: ABI register-map signature support not advertised ebx=0x%x\n",
+      poly_abi_bridge.ebx);
+    return 1;
+  }
   if (poly_abi_bridge.eax != expected_abi_bridge.eax ||
       poly_abi_bridge.ebx != expected_abi_bridge.ebx ||
       poly_abi_bridge.ecx != expected_abi_bridge.ecx ||
