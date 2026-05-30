@@ -1,4 +1,4 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
 ## Run
 
@@ -8,34 +8,33 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Other targets: `make boot-poly-arch-traps`, `make boot-poly-neutral-arch-traps`,
+Useful targets: `make boot-poly-arch-traps`, `make boot-poly-neutral-arch-traps`,
 `make boot-poly-call-arch-traps`, `make boot-poly-full-arch-traps`.
 
-## What Changes From x86_64
+## Model
 
-Poly lets one x86_64 user process run existing x86_64, AArch64, and RISC-V64
-code in one virtual address space. x86_64 remains the system ISA for boot,
-privilege, paging, interrupts, faults, atomics, virtual memory, and TSO memory
-ordering.
+Poly keeps x86_64 as the system ISA and adds AArch64/RISC-V64 user-mode
+frontends inside the same virtual address space.
 
-AArch64 and RISC-V64 are user-mode frontends. They fetch normal aligned 32-bit
-instructions from the shared `RIP` stream and enter/exit through decoded Poly
-control instructions, not per-instruction `#UD` envelopes.
+- x86_64 owns boot, privilege, paging, interrupts, faults, atomics, VM, and TSO.
+- AArch64/RISC-V64 fetch normal aligned 32-bit instructions from shared `RIP`.
+- Poly transitions are decoded control instructions, not `#UD` trap envelopes.
+- Foreign state is explicit XSAVE-style architectural state.
+- Runtime-visible trap packets handle syscalls, breakpoints, illegal
+  instructions, imports, and policy exits without OS-specific hardware.
 
-Non-x86 state is explicit XSAVE-style architectural state. Syscalls,
-breakpoints, illegal instructions, unresolved imports, and policy exits produce
-user/runtime trap packets so hardware stays OS-neutral. ABI-simple calls can use
-register alias/signature slots; stack/aggregate/variadic calls use software
-thunks.
+Fast cross-ISA calls use register alias/signature slots. Calls needing stack
+repacking, aggregate ABI rules, or variadic handling use software thunks.
 
-## Control And Encodings
+## Encodings
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64. Operations: `PENTER`,
-`PSWITCH`, `PCALL`, `PTRAPRET`, `PLANDING`.
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+
+Operations: `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, `PLANDING`.
 
 - CPUID base leaf `0x40000000`; XSAVE component `20`; state layout `8`
 - x86_64: `0f 3a fc <subop>`
 - AArch64: `0xd503201f | ((subop & 0x7f) << 5)`
 - RISC-V64: `0x0000700b | ((subop & 0x7f) << 25)`
 
-Full design notes: `docs/poly-isa-design-directions.md`.
+Full design: `docs/poly-isa-design-directions.md`.
