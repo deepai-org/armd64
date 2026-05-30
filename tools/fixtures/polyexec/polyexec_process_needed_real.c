@@ -44,6 +44,23 @@ static long poly_syscall3(long number, long arg0, long arg1, long arg2) {
       : "r"(a1), "r"(a2), "r"(a7)
       : "memory");
   return a0;
+#elif defined(__x86_64__)
+  long x86_number = number;
+  if (number == POLY_SYS_WRITE)
+    x86_number = 1;
+  else if (number == POLY_SYS_EXIT)
+    x86_number = 60;
+  else if (number == POLY_SYS_EXIT_GROUP)
+    x86_number = 231;
+  register long rax __asm__("rax") = x86_number;
+  register long rdi __asm__("rdi") = arg0;
+  register long rsi __asm__("rsi") = arg1;
+  register long rdx __asm__("rdx") = arg2;
+  __asm__ volatile("syscall"
+      : "+a"(rax)
+      : "r"(rdi), "r"(rsi), "r"(rdx)
+      : "rcx", "r11", "memory");
+  return rax;
 #else
 #error unsupported architecture
 #endif
@@ -706,6 +723,19 @@ __asm__(
   "li a7, 93\n"
 #endif
   "ecall\n");
+#elif defined(__x86_64__)
+__asm__(
+  ".global _start\n"
+  ".type _start, @function\n"
+  "_start:\n"
+  "call poly_process_main\n"
+  "mov %eax, %edi\n"
+#if defined(POLY_PROCESS_FINI_EXIT_GROUP_MAIN)
+  "mov $231, %rax\n"
+#else
+  "mov $60, %rax\n"
+#endif
+  "syscall\n");
 #else
 #error unsupported architecture
 #endif

@@ -113,6 +113,46 @@ extern char **environ;
 #define R_RISCV_TLS_TPREL64 11
 #endif
 
+#ifndef R_X86_64_NONE
+#define R_X86_64_NONE 0
+#endif
+
+#ifndef R_X86_64_64
+#define R_X86_64_64 1
+#endif
+
+#ifndef R_X86_64_COPY
+#define R_X86_64_COPY 5
+#endif
+
+#ifndef R_X86_64_GLOB_DAT
+#define R_X86_64_GLOB_DAT 6
+#endif
+
+#ifndef R_X86_64_JUMP_SLOT
+#define R_X86_64_JUMP_SLOT 7
+#endif
+
+#ifndef R_X86_64_RELATIVE
+#define R_X86_64_RELATIVE 8
+#endif
+
+#ifndef R_X86_64_DTPMOD64
+#define R_X86_64_DTPMOD64 16
+#endif
+
+#ifndef R_X86_64_DTPOFF64
+#define R_X86_64_DTPOFF64 17
+#endif
+
+#ifndef R_X86_64_TPOFF64
+#define R_X86_64_TPOFF64 18
+#endif
+
+#ifndef R_X86_64_IRELATIVE
+#define R_X86_64_IRELATIVE 37
+#endif
+
 #ifndef DT_RELR
 #define DT_RELR 36
 #endif
@@ -226,6 +266,7 @@ extern char **environ;
 #endif
 
 enum {
+  POLY_ARCH_X86 = POLY_FRONTEND_X86,
   POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
@@ -321,6 +362,8 @@ static struct poly_cross_stub_arena process_cross_stubs;
 static size_t process_cross_state_key_stub_count;
 static size_t process_cross_aarch64_to_riscv_stub_count;
 static size_t process_cross_riscv_to_aarch64_stub_count;
+static size_t process_cross_aarch64_to_x86_stub_count;
+static size_t process_cross_riscv_to_x86_stub_count;
 static int process_cross_state_key_stub_reported;
 static const char *process_cross_report_path;
 
@@ -861,6 +904,8 @@ static uint32_t relative_reloc_type_for_arch(int arch) {
     return R_AARCH64_RELATIVE;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_RELATIVE;
+  if (arch == POLY_ARCH_X86)
+    return R_X86_64_RELATIVE;
   return 0;
 }
 
@@ -870,6 +915,9 @@ static int symbolic_64_reloc_type_for_arch(int arch, uint32_t type) {
       type == R_AARCH64_JUMP_SLOT;
   if (arch == POLY_ARCH_RISCV)
     return type == R_RISCV_64 || type == R_RISCV_JUMP_SLOT;
+  if (arch == POLY_ARCH_X86)
+    return type == R_X86_64_64 || type == R_X86_64_GLOB_DAT ||
+      type == R_X86_64_JUMP_SLOT;
   return 0;
 }
 
@@ -878,6 +926,8 @@ static uint32_t irelative_reloc_type_for_arch(int arch) {
     return R_AARCH64_IRELATIVE;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_IRELATIVE;
+  if (arch == POLY_ARCH_X86)
+    return R_X86_64_IRELATIVE;
   return UINT32_MAX;
 }
 
@@ -886,6 +936,8 @@ static uint32_t tls_tprel_reloc_type_for_arch(int arch) {
     return R_AARCH64_TLS_TPREL64;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_TLS_TPREL64;
+  if (arch == POLY_ARCH_X86)
+    return R_X86_64_TPOFF64;
   return UINT32_MAX;
 }
 
@@ -894,6 +946,8 @@ static uint32_t none_reloc_type_for_arch(int arch) {
     return R_AARCH64_NONE;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_NONE;
+  if (arch == POLY_ARCH_X86)
+    return R_X86_64_NONE;
   return UINT32_MAX;
 }
 
@@ -902,6 +956,8 @@ static uint32_t copy_reloc_type_for_arch(int arch) {
     return R_AARCH64_COPY;
   if (arch == POLY_ARCH_RISCV)
     return R_RISCV_COPY;
+  if (arch == POLY_ARCH_X86)
+    return R_X86_64_COPY;
   return UINT32_MAX;
 }
 
@@ -3754,14 +3810,20 @@ static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
     process_cross_aarch64_to_riscv_stub_count++;
   else if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)
     process_cross_riscv_to_aarch64_stub_count++;
+  else if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_X86)
+    process_cross_aarch64_to_x86_stub_count++;
+  else if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_X86)
+    process_cross_riscv_to_x86_stub_count++;
 
   if (!process_cross_state_key_stub_reported) {
     printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
     process_cross_state_key_stub_reported = 1;
   }
-  printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu total=%zu path=%s\n",
+  printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu a64_to_x86=%zu rv_to_x86=%zu total=%zu path=%s\n",
     process_cross_aarch64_to_riscv_stub_count,
     process_cross_riscv_to_aarch64_stub_count,
+    process_cross_aarch64_to_x86_stub_count,
+    process_cross_riscv_to_x86_stub_count,
     process_cross_state_key_stub_count,
     process_cross_report_path ? process_cross_report_path : "(unknown)");
   fflush(NULL);
@@ -3831,8 +3893,12 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     *stub_addr = target;
     return 0;
   }
-  if (!((caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) ||
-        (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)))
+  if (!((caller_arch == POLY_ARCH_AARCH64 &&
+          (callee_arch == POLY_ARCH_RISCV || callee_arch == POLY_ARCH_X86)) ||
+        (caller_arch == POLY_ARCH_RISCV &&
+          (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_X86))))
+    return -1;
+  if (callee_arch == POLY_ARCH_X86 && bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT)
     return -1;
   if (ensure_process_cross_stub_arena() < 0 ||
       align_up_size(process_cross_stubs.offset, 8,
@@ -3845,6 +3911,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   const uint64_t state_key =
     (uint64_t) (uintptr_t) &poly_state_key_anchor;
   const int is_compact_bridge = process_bridge_is_compact(bridge_kind);
+  const uint32_t callee_frontend = callee_arch == POLY_ARCH_AARCH64 ?
+    POLY_ARCH_AARCH64 :
+    callee_arch == POLY_ARCH_RISCV ? POLY_ARCH_RISCV : POLY_ARCH_X86;
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (process_cross_stubs.size - start < 128)
@@ -3863,7 +3932,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     if (is_compact_bridge)
       emit_process_aarch64_compact_pre_pcall(code, &offset, bridge_kind);
     emit_aarch64_movabs(code, &offset, 16, target);
-    emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+    emit_u32(code, &offset,
+      0xd2800011U | ((callee_frontend & 0xffffU) << 5)); // movz x17,frontend
     emit_aarch64_movabs(code, &offset, 18, return_addr);
     emit_u32(code, &offset, aarch64_pcall_sig_imm(signature_slot));
     if (is_compact_bridge)
@@ -3884,7 +3954,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  emit_u32(code, &offset, riscv_addi(6, 0, callee_frontend)); // frontend
   const size_t auipc_return_pc = offset;
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
@@ -4062,10 +4132,12 @@ static int apply_relative_relocations(const struct poly_program *program,
     R_AARCH64_TLSDESC : UINT32_MAX;
   const uint32_t tls_dtpmod_type = program->arch == POLY_ARCH_AARCH64 ?
     R_AARCH64_TLS_DTPMOD64 :
-    program->arch == POLY_ARCH_RISCV ? R_RISCV_TLS_DTPMOD64 : UINT32_MAX;
+    program->arch == POLY_ARCH_RISCV ? R_RISCV_TLS_DTPMOD64 :
+    program->arch == POLY_ARCH_X86 ? R_X86_64_DTPMOD64 : UINT32_MAX;
   const uint32_t tls_dtprel_type = program->arch == POLY_ARCH_AARCH64 ?
     R_AARCH64_TLS_DTPREL64 :
-    program->arch == POLY_ARCH_RISCV ? R_RISCV_TLS_DTPREL64 : UINT32_MAX;
+    program->arch == POLY_ARCH_RISCV ? R_RISCV_TLS_DTPREL64 :
+    program->arch == POLY_ARCH_X86 ? R_X86_64_DTPOFF64 : UINT32_MAX;
   const uint64_t load_bias = (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   if (rela_vaddr && rela_size) {
     if (rela_ent < sizeof(Elf64_Rela) || rela_size % rela_ent)
@@ -4605,6 +4677,11 @@ static int detect_arch(uint16_t machine, struct poly_program *program) {
     program->arch_name = "riscv";
     return 0;
   }
+  if (machine == EM_X86_64) {
+    program->arch = POLY_ARCH_X86;
+    program->arch_name = "x86_64";
+    return 0;
+  }
   return -1;
 }
 
@@ -4969,6 +5046,11 @@ static int load_elf_program(const char *path, const char *symbol_name,
       break;
     }
   }
+  if (ehdr->e_type == ET_DYN &&
+      (!symbol_name || symbol_name[0] == '\0') && entry_vaddr == 0) {
+    entry_in_exec = 1;
+    entry_vaddr = base_vaddr;
+  }
   if (!entry_in_exec || entry_vaddr < base_vaddr || entry_vaddr >= limit_vaddr) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported ELF entry image: %s\n", path);
     free(program->code_bytes);
@@ -5283,6 +5365,8 @@ static const char *process_platform_name_for_arch(int arch) {
     return "aarch64";
   if (arch == POLY_ARCH_RISCV)
     return "riscv";
+  if (arch == POLY_ARCH_X86)
+    return "x86_64";
   return NULL;
 }
 
@@ -5800,6 +5884,8 @@ static int emit_and_run_process(struct poly_program *program,
   process_cross_state_key_stub_count = 0;
   process_cross_aarch64_to_riscv_stub_count = 0;
   process_cross_riscv_to_aarch64_stub_count = 0;
+  process_cross_aarch64_to_x86_stub_count = 0;
+  process_cross_riscv_to_x86_stub_count = 0;
   process_cross_state_key_stub_reported = 0;
 
   const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
