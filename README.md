@@ -47,7 +47,9 @@ Other useful targets:
 
 - x86_64 stays the system ISA for privilege, page tables, interrupts, faults,
   atomics, virtual memory, and TSO memory ordering.
-- The poly extension adds frontend switches into raw AArch64 or RISC-V fetch.
+- The poly extension adds generic frontend-ID controls for entering,
+  switching, and calling x86_64, AArch64, and RISC-V frontends. AArch64 and
+  RISC-V can switch or call each other directly without bouncing through x86.
   Foreign instructions are fetched directly; there is no per-instruction `#UD`
   envelope.
 - Foreign code uses the same x86_64 virtual address space and page permissions.
