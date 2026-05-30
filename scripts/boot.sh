@@ -5058,6 +5058,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pair-frame.elf" 0xd2800360 0xd2800101 0xa9bf07e0 0xd2800000 0xd2800001 0xa8c107e0 0x8b010000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-hints.elf" 0xd2800360 0xd503203f 0xd503205f 0xd503207f 0xd503209f 0xd50320bf 0xd503245f 0xd503233f 0xd50323bf 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prfm.elf" 0xd2800360 0xf98003e0 0xf88003e0 0xf8a06be0 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dczva.elf" 0xd10403ff 0xd2800aa0 0x910203e1 0x927ae421 0xf9000020 0xd50b7421 0xf9400020 0x910403ff 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-strlen.elf" 0xd4200020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memfill.elf" 0xd2800821 0xd2800082 0xd4200040
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memcmp.elf" 0x91000401 0xd2800082 0xd4200060
@@ -5818,6 +5819,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pair-frame.elf=35 \
     /usr/lib/polyapps/aarch64-hints.elf=27 \
     /usr/lib/polyapps/aarch64-prfm.elf=27 \
+    /usr/lib/polyapps/aarch64-dczva.elf=0 \
     /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
@@ -7166,8 +7168,9 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-adrp.elf=42 \
     /usr/lib/polyapps/aarch64-pcall-cond.elf=42 \
     /usr/lib/polyapps/aarch64-hints.elf=27 \
-    /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
     /usr/lib/polyapps/aarch64-prfm.elf=27 \
+    /usr/lib/polyapps/aarch64-dczva.elf=0 \
+    /usr/lib/polyapps/aarch64-pcall-split-load.elf=123 \
     /usr/lib/polyapps/aarch64-pcall-none-reloc.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf#poly_entry=123 \
     /usr/lib/polyapps/aarch64-pcall-rel.elf#poly_entry=123 \
@@ -7826,6 +7829,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pair-frame.elf \
       /usr/lib/polyapps/aarch64-hints.elf \
       /usr/lib/polyapps/aarch64-prfm.elf \
+      /usr/lib/polyapps/aarch64-dczva.elf \
       /usr/lib/polyapps/aarch64-pcall-split-load.elf \
       /usr/lib/polyapps/aarch64-polyexec-gnu-hash-real.so \
       /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
@@ -8209,6 +8213,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-pair-frame.elf \
     /usr/lib/polyapps/aarch64-hints.elf \
     /usr/lib/polyapps/aarch64-prfm.elf \
+    /usr/lib/polyapps/aarch64-dczva.elf \
     /usr/lib/polyapps/aarch64-pcall-split-load.elf \
     /usr/lib/polyapps/aarch64-pcall-dynrel.elf \
     /usr/lib/polyapps/aarch64-pcall-rel.elf \
