@@ -20,6 +20,8 @@ Other useful targets:
 
 - `make boot`: plain x86_64 sanity check.
 - `make boot-poly-arch-traps`: raw foreign trap/syscall tests.
+- `make boot-poly-neutral-arch-traps`: direct AArch64<->RISC-V generic switch
+  and call tests.
 - `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
 - `make boot-poly-full-arch-traps`: broad regression run.
 
@@ -27,8 +29,8 @@ Other useful targets:
 
 - The broad regression target boots an Alpine-based x86_64 initramfs under
   Bochs and runs native x86 checks plus AArch64/RISC-V raw execution,
-  syscalls/traps, cross-ISA calls, threads, signals, benchmarks, and binfmt
-  smoke tests.
+  syscalls/traps, direct AArch64<->RISC-V generic transitions, cross-ISA calls,
+  threads, signals, benchmarks, and binfmt smoke tests.
 - The Bochs prototype implements a large compatibility subset for compiled
   AArch64 and RISC-V userspace, including integer, FP, fixed 128-bit vector,
   atomics, TLS, ELF relocation, dynamic linking, and import/syscall trap paths.
