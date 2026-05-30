@@ -28,6 +28,8 @@ extern char **environ;
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
+#define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"
+#define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 
@@ -274,6 +276,7 @@ struct poly_request {
 };
 
 static uint32_t process_native_signature_slot = 3;
+static __thread uint8_t poly_state_key_anchor;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
 
@@ -313,6 +316,31 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t target, uint64_t *stub_addr);
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
+
+static uint64_t poly_state_key_set(uint64_t value) {
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  return value;
+}
+
+static uint64_t poly_state_key_get(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
+  return value;
+}
+
+static int install_poly_thread_state_key(void) {
+  const uint64_t key = (uint64_t) (uintptr_t) &poly_state_key_anchor;
+  if (key == 0 || poly_state_key_set(key) != 0 ||
+      poly_state_key_get() != key) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: explicit Poly state-key setup failed key=0x%llx got=0x%llx\n",
+      (unsigned long long) key, (unsigned long long) poly_state_key_get());
+    return -1;
+  }
+  printf("POLYEXEC_STATE_KEY: explicit=1 key=0x%llx\n",
+    (unsigned long long) key);
+  return 0;
+}
 
 static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
@@ -5533,6 +5561,8 @@ int main(int argc, char **argv) {
   const int use_trap_vector =
     trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0;
   if (read_poly_base_contract(use_trap_vector) < 0)
+    return 1;
+  if (install_poly_thread_state_key() < 0)
     return 1;
   if (use_trap_vector)
     install_poly_trap_vector();

@@ -8841,6 +8841,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -q "POLYEXEC_STATE_KEY: explicit=1" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -9018,6 +9022,10 @@ EOF
       fi
       if [[ "$RUN_POLY_CALL" == "1" ]]; then
         if ! grep -q "POLYCALL_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "POLYCALL_STATE_KEY: explicit=1" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

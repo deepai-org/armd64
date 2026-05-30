@@ -327,6 +327,9 @@ static const uint32_t POLY_CPUID_FORBIDDEN_FEATURES =
   POLY_CPUID_FEATURE_FP64_STACK_ARGS |
   POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK;
 
+#define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"
+#define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
+
 enum {
   POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
@@ -808,6 +811,7 @@ static struct poly_atexit_callback poly_atexit_callbacks[MAX_ATEXIT_CALLBACKS];
 static size_t poly_atexit_callback_count;
 static uint8_t *poly_atexit_call_code;
 static size_t poly_atexit_target_imm_offset;
+static __thread uint8_t poly_state_key_anchor;
 
 void poly_runtime_reset_atexit_callbacks(void)
 {
@@ -876,6 +880,31 @@ static int read_poly_base_contract(void) {
     return -1;
   }
 
+  return 0;
+}
+
+static uint64_t poly_state_key_set(uint64_t value) {
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  return value;
+}
+
+static uint64_t poly_state_key_get(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
+  return value;
+}
+
+static int install_poly_thread_state_key(void) {
+  const uint64_t key = (uint64_t) (uintptr_t) &poly_state_key_anchor;
+  if (key == 0 || poly_state_key_set(key) != 0 ||
+      poly_state_key_get() != key) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: explicit Poly state-key setup failed key=0x%llx got=0x%llx\n",
+      (unsigned long long) key, (unsigned long long) poly_state_key_get());
+    return -1;
+  }
+  printf("POLYCALL_STATE_KEY: explicit=1 key=0x%llx\n",
+    (unsigned long long) key);
   return 0;
 }
 
@@ -10248,6 +10277,10 @@ int main(int argc, char **argv) {
   }
 
   puts("POLYCALL: start");
+  if (read_poly_base_contract() < 0 ||
+      install_poly_thread_state_key() < 0)
+    return 1;
+
   for (int n = 1; n < argc; n++) {
     struct poly_request request;
     if (parse_request(argv[n], &request) < 0)
