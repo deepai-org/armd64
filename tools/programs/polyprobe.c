@@ -798,6 +798,40 @@ static inline void riscv_generic_call_aarch64_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void export_live_cross_return_state_probe(
+    struct poly_xsave_state *state) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rdx\n" // AArch64 -> RISC-V target.
+    "leaq 3f(%%rip), %%rcx\n" // AArch64 return site.
+    "leaq 4f(%%rip), %%rdi\n" // RISC-V -> x86 helper target.
+    "leaq 2f(%%rip), %%rsi\n" // RISC-V return site after helper.
+    "movq %0, %%rax\n"        // AArch64 x0 / RISC-V a0: state buffer.
+    POLY_OP_ENTER_A64
+    ".long 0xaa0103f0\n" // mov x16,x1 (target)
+    ".long 0xaa0203f2\n" // mov x18,x2 (return)
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xd5032f3f\n" // AArch64 generic PCALL
+    "1:\n"
+    ".long 0x00068293\n" // mv t0,a3 (x86 helper target)
+    ".long 0x00070393\n" // mv t2,a4 (RISC-V helper return)
+    ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
+    ".long 0x2600700b\n" // RISC-V PCALL_SIG_IMM slot 3
+    "2:\n"
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x00008067\n" // ret through AArch64 cross-return cookie
+    "3:\n"
+    ".long 0xd5032e1f\n" // AArch64 x86 escape
+    "jmp 5f\n"
+    "4:\n"
+    "movq %%rdi, %%rax\n"
+    POLY_OP_STATE_EXPORT
+    "retq\n"
+    "5:\n"
+    :
+    : "r"(state)
+    : POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+}
+
 static inline void raw_aarch64_abi_args_probe(void) {
   asm volatile(
     "movq $1, %%rax\n"
@@ -2213,6 +2247,55 @@ int main(void) {
     fprintf(stderr,
       "POLY_PROBE_FAIL: discovered native ABI signature slot setup mismatch slot=%u\n",
       polyprobe_native_signature_slot);
+    return 1;
+  }
+
+  stage("POLY_STAGE: cross-return-xsave");
+  memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
+  export_live_cross_return_state_probe(&polyprobe_state);
+  if (read_rax() != 77) {
+    fprintf(stderr, "POLY_PROBE_FAIL: live cross-return export result mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (polyprobe_state.cross_return.top != 1 ||
+      polyprobe_state.cross_return.depth != POLY_STATE_XSAVE_CROSS_RETURN_DEPTH ||
+      polyprobe_state.cross_return.frames[0].caller_mode !=
+        POLY_MODE_RAW_AARCH64 ||
+      polyprobe_state.cross_return.frames[0].target_mode !=
+        POLY_MODE_RAW_RISCV ||
+      polyprobe_state.cross_return.frames[0].abi_kind !=
+        POLY_CROSS_BRIDGE_DEFAULT ||
+      polyprobe_state.cross_return.frames[0].return_pc == 0 ||
+      polyprobe_state.cross_return.frames[0].return_sp == 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: live cross-return XSAVE mismatch top=%llu depth=%llu caller=%u target=%u abi=%u pc=0x%llx sp=0x%llx\n",
+      (unsigned long long) polyprobe_state.cross_return.top,
+      (unsigned long long) polyprobe_state.cross_return.depth,
+      polyprobe_state.cross_return.frames[0].caller_mode,
+      polyprobe_state.cross_return.frames[0].target_mode,
+      polyprobe_state.cross_return.frames[0].abi_kind,
+      (unsigned long long) polyprobe_state.cross_return.frames[0].return_pc,
+      (unsigned long long) polyprobe_state.cross_return.frames[0].return_sp);
+    return 1;
+  }
+  if (polyprobe_state.transition.active.return_pc !=
+        polyprobe_state.cross_return.frames[0].return_pc ||
+      polyprobe_state.transition.active.caller_mode !=
+        POLY_MODE_RAW_AARCH64 ||
+      polyprobe_state.transition.active.target_mode !=
+        POLY_MODE_RAW_RISCV ||
+      polyprobe_state.transition.active.abi_kind !=
+        POLY_CROSS_BRIDGE_DEFAULT ||
+      polyprobe_state.transition.active.cookie !=
+        polyprobe_state.cross_return.frames[0].return_sp) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: live cross-return transition mismatch pc=0x%llx caller=%u target=%u abi=%u cookie=0x%llx\n",
+      (unsigned long long) polyprobe_state.transition.active.return_pc,
+      polyprobe_state.transition.active.caller_mode,
+      polyprobe_state.transition.active.target_mode,
+      polyprobe_state.transition.active.abi_kind,
+      (unsigned long long) polyprobe_state.transition.active.cookie);
     return 1;
   }
 
