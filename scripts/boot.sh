@@ -5060,6 +5060,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-prfm.elf" 0xd2800360 0xf98003e0 0xf88003e0 0xf8a06be0 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-cacheops.elf" 0xd2800360 0x910003e1 0xd50b7b21 0xd50b7521 0xd50b7a21 0xd50b7e21 0xd5033b9f 0xd5033fdf 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dczva.elf" 0xd10403ff 0xd2800aa0 0x910203e1 0x927ae421 0xf9000020 0xd50b7421 0xf9400020 0x910403ff 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-dczid.elf" 0xd53b00e0 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ctr.elf" 0xd53b0020 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-tpidrro.elf" 0xd53bd060 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-counters.elf" 0xd53be000 0xd53be041 0xd53be022 0xaa010000 0xaa020000 0xf100001f 0x9a9f07e0 0xd65f03c0
@@ -5826,6 +5827,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-prfm.elf=27 \
     /usr/lib/polyapps/aarch64-cacheops.elf=27 \
     /usr/lib/polyapps/aarch64-dczva.elf=0 \
+    /usr/lib/polyapps/aarch64-dczid.elf=4 \
     /usr/lib/polyapps/aarch64-ctr.elf=805568516 \
     /usr/lib/polyapps/aarch64-tpidrro.elf=0 \
     /usr/lib/polyapps/aarch64-counters.elf=1 \
@@ -7181,6 +7183,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-prfm.elf=27 \
     /usr/lib/polyapps/aarch64-cacheops.elf=27 \
     /usr/lib/polyapps/aarch64-dczva.elf=0 \
+    /usr/lib/polyapps/aarch64-dczid.elf=4 \
     /usr/lib/polyapps/aarch64-ctr.elf=805568516 \
     /usr/lib/polyapps/aarch64-tpidrro.elf=0 \
     /usr/lib/polyapps/aarch64-counters.elf=1 \
@@ -7845,6 +7848,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-prfm.elf \
       /usr/lib/polyapps/aarch64-cacheops.elf \
       /usr/lib/polyapps/aarch64-dczva.elf \
+      /usr/lib/polyapps/aarch64-dczid.elf \
       /usr/lib/polyapps/aarch64-ctr.elf \
       /usr/lib/polyapps/aarch64-tpidrro.elf \
       /usr/lib/polyapps/aarch64-counters.elf \
@@ -8234,6 +8238,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-prfm.elf \
     /usr/lib/polyapps/aarch64-cacheops.elf \
     /usr/lib/polyapps/aarch64-dczva.elf \
+    /usr/lib/polyapps/aarch64-dczid.elf \
     /usr/lib/polyapps/aarch64-ctr.elf \
     /usr/lib/polyapps/aarch64-tpidrro.elf \
     /usr/lib/polyapps/aarch64-counters.elf \

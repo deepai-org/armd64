@@ -40,6 +40,7 @@ case "$path" in
   */aarch64-prfm.elf) expected=27 ;;
   */aarch64-cacheops.elf) expected=27 ;;
   */aarch64-dczva.elf) expected=0 ;;
+  */aarch64-dczid.elf) expected=4 ;;
   */aarch64-ctr.elf) expected=805568516 ;;
   */aarch64-tpidrro.elf) expected=0 ;;
   */aarch64-counters.elf) expected=1 ;;
