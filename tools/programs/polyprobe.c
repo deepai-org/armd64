@@ -2934,6 +2934,7 @@ int main(void) {
   if (expect_monitor_packet_header("riscv illegal", &monitor_packet,
         POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4, 1) != 0)
     return 1;
+  puts("POLY_PROBE_MONITOR_PACKETS_OK");
   poly_monitor_packet_set_value(0);
 
   stage("POLY_STAGE: counters");

@@ -8301,6 +8301,10 @@ EOF
 
     if grep -q "BOOT_OK: initramfs reached userspace" "$SERIAL_LOG"; then
       if [[ "$RUN_POLY_PROBE" == "1" ]]; then
+        if ! grep -q "POLY_PROBE_MONITOR_PACKETS_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -q "POLY_PROBE_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
