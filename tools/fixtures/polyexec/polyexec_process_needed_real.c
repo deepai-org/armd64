@@ -370,6 +370,37 @@ static void poly_process_fini_dtor(void) {
 }
 #endif
 
+#if defined(POLY_PROCESS_FINI_ORDER_MAIN)
+static uint64_t poly_process_fini_order_state;
+
+static void poly_process_fini_order_first(void) {
+  if (poly_process_fini_order_state == 2) {
+#if defined(__aarch64__)
+    static const char marker[] = "POLY_PROCESS_AARCH64_FINI_ORDER_OK\n";
+#elif defined(__riscv)
+    static const char marker[] = "POLY_PROCESS_RISCV_FINI_ORDER_OK\n";
+#endif
+    (void) poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
+      sizeof(marker) - 1);
+  } else {
+    static const char marker[] = "POLY_PROCESS_FINI_ORDER_FAIL\n";
+    (void) poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
+      sizeof(marker) - 1);
+  }
+}
+
+static void poly_process_fini_order_second(void) {
+  poly_process_fini_order_state =
+    poly_process_fini_order_state == 0 ? 2 : 99;
+}
+
+static void (*const poly_process_fini_order_entries[])(void)
+    __attribute__((section(".fini_array"), used)) = {
+  poly_process_fini_order_first,
+  poly_process_fini_order_second,
+};
+#endif
+
 #if defined(POLY_PROCESS_DT_FINI_MAIN)
 void poly_process_dt_fini_root(void) {
 #if defined(__aarch64__)
@@ -433,6 +464,8 @@ uint64_t poly_process_main(void) {
   static const char marker[] = "POLY_PROCESS_DEP_DT_FINI_MAIN_OK\n";
 #elif defined(POLY_PROCESS_FINI_MAIN)
   static const char marker[] = "POLY_PROCESS_FINI_MAIN_OK\n";
+#elif defined(POLY_PROCESS_FINI_ORDER_MAIN)
+  static const char marker[] = "POLY_PROCESS_FINI_ORDER_MAIN_OK\n";
 #elif defined(POLY_PROCESS_DT_FINI_MAIN)
   static const char marker[] = "POLY_PROCESS_DT_FINI_MAIN_OK\n";
 #elif defined(POLY_PROCESS_VERSIONED_MAIN)

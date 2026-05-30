@@ -782,6 +782,11 @@ build_poly_elf_payloads() {
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-fini-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_FINI_ORDER_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-fini-order-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_DT_FINI_MAIN \
     -Wl,-e,_start -Wl,-E -Wl,-fini,poly_process_dt_fini_root \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2923,6 +2928,12 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-fini-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_FINI_ORDER_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-fini-order-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_DT_FINI_MAIN \
@@ -6429,6 +6440,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-fini-real.elf=42 \
       fini-array >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-fini-order-real.elf=42 \
+      fini-order >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-dt-fini-real.elf=42 \
       dt-fini >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -6547,6 +6561,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-fini-real.elf=42 \
       fini-array >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-fini-order-real.elf=42 \
+      fini-order >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-dt-fini-real.elf=42 \
       dt-fini >/dev/ttyS0 2>&1
@@ -7373,6 +7390,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       exit 1
     }
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-fini-order-real.elf=42 \
+      fini-order >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process fini array order" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-dt-fini-real.elf=42 \
       dt-fini >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 process dt fini" >/dev/ttyS0
@@ -7601,6 +7624,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-fini-real.elf=42 \
       fini-array >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process fini array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-fini-order-real.elf=42 \
+      fini-order >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process fini array order" >/dev/ttyS0
       exit 1
     }
     /usr/bin/polyexec --process \
@@ -8811,6 +8840,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-fini-order-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-dt-fini-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -8824,6 +8857,10 @@ EOF
           continue
         fi
         if ! grep -q "POLY_PROCESS_AARCH64_FINI_ARRAY_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "POLY_PROCESS_AARCH64_FINI_ORDER_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
@@ -8875,6 +8912,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-fini-order-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-dt-fini-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -8888,6 +8929,10 @@ EOF
           continue
         fi
         if ! grep -q "POLY_PROCESS_RISCV_FINI_ARRAY_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "POLY_PROCESS_RISCV_FINI_ORDER_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
