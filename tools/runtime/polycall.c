@@ -337,6 +337,12 @@ enum {
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS = 4,
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128 = 5,
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 = 6,
+  POLY_ABI_REGISTER_MAP_EXCHANGE = 0,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE = 1,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_I128 = 2,
+  POLY_ABI_REGISTER_MAP_NATIVE = 3,
+  POLY_ABI_REGISTER_MAP_NATIVE_I128 = 4,
+  POLY_ABI_REGISTER_MAP_NATIVE_VEC128_U32 = 5,
   POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT = 0,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT = 1,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT = 2,
@@ -579,6 +585,34 @@ enum {
   POLY_IMPORT_FUNC_COUNT = 233,
   POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK = 256
 };
+
+static uint32_t poly_abi_signature_register_map(uint32_t kind) {
+  switch (kind) {
+  case POLY_ABI_SIGNATURE_KIND_EXCHANGE:
+    return POLY_ABI_REGISTER_MAP_EXCHANGE;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_I128;
+  case POLY_ABI_SIGNATURE_KIND_NATIVE_REGS:
+    return POLY_ABI_REGISTER_MAP_NATIVE;
+  case POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128:
+    return POLY_ABI_REGISTER_MAP_NATIVE_I128;
+  case POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32:
+    return POLY_ABI_REGISTER_MAP_NATIVE_VEC128_U32;
+  default:
+    return UINT32_MAX;
+  }
+}
+
+static uint64_t poly_abi_signature_control_value(uint64_t kind) {
+  if ((kind >> 32) != 0)
+    return kind;
+  uint32_t register_map = poly_abi_signature_register_map((uint32_t) kind);
+  if (register_map == UINT32_MAX)
+    return kind;
+  return (uint32_t) kind | ((uint64_t) register_map << 32);
+}
 
 enum {
   POLY_IMPORT_PAGE_VALUE_OFFSET = 0,
@@ -947,7 +981,7 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
 
 static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
-  uint64_t rdx = kind;
+  uint64_t rdx = poly_abi_signature_control_value(kind);
   asm volatile(".byte 0x0f,0x3a,0xfc,0x69\n"
       : "+a"(rax), "+d"(rdx)
       :

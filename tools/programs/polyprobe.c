@@ -110,11 +110,22 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
 
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
-  uint64_t rdx = kind;
+  uint64_t rdx = poly_abi_signature_control_value(kind);
   asm volatile(POLY_OP_ABI_SIGNATURE_SET
-      : "+a"(rax), "+d"(rdx)
-      :
+    : "+a"(rax), "+d"(rdx)
+    :
       : "memory");
+  return rax;
+}
+
+static inline uint64_t poly_abi_signature_set_raw(uint64_t slot,
+    uint64_t value) {
+  uint64_t rax = slot;
+  uint64_t rdx = value;
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+    : "+a"(rax), "+d"(rdx)
+    :
+    : "memory");
   return rax;
 }
 
@@ -2371,6 +2382,15 @@ int main(void) {
       poly_abi_signature_get(3) !=
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 ABI signature invalid control mismatch\n");
+    return 1;
+  }
+  if (poly_abi_signature_set_raw(3,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS |
+        ((uint64_t) POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE << 32)) !=
+        POLY_ERR_INVAL ||
+      poly_abi_signature_get(3) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 ABI signature mismatched register map accepted\n");
     return 1;
   }
   aarch64_abi_signature_control_probe();

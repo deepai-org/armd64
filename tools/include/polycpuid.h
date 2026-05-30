@@ -500,6 +500,15 @@ static inline uint32_t poly_abi_signature_register_map(uint32_t kind) {
   }
 }
 
+static inline uint64_t poly_abi_signature_control_value(uint64_t kind) {
+  if ((kind >> 32) != 0)
+    return kind;
+  uint32_t register_map = poly_abi_signature_register_map((uint32_t) kind);
+  if (register_map == UINT32_MAX)
+    return kind;
+  return (uint32_t) kind | ((uint64_t) register_map << 32);
+}
+
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 
 struct poly_cpuid_regs {

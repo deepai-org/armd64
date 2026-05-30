@@ -458,7 +458,18 @@ nativecheck_riscv_fence_sequence(void) {
 static __attribute__((noinline)) uint64_t
 poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
-  uint64_t rdx = kind;
+  uint64_t rdx = poly_abi_signature_control_value(kind);
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+      : "+a"(rax), "+d"(rdx)
+      :
+      : "memory");
+  return rax;
+}
+
+static __attribute__((noinline)) uint64_t
+poly_abi_signature_set_raw(uint64_t slot, uint64_t value) {
+  uint64_t rax = slot;
+  uint64_t rdx = value;
   asm volatile(POLY_OP_ABI_SIGNATURE_SET
       : "+a"(rax), "+d"(rdx)
       :
@@ -561,7 +572,8 @@ nativecheck_aarch64_abi_signature_set_get_slot6_i128(void) {
 static __attribute__((noinline)) uint64_t
 nativecheck_aarch64_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t result = slot;
-  register uint64_t kind_reg asm("rdx") = kind;
+  register uint64_t kind_reg asm("rdx") =
+    poly_abi_signature_control_value(kind);
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd5032f9f\n" // aarch64 ABI_SIGNATURE_SET, x0=slot, x1=kind
@@ -608,7 +620,8 @@ nativecheck_riscv_abi_signature_set_get_slot6_i128(void) {
 static __attribute__((noinline)) uint64_t
 nativecheck_riscv_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t result = slot;
-  register uint64_t kind_reg asm("rdx") = kind;
+  register uint64_t kind_reg asm("rdx") =
+    poly_abi_signature_control_value(kind);
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x1800700b\n" // riscv ABI_SIGNATURE_SET, a0=slot, a1=kind
@@ -5903,6 +5916,17 @@ static int run_poly_foreign_signature_pcall_probe(void) {
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly x86 stack-capable ABI signature accepted result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+  result = poly_abi_signature_set_raw(5,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS |
+    ((uint64_t) POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE << 32));
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 ABI signature mismatched register map accepted result=%llu slot5=%llu\n",
       (unsigned long long) result,
       (unsigned long long) poly_abi_signature_get(5));
     return 1;

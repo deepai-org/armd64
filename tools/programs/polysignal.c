@@ -66,7 +66,7 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
 
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
-  uint64_t rdx = kind;
+  uint64_t rdx = poly_abi_signature_control_value(kind);
   asm volatile(POLY_OP_ABI_SIGNATURE_SET
     : "+a"(rax), "+d"(rdx)
     :
