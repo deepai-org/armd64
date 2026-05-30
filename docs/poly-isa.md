@@ -1,35 +1,33 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
 Poly is an x86_64 extension for running existing precompiled AArch64 and
-RISC-V64 userspace code in the same virtual address space. It is not a new
-compiler ABI.
+RISC-V64 userspace libraries in one virtual address space. The goal is native
+ABI compatibility, not a new compiler target.
 
-## Contract
+## Architectural Contract
 
 - Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 - x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  scheduling, atomics, hard faults, real syscalls, and TSO memory ordering.
-- Foreign frontends fetch native instructions directly: AArch64 at 4-byte
-  alignment, RISC-V64 at 2-byte alignment so RVC objects work.
-- Cross-ISA calls target real native ABIs: x86_64 SysV, AAPCS64, and RISC-V
-  psABI.
+  scheduling, real syscalls, hard faults, atomics, and TSO memory ordering.
+- AArch64 fetch is direct 32-bit instruction fetch. RISC-V64 fetch accepts
+  16-bit alignment so existing RVC objects work.
+- Cross-ISA calls target existing ABIs: x86_64 SysV, AAPCS64, and RISC-V psABI.
 - Fast calls use decoded frontend-control instructions plus register-only ABI
-  signature slots. Stack arguments, aggregates, variadics, lazy binding, and
-  incompatible vector layouts stay in software thunks.
-- Foreign register state is explicit XSAVE-style architectural state, not
-  hidden CR3/TLS/process-keyed emulator state.
-- Recoverable foreign events produce OS-neutral trap packets for a user-mode
-  Poly monitor. The OS still owns real kernel transitions.
+  signature slots. Memory-shaped ABI work stays in software thunks.
+- Foreign state is explicit XSAVE-style architectural state, never hidden
+  CR3/TLS/process-keyed emulator state.
+- Recoverable foreign events produce OS-neutral user-mode trap packets. The OS
+  still owns kernel transitions.
 
-## Not x86_64
+## Difference From x86_64
 
-Poly adds peer user-mode frontends; it does not replace x86_64. There are no
-per-instruction `ud2` envelopes, no hardware parsing of user-memory call
-descriptors, and no hardware knowledge of Linux, libc, or dynamic-linker policy.
+Poly adds peer user-mode frontends beside x86_64. It does not add
+per-instruction `ud2` envelopes, hardware-parsed call descriptors, Linux-aware
+syscall emulation, libc traps, or dynamic-linker policy in the CPU.
 
 ## Bochs Encodings
 
-Temporary prototype encodings standing in for future decoded control opcodes:
+Temporary prototype encodings stand in for future decoded control opcodes:
 
 | Frontend | Encoding |
 | --- | --- |
