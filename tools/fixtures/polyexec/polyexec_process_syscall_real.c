@@ -149,6 +149,8 @@ enum {
   POLY_SYS_CLOCK_GETTIME = 113,
   POLY_SYS_CLOCK_GETRES = 114,
   POLY_SYS_CLOCK_NANOSLEEP = 115,
+  POLY_SYS_SCHED_SETPARAM = 118,
+  POLY_SYS_SCHED_SETSCHEDULER = 119,
   POLY_SYS_SCHED_GETSCHEDULER = 120,
   POLY_SYS_SCHED_GETPARAM = 121,
   POLY_SYS_SCHED_SETAFFINITY = 122,
@@ -692,13 +694,22 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall2(POLY_SYS_PERSONALITY, POLY_PERSONALITY_QUERY, 0) < 0)
     return 345;
   struct poly_sched_param sched_param;
-  if (poly_syscall2(POLY_SYS_SCHED_GETSCHEDULER, 0, 0) < 0)
+  long scheduler = poly_syscall2(POLY_SYS_SCHED_GETSCHEDULER, 0, 0);
+  if (scheduler < 0)
     return 346;
   if (poly_syscall2(POLY_SYS_SCHED_GETPARAM, 0,
         (long) &sched_param) != 0)
     return 347;
   if (sched_param.priority < 0)
     return 348;
+  if (scheduler == POLY_SCHED_OTHER && sched_param.priority == 0) {
+    if (poly_syscall2(POLY_SYS_SCHED_SETPARAM, 0,
+          (long) &sched_param) != 0)
+      return 379;
+    if (poly_syscall3(POLY_SYS_SCHED_SETSCHEDULER, 0,
+          POLY_SCHED_OTHER, (long) &sched_param) != 0)
+      return 380;
+  }
   if (poly_syscall2(POLY_SYS_SCHED_GET_PRIORITY_MAX,
         POLY_SCHED_OTHER, 0) < 0)
     return 349;
