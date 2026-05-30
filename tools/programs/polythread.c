@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <sched.h>
+#include <string.h>
 
 #include "../include/polycpuid.h"
 
@@ -10,15 +11,10 @@
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
-#define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x3a,0xfc,0x50\n"
-#define POLY_OP_TRAP_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x51\n"
-#define POLY_OP_TRAP_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x52\n"
-#define POLY_OP_TRAP_STATUS_SELECTOR ".byte 0x0f,0x3a,0xfc,0x5a\n"
-#define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x3a,0xfc,0x5c\n"
-#define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x3a,0xfc,0x5d\n"
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
+#define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
 
 enum {
@@ -33,6 +29,11 @@ static pthread_barrier_t start_barrier;
 static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
 static uint32_t polythread_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
+
+struct polythread_monitor_packet {
+  struct poly_trap_packet trap;
+  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+};
 
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
@@ -136,40 +137,40 @@ static inline void poly_trap_vector_mode_set(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
 }
 
-static inline uint64_t poly_trap_status_reason(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_REASON : "=a"(value) :: "memory");
-  return value;
+static inline void poly_monitor_packet_set(uint64_t value) {
+  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
 }
 
-static inline uint64_t poly_trap_status_mode(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_MODE : "=a"(value) :: "memory");
-  return value;
-}
+static int expect_monitor_packet(uintptr_t worker_id, const char *label,
+    const struct polythread_monitor_packet *packet, uint32_t reason,
+    uint32_t mode, uint64_t number, uint64_t selector, uint64_t arg0,
+    uint64_t arg6, uint64_t arg7) {
+  if (packet->trap.reason != reason ||
+      packet->trap.source_mode != mode ||
+      packet->trap.number != number ||
+      packet->trap.selector != selector ||
+      packet->trap.resume_pc == 0 ||
+      packet->trap.reserved[0] != 0 ||
+      packet->trap.reserved[1] != 0 ||
+      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0 ||
+      packet->args[0] != arg0 ||
+      packet->args[6] != arg6 ||
+      packet->args[7] != arg7) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu %s monitor packet reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu resume=0x%llx flags=0x%llx\n",
+      (unsigned long) worker_id, label,
+      packet->trap.reason, packet->trap.source_mode,
+      (unsigned long long) packet->trap.number,
+      (unsigned long long) packet->trap.selector,
+      (unsigned long long) packet->args[0],
+      (unsigned long long) packet->args[6],
+      (unsigned long long) packet->args[7],
+      (unsigned long long) packet->trap.resume_pc,
+      (unsigned long long) packet->trap.flags);
+    return -1;
+  }
 
-static inline uint64_t poly_trap_status_number(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_NUMBER : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_selector(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_SELECTOR : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_arg6(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_ARG6 : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_arg7(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_ARG7 : "=a"(value) :: "memory");
-  return value;
+  return 0;
 }
 
 __attribute__((naked, noinline, used))
@@ -1419,10 +1420,14 @@ static void *worker_main(void *arg) {
   poly_trap_vector_mode_set(POLY_MODE_X86);
   poly_trap_vector_set(
     (uint64_t) (uintptr_t) polythread_trap_vector_handler);
+  struct polythread_monitor_packet monitor_packet __attribute__((aligned(64)));
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  poly_monitor_packet_set((uint64_t) (uintptr_t) &monitor_packet);
 
   uint64_t aarch64_trap_number = 200 + worker_id;
   uint64_t aarch64_trap_arg6 = base + 0x40000ULL;
   uint64_t aarch64_trap_arg7 = base + 0x50000ULL;
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t aarch64_trap_result = trap_aarch64_syscall(aarch64_trap_number,
     aarch64_trap_arg6, aarch64_trap_arg7);
   if (aarch64_trap_result !=
@@ -1439,26 +1444,15 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
-      poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
-      poly_trap_status_number() != aarch64_trap_number ||
-      poly_trap_status_selector() != 7 ||
-      poly_trap_status_arg6() != aarch64_trap_arg6 ||
-      poly_trap_status_arg7() != aarch64_trap_arg7) {
-    fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default aarch64 trap packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long) worker_id,
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_number(),
-      (unsigned long long) poly_trap_status_selector(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
+  if (expect_monitor_packet(worker_id, "default aarch64 trap",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64,
+      aarch64_trap_number, 7, aarch64_trap_number, aarch64_trap_arg6,
+      aarch64_trap_arg7) != 0)
     return (void *) 1;
-  }
 
   uint64_t riscv_trap_number = 300 + worker_id;
   uint64_t riscv_trap_arg6 = base + 0x60000ULL;
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t riscv_trap_result =
     trap_riscv_syscall(riscv_trap_number, riscv_trap_arg6);
   if (riscv_trap_result !=
@@ -1475,28 +1469,16 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
-      poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
-      poly_trap_status_number() != riscv_trap_number ||
-      poly_trap_status_selector() != 0 ||
-      poly_trap_status_arg6() != riscv_trap_arg6 ||
-      poly_trap_status_arg7() != riscv_trap_number) {
-    fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default riscv trap packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long) worker_id,
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_number(),
-      (unsigned long long) poly_trap_status_selector(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
+  if (expect_monitor_packet(worker_id, "default riscv trap", &monitor_packet,
+      POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, riscv_trap_number, 0,
+      riscv_trap_number, riscv_trap_arg6, riscv_trap_number) != 0)
     return (void *) 1;
-  }
 
   uint64_t import_id = 8;
   uint64_t aarch64_import_arg6 = base + 0x70000ULL;
   uint64_t aarch64_import_arg7 = base + 0x80000ULL;
   uint64_t aarch64_import_arg0 = base + 0x90000ULL;
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t aarch64_import_result = trap_aarch64_import(
     aarch64_import_arg0, aarch64_import_arg6, aarch64_import_arg7);
   if (aarch64_import_result !=
@@ -1513,27 +1495,16 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
-      poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
-      poly_trap_status_number() != import_id ||
-      poly_trap_status_selector() != 0 ||
-      poly_trap_status_arg6() != aarch64_import_arg6 ||
-      poly_trap_status_arg7() != aarch64_import_arg7) {
-    fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default aarch64 import packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long) worker_id,
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_number(),
-      (unsigned long long) poly_trap_status_selector(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
+  if (expect_monitor_packet(worker_id, "default aarch64 import",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, import_id,
+      0, aarch64_import_arg0, aarch64_import_arg6,
+      aarch64_import_arg7) != 0)
     return (void *) 1;
-  }
 
   uint64_t riscv_import_arg6 = base + 0xa0000ULL;
   uint64_t riscv_import_arg7 = base + 0xb0000ULL;
   uint64_t riscv_import_arg0 = base + 0xc0000ULL;
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t riscv_import_result = trap_riscv_import(riscv_import_arg0,
     riscv_import_arg6, riscv_import_arg7);
   if (riscv_import_result !=
@@ -1550,23 +1521,10 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
-      poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
-      poly_trap_status_number() != import_id ||
-      poly_trap_status_selector() != 0 ||
-      poly_trap_status_arg6() != riscv_import_arg6 ||
-      poly_trap_status_arg7() != riscv_import_arg7) {
-    fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default riscv import packet reason=%llu mode=%llu number=%llu selector=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long) worker_id,
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_number(),
-      (unsigned long long) poly_trap_status_selector(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
+  if (expect_monitor_packet(worker_id, "default riscv import",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, import_id, 0,
+      riscv_import_arg0, riscv_import_arg6, riscv_import_arg7) != 0)
     return (void *) 1;
-  }
 
   if (wait_for_workers(worker_id, "default-hidden-checked") != 0)
     return (void *) 1;
