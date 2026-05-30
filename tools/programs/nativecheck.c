@@ -5114,6 +5114,7 @@ static int run_poly_state_register_bank_probe(void) {
   const uint64_t twelve_bits = 0x4028000000000000ULL;
   const uint64_t aarch64_fpcr_rtz = 0x00c00000ULL;
   const uint64_t aarch64_fpsr_flags = 0x12ULL;
+  const uint64_t riscv_fcsr_rtz_flags = 0x75ULL;
 
   memset(&snapshot, 0, sizeof(snapshot));
   poly_trap_vector_set_value(0);
@@ -5137,6 +5138,8 @@ static int run_poly_state_register_bank_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x05800a13\n" // addi s4,zero,88
     ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
+    ".long 0x07500293\n" // addi t0,zero,0x75
+    ".long 0x00329073\n" // csrw fcsr,t0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
@@ -5147,15 +5150,17 @@ static int run_poly_state_register_bank_probe(void) {
       snapshot.aarch64_status.fpcr != aarch64_fpcr_rtz ||
       snapshot.aarch64_status.fpsr != aarch64_fpsr_flags ||
       snapshot.riscv_gpr[20] != 88 ||
-      snapshot.riscv_fp[20].lo != five_bits) {
+      snapshot.riscv_fp[20].lo != five_bits ||
+      snapshot.riscv_status.fcsr != riscv_fcsr_rtz_flags) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state export register bank mismatch a64x20=%llu a64v20=0x%llx fpcr=0x%llx fpsr=0x%llx rvx20=%llu rvf20=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly state export register bank mismatch a64x20=%llu a64v20=0x%llx fpcr=0x%llx fpsr=0x%llx rvx20=%llu rvf20=0x%llx rvfcsr=0x%llx\n",
       (unsigned long long) snapshot.aarch64_gpr[20],
       (unsigned long long) snapshot.aarch64_fp[20].lo,
       (unsigned long long) snapshot.aarch64_status.fpcr,
       (unsigned long long) snapshot.aarch64_status.fpsr,
       (unsigned long long) snapshot.riscv_gpr[20],
-      (unsigned long long) snapshot.riscv_fp[20].lo);
+      (unsigned long long) snapshot.riscv_fp[20].lo,
+      (unsigned long long) snapshot.riscv_status.fcsr);
     return 1;
   }
 
@@ -5176,6 +5181,7 @@ static int run_poly_state_register_bank_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0x00b00a13\n" // addi s4,zero,11
     ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
+    ".long 0x00301073\n" // csrw fcsr,zero
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
@@ -5235,6 +5241,21 @@ static int run_poly_state_register_bank_probe(void) {
   if (read_rax() != 88) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv s4 mismatch got=%llu\n",
       (unsigned long long) read_rax());
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00302573\n" // csrr a0,fcsr
+    ".long 0x00301073\n" // csrw fcsr,zero
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != riscv_fcsr_rtz_flags) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state import riscv fcsr mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) riscv_fcsr_rtz_flags);
     return 1;
   }
 
