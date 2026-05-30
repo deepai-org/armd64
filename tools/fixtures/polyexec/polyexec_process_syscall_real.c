@@ -84,6 +84,7 @@ enum {
   POLY_SYS_TRUNCATE = 45,
   POLY_SYS_FTRUNCATE = 46,
   POLY_SYS_FALLOCATE = 47,
+  POLY_SYS_FCHMOD = 52,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
   POLY_SYS_PIPE2 = 59,
@@ -1827,6 +1828,20 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       (long) sizeof(namespace_message) - 1) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 319;
+  }
+  if (poly_syscall2(POLY_SYS_FCHMOD, fd, 0640) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 320;
+  }
+  struct poly_linux_generic_stat namespace_fchmod_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_file, (long) &namespace_fchmod_stat, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 321;
+  }
+  if ((namespace_fchmod_stat.mode & 0777) != 0640) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 322;
   }
   static const char xattr_name[] = "user.poly";
   static const char xattr_value_path[] = "PXA";
