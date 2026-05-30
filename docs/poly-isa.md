@@ -46,6 +46,20 @@ These temporary encodings stand in for future dedicated silicon opcodes:
 | AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
+Core operations:
+
+| Operation | x86_64 subop | AArch64 subop | RISC-V64 subop |
+| --- | --- | --- | --- |
+| `PENTER frontend` | `0x03` | n/a | n/a |
+| `PSWITCH frontend,target` | `0x04` | `0x78` | `8` |
+| `PCALL frontend,target,signature` | `0x2d` | `0x7a` | `10` |
+| `PCALL_SIG_IMM frontend,target,slot` | `0x2e <slot>` | `0x60 + slot` | `16 + slot` |
+| `PTRAPRET` | `0x62` | `0x76` | `6` |
+| `PLANDING` | `0x05` | `0x7b` | `11` |
+
+The x86_64 immediate form is five bytes total: `0f 3a fc 2e <slot>`. AArch64
+and RISC-V64 encode the signature slot inside the 32-bit control instruction.
+
 ## More Detail
 
 - Project status and top-level commands: [README.md](../README.md)
