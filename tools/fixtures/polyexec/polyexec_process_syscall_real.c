@@ -50,6 +50,9 @@ enum {
   POLY_SIG_BLOCK = 0,
   POLY_SIG_SETMASK = 2,
   POLY_SIGUSR1 = 10,
+  POLY_P_ALL = 0,
+  POLY_WNOHANG = 1,
+  POLY_WEXITED = 4,
   POLY_PR_SET_NAME = 15,
   POLY_PR_GET_NAME = 16,
   POLY_PERSONALITY_QUERY = 0xffffffffUL,
@@ -135,6 +138,7 @@ enum {
   POLY_SYS_CAPGET = 90,
   POLY_SYS_PERSONALITY = 92,
   POLY_SYS_EXIT = 93,
+  POLY_SYS_WAITID = 95,
   POLY_SYS_FUTEX = 98,
   POLY_SYS_SET_TID_ADDRESS = 96,
   POLY_SYS_SET_ROBUST_LIST = 99,
@@ -378,6 +382,10 @@ struct poly_cap_user_data {
   uint32_t effective;
   uint32_t permitted;
   uint32_t inheritable;
+};
+
+struct poly_siginfo {
+  uint8_t bytes[128];
 };
 
 struct poly_sched_param {
@@ -632,6 +640,12 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 235;
   if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
     return 236;
+  struct poly_siginfo wait_info;
+  for (int n = 0; n < (int) sizeof(wait_info.bytes); n++)
+    wait_info.bytes[n] = 0;
+  if (poly_syscall5(POLY_SYS_WAITID, POLY_P_ALL, 0,
+        (long) &wait_info, POLY_WNOHANG | POLY_WEXITED, 0) != -10)
+    return 374;
   struct poly_cap_user_header cap_header;
   struct poly_cap_user_data cap_data[2];
   cap_header.version = POLY_LINUX_CAPABILITY_VERSION_3;
