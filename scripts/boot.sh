@@ -9113,6 +9113,12 @@ EOF
           sleep 1
           continue
         fi
+        if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" ]]; then
+          if ! grep -q "POLYTHREAD_REAL_XSAVE_CONTEXT_OK" "$SERIAL_LOG"; then
+            sleep 1
+            continue
+          fi
+        fi
         if ! grep -q "POLYTHREAD_MIXED_ATOMIC_OK" "$SERIAL_LOG"; then
           sleep 1
           continue

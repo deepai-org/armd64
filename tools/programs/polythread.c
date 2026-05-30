@@ -30,6 +30,7 @@ enum {
 static pthread_barrier_t start_barrier;
 static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
 static uint64_t explicit_state_key_counter __attribute__((aligned(8)));
+static uint64_t real_xsave_context_counter __attribute__((aligned(8)));
 static uint32_t polythread_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
 
@@ -74,6 +75,18 @@ static inline uint64_t poly_state_key_get(void) {
 
 static uint64_t polythread_state_key_value(void) {
   return (uint64_t) (uintptr_t) &polythread_state_key_anchor;
+}
+
+static inline uint64_t polythread_read_xcr0(void) {
+  uint32_t eax;
+  uint32_t edx;
+  asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
+  return ((uint64_t) edx << 32) | eax;
+}
+
+static int polythread_poly_xsave_enabled(void) {
+  return (polythread_read_xcr0() &
+    (1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH)) != 0;
 }
 
 static int polythread_select_state_key(uintptr_t worker_id,
@@ -1173,6 +1186,57 @@ static int run_explicit_state_key_probe(uintptr_t worker_id, uint64_t base) {
   return 0;
 }
 
+static int run_real_xsave_context_probe(uintptr_t worker_id, uint64_t base) {
+  const uint64_t shared_key = 0x7a7b7c7d7e7f8000ULL;
+  const uint64_t aarch64_seed = base + 0x125000ULL;
+  const uint64_t riscv_seed = base + 0x126000ULL;
+  const uint64_t aarch64_fp =
+    double_to_bits((double) worker_id + 41.25);
+  const uint64_t riscv_fp =
+    double_to_bits((double) worker_id + 53.75);
+
+  if (!polythread_poly_xsave_enabled())
+    return 0;
+
+  if (polythread_select_state_key(worker_id, shared_key,
+        "real-xsave-shared") != 0)
+    return -1;
+  if (pcall_aarch64_hidden_set(aarch64_seed) != aarch64_seed ||
+      pcall_riscv_hidden_set(riscv_seed) != riscv_seed ||
+      pcall_aarch64_hidden_fp_set(aarch64_fp) != aarch64_fp ||
+      pcall_riscv_hidden_fp_set(riscv_fp) != riscv_fp) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu real XSAVE context setup failed\n",
+      (unsigned long) worker_id);
+    return -1;
+  }
+
+  if (wait_for_workers(worker_id, "real-xsave-context-set") != 0)
+    return -1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS * 4; n++)
+    sched_yield();
+
+  if (pcall_aarch64_hidden_get(29) != aarch64_seed + 29 ||
+      pcall_riscv_hidden_get(31) != riscv_seed + 31 ||
+      pcall_aarch64_hidden_fp_get(double_to_bits(29.0)) !=
+        double_to_bits((double) worker_id + 70.25) ||
+      pcall_riscv_hidden_fp_get(double_to_bits(31.0)) !=
+        double_to_bits((double) worker_id + 84.75)) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu real XSAVE context isolation failed\n",
+      (unsigned long) worker_id);
+    return -1;
+  }
+
+  if (wait_for_workers(worker_id, "real-xsave-context-checked") != 0)
+    return -1;
+  if (polythread_clear_state_key(worker_id) != 0)
+    return -1;
+
+  __atomic_add_fetch(&real_xsave_context_counter, 1, __ATOMIC_SEQ_CST);
+  return 0;
+}
+
 static int check_exported_thread_banks(uintptr_t worker_id,
     uint64_t expected_aarch64_gpr, uint64_t expected_riscv_gpr,
     uint64_t expected_aarch64_fp, uint64_t expected_riscv_fp) {
@@ -1262,6 +1326,10 @@ static void *worker_main(void *arg) {
   if (run_explicit_state_key_probe(worker_id, base) != 0)
     return (void *) 1;
   if (wait_for_workers(worker_id, "explicit-state-key") != 0)
+    return (void *) 1;
+  if (run_real_xsave_context_probe(worker_id, base) != 0)
+    return (void *) 1;
+  if (wait_for_workers(worker_id, "real-xsave-context") != 0)
     return (void *) 1;
 
   uint32_t native_signature_slot = 0;
@@ -1976,6 +2044,23 @@ int main(void) {
     return 1;
   }
   printf("POLYTHREAD_STATE_KEY_OK workers=%u\n", POLYTHREAD_THREADS);
+  uint64_t real_xsave_context_count =
+    __atomic_load_n(&real_xsave_context_counter, __ATOMIC_SEQ_CST);
+  if (polythread_poly_xsave_enabled()) {
+    if (real_xsave_context_count != POLYTHREAD_THREADS) {
+      fprintf(stderr,
+        "POLYTHREAD_FAIL: real XSAVE context workers got=%llu expected=%u\n",
+        (unsigned long long) real_xsave_context_count,
+        POLYTHREAD_THREADS);
+      pthread_barrier_destroy(&start_barrier);
+      return 1;
+    }
+    printf("POLYTHREAD_REAL_XSAVE_CONTEXT_OK workers=%u\n",
+      POLYTHREAD_THREADS);
+  }
+  else {
+    printf("POLYTHREAD_REAL_XSAVE_CONTEXT_SKIPPED\n");
+  }
   printf("POLYTHREAD_STATE_ISOLATION_OK workers=%u rounds=%u\n",
     POLYTHREAD_THREADS, POLYTHREAD_ROUNDS);
 
