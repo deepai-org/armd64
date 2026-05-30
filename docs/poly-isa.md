@@ -1,11 +1,10 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly is an x86_64 ISA extension that can execute AArch64 and RISC-V64 userspace
-code in the same process. It is not a new OS ABI: x86_64 remains authoritative
-for privilege, paging, interrupts, faults, atomics, VM control, and memory
-ordering.
+Poly is an x86_64 extension for running existing x86_64, AArch64, and RISC-V64
+userspace code in one process. x86_64 stays the system ISA: privilege, paging,
+faults, interrupts, atomics, VM control, and global TSO ordering remain x86-owned.
 
-## Run
+## Run The Prototype
 
 ```bash
 make image
@@ -13,20 +12,20 @@ make boot-poly-full-arch-traps
 rg -a 'BOOT_OK|POLY.*OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Delta From x86_64
+## ISA Delta
 
-- Modes are `0` x86_64, `1` AArch64, and `2` RISC-V64.
-- Foreign modes fetch native aligned 32-bit instructions from `RIP`.
-- Frontend control uses decoded Poly instructions: `PENTER`, `PSWITCH`, `PCALL`,
-  `PTRAPRET`, and `PLANDING`.
-- Fast native ABI calls use ABI signature slots for register mapping.
-- Stack arguments, aggregates, variadics, lazy binding, and libc/syscall policy
-  stay in software thunks or the user monitor.
-- Extra state is XSAVE-style: foreign registers, trap packets, ABI signatures,
-  transition state, monitor addresses, and landing policy.
-- Prototype x86 encodings currently use temporary `0f 3a fc <op>` forms.
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- Foreign frontends fetch native aligned 32-bit instructions from `RIP`.
+- Cross-frontend control is decoded, not exception based: `PENTER`, `PSWITCH`,
+  `PCALL`, `PTRAPRET`, and `PLANDING`.
+- Hot native-ABI calls use register-only ABI signature slots.
+- Stack arguments, aggregates, variadics, lazy binding, syscalls, and libc policy
+  are handled by software thunks or a user monitor, not by hardware.
+- Poly state is XSAVE-style architectural state: foreign registers, trap packets,
+  transition stack, ABI signatures, monitor addresses, and landing policy.
+- Prototype x86 encodings use temporary `0f 3a fc <op>` forms.
 
-## References
+## More Detail
 
-- Full design: `docs/poly-isa-design-directions.md`
-- Constants and opcodes: `tools/include/polycpuid.h`
+- Design rationale: `docs/poly-isa-design-directions.md`
+- Constants and encodings: `tools/include/polycpuid.h`
