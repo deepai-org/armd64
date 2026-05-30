@@ -9,6 +9,8 @@
 
 #include "../include/polycpuid.h"
 
+#define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"
+#define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
@@ -27,13 +29,16 @@ static volatile sig_atomic_t signal_count;
 static volatile sig_atomic_t signal_transition_count;
 static volatile sig_atomic_t signal_transition_bad;
 static volatile sig_atomic_t signal_snapshot_bad;
+static volatile sig_atomic_t signal_state_key_bad;
 static volatile sig_atomic_t signal_altstack_bad;
 static volatile sig_atomic_t signal_expected_snapshot;
 static volatile sig_atomic_t signal_expected_mode;
 static volatile uint64_t signal_expected_snapshot_value;
+static volatile uint64_t signal_expected_state_key;
 static uintptr_t signal_altstack_base;
 static uintptr_t signal_altstack_end;
 static struct poly_xsave_state signal_snapshot __attribute__((aligned(64)));
+static uint8_t signal_state_key_anchor;
 static uint32_t polysignal_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
 
@@ -62,6 +67,17 @@ static inline void write_xmm1_u64(uint64_t value) {
 
 static inline void poly_state_export(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
+}
+
+static inline uint64_t poly_state_key_set(uint64_t value) {
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_state_key_get(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
+  return value;
 }
 
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
@@ -116,6 +132,19 @@ static int check_polysignal_contract(void) {
     return -1;
   }
 
+  return 0;
+}
+
+static int install_polysignal_state_key(void) {
+  const uint64_t key = (uint64_t) (uintptr_t) &signal_state_key_anchor;
+  if (key == 0 || poly_state_key_set(key) != 0 ||
+      poly_state_key_get() != key) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: explicit Poly state-key setup failed key=0x%llx got=0x%llx\n",
+      (unsigned long long) key, (unsigned long long) poly_state_key_get());
+    return -1;
+  }
+  signal_expected_state_key = key;
   return 0;
 }
 
@@ -218,6 +247,11 @@ static void handle_alarm(int signo) {
 
   signal_count++;
   poly_state_export(&signal_snapshot);
+  if (signal_snapshot.state_key.flags != POLY_STATE_KEY_FLAG_EXPLICIT ||
+      signal_snapshot.state_key.explicit_key != signal_expected_state_key ||
+      signal_snapshot.state_key.supported_flags !=
+        POLY_STATE_KEY_FLAG_EXPLICIT)
+    signal_state_key_bad++;
 
   uint16_t flags = signal_snapshot.transition.active.flags;
   uint32_t target_mode = signal_snapshot.transition.active.target_mode;
@@ -691,6 +725,8 @@ int main(void) {
   stack_t altstack;
   if (check_polysignal_contract() < 0)
     return 1;
+  if (install_polysignal_state_key() < 0)
+    return 1;
   if (setup_polysignal_native_signature_slot() < 0)
     return 1;
 
@@ -793,6 +829,15 @@ int main(void) {
       (int) signal_altstack_bad);
     return 1;
   }
+  if (signal_state_key_bad != 0) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: signal state-key snapshot bad=%d expected=0x%llx\n",
+      (int) signal_state_key_bad,
+      (unsigned long long) signal_expected_state_key);
+    return 1;
+  }
+  printf("POLYSIGNAL_STATE_KEY_OK key=0x%llx\n",
+    (unsigned long long) signal_expected_state_key);
   printf("POLYSIGNAL_ALTSTACK_OK\n");
   printf("POLYSIGNAL_OK\n");
   return 0;

@@ -9075,6 +9075,10 @@ EOF
         fi
       fi
       if [[ "$RUN_POLY_SIGNAL" == "1" ]]; then
+        if ! grep -q "POLYSIGNAL_STATE_KEY_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -q "POLYSIGNAL_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
