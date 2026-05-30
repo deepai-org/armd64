@@ -21,6 +21,8 @@ extern int64_t poly_runtime_call_foreign_comparator(void *callback,
 extern int64_t poly_runtime_call_foreign_comparator_arg(void *callback,
   const void *left, const void *right, void *arg);
 extern uint64_t poly_runtime_call_foreign_void(void *callback);
+extern uint64_t poly_runtime_foreign_hwcap;
+extern uint64_t poly_runtime_foreign_hwcap2;
 
 static volatile uint64_t poly_host_x86_zero;
 static int poly_host_errno_value;
@@ -865,8 +867,9 @@ uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
   case POLY_AT_CLKTCK:
     return 100;
   case POLY_AT_HWCAP:
+    return poly_runtime_foreign_hwcap;
   case POLY_AT_HWCAP2:
-    return 0;
+    return poly_runtime_foreign_hwcap2;
   }
 
   return 0;

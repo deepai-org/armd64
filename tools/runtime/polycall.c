@@ -116,6 +116,16 @@ enum {
   POLY_ARCH_RISCV = 2,
   POLY_MODE_RAW_AARCH64 = POLY_ARCH_AARCH64,
   POLY_MODE_RAW_RISCV = POLY_ARCH_RISCV,
+  POLY_AARCH64_HWCAP_FP = 1ULL << 0,
+  POLY_AARCH64_HWCAP_ASIMD = 1ULL << 1,
+  POLY_AARCH64_HWCAP_ATOMICS = 1ULL << 8,
+  POLY_AARCH64_HWCAP_CPUID = 1ULL << 11,
+  POLY_RISCV_HWCAP_ISA_A = 1ULL << ('A' - 'A'),
+  POLY_RISCV_HWCAP_ISA_C = 1ULL << ('C' - 'A'),
+  POLY_RISCV_HWCAP_ISA_D = 1ULL << ('D' - 'A'),
+  POLY_RISCV_HWCAP_ISA_F = 1ULL << ('F' - 'A'),
+  POLY_RISCV_HWCAP_ISA_I = 1ULL << ('I' - 'A'),
+  POLY_RISCV_HWCAP_ISA_M = 1ULL << ('M' - 'A'),
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE = 14,
   POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 14,
@@ -827,6 +837,27 @@ static uint8_t *poly_atexit_call_code;
 static size_t poly_atexit_target_imm_offset;
 static __thread uint8_t poly_state_key_anchor;
 static size_t poly_stub_state_key_verified_count;
+uint64_t poly_runtime_foreign_hwcap;
+uint64_t poly_runtime_foreign_hwcap2;
+
+static void poly_runtime_set_foreign_auxv(int arch)
+{
+  poly_runtime_foreign_hwcap = 0;
+  poly_runtime_foreign_hwcap2 = 0;
+  if (arch == POLY_ARCH_AARCH64) {
+    poly_runtime_foreign_hwcap = POLY_AARCH64_HWCAP_FP |
+      POLY_AARCH64_HWCAP_ASIMD |
+      POLY_AARCH64_HWCAP_ATOMICS |
+      POLY_AARCH64_HWCAP_CPUID;
+  } else if (arch == POLY_ARCH_RISCV) {
+    poly_runtime_foreign_hwcap = POLY_RISCV_HWCAP_ISA_A |
+      POLY_RISCV_HWCAP_ISA_C |
+      POLY_RISCV_HWCAP_ISA_D |
+      POLY_RISCV_HWCAP_ISA_F |
+      POLY_RISCV_HWCAP_ISA_I |
+      POLY_RISCV_HWCAP_ISA_M;
+  }
+}
 
 void poly_runtime_reset_atexit_callbacks(void)
 {
@@ -10424,6 +10455,7 @@ int main(int argc, char **argv) {
     const char *symbol_name = request.symbol[0] ? request.symbol : NULL;
     if (load_elf_program(request.path, symbol_name, &program) < 0)
       return 1;
+    poly_runtime_set_foreign_auxv(program.arch);
 
     size_t dep_init_count = 0;
     size_t dep_fini_count = 0;
