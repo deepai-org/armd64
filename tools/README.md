@@ -21,7 +21,7 @@ fixture paths without updating `scripts/boot.sh`.
 ## Main Files
 
 - `runtime/polycall.c`: shared-object loader, ABI bridge, thunks, relocations,
-  TLS, IFUNC, descriptor imports, and helper imports.
+  TLS, IFUNC, import traps, trampolines, and helper imports.
 - `runtime/polyexec.c`: process-style foreign ELF runner.
 - `runtime/polybinfmt.sh`: guest binfmt wrapper.
 - `build/mkpolyelf.c`: converts `fixtures/polyapps/*.poly` into guest ELFs.
