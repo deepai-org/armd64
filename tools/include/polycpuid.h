@@ -775,6 +775,7 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_TRAP_RECORDS |
     POLY_CPUID_FEATURE_USER_RETURN_RESTORE |
     POLY_CPUID_FEATURE_X86_TSO |
+    POLY_CPUID_FEATURE_THREAD_BANKS |
     POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS |
     POLY_CPUID_FEATURE_X86_POLY_OPCODES |
     POLY_CPUID_FEATURE_FPAIR32_RET |
@@ -786,6 +787,7 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_COMPACT_U32_F32 |
     POLY_CPUID_FEATURE_COMPACT_F32_U32 |
     POLY_CPUID_FEATURE_TRAP_VECTOR |
+    POLY_CPUID_FEATURE_STATE_KEY |
     POLY_CPUID_FEATURE_VEC128_BRIDGE |
     POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
     POLY_CPUID_FEATURE_AARCH64_HFA32_RET |
@@ -795,11 +797,9 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
 }
 
 static inline uint32_t poly_cpuid_forbidden_feature_mask(void) {
-  return POLY_CPUID_FEATURE_THREAD_BANKS |
-    POLY_CPUID_FEATURE_RESERVED_IMPORT_DESCRIPTORS |
+  return POLY_CPUID_FEATURE_RESERVED_IMPORT_DESCRIPTORS |
     POLY_CPUID_FEATURE_FP64_STACK_ARGS |
-    POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
-    POLY_CPUID_FEATURE_STATE_KEY;
+    POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK;
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {
@@ -988,9 +988,13 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf18(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_CPUID_STATE_OVERLAP_GPRS |
+    POLY_CPUID_STATE_KEY_CR3 |
+    POLY_CPUID_STATE_KEY_FSBASE |
+    POLY_CPUID_STATE_KEY_STACK_REGION |
     POLY_CPUID_STATE_USER_RETURN_RESTORE |
     POLY_CPUID_STATE_X86_TSO |
     POLY_CPUID_STATE_XSAVE_VISIBLE |
+    POLY_CPUID_STATE_KEY_EXPLICIT |
     POLY_CPUID_STATE_TRANSITION_FRAME_32 |
     POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE |
     POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT |

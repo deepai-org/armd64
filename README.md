@@ -44,6 +44,10 @@ Other useful targets:
   The current stock Alpine guest kernel does not enable that custom XCR0 bit, so
   tests also use explicit Poly state save/restore controls for prototype
   scheduling and signal coverage.
+- The prototype also exposes its thread-bank state key through CPUID: foreign
+  synthetic banks are separated by `CR3+FSBASE`, with a stack-region fallback
+  for code without a TLS base. That is prototype isolation plumbing; the
+  hardware contract remains the XSAVE component.
 
 ## ISA Differences From x86_64
 
