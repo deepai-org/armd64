@@ -1,24 +1,33 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly ISA lets one x86_64 process enter precompiled AArch64 or RISC-V64 userspace code. x86_64 remains the system ISA for paging, privilege, interrupts, faults, atomics, VM control, and TSO memory ordering.
+Poly lets one x86_64 process run precompiled AArch64 and RISC-V64 userspace
+code in the same virtual address space. x86_64 remains the system ISA for
+privilege, paging, faults, interrupts, atomics, VM control, and TSO memory
+ordering.
 
-## Run It
+## Run
 
 ```bash
 make image
-make boot-poly-binfmt-arch-traps
-rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
+make boot-poly-full-arch-traps
+rg -a 'BOOT_OK|POLY.*OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused gates: `make boot-poly-arch-traps`, `make boot-poly-call-arch-traps`, `make boot-poly-full-arch-traps`.
+Useful focused gates: `make boot-poly-arch-traps`,
+`make boot-poly-call-arch-traps`, and `make boot-poly-binfmt-arch-traps`.
 
-## Difference From x86_64
+## ISA Delta From x86_64
 
-- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- Foreign mode fetches native aligned 32-bit instructions from `RIP`.
-- `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING` are decoded controls, not `#UD` traps.
-- Extra architectural state is XSAVE-style: foreign registers, trap packets, ABI signatures, transitions, and landing policy.
-- Fast interop uses ABI signature slots for register-only native ABI calls; software thunks handle stack arguments, aggregates, variadics, lazy binding, libcalls, and syscall translation.
-- Prototype x86 controls use temporary `0f 3a fc <op>` encodings; constants live in `tools/include/polycpuid.h`.
+- Frontends are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+- Foreign frontends fetch native aligned 32-bit instructions from `RIP`.
+- Poly controls are decoded instructions: `PENTER`, `PSWITCH`, `PCALL`,
+  `PTRAPRET`, and `PLANDING`.
+- Cross-ISA calls use ABI signature slots for register-only native ABI cases.
+- Software thunks handle stack arguments, aggregates, variadics, lazy binding,
+  libcalls, and syscall translation.
+- Extra state is XSAVE-style: foreign registers, trap packets, ABI signatures,
+  transitions, monitor addresses, and landing policy.
+- Prototype x86 encodings use temporary `0f 3a fc <op>` forms. Constants live
+  in `tools/include/polycpuid.h`.
 
-Detailed rationale: `docs/poly-isa-design-directions.md`.
+Architecture rationale lives in `docs/poly-isa-design-directions.md`.
