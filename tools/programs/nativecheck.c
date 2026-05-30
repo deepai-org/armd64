@@ -334,6 +334,17 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
 }
 
+static inline uint64_t poly_state_key_set_value(uint64_t value) {
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_state_key_get_value(void) {
+  uint64_t value = 0;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
+  return value;
+}
+
 static int nativecheck_bytes_are_zero(const void *ptr, size_t bytes,
     const char *label) {
   const unsigned char *data = (const unsigned char *) ptr;
@@ -1207,20 +1218,6 @@ static void child_expect_invalid_generic_enter_frontend_signal(void) {
     POLY_OP_ENTER_MODE
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
-  _exit(99);
-}
-
-__attribute__((noreturn, noinline))
-static void child_expect_state_key_set_signal(void) {
-  uint64_t value = 0x53544154454b4559ULL;
-  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
-  _exit(99);
-}
-
-__attribute__((noreturn, noinline))
-static void child_expect_state_key_get_signal(void) {
-  uint64_t value = 0;
-  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
   _exit(99);
 }
 
@@ -3363,14 +3360,108 @@ static int run_poly_trap_vector_probe(void) {
 }
 
 static int run_poly_state_key_probe(void) {
-  if (expect_child_signal("poly reserved state-key set", SIGILL,
-        child_expect_state_key_set_signal) != 0)
-    return 1;
-  if (expect_child_signal("poly reserved state-key get", SIGILL,
-        child_expect_state_key_get_signal) != 0)
-    return 1;
+  const uint64_t key_a = 0x53544154454b4101ULL;
+  const uint64_t key_b = 0x53544154454b4202ULL;
+  uint64_t result;
 
-  puts("NATIVE_POLY_STATE_KEY_REJECT_OK");
+  if (poly_state_key_set_value(0) != 0 ||
+      poly_state_key_get_value() != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly explicit state-key clear failed\n",
+      stderr);
+    return 1;
+  }
+
+  if (poly_state_key_set_value(key_a) != 0 ||
+      poly_state_key_get_value() != key_a) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly explicit state-key A set/get mismatch get=0x%llx\n",
+      (unsigned long long) poly_state_key_get_value());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800174\n" // movz x20,#11
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+
+  if (poly_state_key_set_value(key_b) != 0 ||
+      poly_state_key_get_value() != key_b) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly explicit state-key B set/get mismatch get=0x%llx\n",
+      (unsigned long long) poly_state_key_get_value());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly explicit state-key B inherited A bank got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28002d4\n" // movz x20,#22
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+
+  if (poly_state_key_set_value(key_a) != 0 ||
+      poly_state_key_get_value() != key_a) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly explicit state-key A restore mismatch get=0x%llx\n",
+      (unsigned long long) poly_state_key_get_value());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 11) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly explicit state-key A bank mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  if (poly_state_key_set_value(key_b) != 0 ||
+      poly_state_key_get_value() != key_b) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly explicit state-key B restore mismatch get=0x%llx\n",
+      (unsigned long long) poly_state_key_get_value());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 22) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly explicit state-key B bank mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  if (poly_state_key_set_value(0) != 0 ||
+      poly_state_key_get_value() != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly explicit state-key final clear failed\n",
+      stderr);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_STATE_KEY_OK");
   return 0;
 }
 
