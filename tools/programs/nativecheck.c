@@ -3684,6 +3684,37 @@ static int run_poly_cross_return_xsave_roundtrip_probe(void) {
     return 1;
   }
 
+  memcpy(&cross, &clean, sizeof(cross));
+  memset(&roundtrip, 0, sizeof(roundtrip));
+  cross.cross_return.top = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  cross.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  for (uint64_t n = 0; n < POLY_STATE_XSAVE_CROSS_RETURN_DEPTH; n++) {
+    struct poly_cross_return_frame *frame = &cross.cross_return.frames[n];
+    frame->return_pc = 0x5000000000000000ULL + n * 0x100;
+    frame->return_sp = 0x6000000000000000ULL + n * 0x100;
+    frame->caller_mode = (n & 1) ? POLY_MODE_RAW_RISCV :
+      POLY_MODE_RAW_AARCH64;
+    frame->target_mode = (n & 1) ? POLY_MODE_RAW_AARCH64 :
+      POLY_MODE_RAW_RISCV;
+    frame->abi_kind = (n & 1) ? POLY_CROSS_BRIDGE_VEC128_U32 :
+      POLY_CROSS_BRIDGE_DEFAULT;
+    frame->flags = (uint16_t) n;
+  }
+
+  poly_state_import(&cross);
+  poly_state_export(&roundtrip);
+  if (roundtrip.cross_return.top != POLY_STATE_XSAVE_CROSS_RETURN_DEPTH ||
+      roundtrip.cross_return.depth != POLY_STATE_XSAVE_CROSS_RETURN_DEPTH ||
+      memcmp(roundtrip.cross_return.frames, cross.cross_return.frames,
+        sizeof(cross.cross_return.frames)) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly full cross-return xsave roundtrip mismatch top=%llu depth=%llu\n",
+      (unsigned long long) roundtrip.cross_return.top,
+      (unsigned long long) roundtrip.cross_return.depth);
+    poly_state_import(&clean);
+    return 1;
+  }
+
   poly_state_import(&clean);
   poly_state_export(&roundtrip);
   if (roundtrip.cross_return.top != 0 ||
