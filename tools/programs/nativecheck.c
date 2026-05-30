@@ -6726,6 +6726,19 @@ int main(void) {
         signature_manifest2.ecx, signature_manifest2.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_signature_map_manifest =
+      poly_cpuid_expected_escape_leaf18();
+    struct poly_cpuid_regs signature_map_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 18);
+    if (signature_map_manifest.eax != expected_signature_map_manifest.eax ||
+        signature_map_manifest.ebx != expected_signature_map_manifest.ebx ||
+        signature_map_manifest.ecx != expected_signature_map_manifest.ecx ||
+        signature_map_manifest.edx != expected_signature_map_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID ABI register map manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        signature_map_manifest.eax, signature_map_manifest.ebx,
+        signature_map_manifest.ecx, signature_map_manifest.edx);
+      return 1;
+    }
     if (check_poly_abi_signature_slot_default(
           pcall_imm_manifest.ecx & 0xffU,
           pcall_imm_manifest.edx & 0xffU, "exchange") != 0 ||

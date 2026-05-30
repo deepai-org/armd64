@@ -59,8 +59,9 @@ Other useful targets:
   psABI. This is compatibility glue, not a new `PolyFast` ABI.
 - Fast calls can use neutral native-register ABI signature slots and integer/FP
   exchange windows. Fixed 128-bit vector calls can also stay on the direct path
-  when both ABIs use SIMD/vector registers. Stack, aggregate, variadic, ABI
-  reshaping, and loader policy stays in software.
+  when both ABIs use SIMD/vector registers. Signature slots expose fixed
+  register-map IDs for hardware rename/RAT implementations. Stack, aggregate,
+  variadic, ABI reshaping, and loader policy stays in software.
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
   descriptor parsing.
