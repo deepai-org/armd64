@@ -128,7 +128,7 @@ case "$path" in
   */aarch64-pcall-pthread-cond-real.so) set_polycall 152 ;;
   */aarch64-pcall-time-real.so) set_polycall 176 ;;
   */aarch64-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
-  */aarch64-pcall-getauxval-real.so) expected=6548; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-getauxval-real.so) expected=6565; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-env-real.so) expected=53; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-alloc-real.so) expected=90; entry="#poly_entry"; runner="polycall" ;;
@@ -347,7 +347,7 @@ case "$path" in
   */riscv-pcall-pthread-cond-real.so) set_polycall 152 ;;
   */riscv-pcall-time-real.so) set_polycall 176 ;;
   */riscv-pcall-stack-protector-real.so) expected=49; entry="#poly_entry"; runner="polycall" ;;
-  */riscv-pcall-getauxval-real.so) expected=8638; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-getauxval-real.so) expected=8655; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-errno-real.so) expected=29; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-env-real.so) expected=53; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-alloc-real.so) expected=90; entry="#poly_entry"; runner="polycall" ;;

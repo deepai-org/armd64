@@ -21,6 +21,7 @@ extern int64_t poly_runtime_call_foreign_comparator(void *callback,
 extern int64_t poly_runtime_call_foreign_comparator_arg(void *callback,
   const void *left, const void *right, void *arg);
 extern uint64_t poly_runtime_call_foreign_void(void *callback);
+extern uint64_t poly_runtime_foreign_arch;
 extern uint64_t poly_runtime_foreign_hwcap;
 extern uint64_t poly_runtime_foreign_hwcap2;
 
@@ -855,15 +856,26 @@ uint64_t POLY_HOST_HELPER poly_host_x86_errno_location(void)
 uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
 {
   enum {
+    POLY_ARCH_AARCH64 = 1,
+    POLY_ARCH_RISCV = 2,
     POLY_AT_PAGESZ = 6,
+    POLY_AT_PLATFORM = 15,
     POLY_AT_CLKTCK = 17,
     POLY_AT_HWCAP = 16,
     POLY_AT_HWCAP2 = 26
   };
+  static const char aarch64_platform[] = "aarch64";
+  static const char riscv_platform[] = "riscv64";
 
   switch (type) {
   case POLY_AT_PAGESZ:
     return 4096;
+  case POLY_AT_PLATFORM:
+    if (poly_runtime_foreign_arch == POLY_ARCH_AARCH64)
+      return (uint64_t) (uintptr_t) aarch64_platform;
+    if (poly_runtime_foreign_arch == POLY_ARCH_RISCV)
+      return (uint64_t) (uintptr_t) riscv_platform;
+    return 0;
   case POLY_AT_CLKTCK:
     return 100;
   case POLY_AT_HWCAP:

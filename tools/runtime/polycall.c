@@ -839,9 +839,11 @@ static __thread uint8_t poly_state_key_anchor;
 static size_t poly_stub_state_key_verified_count;
 uint64_t poly_runtime_foreign_hwcap;
 uint64_t poly_runtime_foreign_hwcap2;
+uint64_t poly_runtime_foreign_arch;
 
 static void poly_runtime_set_foreign_auxv(int arch)
 {
+  poly_runtime_foreign_arch = (uint64_t) arch;
   poly_runtime_foreign_hwcap = 0;
   poly_runtime_foreign_hwcap2 = 0;
   if (arch == POLY_ARCH_AARCH64) {
