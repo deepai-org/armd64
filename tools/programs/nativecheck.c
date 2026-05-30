@@ -1418,6 +1418,16 @@ static void child_expect_bad_import_return_id_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_abi_signature_flags_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.abi_signature.flags = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_malformed_cross_return_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -1515,6 +1525,26 @@ static void child_expect_bad_interrupted_transition_xsave_signal(void) {
   bad.transition.active.target_mode = POLY_MODE_RAW_RISCV;
   bad.transition.active.abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
   bad.transition.active.flags = POLY_TRANSITION_FLAG_INTERRUPTED_RAW;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_frontend_tls_flags_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.frontend_tls.flags = 0;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_landing_supported_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.landing_policy.supported_flags ^= 1;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3383,6 +3413,9 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad import-return id xstate", SIGILL,
         child_expect_bad_import_return_id_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly bad ABI signature flags xstate", SIGILL,
+        child_expect_bad_abi_signature_flags_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly malformed cross-return xstate", SIGILL,
         child_expect_malformed_cross_return_xsave_signal) != 0)
     return 1;
@@ -3403,6 +3436,12 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad interrupted transition xstate", SIGILL,
         child_expect_bad_interrupted_transition_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad frontend TLS flags xstate", SIGILL,
+        child_expect_bad_frontend_tls_flags_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad landing supported xstate", SIGILL,
+        child_expect_bad_landing_supported_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad trap-vector mode xstate", SIGILL,
         child_expect_bad_trap_vector_mode_xsave_signal) != 0)
