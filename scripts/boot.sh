@@ -5061,6 +5061,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-round.elf" h:0x4501 0x00301073 0x402002b7 0xf0028053 0xc0000353 h:0x951a 0xc0001353 h:0x951a 0xc0002353 h:0x951a 0xc0003353 h:0x951a 0xc0004353 h:0x951a 0x0021d073 0xc0007353 h:0x951a 0x001023f3 h:0x951e 0x00301073 h:0x8082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-arith-round.elf" h:0x4501 0x00301073 0x3f8002b7 0xf0028053 0x338002b7 0xf00280d3 0x00100153 0xe0010353 0x00137313 h:0x951a 0x00103153 0xe0010353 0x00137313 h:0x951a 0x0021d073 0x00107153 0xe0010353 0x00137313 h:0x951a 0x001023f3 h:0x951e 0x00301073 h:0x8082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-cvt-round.elf" h:0x4501 0x00301073 0x010002b7 h:0x0285 0xd2328053 0x401000d3 0xe0008353 0x00137313 h:0x951a 0x401030d3 0xe0008353 0x00137313 h:0x951a 0x0021d073 0x401070d3 0xe0008353 0x00137313 h:0x951a 0xd032f0d3 0xe0008353 0x00137313 h:0x951a 0x001023f3 h:0x951e 0x00301073 h:0x8082
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-nan-flags.elf" h:0x4501 0x00301073 0x7fc002b7 0xf0028053 0x3f800337 0xf00300d3 0x28100153 0xe00103d3 0x0063c3b3 0x0013b393 h:0x951e 0x00102e73 0x001e3e13 h:0x9572 0x00301073 0x7fa002b7 0xf0028053 0x28100153 0xe00103d3 0x0063c3b3 0x0013b393 h:0x951e 0x00102e73 0x010e4e13 0x001e3e13 h:0x9572 0x00301073 0x7fc002b7 0xf0028053 0xa01023d3 0x0013b393 h:0x951e 0x00102e73 0x001e3e13 h:0x9572 0x00301073 0xa01013d3 0x0013b393 h:0x951e 0x00102e73 0x010e4e13 0x001e3e13 h:0x9572 0x00301073 h:0x8082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-upper.elf" 0x12345537 0x67850513 0x00000597 0x00000617 0x40b60633 0x00c50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-immops.elf" 0x00500513 0x00351513 0x00356513 0x00154513 0x03f57513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-wordops.elf" 0xfff00293 0x0022831b 0x01f3139b 0x01e3d41b 0x41e3d49b 0x0094053b 0x00700593 0x02b5863b 0x00c5053b 0x40b5053b
@@ -5759,6 +5760,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-fp-round.elf=16 \
     /usr/lib/polyapps/riscv-fp-arith-round.elf=3 \
     /usr/lib/polyapps/riscv-fp-cvt-round.elf=4 \
+    /usr/lib/polyapps/riscv-fp-nan-flags.elf=8 \
     /usr/lib/polyapps/riscv-upper.elf=0x1234567c \
     /usr/lib/polyapps/riscv-immops.elf=42 \
     /usr/lib/polyapps/riscv-wordops.elf=42 \
@@ -7427,6 +7429,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-fp-round.elf \
       /usr/lib/polyapps/riscv-fp-arith-round.elf \
       /usr/lib/polyapps/riscv-fp-cvt-round.elf \
+      /usr/lib/polyapps/riscv-fp-nan-flags.elf \
       /usr/lib/polyapps/riscv-upper.elf \
       /usr/lib/polyapps/riscv-immops.elf \
       /usr/lib/polyapps/riscv-wordops.elf \
@@ -7881,6 +7884,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-fp-round.elf \
     /usr/lib/polyapps/riscv-fp-arith-round.elf \
     /usr/lib/polyapps/riscv-fp-cvt-round.elf \
+    /usr/lib/polyapps/riscv-fp-nan-flags.elf \
     /usr/lib/polyapps/riscv-upper.elf \
     /usr/lib/polyapps/riscv-immops.elf \
     /usr/lib/polyapps/riscv-wordops.elf \
