@@ -39,6 +39,13 @@ uint64_t poly_process_needed_add(uint64_t left, uint64_t right) {
   return left + right + 0x140;
 }
 
+#elif defined(POLY_PROCESS_PRELOAD_SECOND_OVERRIDE_DEP)
+
+__attribute__((visibility("default")))
+uint64_t poly_process_needed_add(uint64_t left, uint64_t right) {
+  return left + right + 0x240;
+}
+
 #elif defined(POLY_PROCESS_NEEDED_IFUNC_DEP)
 
 static uint64_t poly_process_needed_ifunc_add_impl(uint64_t left,
@@ -386,6 +393,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_needed_add(0x20, 0x30) != 0x190)
     return 44;
   static const char marker[] = "POLY_PROCESS_PRELOAD_OK\n";
+#elif defined(POLY_PROCESS_PRELOAD_SECOND_MAIN)
+  if (poly_process_needed_add(0x20, 0x30) != 0x290)
+    return 45;
+  static const char marker[] = "POLY_PROCESS_PRELOAD_SECOND_OK\n";
 #else
   if (poly_process_needed_add(0x20, 0x30) != 0x90)
     return 21;
