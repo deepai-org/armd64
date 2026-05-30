@@ -58,6 +58,21 @@ static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x42" ::: "memory"); }
 
+static int check_polybench_arch_state_contract(void) {
+  struct poly_cpuid_contract_failure failure;
+  if (!poly_cpuid_verify_arch_state_contract(&failure)) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: %s mismatch leaf=0x%x subleaf=%u got=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      failure.name, failure.leaf, failure.subleaf,
+      failure.actual.eax, failure.actual.ebx,
+      failure.actual.ecx, failure.actual.edx,
+      failure.expected.eax, failure.expected.ebx,
+      failure.expected.ecx, failure.expected.edx);
+    return -1;
+  }
+  return 0;
+}
+
 static int check_polybench_contract(void) {
   const struct poly_cpuid_regs base = poly_read_cpuid(POLY_CPUID_BASE, 0);
   if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
@@ -84,6 +99,9 @@ static int check_polybench_contract(void) {
       POLY_STATE_XSAVE_COMPONENT_ARCH);
     return -1;
   }
+
+  if (check_polybench_arch_state_contract() < 0)
+    return -1;
 
   const struct poly_cpuid_regs abi_bridge =
     poly_read_cpuid(POLY_CPUID_BASE + 9, 0);

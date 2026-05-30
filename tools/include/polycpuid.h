@@ -1348,6 +1348,214 @@ static inline uint32_t poly_cpuid_forbidden_abi_bridge_mask(void) {
     POLY_ABI_BRIDGE_FLAG_RESERVED_USER_DESCRIPTORS;
 }
 
+struct poly_cpuid_contract_check {
+  const char *name;
+  uint32_t leaf;
+  uint32_t subleaf;
+  struct poly_cpuid_regs expected;
+};
+
+struct poly_cpuid_contract_failure {
+  const char *name;
+  uint32_t leaf;
+  uint32_t subleaf;
+  struct poly_cpuid_regs actual;
+  struct poly_cpuid_regs expected;
+};
+
+static inline int poly_cpuid_arch_state_contract_check(size_t index,
+    struct poly_cpuid_contract_check *check) {
+  switch (index) {
+  case 0:
+    check->name = "poly state contract";
+    check->leaf = POLY_CPUID_BASE + 3;
+    check->subleaf = 0;
+    check->expected = poly_cpuid_expected_state_leaf();
+    return 1;
+  case 1:
+    check->name = "poly XSAVE state contract";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 0;
+    check->expected = poly_cpuid_expected_arch_state_leaf();
+    return 1;
+  case 2:
+    check->name = "poly XSAVE header layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 1;
+    check->expected = poly_cpuid_expected_arch_state_header_leaf();
+    return 1;
+  case 3:
+    check->name = "poly XSAVE trap layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 2;
+    check->expected = poly_cpuid_expected_arch_state_trap_leaf();
+    return 1;
+  case 4:
+    check->name = "poly AArch64 GPR layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 3;
+    check->expected = poly_cpuid_expected_arch_state_aarch64_gpr_leaf();
+    return 1;
+  case 5:
+    check->name = "poly AArch64 FP layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 4;
+    check->expected = poly_cpuid_expected_arch_state_aarch64_fp_leaf();
+    return 1;
+  case 6:
+    check->name = "poly AArch64 status layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 5;
+    check->expected = poly_cpuid_expected_arch_state_aarch64_status_leaf();
+    return 1;
+  case 7:
+    check->name = "poly RISC-V GPR layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 6;
+    check->expected = poly_cpuid_expected_arch_state_riscv_gpr_leaf();
+    return 1;
+  case 8:
+    check->name = "poly RISC-V FP layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 7;
+    check->expected = poly_cpuid_expected_arch_state_riscv_fp_leaf();
+    return 1;
+  case 9:
+    check->name = "poly RISC-V status layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 8;
+    check->expected = poly_cpuid_expected_arch_state_riscv_status_leaf();
+    return 1;
+  case 10:
+    check->name = "poly ABI signature layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 9;
+    check->expected = poly_cpuid_expected_arch_state_abi_signature_leaf();
+    return 1;
+  case 11:
+    check->name = "poly frontend TLS layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 10;
+    check->expected = poly_cpuid_expected_arch_state_frontend_tls_leaf();
+    return 1;
+  case 12:
+    check->name = "poly landing policy layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 11;
+    check->expected = poly_cpuid_expected_arch_state_landing_policy_leaf();
+    return 1;
+  case 13:
+    check->name = "poly state-key layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 12;
+    check->expected = poly_cpuid_expected_arch_state_state_key_leaf();
+    return 1;
+  case 14:
+    check->name = "poly XSAVE reserved layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 13;
+    check->expected = poly_cpuid_expected_arch_state_reserved_leaf();
+    return 1;
+  case 15:
+    check->name = "poly transition contract";
+    check->leaf = POLY_CPUID_BASE + 8;
+    check->subleaf = 0;
+    check->expected = poly_cpuid_expected_transition_leaf();
+    return 1;
+  case 16:
+    check->name = "poly transition frame layout";
+    check->leaf = POLY_CPUID_BASE + 8;
+    check->subleaf = 2;
+    check->expected = poly_cpuid_expected_transition_layout_leaf();
+    return 1;
+  case 17:
+    check->name = "poly cross-return layout";
+    check->leaf = POLY_CPUID_BASE + 8;
+    check->subleaf = 3;
+    check->expected = poly_cpuid_expected_transition_cross_return_leaf();
+    return 1;
+  case 18:
+    check->name = "poly import-return layout";
+    check->leaf = POLY_CPUID_BASE + 8;
+    check->subleaf = 4;
+    check->expected = poly_cpuid_expected_transition_import_return_leaf();
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+static inline int poly_cpuid_regs_match(const struct poly_cpuid_regs *actual,
+    const struct poly_cpuid_regs *expected) {
+  return actual->eax == expected->eax &&
+    actual->ebx == expected->ebx &&
+    actual->ecx == expected->ecx &&
+    actual->edx == expected->edx;
+}
+
+static inline int poly_cpuid_xsave_leaf0_supports_arch_state(
+    const struct poly_cpuid_regs *regs) {
+  return (regs->eax & (1U << POLY_STATE_XSAVE_COMPONENT_ARCH)) != 0 &&
+    regs->ecx >= POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_standard_xsave_arch_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_BYTES_ARCH;
+  regs.ebx = POLY_STATE_XSAVE_OFFSET_ARCH;
+  regs.ecx = 0x2;
+  regs.edx = 0;
+  return regs;
+}
+
+static inline int poly_cpuid_verify_arch_state_contract(
+    struct poly_cpuid_contract_failure *failure) {
+  struct poly_cpuid_contract_check check;
+  for (size_t i = 0; poly_cpuid_arch_state_contract_check(i, &check); i++) {
+    const struct poly_cpuid_regs actual =
+      poly_read_cpuid(check.leaf, check.subleaf);
+    if (!poly_cpuid_regs_match(&actual, &check.expected)) {
+      failure->name = check.name;
+      failure->leaf = check.leaf;
+      failure->subleaf = check.subleaf;
+      failure->actual = actual;
+      failure->expected = check.expected;
+      return 0;
+    }
+  }
+
+  const struct poly_cpuid_regs xsave0 = poly_read_cpuid(0x0000000d, 0);
+  if (!poly_cpuid_xsave_leaf0_supports_arch_state(&xsave0)) {
+    struct poly_cpuid_regs expected;
+    expected.eax = 1U << POLY_STATE_XSAVE_COMPONENT_ARCH;
+    expected.ebx = 0;
+    expected.ecx = POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH;
+    expected.edx = 0;
+    failure->name = "standard XSAVE Poly component support";
+    failure->leaf = 0x0000000d;
+    failure->subleaf = 0;
+    failure->actual = xsave0;
+    failure->expected = expected;
+    return 0;
+  }
+
+  const struct poly_cpuid_regs expected_xsave =
+    poly_cpuid_expected_standard_xsave_arch_leaf();
+  const struct poly_cpuid_regs xsave_poly =
+    poly_read_cpuid(0x0000000d, POLY_STATE_XSAVE_COMPONENT_ARCH);
+  if (!poly_cpuid_regs_match(&xsave_poly, &expected_xsave)) {
+    failure->name = "standard XSAVE Poly component";
+    failure->leaf = 0x0000000d;
+    failure->subleaf = POLY_STATE_XSAVE_COMPONENT_ARCH;
+    failure->actual = xsave_poly;
+    failure->expected = expected_xsave;
+    return 0;
+  }
+
+  return 1;
+}
+
 static inline void poly_cpuid_vendor_string(const struct poly_cpuid_regs *regs,
     char vendor[13]) {
   memcpy(vendor, &regs->ebx, 4);

@@ -90,6 +90,21 @@ static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
+static int check_polysignal_arch_state_contract(void) {
+  struct poly_cpuid_contract_failure failure;
+  if (!poly_cpuid_verify_arch_state_contract(&failure)) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: %s mismatch leaf=0x%x subleaf=%u got=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      failure.name, failure.leaf, failure.subleaf,
+      failure.actual.eax, failure.actual.ebx,
+      failure.actual.ecx, failure.actual.edx,
+      failure.expected.eax, failure.expected.ebx,
+      failure.expected.ecx, failure.expected.edx);
+    return -1;
+  }
+  return 0;
+}
+
 static int check_polysignal_contract(void) {
   const struct poly_cpuid_regs base = poly_read_cpuid(POLY_CPUID_BASE, 0);
   if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
@@ -113,6 +128,9 @@ static int check_polysignal_contract(void) {
       forbidden_features);
     return -1;
   }
+
+  if (check_polysignal_arch_state_contract() < 0)
+    return -1;
 
   const struct poly_cpuid_regs expected_abi_bridge =
     poly_cpuid_expected_abi_bridge_leaf();
