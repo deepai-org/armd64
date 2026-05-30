@@ -925,6 +925,240 @@ static struct poly_cpuid_regs read_cpuid(uint32_t leaf, uint32_t subleaf) {
   return regs;
 }
 
+enum {
+  POLYCALL_CPUID_STATE_OVERLAP_GPRS = (1U << 0),
+  POLYCALL_CPUID_STATE_USER_RETURN_RESTORE = (1U << 5),
+  POLYCALL_CPUID_STATE_X86_TSO = (1U << 6),
+  POLYCALL_CPUID_STATE_XSAVE_VISIBLE = (1U << 7),
+  POLYCALL_CPUID_STATE_KEY_EXPLICIT = (1U << 8),
+  POLYCALL_CPUID_STATE_TRANSITION_FRAME_32 = (1U << 9),
+  POLYCALL_CPUID_STATE_EXPLICIT_SAVE_RESTORE = (1U << 10),
+  POLYCALL_CPUID_STATE_XSAVE_ARCH_CONTRACT = (1U << 11),
+  POLYCALL_CPUID_STATE_IMPORT_RETURN_XSAVE = (1U << 12),
+  POLYCALL_CPUID_STATE_ABI_SIGNATURE_XSAVE = (1U << 13),
+  POLYCALL_CPUID_STATE_MONITOR_PACKET_XSAVE = (1U << 14),
+  POLYCALL_CPUID_STATE_CROSS_RETURN_XSAVE = (1U << 15),
+  POLYCALL_CPUID_STATE_FRONTEND_TLS_XSAVE = (1U << 16),
+  POLYCALL_CPUID_STATE_LANDING_POLICY_XSAVE = (1U << 17),
+  POLYCALL_CPUID_STATE_STATE_KEY_XSAVE = (1U << 18),
+  POLYCALL_STATE_XSAVE_MAGIC = 0x31594c50,
+  POLYCALL_STATE_XSAVE_OFFSET_ARCH = 0x3000,
+  POLYCALL_STATE_XSAVE_BYTES_ARCH = 4096,
+  POLYCALL_STATE_XSAVE_ALIGN_ARCH = 64,
+  POLYCALL_STATE_XSAVE_LAYOUT_VERSION = 9,
+  POLYCALL_STATE_XSAVE_FLAGS = 0xfff,
+  POLYCALL_STATE_XSAVE_HEADER_OFFSET = 0x000,
+  POLYCALL_STATE_XSAVE_HEADER_BYTES = 0x040,
+  POLYCALL_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
+  POLYCALL_STATE_XSAVE_TRAP_PACKET_BYTES = 0x040,
+  POLYCALL_STATE_XSAVE_TRAP_ARGS_OFFSET = 0x080,
+  POLYCALL_STATE_XSAVE_TRAP_ARGS_BYTES = 0x040,
+  POLYCALL_STATE_XSAVE_TRANSITION_OFFSET = 0x0c0,
+  POLYCALL_STATE_XSAVE_TRANSITION_BYTES = 0x040,
+  POLYCALL_STATE_XSAVE_AARCH64_GPR_OFFSET = 0x100,
+  POLYCALL_STATE_XSAVE_AARCH64_GPR_BYTES = 0x100,
+  POLYCALL_STATE_XSAVE_AARCH64_FP_OFFSET = 0x200,
+  POLYCALL_STATE_XSAVE_AARCH64_FP_BYTES = 0x200,
+  POLYCALL_STATE_XSAVE_AARCH64_STATUS_OFFSET = 0x400,
+  POLYCALL_STATE_XSAVE_AARCH64_STATUS_BYTES = 0x080,
+  POLYCALL_STATE_XSAVE_RISCV_GPR_OFFSET = 0x480,
+  POLYCALL_STATE_XSAVE_RISCV_GPR_BYTES = 0x100,
+  POLYCALL_STATE_XSAVE_RISCV_FP_OFFSET = 0x580,
+  POLYCALL_STATE_XSAVE_RISCV_FP_BYTES = 0x200,
+  POLYCALL_STATE_XSAVE_RISCV_STATUS_OFFSET = 0x780,
+  POLYCALL_STATE_XSAVE_RISCV_STATUS_BYTES = 0x080,
+  POLYCALL_STATE_XSAVE_IMPORT_RETURN_OFFSET = 0x800,
+  POLYCALL_STATE_XSAVE_IMPORT_RETURN_BYTES = 0x500,
+  POLYCALL_STATE_XSAVE_IMPORT_RETURN_DEPTH = 8,
+  POLYCALL_STATE_XSAVE_IMPORT_RETURN_FRAME_BYTES = 0x80,
+  POLYCALL_STATE_XSAVE_ABI_SIGNATURE_OFFSET = 0xd00,
+  POLYCALL_STATE_XSAVE_ABI_SIGNATURE_BYTES = 0x080,
+  POLYCALL_STATE_XSAVE_CROSS_RETURN_OFFSET = 0xd80,
+  POLYCALL_STATE_XSAVE_CROSS_RETURN_BYTES = 0x120,
+  POLYCALL_STATE_XSAVE_CROSS_RETURN_DEPTH = 8,
+  POLYCALL_STATE_XSAVE_CROSS_RETURN_FRAME_BYTES = 0x20,
+  POLYCALL_STATE_XSAVE_FRONTEND_TLS_OFFSET = 0xea0,
+  POLYCALL_STATE_XSAVE_FRONTEND_TLS_BYTES = 0x040,
+  POLYCALL_STATE_XSAVE_LANDING_POLICY_OFFSET = 0xee0,
+  POLYCALL_STATE_XSAVE_LANDING_POLICY_BYTES = 0x040,
+  POLYCALL_STATE_XSAVE_STATE_KEY_OFFSET = 0xf20,
+  POLYCALL_STATE_XSAVE_STATE_KEY_BYTES = 0x040,
+  POLYCALL_STATE_XSAVE_RESERVED_OFFSET = 0xf60,
+  POLYCALL_STATE_XSAVE_RESERVED_BYTES = 0x0a0,
+  POLYCALL_LANDING_POLICY_SUPPORTED = 3,
+  POLYCALL_STATE_KEY_FLAG_EXPLICIT = 1,
+  POLYCALL_TRANSITION_ABI_VERSION = 1,
+  POLYCALL_TRANSITION_FLAGS = 0xfff,
+  POLYCALL_TRANSITION_AARCH64_ALIGN = 4,
+  POLYCALL_TRANSITION_RISCV_ALIGN = 2,
+  POLYCALL_TRANSITION_FRAME_BYTES = 32
+};
+
+struct polycall_cpuid_check {
+  const char *name;
+  uint32_t leaf;
+  uint32_t subleaf;
+  struct poly_cpuid_regs expected;
+};
+
+static struct poly_cpuid_regs polycall_cpuid_regs(uint32_t eax,
+    uint32_t ebx, uint32_t ecx, uint32_t edx) {
+  struct poly_cpuid_regs regs;
+  regs.eax = eax;
+  regs.ebx = ebx;
+  regs.ecx = ecx;
+  regs.edx = edx;
+  return regs;
+}
+
+static int polycall_check_cpuid_regs(const struct polycall_cpuid_check *check) {
+  const struct poly_cpuid_regs actual =
+    read_cpuid(check->leaf, check->subleaf);
+  if (actual.eax != check->expected.eax ||
+      actual.ebx != check->expected.ebx ||
+      actual.ecx != check->expected.ecx ||
+      actual.edx != check->expected.edx) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: %s mismatch leaf=0x%x subleaf=%u got=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      check->name, check->leaf, check->subleaf,
+      actual.eax, actual.ebx, actual.ecx, actual.edx,
+      check->expected.eax, check->expected.ebx,
+      check->expected.ecx, check->expected.edx);
+    return -1;
+  }
+  return 0;
+}
+
+static int polycall_check_arch_state_contract(void) {
+  const uint32_t state_flags =
+    POLYCALL_CPUID_STATE_OVERLAP_GPRS |
+    POLYCALL_CPUID_STATE_USER_RETURN_RESTORE |
+    POLYCALL_CPUID_STATE_X86_TSO |
+    POLYCALL_CPUID_STATE_XSAVE_VISIBLE |
+    POLYCALL_CPUID_STATE_KEY_EXPLICIT |
+    POLYCALL_CPUID_STATE_TRANSITION_FRAME_32 |
+    POLYCALL_CPUID_STATE_EXPLICIT_SAVE_RESTORE |
+    POLYCALL_CPUID_STATE_XSAVE_ARCH_CONTRACT |
+    POLYCALL_CPUID_STATE_IMPORT_RETURN_XSAVE |
+    POLYCALL_CPUID_STATE_ABI_SIGNATURE_XSAVE |
+    POLYCALL_CPUID_STATE_MONITOR_PACKET_XSAVE |
+    POLYCALL_CPUID_STATE_CROSS_RETURN_XSAVE |
+    POLYCALL_CPUID_STATE_FRONTEND_TLS_XSAVE |
+    POLYCALL_CPUID_STATE_LANDING_POLICY_XSAVE |
+    POLYCALL_CPUID_STATE_STATE_KEY_XSAVE;
+  const uint32_t arch_state_ecx = POLYCALL_STATE_XSAVE_LAYOUT_VERSION |
+    (POLYCALL_STATE_XSAVE_ALIGN_ARCH << 16);
+  const uint32_t transition_ecx = POLYCALL_TRANSITION_AARCH64_ALIGN |
+    (POLYCALL_TRANSITION_RISCV_ALIGN << 16);
+  const uint32_t mode_mask =
+    (1U << POLY_MODE_X86) |
+    (1U << POLY_MODE_RAW_AARCH64) |
+    (1U << POLY_MODE_RAW_RISCV);
+  const struct polycall_cpuid_check checks[] = {
+    { "poly state contract", POLY_CPUID_BASE + 3, 0,
+      polycall_cpuid_regs(state_flags, 0, POLY_STATE_XSAVE_COMPONENT_ARCH,
+        POLYCALL_STATE_XSAVE_BYTES_ARCH) },
+    { "poly XSAVE state contract", POLY_CPUID_BASE + 4, 0,
+      polycall_cpuid_regs(POLY_STATE_XSAVE_COMPONENT_ARCH,
+        POLYCALL_STATE_XSAVE_BYTES_ARCH, arch_state_ecx,
+        POLYCALL_STATE_XSAVE_FLAGS) },
+    { "poly XSAVE header layout", POLY_CPUID_BASE + 4, 1,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_HEADER_OFFSET,
+        POLYCALL_STATE_XSAVE_HEADER_BYTES, POLYCALL_STATE_XSAVE_MAGIC,
+        POLYCALL_STATE_XSAVE_LAYOUT_VERSION) },
+    { "poly XSAVE trap layout", POLY_CPUID_BASE + 4, 2,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_TRAP_PACKET_OFFSET,
+        POLYCALL_STATE_XSAVE_TRAP_PACKET_BYTES,
+        POLYCALL_STATE_XSAVE_TRAP_ARGS_OFFSET,
+        POLYCALL_STATE_XSAVE_TRAP_ARGS_BYTES) },
+    { "poly AArch64 GPR layout", POLY_CPUID_BASE + 4, 3,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_AARCH64_GPR_OFFSET,
+        POLYCALL_STATE_XSAVE_AARCH64_GPR_BYTES, 32, sizeof(uint64_t)) },
+    { "poly AArch64 FP layout", POLY_CPUID_BASE + 4, 4,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_AARCH64_FP_OFFSET,
+        POLYCALL_STATE_XSAVE_AARCH64_FP_BYTES, 32, 16) },
+    { "poly AArch64 status layout", POLY_CPUID_BASE + 4, 5,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_AARCH64_STATUS_OFFSET,
+        POLYCALL_STATE_XSAVE_AARCH64_STATUS_BYTES,
+        POLYCALL_STATE_XSAVE_AARCH64_STATUS_BYTES, 0) },
+    { "poly RISC-V GPR layout", POLY_CPUID_BASE + 4, 6,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_RISCV_GPR_OFFSET,
+        POLYCALL_STATE_XSAVE_RISCV_GPR_BYTES, 32, sizeof(uint64_t)) },
+    { "poly RISC-V FP layout", POLY_CPUID_BASE + 4, 7,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_RISCV_FP_OFFSET,
+        POLYCALL_STATE_XSAVE_RISCV_FP_BYTES, 32, 16) },
+    { "poly RISC-V status layout", POLY_CPUID_BASE + 4, 8,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_RISCV_STATUS_OFFSET,
+        POLYCALL_STATE_XSAVE_RISCV_STATUS_BYTES,
+        POLYCALL_STATE_XSAVE_RISCV_STATUS_BYTES, 0) },
+    { "poly ABI signature layout", POLY_CPUID_BASE + 4, 9,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_ABI_SIGNATURE_OFFSET,
+        POLYCALL_STATE_XSAVE_ABI_SIGNATURE_BYTES,
+        POLY_ABI_SIGNATURE_SLOT_COUNT, 8) },
+    { "poly frontend TLS layout", POLY_CPUID_BASE + 4, 10,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_FRONTEND_TLS_OFFSET,
+        POLYCALL_STATE_XSAVE_FRONTEND_TLS_BYTES,
+        POLYCALL_STATE_XSAVE_FRONTEND_TLS_BYTES, 0) },
+    { "poly landing policy layout", POLY_CPUID_BASE + 4, 11,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_LANDING_POLICY_OFFSET,
+        POLYCALL_STATE_XSAVE_LANDING_POLICY_BYTES,
+        POLYCALL_LANDING_POLICY_SUPPORTED, 0) },
+    { "poly state-key layout", POLY_CPUID_BASE + 4, 12,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_STATE_KEY_OFFSET,
+        POLYCALL_STATE_XSAVE_STATE_KEY_BYTES,
+        POLYCALL_STATE_KEY_FLAG_EXPLICIT, 0) },
+    { "poly XSAVE reserved layout", POLY_CPUID_BASE + 4, 13,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_RESERVED_OFFSET,
+        POLYCALL_STATE_XSAVE_RESERVED_BYTES, 0, 0) },
+    { "poly transition contract", POLY_CPUID_BASE + 8, 0,
+      polycall_cpuid_regs(POLYCALL_TRANSITION_ABI_VERSION,
+        POLYCALL_TRANSITION_FLAGS, transition_ecx, mode_mask) },
+    { "poly transition frame layout", POLY_CPUID_BASE + 8, 2,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_TRANSITION_OFFSET,
+        POLYCALL_STATE_XSAVE_TRANSITION_BYTES,
+        POLYCALL_TRANSITION_FRAME_BYTES, 0) },
+    { "poly cross-return layout", POLY_CPUID_BASE + 8, 3,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_CROSS_RETURN_OFFSET,
+        POLYCALL_STATE_XSAVE_CROSS_RETURN_BYTES,
+        POLYCALL_STATE_XSAVE_CROSS_RETURN_DEPTH,
+        POLYCALL_STATE_XSAVE_CROSS_RETURN_FRAME_BYTES) },
+    { "poly import-return layout", POLY_CPUID_BASE + 8, 4,
+      polycall_cpuid_regs(POLYCALL_STATE_XSAVE_IMPORT_RETURN_OFFSET,
+        POLYCALL_STATE_XSAVE_IMPORT_RETURN_BYTES,
+        POLYCALL_STATE_XSAVE_IMPORT_RETURN_DEPTH,
+        POLYCALL_STATE_XSAVE_IMPORT_RETURN_FRAME_BYTES) },
+  };
+
+  for (size_t i = 0; i < sizeof(checks) / sizeof(checks[0]); i++) {
+    if (polycall_check_cpuid_regs(&checks[i]) != 0)
+      return -1;
+  }
+
+  const struct poly_cpuid_regs xsave0 = read_cpuid(0x0000000d, 0);
+  if ((xsave0.eax & (1U << POLY_STATE_XSAVE_COMPONENT_ARCH)) == 0 ||
+      xsave0.ecx < POLYCALL_STATE_XSAVE_OFFSET_ARCH +
+        POLYCALL_STATE_XSAVE_BYTES_ARCH) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: standard XSAVE Poly component missing leaf0=(0x%x,0x%x,0x%x,0x%x)\n",
+      xsave0.eax, xsave0.ebx, xsave0.ecx, xsave0.edx);
+    return -1;
+  }
+
+  const struct poly_cpuid_regs xsave_poly =
+    read_cpuid(0x0000000d, POLY_STATE_XSAVE_COMPONENT_ARCH);
+  if (xsave_poly.eax != POLYCALL_STATE_XSAVE_BYTES_ARCH ||
+      xsave_poly.ebx != POLYCALL_STATE_XSAVE_OFFSET_ARCH ||
+      xsave_poly.ecx != 0x2 ||
+      xsave_poly.edx != 0) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: standard XSAVE Poly component mismatch got=(0x%x,0x%x,0x%x,0x%x)\n",
+      xsave_poly.eax, xsave_poly.ebx, xsave_poly.ecx, xsave_poly.edx);
+    return -1;
+  }
+
+  return 0;
+}
+
 static int poly_cpuid_vendor_matches(const struct poly_cpuid_regs *regs) {
   return regs->ebx == 0x796c6f50U &&
     regs->edx == 0x746f6c67U &&
@@ -953,6 +1187,9 @@ static int read_poly_base_contract(void) {
       POLY_CPUID_REQUIRED_MODES, POLY_STATE_XSAVE_COMPONENT_ARCH);
     return -1;
   }
+
+  if (polycall_check_arch_state_contract() != 0)
+    return -1;
 
   return 0;
 }
