@@ -28,6 +28,7 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
   long double y = (long double) (a + b) / (long double) (c + 1);
   double d = (double) (x + y);
   float f = (float) (x - y);
+  long f_term = (long) (f * -4.0f);
   unsigned long score = 0;
 
   if (x < y)
@@ -43,6 +44,9 @@ unsigned long poly_entry(unsigned long a, unsigned long b, unsigned long c)
   if (x != y)
     score += 17;
 
+  if (f_term < 0)
+    f_term = 0;
+
   return score + (unsigned long) (d * 10.0) +
-    (unsigned long) (f * -4.0f) + descriptor_compare_probe(x, y);
+    (unsigned long) f_term + descriptor_compare_probe(x, y);
 }

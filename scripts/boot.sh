@@ -447,7 +447,8 @@ build_poly_call() {
 }
 
 build_poly_thread() {
-  if [[ -x "$POLY_THREAD_BIN" && "$POLY_THREAD_BIN" -nt "$POLY_THREAD_SRC" ]]; then
+  if [[ -x "$POLY_THREAD_BIN" && "$POLY_THREAD_BIN" -nt "$POLY_THREAD_SRC" &&
+      "$POLY_THREAD_BIN" -nt "$POLY_CPUID_HEADER" ]]; then
     return
   fi
 
