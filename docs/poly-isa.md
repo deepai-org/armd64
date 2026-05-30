@@ -1,8 +1,8 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly adds direct-fetch AArch64 and RISC-V64 user frontends to an x86_64
-machine. x86_64 still owns boot, paging, privilege, interrupts, scheduling,
-syscalls, atomics, and TSO ordering.
+Poly adds direct-fetch AArch64 and RISC-V64 user-mode frontends to an x86_64
+machine. x86_64 remains the system ISA: it owns boot, paging, privilege,
+interrupts, scheduling, syscalls, atomics, and TSO ordering.
 
 ## Run
 
@@ -12,19 +12,20 @@ make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused smoke tests: `boot-poly`, `boot-poly-call-arch-traps`,
+Useful focused targets: `boot-poly`, `boot-poly-call-arch-traps`,
 `boot-poly-binfmt-arch-traps`, `boot-poly-neutral-arch-traps`.
 
-## Architectural Delta From x86_64
+## Difference From x86_64
 
 - Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
 - Fetch: x86_64 uses normal variable-length decode; foreign modes fetch native
   aligned 32-bit instructions from `RIP`.
 - State: non-x86 architectural registers are XSAVE-style state, not hidden
   emulator state.
-- Calls: fast calls use register-only ABI signature slots; software thunks
-  handle stack args, aggregates, variadics, lazy binding, and policy.
-- Traps: foreign traps produce OS-neutral trap packets. Hardware must not know
+- Calls: hardware switches ISA and can apply register-only ABI signatures;
+  software thunks handle stack args, aggregates, variadics, lazy binding, and
+  policy.
+- Traps: foreign traps produce OS-neutral trap packets; hardware does not know
   Linux, libc, libgcc, libatomic, or dynamic-linker semantics.
 
 ## Temporary Opcode Space
@@ -39,4 +40,4 @@ Focused smoke tests: `boot-poly`, `boot-poly-call-arch-traps`,
 | `PTRAPRET` | `0x62` | `0x76` | `6` |
 | `PLANDING` | `0x05` | `0x7b` | `11` |
 
-Design rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Details and rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
