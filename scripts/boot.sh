@@ -5057,6 +5057,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-int-move.elf" 0x80000537 0x02a50513 0xf0050553 0xe0050553 0xf20505d3 0xe2058553 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-class.elf" 0xf0000553 0xe0051553 0xf20005d3 0xe20595d3 0x00b50533 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp32-to-int.elf" 0x41400537 0xf0050553 0xc0051553 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-csr.elf" 0x00000513 0x00500293 0x00129373 0x001023f3 0x00650533 0x00750533 0x00300293 0x00229373 0x002023f3 0x00650533 0x00750533 0x00302e73 0x01c50533 0x04400293 0x00329373 0x00650533 0x003023f3 0x00750533 0x0013d073 0x00102373 0x00650533 0x0020d073 0x002023f3 0x00750533 0x00301073 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-upper.elf" 0x12345537 0x67850513 0x00000597 0x00000617 0x40b60633 0x00c50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-immops.elf" 0x00500513 0x00351513 0x00356513 0x00154513 0x03f57513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-wordops.elf" 0xfff00293 0x0022831b 0x01f3139b 0x01e3d41b 0x41e3d49b 0x0094053b 0x00700593 0x02b5863b 0x00c5053b 0x40b5053b
@@ -5751,6 +5752,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-fp-int-move.elf=0xffffffff8000002a \
     /usr/lib/polyapps/riscv-fp-class.elf=32 \
     /usr/lib/polyapps/riscv-fp32-to-int.elf=12 \
+    /usr/lib/polyapps/riscv-fp-csr.elf=286 \
     /usr/lib/polyapps/riscv-upper.elf=0x1234567c \
     /usr/lib/polyapps/riscv-immops.elf=42 \
     /usr/lib/polyapps/riscv-wordops.elf=42 \
@@ -7415,6 +7417,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-fp-int-move.elf \
       /usr/lib/polyapps/riscv-fp-class.elf \
       /usr/lib/polyapps/riscv-fp32-to-int.elf \
+      /usr/lib/polyapps/riscv-fp-csr.elf \
       /usr/lib/polyapps/riscv-upper.elf \
       /usr/lib/polyapps/riscv-immops.elf \
       /usr/lib/polyapps/riscv-wordops.elf \
@@ -7865,6 +7868,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-fp-int-move.elf \
     /usr/lib/polyapps/riscv-fp-class.elf \
     /usr/lib/polyapps/riscv-fp32-to-int.elf \
+    /usr/lib/polyapps/riscv-fp-csr.elf \
     /usr/lib/polyapps/riscv-upper.elf \
     /usr/lib/polyapps/riscv-immops.elf \
     /usr/lib/polyapps/riscv-wordops.elf \
