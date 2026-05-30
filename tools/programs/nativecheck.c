@@ -1667,6 +1667,84 @@ static void child_expect_stale_riscv_reservation_xsave_signal(void) {
   _exit(99);
 }
 
+__attribute__((noreturn, noinline))
+static void child_expect_bad_tls_active_mode_width_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.frontend_tls.active_mode = (1ULL << 32) | POLY_MODE_X86;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_import_return_alias_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].source_mode = POLY_MODE_RAW_AARCH64;
+  bad.import_return.frames[0].alias_valid = 2;
+  bad.import_return.frames[0].import_id = 0;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_transition_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.transition.active.return_pc = 0x1111222233334444ULL;
+  bad.transition.active.caller_mode = POLY_MODE_RAW_AARCH64;
+  bad.transition.active.target_mode = POLY_MODE_RAW_RISCV;
+  bad.transition.active.abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  bad.transition.active.reserved0 = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_status_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.aarch64_status.reserved[0] = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_abi_signature_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.abi_signature.reserved[0] = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_cross_return_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.reserved[0] = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_top_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.reserved[0] = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
 static int expect_child_signal(const char *name, int expected_signal,
     void (*child_func)(void)) {
   pid_t child = fork();
@@ -3561,6 +3639,27 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly stale RISC-V reservation xstate", SIGILL,
         child_expect_stale_riscv_reservation_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad TLS active mode width xstate", SIGILL,
+        child_expect_bad_tls_active_mode_width_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad import-return alias reserved xstate",
+        SIGILL, child_expect_bad_import_return_alias_reserved_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad transition reserved xstate", SIGILL,
+        child_expect_bad_transition_reserved_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad status reserved xstate", SIGILL,
+        child_expect_bad_status_reserved_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad ABI signature reserved xstate", SIGILL,
+        child_expect_bad_abi_signature_reserved_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad cross-return reserved xstate", SIGILL,
+        child_expect_bad_cross_return_reserved_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad top reserved xstate", SIGILL,
+        child_expect_bad_top_reserved_xsave_signal) != 0)
     return 1;
   if (run_poly_invalid_import_no_mutation_probe() != 0)
     return 1;
