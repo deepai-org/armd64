@@ -3632,6 +3632,21 @@ static void emit_x86_pop_callee_regs(uint8_t *code, size_t *offset) {
   code[(*offset)++] = 0x5b; // pop rbx
 }
 
+static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
+    uint32_t frontend_id, uint32_t signature_slot) {
+  code[(*offset)++] = 0x4c; // mov rbx,r10: target operand.
+  code[(*offset)++] = 0x89;
+  code[(*offset)++] = 0xd3;
+  code[(*offset)++] = 0x41; // mov r15d,frontend ID.
+  code[(*offset)++] = 0xbf;
+  emit_u32(code, offset, frontend_id);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+  code[(*offset)++] = (uint8_t) signature_slot;
+}
+
 static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int arch, int call_kind, uint64_t target,
     uint64_t tls, uint64_t heap, uint64_t import_x86_table,
@@ -3654,17 +3669,8 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
     emit_movabs_r12(stubs, stub_offset, import_x86_table);
   emit_x86_state_key_set(stubs, stub_offset, state_key);
   if (call_kind == POLY_CALL_VEC128_U32) {
-    stubs[(*stub_offset)++] = 0x4c; // mov rbx,r10: target operand.
-    stubs[(*stub_offset)++] = 0x89;
-    stubs[(*stub_offset)++] = 0xd3;
-    stubs[(*stub_offset)++] = 0x41; // mov r15d,frontend ID.
-    stubs[(*stub_offset)++] = 0xbf;
-    emit_u32(stubs, stub_offset, (uint32_t) arch);
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x3a;
-    stubs[(*stub_offset)++] = 0xfc;
-    stubs[(*stub_offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
-    stubs[(*stub_offset)++] = (uint8_t) vec128_signature_slot;
+    emit_x86_pcall_sig_imm(stubs, stub_offset, (uint32_t) arch,
+      vec128_signature_slot);
   }
   else {
     stubs[(*stub_offset)++] = 0x0f;
@@ -9127,17 +9133,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint32_t signature_slot = call_kind == POLY_CALL_VEC128_U32 ?
       import_contract.signature_slot_native_regs_vec128_u32 :
       import_contract.signature_slot_native_regs;
-    code[offset++] = 0x4c; // mov rbx,r10: target operand.
-    code[offset++] = 0x89;
-    code[offset++] = 0xd3;
-    code[offset++] = 0x41; // mov r15d,frontend ID.
-    code[offset++] = 0xbf;
-    emit_u32(code, &offset, pcall_frontend);
-    code[offset++] = 0x0f;
-    code[offset++] = 0x3a;
-    code[offset++] = 0xfc;
-    code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
-    code[offset++] = (uint8_t) signature_slot;
+    emit_x86_pcall_sig_imm(code, &offset, pcall_frontend, signature_slot);
   }
   else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
@@ -9255,17 +9251,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
-    code[offset++] = 0x4c; // mov rbx,r10: target operand.
-    code[offset++] = 0x89;
-    code[offset++] = 0xd3;
-    code[offset++] = 0x41; // mov r15d,frontend ID.
-    code[offset++] = 0xbf;
-    emit_u32(code, &offset, pcall_frontend);
-    code[offset++] = 0x0f;
-    code[offset++] = 0x3a;
-    code[offset++] = 0xfc;
-    code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
-    code[offset++] = (uint8_t) import_contract.signature_slot_native_regs;
+    emit_x86_pcall_sig_imm(code, &offset, pcall_frontend,
+      import_contract.signature_slot_native_regs);
   }
   emit_restore_callee_regs(code, &offset, callback_callee_save_area);
   code[offset++] = 0xc3;
