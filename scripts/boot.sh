@@ -750,6 +750,13 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-init-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize \
+    -nostdlib -nodefaultlibs -no-pie -DPOLY_PROCESS_PREINIT_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyprocessneeded-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-preinit-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_INIT_DEP \
     -Wl,-soname,libpolyprocessinit-aarch64.so \
@@ -2832,6 +2839,14 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-init-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d -no-pie \
+    -DPOLY_PROCESS_PREINIT_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyprocessneeded-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-preinit-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_INIT_DEP \
@@ -6299,6 +6314,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-init-real.elf=42 \
       init-array >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-preinit-real.elf=42 \
+      preinit-array >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-init-needed-real.elf=42 \
       init-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -6399,6 +6417,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-init-real.elf=42 \
       init-array >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-preinit-real.elf=42 \
+      preinit-array >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-init-needed-real.elf=42 \
       init-needed >/dev/ttyS0 2>&1
@@ -7195,6 +7216,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       exit 1
     }
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-preinit-real.elf=42 \
+      preinit-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process preinit array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-init-needed-real.elf=42 \
       init-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 process dependency init array" >/dev/ttyS0
@@ -7387,6 +7414,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-init-real.elf=42 \
       init-array >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process init array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-preinit-real.elf=42 \
+      preinit-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process preinit array" >/dev/ttyS0
       exit 1
     }
     /usr/bin/polyexec --process \
@@ -8577,6 +8610,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-preinit-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-needed-envpath-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -8594,6 +8631,10 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-preload-second-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-preinit-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

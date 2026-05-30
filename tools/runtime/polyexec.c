@@ -159,6 +159,14 @@ extern char **environ;
 #define DT_RPATH 15
 #endif
 
+#ifndef DT_PREINIT_ARRAY
+#define DT_PREINIT_ARRAY 32
+#endif
+
+#ifndef DT_PREINIT_ARRAYSZ
+#define DT_PREINIT_ARRAYSZ 33
+#endif
+
 #ifndef DT_VERSYM
 #define DT_VERSYM 0x6ffffff0
 #endif
@@ -233,6 +241,8 @@ struct poly_program {
   size_t tls_offset;
   size_t tls_total_size;
   uint64_t init_vaddr;
+  uint64_t preinit_array_vaddr;
+  uint64_t preinit_array_size;
   uint64_t init_array_vaddr;
   uint64_t init_array_size;
   uint8_t *code_bytes;
@@ -3788,6 +3798,44 @@ static int call_process_initializer(const struct poly_program *program,
   return 0;
 }
 
+static int run_process_initializer_array(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch, uint64_t array_vaddr,
+    uint64_t array_size, const char *kind) {
+  if (array_size == 0)
+    return 0;
+  if (array_vaddr == 0 || array_size % sizeof(uint64_t) != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: bad %s initializer array: %s\n", kind,
+      program->path);
+    return -1;
+  }
+  size_t array_offset = 0;
+  if (elf_vaddr_to_image_offset(program, array_vaddr, array_size,
+        &array_offset) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: %s initializer array escaped image: %s\n",
+      kind, program->path);
+    return -1;
+  }
+  const size_t init_count = (size_t) (array_size / sizeof(uint64_t));
+  for (size_t n = 0; n < init_count; n++) {
+    const uint64_t init_target =
+      read_u64_le(loaded_image + array_offset + n * sizeof(uint64_t));
+    if (init_target != 0 &&
+        call_process_initializer(program, loaded_image, trampoline_code,
+          prefix_size, return_pc, init_target, scratch, kind) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int run_process_preinitializers(const struct poly_program *program,
+    uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
+    uint64_t return_pc, uint8_t *scratch) {
+  return run_process_initializer_array(program, loaded_image, trampoline_code,
+    prefix_size, return_pc, scratch, program->preinit_array_vaddr,
+    program->preinit_array_size, "root preinit");
+}
+
 static int run_process_initializers(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint8_t *scratch, const char *kind_prefix) {
@@ -3802,30 +3850,9 @@ static int run_process_initializers(const struct poly_program *program,
 
   if (program->init_array_size == 0)
     return 0;
-  if (program->init_array_vaddr == 0 ||
-      program->init_array_size % sizeof(uint64_t) != 0) {
-    fprintf(stderr, "POLYEXEC_FAIL: bad %s INIT_ARRAY: %s\n", kind_prefix,
-      program->path);
-    return -1;
-  }
-  size_t init_array_offset = 0;
-  if (elf_vaddr_to_image_offset(program, program->init_array_vaddr,
-        program->init_array_size, &init_array_offset) < 0) {
-    fprintf(stderr, "POLYEXEC_FAIL: %s INIT_ARRAY escaped image: %s\n",
-      kind_prefix, program->path);
-    return -1;
-  }
-  const size_t init_count =
-    (size_t) (program->init_array_size / sizeof(uint64_t));
-  for (size_t n = 0; n < init_count; n++) {
-    const uint64_t init_target =
-      read_u64_le(loaded_image + init_array_offset + n * sizeof(uint64_t));
-    if (init_target != 0 &&
-        call_process_initializer(program, loaded_image, trampoline_code,
-          prefix_size, return_pc, init_target, scratch, kind_prefix) < 0)
-      return -1;
-  }
-  return 0;
+  return run_process_initializer_array(program, loaded_image, trampoline_code,
+    prefix_size, return_pc, scratch, program->init_array_vaddr,
+    program->init_array_size, kind_prefix);
 }
 
 static int detect_arch(uint16_t machine, struct poly_program *program) {
@@ -4221,6 +4248,12 @@ static int load_elf_program(const char *path, const char *symbol_name,
         case DT_INIT:
           program->init_vaddr = dyn[n].d_un.d_ptr;
           break;
+        case DT_PREINIT_ARRAY:
+          program->preinit_array_vaddr = dyn[n].d_un.d_ptr;
+          break;
+        case DT_PREINIT_ARRAYSZ:
+          program->preinit_array_size = dyn[n].d_un.d_val;
+          break;
         case DT_INIT_ARRAY:
           program->init_array_vaddr = dyn[n].d_un.d_ptr;
           break;
@@ -4230,6 +4263,17 @@ static int load_elf_program(const char *path, const char *symbol_name,
         default:
           break;
       }
+    }
+    if (program->preinit_array_size != 0 &&
+        (program->preinit_array_vaddr == 0 ||
+         program->preinit_array_size % sizeof(uint64_t) != 0)) {
+      fprintf(stderr, "POLYEXEC_FAIL: bad PREINIT_ARRAY dynamic table: %s\n",
+        path);
+      free(program->code_bytes);
+      program->code_bytes = NULL;
+      program->code_size = 0;
+      free(data);
+      return -1;
     }
     if (program->init_array_size != 0 &&
         (program->init_array_vaddr == 0 ||
@@ -5041,6 +5085,15 @@ static int emit_and_run_process(struct poly_program *program,
   if (protect_image_range(program, loaded_image,
         program->relro_vaddr, program->relro_size, PROT_READ,
         "PT_GNU_RELRO") < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
+    unmap_process_dependencies(program);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (run_process_preinitializers(program, loaded_image, code,
+        prefix_size, return_pc, scratch) < 0) {
     if (process_tls)
       munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);

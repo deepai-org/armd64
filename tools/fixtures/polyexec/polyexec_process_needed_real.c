@@ -289,6 +289,20 @@ static void poly_process_init_ctor(void) {
 }
 #endif
 
+#if defined(POLY_PROCESS_PREINIT_MAIN)
+extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
+
+static uint64_t poly_process_preinit_value;
+
+static void poly_process_preinit_ctor(void) {
+  poly_process_preinit_value = poly_process_needed_add(0x20, 0x30) + 0x10;
+}
+
+static void (*const poly_process_preinit_entry)(void)
+    __attribute__((section(".preinit_array"), used)) =
+  poly_process_preinit_ctor;
+#endif
+
 #if defined(POLY_PROCESS_DT_INIT_MAIN)
 static uint64_t poly_process_dt_init_value;
 
@@ -322,6 +336,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_init_value != 0x7b)
     return 29;
   static const char marker[] = "POLY_PROCESS_INIT_ARRAY_OK\n";
+#elif defined(POLY_PROCESS_PREINIT_MAIN)
+  if (poly_process_preinit_value != 0xa0)
+    return 46;
+  static const char marker[] = "POLY_PROCESS_PREINIT_ARRAY_OK\n";
 #elif defined(POLY_PROCESS_INIT_DEP_MAIN)
   if (poly_process_init_dep() != 0x5a)
     return 30;
