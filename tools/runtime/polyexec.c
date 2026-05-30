@@ -290,6 +290,7 @@ struct poly_runtime_trap_packet {
   uint64_t pc;
   uint64_t next_pc;
   uint64_t flags;
+  uint64_t reserved[2];
   uint64_t args[8];
 };
 
@@ -1979,6 +1980,8 @@ static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
   packet->pc = poly_monitor_packet[3];
   packet->next_pc = poly_monitor_packet[4];
   packet->flags = poly_monitor_packet[5];
+  packet->reserved[0] = poly_monitor_packet[6];
+  packet->reserved[1] = poly_monitor_packet[7];
   for (size_t n = 0; n < 8; n++)
     packet->args[n] = poly_monitor_packet[8 + n];
 
@@ -1991,6 +1994,18 @@ static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
       (unsigned long long) packet->selector,
       (unsigned long long) packet->pc,
       (unsigned long long) packet->flags);
+    return -1;
+  }
+  if (packet->reserved[0] != 0 || packet->reserved[1] != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: monitor packet reserved fields nonzero reason=%llu mode=%llu number=%llu selector=%llu pc=%llu reserved=(0x%llx,0x%llx)\n",
+      (unsigned long long) packet->reason,
+      (unsigned long long) packet->mode,
+      (unsigned long long) packet->number,
+      (unsigned long long) packet->selector,
+      (unsigned long long) packet->pc,
+      (unsigned long long) packet->reserved[0],
+      (unsigned long long) packet->reserved[1]);
     return -1;
   }
   if ((packet->flags & required_flags) != required_flags) {
