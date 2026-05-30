@@ -1,6 +1,7 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly is an x86_64 CPU extension prototype for running existing precompiled AArch64 and RISC-V64 userspace code in one virtual address space.
+Poly is an x86_64 extension prototype for executing existing AArch64 and
+RISC-V64 userspace code in the same virtual address space as x86_64 code.
 
 ## Run
 
@@ -10,29 +11,27 @@ make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLYBENCH_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused targets: `make boot-poly`, `make boot-poly-call-arch-traps`, `make boot-poly-binfmt-arch-traps`, `make boot-poly-neutral-arch-traps`.
+Focused targets: `boot-poly`, `boot-poly-call-arch-traps`,
+`boot-poly-binfmt-arch-traps`, and `boot-poly-neutral-arch-traps`.
 
-## ISA Differences From x86_64
+## Contract
 
-- x86_64 remains the system ISA for boot, privilege, paging, interrupts, scheduling, syscalls, atomics, and TSO memory ordering.
-- AArch64 and RISC-V64 are user-mode frontends fetching native instructions directly from the process address space.
-- Frontend IDs are `0` x86_64, `1` AArch64, `2` RISC-V64.
-- Fast paths use decoded control instructions, not one `ud2` envelope per foreign instruction.
-- Cross-ISA calls target real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI.
-- Register-only ABI signature slots are the hardware fast path; software thunks handle stack arguments, aggregates, variadics, lazy binding, and policy.
-- Foreign architectural state is explicit XSAVE-style state, not hidden emulator state.
-- Foreign traps produce OS-neutral trap packets. Hardware does not emulate Linux, libc, libgcc, libatomic, or dynamic-linker policy.
+- System ISA: x86_64 owns boot, privilege, paging, interrupts, scheduling,
+  syscalls, atomics, and TSO ordering.
+- User frontends: AArch64 and RISC-V64 fetch native 32-bit instructions from
+  the process address space.
+- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- State: non-x86 architectural state is explicit XSAVE-style state.
+- Calls: fast register-only paths use ABI signature slots; thunks handle stack
+  arguments, aggregates, variadics, lazy binding, and runtime policy.
+- Traps: foreign traps produce OS-neutral trap packets. Hardware must not
+  emulate Linux, libc, libgcc, libatomic, or dynamic linker behavior.
 
-## Prototype Encodings
-
-| Frontend | Encoding |
-| --- | --- |
-| x86_64 | `0f 3a fc <subop>` |
-| AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
-| RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
+## Temporary Encodings
 
 | Operation | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
+| Base format | `0f 3a fc <subop>` | `0xd503201f | (subop << 5)` | `0x0000700b | (subop << 25)` |
 | `PENTER` | `0x03` | n/a | n/a |
 | `PSWITCH` | `0x04` | `0x78` | `8` |
 | `PCALL` | `0x2d` | `0x7a` | `10` |
@@ -40,8 +39,4 @@ Focused targets: `make boot-poly`, `make boot-poly-call-arch-traps`, `make boot-
 | `PTRAPRET` | `0x62` | `0x76` | `6` |
 | `PLANDING` | `0x05` | `0x7b` | `11` |
 
-## References
-
-- Status and commands: [README.md](../README.md)
-- Hardware/ABI rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md)
-- CPUID/XSAVE contract: [polycpuid.h](../tools/include/polycpuid.h)
+Detailed rationale lives in [poly-isa-design-directions.md](poly-isa-design-directions.md).
