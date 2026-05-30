@@ -35,6 +35,8 @@
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX "rcx", "rsi", "rdi", "r8", "r9"
+#define POLY_ABI_FP_CLOBBERS \
+  "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"
 #define POLY_ERR_INVAL ((uint64_t) -22)
 #define POLY_CROSS_RETURN_COOKIE_VALUE 0xffffffffffffd000ULL
 #define POLYPROBE_NEUTRAL_SWITCH_DELTA 3ULL
@@ -838,7 +840,41 @@ static inline void export_live_cross_return_state_probe(
     "5:\n"
     :
     : "r"(state)
-    : POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
+    : POLY_ABI_GPR_CLOBBERS, POLY_ABI_FP_CLOBBERS, "r10", "r11", "memory");
+}
+
+static inline void export_live_reverse_cross_return_state_probe(
+    struct poly_xsave_state *state) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rdx\n" // RISC-V -> AArch64 target.
+    "leaq 3f(%%rip), %%rcx\n" // RISC-V return site.
+    "leaq 4f(%%rip), %%rdi\n" // AArch64 -> x86 helper target.
+    "leaq 2f(%%rip), %%rsi\n" // AArch64 return site after helper.
+    "movq %0, %%rax\n"        // RISC-V a0 / AArch64 x0: state buffer.
+    POLY_OP_ENTER_RV64
+    ".long 0x00058293\n" // mv t0,a1 (target)
+    ".long 0x00060393\n" // mv t2,a2 (return)
+    ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
+    ".long 0x1200700b\n" // RISC-V generic PCALL
+    "1:\n"
+    ".long 0xaa0303f0\n" // mov x16,x3 (x86 helper target)
+    ".long 0xaa0403f2\n" // mov x18,x4 (AArch64 helper return)
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0xd5032c7f\n" // AArch64 PCALL_SIG_IMM slot 3
+    "2:\n"
+    ".long 0xd2800c60\n" // movz x0,#99
+    ".long 0xd65f03c0\n" // ret through RISC-V cross-return cookie
+    "3:\n"
+    ".long 0x0000700b\n" // RISC-V x86 escape
+    "jmp 5f\n"
+    "4:\n"
+    "movq %%rdi, %%rax\n"
+    POLY_OP_STATE_EXPORT
+    "retq\n"
+    "5:\n"
+    :
+    : "r"(state)
+    : POLY_ABI_GPR_CLOBBERS, POLY_ABI_FP_CLOBBERS, "r10", "r11", "memory");
 }
 
 static uint64_t import_live_cross_return_state_probe(
@@ -876,7 +912,48 @@ static uint64_t import_live_cross_return_state_probe(
       "=m"(state->cross_return.frames[0].return_pc),
       "+a"(rax)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "r10", "r11", "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, POLY_ABI_FP_CLOBBERS, "r10", "r11",
+      "memory");
+  return rax;
+}
+
+static uint64_t import_live_reverse_cross_return_state_probe(
+    struct poly_xsave_state *state) {
+  uint64_t return_sp = read_rsp();
+  uint64_t rax = (uint64_t) (uintptr_t) state;
+  state->header.current_mode = POLY_MODE_RAW_AARCH64;
+  state->transition.active.return_pc = 0;
+  state->transition.active.caller_mode = POLY_MODE_RAW_RISCV;
+  state->transition.active.target_mode = POLY_MODE_RAW_AARCH64;
+  state->transition.active.abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  state->transition.active.flags = 0;
+  state->transition.active.cookie = return_sp;
+  state->cross_return.top = 1;
+  state->cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  state->cross_return.frames[0].return_pc = 0;
+  state->cross_return.frames[0].return_sp = return_sp;
+  state->cross_return.frames[0].caller_mode = POLY_MODE_RAW_RISCV;
+  state->cross_return.frames[0].target_mode = POLY_MODE_RAW_AARCH64;
+  state->cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  state->cross_return.frames[0].flags = 0;
+  state->aarch64_gpr[30] = POLY_CROSS_RETURN_COOKIE_VALUE;
+  state->aarch64_gpr[31] = return_sp;
+  asm volatile(
+    "leaq 1f(%%rip), %%rcx\n"
+    "movq %%rcx, %0\n"
+    "movq %%rcx, %1\n"
+    POLY_OP_STATE_IMPORT
+    POLY_OP_ENTER_A64
+    ".long 0xd2800c60\n" // movz x0,#99
+    ".long 0xd65f03c0\n" // ret through imported cross-return cookie
+    "1:\n"
+    ".long 0x0000700b\n" // RISC-V x86 escape.
+    : "=m"(state->transition.active.return_pc),
+      "=m"(state->cross_return.frames[0].return_pc),
+      "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, POLY_ABI_FP_CLOBBERS, "r10", "r11",
+      "memory");
   return rax;
 }
 
@@ -2374,6 +2451,61 @@ int main(void) {
       (unsigned long long) imported_cross_return_result);
     return 1;
   }
+  memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
+  export_live_reverse_cross_return_state_probe(&polyprobe_state);
+  if (read_rax() != 99) {
+    fprintf(stderr, "POLY_PROBE_FAIL: reverse live cross-return export result mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (polyprobe_state.cross_return.top != 1 ||
+      polyprobe_state.cross_return.depth != POLY_STATE_XSAVE_CROSS_RETURN_DEPTH ||
+      polyprobe_state.cross_return.frames[0].caller_mode !=
+        POLY_MODE_RAW_RISCV ||
+      polyprobe_state.cross_return.frames[0].target_mode !=
+        POLY_MODE_RAW_AARCH64 ||
+      polyprobe_state.cross_return.frames[0].abi_kind !=
+        POLY_CROSS_BRIDGE_DEFAULT ||
+      polyprobe_state.cross_return.frames[0].return_pc == 0 ||
+      polyprobe_state.cross_return.frames[0].return_sp == 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: reverse live cross-return XSAVE mismatch top=%llu depth=%llu caller=%u target=%u abi=%u pc=0x%llx sp=0x%llx\n",
+      (unsigned long long) polyprobe_state.cross_return.top,
+      (unsigned long long) polyprobe_state.cross_return.depth,
+      polyprobe_state.cross_return.frames[0].caller_mode,
+      polyprobe_state.cross_return.frames[0].target_mode,
+      polyprobe_state.cross_return.frames[0].abi_kind,
+      (unsigned long long) polyprobe_state.cross_return.frames[0].return_pc,
+      (unsigned long long) polyprobe_state.cross_return.frames[0].return_sp);
+    return 1;
+  }
+  if (polyprobe_state.transition.active.return_pc !=
+        polyprobe_state.cross_return.frames[0].return_pc ||
+      polyprobe_state.transition.active.caller_mode !=
+        POLY_MODE_RAW_RISCV ||
+      polyprobe_state.transition.active.target_mode !=
+        POLY_MODE_RAW_AARCH64 ||
+      polyprobe_state.transition.active.abi_kind !=
+        POLY_CROSS_BRIDGE_DEFAULT ||
+      polyprobe_state.transition.active.cookie !=
+        polyprobe_state.cross_return.frames[0].return_sp) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: reverse live cross-return transition mismatch pc=0x%llx caller=%u target=%u abi=%u cookie=0x%llx\n",
+      (unsigned long long) polyprobe_state.transition.active.return_pc,
+      polyprobe_state.transition.active.caller_mode,
+      polyprobe_state.transition.active.target_mode,
+      polyprobe_state.transition.active.abi_kind,
+      (unsigned long long) polyprobe_state.transition.active.cookie);
+    return 1;
+  }
+  imported_cross_return_result =
+    import_live_reverse_cross_return_state_probe(&polyprobe_state);
+  if (imported_cross_return_result != 99) {
+    fprintf(stderr, "POLY_PROBE_FAIL: reverse imported cross-return resume mismatch got=%llu\n",
+      (unsigned long long) imported_cross_return_result);
+    return 1;
+  }
+  puts("POLY_PROBE_CROSS_RETURN_XSAVE_OK");
 
   stage("POLY_STAGE: landing-policy");
   if (poly_landing_policy_set(0) != 0 ||
