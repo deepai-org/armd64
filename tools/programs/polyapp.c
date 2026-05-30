@@ -376,9 +376,11 @@ __attribute__((noinline, used))
 uint64_t polyapp_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
     uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5) {
+    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
   (void) pc;
   (void) selector;
+  (void) arg6;
+  (void) arg7;
 
   if (!polyapp_is_raw_mode(mode))
     return (uint64_t) -38;
@@ -426,6 +428,8 @@ static void polyapp_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
+    "pushq %r14\n"
+    "pushq %r13\n"
     "pushq %r12\n"
     "pushq %r11\n"
     "pushq %r10\n"
@@ -439,7 +443,7 @@ static void polyapp_trap_vector_handler(void) {
     "movq %rbx, %rsi\n"
     "movq %rax, %rdi\n"
     "call polyapp_trap_vector_dispatch\n"
-    "addq $40, %rsp\n"
+    "addq $56, %rsp\n"
     "popq %rbp\n"
     "popq %r15\n"
     "popq %r14\n"
