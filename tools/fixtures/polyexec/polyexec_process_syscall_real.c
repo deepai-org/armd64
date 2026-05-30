@@ -38,9 +38,11 @@ enum {
   POLY_FUTEX_WAIT_PRIVATE = 128,
   POLY_FUTEX_WAKE_PRIVATE = 129,
   POLY_PRIO_PROCESS = 0,
+  POLY_IOPRIO_WHO_PROCESS = 1,
   POLY_RLIMIT_STACK = 3,
   POLY_RUSAGE_SELF = 0,
   POLY_SCHED_OTHER = 0,
+  POLY_MEMBARRIER_CMD_QUERY = 0,
   POLY_SIG_BLOCK = 0,
   POLY_SIG_SETMASK = 2,
   POLY_SIGUSR1 = 10,
@@ -78,6 +80,7 @@ enum {
   POLY_SYS_INOTIFY_INIT1 = 26,
   POLY_SYS_INOTIFY_ADD_WATCH = 27,
   POLY_SYS_INOTIFY_RM_WATCH = 28,
+  POLY_SYS_IOPRIO_GET = 31,
   POLY_SYS_FLOCK = 32,
   POLY_SYS_MKNODAT = 33,
   POLY_SYS_MKDIRAT = 34,
@@ -150,6 +153,7 @@ enum {
   POLY_SYS_GETPGID = 155,
   POLY_SYS_GETSID = 156,
   POLY_SYS_GETGROUPS = 158,
+  POLY_SYS_GETRLIMIT = 163,
   POLY_SYS_UMASK = 166,
   POLY_SYS_PRCTL = 167,
   POLY_SYS_GETCPU = 168,
@@ -192,6 +196,7 @@ enum {
   POLY_SYS_PRLIMIT64 = 261,
   POLY_SYS_GETRANDOM = 278,
   POLY_SYS_MEMFD_CREATE = 279,
+  POLY_SYS_MEMBARRIER = 283,
   POLY_SYS_STATX = 291,
   POLY_SYS_PIDFD_OPEN = 434,
   POLY_SYS_CLOSE_RANGE = 436,
@@ -593,6 +598,8 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 235;
   if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
     return 236;
+  if (poly_syscall2(POLY_SYS_IOPRIO_GET, POLY_IOPRIO_WHO_PROCESS, 0) < 0)
+    return 354;
   if (poly_syscall2(POLY_SYS_PERSONALITY, POLY_PERSONALITY_QUERY, 0) < 0)
     return 345;
   struct poly_sched_param sched_param;
@@ -730,6 +737,14 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall0(POLY_SYS_SCHED_YIELD) != 0)
     return 228;
 
+  struct poly_rlimit64 getrlimit_stack;
+  if (poly_syscall2(POLY_SYS_GETRLIMIT, POLY_RLIMIT_STACK,
+        (long) &getrlimit_stack) != 0)
+    return 355;
+  if (getrlimit_stack.cur == 0 ||
+      (getrlimit_stack.max != POLY_RLIM_INFINITY &&
+       getrlimit_stack.max < getrlimit_stack.cur))
+    return 356;
   struct poly_rlimit64 stack_limit;
   if (poly_syscall4(POLY_SYS_PRLIMIT64, 0, POLY_RLIMIT_STACK, 0,
         (long) &stack_limit) != 0)
@@ -738,6 +753,9 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       (stack_limit.max != POLY_RLIM_INFINITY &&
        stack_limit.max < stack_limit.cur))
     return 60;
+  if (stack_limit.cur != getrlimit_stack.cur ||
+      stack_limit.max != getrlimit_stack.max)
+    return 357;
 
   unsigned char random_bytes[16];
   if (poly_syscall3(POLY_SYS_GETRANDOM, 0, 0, 0) != 0)
@@ -746,6 +764,8 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     sizeof(random_bytes), POLY_GRND_NONBLOCK);
   if (random_len != (long) sizeof(random_bytes) && random_len != -11)
     return 62;
+  if (poly_syscall2(POLY_SYS_MEMBARRIER, POLY_MEMBARRIER_CMD_QUERY, 0) < 0)
+    return 358;
 
   struct poly_utsname uts;
   if (poly_syscall2(POLY_SYS_UNAME, (long) &uts, 0) != 0)
