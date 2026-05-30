@@ -3602,6 +3602,7 @@ static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
 
 static int cross_bridge_uses_signature_slot(int bridge_kind) {
   return bridge_kind == POLY_CROSS_BRIDGE_DEFAULT ||
+    bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK ||
     bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32;
 }
 
@@ -3666,14 +3667,14 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     const int uses_signature_slot =
       cross_bridge_uses_signature_slot(bridge_kind);
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
-      const uint64_t return_addr = start_addr + 36;
-      const uint32_t call_opcode =
-        aarch64_cross_call_opcode_for_bridge(bridge_kind);
-      if (call_opcode == 0)
-        return -1;
+      const uint64_t return_addr = start_addr + 72;
+      for (uint32_t n = 0; n < 8; n++)
+        emit_u32(stubs, stub_offset, aarch64_ldr_sp(n, n * 8));
       emit_aarch64_movabs(stubs, stub_offset, 16, target);
-      emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
-      emit_u32(stubs, stub_offset, call_opcode);
+      emit_u32(stubs, stub_offset, 0xd2800051U); // movz x17,#2 (RISC-V)
+      emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
+      emit_u32(stubs, stub_offset,
+        0xd5032c1fU | ((signature_slot & 0x7U) << 5)); // PCALL_SIG_IMM
       emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
       record_cross_stub_stats(stats, caller_arch, callee_arch, bridge_kind);
       *stub_addr = start_addr;
@@ -3713,7 +3714,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   }
 
   if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64) {
-    if (stub_limit - start < 64)
+    if (stub_limit - start < 128)
       return -1;
     const int uses_signature_slot =
       cross_bridge_uses_signature_slot(bridge_kind);
@@ -3735,6 +3736,8 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, 0);
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
       emit_u32(stubs, stub_offset, riscv_addi(2, 2, -80)); // addi sp,sp,-80
+      for (uint32_t n = 0; n < 8; n++)
+        emit_u32(stubs, stub_offset, riscv_sd(10 + n, 2, n * 8));
       emit_u32(stubs, stub_offset, riscv_sd(1, 2, 72)); // sd ra,72(sp)
     }
     else {
