@@ -5511,6 +5511,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-gettimeofday.elf" 0x00058513 0x00000593 0x0a900893 0x00000073 0x00000013
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-real-gettimeofday.elf" 0x00058513 0x00000593 0x0a900893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-sysinfo.elf" 0x00058513 0x0b300893 0x00000073 0x00000013
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-hwprobe.elf" 0x00058393 0x00300293 0x0053b023 0xfff00293 0x0053b423 0x06300293 0x0053b823 0xfff00293 0x0053bc23 0x00058513 0x00200593 0x00000613 0x00000693 0x00000713 0x10200893 0x00000073 0x0003b283 0x00300313 0x0062c533 0x0083b283 0x00100313 0x0062c2b3 0x00556533 0x0103b283 0xfff00313 0x0062c2b3 0x00556533 0x0183b283 0x00556533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-capget.elf" 0x00058293 0x00028513 0x00828593 0x05a00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-capset.elf" 0x00058293 0x00028513 0x00828593 0x05b00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-personality.elf" 0xfff00513 0x05c00893 0x00000073
@@ -6247,6 +6248,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-getcpu.elf=0 \
     /usr/lib/polyapps/riscv-gettimeofday.elf=0 \
     /usr/lib/polyapps/riscv-sysinfo.elf=0 \
+    /usr/lib/polyapps/riscv-hwprobe.elf=0 \
     /usr/lib/polyapps/riscv-capget.elf=0 \
     /usr/lib/polyapps/riscv-capset.elf=0xffffffffffffffff \
     /usr/lib/polyapps/riscv-personality.elf=0 \
@@ -8084,6 +8086,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-real-write-zero.elf \
       /usr/lib/polyapps/riscv-real-clock-getres.elf \
       /usr/lib/polyapps/riscv-real-gettimeofday.elf \
+      /usr/lib/polyapps/riscv-hwprobe.elf \
       /usr/lib/polyapps/riscv-eventfd2.elf \
       /usr/lib/polyapps/riscv-inotify-init1.elf \
       /usr/lib/polyapps/riscv-inotify-add-watch.elf \
@@ -8661,6 +8664,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-getcpu.elf \
     /usr/lib/polyapps/riscv-gettimeofday.elf \
     /usr/lib/polyapps/riscv-sysinfo.elf \
+    /usr/lib/polyapps/riscv-hwprobe.elf \
     /usr/lib/polyapps/riscv-capget.elf \
     /usr/lib/polyapps/riscv-capset.elf \
     /usr/lib/polyapps/riscv-personality.elf \

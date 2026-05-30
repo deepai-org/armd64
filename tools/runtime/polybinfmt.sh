@@ -306,6 +306,7 @@ case "$path" in
   */riscv-getcpu.elf) expected=12 ;;
   */riscv-gettimeofday.elf) expected=246 ;;
   */riscv-sysinfo.elf) expected=98765 ;;
+  */riscv-hwprobe.elf) expected=0 ;;
   */riscv-mmap.elf) expected=0 ;;
   */riscv-mmap6.elf) expected=65 ;;
   */riscv-mmap-store.elf) expected=77 ;;

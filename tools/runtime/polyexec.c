@@ -137,6 +137,30 @@ extern char **environ;
 #define AT_HWCAP2 26
 #endif
 
+#define POLY_RISCV_SYS_HWPROBE 258
+#define POLY_RISCV_HWPROBE_KEY_MVENDORID 0
+#define POLY_RISCV_HWPROBE_KEY_MARCHID 1
+#define POLY_RISCV_HWPROBE_KEY_MIMPID 2
+#define POLY_RISCV_HWPROBE_KEY_BASE_BEHAVIOR 3
+#define POLY_RISCV_HWPROBE_BASE_BEHAVIOR_IMA (1ULL << 0)
+#define POLY_RISCV_HWPROBE_KEY_IMA_EXT_0 4
+#define POLY_RISCV_HWPROBE_IMA_FD (1ULL << 0)
+#define POLY_RISCV_HWPROBE_IMA_C (1ULL << 1)
+#define POLY_RISCV_HWPROBE_EXT_ZBA (1ULL << 3)
+#define POLY_RISCV_HWPROBE_EXT_ZBB (1ULL << 4)
+#define POLY_RISCV_HWPROBE_EXT_ZBS (1ULL << 5)
+#define POLY_RISCV_HWPROBE_EXT_ZICOND (1ULL << 35)
+#define POLY_RISCV_HWPROBE_EXT_ZICNTR (1ULL << 50)
+#define POLY_RISCV_HWPROBE_KEY_CPUPERF_0 5
+#define POLY_RISCV_HWPROBE_KEY_ZICBOZ_BLOCK_SIZE 6
+#define POLY_RISCV_HWPROBE_KEY_HIGHEST_VIRT_ADDRESS 7
+#define POLY_RISCV_HWPROBE_KEY_TIME_CSR_FREQ 8
+#define POLY_RISCV_HWPROBE_KEY_MISALIGNED_SCALAR_PERF 9
+#define POLY_RISCV_HWPROBE_KEY_MISALIGNED_VECTOR_PERF 10
+#define POLY_RISCV_HWPROBE_KEY_VENDOR_EXT_THEAD_0 11
+#define POLY_RISCV_HWPROBE_KEY_ZICBOM_BLOCK_SIZE 12
+#define POLY_RISCV_HWPROBE_KEY_VENDOR_EXT_SIFIVE_0 13
+
 #ifndef STT_GNU_IFUNC
 #define STT_GNU_IFUNC 10
 #endif
@@ -507,6 +531,11 @@ struct poly_linux_generic_epoll_event {
   uint32_t events;
   uint32_t pad;
   uint64_t data;
+};
+
+struct poly_riscv_hwprobe_pair {
+  int64_t key;
+  uint64_t value;
 };
 
 struct poly_x86_epoll_event {
@@ -1672,6 +1701,63 @@ static uint64_t poly_dispatch_epoll_wait_events(long x86_number,
   return (uint64_t) status;
 }
 
+static uint64_t poly_riscv_hwprobe_value(int64_t key, int *known) {
+  *known = 1;
+  switch (key) {
+    case POLY_RISCV_HWPROBE_KEY_MVENDORID:
+    case POLY_RISCV_HWPROBE_KEY_MARCHID:
+    case POLY_RISCV_HWPROBE_KEY_MIMPID:
+      return 0;
+    case POLY_RISCV_HWPROBE_KEY_BASE_BEHAVIOR:
+      return POLY_RISCV_HWPROBE_BASE_BEHAVIOR_IMA;
+    case POLY_RISCV_HWPROBE_KEY_IMA_EXT_0:
+      return POLY_RISCV_HWPROBE_IMA_FD |
+        POLY_RISCV_HWPROBE_IMA_C |
+        POLY_RISCV_HWPROBE_EXT_ZBA |
+        POLY_RISCV_HWPROBE_EXT_ZBB |
+        POLY_RISCV_HWPROBE_EXT_ZBS |
+        POLY_RISCV_HWPROBE_EXT_ZICOND |
+        POLY_RISCV_HWPROBE_EXT_ZICNTR;
+    case POLY_RISCV_HWPROBE_KEY_CPUPERF_0:
+    case POLY_RISCV_HWPROBE_KEY_ZICBOZ_BLOCK_SIZE:
+    case POLY_RISCV_HWPROBE_KEY_HIGHEST_VIRT_ADDRESS:
+    case POLY_RISCV_HWPROBE_KEY_TIME_CSR_FREQ:
+    case POLY_RISCV_HWPROBE_KEY_MISALIGNED_SCALAR_PERF:
+    case POLY_RISCV_HWPROBE_KEY_MISALIGNED_VECTOR_PERF:
+    case POLY_RISCV_HWPROBE_KEY_VENDOR_EXT_THEAD_0:
+    case POLY_RISCV_HWPROBE_KEY_ZICBOM_BLOCK_SIZE:
+    case POLY_RISCV_HWPROBE_KEY_VENDOR_EXT_SIFIVE_0:
+      return 0;
+    default:
+      *known = 0;
+      return 0;
+  }
+}
+
+static uint64_t poly_dispatch_riscv_hwprobe(uint64_t pairs_address,
+    uint64_t pair_count, uint64_t cpu_count, uint64_t cpus, uint64_t flags) {
+  if (flags != 0 || cpu_count != 0 || cpus != 0)
+    return (uint64_t) -EINVAL;
+  if (pair_count != 0 && pairs_address == 0)
+    return (uint64_t) -EFAULT;
+  if (pair_count > 4096)
+    return (uint64_t) -EINVAL;
+
+  struct poly_riscv_hwprobe_pair *pairs =
+    (struct poly_riscv_hwprobe_pair *) (uintptr_t) pairs_address;
+  for (uint64_t n = 0; n < pair_count; n++) {
+    int known = 0;
+    uint64_t value = poly_riscv_hwprobe_value(pairs[n].key, &known);
+    if (!known) {
+      pairs[n].key = -1;
+      pairs[n].value = 0;
+      continue;
+    }
+    pairs[n].value = value;
+  }
+  return 0;
+}
+
 static int poly_handle_structured_foreign_syscall(uint64_t number,
     uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
     uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t *result) {
@@ -1737,6 +1823,11 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
           mode == POLY_MODE_RAW_AARCH64 ? "aarch64" : "riscv64");
       }
       *result = (uint64_t) status;
+      return 1;
+    case POLY_RISCV_SYS_HWPROBE:
+      if (mode != POLY_MODE_RAW_RISCV)
+        return 0;
+      *result = poly_dispatch_riscv_hwprobe(arg0, arg1, arg2, arg3, arg4);
       return 1;
     default:
       return 0;
