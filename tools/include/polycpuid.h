@@ -806,7 +806,6 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_TRAP_RECORDS |
     POLY_CPUID_FEATURE_USER_RETURN_RESTORE |
     POLY_CPUID_FEATURE_X86_TSO |
-    POLY_CPUID_FEATURE_THREAD_BANKS |
     POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS |
     POLY_CPUID_FEATURE_X86_POLY_OPCODES |
     POLY_CPUID_FEATURE_FPAIR32_RET |
@@ -1039,9 +1038,6 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf19(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_CPUID_STATE_OVERLAP_GPRS |
-    POLY_CPUID_STATE_KEY_CR3 |
-    POLY_CPUID_STATE_KEY_FSBASE |
-    POLY_CPUID_STATE_KEY_STACK_REGION |
     POLY_CPUID_STATE_USER_RETURN_RESTORE |
     POLY_CPUID_STATE_X86_TSO |
     POLY_CPUID_STATE_XSAVE_VISIBLE |

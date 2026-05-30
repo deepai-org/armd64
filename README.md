@@ -51,10 +51,10 @@ Other useful targets:
   boot-poly-full-real-xsave-arch-traps` additionally builds and inserts a small
   guest kernel module that enables the Poly XCR0 component for direct
   XSAVE/XRSTOR validation in the broad regression run.
-- The prototype also exposes its thread-bank state key through CPUID: foreign
-  synthetic banks are separated by `CR3+FSBASE`, with a stack-region fallback
-  for code without a TLS base. That is prototype isolation plumbing; the
-  hardware contract remains the XSAVE component.
+- The public CPUID contract exposes XSAVE state plus explicit state-key
+  controls. Bochs still uses CR3/FSBASE and a stack-region fallback internally
+  to isolate prototype register banks, but those emulator keys are not part of
+  the silicon-facing ABI.
 
 ## ISA Differences From x86_64
 
