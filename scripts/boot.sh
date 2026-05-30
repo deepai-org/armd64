@@ -5321,6 +5321,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp32-to-int.elf" 0x41400537 0xf0050553 0xc0051553 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-csr.elf" 0x00000513 0x00500293 0x00129373 0x001023f3 0x00650533 0x00750533 0x00300293 0x00229373 0x002023f3 0x00650533 0x00750533 0x00302e73 0x01c50533 0x04400293 0x00329373 0x00650533 0x003023f3 0x00750533 0x0013d073 0x00102373 0x00650533 0x0020d073 0x002023f3 0x00750533 0x00301073 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-counters.elf" 0xc00022f3 0xc0102373 0xc02023f3 0x0062e2b3 0x0072e2b3 0x00503533 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-counterh.elf" 0x00100513 0xc80022f3 0xc8102373 0xc82023f3 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-round.elf" h:0x4501 0x00301073 0x402002b7 0xf0028053 0xc0000353 h:0x951a 0xc0001353 h:0x951a 0xc0002353 h:0x951a 0xc0003353 h:0x951a 0xc0004353 h:0x951a 0x0021d073 0xc0007353 h:0x951a 0x001023f3 h:0x951e 0x00301073 h:0x8082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-arith-round.elf" h:0x4501 0x00301073 0x3f8002b7 0xf0028053 0x338002b7 0xf00280d3 0x00100153 0xe0010353 0x00137313 h:0x951a 0x00103153 0xe0010353 0x00137313 h:0x951a 0x0021d073 0x00107153 0xe0010353 0x00137313 h:0x951a 0x001023f3 h:0x951e 0x00301073 h:0x8082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-cvt-round.elf" h:0x4501 0x00301073 0x010002b7 h:0x0285 0xd2328053 0x401000d3 0xe0008353 0x00137313 h:0x951a 0x401030d3 0xe0008353 0x00137313 h:0x951a 0x0021d073 0x401070d3 0xe0008353 0x00137313 h:0x951a 0xd032f0d3 0xe0008353 0x00137313 h:0x951a 0x001023f3 h:0x951e 0x00301073 h:0x8082
@@ -6081,6 +6082,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-fp32-to-int.elf=12 \
     /usr/lib/polyapps/riscv-fp-csr.elf=286 \
     /usr/lib/polyapps/riscv-counters.elf=1 \
+    /usr/lib/polyapps/riscv-counterh.elf=1 \
     /usr/lib/polyapps/riscv-fp-round.elf=16 \
     /usr/lib/polyapps/riscv-fp-arith-round.elf=3 \
     /usr/lib/polyapps/riscv-fp-cvt-round.elf=4 \
@@ -8028,6 +8030,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-fp32-to-int.elf \
       /usr/lib/polyapps/riscv-fp-csr.elf \
       /usr/lib/polyapps/riscv-counters.elf \
+      /usr/lib/polyapps/riscv-counterh.elf \
       /usr/lib/polyapps/riscv-fp-round.elf \
       /usr/lib/polyapps/riscv-fp-arith-round.elf \
       /usr/lib/polyapps/riscv-fp-cvt-round.elf \
@@ -8494,6 +8497,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-fp32-to-int.elf \
     /usr/lib/polyapps/riscv-fp-csr.elf \
     /usr/lib/polyapps/riscv-counters.elf \
+    /usr/lib/polyapps/riscv-counterh.elf \
     /usr/lib/polyapps/riscv-fp-round.elf \
     /usr/lib/polyapps/riscv-fp-arith-round.elf \
     /usr/lib/polyapps/riscv-fp-cvt-round.elf \

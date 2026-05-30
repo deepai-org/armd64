@@ -241,6 +241,7 @@ case "$path" in
   */riscv-fp32-to-int.elf) expected=12 ;;
   */riscv-fp-csr.elf) expected=286 ;;
   */riscv-counters.elf) expected=1 ;;
+  */riscv-counterh.elf) expected=1 ;;
   */riscv-fp-round.elf) expected=16 ;;
   */riscv-upper.elf) expected=0x1234567c ;;
   */riscv-immops.elf) expected=42 ;;
