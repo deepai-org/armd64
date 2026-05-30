@@ -8,13 +8,11 @@ TMP_DIR="${TMP_DIR:-$ROOT_DIR/tmp}"
 ALPINE_BASE_URL="${ALPINE_BASE_URL:-https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/netboot}"
 ALPINE_X86_64_MAIN_URL="${ALPINE_X86_64_MAIN_URL:-https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64}"
 KERNEL_URL="${KERNEL_URL:-$ALPINE_BASE_URL/vmlinuz-virt}"
-MODLOOP_URL="${MODLOOP_URL:-$ALPINE_BASE_URL/modloop-virt}"
 
 mkdir -p "$CACHE_DIR" "$OUT_DIR" "$TMP_DIR"
 
 APKINDEX_ARCHIVE="$CACHE_DIR/APKINDEX-x86_64.tar.gz"
 KERNEL_IMAGE="$CACHE_DIR/vmlinuz-virt"
-MODLOOP_IMAGE="$CACHE_DIR/modloop-virt"
 INITRAMFS_IMAGE="$OUT_DIR/initramfs.cpio.gz"
 ISO_ROOT="$TMP_DIR/iso-root"
 ISO_IMAGE="$OUT_DIR/bochs-boot.iso"

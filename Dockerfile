@@ -25,7 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libc6-dev-amd64-cross \
     linux-libc-dev-amd64-cross \
     qemu-user-static \
-    squashfs-tools \
     syslinux-common \
     vgabios \
     xauth \

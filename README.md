@@ -41,10 +41,11 @@ Other useful targets:
   benchmarking. "Few-cycle" frontend switching is the hardware target; Bochs is
   a functional ISA prototype, not a cycle-accurate silicon performance model.
 - Bochs exposes Poly as XSAVE component 20 and implements XSAVE/XRSTOR handlers.
-  The current stock Alpine guest kernel does not enable that custom XCR0 bit, so
-  tests also use explicit Poly state save/restore controls for prototype
-  scheduling and signal coverage. `make boot-poly-real-xsave-arch-traps` is the
-  opt-in gate for kernels that enable the Poly XCR0 component.
+  The default broad tests still use explicit Poly state save/restore controls
+  for prototype scheduling and signal coverage. `make
+  boot-poly-real-xsave-arch-traps` additionally builds and inserts a small guest
+  kernel module that enables the Poly XCR0 component for direct XSAVE/XRSTOR
+  validation.
 - The prototype also exposes its thread-bank state key through CPUID: foreign
   synthetic banks are separated by `CR3+FSBASE`, with a stack-region fallback
   for code without a TLS base. That is prototype isolation plumbing; the
