@@ -44,6 +44,7 @@ case "$path" in
   */aarch64-ctr.elf) expected=805568516 ;;
   */aarch64-tpidrro.elf) expected=0 ;;
   */aarch64-counters.elf) expected=1 ;;
+  */aarch64-idregs.elf) expected=0 ;;
   */aarch64-pcall-split-load.elf) expected=123 ;;
   */aarch64-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-syscall-real.elf) expected=42; process_mode=1 ;;
