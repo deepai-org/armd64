@@ -1211,6 +1211,43 @@ static void child_expect_landing_policy_missing_switch_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_landing_policy_missing_aarch64_riscv_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  if (poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0)
+    _exit(97);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x10000070\n" // adr x16,target
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xd5032f1f\n" // aarch64 generic poly switch
+    ".long 0x02d00513\n" // target: addi a0,zero,45, no landing pad
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_landing_policy_missing_riscv_aarch64_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  if (poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0)
+    _exit(97);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000297\n" // auipc x5,0
+    ".long 0x01028293\n" // addi x5,x5,16
+    ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
+    ".long 0x1000700b\n" // riscv generic poly switch
+    ".long 0xd28005a0\n" // target: movz x0,#45, no landing pad
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_aarch64_invalid_generic_switch_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -1468,6 +1505,43 @@ static uint64_t nativecheck_landing_policy_switch_aarch64(void) {
   return result;
 }
 
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_landing_policy_switch_aarch64_riscv(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x10000070\n" // adr x16,target
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xd5032f1f\n" // aarch64 generic poly switch
+    ".long 0x1600700b\n" // target: riscv landing pad
+    ".long 0x02b00513\n" // addi a0,zero,43
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9",
+      "r10", "r11", "r13", "r14", "memory");
+  return result;
+}
+
+__attribute__((noinline, noipa))
+static uint64_t nativecheck_landing_policy_switch_riscv_aarch64(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000297\n" // auipc x5,0
+    ".long 0x01028293\n" // addi x5,x5,16
+    ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
+    ".long 0x1000700b\n" // riscv generic poly switch
+    ".long 0xd5032f7f\n" // target: aarch64 landing pad
+    ".long 0xd2800580\n" // movz x0,#44
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9",
+      "r10", "r11", "r13", "r14", "memory");
+  return result;
+}
+
 static int run_poly_no_vector_signal_probe(void) {
   if (expect_child_signal("poly aarch64 svc no-vector", SIGILL,
         child_expect_aarch64_svc_signal) != 0)
@@ -1652,6 +1726,30 @@ static int run_poly_landing_policy_probe(void) {
     return 1;
   }
 
+  if (poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0)
+    return 1;
+  switch_result = nativecheck_landing_policy_switch_aarch64_riscv();
+  if (poly_landing_policy_set(0) != 0)
+    return 1;
+  if (switch_result != 43) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly landing policy aarch64-riscv switch result=%llu\n",
+      (unsigned long long) switch_result);
+    return 1;
+  }
+
+  if (poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0)
+    return 1;
+  switch_result = nativecheck_landing_policy_switch_riscv_aarch64();
+  if (poly_landing_policy_set(0) != 0)
+    return 1;
+  if (switch_result != 44) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly landing policy riscv-aarch64 switch result=%llu\n",
+      (unsigned long long) switch_result);
+    return 1;
+  }
+
   if (expect_child_signal("poly landing policy missing pcall", SIGILL,
         child_expect_landing_policy_missing_pcall_signal) != 0) {
     poly_landing_policy_set(0);
@@ -1661,6 +1759,22 @@ static int run_poly_landing_policy_probe(void) {
     return 1;
   if (expect_child_signal("poly landing policy missing switch", SIGILL,
         child_expect_landing_policy_missing_switch_signal) != 0) {
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  if (poly_landing_policy_set(0) != 0)
+    return 1;
+  if (expect_child_signal("poly landing policy missing aarch64-riscv switch",
+        SIGILL, child_expect_landing_policy_missing_aarch64_riscv_signal) !=
+      0) {
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  if (poly_landing_policy_set(0) != 0)
+    return 1;
+  if (expect_child_signal("poly landing policy missing riscv-aarch64 switch",
+        SIGILL, child_expect_landing_policy_missing_riscv_aarch64_signal) !=
+      0) {
     poly_landing_policy_set(0);
     return 1;
   }
