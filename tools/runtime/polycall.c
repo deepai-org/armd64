@@ -2809,6 +2809,33 @@ static uint32_t aarch64_ldr_sp(uint32_t rt, uint32_t byte_offset) {
     (rt & 0x1fU);
 }
 
+static uint32_t aarch64_ubfm(uint32_t rd, uint32_t rn, uint32_t immr,
+    uint32_t imms) {
+  return 0xd3400000U | ((immr & 0x3fU) << 16) |
+    ((imms & 0x3fU) << 10) | ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t aarch64_lsr_imm(uint32_t rd, uint32_t rn, uint32_t shift) {
+  return aarch64_ubfm(rd, rn, shift, 63);
+}
+
+static uint32_t aarch64_lsl_imm(uint32_t rd, uint32_t rn, uint32_t shift) {
+  return aarch64_ubfm(rd, rn, (64U - shift) & 0x3fU, 63U - shift);
+}
+
+static uint32_t aarch64_orr_reg(uint32_t rd, uint32_t rn, uint32_t rm) {
+  return 0xaa000000U | ((rm & 0x1fU) << 16) |
+    ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t aarch64_fmov_s_from_w(uint32_t rd, uint32_t rn) {
+  return 0x1e270000U | ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t aarch64_fmov_w_from_s(uint32_t rd, uint32_t rn) {
+  return 0x1e260000U | ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
 static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
@@ -2830,8 +2857,22 @@ static uint32_t riscv_srli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
     (rs1 << 15) | (0x5U << 12) | (rd << 7) | 0x13U;
 }
 
+static uint32_t riscv_slli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
+  return ((shamt & 0x3fU) << 20) |
+    (rs1 << 15) | (0x1U << 12) | (rd << 7) | 0x13U;
+}
+
+static uint32_t riscv_or(uint32_t rd, uint32_t rs1, uint32_t rs2) {
+  return (rs2 << 20) | (rs1 << 15) | (0x6U << 12) | (rd << 7) |
+    0x33U;
+}
+
 static uint32_t riscv_fmv_x_d(uint32_t rd, uint32_t rs1) {
   return (0x71U << 25) | (rs1 << 15) | (rd << 7) | 0x53U;
+}
+
+static uint32_t riscv_fmv_x_w(uint32_t rd, uint32_t rs1) {
+  return (0x70U << 25) | (rs1 << 15) | (rd << 7) | 0x53U;
 }
 
 static uint32_t riscv_fmv_w_x(uint32_t rd, uint32_t rs1) {
@@ -3577,29 +3618,75 @@ static int reloc_base_is_root_ifunc(int base_kind) {
 }
 
 static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
-  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
-    return 0xd5032e7fU; // aarch64 polyctrl compact u32-f32 call
-  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
-    return 0xd5032e9fU; // aarch64 polyctrl compact f32-u32 call
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return 0xd5032effU; // aarch64 polyctrl vec128 call
-  return 0; // Default register-only calls must use PCALL_SIG_IMM.
+  return 0; // Register-only/compact calls must use PCALL_SIG_IMM.
 }
 
 static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
-  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32)
-    return 0x0600700bU;
-  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
-    return 0x0800700bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return 0x0e00700bU;
-  return 0; // Default register-only calls must use PCALL_SIG_IMM.
+  return 0; // Register-only/compact calls must use PCALL_SIG_IMM.
 }
 
 static int cross_bridge_uses_signature_slot(int bridge_kind) {
   return bridge_kind == POLY_CROSS_BRIDGE_DEFAULT ||
+    bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32 ||
+    bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32 ||
     bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK ||
     bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32;
+}
+
+static void emit_aarch64_compact_pre_pcall(uint8_t *stubs,
+    size_t *stub_offset, int bridge_kind) {
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(stubs, stub_offset, aarch64_lsr_imm(9, 0, 32)); // x9 = high f32 lane
+    emit_u32(stubs, stub_offset, aarch64_fmov_s_from_w(0, 9)); // s0 = f32 lane
+  }
+  else if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(stubs, stub_offset, aarch64_fmov_s_from_w(0, 0)); // s0 = low f32 lane
+    emit_u32(stubs, stub_offset, aarch64_lsr_imm(0, 0, 32)); // x0 = high u32 lane
+  }
+}
+
+static void emit_aarch64_compact_post_pcall(uint8_t *stubs,
+    size_t *stub_offset, int bridge_kind) {
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(stubs, stub_offset, aarch64_fmov_w_from_s(9, 0)); // w9 = f32 return
+    emit_u32(stubs, stub_offset, aarch64_lsl_imm(9, 9, 32));
+    emit_u32(stubs, stub_offset, aarch64_orr_reg(0, 0, 9));
+  }
+  else if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(stubs, stub_offset, aarch64_fmov_w_from_s(9, 0)); // w9 = f32 return
+    emit_u32(stubs, stub_offset, aarch64_lsl_imm(0, 0, 32));
+    emit_u32(stubs, stub_offset, aarch64_orr_reg(0, 0, 9));
+  }
+}
+
+static void emit_riscv_compact_pre_pcall(uint8_t *stubs,
+    size_t *stub_offset, int bridge_kind) {
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(stubs, stub_offset, riscv_fmv_x_w(28, 10)); // t3 = fa0 bits
+    emit_u32(stubs, stub_offset, riscv_slli(28, 28, 32));
+    emit_u32(stubs, stub_offset, riscv_or(10, 10, 28));
+  }
+  else if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(stubs, stub_offset, riscv_fmv_x_w(28, 10)); // t3 = fa0 bits
+    emit_u32(stubs, stub_offset, riscv_slli(10, 10, 32));
+    emit_u32(stubs, stub_offset, riscv_or(10, 10, 28));
+  }
+}
+
+static void emit_riscv_compact_post_pcall(uint8_t *stubs,
+    size_t *stub_offset, int bridge_kind) {
+  if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32) {
+    emit_u32(stubs, stub_offset, riscv_srli(28, 10, 32)); // t3 = f32 bits
+    emit_u32(stubs, stub_offset, riscv_fmv_w_x(10, 28));
+  }
+  else if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32) {
+    emit_u32(stubs, stub_offset, riscv_fmv_w_x(10, 10));
+    emit_u32(stubs, stub_offset, riscv_srli(10, 10, 32));
+  }
 }
 
 static uint32_t fallback_ret_for_arch(int arch) {
@@ -3658,7 +3745,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   const uint64_t start_addr = (uint64_t) (uintptr_t) (stubs + start);
 
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) {
-    if (stub_limit - start < 80)
+    if (stub_limit - start < 96)
       return -1;
     const int uses_signature_slot =
       cross_bridge_uses_signature_slot(bridge_kind);
@@ -3676,8 +3763,13 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       *stub_addr = start_addr;
       return 0;
     }
+    const int is_compact_bridge =
+      bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32 ||
+      bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32;
     const uint64_t return_addr = start_addr +
-      (uses_signature_slot ? 56 : 52);
+      (uses_signature_slot ? 56 : 52) + (is_compact_bridge ? 8 : 0);
+    if (is_compact_bridge)
+      emit_aarch64_compact_pre_pcall(stubs, stub_offset, bridge_kind);
     emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
     emit_u32(stubs, stub_offset, 0xf9400bf2U); // ldr x18, [sp, #16]
     emit_u32(stubs, stub_offset, 0xf90003f2U); // str x18, [sp]
@@ -3701,6 +3793,8 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_aarch64_movabs(stubs, stub_offset, 17, return_addr);
       emit_u32(stubs, stub_offset, call_opcode);
     }
+    if (is_compact_bridge)
+      emit_aarch64_compact_post_pcall(stubs, stub_offset, bridge_kind);
     emit_u32(stubs, stub_offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(stubs, stub_offset, 0x910043ffU); // add sp, sp, #16
     emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
@@ -3742,6 +3836,11 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
       emit_u32(stubs, stub_offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
     }
+    const int is_compact_bridge =
+      bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32 ||
+      bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32;
+    if (is_compact_bridge)
+      emit_riscv_compact_pre_pcall(stubs, stub_offset, bridge_kind);
     if (uses_signature_slot) {
       const uint32_t selected_signature_slot =
         bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32 ?
@@ -3758,6 +3857,8 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_u32(stubs, stub_offset, call_opcode);
     }
     const size_t return_pc = *stub_offset;
+    if (is_compact_bridge)
+      emit_riscv_compact_post_pcall(stubs, stub_offset, bridge_kind);
     if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
       emit_u32(stubs, stub_offset, riscv_ld(1, 2, 72)); // ld ra,72(sp)
       emit_u32(stubs, stub_offset, riscv_addi(2, 2, 80)); // addi sp,sp,80

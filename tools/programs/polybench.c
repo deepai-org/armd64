@@ -253,6 +253,33 @@ static uint32_t aarch64_ldr_d_sp(uint32_t rt, uint32_t offset) {
   return 0xfd4003e0U | (((offset / 8U) & 0xfffU) << 10) | (rt & 0x1fU);
 }
 
+static uint32_t aarch64_ubfm(uint32_t rd, uint32_t rn, uint32_t immr,
+    uint32_t imms) {
+  return 0xd3400000U | ((immr & 0x3fU) << 16) |
+    ((imms & 0x3fU) << 10) | ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t aarch64_lsr_imm(uint32_t rd, uint32_t rn, uint32_t shift) {
+  return aarch64_ubfm(rd, rn, shift, 63);
+}
+
+static uint32_t aarch64_lsl_imm(uint32_t rd, uint32_t rn, uint32_t shift) {
+  return aarch64_ubfm(rd, rn, (64U - shift) & 0x3fU, 63U - shift);
+}
+
+static uint32_t aarch64_orr_reg(uint32_t rd, uint32_t rn, uint32_t rm) {
+  return 0xaa000000U | ((rm & 0x1fU) << 16) |
+    ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t aarch64_fmov_s_from_w(uint32_t rd, uint32_t rn) {
+  return 0x1e270000U | ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t aarch64_fmov_w_from_s(uint32_t rd, uint32_t rn) {
+  return 0x1e260000U | ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
 static uint64_t fp64_to_bits(double value) {
   union {
     double d;
@@ -464,6 +491,16 @@ static uint32_t riscv_fsgnj_d(uint32_t rd, uint32_t rs1, uint32_t rs2) {
 
 static uint32_t riscv_fmv_d_x(uint32_t rd, uint32_t rs1) {
   return (0x79U << 25) | ((rs1 & 0x1fU) << 15) |
+    ((rd & 0x1fU) << 7) | 0x53U;
+}
+
+static uint32_t riscv_fmv_x_w(uint32_t rd, uint32_t rs1) {
+  return (0x70U << 25) | ((rs1 & 0x1fU) << 15) |
+    ((rd & 0x1fU) << 7) | 0x53U;
+}
+
+static uint32_t riscv_fmv_w_x(uint32_t rd, uint32_t rs1) {
+  return (0x78U << 25) | ((rs1 & 0x1fU) << 15) |
     ((rd & 0x1fU) << 7) | 0x53U;
 }
 
@@ -2324,16 +2361,24 @@ static int run_cross_call_compact_u32_f32_aarch64_to_riscv(uint64_t *result,
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
-  const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t aarch64_return_offset =
+    aarch64_body_offset + 16 + 4 + 8 + 16 + 4 + 16 + 4;
+  const size_t riscv_target_offset = aarch64_return_offset + 12 + 4 + 1;
 
   emit_aarch64_movabs(code, &offset, 0, 0x4010000000000003ULL);
   emit_u32(code, &offset, 0xd28000a1U); // movz x1,#5
+  emit_u32(code, &offset, aarch64_lsr_imm(9, 0, 32));
+  emit_u32(code, &offset, aarch64_fmov_s_from_w(0, 9));
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
-  emit_aarch64_movabs(code, &offset, 17,
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V)
+  emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032e7fU); // aarch64 polyctrl compact u32-f32 call, compact {u32,float} call RISC-V
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
+  emit_u32(code, &offset, aarch64_fmov_w_from_s(9, 0));
+  emit_u32(code, &offset, aarch64_lsl_imm(9, 9, 32));
+  emit_u32(code, &offset, aarch64_orr_reg(0, 0, 9));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2379,16 +2424,24 @@ static int run_cross_call_compact_f32_u32_aarch64_to_riscv(uint64_t *result,
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
-  const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t aarch64_return_offset =
+    aarch64_body_offset + 16 + 4 + 8 + 16 + 4 + 16 + 4;
+  const size_t riscv_target_offset = aarch64_return_offset + 12 + 4 + 1;
 
   emit_aarch64_movabs(code, &offset, 0, 0x0000000340100000ULL);
   emit_u32(code, &offset, 0xd28000a1U); // movz x1,#5
+  emit_u32(code, &offset, aarch64_fmov_s_from_w(0, 0));
+  emit_u32(code, &offset, aarch64_lsr_imm(0, 0, 32));
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
-  emit_aarch64_movabs(code, &offset, 17,
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V)
+  emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032e9fU); // aarch64 polyctrl compact f32-u32 call, compact {float,u32} call RISC-V
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
+  emit_u32(code, &offset, aarch64_fmov_w_from_s(9, 0));
+  emit_u32(code, &offset, aarch64_lsl_imm(0, 0, 32));
+  emit_u32(code, &offset, aarch64_orr_reg(0, 0, 9));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
@@ -2435,16 +2488,23 @@ static int run_cross_call_compact_u32_f32_riscv_to_aarch64(uint64_t *result,
 
   emit_u32(code, &offset, 0x00300513U); // addi a0,zero,3
   emit_u32(code, &offset, 0x00500593U); // addi a1,zero,5
+  emit_u32(code, &offset, riscv_fmv_x_w(28, 10)); // t3=fa0 bits
+  emit_u32(code, &offset, riscv_slli(28, 28, 32));
+  emit_u32(code, &offset, riscv_or(10, 10, 28));
   const size_t auipc_target_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
   const size_t auipc_return_pc = offset;
-  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0600700bU); // riscv polyctrl compact {u32,float}, call AArch64
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, riscv_srli(28, 10, 32));
+  emit_u32(code, &offset, riscv_fmv_w_x(10, 28));
   emit_u32(code, &offset, 0xe0050653U); // fmv.x.w a2,fa0
   emit_u32(code, &offset, 0x02061613U); // slli a2,a2,32
   emit_u32(code, &offset, 0x00c56533U); // or a0,a0,a2
@@ -2466,7 +2526,7 @@ static int run_cross_call_compact_u32_f32_riscv_to_aarch64(uint64_t *result,
 
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   poly_foreign_insn_count_status();
@@ -2506,16 +2566,23 @@ static int run_cross_call_compact_f32_u32_riscv_to_aarch64(uint64_t *result,
 
   emit_u32(code, &offset, 0x00300513U); // addi a0,zero,3
   emit_u32(code, &offset, 0x00500593U); // addi a1,zero,5
+  emit_u32(code, &offset, riscv_fmv_x_w(28, 10)); // t3=fa0 bits
+  emit_u32(code, &offset, riscv_slli(10, 10, 32));
+  emit_u32(code, &offset, riscv_or(10, 10, 28));
   const size_t auipc_target_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
   const size_t auipc_return_pc = offset;
-  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0800700bU); // riscv polyctrl compact {float,u32}, call AArch64
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, riscv_fmv_w_x(10, 10));
+  emit_u32(code, &offset, riscv_srli(10, 10, 32));
   emit_u32(code, &offset, 0xe0050653U); // fmv.x.w a2,fa0
   emit_u32(code, &offset, 0x02051513U); // slli a0,a0,32
   emit_u32(code, &offset, 0x00c56533U); // or a0,a0,a2
@@ -2538,7 +2605,7 @@ static int run_cross_call_compact_f32_u32_riscv_to_aarch64(uint64_t *result,
 
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   poly_foreign_insn_count_status();
