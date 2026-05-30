@@ -1,8 +1,6 @@
 # Poly ISA
 
-Poly extends x86_64 so one process can execute AArch64 and RISC-V64 code in the
-same virtual address space. x86_64 stays responsible for boot, privilege,
-paging, interrupts, faults, atomics, VM control, and memory ordering.
+Run precompiled AArch64 and RISC-V64 userspace code inside one x86_64 process. x86_64 remains the system ISA for privilege, paging, faults, interrupts, atomics, VM control, and TSO ordering.
 
 ## Run
 
@@ -12,18 +10,15 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused gates: `make boot-poly-arch-traps`, `make boot-poly-call-arch-traps`,
-`make boot-poly-full-arch-traps`.
+Focused gates: `make boot-poly-arch-traps`, `make boot-poly-call-arch-traps`, `make boot-poly-full-arch-traps`.
 
-## ISA Delta
+## x86_64 Delta
 
-| Area | Behavior |
-| --- | --- |
-| Frontends | `0` x86_64, `1` AArch64, `2` RISC-V64 |
-| Fetch | Foreign frontends fetch aligned 32-bit instructions from `RIP` |
-| Controls | `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING` are decoded instructions, not exception envelopes |
-| State | Foreign registers, trap packets, ABI signatures, transition state, and landing policy are XSAVE-style state |
-| Calls | ABI signature slots handle register-only fast paths; software thunks handle stack args, aggregates, variadics, lazy binding, libcalls, and syscall translation |
-| Encodings | Prototype x86 controls use temporary `0f 3a fc <op>` bytes; constants live in `tools/include/polycpuid.h` |
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- Foreign fetch: native aligned 32-bit instructions from `RIP`.
+- `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING` are decoded controls, not `#UD` envelopes.
+- State is XSAVE-style: foreign registers, traps, ABI signatures, transitions, and landing policy.
+- Fast calls use ABI signature slots for register-only native ABI cases; thunks handle stack args, aggregates, variadics, lazy binding, libcalls, and syscall translation.
+- Prototype x86 controls use temporary `0f 3a fc <op>` encodings; constants live in `tools/include/polycpuid.h`.
 
-Detailed hardware and ABI rationale lives in `docs/poly-isa-design-directions.md`.
+Design rationale: `docs/poly-isa-design-directions.md`.
