@@ -2,6 +2,7 @@
 arch=aarch64
 final_arch=riscv
 expected=42
-insn=0xd2800500
-insn=0xd5032e3f
-insn=0x00250513
+insn=0x10000070
+insn=0xd2800051
+insn=0xd5032f1f
+insn=0x02a00513
