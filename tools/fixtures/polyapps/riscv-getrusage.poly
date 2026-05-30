@@ -2,6 +2,6 @@
 arch=riscv
 elf=/usr/lib/polyapps/riscv-getrusage.elf
 expected=0
-syscall_expected=4
+syscall_expected=2
 syscall_number_expected=165
 scratch_hex_expected=4101000000000000f1fb090000000000

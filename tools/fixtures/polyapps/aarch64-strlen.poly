@@ -2,7 +2,7 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-strlen.elf
 expected=0x4c000101
-syscall_expected=3
+syscall_expected=1
 break_id=0
 break_expected=0x4c000100
 break_number_expected=1

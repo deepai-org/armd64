@@ -2,7 +2,7 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-write.elf
 expected=5
-syscall_expected=3
+syscall_expected=1
 syscall_number_expected=64
 break_id=0
 break_expected=0x4c000100

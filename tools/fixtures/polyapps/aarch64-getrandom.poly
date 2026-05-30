@@ -2,7 +2,7 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-getrandom.elf
 expected=4
-syscall_expected=3
+syscall_expected=1
 syscall_number_expected=278
 break_id=0
 break_expected=0x4c000100

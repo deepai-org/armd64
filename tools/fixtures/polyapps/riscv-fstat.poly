@@ -2,7 +2,7 @@
 arch=riscv
 elf=/usr/lib/polyapps/riscv-fstat.elf
 expected=0
-syscall_expected=4
+syscall_expected=2
 syscall_number_expected=80
 break_id=0
 break_expected=0x4c000200

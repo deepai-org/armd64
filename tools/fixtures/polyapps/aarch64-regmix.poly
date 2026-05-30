@@ -2,6 +2,6 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-regmix.elf
 expected=12
-syscall_expected=3
+syscall_expected=1
 break_id=0
 break_expected=0x4c000100

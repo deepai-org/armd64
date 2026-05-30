@@ -2,6 +2,6 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-openat-read.elf
 expected=4
-syscall_expected=3
+syscall_expected=1
 syscall_number_expected=63
 scratch_hex_expected=706f6c79210000004644212100000000

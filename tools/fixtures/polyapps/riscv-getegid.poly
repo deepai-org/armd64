@@ -2,5 +2,5 @@
 arch=riscv
 elf=/usr/lib/polyapps/riscv-getegid.elf
 expected=1000
-syscall_expected=4
+syscall_expected=2
 syscall_number_expected=177

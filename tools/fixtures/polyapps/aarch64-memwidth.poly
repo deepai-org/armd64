@@ -2,6 +2,6 @@
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-memwidth.elf
 expected=0x100001324
-syscall_expected=3
+syscall_expected=1
 break_id=0
 break_expected=0x4c000100

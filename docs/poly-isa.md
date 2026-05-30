@@ -1,8 +1,8 @@
 # Poly ISA
 
-Poly extends x86_64 with raw AArch64 and RISC-V64 userspace execution in the
-same virtual address space. x86_64 remains the system ISA. The compatibility
-target is existing SysV x86_64, AAPCS64, and RISC-V psABI objects.
+Poly adds raw AArch64 and RISC-V64 userspace frontends to an x86_64 system
+CPU. The compatibility target is existing native ABI code: SysV x86_64,
+AAPCS64, and RISC-V psABI.
 
 ## Run
 
@@ -12,34 +12,29 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused tests:
+Other useful targets: `boot-poly-probe-arch-traps`,
+`boot-poly-call-arch-traps`, `boot-poly-thread-arch-traps`,
+`boot-poly-full-arch-traps`.
 
-- `make boot-poly-probe-arch-traps`
-- `make boot-poly-bench-arch-traps`
-- `make boot-poly-thread-arch-traps`
-
-## What Changes From x86_64
+## Contract
 
 | Area | Poly behavior |
 | --- | --- |
-| Frontends | `0=x86_64`, `1=AArch64`, `2=RISC-V64` |
-| Fetch | Foreign modes fetch native 32-bit instructions from x86_64 virtual memory |
-| Memory | x86_64 paging, protection, and TSO ordering apply in every mode |
-| Controls | `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, `PLANDING`; no `#UD` envelopes |
-| Calls | `PCALL` switches frontend, branches, saves cross-return state, and applies a register-only ABI signature |
-| State | XSAVE-style Poly component, prototype component `20` |
-| Traps | Syscalls, imports, breakpoints, and illegal instructions produce userspace monitor trap packets |
-
-Hardware owns frontend switching, cross-return cookies, XSAVE state,
-register-only ABI remapping, landing checks, and precise trap packets. Runtime
-code owns stack arguments, aggregates, variadics, lazy binding, syscalls,
-libcalls, and memory-side ABI conversion.
+| System ISA | x86_64 owns boot, privilege, paging, interrupts, faults, and TSO ordering. |
+| Frontends | `0=x86_64`, `1=AArch64`, `2=RISC-V64`. |
+| Fetch | Foreign frontends fetch native 32-bit instructions from the shared x86_64 virtual address space. |
+| Controls | `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING`; no per-instruction `#UD` envelopes. |
+| Calls | `PCALL` changes frontend, branches, records cross-return state, and may apply a register-only ABI signature. |
+| Returns | Native return instructions cross back through hardware return cookies. |
+| State | Foreign architectural state is explicit XSAVE-style Poly state, prototype component `20`. |
+| Traps | Syscalls, imports, breakpoints, illegal instructions, and faults produce OS-neutral trap packets. |
+| Runtime work | Stack arguments, aggregates, variadics, lazy binding, syscalls, libcalls, and memory-side ABI conversion stay in software. |
 
 ## Prototype Encodings
 
-- x86_64 control prefix: `0f 3a fc <subop>`
-- AArch64 control word: `0xd503201f | ((subop & 0x7f) << 5)`
-- RISC-V64 control word: `0x0000700b | ((subop & 0x7f) << 25)`
-- CPUID base leaf: `0x40000000`
+These are Bochs prototype encodings, not final silicon opcode assignments:
+`0f 3a fc <subop>` on x86_64, `0xd503201f | ((subop & 0x7f) << 5)` on
+AArch64, and `0x0000700b | ((subop & 0x7f) << 25)` on RISC-V64. The prototype
+CPUID base leaf is `0x40000000`.
 
-Design details live in `docs/poly-isa-design-directions.md`.
+Design rationale: `docs/poly-isa-design-directions.md`.
