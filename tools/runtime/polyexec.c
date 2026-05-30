@@ -1970,6 +1970,10 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
 }
 
 static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
+  const uint64_t required_flags =
+    POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY |
+    POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY |
+    POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
   const uint64_t header = poly_monitor_packet[0];
   packet->reason = header & 0xffffffffULL;
   packet->mode = header >> 32;
@@ -1990,6 +1994,18 @@ static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
       (unsigned long long) packet->selector,
       (unsigned long long) packet->pc,
       (unsigned long long) packet->flags);
+    return -1;
+  }
+  if ((packet->flags & required_flags) != required_flags) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: monitor packet missing flags reason=%llu mode=%llu number=%llu selector=%llu pc=%llu flags=0x%llx required=0x%llx\n",
+      (unsigned long long) packet->reason,
+      (unsigned long long) packet->mode,
+      (unsigned long long) packet->number,
+      (unsigned long long) packet->selector,
+      (unsigned long long) packet->pc,
+      (unsigned long long) packet->flags,
+      (unsigned long long) required_flags);
     return -1;
   }
 
