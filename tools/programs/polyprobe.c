@@ -2058,6 +2058,16 @@ int main(void) {
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
+  expected_escapes = poly_cpuid_expected_escape_leaf19();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 19);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID state-key manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
   expected_escapes = poly_cpuid_expected_escape_leaf20();
   poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 20);
   if (poly_escapes.eax != expected_escapes.eax ||
