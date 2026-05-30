@@ -1,10 +1,4 @@
-# Poly ISA Quick Reference
-
-Poly adds AArch64 and RISC-V64 userspace frontends to an x86_64 system CPU. The goal is compatibility with existing precompiled code using real ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
-
-Poly is not a new compiler-only ABI. Fast paths exist, but they must still preserve native ABI behavior.
-
-## Running Tests
+# Poly ISA
 
 ```bash
 make image
@@ -12,7 +6,7 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Useful focused targets:
+Focused tests:
 
 ```text
 boot-poly-probe-arch-traps
@@ -21,24 +15,29 @@ boot-poly-thread-arch-traps
 boot-poly-full-arch-traps
 ```
 
-## Architectural Contract
+## Contract
+
+Poly adds AArch64 and RISC-V64 userspace frontends to an x86_64 system CPU. It targets existing precompiled SysV x86_64, AAPCS64, and RISC-V psABI code, not a new compiler-only ABI.
 
 | Area | Rule |
 | --- | --- |
-| System ISA | x86_64 owns boot, privilege, paging, interrupts, faults, and the memory model. |
+| System model | x86_64 owns boot, privilege, paging, interrupts, faults, and memory ordering. |
 | Frontend IDs | `0=x86_64`, `1=AArch64`, `2=RISC-V64`. |
-| Foreign fetch | AArch64/RISC-V modes fetch native 32-bit instructions from normal virtual memory. |
-| No envelopes | Foreign instructions are not wrapped in per-instruction x86 `#UD` envelopes. |
+| Foreign fetch | AArch64/RISC-V fetch native 32-bit instructions directly from normal virtual memory. |
 | Control ops | `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING`. |
-| Calls | `PCALL` switches frontend, branches, records return state, and may apply a register-only ABI signature. |
-| Returns | Native return instructions cross back through hardware return cookies. |
-| State | Non-x86 state is explicit XSAVE-style Poly state, prototype component `20`. |
+| Calls/returns | `PCALL` switches frontend and records return state; native returns cross back through return cookies. |
+| Fast ABI mapping | Hardware may rename/remap registers only, using ABI signature slots. |
+| Software ABI work | Stack args, aggregates, variadics, syscalls, libcalls, and memory layout are handled by software thunks/monitors. |
+| State | Non-x86 registers are explicit XSAVE-style Poly state, prototype component `20`. |
 | Traps | Syscalls, imports, breakpoints, illegal instructions, and faults produce OS-neutral trap packets. |
-| ABI boundary | Hardware may rename/remap registers only. Stack, aggregate, variadic, syscall, libcall, and memory-layout work stays in software. |
+
+## Difference From x86_64
+
+Poly does not replace x86_64. It adds selectable userspace instruction frontends sharing the same virtual address space and x86-owned system behavior. Foreign instructions are not encoded as per-instruction x86 `#UD` envelopes; once a foreign frontend is entered, the CPU fetches that ISA directly until a control transfer, return cookie, or trap packet exits it.
 
 ## Prototype Encodings
 
-These encodings are temporary Bochs encodings, not final silicon encodings:
+Temporary Bochs encodings, not final silicon encodings:
 
 | Frontend | Temporary encoding |
 | --- | --- |
