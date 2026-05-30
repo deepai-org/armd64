@@ -27,7 +27,7 @@ Poly adds AArch64 and RISC-V64 userspace frontends to an x86_64 system CPU. It t
 - Fast ABI crossing is register-only, via signature slots/RAT remapping.
 - Stack arguments, aggregates, variadics, syscalls, libcalls, and memory layout conversion remain software thunk/monitor work.
 - Trap packets are OS-neutral and include source frontend, status, PC, and the first eight native foreign ABI argument registers.
-- Non-x86 registers are XSAVE-style Poly state: prototype component `20`; state import layout version is `3`.
+- Non-x86 registers are XSAVE-style Poly state: prototype component `20`; state import layout version is `8`.
 
 ## Temporary Encodings
 

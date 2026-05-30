@@ -13,6 +13,15 @@ TMP_DIR="${TMPDIR:-/tmp}/poly-cpuid-contract.$$"
 mkdir -p "$TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+# Some header enum values are aliases of earlier enum values. Bash arithmetic
+# can evaluate those expressions as long as the aliased names are bound here.
+readonly POLY_FRONTEND_X86=0
+readonly POLY_FRONTEND_AARCH64=1
+readonly POLY_FRONTEND_RISCV=2
+readonly POLY_MODE_X86=0
+readonly POLY_MODE_RAW_AARCH64=1
+readonly POLY_MODE_RAW_RISCV=2
+
 fail() {
   echo "poly CPUID contract check failed: $*" >&2
   exit 1
@@ -135,6 +144,54 @@ compare_const() {
   fi
 }
 
+compare_aarch64_ctrl() {
+  local bochs_name="$1"
+  local header_subop_name="$2"
+  local bochs_expr subop_expr bochs_value subop_value header_value
+
+  bochs_expr="$(bochs_const_expr "$bochs_name")"
+  subop_expr="$(header_const_expr "$header_subop_name")"
+  [[ -n "$bochs_expr" ]] || fail "missing Bochs constant $bochs_name"
+  [[ -n "$subop_expr" ]] || fail "missing header constant $header_subop_name"
+
+  if [[ "$bochs_expr" =~ ^BX_POLY_AARCH64_CTRL\((.*)\)$ ]]; then
+    local bochs_subop_value
+    bochs_subop_value="$(eval_expr "${BASH_REMATCH[1]}")"
+    bochs_value="$((0xd503201f | ((bochs_subop_value & 0x7f) << 5)))"
+  else
+    bochs_value="$(eval_expr "$bochs_expr")"
+  fi
+  subop_value="$(eval_expr "$subop_expr")"
+  header_value="$((0xd503201f | ((subop_value & 0x7f) << 5)))"
+  if [[ "$bochs_value" != "$header_value" ]]; then
+    fail "$bochs_name=$bochs_value differs from encoded $header_subop_name=$header_value"
+  fi
+}
+
+compare_riscv_ctrl() {
+  local bochs_name="$1"
+  local header_subop_name="$2"
+  local bochs_expr subop_expr bochs_value subop_value header_value
+
+  bochs_expr="$(bochs_const_expr "$bochs_name")"
+  subop_expr="$(header_const_expr "$header_subop_name")"
+  [[ -n "$bochs_expr" ]] || fail "missing Bochs constant $bochs_name"
+  [[ -n "$subop_expr" ]] || fail "missing header constant $header_subop_name"
+
+  if [[ "$bochs_expr" =~ ^BX_POLY_RISCV_CTRL\((.*)\)$ ]]; then
+    local bochs_subop_value
+    bochs_subop_value="$(eval_expr "${BASH_REMATCH[1]}")"
+    bochs_value="$((0x0000700b | ((bochs_subop_value & 0x7f) << 25)))"
+  else
+    bochs_value="$(eval_expr "$bochs_expr")"
+  fi
+  subop_value="$(eval_expr "$subop_expr")"
+  header_value="$((0x0000700b | ((subop_value & 0x7f) << 25)))"
+  if [[ "$bochs_value" != "$header_value" ]]; then
+    fail "$bochs_name=$bochs_value differs from encoded $header_subop_name=$header_value"
+  fi
+}
+
 compare_polycall_const() {
   local header_name="$1"
   local polycall_name="${2:-$1}"
@@ -174,27 +231,28 @@ compare_const BX_POLY_MODE_RAW_AARCH64 POLY_MODE_RAW_AARCH64
 compare_const BX_POLY_MODE_RAW_RISCV POLY_MODE_RAW_RISCV
 compare_const BX_POLY_CPUID_BASE POLY_CPUID_BASE
 compare_const BX_POLY_CPUID_MAX POLY_CPUID_MAX
-compare_const BX_POLY_AARCH64_BRK_X86_ESCAPE POLY_AARCH64_BRK_X86_ESCAPE
-compare_const BX_POLY_AARCH64_BRK_RISCV_SWITCH POLY_AARCH64_BRK_RISCV_SWITCH
-compare_const BX_POLY_AARCH64_BRK_RISCV_CALL POLY_AARCH64_BRK_RISCV_CALL
-compare_const BX_POLY_AARCH64_BRK_RISCV_CALL_COMPACT_U32_F32 POLY_AARCH64_BRK_RISCV_CALL_COMPACT_U32_F32
-compare_const BX_POLY_AARCH64_BRK_RISCV_CALL_COMPACT_F32_U32 POLY_AARCH64_BRK_RISCV_CALL_COMPACT_F32_U32
-compare_const BX_POLY_AARCH64_BRK_RISCV_CALL_FP64_STACK POLY_AARCH64_BRK_RISCV_CALL_FP64_STACK
-compare_const BX_POLY_AARCH64_BRK_TRAP_RETURN POLY_AARCH64_BRK_TRAP_RETURN
-compare_const BX_POLY_RISCV_X86_ESCAPE POLY_RISCV_X86_ESCAPE
-compare_const BX_POLY_RISCV_AARCH64_SWITCH POLY_RISCV_AARCH64_SWITCH
-compare_const BX_POLY_RISCV_AARCH64_CALL POLY_RISCV_AARCH64_CALL
-compare_const BX_POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32 POLY_RISCV_AARCH64_CALL_COMPACT_U32_F32
-compare_const BX_POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32 POLY_RISCV_AARCH64_CALL_COMPACT_F32_U32
-compare_const BX_POLY_RISCV_AARCH64_CALL_FP64_STACK POLY_RISCV_AARCH64_CALL_FP64_STACK
-compare_const BX_POLY_RISCV_TRAP_RETURN POLY_RISCV_TRAP_RETURN
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_X86_ESCAPE POLY_AARCH64_CTRL_SUBOP_X86_ESCAPE
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_RISCV_SWITCH POLY_AARCH64_CTRL_SUBOP_RISCV_SWITCH
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_RISCV_CALL POLY_AARCH64_CTRL_SUBOP_RISCV_CALL
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_RISCV_CALL_COMPACT_U32_F32 POLY_AARCH64_CTRL_SUBOP_RISCV_CALL_COMPACT_U32_F32
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_RISCV_CALL_COMPACT_F32_U32 POLY_AARCH64_CTRL_SUBOP_RISCV_CALL_COMPACT_F32_U32
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_RISCV_CALL_FP64_STACK POLY_AARCH64_CTRL_SUBOP_RISCV_CALL_FP64_STACK
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_TRAP_RETURN POLY_AARCH64_CTRL_SUBOP_TRAP_RETURN
+compare_aarch64_ctrl BX_POLY_AARCH64_CTRL_RISCV_CALL_VEC128_U32 POLY_AARCH64_CTRL_SUBOP_RISCV_CALL_VEC128_U32
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_X86_ESCAPE POLY_RISCV_CTRL_SUBOP_X86_ESCAPE
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_AARCH64_SWITCH POLY_RISCV_CTRL_SUBOP_AARCH64_SWITCH
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_AARCH64_CALL POLY_RISCV_CTRL_SUBOP_AARCH64_CALL
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_AARCH64_CALL_COMPACT_U32_F32 POLY_RISCV_CTRL_SUBOP_AARCH64_CALL_COMPACT_U32_F32
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_AARCH64_CALL_COMPACT_F32_U32 POLY_RISCV_CTRL_SUBOP_AARCH64_CALL_COMPACT_F32_U32
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_AARCH64_CALL_FP64_STACK POLY_RISCV_CTRL_SUBOP_AARCH64_CALL_FP64_STACK
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_TRAP_RETURN POLY_RISCV_CTRL_SUBOP_TRAP_RETURN
+compare_riscv_ctrl BX_POLY_RISCV_CTRL_AARCH64_CALL_VEC128_U32 POLY_RISCV_CTRL_SUBOP_AARCH64_CALL_VEC128_U32
 compare_const BX_POLY_IMPORT_FUNC_X86_SLOT0 POLY_IMPORT_FUNC_X86_SLOT0
 compare_const BX_POLY_IMPORT_FUNC_X86_SLOT7 POLY_IMPORT_FUNC_X86_SLOT7
 compare_const BX_POLY_IMPORT_CALL_COUNT POLY_IMPORT_FUNC_COUNT
-compare_const BX_POLY_IMPORT_X86_DESCRIPTOR_SIZE POLY_IMPORT_X86_DESCRIPTOR_SIZE
 compare_const BX_POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS
-compare_const BX_POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128 POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128
-compare_const BX_POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128 POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128
+compare_const BX_POLY_IMPORT_X86_RETURN_SHAPE_I128 POLY_IMPORT_X86_RETURN_SHAPE_I128
+compare_const BX_POLY_IMPORT_X86_RETURN_SHAPE_FP128 POLY_IMPORT_X86_RETURN_SHAPE_FP128
 compare_const BX_POLY_IMPORT_CALL_STRIDE POLY_IMPORT_CALL_STRIDE
 compare_const BX_POLY_CPUID_STATE_OVERLAP_GPRS POLY_CPUID_STATE_OVERLAP_GPRS
 compare_const BX_POLY_CPUID_STATE_SYNTHETIC_BANKS POLY_CPUID_STATE_SYNTHETIC_BANKS
@@ -208,7 +266,6 @@ compare_const BX_POLY_CPUID_STATE_KEY_EXPLICIT POLY_CPUID_STATE_KEY_EXPLICIT
 compare_const BX_POLY_CPUID_STATE_TRANSITION_FRAME_32 POLY_CPUID_STATE_TRANSITION_FRAME_32
 compare_const BX_POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE
 compare_const BX_POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT
-compare_const BX_POLY_STATE_STACK_KEY_SHIFT POLY_STATE_STACK_KEY_SHIFT
 compare_const BX_POLY_STATE_XSAVE_MAGIC POLY_STATE_XSAVE_MAGIC
 compare_const BX_POLY_STATE_XSAVE_COMPONENT_ARCH POLY_STATE_XSAVE_COMPONENT_ARCH
 compare_const BX_POLY_STATE_XSAVE_BYTES_ARCH POLY_STATE_XSAVE_BYTES_ARCH
@@ -273,9 +330,7 @@ compare_const BX_POLY_ABI_BRIDGE_FLAG_SRET POLY_ABI_BRIDGE_FLAG_SRET
 compare_const BX_POLY_ABI_BRIDGE_FLAG_SCALAR_FP POLY_ABI_BRIDGE_FLAG_SCALAR_FP
 compare_const BX_POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES
 compare_const BX_POLY_ABI_BRIDGE_FLAG_FP64_STACK POLY_ABI_BRIDGE_FLAG_FP64_STACK
-compare_const BX_POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS
 compare_const BX_POLY_ABI_BRIDGE_FLAG_TLS_BASE POLY_ABI_BRIDGE_FLAG_TLS_BASE
-compare_const BX_POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS
 compare_const BX_POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK
 compare_const BX_POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
 compare_const BX_POLY_ABI_BRIDGE_GPR_ARG_COUNT POLY_ABI_BRIDGE_GPR_ARG_COUNT
@@ -286,8 +341,8 @@ compare_polycall_const POLY_IMPORT_CALL_BASE
 compare_polycall_const POLY_IMPORT_CALL_STRIDE
 compare_polycall_const POLY_IMPORT_X86_DESCRIPTOR_SIZE POLY_X86_IMPORT_DESCRIPTOR_SIZE
 compare_polycall_const POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS
-compare_polycall_const POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128
-compare_polycall_const POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128
+compare_polycall_const POLY_IMPORT_X86_RETURN_SHAPE_I128
+compare_polycall_const POLY_IMPORT_X86_RETURN_SHAPE_FP128
 compare_polycall_const POLY_ABI_BRIDGE_ABI_VERSION
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV
@@ -295,39 +350,16 @@ compare_polycall_const POLY_ABI_BRIDGE_FLAG_SRET
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_SCALAR_FP
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_FP64_STACK
-compare_polycall_const POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_RESERVED_DESCRIPTOR_IMPORTS
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_TLS_BASE
-compare_polycall_const POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS
+compare_polycall_const POLY_ABI_BRIDGE_FLAG_RESERVED_USER_DESCRIPTORS
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK
 compare_polycall_const POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
 compare_polycall_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
 compare_polycall_const POLY_ABI_BRIDGE_FP_ARG_COUNT
 compare_polycall_const POLY_ABI_BRIDGE_STACK_ALIGN
-compare_polybench_const POLY_CPUID_BASE
-compare_polybench_const POLY_IMPORT_CALL_BASE
-compare_polybench_const POLY_IMPORT_CALL_STRIDE
-compare_polybench_const POLY_IMPORT_X86_DESCRIPTOR_SIZE POLY_X86_IMPORT_DESCRIPTOR_SIZE
-compare_polybench_const POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS
-compare_polybench_const POLY_IMPORT_X86_DESCRIPTOR_RETURN_I128
-compare_polybench_const POLY_IMPORT_X86_DESCRIPTOR_RETURN_FP128
-compare_polybench_const POLY_ABI_BRIDGE_ABI_VERSION
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_AAPCS64
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_X86_SYSV_TO_RISCV
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_SRET
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_SCALAR_FP
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_FOCUSED_AGGREGATES
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_FP64_STACK
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_DESCRIPTOR_IMPORTS
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_TLS_BASE
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_USER_DESCRIPTORS
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_NO_CPU_HELPER_FALLBACK
-compare_polybench_const POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
-compare_polybench_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
-compare_polybench_const POLY_ABI_BRIDGE_FP_ARG_COUNT
-compare_polybench_const POLY_ABI_BRIDGE_STACK_ALIGN
-
-assert_contains 'state import layout version is `3`' "$POLY_ISA_DOC" \
-  "poly ISA doc must describe explicit state import with layout version 3"
+assert_contains 'state import layout version is `8`' "$POLY_ISA_DOC" \
+  "poly ISA doc must describe explicit state import with layout version 8"
 assert_not_contains 'state import layout version is `1`' "$POLY_ISA_DOC" \
   "poly ISA doc must not describe the old state import layout version"
 
