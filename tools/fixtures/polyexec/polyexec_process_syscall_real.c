@@ -84,6 +84,8 @@ enum {
   POLY_SYS_TRUNCATE = 45,
   POLY_SYS_FTRUNCATE = 46,
   POLY_SYS_FALLOCATE = 47,
+  POLY_SYS_CHDIR = 49,
+  POLY_SYS_FCHDIR = 50,
   POLY_SYS_FCHMOD = 52,
   POLY_SYS_OPENAT = 56,
   POLY_SYS_CLOSE = 57,
@@ -1793,6 +1795,41 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 244;
   if ((namespace_dir_stat.mode & POLY_S_IFMT) != POLY_S_IFDIR)
     return 245;
+  long namespace_dir_fd = poly_syscall3(POLY_SYS_OPENAT, POLY_AT_FDCWD,
+    (long) namespace_dir, POLY_O_DIRECTORY | POLY_O_CLOEXEC);
+  if (namespace_dir_fd < 0)
+    return 323;
+  if (poly_syscall2(POLY_SYS_CHDIR, (long) namespace_dir, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, namespace_dir_fd, 0);
+    return 324;
+  }
+  char namespace_cwd[128];
+  long namespace_cwd_len = poly_syscall2(POLY_SYS_GETCWD,
+    (long) namespace_cwd, sizeof(namespace_cwd));
+  if (namespace_cwd_len <= 1 || !poly_streq(namespace_cwd, namespace_dir)) {
+    poly_syscall2(POLY_SYS_CLOSE, namespace_dir_fd, 0);
+    return 325;
+  }
+  if (poly_syscall2(POLY_SYS_CHDIR, (long) cwd, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, namespace_dir_fd, 0);
+    return 326;
+  }
+  if (poly_syscall2(POLY_SYS_FCHDIR, namespace_dir_fd, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, namespace_dir_fd, 0);
+    return 327;
+  }
+  namespace_cwd_len = poly_syscall2(POLY_SYS_GETCWD, (long) namespace_cwd,
+    sizeof(namespace_cwd));
+  if (namespace_cwd_len <= 1 || !poly_streq(namespace_cwd, namespace_dir)) {
+    poly_syscall2(POLY_SYS_CLOSE, namespace_dir_fd, 0);
+    return 328;
+  }
+  if (poly_syscall2(POLY_SYS_CHDIR, (long) cwd, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, namespace_dir_fd, 0);
+    return 329;
+  }
+  if (poly_syscall2(POLY_SYS_CLOSE, namespace_dir_fd, 0) != 0)
+    return 330;
   fd = poly_syscall4(POLY_SYS_OPENAT, POLY_AT_FDCWD,
     (long) namespace_file,
     POLY_O_CREAT | POLY_O_RDWR | POLY_O_TRUNC | POLY_O_CLOEXEC, 0600);
