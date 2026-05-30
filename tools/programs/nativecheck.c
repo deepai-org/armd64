@@ -3350,6 +3350,11 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value(trap_vector);
   poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  if (poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_CALL) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XSAVE landing policy set failed\n",
+      stderr);
+    return 1;
+  }
   if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
     fputs("NATIVE_CHECK_FAIL: real XSAVE signature set failed\n", stderr);
     return 1;
@@ -3399,6 +3404,14 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->abi_signature.slots[4].kind);
     return 1;
   }
+  if (saved->landing_policy.flags != POLY_LANDING_POLICY_REQUIRE_CALL ||
+      saved->landing_policy.supported_flags != POLY_LANDING_POLICY_SUPPORTED) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XSAVE landing policy mismatch flags=0x%llx supported=0x%llx\n",
+      (unsigned long long) saved->landing_policy.flags,
+      (unsigned long long) saved->landing_policy.supported_flags);
+    return 1;
+  }
   if (saved->aarch64_gpr[21] != 99 ||
       saved->aarch64_fp[21].lo != three_bits ||
       saved->riscv_gpr[21] != 111 ||
@@ -3415,6 +3428,11 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(0);
   poly_monitor_packet_set_value(0);
+  if (poly_landing_policy_set(0) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XRSTOR landing policy mutate failed\n",
+      stderr);
+    return 1;
+  }
   if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
     fputs("NATIVE_CHECK_FAIL: real XRSTOR signature mutate failed\n", stderr);
     return 1;
@@ -3456,6 +3474,12 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR ABI signature mismatch got=%llu\n",
       (unsigned long long) poly_abi_signature_get(4));
+    return 1;
+  }
+  if (poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR landing policy mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
     return 1;
   }
   poly_monitor_packet_get();
@@ -3521,6 +3545,11 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
   poly_trap_vector_set_value(trap_vector);
   poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  if (poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XRSTOR init landing policy mutate failed\n",
+      stderr);
+    return 1;
+  }
   if (poly_abi_signature_set(4, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
     fputs("NATIVE_CHECK_FAIL: real XRSTOR init signature mutate failed\n",
       stderr);
@@ -3569,6 +3598,12 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR init ABI signature mismatch got=%llu\n",
       (unsigned long long) poly_abi_signature_get(4));
+    return 1;
+  }
+  if (poly_landing_policy_get() != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init landing policy not cleared got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
     return 1;
   }
   asm volatile(
