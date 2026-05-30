@@ -31,6 +31,9 @@ enum {
   POLY_F_GETFD = 1,
   POLY_F_SETFD = 2,
   POLY_FD_CLOEXEC = 1,
+  POLY_LOCK_EX = 2,
+  POLY_LOCK_NB = 4,
+  POLY_LOCK_UN = 8,
   POLY_FUTEX_32 = 2,
   POLY_FUTEX_WAIT_PRIVATE = 128,
   POLY_FUTEX_WAKE_PRIVATE = 129,
@@ -70,6 +73,7 @@ enum {
   POLY_SYS_INOTIFY_INIT1 = 26,
   POLY_SYS_INOTIFY_ADD_WATCH = 27,
   POLY_SYS_INOTIFY_RM_WATCH = 28,
+  POLY_SYS_FLOCK = 32,
   POLY_SYS_MKDIRAT = 34,
   POLY_SYS_UNLINKAT = 35,
   POLY_SYS_SYMLINKAT = 36,
@@ -867,6 +871,14 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     POLY_MFD_CLOEXEC);
   if (fd < 0)
     return 208;
+  if (poly_syscall2(POLY_SYS_FLOCK, fd, POLY_LOCK_EX | POLY_LOCK_NB) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 305;
+  }
+  if (poly_syscall2(POLY_SYS_FLOCK, fd, POLY_LOCK_UN) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 306;
+  }
   if (poly_syscall4(POLY_SYS_FALLOCATE, fd, 0, 0, 4096) != 0) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 209;
