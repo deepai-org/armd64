@@ -24,6 +24,8 @@ Other useful targets:
   and call tests.
 - `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
 - `make boot-poly-full-arch-traps`: broad regression run.
+- `make boot-poly-full-real-xsave-arch-traps`: broad regression run with the
+  guest Poly XCR0 module loaded so direct XSAVE/XRSTOR is required.
 
 ## Current Prototype Status
 
