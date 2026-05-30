@@ -325,6 +325,7 @@ RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
 EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
+REQUIRE_POLY_REAL_XSAVE="${REQUIRE_POLY_REAL_XSAVE:-0}"
 RUN_CONTRACT_CHECKS="${RUN_CONTRACT_CHECKS:-0}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
@@ -5699,6 +5700,7 @@ RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 RUN_POLY_BINFMT_ARCH_TRAPS="$RUN_POLY_BINFMT_ARCH_TRAPS"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
 EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID"
+REQUIRE_POLY_REAL_XSAVE="$REQUIRE_POLY_REAL_XSAVE"
 
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -5716,7 +5718,9 @@ echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
 
 if [ "$RUN_NATIVE_CHECK" = "1" ]; then
-  EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1
+  EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID" \
+    REQUIRE_POLY_REAL_XSAVE="$REQUIRE_POLY_REAL_XSAVE" \
+    /usr/bin/nativecheck.elf >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_PROBE" = "1" ]; then
@@ -9173,7 +9177,12 @@ EOF
             continue 2
           fi
         done
-        if ! grep -Eq "NATIVE_POLY_REAL_XSAVE_(OK|SKIPPED)" "$SERIAL_LOG"; then
+        if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" ]]; then
+          if ! grep -q "NATIVE_POLY_REAL_XSAVE_OK" "$SERIAL_LOG"; then
+            sleep 1
+            continue
+          fi
+        elif ! grep -Eq "NATIVE_POLY_REAL_XSAVE_(OK|SKIPPED)" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

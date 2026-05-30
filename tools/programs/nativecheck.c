@@ -58,6 +58,11 @@ typedef uint8_t poly_native_xsave_area_t[POLY_NATIVE_XSAVE_AREA_BYTES];
 static uint8_t nativecheck_real_xsave_area[POLY_NATIVE_XSAVE_AREA_BYTES]
   __attribute__((aligned(64)));
 
+static int nativecheck_require_real_xsave(void) {
+  const char *value = getenv("REQUIRE_POLY_REAL_XSAVE");
+  return value != NULL && strcmp(value, "0") != 0 && value[0] != '\0';
+}
+
 static void poly_unexpected_trap_vector_exit_handler(void);
 
 struct nativecheck_monitor_packet {
@@ -4419,6 +4424,12 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     (nativecheck_real_xsave_area + POLY_STATE_XSAVE_OFFSET_ARCH);
 
   if ((xcr0 & poly_mask) == 0) {
+    if (nativecheck_require_real_xsave()) {
+      fprintf(stderr,
+        "NATIVE_CHECK_FAIL: real XSAVE required but XCR0 lacks Poly bit %u\n",
+        POLY_STATE_XSAVE_COMPONENT_ARCH);
+      return 1;
+    }
     puts("NATIVE_POLY_REAL_XSAVE_SKIPPED");
     return 0;
   }

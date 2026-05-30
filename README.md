@@ -43,7 +43,8 @@ Other useful targets:
 - Bochs exposes Poly as XSAVE component 20 and implements XSAVE/XRSTOR handlers.
   The current stock Alpine guest kernel does not enable that custom XCR0 bit, so
   tests also use explicit Poly state save/restore controls for prototype
-  scheduling and signal coverage.
+  scheduling and signal coverage. `make boot-poly-real-xsave-arch-traps` is the
+  opt-in gate for kernels that enable the Poly XCR0 component.
 - The prototype also exposes its thread-bank state key through CPUID: foreign
   synthetic banks are separated by `CR3+FSBASE`, with a stack-region fallback
   for code without a TLS base. That is prototype isolation plumbing; the
