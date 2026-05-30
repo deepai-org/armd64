@@ -6,4 +6,4 @@ scratch_hex_expected=7b0000000000000055f8060000000000
 syscall_expected=3
 syscall_number_expected=113
 break_id=0
-break_expected=0x4c000300
+break_expected=0x4c000100

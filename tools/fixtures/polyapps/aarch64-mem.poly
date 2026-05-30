@@ -4,4 +4,4 @@ elf=/usr/lib/polyapps/aarch64-mem.elf
 expected=77
 syscall_expected=3
 break_id=0
-break_expected=0x4c000300
+break_expected=0x4c000100

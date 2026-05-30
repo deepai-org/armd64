@@ -4,4 +4,4 @@ elf=/usr/lib/polyapps/aarch64-movwide.elf
 expected=0xffff6543edcb5678
 syscall_expected=3
 break_id=0
-break_expected=0x4c000300
+break_expected=0x4c000100

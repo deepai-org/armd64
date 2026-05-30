@@ -686,7 +686,7 @@ static inline uint64_t aarch64_foreign_control_plane_probe(uint64_t vector,
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd5032d1f\n" // aarch64 trap vector set, x0=vector
-    ".long 0xd2800080\n" // movz x0,#4 (RISC-V mode)
+    ".long 0xd2800040\n" // movz x0,#2 (RISC-V mode)
     ".long 0xd5032d5f\n" // aarch64 trap vector mode set
     ".long 0xaa0103e0\n" // mov x0,x1 (packet)
     ".long 0xd5032d9f\n" // aarch64 monitor packet set
@@ -705,7 +705,7 @@ static inline uint64_t riscv_foreign_control_plane_probe(uint64_t vector,
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x3000700b\n" // riscv trap vector set, a0=vector
-    ".long 0x00300513\n" // addi a0,zero,3 (AArch64 mode)
+    ".long 0x00100513\n" // addi a0,zero,1 (AArch64 mode)
     ".long 0x3400700b\n" // riscv trap vector mode set
     ".long 0x00058513\n" // mv a0,a1 (packet)
     ".long 0x3800700b\n" // riscv monitor packet set
@@ -2489,7 +2489,7 @@ int main(void) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   raw_aarch64_break_probe(break_arg);
-  if (read_rax() != 0x4c000301ULL) {
+  if (read_rax() != (0x4c000001ULL | ((uint64_t) POLY_MODE_RAW_AARCH64 << 8))) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap vector mismatch\n");
     return 1;
   }
@@ -2519,7 +2519,7 @@ int main(void) {
   }
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   raw_riscv_break_probe(break_arg);
-  if (read_rax() != 0x4c000401ULL) {
+  if (read_rax() != (0x4c000001ULL | ((uint64_t) POLY_MODE_RAW_RISCV << 8))) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap vector mismatch\n");
     return 1;
   }

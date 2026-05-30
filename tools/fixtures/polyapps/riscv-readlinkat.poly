@@ -5,5 +5,5 @@ expected=5
 syscall_expected=4
 syscall_number_expected=78
 break_id=0
-break_expected=0x4c000400
+break_expected=0x4c000200
 scratch_expected=poly!

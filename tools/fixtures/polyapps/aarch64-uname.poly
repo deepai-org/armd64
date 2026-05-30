@@ -6,4 +6,4 @@ scratch_expected=Linux
 syscall_expected=3
 syscall_number_expected=160
 break_id=0
-break_expected=0x4c000300
+break_expected=0x4c000100

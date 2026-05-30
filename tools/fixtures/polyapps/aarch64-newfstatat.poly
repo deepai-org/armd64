@@ -5,5 +5,5 @@ expected=0
 syscall_expected=3
 syscall_number_expected=79
 break_id=0
-break_expected=0x4c000300
+break_expected=0x4c000100
 scratch_hex_expected=50535441542121000000000000000000

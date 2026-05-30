@@ -1684,7 +1684,7 @@ static void poly_trap_vector_handler(void) {
   __asm__(
     "cmpq $1, %rax\n"
     "jne 3f\n"
-    "cmpq $3, %rbx\n"
+    "cmpq $1, %rbx\n"
     "jne 1f\n"
     "cmpq $172, %rcx\n"
     "jne 9f\n"
@@ -1696,7 +1696,7 @@ static void poly_trap_vector_handler(void) {
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "1:\n"
-    "cmpq $4, %rbx\n"
+    "cmpq $2, %rbx\n"
     "jne 9f\n"
     "cmpq $172, %rcx\n"
     "jne 9f\n"
@@ -1716,9 +1716,9 @@ static void poly_trap_vector_handler(void) {
     "je 6f\n"
     "jmp 9f\n"
     "31:\n"
-    "cmpq $3, %rbx\n"
+    "cmpq $1, %rbx\n"
     "je 32f\n"
-    "cmpq $4, %rbx\n"
+    "cmpq $2, %rbx\n"
     "jne 9f\n"
     "32:\n"
     "cmpq $8, %rcx\n"
@@ -1736,7 +1736,7 @@ static void poly_trap_vector_handler(void) {
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "4:\n"
-    "cmpq $3, %rbx\n"
+    "cmpq $1, %rbx\n"
     "jne 5f\n"
     "cmpq $5, %rcx\n"
     "jne 9f\n"
@@ -1763,7 +1763,7 @@ static void poly_trap_vector_handler(void) {
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "5:\n"
-    "cmpq $4, %rbx\n"
+    "cmpq $2, %rbx\n"
     "jne 9f\n"
     "cmpq $5, %rcx\n"
     "jne 9f\n"
@@ -1790,7 +1790,7 @@ static void poly_trap_vector_handler(void) {
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "6:\n"
-    "cmpq $3, %rbx\n"
+    "cmpq $1, %rbx\n"
     "jne 7f\n"
     "cmpl $0xffffffff, %ecx\n"
     "jne 9f\n"
@@ -1801,7 +1801,7 @@ static void poly_trap_vector_handler(void) {
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "7:\n"
-    "cmpq $4, %rbx\n"
+    "cmpq $2, %rbx\n"
     "jne 9f\n"
     "cmpl $0xffffffff, %ecx\n"
     "jne 8f\n"

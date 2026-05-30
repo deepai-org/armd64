@@ -931,7 +931,8 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   else
     *result = polyapp_exit_result;
   polyapp_exit_env_valid = 0;
-  const uint64_t raw_mode = payload->arch == POLY_ARCH_AARCH64 ? 3 : 4;
+  const uint64_t raw_mode = payload->arch == POLY_ARCH_AARCH64 ?
+    POLY_MODE_RAW_AARCH64 : POLY_MODE_RAW_RISCV;
   if (payload->check_syscall) {
     *syscall_result = raw_mode;
   }

@@ -4,4 +4,4 @@ elf=/usr/lib/polyapps/riscv-upper.elf
 expected=0x1234567c
 syscall_expected=4
 break_id=0
-break_expected=0x4c000400
+break_expected=0x4c000200

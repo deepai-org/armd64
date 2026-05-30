@@ -18,8 +18,8 @@ enum {
   POLY_ARCH_AARCH64 = 1,
   POLY_ARCH_RISCV = 2,
   POLY_MODE_X86 = 0,
-  POLY_MODE_RAW_AARCH64 = 3,
-  POLY_MODE_RAW_RISCV = 4,
+  POLY_MODE_RAW_AARCH64 = POLY_ARCH_AARCH64,
+  POLY_MODE_RAW_RISCV = POLY_ARCH_RISCV,
   POLY_TRAP_SYSCALL = 1,
   POLY_TRAP_BREAK = 2,
   POLY_TRAP_IMPORT = 3,
@@ -4400,10 +4400,12 @@ static int check_cross_calls(void) {
         run_cross_call_syscall_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_break_direction("aarch64-calls-riscv-break",
-        run_cross_call_break_aarch64_to_riscv, UINT64_C(0x4c000401)) < 0)
+        run_cross_call_break_aarch64_to_riscv,
+        UINT64_C(0x4c000001) | ((uint64_t) POLY_MODE_RAW_RISCV << 8)) < 0)
     return -1;
   if (check_cross_call_break_direction("riscv-calls-aarch64-break",
-        run_cross_call_break_riscv_to_aarch64, UINT64_C(0x4c000301)) < 0)
+        run_cross_call_break_riscv_to_aarch64,
+        UINT64_C(0x4c000001) | ((uint64_t) POLY_MODE_RAW_AARCH64 << 8)) < 0)
     return -1;
   if (check_cross_call_import_direction("aarch64-calls-riscv-import",
         run_cross_call_import_aarch64_to_riscv) < 0)
