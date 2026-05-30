@@ -175,6 +175,7 @@ enum {
   POLY_SYS_PIDFD_GETFD = 438,
   POLY_SYS_FACCESSAT2 = 439,
   POLY_SYS_FUTEX_WAITV = 449,
+  POLY_SYS_FCHMODAT2 = 452,
 };
 
 struct poly_linux_generic_stat {
@@ -811,6 +812,9 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall4(POLY_SYS_FACCESSAT2, POLY_AT_FDCWD,
         (long) "/usr/bin/polyexec", 0, 0) != 0)
     return 307;
+  if (poly_syscall4(POLY_SYS_FCHMODAT2, POLY_AT_FDCWD,
+        (long) "user.poly", 0600, 0) != 0)
+    return 308;
 
   if (poly_syscall2(POLY_SYS_CLOSE, fd, 0) != 0)
     return 31;

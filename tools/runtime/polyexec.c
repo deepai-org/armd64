@@ -2081,6 +2081,24 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 448: *x86_number = SYS_process_mrelease; return 1;
     case 449: *x86_number = SYS_futex_waitv; return 1;
     case 450: *x86_number = SYS_set_mempolicy_home_node; return 1;
+#ifdef SYS_cachestat
+    case 451: *x86_number = SYS_cachestat; return 1;
+#endif
+#ifdef SYS_fchmodat2
+    case 452: *x86_number = SYS_fchmodat2; return 1;
+#endif
+#ifdef SYS_map_shadow_stack
+    case 453: *x86_number = SYS_map_shadow_stack; return 1;
+#endif
+#ifdef SYS_futex_wake
+    case 454: *x86_number = SYS_futex_wake; return 1;
+#endif
+#ifdef SYS_futex_wait
+    case 455: *x86_number = SYS_futex_wait; return 1;
+#endif
+#ifdef SYS_futex_requeue
+    case 456: *x86_number = SYS_futex_requeue; return 1;
+#endif
     default: return 0;
   }
 }
