@@ -5059,6 +5059,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-logical.elf" 0x0f000513 0x03c00593 0x00b54533 0x00b57533 0x00b56533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-zbb.elf" 0xff000513 0x00500593 0x40b57533 0x40b56533 0x40b54533 0x00750513 0x00300593 0x0ab54533 0x00500593 0x0ab55533 0x0ab56533 0x00900593 0x0ab57533 0x60051513 0x60151513 0x60251513 0xfff00513 0x6005151b 0x01050513 0x6015151b 0xfff50513 0x6025151b 0x00400593 0x60b51533 0x60b55533 0x60155513 0x07e50513 0x60451513 0x00150513 0x60451513 0x09050513 0x00c51513 0xfff50513 0x60551513 0x0805453b 0x28755513 0x6b855513 0x03055513 0x00150513 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-zba.elf" 0x00700513 0x00300593 0x20b52533 0x20b54533 0x20b56533 0xfff00513 0x00900593 0x08b5053b 0x02055613 0x00100593 0x20b5253b 0x20b5453b 0x20b5653b 0x0825151b 0x00c50533 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-zbs.elf" 0x00000513 0x00300593 0x28b51533 0x28551513 0x48b55633 0x48555693 0x68b51533 0x68551513 0x28251513 0x48b51533 0x48251513 0x28b01733 0x48b71733 0x00c50533 0x00151513 0x00d50533 0x00e50533 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-regmix.elf" 0x00a00513 0x00500593 0x00300613 0x00c58533 0x00c54533 0x00b56533 0x00c57533 0x02b50533 0x40c50533
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-branch.elf" 0x02900513 0x00000463 0x00100513 0x00150513
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-jal.elf" 0x00100513 0x008005ef 0x06450513 0x0080066f 0x06450513 0x40b60633 0x00c50533
@@ -5741,6 +5742,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-logical.elf=60 \
     /usr/lib/polyapps/riscv-zbb.elf=65536 \
     /usr/lib/polyapps/riscv-zba.elf=2213 \
+    /usr/lib/polyapps/riscv-zbs.elf=3 \
     /usr/lib/polyapps/riscv-regmix.elf=12 \
     /usr/lib/polyapps/riscv-branch.elf=42 \
     /usr/lib/polyapps/riscv-jal.elf=9 \
@@ -7393,6 +7395,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-logical.elf \
       /usr/lib/polyapps/riscv-zbb.elf \
       /usr/lib/polyapps/riscv-zba.elf \
+      /usr/lib/polyapps/riscv-zbs.elf \
       /usr/lib/polyapps/riscv-regmix.elf \
       /usr/lib/polyapps/riscv-branch.elf \
       /usr/lib/polyapps/riscv-jal.elf \
@@ -7831,6 +7834,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-logical.elf \
     /usr/lib/polyapps/riscv-zbb.elf \
     /usr/lib/polyapps/riscv-zba.elf \
+    /usr/lib/polyapps/riscv-zbs.elf \
     /usr/lib/polyapps/riscv-regmix.elf \
     /usr/lib/polyapps/riscv-branch.elf \
     /usr/lib/polyapps/riscv-jal.elf \
