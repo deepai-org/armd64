@@ -5,6 +5,32 @@ enum {
   POLY_SYS_EXIT = 93
 };
 
+static long poly_syscall3(long number, long arg0, long arg1, long arg2) {
+#if defined(__aarch64__)
+  register long x0 __asm__("x0") = arg0;
+  register long x1 __asm__("x1") = arg1;
+  register long x2 __asm__("x2") = arg2;
+  register long x8 __asm__("x8") = number;
+  __asm__ volatile("svc #0"
+      : "+r"(x0)
+      : "r"(x1), "r"(x2), "r"(x8)
+      : "memory");
+  return x0;
+#elif defined(__riscv)
+  register long a0 __asm__("a0") = arg0;
+  register long a1 __asm__("a1") = arg1;
+  register long a2 __asm__("a2") = arg2;
+  register long a7 __asm__("a7") = number;
+  __asm__ volatile("ecall"
+      : "+r"(a0)
+      : "r"(a1), "r"(a2), "r"(a7)
+      : "memory");
+  return a0;
+#else
+#error unsupported architecture
+#endif
+}
+
 #if defined(POLY_PROCESS_NEEDED_LEAF)
 
 uint64_t poly_process_needed_leaf_bias = 0x11;
@@ -121,6 +147,45 @@ uint64_t poly_process_dt_init_dep(void) {
   return poly_process_dt_init_dep_value;
 }
 
+#elif defined(POLY_PROCESS_FINI_DEP)
+
+uint64_t poly_process_fini_dep_value = 0x72;
+
+static void poly_process_fini_dep_dtor(void) __attribute__((destructor));
+static void poly_process_fini_dep_dtor(void) {
+#if defined(__aarch64__)
+  static const char marker[] = "POLY_PROCESS_AARCH64_DEP_FINI_ARRAY_OK\n";
+#elif defined(__riscv)
+  static const char marker[] = "POLY_PROCESS_RISCV_DEP_FINI_ARRAY_OK\n";
+#endif
+  (void) poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
+    sizeof(marker) - 1);
+}
+
+__attribute__((visibility("default")))
+uint64_t poly_process_fini_dep(void) {
+  return poly_process_fini_dep_value;
+}
+
+#elif defined(POLY_PROCESS_DT_FINI_DEP)
+
+uint64_t poly_process_dt_fini_dep_value = 0x84;
+
+void poly_process_dt_fini_dep_dtor(void) {
+#if defined(__aarch64__)
+  static const char marker[] = "POLY_PROCESS_AARCH64_DEP_DT_FINI_OK\n";
+#elif defined(__riscv)
+  static const char marker[] = "POLY_PROCESS_RISCV_DEP_DT_FINI_OK\n";
+#endif
+  (void) poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
+    sizeof(marker) - 1);
+}
+
+__attribute__((visibility("default")))
+uint64_t poly_process_dt_fini_dep(void) {
+  return poly_process_dt_fini_dep_value;
+}
+
 #elif defined(POLY_PROCESS_VERSIONED_DEP)
 
 uint64_t poly_process_versioned_add_v1(uint64_t left, uint64_t right) {
@@ -196,6 +261,10 @@ extern uint64_t poly_process_weak_dep(void);
 extern uint64_t poly_process_init_dep(void);
 #elif defined(POLY_PROCESS_DT_INIT_DEP_MAIN)
 extern uint64_t poly_process_dt_init_dep(void);
+#elif defined(POLY_PROCESS_FINI_DEP_MAIN)
+extern uint64_t poly_process_fini_dep(void);
+#elif defined(POLY_PROCESS_DT_FINI_DEP_MAIN)
+extern uint64_t poly_process_dt_fini_dep(void);
 #elif defined(POLY_PROCESS_VERSIONED_MAIN)
 extern uint64_t poly_process_versioned_add_v1(uint64_t, uint64_t);
 __asm__(".symver poly_process_versioned_add_v1, "
@@ -222,32 +291,6 @@ extern uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t);
 #else
 extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
 #endif
-
-static long poly_syscall3(long number, long arg0, long arg1, long arg2) {
-#if defined(__aarch64__)
-  register long x0 __asm__("x0") = arg0;
-  register long x1 __asm__("x1") = arg1;
-  register long x2 __asm__("x2") = arg2;
-  register long x8 __asm__("x8") = number;
-  __asm__ volatile("svc #0"
-      : "+r"(x0)
-      : "r"(x1), "r"(x2), "r"(x8)
-      : "memory");
-  return x0;
-#elif defined(__riscv)
-  register long a0 __asm__("a0") = arg0;
-  register long a1 __asm__("a1") = arg1;
-  register long a2 __asm__("a2") = arg2;
-  register long a7 __asm__("a7") = number;
-  __asm__ volatile("ecall"
-      : "+r"(a0)
-      : "r"(a1), "r"(a2), "r"(a7)
-      : "memory");
-  return a0;
-#else
-#error unsupported architecture
-#endif
-}
 
 #if defined(POLY_PROCESS_ROOT_EXPORT_MAIN)
 __attribute__((visibility("default")))
@@ -380,6 +423,14 @@ uint64_t poly_process_main(void) {
   if (poly_process_dt_init_dep() != 0x6c)
     return 32;
   static const char marker[] = "POLY_PROCESS_DEP_DT_INIT_OK\n";
+#elif defined(POLY_PROCESS_FINI_DEP_MAIN)
+  if (poly_process_fini_dep() != 0x72)
+    return 48;
+  static const char marker[] = "POLY_PROCESS_DEP_FINI_MAIN_OK\n";
+#elif defined(POLY_PROCESS_DT_FINI_DEP_MAIN)
+  if (poly_process_dt_fini_dep() != 0x84)
+    return 49;
+  static const char marker[] = "POLY_PROCESS_DEP_DT_FINI_MAIN_OK\n";
 #elif defined(POLY_PROCESS_FINI_MAIN)
   static const char marker[] = "POLY_PROCESS_FINI_MAIN_OK\n";
 #elif defined(POLY_PROCESS_DT_FINI_MAIN)
