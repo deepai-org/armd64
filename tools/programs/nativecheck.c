@@ -1588,6 +1588,34 @@ static void child_expect_bad_cross_return_mode_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_x86_cross_return_mode_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = 1;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  bad.cross_return.frames[0].caller_mode = POLY_MODE_X86;
+  bad.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  bad.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_same_cross_return_mode_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = 1;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  bad.cross_return.frames[0].caller_mode = POLY_MODE_RAW_AARCH64;
+  bad.cross_return.frames[0].target_mode = POLY_MODE_RAW_AARCH64;
+  bad.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_cross_return_bridge_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -1608,6 +1636,19 @@ static void child_expect_bad_active_transition_mode_xsave_signal(void) {
   poly_state_export(&bad);
   bad.transition.active.return_pc = 0x1111222233334444ULL;
   bad.transition.active.caller_mode = 255;
+  bad.transition.active.target_mode = POLY_MODE_RAW_RISCV;
+  bad.transition.active.abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_same_active_transition_mode_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.transition.active.return_pc = 0x1111222233334444ULL;
+  bad.transition.active.caller_mode = POLY_MODE_RAW_RISCV;
   bad.transition.active.target_mode = POLY_MODE_RAW_RISCV;
   bad.transition.active.abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
   poly_state_import(&bad);
@@ -4080,11 +4121,20 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad cross-return mode xstate", SIGILL,
         child_expect_bad_cross_return_mode_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly x86 cross-return mode xstate", SIGILL,
+        child_expect_x86_cross_return_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly same cross-return mode xstate", SIGILL,
+        child_expect_same_cross_return_mode_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly bad cross-return bridge xstate", SIGILL,
         child_expect_bad_cross_return_bridge_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad active transition mode xstate", SIGILL,
         child_expect_bad_active_transition_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly same active transition mode xstate", SIGILL,
+        child_expect_same_active_transition_mode_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad active transition bridge xstate", SIGILL,
         child_expect_bad_active_transition_bridge_xsave_signal) != 0)
