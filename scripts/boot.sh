@@ -8657,6 +8657,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_DEP_SONAME_REUSE: arch=aarch64 soname=libpolysonameonce-leaf-aarch64\\.so .* path=.*leafa/libpolysonameonce-leaf-aarch64\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-needed-envpath-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -8682,6 +8686,10 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_DEP_SONAME_REUSE: arch=riscv soname=libpolysonameonce-leaf-riscv\\.so .* path=.*leafa/libpolysonameonce-leaf-riscv\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

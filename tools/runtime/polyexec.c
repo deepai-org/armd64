@@ -213,6 +213,7 @@ struct poly_program;
 struct poly_process_dependency {
   char path[MAX_DEP_PATH];
   struct poly_program *program;
+  struct poly_process_dependency *shared_from;
   uint8_t *mapping;
   size_t mapping_size;
   uint8_t *loaded_image;
@@ -247,6 +248,7 @@ struct poly_program {
   uint64_t init_array_size;
   uint8_t *code_bytes;
   size_t code_size;
+  char soname[MAX_DEP_PATH];
   struct poly_process_dependency deps[MAX_PROCESS_DEPS];
   size_t dep_count;
   const struct poly_program *scope_root_program;
@@ -4284,8 +4286,18 @@ static int load_elf_program(const char *path, const char *symbol_name,
     const Elf64_Dyn *dyn =
       (const Elf64_Dyn *) (program->code_bytes + program->dynamic_offset);
     const size_t dyn_count = program->dynamic_size / sizeof(Elf64_Dyn);
+    uint64_t strtab_vaddr = 0, strsz = 0, soname_offset = UINT64_MAX;
     for (size_t n = 0; n < dyn_count; n++) {
       switch (dyn[n].d_tag) {
+        case DT_STRTAB:
+          strtab_vaddr = dyn[n].d_un.d_ptr;
+          break;
+        case DT_STRSZ:
+          strsz = dyn[n].d_un.d_val;
+          break;
+        case DT_SONAME:
+          soname_offset = dyn[n].d_un.d_val;
+          break;
         case DT_INIT:
           program->init_vaddr = dyn[n].d_un.d_ptr;
           break;
@@ -4304,6 +4316,44 @@ static int load_elf_program(const char *path, const char *symbol_name,
         default:
           break;
       }
+    }
+    if (soname_offset != UINT64_MAX) {
+      size_t strtab_offset = 0;
+      if (!strtab_vaddr || !strsz || soname_offset >= strsz ||
+          elf_vaddr_to_image_offset(program, strtab_vaddr, strsz,
+            &strtab_offset) < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: bad SONAME dynamic table: %s\n",
+          path);
+        free(program->code_bytes);
+        program->code_bytes = NULL;
+        program->code_size = 0;
+        free(data);
+        return -1;
+      }
+      const char *strings =
+        (const char *) (program->code_bytes + strtab_offset);
+      const void *end = memchr(strings + soname_offset, '\0',
+        (size_t) (strsz - soname_offset));
+      if (!end) {
+        fprintf(stderr, "POLYEXEC_FAIL: bad SONAME string: %s\n", path);
+        free(program->code_bytes);
+        program->code_bytes = NULL;
+        program->code_size = 0;
+        free(data);
+        return -1;
+      }
+      const size_t soname_len =
+        (size_t) ((const char *) end - (strings + soname_offset));
+      if (soname_len >= sizeof(program->soname)) {
+        fprintf(stderr, "POLYEXEC_FAIL: SONAME too long: %s\n", path);
+        free(program->code_bytes);
+        program->code_bytes = NULL;
+        program->code_size = 0;
+        free(data);
+        return -1;
+      }
+      memcpy(program->soname, strings + soname_offset, soname_len);
+      program->soname[soname_len] = '\0';
     }
     if (program->preinit_array_size != 0 &&
         (program->preinit_array_vaddr == 0 ||
@@ -4532,6 +4582,37 @@ static int process_dependency_path_already_loaded(
   return 0;
 }
 
+static struct poly_process_dependency *canonical_process_dependency(
+    struct poly_process_dependency *dep) {
+  while (dep && dep->shared_from)
+    dep = dep->shared_from;
+  return dep;
+}
+
+static struct poly_process_dependency *find_process_dependency_soname(
+    struct poly_program *program, int arch, const char *soname) {
+  if (!program || !soname || soname[0] == '\0')
+    return NULL;
+
+  for (size_t d = 0; d < program->dep_count; d++) {
+    struct poly_process_dependency *dep = &program->deps[d];
+    struct poly_process_dependency *canonical =
+      canonical_process_dependency(dep);
+    if (canonical && canonical->program && canonical->program->arch == arch &&
+        canonical->program->soname[0] != '\0' &&
+        strcmp(canonical->program->soname, soname) == 0)
+      return canonical;
+    if (canonical && canonical->program) {
+      struct poly_process_dependency *nested =
+        find_process_dependency_soname(canonical->program, arch, soname);
+      if (nested)
+        return nested;
+    }
+  }
+
+  return NULL;
+}
+
 static int build_process_preload_path(const struct poly_program *program,
     const char *token, size_t token_len, char *out, size_t out_size) {
   if (token_len == 0 || token_len >= MAX_DEP_PATH)
@@ -4569,7 +4650,7 @@ static int build_process_preload_path(const struct poly_program *program,
 }
 
 static int load_process_dependencies_at_depth(struct poly_program *program,
-    size_t depth) {
+    struct poly_program *root_program, size_t depth) {
   if (!program->dynamic_size)
     return 0;
   if (depth >= MAX_PROCESS_DEP_DEPTH) {
@@ -4642,6 +4723,21 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
 
     const char *needed = strings + needed_offset;
     struct poly_process_dependency *dep = &program->deps[program->dep_count];
+    if (strchr(needed, '/') == NULL) {
+      struct poly_process_dependency *shared =
+        find_process_dependency_soname(root_program, program->arch, needed);
+      if (shared) {
+        if (strlen(shared->path) >= sizeof(dep->path))
+          return -1;
+        strcpy(dep->path, shared->path);
+        dep->program = shared->program;
+        dep->shared_from = shared;
+        printf("POLYEXEC_DEP_SONAME_REUSE: arch=%s soname=%s requested_by=%s path=%s\n",
+          program->arch_name, needed, program->path, shared->path);
+        program->dep_count++;
+        continue;
+      }
+    }
     if (find_process_needed_path(program->path, needed,
           process_platform_name_for_arch(program->arch), runpath, runpath_len,
           dep->path, sizeof(dep->path)) < 0) {
@@ -4662,7 +4758,8 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
       return -1;
     }
     program->dep_count++;
-    if (load_process_dependencies_at_depth(dep->program, depth + 1) < 0)
+    if (load_process_dependencies_at_depth(dep->program, root_program,
+          depth + 1) < 0)
       return -1;
   }
 
@@ -4715,16 +4812,22 @@ static int load_process_dependencies(struct poly_program *program) {
         return -1;
       }
       program->dep_count++;
-      if (load_process_dependencies_at_depth(dep->program, 1) < 0)
+      if (load_process_dependencies_at_depth(dep->program, program, 1) < 0)
         return -1;
     }
   }
-  return load_process_dependencies_at_depth(program, 0);
+  return load_process_dependencies_at_depth(program, program, 0);
 }
 
 static void unmap_process_dependencies(struct poly_program *program) {
   for (size_t d = 0; d < program->dep_count; d++) {
     struct poly_process_dependency *dep = &program->deps[d];
+    if (dep->shared_from) {
+      dep->mapping = NULL;
+      dep->mapping_size = 0;
+      dep->loaded_image = NULL;
+      continue;
+    }
     if (dep->program)
       unmap_process_dependencies(dep->program);
     if (dep->mapping && dep->mapping_size)
@@ -4741,7 +4844,7 @@ static void set_process_dependency_root_scope(struct poly_program *program,
   program->scope_root_loaded_image = root_loaded_image;
   for (size_t d = 0; d < program->dep_count; d++) {
     struct poly_process_dependency *dep = &program->deps[d];
-    if (dep->program)
+    if (dep->program && !dep->shared_from)
       set_process_dependency_root_scope(dep->program, root_program,
         root_loaded_image);
   }
@@ -4756,7 +4859,7 @@ static int reserve_process_tls_tree(struct poly_program *program,
     return -1;
   }
   for (size_t d = 0; d < program->dep_count; d++) {
-    if (program->deps[d].program &&
+    if (program->deps[d].program && !program->deps[d].shared_from &&
         reserve_process_tls_tree(program->deps[d].program, total_size) < 0)
       return -1;
   }
@@ -4788,6 +4891,8 @@ static int copy_process_dependency_tls_images(const struct poly_program *program
     const struct poly_process_dependency *dep = &program->deps[d];
     if (!dep->program || !dep->loaded_image)
       continue;
+    if (dep->shared_from)
+      continue;
     if (copy_process_dependency_tls_images(dep->program, tls, tls_size) < 0 ||
         copy_process_tls_image(dep->program, dep->loaded_image, tls,
           tls_size) < 0)
@@ -4802,6 +4907,19 @@ static int map_process_dependencies(struct poly_program *program,
     uint8_t *scratch) {
   for (size_t d = 0; d < program->dep_count; d++) {
     struct poly_process_dependency *dep = &program->deps[d];
+    if (dep->shared_from) {
+      struct poly_process_dependency *shared =
+        canonical_process_dependency(dep->shared_from);
+      if (!shared || !shared->loaded_image) {
+        fprintf(stderr, "POLYEXEC_FAIL: shared dependency not mapped: %s\n",
+          dep->path);
+        return -1;
+      }
+      dep->mapping = shared->mapping;
+      dep->mapping_size = shared->mapping_size;
+      dep->loaded_image = shared->loaded_image;
+      continue;
+    }
     if (map_process_dependencies(dep->program, trampoline_code, prefix_size,
           return_pc, tlsdesc_helper_pc, tls_get_addr_helper_pc, scratch) < 0)
       return -1;
@@ -5280,9 +5398,12 @@ static void free_program(struct poly_program *program) {
   unmap_process_dependencies(program);
   for (size_t d = 0; d < program->dep_count; d++) {
     if (program->deps[d].program) {
-      free_program(program->deps[d].program);
-      free(program->deps[d].program);
+      if (!program->deps[d].shared_from) {
+        free_program(program->deps[d].program);
+        free(program->deps[d].program);
+      }
       program->deps[d].program = NULL;
+      program->deps[d].shared_from = NULL;
     }
   }
   program->dep_count = 0;
