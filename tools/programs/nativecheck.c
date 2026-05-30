@@ -95,6 +95,35 @@ static int expect_monitor_packet(const char *label,
   return 0;
 }
 
+static int expect_monitor_packet_args(const char *label,
+    const struct nativecheck_monitor_packet *packet, uint32_t reason,
+    uint32_t source_mode, uint64_t number, uint64_t selector,
+    const uint64_t expected_args[POLY_TRAP_PACKET_ARG_COUNT]) {
+  if (packet->trap.reason != reason ||
+      packet->trap.source_mode != source_mode ||
+      packet->trap.number != number ||
+      packet->trap.selector != selector ||
+      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly monitor packet %s header mismatch reason=%u mode=%u number=%llu selector=%llu flags=0x%llx\n",
+      label, packet->trap.reason, packet->trap.source_mode,
+      (unsigned long long) packet->trap.number,
+      (unsigned long long) packet->trap.selector,
+      (unsigned long long) packet->trap.flags);
+    return 1;
+  }
+  for (unsigned i = 0; i < POLY_TRAP_PACKET_ARG_COUNT; ++i) {
+    if (packet->args[i] != expected_args[i]) {
+      fprintf(stderr,
+        "NATIVE_CHECK_FAIL: poly monitor packet %s arg%u mismatch got=%llu expected=%llu\n",
+        label, i, (unsigned long long) packet->args[i],
+        (unsigned long long) expected_args[i]);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
@@ -2130,8 +2159,14 @@ static int run_poly_trap_vector_probe(void) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_A64
-    ".long 0xd2800366\n" // movz x6,#27
-    ".long 0xd28000a7\n" // movz x7,#5
+    ".long 0xd28003e0\n" // movz x0,#31
+    ".long 0xd2800401\n" // movz x1,#32
+    ".long 0xd2800422\n" // movz x2,#33
+    ".long 0xd2800443\n" // movz x3,#34
+    ".long 0xd2800464\n" // movz x4,#35
+    ".long 0xd2800485\n" // movz x5,#36
+    ".long 0xd28004a6\n" // movz x6,#37
+    ".long 0xd28004c7\n" // movz x7,#38
     ".long 0xd2801588\n" // movz x8,#172
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
@@ -2157,28 +2192,19 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_selector());
     return 1;
   }
-  if (poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
+  if (poly_trap_status_arg6() != 37 || poly_trap_status_arg7() != 38) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 syscall packet extended args mismatch arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_arg6(),
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
-  if (monitor_packet.trap.reason != POLY_TRAP_SYSCALL ||
-      monitor_packet.trap.source_mode != POLY_MODE_RAW_AARCH64 ||
-      monitor_packet.trap.number != 172 ||
-      monitor_packet.trap.selector != 7 ||
-      monitor_packet.args[6] != 27 || monitor_packet.args[7] != 5 ||
-      (monitor_packet.trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly monitor packet aarch64 mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
-      monitor_packet.trap.reason, monitor_packet.trap.source_mode,
-      (unsigned long long) monitor_packet.trap.number,
-      (unsigned long long) monitor_packet.trap.selector,
-      (unsigned long long) monitor_packet.args[6],
-      (unsigned long long) monitor_packet.args[7],
-      (unsigned long long) monitor_packet.trap.flags);
+  const uint64_t aarch64_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    31, 32, 33, 34, 35, 36, 37, 38
+  };
+  if (expect_monitor_packet_args("aarch64 syscall", &monitor_packet,
+      POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7,
+      aarch64_syscall_args) != 0)
     return 1;
-  }
   pid_t trap_child = fork();
   if (trap_child < 0) {
     fputs("NATIVE_CHECK_FAIL: poly trap packet fork failed\n", stderr);
@@ -2216,7 +2242,13 @@ static int run_poly_trap_vector_probe(void) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
-    ".long 0x01b00813\n" // addi a6,zero,27
+    ".long 0x01f00513\n" // addi a0,zero,31
+    ".long 0x02000593\n" // addi a1,zero,32
+    ".long 0x02100613\n" // addi a2,zero,33
+    ".long 0x02200693\n" // addi a3,zero,34
+    ".long 0x02300713\n" // addi a4,zero,35
+    ".long 0x02400793\n" // addi a5,zero,36
+    ".long 0x02500813\n" // addi a6,zero,37
     ".long 0x0ac00893\n" // addi x17,x0,172
     ".long 0x00000073\n" // ecall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
@@ -2232,7 +2264,7 @@ static int run_poly_trap_vector_probe(void) {
       poly_syscall_status_number() != 172 ||
       poly_syscall_status_mode() != POLY_MODE_RAW_RISCV ||
       poly_trap_status_selector() != 0 ||
-      poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 172) {
+      poly_trap_status_arg6() != 37 || poly_trap_status_arg7() != 172) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv syscall packet mismatch reason=%llu number=%llu mode=%llu selector=%llu arg6=%llu arg7=%llu\n",
       (unsigned long long) poly_trap_status_reason(),
@@ -2243,22 +2275,13 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
-  if (monitor_packet.trap.reason != POLY_TRAP_SYSCALL ||
-      monitor_packet.trap.source_mode != POLY_MODE_RAW_RISCV ||
-      monitor_packet.trap.number != 172 ||
-      monitor_packet.trap.selector != 0 ||
-      monitor_packet.args[6] != 27 || monitor_packet.args[7] != 172 ||
-      (monitor_packet.trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly monitor packet riscv mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
-      monitor_packet.trap.reason, monitor_packet.trap.source_mode,
-      (unsigned long long) monitor_packet.trap.number,
-      (unsigned long long) monitor_packet.trap.selector,
-      (unsigned long long) monitor_packet.args[6],
-      (unsigned long long) monitor_packet.args[7],
-      (unsigned long long) monitor_packet.trap.flags);
+  const uint64_t riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    31, 32, 33, 34, 35, 36, 37, 172
+  };
+  if (expect_monitor_packet_args("riscv syscall", &monitor_packet,
+      POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0,
+      riscv_syscall_args) != 0)
     return 1;
-  }
 
   asm volatile(
     POLY_OP_ENTER_A64
@@ -2405,6 +2428,13 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  const uint64_t aarch64_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    11, 12, 13, 14, 15, 16, 17, 18
+  };
+  if (expect_monitor_packet_args("aarch64 break", &monitor_packet,
+      POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 5, 5,
+      aarch64_break_args) != 0)
+    return 1;
   if (expect_monitor_packet("aarch64 break", &monitor_packet, POLY_TRAP_BREAK,
       POLY_MODE_RAW_AARCH64, 5, 5, 11, 17, 18) != 0)
     return 1;
@@ -2476,6 +2506,13 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
+  const uint64_t riscv_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    21, 22, 23, 24, 25, 26, 27, 5
+  };
+  if (expect_monitor_packet_args("riscv break", &monitor_packet,
+      POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0,
+      riscv_break_args) != 0)
+    return 1;
   if (expect_monitor_packet("riscv break", &monitor_packet, POLY_TRAP_BREAK,
       POLY_MODE_RAW_RISCV, 5, 0, 21, 27, 5) != 0)
     return 1;
