@@ -29,16 +29,6 @@
 #define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_STATE_IMPORT ".byte 0x0f,0x3a,0xfc,0x68\n"
-#define POLY_OP_TRAP_STATUS_REASON ".byte 0x0f,0x3a,0xfc,0x50\n"
-#define POLY_OP_TRAP_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x51\n"
-#define POLY_OP_TRAP_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x52\n"
-#define POLY_OP_TRAP_STATUS_SELECTOR ".byte 0x0f,0x3a,0xfc,0x5a\n"
-#define POLY_OP_TRAP_STATUS_ARG6 ".byte 0x0f,0x3a,0xfc,0x5c\n"
-#define POLY_OP_TRAP_STATUS_ARG7 ".byte 0x0f,0x3a,0xfc,0x5d\n"
-#define POLY_OP_SYSCALL_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x31\n"
-#define POLY_OP_SYSCALL_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x32\n"
-#define POLY_OP_BREAK_STATUS_NUMBER ".byte 0x0f,0x3a,0xfc,0x39\n"
-#define POLY_OP_BREAK_STATUS_MODE ".byte 0x0f,0x3a,0xfc,0x3a\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
@@ -855,66 +845,6 @@ static inline void native_xrstor64(void *area, uint64_t mask) {
     :
     : "m" (*(poly_native_xsave_area_t *) area), "a" (eax), "d" (edx)
     : "memory");
-}
-
-static inline uint64_t poly_trap_status_reason(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_REASON : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_mode(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_MODE : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_number(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_NUMBER : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_selector(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_SELECTOR : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_arg6(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_ARG6 : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_trap_status_arg7(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_TRAP_STATUS_ARG7 : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_syscall_status_number(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_SYSCALL_STATUS_NUMBER : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_syscall_status_mode(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_SYSCALL_STATUS_MODE : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_break_status_number(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_BREAK_STATUS_NUMBER : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_break_status_mode(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_BREAK_STATUS_MODE : "=a"(value) :: "memory");
-  return value;
 }
 
 __attribute__((naked, noinline, used))
@@ -2908,24 +2838,6 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_BREAK) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet reason mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
-    return 1;
-  }
-  if (poly_break_status_number() != 5 ||
-      poly_break_status_mode() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break status mismatch number=%llu mode=%llu\n",
-      (unsigned long long) poly_break_status_number(),
-      (unsigned long long) poly_break_status_mode());
-    return 1;
-  }
-  if (poly_trap_status_arg6() != 17 || poly_trap_status_arg7() != 18) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 break packet extended args mismatch arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
-    return 1;
-  }
   const uint64_t aarch64_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
     11, 12, 13, 14, 15, 16, 17, 18
   };
@@ -2942,11 +2854,13 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   if (break_child == 0) {
-    if (poly_trap_status_reason() != 0)
+    struct poly_xsave_state break_fork_snapshot __attribute__((aligned(64)));
+    poly_state_export(&break_fork_snapshot);
+    if (break_fork_snapshot.trap.reason != 0)
       _exit(31);
-    if (poly_break_status_number() != 0)
+    if (break_fork_snapshot.trap.number != 0)
       _exit(32);
-    if (poly_break_status_mode() != POLY_MODE_X86)
+    if (break_fork_snapshot.trap.source_mode != POLY_MODE_X86)
       _exit(33);
     _exit(0);
   }
@@ -2957,16 +2871,18 @@ static int run_poly_trap_vector_probe(void) {
       status);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_BREAK) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet lost after fork got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
+  struct poly_xsave_state break_parent_snapshot __attribute__((aligned(64)));
+  poly_state_export(&break_parent_snapshot);
+  if (break_parent_snapshot.trap.reason != POLY_TRAP_BREAK) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet lost after fork got=%u\n",
+      break_parent_snapshot.trap.reason);
     return 1;
   }
-  if (poly_break_status_number() != 5 ||
-      poly_break_status_mode() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break status lost after fork number=%llu mode=%llu\n",
-      (unsigned long long) poly_break_status_number(),
-      (unsigned long long) poly_break_status_mode());
+  if (break_parent_snapshot.trap.number != 5 ||
+      break_parent_snapshot.trap.source_mode != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet lost after fork number=%llu mode=%u\n",
+      (unsigned long long) break_parent_snapshot.trap.number,
+      break_parent_snapshot.trap.source_mode);
     return 1;
   }
 
@@ -2989,19 +2905,6 @@ static int run_poly_trap_vector_probe(void) {
   if (result != 4545) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ebreak trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
-    return 1;
-  }
-  if (poly_break_status_number() != 5 ||
-      poly_break_status_mode() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv break status mismatch number=%llu mode=%llu\n",
-      (unsigned long long) poly_break_status_number(),
-      (unsigned long long) poly_break_status_mode());
-    return 1;
-  }
-  if (poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv break packet extended args mismatch arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
   const uint64_t riscv_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
@@ -3036,24 +2939,6 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_BREAK) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed break packet reason mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
-    return 1;
-  }
-  if (poly_break_status_number() != 5 ||
-      poly_break_status_mode() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed break status mismatch number=%llu mode=%llu\n",
-      (unsigned long long) poly_break_status_number(),
-      (unsigned long long) poly_break_status_mode());
-    return 1;
-  }
-  if (poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed break packet extended args mismatch arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
-    return 1;
-  }
   if (expect_monitor_packet("riscv compressed break", &monitor_packet,
       POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0, 21, 27, 5) != 0)
     return 1;
@@ -3077,22 +2962,6 @@ static int run_poly_trap_vector_probe(void) {
   if (result != 5555) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import trap result mismatch got=%llu\n",
       (unsigned long long) result);
-    return 1;
-  }
-  if (poly_trap_status_reason() != POLY_TRAP_IMPORT) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly import packet reason mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
-    return 1;
-  }
-  if (poly_trap_status_mode() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import packet mode mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_mode());
-    return 1;
-  }
-  if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import packet extended args mismatch arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
   if (expect_monitor_packet("aarch64 import", &monitor_packet,
@@ -3151,22 +3020,6 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_IMPORT) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet reason mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
-    return 1;
-  }
-  if (poly_trap_status_mode() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet mode mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_mode());
-    return 1;
-  }
-  if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import packet extended args mismatch arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
-    return 1;
-  }
   if (expect_monitor_packet("riscv import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
     return 1;
@@ -3221,22 +3074,6 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_IMPORT) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import packet reason mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
-    return 1;
-  }
-  if (poly_trap_status_mode() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import packet mode mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_mode());
-    return 1;
-  }
-  if (poly_trap_status_arg6() != 88 || poly_trap_status_arg7() != 99) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import packet extended args mismatch arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
-    return 1;
-  }
   if (expect_monitor_packet("riscv compressed import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
     return 1;
@@ -3252,17 +3089,6 @@ static int run_poly_trap_vector_probe(void) {
   if (result != 4664) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 illegal trap result mismatch got=%llu\n",
       (unsigned long long) result);
-    return 1;
-  }
-  if (poly_trap_status_reason() != POLY_TRAP_ILLEGAL ||
-      poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
-      poly_trap_status_number() != 0xffffffffULL ||
-      poly_trap_status_selector() != 4) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 illegal trap packet mismatch reason=%llu mode=%llu number=0x%llx selector=%llu\n",
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_number(),
-      (unsigned long long) poly_trap_status_selector());
     return 1;
   }
   if (expect_monitor_packet("aarch64 illegal", &monitor_packet,
@@ -3283,17 +3109,6 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_ILLEGAL ||
-      poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
-      poly_trap_status_number() != 0xffffffffULL ||
-      poly_trap_status_selector() != 4) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv illegal trap packet mismatch reason=%llu mode=%llu number=0x%llx selector=%llu\n",
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_number(),
-      (unsigned long long) poly_trap_status_selector());
-    return 1;
-  }
   if (expect_monitor_packet("riscv illegal", &monitor_packet,
       POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4, 0, 0, 0) !=
       0)
@@ -3310,17 +3125,6 @@ static int run_poly_trap_vector_probe(void) {
   if (result != 4666) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed illegal trap result mismatch got=%llu\n",
       (unsigned long long) result);
-    return 1;
-  }
-  if (poly_trap_status_reason() != POLY_TRAP_ILLEGAL ||
-      poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
-      poly_trap_status_number() != 0 ||
-      poly_trap_status_selector() != 2) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed illegal trap packet mismatch reason=%llu mode=%llu number=0x%llx selector=%llu\n",
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_number(),
-      (unsigned long long) poly_trap_status_selector());
     return 1;
   }
   if (expect_monitor_packet("riscv compressed illegal", &monitor_packet,
@@ -3466,16 +3270,6 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
-      poly_trap_status_mode() != POLY_MODE_RAW_RISCV ||
-      poly_trap_status_arg6() != 27 || poly_trap_status_arg7() != 5) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 import trap packet mismatch reason=%llu mode=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
-    return 1;
-  }
   if (expect_monitor_packet("riscv-to-aarch64 import vector",
       &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 21, 27,
       5) != 0)
@@ -3507,16 +3301,6 @@ static int run_poly_trap_vector_probe(void) {
   if (result != 35) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv import trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
-    return 1;
-  }
-  if (poly_trap_status_reason() != POLY_TRAP_IMPORT ||
-      poly_trap_status_mode() != POLY_MODE_RAW_AARCH64 ||
-      poly_trap_status_arg6() != 17 || poly_trap_status_arg7() != 18) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv import trap packet mismatch reason=%llu mode=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_trap_status_mode(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
   if (expect_monitor_packet("aarch64-to-riscv import vector",
@@ -4211,20 +3995,23 @@ static int run_poly_state_save_restore_probe(void) {
   }
 
   poly_state_import(&trap_snapshot);
-  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
-      poly_syscall_status_number() != 172 ||
-      poly_syscall_status_mode() != POLY_MODE_RAW_RISCV ||
-      poly_trap_status_selector() != 0 ||
-      poly_trap_status_arg6() != 27 ||
-      poly_trap_status_arg7() != 172) {
+  struct poly_xsave_state import_trap_snapshot __attribute__((aligned(64)));
+  memset(&import_trap_snapshot, 0, sizeof(import_trap_snapshot));
+  poly_state_export(&import_trap_snapshot);
+  if (import_trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
+      import_trap_snapshot.trap.number != 172 ||
+      import_trap_snapshot.trap.source_mode != POLY_MODE_RAW_RISCV ||
+      import_trap_snapshot.trap.selector != 0 ||
+      import_trap_snapshot.trap_args[6] != 27 ||
+      import_trap_snapshot.trap_args[7] != 172) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state import syscall trap mismatch reason=%llu number=%llu mode=%llu selector=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_syscall_status_number(),
-      (unsigned long long) poly_syscall_status_mode(),
-      (unsigned long long) poly_trap_status_selector(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
+      "NATIVE_CHECK_FAIL: poly state import syscall trap mismatch reason=%u number=%llu mode=%u selector=%llu arg6=%llu arg7=%llu\n",
+      import_trap_snapshot.trap.reason,
+      (unsigned long long) import_trap_snapshot.trap.number,
+      import_trap_snapshot.trap.source_mode,
+      (unsigned long long) import_trap_snapshot.trap.selector,
+      (unsigned long long) import_trap_snapshot.trap_args[6],
+      (unsigned long long) import_trap_snapshot.trap_args[7]);
     return 1;
   }
 
