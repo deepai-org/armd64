@@ -1,8 +1,9 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 machine.
-x86_64 remains the system ISA: boot, privilege, paging, faults, interrupts,
-atomics, scheduling, syscalls, and TSO ordering stay x86-owned.
+Poly is an x86_64 extension that lets user code execute AArch64 and RISC-V64
+basic blocks in the same virtual address space. x86_64 remains the system ISA:
+boot, privilege, paging, interrupts, atomics, scheduling, syscalls, and memory
+ordering are still x86-owned.
 
 ## Run
 
@@ -12,34 +13,29 @@ make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Useful focused targets: `boot-poly`, `boot-poly-call-arch-traps`,
+Smaller targets: `boot-poly`, `boot-poly-call-arch-traps`,
 `boot-poly-binfmt-arch-traps`, and `boot-poly-neutral-arch-traps`.
 
-## Architectural Contract
+## How It Differs From x86_64
 
-- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- Fetch: x86_64 keeps normal variable-length decode. AArch64 fetches aligned
-  32-bit words from `RIP`. RISC-V fetches 16-bit or 32-bit native instructions
-  from `RIP`, so compressed RVC code is legal.
-- Memory: every frontend uses the same x86_64 virtual address space and page
-  permissions.
-- State: foreign GPR/FP/SIMD state is explicit XSAVE-style architectural state,
-  not hidden emulator state.
-- Calls: `PCALL` switches frontend and may apply a register-only ABI signature.
-  Software thunks handle stack args, aggregates, variadics, lazy binding, and
-  policy.
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- Fetch: x86_64 uses normal variable-length decode. AArch64 fetches aligned
+  32-bit words from `RIP`. RISC-V64 fetches native 16-bit or 32-bit instructions
+  from `RIP`.
+- Memory: all frontends share the x86_64 virtual address space, page tables, page
+  permissions, and TSO ordering.
+- State: non-x86 architectural state is explicit XSAVE-style state, not hidden
+  emulator state.
+- Calls: cross-frontend calls use register-only ABI signature slots. Software
+  thunks handle stack arguments, aggregates, variadics, lazy binding, and policy.
 - Traps: foreign syscalls, breakpoints, unsupported instructions, and import
-  misses create OS-neutral trap packets. Trap packets carry the first eight native foreign ABI argument registers.
-  Hardware does not implement Linux, libc, libgcc, libatomic, or dynamic-linker
-  behavior.
+  misses report OS-neutral trap packets. The ISA does not implement Linux, libc,
+  libgcc, libatomic, or dynamic-linker behavior.
 
-## Control Operations And Encodings
+## Prototype Control Ops
 
-These are temporary Bochs prototype encodings, not final vendor allocations:
-`PENTER` enters a frontend, `PSWITCH` branches across frontends, `PCALL` calls
-across frontends, `PCALL_SIG_IMM` calls with an immediate signature slot,
-`PTRAPRET` resumes from a Poly trap, and `PLANDING` marks or validates an
-indirect cross-frontend target.
+These Bochs encodings are temporary and should become real vendor-allocated
+opcodes before hardware work.
 
 | Op | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
@@ -51,4 +47,4 @@ indirect cross-frontend target.
 | `PTRAPRET` | `0x62` | `0x76` | `6` |
 | `PLANDING` | `0x05` | `0x7b` | `11` |
 
-Design rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Long-form rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
