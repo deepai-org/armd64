@@ -10,6 +10,7 @@ Focused tests:
 
 ```text
 boot-poly-probe-arch-traps
+boot-poly-neutral-arch-traps
 boot-poly-call-arch-traps
 boot-poly-thread-arch-traps
 boot-poly-full-arch-traps
