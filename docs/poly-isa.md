@@ -1,47 +1,50 @@
 # Poly ISA Reference
 
-Poly runs existing AArch64 and RISC-V64 userspace code beside x86_64 in one
-virtual address space. Design rationale: `docs/poly-isa-design-directions.md`.
+Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU.
+The goal is compatibility with existing precompiled native objects in one
+virtual address space. Rationale lives in `docs/poly-isa-design-directions.md`.
 
-## Contract
+## Architectural Contract
 
-- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  faults, and the global TSO memory model.
-- AArch64 and RISC-V64 are user-mode peer frontends that fetch native 32-bit
-  instructions directly from RIP/PC.
-- There are no per-instruction `#UD` envelopes.
-- Poly state is architectural XSAVE-style state, not hidden emulator state.
-- Hardware does not implement Linux, libc, linker policy, or user-memory call
-  descriptors. Those are runtime/monitor jobs.
+- x86_64 owns boot, privilege, paging, interrupts, faults, and the global TSO
+  memory model.
+- AArch64 and RISC-V64 fetch and execute native 32-bit user instructions
+  directly from the shared RIP/PC stream.
+- Per-instruction `#UD` envelopes are not part of the ISA.
+- Poly state is explicit XSAVE-style architectural state.
+- The CPU does not implement Linux, libc, dynamic linker policy, or user-memory
+  call descriptors. Those remain runtime or monitor responsibilities.
 
-## Control Operations
+## Frontend Operations
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
 
-- `PENTER frontend`: enter a frontend from runtime/system code.
-- `PSWITCH frontend, target`: non-returning cross-frontend branch.
-- `PCALL frontend, target, sig`: cross-frontend call using signature slot `sig`.
-- `PTRAPRET`: resume after a precise Poly trap.
-- `PLANDING`: validate an indirect cross-frontend landing pad.
+- `PENTER frontend`: enter a frontend from runtime or system code.
+- `PSWITCH frontend, target`: switch frontends without recording a return.
+- `PCALL frontend, target, sig`: switch frontends and record a native return.
+- `PTRAPRET`: resume execution after a precise Poly trap.
+- `PLANDING`: validate an indirect cross-frontend landing target.
 
-## ABI
+## Cross-ISA Calls
 
-- Compatibility targets real native ABIs: x86_64 SysV, AArch64 AAPCS64,
-  and RISC-V psABI.
-- Fast paths use register-only ABI signature slots. Hardware remaps register
-  names; it never reads or rewrites stack data.
-- `PCALL` records caller frontend, PC, SP, and flags, installs a reserved return
-  cookie in the callee's native return location, and switches frontend.
-- Ordinary native returns cross back by returning to the cookie.
+- Native ABI compatibility is the default: x86_64 SysV, AArch64 AAPCS64, and
+  RISC-V psABI.
+- Register-only calls use ABI signature slots. Hardware remaps architectural
+  register names and does not touch stack or aggregate memory.
+- `PCALL` records caller frontend, PC, SP, and flags, then installs a reserved
+  return cookie in the callee's native return location.
+- Normal native returns cross back by returning to the cookie.
 - Stack arguments, aggregates, variadics, hidden returns, incompatible vectors,
-  lazy binding, syscalls, and libc helpers use software thunks or the user-space
-  Poly monitor.
+  lazy binding, syscalls, and libc helpers go through software thunks or a
+  user-space Poly monitor.
 
-## Bochs Prototype Encodings
+## Bochs Prototype
 
-Temporary only; not final silicon allocations.
+These encodings are temporary prototype allocations, not final silicon opcodes.
 
-- CPUID base `0x40000000`; XSAVE component `20`; state layout `8`.
-- x86_64 control: `0f 3a fc <subop>`.
-- AArch64 control: `0xd503201f | ((subop & 0x7f) << 5)`.
-- RISC-V64 control: `0x0000700b | ((subop & 0x7f) << 25)`.
+- CPUID base: `0x40000000`
+- XSAVE component: `20`
+- Poly state layout: `8`
+- x86_64 control page: `0f 3a fc <subop>`
+- AArch64 control page: `0xd503201f | ((subop & 0x7f) << 5)`
+- RISC-V64 control page: `0x0000700b | ((subop & 0x7f) << 25)`
