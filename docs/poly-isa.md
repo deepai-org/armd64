@@ -1,46 +1,43 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 machine. The
-goal is compatibility with existing native ABI code and shared libraries, not a
-new compiler ABI.
+Poly is an x86_64 extension for running existing precompiled AArch64 and
+RISC-V64 userspace code in the same virtual address space. It is not a new
+compiler ABI.
 
-## Model
+## Contract
 
 - Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64 owns boot, privilege, paging, interrupts, hard faults, scheduling,
-  atomics, real syscalls, and global TSO memory ordering.
-- AArch64 and RISC-V64 fetch normal native instructions from the same virtual
-  address space. AArch64 is 4-byte aligned; RISC-V64 allows 2-byte RVC
-  alignment.
-- Cross-ISA calls target native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI.
-- Hardware switches frontends and aliases register arguments. Software thunks
-  handle stack arguments, aggregates, variadics, lazy binding, and incompatible
-  vector layouts.
-- Foreign state is explicit XSAVE-style architectural state. It is not hidden
-  emulator state keyed by CR3, TLS, or process identity.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  scheduling, atomics, hard faults, real syscalls, and TSO memory ordering.
+- Foreign frontends fetch native instructions directly: AArch64 at 4-byte
+  alignment, RISC-V64 at 2-byte alignment so RVC objects work.
+- Cross-ISA calls target real native ABIs: x86_64 SysV, AAPCS64, and RISC-V
+  psABI.
+- Fast calls use decoded frontend-control instructions plus register-only ABI
+  signature slots. Stack arguments, aggregates, variadics, lazy binding, and
+  incompatible vector layouts stay in software thunks.
+- Foreign register state is explicit XSAVE-style architectural state, not
+  hidden CR3/TLS/process-keyed emulator state.
 - Recoverable foreign events produce OS-neutral trap packets for a user-mode
-  Poly monitor. The host OS still owns real kernel transitions.
+  Poly monitor. The OS still owns real kernel transitions.
 
-## Difference From x86_64
+## Not x86_64
 
-Poly does not replace x86_64. It adds alternate user-mode instruction
-frontends that share the x86_64 address space, memory ordering, and OS contract.
-There are no per-instruction `ud2` envelopes and no hardware-parsed call
-descriptors in user memory.
+Poly adds peer user-mode frontends; it does not replace x86_64. There are no
+per-instruction `ud2` envelopes, no hardware parsing of user-memory call
+descriptors, and no hardware knowledge of Linux, libc, or dynamic-linker policy.
 
-## Prototype Controls
+## Bochs Encodings
 
-These temporary Bochs encodings stand in for future real decoded control
-opcodes:
+Temporary prototype encodings standing in for future decoded control opcodes:
 
-| Frontend | Temporary encoding |
+| Frontend | Encoding |
 | --- | --- |
 | x86_64 | `0f 3a fc <subop>` |
 | AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
-## Details
+## References
 
 - [Design directions](poly-isa-design-directions.md)
 - [CPUID ABI](../tools/include/polycpuid.h)
