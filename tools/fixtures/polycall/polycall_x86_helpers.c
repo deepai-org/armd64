@@ -852,7 +852,23 @@ uint64_t POLY_HOST_HELPER poly_host_x86_errno_location(void)
 
 uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
 {
-  (void) type;
+  enum {
+    POLY_AT_PAGESZ = 6,
+    POLY_AT_CLKTCK = 17,
+    POLY_AT_HWCAP = 16,
+    POLY_AT_HWCAP2 = 26
+  };
+
+  switch (type) {
+  case POLY_AT_PAGESZ:
+    return 4096;
+  case POLY_AT_CLKTCK:
+    return 100;
+  case POLY_AT_HWCAP:
+  case POLY_AT_HWCAP2:
+    return 0;
+  }
+
   return 0;
 }
 
