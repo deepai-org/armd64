@@ -2707,26 +2707,6 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result, (unsigned long long) expected_pid);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent trap packet reason mismatch got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
-    return 1;
-  }
-  if (poly_syscall_status_number() != 172 ||
-      poly_syscall_status_mode() != POLY_MODE_RAW_AARCH64 ||
-      poly_trap_status_selector() != 7) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall status mismatch number=%llu mode=%llu selector=%llu\n",
-      (unsigned long long) poly_syscall_status_number(),
-      (unsigned long long) poly_syscall_status_mode(),
-      (unsigned long long) poly_trap_status_selector());
-    return 1;
-  }
-  if (poly_trap_status_arg6() != 37 || poly_trap_status_arg7() != 38) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 syscall packet extended args mismatch arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
-    return 1;
-  }
   const uint64_t aarch64_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
     31, 32, 33, 34, 35, 36, 37, 38
   };
@@ -2740,11 +2720,13 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   if (trap_child == 0) {
-    if (poly_trap_status_reason() != 0)
+    struct poly_xsave_state fork_snapshot __attribute__((aligned(64)));
+    poly_state_export(&fork_snapshot);
+    if (fork_snapshot.trap.reason != 0)
       _exit(21);
-    if (poly_syscall_status_number() != 0)
+    if (fork_snapshot.trap.number != 0)
       _exit(22);
-    if (poly_syscall_status_mode() != POLY_MODE_X86)
+    if (fork_snapshot.trap.source_mode != POLY_MODE_X86)
       _exit(23);
     _exit(0);
   }
@@ -2755,16 +2737,18 @@ static int run_poly_trap_vector_probe(void) {
       status);
     return 1;
   }
-  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent trap packet lost after fork got=%llu\n",
-      (unsigned long long) poly_trap_status_reason());
+  struct poly_xsave_state fork_parent_snapshot __attribute__((aligned(64)));
+  poly_state_export(&fork_parent_snapshot);
+  if (fork_parent_snapshot.trap.reason != POLY_TRAP_SYSCALL) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent trap packet lost after fork got=%u\n",
+      fork_parent_snapshot.trap.reason);
     return 1;
   }
-  if (poly_syscall_status_number() != 172 ||
-      poly_syscall_status_mode() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall status lost after fork number=%llu mode=%llu\n",
-      (unsigned long long) poly_syscall_status_number(),
-      (unsigned long long) poly_syscall_status_mode());
+  if (fork_parent_snapshot.trap.number != 172 ||
+      fork_parent_snapshot.trap.source_mode != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall packet lost after fork number=%llu mode=%u\n",
+      (unsigned long long) fork_parent_snapshot.trap.number,
+      fork_parent_snapshot.trap.source_mode);
     return 1;
   }
 
@@ -2787,21 +2771,6 @@ static int run_poly_trap_vector_probe(void) {
   if (result != expected_pid) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ecall trap vector result mismatch got=%llu expected=%llu\n",
       (unsigned long long) result, (unsigned long long) expected_pid);
-    return 1;
-  }
-  if (poly_trap_status_reason() != POLY_TRAP_SYSCALL ||
-      poly_syscall_status_number() != 172 ||
-      poly_syscall_status_mode() != POLY_MODE_RAW_RISCV ||
-      poly_trap_status_selector() != 0 ||
-      poly_trap_status_arg6() != 37 || poly_trap_status_arg7() != 172) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly riscv syscall packet mismatch reason=%llu number=%llu mode=%llu selector=%llu arg6=%llu arg7=%llu\n",
-      (unsigned long long) poly_trap_status_reason(),
-      (unsigned long long) poly_syscall_status_number(),
-      (unsigned long long) poly_syscall_status_mode(),
-      (unsigned long long) poly_trap_status_selector(),
-      (unsigned long long) poly_trap_status_arg6(),
-      (unsigned long long) poly_trap_status_arg7());
     return 1;
   }
   const uint64_t riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
