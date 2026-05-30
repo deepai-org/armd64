@@ -46,6 +46,10 @@
 #define POLY_OP_LANDING_POLICY_SET ".byte 0x0f,0x3a,0xfc,0x6d\n"
 #define POLY_OP_LANDING_POLICY_GET ".byte 0x0f,0x3a,0xfc,0x6e\n"
 
+#define NATIVECHECK_AARCH64_FPCR_RMODE_MASK (3ULL << 22)
+#define NATIVECHECK_AARCH64_FPSR_MASK 0x9fULL
+#define NATIVECHECK_RISCV_FCSR_MASK 0xffULL
+
 #ifndef ARCH_GET_XCOMP_SUPP
 #define ARCH_GET_XCOMP_SUPP 0x1021
 #endif
@@ -1577,6 +1581,88 @@ static void child_expect_bad_trap_source_mode_xsave_signal(void) {
   poly_state_export(&bad);
   bad.trap.reason = POLY_TRAP_SYSCALL;
   bad.trap.source_mode = POLY_MODE_X86;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_aarch64_nzcv_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.aarch64_status.nzcv = 0x10;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_aarch64_fpcr_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.aarch64_status.fpcr = NATIVECHECK_AARCH64_FPCR_RMODE_MASK | 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_aarch64_fpsr_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.aarch64_status.fpsr = NATIVECHECK_AARCH64_FPSR_MASK | 0x20;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_riscv_fcsr_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.riscv_status.fcsr = NATIVECHECK_RISCV_FCSR_MASK | 0x100;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_aarch64_reservation_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.aarch64_status.reservation_size = 3;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_stale_aarch64_reservation_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.aarch64_status.reservation_addr = 0x1000;
+  bad.aarch64_status.reservation_size = 0;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_riscv_reservation_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.riscv_status.reservation_size = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_stale_riscv_reservation_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.riscv_status.reservation_addr = 0x1000;
+  bad.riscv_status.reservation_size = 0;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3451,6 +3537,30 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad trap source mode xstate", SIGILL,
         child_expect_bad_trap_source_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad AArch64 NZCV xstate", SIGILL,
+        child_expect_bad_aarch64_nzcv_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad AArch64 FPCR xstate", SIGILL,
+        child_expect_bad_aarch64_fpcr_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad AArch64 FPSR xstate", SIGILL,
+        child_expect_bad_aarch64_fpsr_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad RISC-V FCSR xstate", SIGILL,
+        child_expect_bad_riscv_fcsr_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad AArch64 reservation xstate", SIGILL,
+        child_expect_bad_aarch64_reservation_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly stale AArch64 reservation xstate", SIGILL,
+        child_expect_stale_aarch64_reservation_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad RISC-V reservation xstate", SIGILL,
+        child_expect_bad_riscv_reservation_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly stale RISC-V reservation xstate", SIGILL,
+        child_expect_stale_riscv_reservation_xsave_signal) != 0)
     return 1;
   if (run_poly_invalid_import_no_mutation_probe() != 0)
     return 1;
