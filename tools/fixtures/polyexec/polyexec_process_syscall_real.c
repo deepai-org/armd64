@@ -81,6 +81,7 @@ enum {
   POLY_SYS_RENAMEAT = 38,
   POLY_SYS_STATFS = 43,
   POLY_SYS_FSTATFS = 44,
+  POLY_SYS_TRUNCATE = 45,
   POLY_SYS_FTRUNCATE = 46,
   POLY_SYS_FALLOCATE = 47,
   POLY_SYS_OPENAT = 56,
@@ -1802,6 +1803,30 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       (long) sizeof(namespace_message) - 1) {
     poly_syscall2(POLY_SYS_CLOSE, fd, 0);
     return 247;
+  }
+  if (poly_syscall2(POLY_SYS_TRUNCATE, (long) namespace_file, 1) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 315;
+  }
+  struct poly_linux_generic_stat namespace_truncated_stat;
+  if (poly_syscall4(POLY_SYS_NEWFSTATAT, POLY_AT_FDCWD,
+        (long) namespace_file, (long) &namespace_truncated_stat, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 316;
+  }
+  if (namespace_truncated_stat.size != 1) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 317;
+  }
+  if (poly_syscall3(POLY_SYS_LSEEK, fd, 0, 0) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 318;
+  }
+  if (poly_syscall3(POLY_SYS_WRITE, fd, (long) namespace_message,
+        sizeof(namespace_message) - 1) !=
+      (long) sizeof(namespace_message) - 1) {
+    poly_syscall2(POLY_SYS_CLOSE, fd, 0);
+    return 319;
   }
   static const char xattr_name[] = "user.poly";
   static const char xattr_value_path[] = "PXA";
