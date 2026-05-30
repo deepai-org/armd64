@@ -40,6 +40,7 @@ enum {
   POLY_FUTEX_32 = 2,
   POLY_FUTEX_WAIT_PRIVATE = 128,
   POLY_FUTEX_WAKE_PRIVATE = 129,
+  POLY_LINUX_CAPABILITY_VERSION_3 = 0x20080522,
   POLY_PRIO_PROCESS = 0,
   POLY_IOPRIO_WHO_PROCESS = 1,
   POLY_RLIMIT_STACK = 3,
@@ -131,6 +132,7 @@ enum {
   POLY_SYS_TIMERFD_CREATE = 85,
   POLY_SYS_TIMERFD_SETTIME = 86,
   POLY_SYS_TIMERFD_GETTIME = 87,
+  POLY_SYS_CAPGET = 90,
   POLY_SYS_PERSONALITY = 92,
   POLY_SYS_EXIT = 93,
   POLY_SYS_FUTEX = 98,
@@ -365,6 +367,17 @@ struct poly_tms {
   int64_t stime;
   int64_t cutime;
   int64_t cstime;
+};
+
+struct poly_cap_user_header {
+  uint32_t version;
+  int32_t pid;
+};
+
+struct poly_cap_user_data {
+  uint32_t effective;
+  uint32_t permitted;
+  uint32_t inheritable;
 };
 
 struct poly_sched_param {
@@ -619,6 +632,20 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 235;
   if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
     return 236;
+  struct poly_cap_user_header cap_header;
+  struct poly_cap_user_data cap_data[2];
+  cap_header.version = POLY_LINUX_CAPABILITY_VERSION_3;
+  cap_header.pid = 0;
+  for (int n = 0; n < 2; n++) {
+    cap_data[n].effective = 0;
+    cap_data[n].permitted = 0;
+    cap_data[n].inheritable = 0;
+  }
+  if (poly_syscall2(POLY_SYS_CAPGET, (long) &cap_header,
+        (long) cap_data) != 0)
+    return 372;
+  if (cap_header.version != POLY_LINUX_CAPABILITY_VERSION_3)
+    return 373;
   if (poly_syscall2(POLY_SYS_TKILL, tid, 0) != 0)
     return 369;
   if (poly_syscall3(POLY_SYS_TGKILL, pid0, tid, 0) != 0)
