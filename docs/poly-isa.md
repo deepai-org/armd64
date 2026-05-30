@@ -1,9 +1,9 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly extends an x86_64 system CPU with peer AArch64 and RISC-V64 user-mode
-frontends for running existing precompiled code in one virtual address space.
+Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU so
+existing precompiled libraries can share one virtual address space.
 
-## Run The Prototype
+## Run
 
 ```bash
 make image
@@ -11,22 +11,18 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Difference From Plain x86_64
+## What Changes From x86_64
 
-- x86_64 still owns boot, privilege, paging, faults, interrupts, atomics,
-  virtual memory, and the global TSO memory model.
-- Frontend `0` is x86_64 byte fetch, `1` is AArch64 32-bit direct fetch, and
-  `2` is RISC-V64 RV64/RVC direct fetch.
-- Foreign instructions come from normal x86_64 virtual memory. There are no
-  per-instruction `#UD` envelopes.
-- Cross-ISA calls target real native ABIs: SysV x86_64, AAPCS64, and RISC-V
-  psABI.
-- Fast calls use `PCALL frontend,target,sig`, where `sig` selects a cached
-  register-only ABI mapping.
-- Stack arguments, aggregates, variadics, lazy binding, and layout conversion
-  stay in runtime thunks, not hardware.
-- Traps are OS-neutral packets, not Linux syscall/libc/dynamic-linker policy.
-- Non-aliased foreign registers are explicit XSAVE-style architectural state.
+| Area | Contract |
+| --- | --- |
+| System CPU | x86_64 still owns boot, privilege, paging, faults, interrupts, atomics, and TSO. |
+| Frontends | `0` = x86_64 byte fetch, `1` = AArch64 32-bit fetch, `2` = RISC-V64 RV64/RVC fetch. |
+| Code bytes | Foreign code is fetched from ordinary x86_64 virtual memory. No per-instruction `#UD` envelopes. |
+| ABI target | Cross-ISA calls target SysV x86_64, AAPCS64, and RISC-V psABI objects. |
+| Fast calls | `PCALL frontend,target,sig` selects a cached register-only ABI mapping. |
+| Complex calls | Stack args, aggregates, variadics, lazy binding, and layout conversion are runtime thunk work. |
+| Traps | Hardware emits OS-neutral trap packets, not Linux syscall/libc/dynamic-linker policy. |
+| State | Non-aliased foreign registers are explicit XSAVE-style architectural state. |
 
 ## Control Ops
 
@@ -38,4 +34,4 @@ rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.
 Prototype encodings are temporary: x86_64 `0f 3a fc <subop>`, AArch64 reserved
 `HINT`, RISC-V `custom-0`, XSAVE component `20`.
 
-Detailed rationale lives in `docs/poly-isa-design-directions.md`.
+Detailed rationale: `docs/poly-isa-design-directions.md`.
