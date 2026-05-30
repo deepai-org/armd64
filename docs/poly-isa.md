@@ -49,7 +49,7 @@ assignments live in `tools/include/polycpuid.h`.
 ## State And Traps
 
 - Poly register state is XSAVE-style architectural state. Current explicit
-  state import layout version: `8`.
+  state import layout version: `9`.
 - Foreign traps produce OS-neutral packets. Packets include the first eight
   native foreign ABI argument registers so userspace can translate syscalls,
   libcalls, and lazy binding without CPU OS knowledge.
