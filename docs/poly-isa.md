@@ -1,42 +1,45 @@
 # Poly ISA
 
-Poly adds AArch64 and RISC-V64 user frontends to an x86_64 system CPU so
-precompiled objects from all three ISAs can run in one virtual address space.
-Design rationale is in `docs/poly-isa-design-directions.md`.
+Poly lets x86_64, AArch64, and RISC-V64 user code share one virtual address
+space. The target is compatibility with existing compiled objects, not a new
+compiler-only ABI. Rationale lives in `docs/poly-isa-design-directions.md`.
 
 ## Contract
 
-x86_64 owns boot, privilege, paging, interrupts, faults, and the global TSO
-memory model. AArch64 and RISC-V64 execute native 32-bit user instructions from
-the shared address space. Poly state is explicit XSAVE-style architectural
-state. The CPU does not implement Linux, libc, dynamic linker policy,
-user-memory call descriptors, or per-instruction `#UD` envelopes.
+- x86_64 remains the system ISA for boot, privilege, paging, faults,
+  interrupts, and the global TSO memory model.
+- AArch64 and RISC-V64 are user frontends that directly fetch normal 32-bit
+  instructions from the same address space.
+- Non-x86 state is explicit XSAVE-style architectural state.
+- Cross-ISA transfer is architectural, not a `#UD` exception path.
+- Foreign syscalls, breakpoints, illegal instructions, and unresolved imports
+  produce precise Poly trap packets for software.
+- The CPU does not implement OS, libc, dynamic linker, or descriptor policy.
 
-## Frontends
+## Instructions
 
 Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
 
 - `PENTER frontend`: enter a frontend from runtime or system code.
-- `PSWITCH frontend, target`: switch frontends without a recorded return.
+- `PSWITCH frontend, target`: switch frontends without recording a return.
 - `PCALL frontend, target, sig`: switch frontends and record a native return.
-- `PTRAPRET`: resume execution after a precise Poly trap.
+- `PTRAPRET`: resume after a Poly trap.
 - `PLANDING`: validate an indirect cross-frontend landing target.
 
 ## Calls
 
-Native ABI compatibility is the default: x86_64 SysV, AArch64 AAPCS64, and
-RISC-V psABI. Register-only calls use ABI signature slots; hardware remaps
-architectural register names only. `PCALL` records caller frontend, PC, SP, and
-flags, then installs a return cookie in the callee's native return location.
-Native returns cross back by returning to the cookie.
+Default ABIs are SysV x86_64, AAPCS64, and RISC-V psABI. `PCALL` records the
+caller frontend, PC, SP, and flags, then installs a return cookie in the
+callee's native return location. Returning to the cookie restores the caller.
 
-Stack arguments, aggregates, variadics, hidden returns, incompatible vectors,
-lazy binding, syscalls, and libc helpers go through software thunks or a
-user-space Poly monitor.
+ABI signature slots remap architectural register names for register-only calls.
+The hardware only remaps registers. Stack arguments, aggregates, variadics,
+hidden returns, incompatible vectors, lazy binding, syscalls, and libc helpers
+remain software responsibilities.
 
-## Bochs Prototype
+## Bochs Prototype Encodings
 
-Temporary prototype allocations, not final silicon opcodes:
+Temporary allocations, not final silicon opcodes:
 
 - CPUID `0x40000000`, XSAVE component `20`, Poly state layout `8`
 - x86_64 control page: `0f 3a fc <subop>`
