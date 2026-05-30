@@ -4450,6 +4450,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
     free(data);
     return -1;
   }
+  const uint64_t phdr_table_size =
+    (uint64_t) ehdr->e_phnum * ehdr->e_phentsize;
 
   uint64_t base_vaddr = UINT64_MAX;
   uint64_t limit_vaddr = 0;
@@ -4500,6 +4502,12 @@ static int load_elf_program(const char *path, const char *symbol_name,
       return -1;
     }
 
+    if (!phdr_vaddr && ehdr->e_phoff >= phdr->p_offset) {
+      const uint64_t phdr_offset_in_segment = ehdr->e_phoff - phdr->p_offset;
+      if (phdr_offset_in_segment <= phdr->p_filesz &&
+          phdr_table_size <= phdr->p_filesz - phdr_offset_in_segment)
+        phdr_vaddr = phdr->p_vaddr + phdr_offset_in_segment;
+    }
     const uint64_t segment_base = align_down_u64(phdr->p_vaddr, 0x1000);
     const uint64_t segment_limit = phdr->p_vaddr + phdr->p_memsz;
     if (record_load_segment(program, phdr) < 0) {
@@ -4533,11 +4541,6 @@ static int load_elf_program(const char *path, const char *symbol_name,
   program->base_vaddr = base_vaddr;
   program->phent = ehdr->e_phentsize;
   program->phnum = ehdr->e_phnum;
-  if (!phdr_vaddr) {
-    const uint64_t phdr_size = (uint64_t) ehdr->e_phnum * ehdr->e_phentsize;
-    if (ehdr->e_phoff < image_size && phdr_size <= image_size - ehdr->e_phoff)
-      phdr_vaddr = base_vaddr + ehdr->e_phoff;
-  }
   program->phdr_vaddr = phdr_vaddr;
   program->code_size = (size_t) image_size;
   program->code_bytes = calloc(1, program->code_size);
