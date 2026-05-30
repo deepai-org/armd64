@@ -334,6 +334,20 @@ static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
 }
 
+static int nativecheck_bytes_are_zero(const void *ptr, size_t bytes,
+    const char *label) {
+  const unsigned char *data = (const unsigned char *) ptr;
+  for (size_t n = 0; n < bytes; n++) {
+    if (data[n] != 0) {
+      fprintf(stderr,
+        "NATIVE_CHECK_FAIL: poly state export dirty byte label=%s offset=%zu value=0x%x\n",
+        label, n, data[n]);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static __attribute__((noinline)) uint64_t
 nativecheck_aarch64_read_tls(uint64_t tls_base) {
   uint64_t result;
@@ -3714,7 +3728,7 @@ static int run_poly_state_save_restore_probe(void) {
   if (run_poly_frontend_tls_probe() != 0)
     return 1;
 
-  memset(&snapshot, 0, sizeof(snapshot));
+  memset(&snapshot, 0xa5, sizeof(snapshot));
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
   poly_trap_vector_set_value(trap_vector);
@@ -3748,6 +3762,44 @@ static int run_poly_state_save_restore_probe(void) {
       (unsigned long long) snapshot.header.trap_vector_pc,
       snapshot.header.trap_vector_mode,
       (unsigned long long) snapshot.header.monitor_packet_addr);
+    return 1;
+  }
+  if (snapshot.import_return.top > POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH ||
+      snapshot.cross_return.top > POLY_STATE_XSAVE_CROSS_RETURN_DEPTH) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state export stack top mismatch import=%llu cross=%llu\n",
+      (unsigned long long) snapshot.import_return.top,
+      (unsigned long long) snapshot.cross_return.top);
+    return 1;
+  }
+  if (nativecheck_bytes_are_zero(snapshot.transition.reserved,
+        sizeof(snapshot.transition.reserved), "transition reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.aarch64_status.reserved,
+        sizeof(snapshot.aarch64_status.reserved), "aarch64 status reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.riscv_status.reserved,
+        sizeof(snapshot.riscv_status.reserved), "riscv status reserved") != 0 ||
+      nativecheck_bytes_are_zero(
+        &snapshot.import_return.frames[snapshot.import_return.top],
+        (POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH - snapshot.import_return.top) *
+          sizeof(snapshot.import_return.frames[0]),
+        "inactive import-return frames") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.import_return.reserved,
+        sizeof(snapshot.import_return.reserved), "import-return reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.abi_signature.reserved,
+        sizeof(snapshot.abi_signature.reserved), "ABI signature reserved") != 0 ||
+      nativecheck_bytes_are_zero(
+        &snapshot.cross_return.frames[snapshot.cross_return.top],
+        (POLY_STATE_XSAVE_CROSS_RETURN_DEPTH - snapshot.cross_return.top) *
+          sizeof(snapshot.cross_return.frames[0]),
+        "inactive cross-return frames") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.cross_return.reserved,
+        sizeof(snapshot.cross_return.reserved), "cross-return reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.frontend_tls.reserved,
+        sizeof(snapshot.frontend_tls.reserved), "frontend TLS reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.landing_policy.reserved,
+        sizeof(snapshot.landing_policy.reserved), "landing policy reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.reserved, sizeof(snapshot.reserved),
+        "top-level reserved") != 0) {
     return 1;
   }
   if (snapshot.abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
