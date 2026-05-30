@@ -8419,38 +8419,45 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYBENCH_MIXED_RESULT: direction=aarch64-to-riscv .*switch_delta=4" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBENCH_MIXED_RESULT: direction=riscv-to-aarch64 .*switch_delta=4" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBENCH_CROSS_CALL_RESULT: direction=aarch64-calls-riscv .*switch_delta=5" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBENCH_CROSS_CALL_RESULT: direction=riscv-calls-aarch64 .*switch_delta=5" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=aarch64-calls-riscv-import .*switch_delta=5" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=riscv-calls-aarch64-import .*switch_delta=5" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=aarch64-calls-riscv-direct-x86-memops .*switch_delta=11" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=riscv-calls-aarch64-direct-x86-memops .*switch_delta=11" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
+        polybench_patterns=(
+          "POLYBENCH_RESULT: arch=aarch64 .*switch_delta=3"
+          "POLYBENCH_RESULT: arch=riscv .*switch_delta=3"
+          "POLYBENCH_MIXED_RESULT: direction=aarch64-to-riscv .*switch_delta=4"
+          "POLYBENCH_MIXED_RESULT: direction=aarch64-to-compressed-riscv .*switch_delta=4"
+          "POLYBENCH_MIXED_RESULT: direction=riscv-to-aarch64 .*switch_delta=4"
+          "POLYBENCH_MIXED_RESULT: direction=riscv-compressed-to-aarch64 .*switch_delta=4"
+          "POLYBENCH_CROSS_CALL_RESULT: direction=aarch64-calls-riscv .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_RESULT: direction=riscv-calls-aarch64 .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_RESULT: direction=nested-aarch64-riscv-aarch64 .*switch_delta=7"
+          "POLYBENCH_DIRECT_X86_PCALL_RESULT: direction=aarch64-calls-x86-direct .*switch_delta=5"
+          "POLYBENCH_DIRECT_X86_PCALL_RESULT: direction=riscv-calls-x86-direct .*switch_delta=5"
+          "POLYBENCH_DIRECT_X86_FP64_RESULT: direction=aarch64-calls-x86-direct-fp64 .*switch_delta=5"
+          "POLYBENCH_DIRECT_X86_FP64_RESULT: direction=riscv-calls-x86-direct-fp64 .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_FP_RESULT: direction=aarch64-calls-riscv-fp .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_FP_RESULT: direction=riscv-calls-aarch64-fp .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_FP8_RESULT: direction=aarch64-calls-riscv-fp8 .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_FP8_RESULT: direction=riscv-calls-aarch64-fp8 .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_VEC128_RESULT: direction=aarch64-calls-riscv-vec128 .*switch_delta=4"
+          "POLYBENCH_CROSS_CALL_VEC128_RESULT: direction=riscv-calls-aarch64-vec128 .*switch_delta=4"
+          "POLYBENCH_CROSS_CALL_SYSCALL_RESULT: direction=aarch64-calls-riscv-syscall .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_SYSCALL_RESULT: direction=riscv-calls-aarch64-syscall .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_BREAK_RESULT: direction=aarch64-calls-riscv-break .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_BREAK_RESULT: direction=riscv-calls-aarch64-break .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=aarch64-calls-riscv-import .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=riscv-calls-aarch64-import .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_STRING_RESULT: direction=aarch64-calls-riscv-direct-x86 .*switch_delta=7"
+          "POLYBENCH_CROSS_CALL_STRING_RESULT: direction=riscv-calls-aarch64-direct-x86 .*switch_delta=7"
+          "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMCMP_RESULT: direction=aarch64-calls-riscv-direct-x86-memcmp .*switch_delta=7"
+          "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMCMP_RESULT: direction=riscv-calls-aarch64-direct-x86-memcmp .*switch_delta=7"
+          "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=aarch64-calls-riscv-direct-x86-memops .*switch_delta=11"
+          "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=riscv-calls-aarch64-direct-x86-memops .*switch_delta=11"
+        )
+        for pattern in "${polybench_patterns[@]}"; do
+          if ! grep -Eq "$pattern" "$SERIAL_LOG"; then
+            sleep 1
+            continue 2
+          fi
+        done
       fi
       if [[ "$RUN_POLY_BINFMT" == "1" ]]; then
         if ! grep -q "POLYBINFMT_OK" "$SERIAL_LOG"; then
