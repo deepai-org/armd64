@@ -12,17 +12,20 @@ Requires Docker with `linux/arm64` support.
 
 ```bash
 make image
-make boot-poly-binfmt-arch-traps
-rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
+make boot-poly-full-real-xsave-arch-traps
+rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLYBENCH_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
 Other useful targets:
 
 - `make boot`: plain x86_64 sanity check.
+- `make boot-poly`: shorter raw execution, neutral-switch, process-loader, and
+  syscall/trap regression run.
 - `make boot-poly-arch-traps`: raw foreign trap/syscall tests.
 - `make boot-poly-neutral-arch-traps`: direct AArch64<->RISC-V generic switch
   and call tests.
 - `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
+- `make boot-poly-binfmt-arch-traps`: loader/binfmt smoke tests.
 - `make boot-poly-full-arch-traps`: broad regression run.
 - `make boot-poly-full-real-xsave-arch-traps`: broad regression run with the
   guest Poly XCR0 module loaded so direct XSAVE/XRSTOR is required.
