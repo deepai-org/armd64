@@ -2711,6 +2711,38 @@ static int run_poly_trap_vector_probe(void) {
       POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7,
       aarch64_syscall_args) != 0)
     return 1;
+
+  uint64_t saved_r13 = 0;
+  uint64_t saved_r14 = 0;
+  asm volatile(
+    "movq $0x13371337, %%r13\n"
+    "movq $0x14471447, %%r14\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd28003e0\n" // movz x0,#31
+    ".long 0xd2800401\n" // movz x1,#32
+    ".long 0xd2800422\n" // movz x2,#33
+    ".long 0xd2800443\n" // movz x3,#34
+    ".long 0xd2800464\n" // movz x4,#35
+    ".long 0xd2800485\n" // movz x5,#36
+    ".long 0xd28004a6\n" // movz x6,#37
+    ".long 0xd28004c7\n" // movz x7,#38
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    "movq %%r13, %[saved_r13]\n"
+    "movq %%r14, %[saved_r14]\n"
+    : [saved_r13] "=m"(saved_r13),
+      [saved_r14] "=m"(saved_r14)
+    :
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (saved_r13 != 0x13371337 || saved_r14 != 0x14471447) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 x86 monitor leaked r13/r14 r13=0x%llx r14=0x%llx\n",
+      (unsigned long long) saved_r13, (unsigned long long) saved_r14);
+    return 1;
+  }
+
   pid_t trap_child = fork();
   if (trap_child < 0) {
     fputs("NATIVE_CHECK_FAIL: poly trap packet fork failed\n", stderr);
@@ -2777,6 +2809,36 @@ static int run_poly_trap_vector_probe(void) {
       POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0,
       riscv_syscall_args) != 0)
     return 1;
+
+  saved_r13 = 0;
+  saved_r14 = 0;
+  asm volatile(
+    "movq $0x23372337, %%r13\n"
+    "movq $0x24472447, %%r14\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x01f00513\n" // addi a0,zero,31
+    ".long 0x02000593\n" // addi a1,zero,32
+    ".long 0x02100613\n" // addi a2,zero,33
+    ".long 0x02200693\n" // addi a3,zero,34
+    ".long 0x02300713\n" // addi a4,zero,35
+    ".long 0x02400793\n" // addi a5,zero,36
+    ".long 0x02500813\n" // addi a6,zero,37
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    "movq %%r13, %[saved_r13]\n"
+    "movq %%r14, %[saved_r14]\n"
+    : [saved_r13] "=m"(saved_r13),
+      [saved_r14] "=m"(saved_r14)
+    :
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (saved_r13 != 0x23372337 || saved_r14 != 0x24472447) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv x86 monitor leaked r13/r14 r13=0x%llx r14=0x%llx\n",
+      (unsigned long long) saved_r13, (unsigned long long) saved_r14);
+    return 1;
+  }
 
   asm volatile(
     POLY_OP_ENTER_A64
