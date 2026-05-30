@@ -33,6 +33,7 @@ enum {
   POLY_F_GETFD = 1,
   POLY_F_SETFD = 2,
   POLY_FD_CLOEXEC = 1,
+  POLY_FIONREAD = 0x541b,
   POLY_LOCK_EX = 2,
   POLY_LOCK_NB = 4,
   POLY_LOCK_UN = 8,
@@ -82,6 +83,7 @@ enum {
   POLY_SYS_INOTIFY_INIT1 = 26,
   POLY_SYS_INOTIFY_ADD_WATCH = 27,
   POLY_SYS_INOTIFY_RM_WATCH = 28,
+  POLY_SYS_IOCTL = 29,
   POLY_SYS_IOPRIO_GET = 31,
   POLY_SYS_FLOCK = 32,
   POLY_SYS_MKNODAT = 33,
@@ -1062,6 +1064,20 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
     poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0);
     return 101;
+  }
+  int pipe_pending = 0;
+  if (poly_syscall3(POLY_SYS_IOCTL, pipe_fds[0], POLY_FIONREAD,
+        (long) &pipe_pending) != 0) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0);
+    return 365;
+  }
+  if (pipe_pending != (int) sizeof(pipe_buffer)) {
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[0], 0);
+    poly_syscall2(POLY_SYS_CLOSE, pipe_fds[1], 0);
+    poly_syscall2(POLY_SYS_CLOSE, dup_fd, 0);
+    return 366;
   }
   if (poly_syscall3(POLY_SYS_READ, dup_fd, (long) pipe_buffer,
         sizeof(pipe_buffer)) != (long) sizeof(pipe_buffer)) {
