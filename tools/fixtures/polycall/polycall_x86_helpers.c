@@ -28,6 +28,10 @@ extern uint64_t poly_runtime_foreign_hwcap2;
 
 static volatile uint64_t poly_host_x86_zero;
 static int poly_host_errno_value;
+static const uint8_t poly_host_aux_random[16] = {
+  0xa7, 0x31, 0x5c, 0xe9, 0x0d, 0x42, 0xbe, 0x18,
+  0x6f, 0xc3, 0x94, 0x27, 0xd8, 0x50, 0x1b, 0xee
+};
 static uint8_t poly_host_heap[64 * 1024];
 static uint64_t poly_host_heap_cursor;
 static uint8_t poly_host_pthread_key_used[32];
@@ -860,10 +864,15 @@ uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
     POLY_ARCH_AARCH64 = 1,
     POLY_ARCH_RISCV = 2,
     POLY_AT_PAGESZ = 6,
+    POLY_AT_UID = 11,
+    POLY_AT_EUID = 12,
+    POLY_AT_GID = 13,
+    POLY_AT_EGID = 14,
     POLY_AT_PLATFORM = 15,
     POLY_AT_CLKTCK = 17,
     POLY_AT_HWCAP = 16,
     POLY_AT_SECURE = 23,
+    POLY_AT_RANDOM = 25,
     POLY_AT_HWCAP2 = 26,
     POLY_AT_EXECFN = 31
   };
@@ -883,8 +892,15 @@ uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
     return 100;
   case POLY_AT_HWCAP:
     return poly_runtime_foreign_hwcap;
+  case POLY_AT_UID:
+  case POLY_AT_EUID:
+  case POLY_AT_GID:
+  case POLY_AT_EGID:
+    return 1000;
   case POLY_AT_SECURE:
     return 0;
+  case POLY_AT_RANDOM:
+    return (uint64_t) (uintptr_t) poly_host_aux_random;
   case POLY_AT_HWCAP2:
     return poly_runtime_foreign_hwcap2;
   case POLY_AT_EXECFN:

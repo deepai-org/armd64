@@ -26,6 +26,14 @@ static int poly_contains(const char *haystack, const char *needle)
   return 0;
 }
 
+static int poly_random_nonzero(const unsigned char *bytes)
+{
+  unsigned char combined = 0;
+  for (unsigned n = 0; n < 16; n++)
+    combined |= bytes[n];
+  return combined != 0;
+}
+
 __attribute__((visibility("default")))
 unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a2, unsigned long a3, unsigned long a4,
@@ -51,8 +59,15 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     return 9004;
   if (!poly_contains(execfn, "pcall-getauxval-real.so"))
     return 9005;
+  if (getauxval(11) != 1000 || getauxval(12) != 1000 ||
+      getauxval(13) != 1000 || getauxval(14) != 1000)
+    return 9006;
+  const unsigned char *random = (const unsigned char *) getauxval(25);
+  if (!random || !poly_random_nonzero(random))
+    return 9007;
 
   return a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 +
     getauxval(6) + getauxval(17) + getauxval(16) + getauxval(26) +
+    getauxval(11) + getauxval(12) + getauxval(13) + getauxval(14) +
     getauxval(0xdead) + 31;
 }
