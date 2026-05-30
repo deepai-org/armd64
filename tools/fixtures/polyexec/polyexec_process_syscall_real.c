@@ -86,6 +86,7 @@ enum {
   POLY_SYS_TRUNCATE = 45,
   POLY_SYS_FTRUNCATE = 46,
   POLY_SYS_FALLOCATE = 47,
+  POLY_SYS_FACCESSAT = 48,
   POLY_SYS_CHDIR = 49,
   POLY_SYS_FCHDIR = 50,
   POLY_SYS_FCHMOD = 52,
@@ -822,6 +823,9 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       (int64_t) statx_result.size != path_stat.size)
     return 58;
 
+  if (poly_syscall4(POLY_SYS_FACCESSAT, POLY_AT_FDCWD,
+        (long) "/usr/bin/polyexec", 0, 0) != 0)
+    return 344;
   if (poly_syscall4(POLY_SYS_FACCESSAT2, POLY_AT_FDCWD,
         (long) "/usr/bin/polyexec", 0, 0) != 0)
     return 307;
