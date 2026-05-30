@@ -1,0 +1,11 @@
+# poly payload v1
+arch=aarch64
+final_arch=aarch64
+expected=45
+insn=0xd2800500
+insn=0x10000090
+insn=0xd2800051
+insn=0x10000092
+insn=0xd5032f3f
+insn=0x00550513
+insn=0x00008067
