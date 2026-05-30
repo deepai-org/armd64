@@ -1,9 +1,8 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly lets x86_64, AArch64, and RISC-V64 user code run in one x86_64 process
-address space. The compatibility target is existing native objects and shared
-libraries, not a new compiler-only ISA. See
-`docs/poly-isa-design-directions.md` for the longer hardware/ABI rationale.
+Bochs prototype quick reference. Poly targets existing x86_64, AArch64, and
+RISC-V64 user-mode objects in one x86_64 process, not a new compiler-only ISA.
+For rationale, see `docs/poly-isa-design-directions.md`.
 
 ## Running
 
@@ -13,41 +12,37 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused checks:
+Other useful targets: `make boot`, `make boot-poly-arch-traps`,
+`make boot-poly-neutral-arch-traps`, `make boot-poly-call-arch-traps`,
+`make boot-poly-full-arch-traps`.
 
-- `make boot`: plain x86_64 VM
-- `make boot-poly-arch-traps`: raw AArch64/RISC-V execution and traps
-- `make boot-poly-neutral-arch-traps`: direct AArch64<->RISC-V switching
-- `make boot-poly-call-arch-traps`: calls, threads, and signals
-- `make boot-poly-full-arch-traps`: broad regression run
-
-## How It Differs From x86_64
+## Difference From x86_64
 
 - x86_64 remains the system ISA for boot, privilege, paging, faults, interrupts,
   atomics, virtual memory, and TSO ordering.
-- AArch64 and RISC-V64 are user-mode frontends that fetch normal 32-bit
-  instructions from the same virtual address space.
-- Cross-ISA transfer uses decoded control instructions, not one `#UD` envelope
-  per foreign instruction.
-- Extra foreign register state is explicit XSAVE-style architectural state, not
-  hidden CR3-scoped emulator state.
+- AArch64 and RISC-V64 are user-mode frontends over the same virtual address
+  space, fetching normal fixed-width 32-bit instructions from `RIP`.
+- Cross-ISA transfer uses decoded Poly control instructions, not one x86 `#UD`
+  envelope per foreign instruction.
+- Non-x86 register state is explicit XSAVE-style state, not hidden CR3-scoped
+  emulator state.
 - Foreign syscalls, breakpoints, illegal instructions, unresolved imports, and
-  policy exits become precise Poly trap packets for user/runtime software.
-- Hardware does not implement Linux, libc, the dynamic linker, or memory-parsing
-  ABI descriptors.
+  policy exits produce precise user/runtime trap packets.
+- Hardware does not implement Linux, libc, dynamic linking, or memory-parsing
+  ABI descriptors. Software handles ABI-complex cases.
 
 ## Control Instructions
 
-Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64. The control
-surface is `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING`.
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64. Core operations are
+`PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING`.
 
-`PCALL` uses a hardware transition stack plus a native return cookie. ABI
-signature slots may remap register names for register-only calls; memory and
-ABI-complex cases stay in software.
+`PCALL` uses a hardware transition stack and native return cookie. ABI signature
+slots may remap register names for register-only calls. Stack arguments,
+aggregates, variadics, and other ABI-complex cases stay in software.
 
 ## Prototype Encodings
 
-Temporary Bochs encodings, not final silicon allocations:
+These are temporary Bochs encodings, not final silicon allocations:
 
 - CPUID base leaf `0x40000000`; XSAVE component `20`; state layout `8`
 - x86_64 control page: `0f 3a fc <subop>`
