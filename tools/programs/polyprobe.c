@@ -257,7 +257,6 @@ uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
     uint64_t arg5) {
   (void) pc;
-  (void) selector;
   (void) arg1;
   (void) arg2;
   (void) arg3;
@@ -272,6 +271,9 @@ uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
     return 0x4c000000ULL | (mode << 8) | number;
   if (reason == POLY_TRAP_IMPORT && number == 8)
     return 5555;
+  if (reason == POLY_TRAP_ILLEGAL && number == 0xffffffffULL &&
+      selector == 4)
+    return 6666;
   return (uint64_t) -38;
 }
 
@@ -1701,6 +1703,22 @@ static inline void raw_riscv_getpid_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void raw_aarch64_illegal_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xffffffff\n"
+    ".long 0xd5032e1f\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_illegal_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0xffffffff\n"
+    ".long 0x0000700b\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 int main(void) {
   stage("POLY_PROBE: start");
   install_polyprobe_trap_vector();
@@ -2848,6 +2866,71 @@ int main(void) {
       (unsigned long long) monitor_packet.args[7]);
     return 1;
   }
+
+  stage("POLY_STAGE: raw-illegal");
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_aarch64_illegal_probe();
+  if (read_rax() != 6666) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap vector mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_reason_status();
+  if (read_rax() != POLY_TRAP_ILLEGAL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap reason mismatch\n");
+    return 1;
+  }
+  poly_trap_mode_status();
+  if (read_rax() != POLY_MODE_RAW_AARCH64) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap mode mismatch\n");
+    return 1;
+  }
+  poly_trap_number_status();
+  if (read_rax() != 0xffffffffULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap number mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_selector_status();
+  if (read_rax() != 4) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap selector mismatch\n");
+    return 1;
+  }
+  if (expect_monitor_packet_header("aarch64 illegal", &monitor_packet,
+        POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xffffffffULL, 4, 1) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_riscv_illegal_probe();
+  if (read_rax() != 6666) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap vector mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_reason_status();
+  if (read_rax() != POLY_TRAP_ILLEGAL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap reason mismatch\n");
+    return 1;
+  }
+  poly_trap_mode_status();
+  if (read_rax() != POLY_MODE_RAW_RISCV) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap mode mismatch\n");
+    return 1;
+  }
+  poly_trap_number_status();
+  if (read_rax() != 0xffffffffULL) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap number mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_selector_status();
+  if (read_rax() != 4) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap selector mismatch\n");
+    return 1;
+  }
+  if (expect_monitor_packet_header("riscv illegal", &monitor_packet,
+        POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4, 1) != 0)
+    return 1;
   poly_monitor_packet_set_value(0);
 
   stage("POLY_STAGE: counters");
