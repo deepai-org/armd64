@@ -84,16 +84,20 @@ static int expect_monitor_packet(const char *label,
       packet->args[0] != arg0 ||
       packet->args[6] != arg6 ||
       packet->args[7] != arg7 ||
+      packet->trap.reserved[0] != 0 ||
+      packet->trap.reserved[1] != 0 ||
       (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu flags=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu flags=0x%llx reserved0=0x%llx reserved1=0x%llx\n",
       label, packet->trap.reason, packet->trap.source_mode,
       (unsigned long long) packet->trap.number,
       (unsigned long long) packet->trap.selector,
       (unsigned long long) packet->args[0],
       (unsigned long long) packet->args[6],
       (unsigned long long) packet->args[7],
-      (unsigned long long) packet->trap.flags);
+      (unsigned long long) packet->trap.flags,
+      (unsigned long long) packet->trap.reserved[0],
+      (unsigned long long) packet->trap.reserved[1]);
     return 1;
   }
   return 0;
@@ -107,13 +111,17 @@ static int expect_monitor_packet_args(const char *label,
       packet->trap.source_mode != source_mode ||
       packet->trap.number != number ||
       packet->trap.selector != selector ||
+      packet->trap.reserved[0] != 0 ||
+      packet->trap.reserved[1] != 0 ||
       (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly monitor packet %s header mismatch reason=%u mode=%u number=%llu selector=%llu flags=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly monitor packet %s header mismatch reason=%u mode=%u number=%llu selector=%llu flags=0x%llx reserved0=0x%llx reserved1=0x%llx\n",
       label, packet->trap.reason, packet->trap.source_mode,
       (unsigned long long) packet->trap.number,
       (unsigned long long) packet->trap.selector,
-      (unsigned long long) packet->trap.flags);
+      (unsigned long long) packet->trap.flags,
+      (unsigned long long) packet->trap.reserved[0],
+      (unsigned long long) packet->trap.reserved[1]);
     return 1;
   }
   for (unsigned i = 0; i < POLY_TRAP_PACKET_ARG_COUNT; ++i) {
@@ -2496,7 +2504,7 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&monitor_packet, 0xa5, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd28003e0\n" // movz x0,#31
