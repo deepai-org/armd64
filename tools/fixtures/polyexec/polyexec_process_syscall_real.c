@@ -196,11 +196,14 @@ enum {
   POLY_SYS_MMAP = 222,
   POLY_SYS_FADVISE64 = 223,
   POLY_SYS_MPROTECT = 226,
+  POLY_SYS_MLOCK = 228,
+  POLY_SYS_MUNLOCK = 229,
   POLY_SYS_MADVISE = 233,
   POLY_SYS_PRLIMIT64 = 261,
   POLY_SYS_GETRANDOM = 278,
   POLY_SYS_MEMFD_CREATE = 279,
   POLY_SYS_MEMBARRIER = 283,
+  POLY_SYS_MLOCK2 = 284,
   POLY_SYS_STATX = 291,
   POLY_SYS_PIDFD_OPEN = 434,
   POLY_SYS_CLOSE_RANGE = 436,
@@ -2191,6 +2194,22 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   if (poly_syscall3(POLY_SYS_MADVISE, page, 4096, POLY_MADV_NORMAL) != 0) {
     poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
     return 360;
+  }
+  if (poly_syscall3(POLY_SYS_MLOCK2, page, 4096, 0) != 0) {
+    poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
+    return 361;
+  }
+  if (poly_syscall2(POLY_SYS_MUNLOCK, page, 4096) != 0) {
+    poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
+    return 362;
+  }
+  if (poly_syscall2(POLY_SYS_MLOCK, page, 4096) != 0) {
+    poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
+    return 363;
+  }
+  if (poly_syscall2(POLY_SYS_MUNLOCK, page, 4096) != 0) {
+    poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
+    return 364;
   }
   if (poly_syscall3(POLY_SYS_MPROTECT, page, 4096, POLY_PROT_READ) != 0) {
     poly_syscall2(POLY_SYS_MUNMAP, page, 4096);
