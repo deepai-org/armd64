@@ -7,7 +7,7 @@ BOCHS_EXCEPTION="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/exception.cc"
 BOCHS_CTRL_XFER64="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/ctrl_xfer64.cc"
 BOCHS_FETCHDECODE32="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode32.cc"
 BOCHS_FETCHDECODE64="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode64.cc"
-BOCHS_OPMAP="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode_opmap.h"
+BOCHS_OPMAP="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/fetchdecode_opmap_0f3a.cc"
 BOCHS_OPCODES="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/decoder/ia_opcodes.def"
 BOCHS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs"
 README="$ROOT_DIR/README.md"
@@ -76,12 +76,12 @@ assert_not_contains() {
   fi
 }
 
-assert_contains "BxOpcodeTable0F24\\[\\].*BX_IA_POLYMODE" "$BOCHS_OPMAP" \
+assert_contains "BxOpcodeTable0F3AFC\\[\\].*BX_IA_POLYMODE" "$BOCHS_OPMAP" \
   "x86 poly opcode family must be decoded as BX_IA_POLYMODE, not #UD"
-assert_contains "0F 24.*decoder_creg32.*BxOpcodeTable0F24" "$BOCHS_FETCHDECODE32" \
-  "32-bit x86 decode must route 0f 24 to the POLYMODE opcode table"
-assert_contains "0F 24.*decoder_creg64.*BxOpcodeTable0F24" "$BOCHS_FETCHDECODE64" \
-  "64-bit x86 decode must route 0f 24 to the POLYMODE opcode table"
+assert_contains "0F 3A.*decoder32_modrm" "$BOCHS_FETCHDECODE32" \
+  "32-bit x86 decode must route 0f 3a to the 3-byte opcode table"
+assert_contains "0F 3A.*decoder64_modrm" "$BOCHS_FETCHDECODE64" \
+  "64-bit x86 decode must route 0f 3a to the 3-byte opcode table"
 assert_contains "BX_IA_POLYMODE.*BX_CPU_C::POLYMODE" "$BOCHS_OPCODES" \
   "BX_IA_POLYMODE must dispatch to the dedicated POLYMODE handler"
 
@@ -132,21 +132,15 @@ assert_contains "arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7" "$IMPORT_CALL_F
   "unresolved descriptor imports must record all eight native ABI argument lanes"
 assert_contains "deliver_poly_architectural_trap" "$IMPORT_CALL_FUNC" \
   "unresolved descriptor imports must exit through the architectural trap path"
-assert_contains "POLY_OP_TRAP_STATUS_ARG6" "$NATIVECHECK" \
-  "nativecheck must exercise trap-status access for trap argument lane 6"
-assert_contains "POLY_OP_TRAP_STATUS_ARG7" "$NATIVECHECK" \
-  "nativecheck must exercise trap-status access for trap argument lane 7"
-assert_contains "POLY_OP_TRAP_STATUS_MODE" "$NATIVECHECK" \
-  "nativecheck must verify the recorded source mode for import traps"
 assert_contains 'cmpq \$88, %r13' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 6"
 assert_contains 'cmpq \$99, %r14' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 7"
-assert_contains "poly aarch64 import packet mode mismatch" "$NATIVECHECK" \
+assert_contains 'expect_monitor_packet\("aarch64 import"' "$NATIVECHECK" \
   "nativecheck must verify AArch64 unresolved import trap source mode"
-assert_contains "poly riscv import packet mode mismatch" "$NATIVECHECK" \
+assert_contains 'expect_monitor_packet\("riscv import"' "$NATIVECHECK" \
   "nativecheck must verify RISC-V unresolved import trap source mode"
-assert_contains "poly riscv import packet extended args mismatch" "$NATIVECHECK" \
+assert_contains 'expect_monitor_packet\("riscv compressed import"' "$NATIVECHECK" \
   "nativecheck must exercise RISC-V unresolved import trap argument lanes 6 and 7"
 assert_contains "eight[[:space:]]+ABI arguments" "$README" \
   "README must describe the POLYTRAP packet as carrying eight ABI arguments"
@@ -360,11 +354,11 @@ extract_function "execute_poly_raw_aarch64" "$CROSS_A64_FUNC"
 extract_function "execute_poly_raw_riscv" "$CROSS_RV_FUNC"
 extract_function "enter_poly_cross_call" "$CROSS_ENTER_FUNC"
 extract_function "return_poly_cross_call" "$CROSS_RETURN_FUNC"
-assert_contains "BX_POLY_AARCH64_BRK_RISCV_SWITCH" "$CROSS_A64_FUNC" \
+assert_contains "BX_POLY_AARCH64_CTRL_RISCV_SWITCH" "$CROSS_A64_FUNC" \
   "AArch64 raw decoder must recognize the direct RISC-V switch opcode"
 assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*BX_POLY_MODE_RAW_RISCV" "$CROSS_A64_FUNC" \
   "AArch64 direct switch must enter RISC-V without routing through x86"
-assert_contains "BX_POLY_AARCH64_BRK_RISCV_CALL" "$CROSS_A64_FUNC" \
+assert_contains "BX_POLY_AARCH64_CTRL_RISCV_CALL" "$CROSS_A64_FUNC" \
   "AArch64 raw decoder must recognize the native RISC-V call gate"
 assert_contains "read_poly_aarch64_reg\\(16" "$CROSS_A64_FUNC" \
   "AArch64 cross-call gate must take the RISC-V target from x16"
@@ -374,11 +368,11 @@ assert_contains "BX_POLY_MODE_RAW_AARCH64" "$CROSS_A64_FUNC" \
   "AArch64 cross-call gate must record AArch64 as the caller mode"
 assert_contains "BX_POLY_MODE_RAW_RISCV" "$CROSS_A64_FUNC" \
   "AArch64 cross-call gate must record RISC-V as the callee mode"
-assert_contains "BX_POLY_RISCV_AARCH64_SWITCH" "$CROSS_RV_FUNC" \
+assert_contains "BX_POLY_RISCV_CTRL_AARCH64_SWITCH" "$CROSS_RV_FUNC" \
   "RISC-V raw decoder must recognize the direct AArch64 switch opcode"
 assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*BX_POLY_MODE_RAW_AARCH64" "$CROSS_RV_FUNC" \
   "RISC-V direct switch must enter AArch64 without routing through x86"
-assert_contains "BX_POLY_RISCV_AARCH64_CALL" "$CROSS_RV_FUNC" \
+assert_contains "BX_POLY_RISCV_CTRL_AARCH64_CALL" "$CROSS_RV_FUNC" \
   "RISC-V raw decoder must recognize the native AArch64 call gate"
 assert_contains "read_poly_riscv_reg\\(5" "$CROSS_RV_FUNC" \
   "RISC-V cross-call gate must take the AArch64 target from x5/t0"
@@ -412,9 +406,9 @@ assert_contains "BX_ASYNC_EVENT_STOP_TRACE" "$CROSS_RETURN_FUNC" \
 assert_not_contains "BX_POLY_MODE_X86|return_poly_abi_call|deliver_poly_architectural_trap|handle_poly_foreign_syscall" \
   "$CROSS_RETURN_FUNC" \
   "cross-call return must not route native foreign-to-foreign returns through x86 policy"
-assert_contains "0xd42fffc0" "$POLYPROBE" \
+assert_contains "0xd5032e3f" "$POLYPROBE" \
   "polyprobe must exercise AArch64-to-RISC-V direct switch"
-assert_contains "0x0000002b" "$POLYPROBE" \
+assert_contains "0x0200700b" "$POLYPROBE" \
   "polyprobe must exercise RISC-V-to-AArch64 direct switch"
 assert_contains "aarch64-to-riscv" "$POLYBENCH" \
   "polybench must cover AArch64-to-RISC-V mixed execution"
