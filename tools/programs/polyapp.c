@@ -135,6 +135,26 @@ static int polyapp_is_raw_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
 }
 
+static int polyapp_monitor_packet_valid(
+    const struct polyapp_monitor_packet *packet) {
+  if (packet->trap.resume_pc == 0 ||
+      packet->trap.reserved[0] != 0 ||
+      packet->trap.reserved[1] != 0 ||
+      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
+        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
+    fprintf(stderr,
+      "POLYAPP_FAIL: monitor packet invalid reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx\n",
+      packet->trap.reason, packet->trap.source_mode,
+      (unsigned long long) packet->trap.number,
+      (unsigned long long) packet->trap.selector,
+      (unsigned long long) packet->trap.trap_pc,
+      (unsigned long long) packet->trap.resume_pc,
+      (unsigned long long) packet->trap.flags);
+    return 0;
+  }
+  return 1;
+}
+
 static uint64_t polyapp_unknown_syscall(uint64_t mode, uint64_t number) {
   return 0x53000000ULL | (number << 8) | mode;
 }
@@ -393,6 +413,8 @@ uint64_t polyapp_trap_vector_dispatch(void) {
   const uint64_t arg5 = packet.args[5];
 
   if (!polyapp_is_raw_mode(mode))
+    return (uint64_t) -38;
+  if (!polyapp_monitor_packet_valid(&packet))
     return (uint64_t) -38;
 
   if (reason == POLY_TRAP_BREAK) {
