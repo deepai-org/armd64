@@ -1504,6 +1504,42 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_legacy_aarch64_mode_envelope_signal(void) {
+  asm volatile(
+    ".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34\n"
+    ::: "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_legacy_riscv_mode_envelope_signal(void) {
+  asm volatile(
+    ".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56\n"
+    ::: "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_legacy_aarch64_instruction_envelope_signal(void) {
+  asm volatile(
+    ".byte 0x67,0x0f,0x0b\n"
+    ".long 0xd65f03c0\n"
+    ".byte 0x00\n"
+    ::: "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_legacy_riscv_instruction_envelope_signal(void) {
+  asm volatile(
+    ".byte 0x26,0x0f,0x0b\n"
+    ".long 0x00008067\n"
+    ".byte 0x00\n"
+    ::: "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_malformed_import_return_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -2235,6 +2271,24 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
     return 1;
 
   puts("NATIVE_POLY_INVALID_GENERIC_CONTROLS_OK");
+  return 0;
+}
+
+static int run_poly_legacy_envelope_rejection_probe(void) {
+  if (expect_child_signal("poly legacy aarch64 mode envelope", SIGILL,
+        child_expect_legacy_aarch64_mode_envelope_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly legacy riscv mode envelope", SIGILL,
+        child_expect_legacy_riscv_mode_envelope_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly legacy aarch64 instruction envelope", SIGILL,
+        child_expect_legacy_aarch64_instruction_envelope_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly legacy riscv instruction envelope", SIGILL,
+        child_expect_legacy_riscv_instruction_envelope_signal) != 0)
+    return 1;
+
+  puts("NATIVE_POLY_LEGACY_ENVELOPES_REJECTED_OK");
   return 0;
 }
 
@@ -7353,6 +7407,8 @@ int main(void) {
     if (run_poly_no_vector_signal_probe() != 0)
       return 1;
     if (run_poly_invalid_generic_control_signal_probe() != 0)
+      return 1;
+    if (run_poly_legacy_envelope_rejection_probe() != 0)
       return 1;
     if (run_poly_invalid_pcall_no_mutation_probe() != 0)
       return 1;
