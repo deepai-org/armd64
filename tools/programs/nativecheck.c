@@ -5952,7 +5952,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = poly_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 + 1);
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6066,7 +6066,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_aarch64_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 + 1);
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6109,7 +6109,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_riscv_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32 + 1);
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6826,6 +6826,23 @@ int main(void) {
         state_key_manifest.ecx, state_key_manifest.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_compact_signature_manifest =
+      poly_cpuid_expected_escape_leaf20();
+    struct poly_cpuid_regs compact_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 20);
+    if (compact_signature_manifest.eax !=
+          expected_compact_signature_manifest.eax ||
+        compact_signature_manifest.ebx !=
+          expected_compact_signature_manifest.ebx ||
+        compact_signature_manifest.ecx !=
+          expected_compact_signature_manifest.ecx ||
+        compact_signature_manifest.edx !=
+          expected_compact_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID compact ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        compact_signature_manifest.eax, compact_signature_manifest.ebx,
+        compact_signature_manifest.ecx, compact_signature_manifest.edx);
+      return 1;
+    }
     if (check_poly_abi_signature_slot_default(
           pcall_imm_manifest.ecx & 0xffU,
           pcall_imm_manifest.edx & 0xffU, "exchange") != 0 ||
@@ -6844,7 +6861,13 @@ int main(void) {
           "native-regs-i128") != 0 ||
         check_poly_abi_signature_slot_default(
           signature_manifest2.ecx, signature_manifest2.edx,
-          "native-regs-vec128-u32") != 0)
+          "native-regs-vec128-u32") != 0 ||
+        check_poly_abi_signature_slot_default(
+          compact_signature_manifest.eax, compact_signature_manifest.ebx,
+          "native-regs-compact-u32-f32") != 0 ||
+        check_poly_abi_signature_slot_default(
+          compact_signature_manifest.ecx, compact_signature_manifest.edx,
+          "native-regs-compact-f32-u32") != 0)
       return 1;
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
