@@ -1,10 +1,9 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system ISA.
-The goal is to link and run existing precompiled objects from all three ISAs in
-one process while keeping OS, libc, loader, and ABI policy in software.
+Poly is a Bochs prototype for running precompiled x86_64, AArch64, and
+RISC-V64 userspace code in one x86_64 virtual address space.
 
-## Run
+## Test
 
 ```bash
 make image
@@ -12,48 +11,41 @@ make boot-poly-full-arch-traps
 rg -a 'BOOT_OK|POLY.*OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Use `make boot-poly-binfmt-arch-traps` for the binfmt-style loader path and
-`make boot-poly-full-real-xsave-arch-traps` when validating OS XSAVE state.
+Useful variants:
 
-## x86_64 Differences
+- `make boot-poly-binfmt-arch-traps`: loader/binfmt path.
+- `make boot-poly-full-real-xsave-arch-traps`: OS XSAVE/XRSTOR path.
 
-- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64 owns boot, paging, privilege, interrupts, faults, atomics, VM control,
-  and TSO memory ordering.
-- Foreign frontends fetch native instructions from the same linear address
-  space; alignment is 4 bytes for AArch64 and 2 bytes for RISC-V64 with RVC.
-  The shared frontend PC is `RIP`.
-- Transitions are decoded control instructions, not `#UD` envelopes.
-- Register-only cross-ISA calls use cached ABI signature slots so hardware can
-  remap argument registers in rename/dispatch without moving data.
-- Stack arguments, aggregates, variadics, syscalls, libcalls, lazy binding, and
-  incompatible vector layouts are software thunk/runtime work.
-- Cross-ISA returns use native return instructions plus a hardware transition
-  stack and return cookie. Same-ISA returns stay ordinary returns.
+## Contract
 
-## Encodings
+- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- x86_64 remains the system ISA for boot, privilege, paging, faults,
+  interrupts, VM control, atomics, and TSO memory ordering.
+- AArch64 and RISC-V64 are user-mode frontends that fetch native instructions
+  from the same linear address space. AArch64 fetch is 4-byte aligned; RISC-V64
+  fetch is 2-byte aligned so RVC is legal.
+- Fast transitions are decoded control instructions, not `#UD` envelopes.
+- Register-only cross-ISA calls use cached ABI signature slots. Complex ABI
+  cases stay in loader/runtime thunks.
+- Cross-ISA returns use native return instructions, a transition stack, and a
+  return cookie. Same-ISA returns are unchanged.
+- Foreign traps produce OS-neutral trap packets; syscall/libcall policy belongs
+  to userspace runtime or OS code, not the frontend switch instruction.
 
-| Frontend | Encoding |
+## Temporary Encodings
+
+| Frontend | Poly control encoding |
 | --- | --- |
 | x86_64 | `0f 3a fc <subop>` |
 | AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
-Subops cover frontend switch/call, ABI-signature call, landing pad, trap return,
-and ABI signature set/get. Numeric assignments live in
-`tools/include/polycpuid.h`.
+Subops cover frontend switch/call, ABI-signature calls, landing pads, trap
+return, and ABI signature set/get. Numeric assignments live in
+[polycpuid.h](../tools/include/polycpuid.h).
 
-## State And Traps
+## References
 
-- Poly register state is XSAVE-style architectural state. Current explicit
-  state import layout version: `9`.
-- Foreign traps produce OS-neutral packets with PC, frontend, trap cause, and
-  the first eight native ABI argument registers.
-- The OS saves/restores architectural state. Userspace runtime/monitor code owns
-  syscall translation, libcalls, lazy binding, and ABI compatibility policy.
-
-## Details
-
-- Design rationale: `docs/poly-isa-design-directions.md`
-- Public constants: `tools/include/polycpuid.h`
-- Bochs prototype: `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`
+- Design rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md)
+- Public constants: [polycpuid.h](../tools/include/polycpuid.h)
+- Bochs prototype: [proc_ctrl.cc](../bochs-prepoly-src/bochs/cpu/proc_ctrl.cc)
