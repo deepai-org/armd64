@@ -145,6 +145,7 @@ enum {
   POLY_SYS_CLOCK_NANOSLEEP = 115,
   POLY_SYS_SCHED_GETSCHEDULER = 120,
   POLY_SYS_SCHED_GETPARAM = 121,
+  POLY_SYS_SCHED_SETAFFINITY = 122,
   POLY_SYS_SCHED_GETAFFINITY = 123,
   POLY_SYS_SCHED_YIELD = 124,
   POLY_SYS_SCHED_GET_PRIORITY_MAX = 125,
@@ -831,6 +832,9 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 77;
   if (!poly_any_byte_set(affinity, affinity_len))
     return 78;
+  if (poly_syscall3(POLY_SYS_SCHED_SETAFFINITY, 0, affinity_len,
+        (long) affinity) != 0)
+    return 368;
 
   char exe_path[128];
   long exe_len = poly_syscall4(POLY_SYS_READLINKAT, POLY_AT_FDCWD,
