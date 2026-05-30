@@ -476,6 +476,22 @@ poly_abi_signature_get(uint64_t slot) {
   return rax;
 }
 
+static __attribute__((noinline)) void
+nativecheck_invalid_pcall_sig_imm_slot8(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "movq %0, %%r15\n"
+    POLY_OP_PCALL_SIG_IMM_MODE_SLOT8
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
 static int check_poly_abi_signature_slot_default(uint32_t slot, uint32_t kind,
     const char *name) {
   uint64_t actual = poly_abi_signature_get(slot);
@@ -3644,6 +3660,100 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
   return 0;
 }
 
+static int run_poly_invalid_pcall_no_mutation_probe(void) {
+  struct nativecheck_monitor_packet monitor_packet;
+  struct poly_xsave_state before __attribute__((aligned(64)));
+  struct poly_xsave_state after __attribute__((aligned(64)));
+  struct sigaction action;
+  struct sigaction old_action;
+  const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&before, 0, sizeof(before));
+  memset(&after, 0, sizeof(after));
+
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_CALL) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly invalid pcall mutation setup failed\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value(trap_vector);
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  poly_state_export(&before);
+
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = nativecheck_sigill_handler;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(SIGILL, &action, &old_action) != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly invalid pcall sigaction failed\n");
+    return 1;
+  }
+
+  nativecheck_expect_sigill = 1;
+  if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
+    nativecheck_invalid_pcall_sig_imm_slot8();
+    nativecheck_expect_sigill = 0;
+    sigaction(SIGILL, &old_action, 0);
+    fputs("NATIVE_CHECK_FAIL: poly invalid pcall returned without SIGILL\n",
+      stderr);
+    return 1;
+  }
+  nativecheck_expect_sigill = 0;
+  if (sigaction(SIGILL, &old_action, 0) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid pcall sigaction restore failed\n");
+    return 1;
+  }
+
+  poly_state_export(&after);
+  if (after.header.current_mode != before.header.current_mode ||
+      after.header.flags != before.header.flags ||
+      after.header.trap_vector_pc != before.header.trap_vector_pc ||
+      after.header.trap_vector_mode != before.header.trap_vector_mode ||
+      after.header.monitor_packet_addr != before.header.monitor_packet_addr ||
+      memcmp(&after.trap, &before.trap, sizeof(after.trap)) != 0 ||
+      memcmp(after.trap_args, before.trap_args,
+        sizeof(after.trap_args)) != 0 ||
+      memcmp(&after.transition, &before.transition,
+        sizeof(after.transition)) != 0 ||
+      memcmp(&after.import_return, &before.import_return,
+        sizeof(after.import_return)) != 0 ||
+      memcmp(&after.abi_signature, &before.abi_signature,
+        sizeof(after.abi_signature)) != 0 ||
+      memcmp(&after.cross_return, &before.cross_return,
+        sizeof(after.cross_return)) != 0 ||
+      memcmp(&after.frontend_tls, &before.frontend_tls,
+        sizeof(after.frontend_tls)) != 0 ||
+      memcmp(&after.landing_policy, &before.landing_policy,
+        sizeof(after.landing_policy)) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid pcall mutated XSAVE state mode=%u/%u import=%llu/%llu cross=%llu/%llu slot5=%u/%u landing=0x%llx/0x%llx\n",
+      after.header.current_mode, before.header.current_mode,
+      (unsigned long long) after.import_return.top,
+      (unsigned long long) before.import_return.top,
+      (unsigned long long) after.cross_return.top,
+      (unsigned long long) before.cross_return.top,
+      after.abi_signature.slots[5].kind,
+      before.abi_signature.slots[5].kind,
+      (unsigned long long) after.landing_policy.flags,
+      (unsigned long long) before.landing_policy.flags);
+    poly_monitor_packet_set_value(0);
+    poly_trap_vector_clear();
+    poly_landing_policy_set(0);
+    poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE);
+    return 1;
+  }
+
+  poly_monitor_packet_set_value(0);
+  poly_trap_vector_clear();
+  poly_landing_policy_set(0);
+  poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE);
+  puts("NATIVE_POLY_INVALID_PCALL_NO_MUTATION_OK");
+  return 0;
+}
+
 static int run_poly_cross_return_xsave_roundtrip_probe(void) {
   struct poly_xsave_state clean __attribute__((aligned(64)));
   struct poly_xsave_state cross __attribute__((aligned(64)));
@@ -6767,6 +6877,8 @@ int main(void) {
     if (run_poly_no_vector_signal_probe() != 0)
       return 1;
     if (run_poly_invalid_generic_control_signal_probe() != 0)
+      return 1;
+    if (run_poly_invalid_pcall_no_mutation_probe() != 0)
       return 1;
     if (run_poly_landing_policy_probe() != 0)
       return 1;
