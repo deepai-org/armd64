@@ -71,10 +71,11 @@ Other useful targets:
 - Cross-ISA calls bridge real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
   psABI. This is compatibility glue, not a new `PolyFast` ABI.
 - Fast calls can use neutral native-register ABI signature slots and integer/FP
-  exchange windows. Fixed 128-bit vector calls can also stay on the direct path
-  when both ABIs use SIMD/vector registers. Signature slots expose fixed
-  register-map IDs for hardware rename/RAT implementations. Stack, aggregate,
-  variadic, ABI reshaping, and loader policy stays in software.
+  exchange windows. Fixed 128-bit vector calls and compact scalar aggregates can
+  also stay on the direct path when they map to register-only signatures.
+  Signature slots expose fixed register-map IDs for hardware rename/RAT
+  implementations. Stack arguments, large or memory-shaped aggregates,
+  variadics, ABI reshaping, and loader policy stay in software.
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
   descriptor parsing.
