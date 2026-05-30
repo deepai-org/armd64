@@ -2,7 +2,8 @@
 
 enum {
   POLY_SYS_WRITE = 64,
-  POLY_SYS_EXIT = 93
+  POLY_SYS_EXIT = 93,
+  POLY_SYS_EXIT_GROUP = 94
 };
 
 static long poly_syscall3(long number, long arg0, long arg1, long arg2) {
@@ -357,13 +358,22 @@ void poly_process_dt_init_root(void) {
 }
 #endif
 
-#if defined(POLY_PROCESS_FINI_MAIN)
+#if defined(POLY_PROCESS_FINI_MAIN) || \
+    defined(POLY_PROCESS_FINI_EXIT_GROUP_MAIN)
 static void poly_process_fini_dtor(void) __attribute__((destructor));
 static void poly_process_fini_dtor(void) {
 #if defined(__aarch64__)
+#if defined(POLY_PROCESS_FINI_EXIT_GROUP_MAIN)
+  static const char marker[] = "POLY_PROCESS_AARCH64_FINI_EXIT_GROUP_OK\n";
+#else
   static const char marker[] = "POLY_PROCESS_AARCH64_FINI_ARRAY_OK\n";
+#endif
 #elif defined(__riscv)
+#if defined(POLY_PROCESS_FINI_EXIT_GROUP_MAIN)
+  static const char marker[] = "POLY_PROCESS_RISCV_FINI_EXIT_GROUP_OK\n";
+#else
   static const char marker[] = "POLY_PROCESS_RISCV_FINI_ARRAY_OK\n";
+#endif
 #endif
   (void) poly_syscall3(POLY_SYS_WRITE, 1, (long) marker,
     sizeof(marker) - 1);
@@ -464,6 +474,8 @@ uint64_t poly_process_main(void) {
   static const char marker[] = "POLY_PROCESS_DEP_DT_FINI_MAIN_OK\n";
 #elif defined(POLY_PROCESS_FINI_MAIN)
   static const char marker[] = "POLY_PROCESS_FINI_MAIN_OK\n";
+#elif defined(POLY_PROCESS_FINI_EXIT_GROUP_MAIN)
+  static const char marker[] = "POLY_PROCESS_FINI_EXIT_GROUP_MAIN_OK\n";
 #elif defined(POLY_PROCESS_FINI_ORDER_MAIN)
   static const char marker[] = "POLY_PROCESS_FINI_ORDER_MAIN_OK\n";
 #elif defined(POLY_PROCESS_DT_FINI_MAIN)
@@ -553,7 +565,11 @@ __asm__(
   ".type _start, %function\n"
   "_start:\n"
   "bl poly_process_main\n"
+#if defined(POLY_PROCESS_FINI_EXIT_GROUP_MAIN)
+  "mov x8, #94\n"
+#else
   "mov x8, #93\n"
+#endif
   "svc #0\n");
 #elif defined(__riscv)
 __asm__(
@@ -561,7 +577,11 @@ __asm__(
   ".type _start, @function\n"
   "_start:\n"
   "call poly_process_main\n"
+#if defined(POLY_PROCESS_FINI_EXIT_GROUP_MAIN)
+  "li a7, 94\n"
+#else
   "li a7, 93\n"
+#endif
   "ecall\n");
 #else
 #error unsupported architecture
