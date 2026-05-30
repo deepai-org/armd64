@@ -267,6 +267,8 @@ struct poly_cross_stub_arena {
 };
 
 static struct poly_cross_stub_arena process_cross_stubs;
+static size_t process_cross_state_key_stub_count;
+static int process_cross_state_key_stub_reported;
 
 struct poly_request {
   char path[160];
@@ -3290,30 +3292,42 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   uint8_t *code = process_cross_stubs.mapping;
   const size_t start = process_cross_stubs.offset;
   const uint64_t start_addr = (uint64_t) (uintptr_t) (code + start);
+  const uint64_t state_key =
+    (uint64_t) (uintptr_t) &poly_state_key_anchor;
 
   if (caller_arch == POLY_ARCH_AARCH64) {
-    if (process_cross_stubs.size - start < 80)
+    if (process_cross_stubs.size - start < 128)
       return -1;
     size_t offset = start;
-    const uint64_t return_addr = start_addr + 56;
-    emit_u32(code, &offset, 0xd10043ffU); // sub sp, sp, #16
-    emit_u32(code, &offset, 0xf9400bf2U); // ldr x18, [sp, #16]
+    const uint64_t return_addr = start_addr + 84;
+    emit_u32(code, &offset, 0xd10083ffU); // sub sp, sp, #32
+    emit_u32(code, &offset, 0xf94013f2U); // ldr x18, [sp, #32]
     emit_u32(code, &offset, 0xf90003f2U); // str x18, [sp]
     emit_u32(code, &offset, 0xf90007feU); // str x30, [sp, #8]
+    emit_u32(code, &offset, 0xf9000be0U); // str x0, [sp, #16]
+    emit_aarch64_movabs(code, &offset, 0, state_key);
+    emit_u32(code, &offset, POLY_AARCH64_CTRL_STATE_KEY_SET);
+    emit_u32(code, &offset, 0xf9400be0U); // ldr x0, [sp, #16]
     emit_aarch64_movabs(code, &offset, 16, target);
     emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
     emit_aarch64_movabs(code, &offset, 18, return_addr);
     emit_u32(code, &offset,
       aarch64_pcall_sig_imm(process_native_signature_slot));
     emit_u32(code, &offset, 0xf94007feU); // ldr x30, [sp, #8]
-    emit_u32(code, &offset, 0x910043ffU); // add sp, sp, #16
+    emit_u32(code, &offset, 0x910083ffU); // add sp, sp, #32
     emit_u32(code, &offset, 0xd65f03c0U); // ret
     process_cross_stubs.offset = offset;
+    process_cross_state_key_stub_count++;
+    if (!process_cross_state_key_stub_reported) {
+      printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
+      fflush(NULL);
+      process_cross_state_key_stub_reported = 1;
+    }
     *stub_addr = start_addr;
     return 0;
   }
 
-  if (process_cross_stubs.size - start < 80)
+  if (process_cross_stubs.size - start < 128)
     return -1;
   size_t offset = start;
   const size_t auipc_target_pc = offset;
@@ -3325,27 +3339,45 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0xff010113U); // addi sp,sp,-16
-  emit_u32(code, &offset, riscv_ld(29, 2, 16)); // ld t4,16(sp)
+  emit_u32(code, &offset, 0xfe010113U); // addi sp,sp,-32
+  emit_u32(code, &offset, riscv_ld(29, 2, 32)); // ld t4,32(sp)
   emit_u32(code, &offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
   emit_u32(code, &offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
+  emit_u32(code, &offset, riscv_sd(10, 2, 16)); // sd a0,16(sp)
+  const size_t auipc_state_key_pc = offset;
+  emit_u32(code, &offset, 0x00000517U); // auipc a0,0
+  const size_t ld_state_key_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
+  emit_u32(code, &offset, riscv_ld(10, 2, 16)); // ld a0,16(sp)
   emit_u32(code, &offset, riscv_pcall_sig_imm(process_native_signature_slot));
   const size_t return_pc = offset;
   emit_u32(code, &offset, 0x00813083U); // ld ra,8(sp)
-  emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
+  emit_u32(code, &offset, 0x02010113U); // addi sp,sp,32
   emit_u32(code, &offset, 0x00008067U); // ret
   if (align_up_size(offset, 8, &offset) < 0 ||
-      process_cross_stubs.size - offset < 16)
+      process_cross_stubs.size - offset < 24)
     return -1;
   const size_t target_data_offset = offset;
   emit_u64(code, &offset, target);
   const size_t return_data_offset = offset;
   emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + return_pc));
+  const size_t state_key_data_offset = offset;
+  emit_u64(code, &offset, state_key);
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int16_t) ((int64_t) target_data_offset - (int64_t) auipc_target_pc)));
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int16_t) ((int64_t) return_data_offset - (int64_t) auipc_return_pc)));
+  store_u32(code, ld_state_key_offset, riscv_ld(10, 10,
+    (int16_t) ((int64_t) state_key_data_offset -
+      (int64_t) auipc_state_key_pc)));
   process_cross_stubs.offset = offset;
+  process_cross_state_key_stub_count++;
+  if (!process_cross_state_key_stub_reported) {
+    printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
+    fflush(NULL);
+    process_cross_state_key_stub_reported = 1;
+  }
   *stub_addr = start_addr;
   return 0;
 }
