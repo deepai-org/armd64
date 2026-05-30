@@ -51,6 +51,8 @@ struct polyprobe_monitor_packet {
   uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
 };
 
+static const struct polyprobe_monitor_packet *polyprobe_current_monitor_packet;
+
 static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
 static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x30" ::: "memory"); }
 static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x31" ::: "memory"); }
@@ -265,16 +267,19 @@ static int expect_monitor_packet_header(const char *label,
 }
 
 __attribute__((noinline, used))
-uint64_t polyprobe_trap_vector_dispatch(uint64_t reason, uint64_t mode,
-    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
-    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
-  (void) pc;
-  (void) arg1;
-  (void) arg2;
-  (void) arg3;
-  (void) arg4;
-  (void) arg5;
+uint64_t polyprobe_trap_vector_dispatch(void) {
+  const struct polyprobe_monitor_packet *monitor_packet =
+    polyprobe_current_monitor_packet;
+  if (monitor_packet == 0)
+    return (uint64_t) -38;
+  const struct polyprobe_monitor_packet packet = *monitor_packet;
+  const uint64_t reason = packet.trap.reason;
+  const uint64_t mode = packet.trap.source_mode;
+  const uint64_t number = packet.trap.number;
+  const uint64_t selector = packet.trap.selector;
+  const uint64_t arg0 = packet.args[0];
+  const uint64_t arg6 = packet.args[6];
+  const uint64_t arg7 = packet.args[7];
 
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -38;
@@ -311,20 +316,7 @@ static void polyprobe_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
-    "pushq %r14\n"
-    "pushq %r13\n"
-    "pushq %r12\n"
-    "pushq %r11\n"
-    "pushq %r10\n"
-    "pushq %r9\n"
-    "pushq %r8\n"
-    "movq %rdi, %r9\n"
-    "movq %rsi, %r8\n"
-    "movq %rcx, %r10\n"
-    "movq %rdx, %rcx\n"
-    "movq %r10, %rdx\n"
-    "movq %rbx, %rsi\n"
-    "movq %rax, %rdi\n"
+    "subq $56, %rsp\n"
     "call polyprobe_trap_vector_dispatch\n"
     "addq $56, %rsp\n"
     "popq %rbp\n"
@@ -2831,6 +2823,7 @@ int main(void) {
   volatile uint64_t break_arg = (uint64_t) (uintptr_t) break_string;
   struct polyprobe_monitor_packet monitor_packet __attribute__((aligned(64)));
   memset(&monitor_packet, 0, sizeof(monitor_packet));
+  polyprobe_current_monitor_packet = &monitor_packet;
   poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   raw_aarch64_break_probe(break_arg);
   if (read_rax() != (0x4c000001ULL | ((uint64_t) POLY_MODE_RAW_AARCH64 << 8))) {
@@ -3140,6 +3133,7 @@ int main(void) {
     return 1;
   puts("POLY_PROBE_MONITOR_PACKETS_OK");
   poly_monitor_packet_set_value(0);
+  polyprobe_current_monitor_packet = 0;
 
   stage("POLY_STAGE: counters");
   poly_foreign_insn_count_status();
