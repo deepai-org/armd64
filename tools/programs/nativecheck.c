@@ -5417,7 +5417,7 @@ int main(void) {
         import_manifest.ebx != expected_import_manifest.ebx ||
         import_manifest.ecx != expected_import_manifest.ecx ||
         import_manifest.edx != expected_import_manifest.edx) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID import manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID reserved import leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         import_manifest.eax, import_manifest.ebx, import_manifest.ecx,
         import_manifest.edx);
       return 1;

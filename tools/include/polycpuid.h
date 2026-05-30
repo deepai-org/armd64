@@ -810,10 +810,10 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf1(void) {
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf2(void) {
   struct poly_cpuid_regs regs;
-  regs.eax = POLY_IMPORT_FUNC_X86_SLOT0;
-  regs.ebx = POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1;
+  regs.eax = 0;
+  regs.ebx = 0;
   regs.ecx = 0;
-  regs.edx = POLY_IMPORT_CALL_STRIDE;
+  regs.edx = 0;
   return regs;
 }
 
@@ -839,10 +839,10 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf4(void) {
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf5(void) {
   struct poly_cpuid_regs regs;
-  regs.eax = POLY_IMPORT_FUNC_COUNT;
-  regs.ebx = (uint32_t) POLY_IMPORT_CALL_BASE;
-  regs.ecx = (uint32_t) (POLY_IMPORT_CALL_BASE >> 32);
-  regs.edx = POLY_IMPORT_CALL_STRIDE;
+  regs.eax = 0;
+  regs.ebx = 0;
+  regs.ecx = 0;
+  regs.edx = 0;
   return regs;
 }
 

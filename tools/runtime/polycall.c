@@ -877,33 +877,17 @@ static int read_poly_abi_bridge_contract(struct poly_import_contract *contract) 
 }
 
 static int read_poly_import_contract(struct poly_import_contract *contract) {
-  const struct poly_cpuid_regs descriptor =
-    read_cpuid(POLY_CPUID_BASE + 2, 2);
-  const struct poly_cpuid_regs manifest =
-    read_cpuid(POLY_CPUID_BASE + 2, 5);
-  const uint64_t call_base =
-    ((uint64_t) manifest.ecx << 32) | manifest.ebx;
-
-  if (descriptor.eax != POLY_IMPORT_FUNC_X86_SLOT0 ||
-      descriptor.ebx !=
-        POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1 ||
-      descriptor.ecx != 0 ||
-      descriptor.edx != POLY_IMPORT_CALL_STRIDE ||
-      manifest.eax != POLY_IMPORT_FUNC_COUNT ||
-      call_base != POLY_IMPORT_CALL_BASE ||
-      manifest.edx != POLY_IMPORT_CALL_STRIDE) {
-    fprintf(stderr,
-      "POLYCALL_FAIL: CPU import ABI mismatch desc=(%u,%u,%u,%u) manifest=(%u,0x%016llx,%u)\n",
-      descriptor.eax, descriptor.ebx, descriptor.ecx, descriptor.edx,
-      manifest.eax, (unsigned long long) call_base, manifest.edx);
-      return -1;
-  }
-
-  contract->call_base = call_base;
-  contract->call_stride = manifest.edx;
-  contract->import_count = manifest.eax;
-  contract->x86_slot0 = descriptor.eax;
-  contract->x86_slot_count = descriptor.ebx;
+  /*
+   * Import-call slots are a prototype runtime convention, not architectural
+   * CPUID. The CPU only exposes register-only ABI switching; memory-side import
+   * binding stays in this loader-generated thunk layer.
+   */
+  contract->call_base = POLY_IMPORT_CALL_BASE;
+  contract->call_stride = POLY_IMPORT_CALL_STRIDE;
+  contract->import_count = POLY_IMPORT_FUNC_COUNT;
+  contract->x86_slot0 = POLY_IMPORT_FUNC_X86_SLOT0;
+  contract->x86_slot_count = POLY_IMPORT_FUNC_X86_SLOT7 -
+    POLY_IMPORT_FUNC_X86_SLOT0 + 1;
   contract->x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE;
   return 0;
 }
