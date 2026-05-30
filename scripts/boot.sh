@@ -421,7 +421,8 @@ build_poly_exec() {
 
 build_poly_call() {
   if [[ -x "$POLY_CALL_BIN" && "$POLY_CALL_BIN" -nt "$POLY_CALL_SRC" &&
-      "$POLY_CALL_BIN" -nt "$POLY_CALL_X86_HELPERS_SRC" ]]; then
+      "$POLY_CALL_BIN" -nt "$POLY_CALL_X86_HELPERS_SRC" &&
+      "$POLY_CALL_BIN" -nt "$POLY_CPUID_HEADER" ]]; then
     return
   fi
 
