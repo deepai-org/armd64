@@ -63,6 +63,19 @@ static int nativecheck_require_real_xsave(void) {
   return value != NULL && strcmp(value, "0") != 0 && value[0] != '\0';
 }
 
+static int nativecheck_cpuid_expect(const char *label, uint32_t leaf,
+    uint32_t subleaf, struct poly_cpuid_regs expected) {
+  struct poly_cpuid_regs got = poly_read_cpuid(leaf, subleaf);
+  if (got.eax != expected.eax || got.ebx != expected.ebx ||
+      got.ecx != expected.ecx || got.edx != expected.edx) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: %s mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      label, got.eax, got.ebx, got.ecx, got.edx);
+    return 1;
+  }
+  return 0;
+}
+
 static void poly_unexpected_trap_vector_exit_handler(void);
 
 struct nativecheck_monitor_packet {
@@ -7337,6 +7350,46 @@ int main(void) {
         arch_state.eax, arch_state.ebx, arch_state.ecx, arch_state.edx);
       return 1;
     }
+    if (nativecheck_cpuid_expect("poly CPUID arch state header layout",
+          POLY_CPUID_BASE + 4, 1,
+          poly_cpuid_expected_arch_state_header_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID arch state trap layout",
+          POLY_CPUID_BASE + 4, 2,
+          poly_cpuid_expected_arch_state_trap_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID AArch64 GPR layout",
+          POLY_CPUID_BASE + 4, 3,
+          poly_cpuid_expected_arch_state_aarch64_gpr_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID AArch64 FP layout",
+          POLY_CPUID_BASE + 4, 4,
+          poly_cpuid_expected_arch_state_aarch64_fp_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID AArch64 status layout",
+          POLY_CPUID_BASE + 4, 5,
+          poly_cpuid_expected_arch_state_aarch64_status_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID RISC-V GPR layout",
+          POLY_CPUID_BASE + 4, 6,
+          poly_cpuid_expected_arch_state_riscv_gpr_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID RISC-V FP layout",
+          POLY_CPUID_BASE + 4, 7,
+          poly_cpuid_expected_arch_state_riscv_fp_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID RISC-V status layout",
+          POLY_CPUID_BASE + 4, 8,
+          poly_cpuid_expected_arch_state_riscv_status_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID ABI signature layout",
+          POLY_CPUID_BASE + 4, 9,
+          poly_cpuid_expected_arch_state_abi_signature_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID frontend TLS layout",
+          POLY_CPUID_BASE + 4, 10,
+          poly_cpuid_expected_arch_state_frontend_tls_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID landing policy layout",
+          POLY_CPUID_BASE + 4, 11,
+          poly_cpuid_expected_arch_state_landing_policy_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID state-key layout",
+          POLY_CPUID_BASE + 4, 12,
+          poly_cpuid_expected_arch_state_state_key_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID reserved layout",
+          POLY_CPUID_BASE + 4, 13,
+          poly_cpuid_expected_arch_state_reserved_leaf()) != 0)
+      return 1;
     struct poly_cpuid_regs xsave0 = poly_read_cpuid(0x0d, 0);
     if ((xsave0.eax & (1U << POLY_STATE_XSAVE_COMPONENT_ARCH)) == 0) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: CPUID.0xD missing poly xstate bit eax=0x%x\n",

@@ -1089,6 +1089,136 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
   return regs;
 }
 
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_header_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_HEADER_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_HEADER_BYTES;
+  regs.ecx = POLY_STATE_XSAVE_MAGIC;
+  regs.edx = POLY_STATE_XSAVE_LAYOUT_VERSION;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_trap_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_TRAP_PACKET_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_TRAP_PACKET_BYTES;
+  regs.ecx = POLY_STATE_XSAVE_TRAP_ARGS_OFFSET;
+  regs.edx = POLY_STATE_XSAVE_TRAP_ARGS_BYTES;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_aarch64_gpr_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_AARCH64_GPR_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_AARCH64_GPR_BYTES;
+  regs.ecx = 32;
+  regs.edx = (uint32_t) sizeof(uint64_t);
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_aarch64_fp_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_AARCH64_FP_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_AARCH64_FP_BYTES;
+  regs.ecx = 32;
+  regs.edx = (uint32_t) sizeof(struct poly_u128);
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_aarch64_status_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_AARCH64_STATUS_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_AARCH64_STATUS_BYTES;
+  regs.ecx = (uint32_t) sizeof(struct poly_aarch64_status_state);
+  regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_riscv_gpr_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_RISCV_GPR_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_RISCV_GPR_BYTES;
+  regs.ecx = 32;
+  regs.edx = (uint32_t) sizeof(uint64_t);
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_riscv_fp_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_RISCV_FP_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_RISCV_FP_BYTES;
+  regs.ecx = 32;
+  regs.edx = (uint32_t) sizeof(struct poly_u128);
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_riscv_status_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_RISCV_STATUS_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_RISCV_STATUS_BYTES;
+  regs.ecx = (uint32_t) sizeof(struct poly_riscv_status_state);
+  regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_abi_signature_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_ABI_SIGNATURE_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_ABI_SIGNATURE_BYTES;
+  regs.ecx = POLY_ABI_SIGNATURE_SLOT_COUNT;
+  regs.edx = (uint32_t) sizeof(struct poly_abi_signature_slot_state);
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_frontend_tls_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_FRONTEND_TLS_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_FRONTEND_TLS_BYTES;
+  regs.ecx = (uint32_t) sizeof(struct poly_frontend_tls_state);
+  regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_landing_policy_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_LANDING_POLICY_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_LANDING_POLICY_BYTES;
+  regs.ecx = (uint32_t) POLY_LANDING_POLICY_SUPPORTED;
+  regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_state_key_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_STATE_KEY_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_STATE_KEY_BYTES;
+  regs.ecx = (uint32_t) POLY_STATE_KEY_FLAG_EXPLICIT;
+  regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_reserved_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_RESERVED_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_RESERVED_BYTES;
+  regs.ecx = 0;
+  regs.edx = 0;
+  return regs;
+}
+
 static inline struct poly_cpuid_regs poly_cpuid_expected_trap_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_TRAP_PACKET_LAYOUT_VERSION;
