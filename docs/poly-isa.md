@@ -1,8 +1,8 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds direct-fetch AArch64 and RISC-V64 user-mode frontends to an x86_64
-machine. x86_64 remains the system ISA: it owns boot, paging, privilege,
-interrupts, scheduling, syscalls, atomics, and TSO ordering.
+Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 machine.
+x86_64 remains the system ISA: boot, privilege, paging, faults, interrupts,
+atomics, scheduling, syscalls, and TSO ordering stay x86-owned.
 
 ## Run
 
@@ -13,22 +13,33 @@ rg -a 'BOOT_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
 Useful focused targets: `boot-poly`, `boot-poly-call-arch-traps`,
-`boot-poly-binfmt-arch-traps`, `boot-poly-neutral-arch-traps`.
+`boot-poly-binfmt-arch-traps`, and `boot-poly-neutral-arch-traps`.
 
-## Difference From x86_64
+## Architectural Contract
 
-- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- Fetch: x86_64 uses normal variable-length decode; foreign modes fetch native
-  aligned 32-bit instructions from `RIP`.
-- State: non-x86 architectural registers are XSAVE-style state, not hidden
-  emulator state.
-- Calls: hardware switches ISA and can apply register-only ABI signatures;
-  software thunks handle stack args, aggregates, variadics, lazy binding, and
+- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- Fetch: x86_64 keeps normal variable-length decode. AArch64 fetches aligned
+  32-bit words from `RIP`. RISC-V fetches 16-bit or 32-bit native instructions
+  from `RIP`, so compressed RVC code is legal.
+- Memory: every frontend uses the same x86_64 virtual address space and page
+  permissions.
+- State: foreign GPR/FP/SIMD state is explicit XSAVE-style architectural state,
+  not hidden emulator state.
+- Calls: `PCALL` switches frontend and may apply a register-only ABI signature.
+  Software thunks handle stack args, aggregates, variadics, lazy binding, and
   policy.
-- Traps: foreign traps produce OS-neutral trap packets; hardware does not know
-  Linux, libc, libgcc, libatomic, or dynamic-linker semantics.
+- Traps: foreign syscalls, breakpoints, unsupported instructions, and import
+  misses create OS-neutral trap packets. Trap packets carry the first eight native foreign ABI argument registers.
+  Hardware does not implement Linux, libc, libgcc, libatomic, or dynamic-linker
+  behavior.
 
-## Temporary Opcode Space
+## Control Operations And Encodings
+
+These are temporary Bochs prototype encodings, not final vendor allocations:
+`PENTER` enters a frontend, `PSWITCH` branches across frontends, `PCALL` calls
+across frontends, `PCALL_SIG_IMM` calls with an immediate signature slot,
+`PTRAPRET` resumes from a Poly trap, and `PLANDING` marks or validates an
+indirect cross-frontend target.
 
 | Op | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
@@ -40,4 +51,4 @@ Useful focused targets: `boot-poly`, `boot-poly-call-arch-traps`,
 | `PTRAPRET` | `0x62` | `0x76` | `6` |
 | `PLANDING` | `0x05` | `0x7b` | `11` |
 
-Details and rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Design rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
