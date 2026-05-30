@@ -1855,6 +1855,8 @@ int main(void) {
       return 1;
     }
   }
+  printf("POLYTHREAD_STATE_ISOLATION_OK workers=%u rounds=%u\n",
+    POLYTHREAD_THREADS, POLYTHREAD_ROUNDS);
 
   uint64_t expected_mixed_counter =
     (uint64_t) POLYTHREAD_THREADS * POLYTHREAD_ROUNDS *
