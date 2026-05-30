@@ -1456,6 +1456,38 @@ static void child_expect_bad_cross_return_bridge_xsave_signal(void) {
   _exit(99);
 }
 
+__attribute__((noreturn, noinline))
+static void child_expect_bad_trap_vector_mode_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.trap_vector_mode = 255;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_trap_reason_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = 99;
+  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_trap_source_mode_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = POLY_TRAP_SYSCALL;
+  bad.trap.source_mode = POLY_MODE_X86;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
 static int expect_child_signal(const char *name, int expected_signal,
     void (*child_func)(void)) {
   pid_t child = fork();
@@ -3296,6 +3328,15 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad cross-return bridge xstate", SIGILL,
         child_expect_bad_cross_return_bridge_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap-vector mode xstate", SIGILL,
+        child_expect_bad_trap_vector_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap reason xstate", SIGILL,
+        child_expect_bad_trap_reason_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap source mode xstate", SIGILL,
+        child_expect_bad_trap_source_mode_xsave_signal) != 0)
     return 1;
   if (run_poly_invalid_import_no_mutation_probe() != 0)
     return 1;
