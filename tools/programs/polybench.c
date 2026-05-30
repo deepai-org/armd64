@@ -11,6 +11,7 @@
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
+#define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLYBENCH_AARCH64_PCALL_SIG_IMM(slot) \
   (0xd5032c1fU | (((uint32_t) (slot) & 0x7U) << 5))
 #define POLYBENCH_RISCV_PCALL_SIG_IMM(slot) \
@@ -44,6 +45,14 @@ union polybench_vec128_u32_bits {
 };
 
 static uint32_t polybench_native_signature_slot = 3;
+
+struct polybench_monitor_packet {
+  struct poly_trap_packet trap;
+  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+};
+
+static struct polybench_monitor_packet polybench_monitor_packet
+  __attribute__((aligned(64)));
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
@@ -153,6 +162,10 @@ static inline void poly_trap_vector_set_value(uint64_t value) {
 
 static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
+}
+
+static inline void poly_monitor_packet_set_value(uint64_t value) {
+  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
 }
 
 static inline uint64_t read_rax(void) {
@@ -293,20 +306,39 @@ static int poly_is_raw_foreign_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
 }
 
+static int polybench_monitor_packet_valid(
+    const struct polybench_monitor_packet *packet) {
+  if (packet->trap.resume_pc == 0 ||
+      packet->trap.reserved[0] != 0 ||
+      packet->trap.reserved[1] != 0 ||
+      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
+        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: monitor packet invalid reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx\n",
+      packet->trap.reason, packet->trap.source_mode,
+      (unsigned long long) packet->trap.number,
+      (unsigned long long) packet->trap.selector,
+      (unsigned long long) packet->trap.trap_pc,
+      (unsigned long long) packet->trap.resume_pc,
+      (unsigned long long) packet->trap.flags);
+    return 0;
+  }
+  return 1;
+}
+
 __attribute__((noinline, used))
-uint64_t polybench_trap_vector_dispatch(uint64_t reason, uint64_t mode,
-    uint64_t number, uint64_t pc, uint64_t selector, uint64_t arg0,
-    uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4,
-    uint64_t arg5, uint64_t arg6, uint64_t arg7) {
-  (void) pc;
-  (void) selector;
-  (void) arg1;
-  (void) arg2;
-  (void) arg3;
-  (void) arg4;
-  (void) arg5;
+uint64_t polybench_trap_vector_dispatch(void) {
+  const struct polybench_monitor_packet packet = polybench_monitor_packet;
+  const uint64_t reason = packet.trap.reason;
+  const uint64_t mode = packet.trap.source_mode;
+  const uint64_t number = packet.trap.number;
+  const uint64_t arg0 = packet.args[0];
+  const uint64_t arg6 = packet.args[6];
+  const uint64_t arg7 = packet.args[7];
 
   if (!poly_is_raw_foreign_mode(mode))
+    return (uint64_t) -38;
+  if (!polybench_monitor_packet_valid(&packet))
     return (uint64_t) -38;
   if (reason == POLY_TRAP_SYSCALL && number == 172)
     return 4242;
@@ -335,20 +367,7 @@ static void polybench_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
-    "pushq %r14\n"
-    "pushq %r13\n"
-    "pushq %r12\n"
-    "pushq %r11\n"
-    "pushq %r10\n"
-    "pushq %r9\n"
-    "pushq %r8\n"
-    "movq %rdi, %r9\n"
-    "movq %rsi, %r8\n"
-    "movq %rcx, %r10\n"
-    "movq %rdx, %rcx\n"
-    "movq %r10, %rdx\n"
-    "movq %rbx, %rsi\n"
-    "movq %rax, %rdi\n"
+    "subq $56, %rsp\n"
     "call polybench_trap_vector_dispatch\n"
     "addq $56, %rsp\n"
     "popq %rbp\n"
@@ -370,6 +389,9 @@ static void polybench_trap_vector_handler(void) {
 }
 
 static void install_polybench_trap_vector(void) {
+  memset(&polybench_monitor_packet, 0, sizeof(polybench_monitor_packet));
+  poly_monitor_packet_set_value(
+    (uint64_t) (uintptr_t) &polybench_monitor_packet);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) polybench_trap_vector_handler);
 }
