@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+typedef uint32_t poly_u32x4 __attribute__((vector_size(16)));
+
 enum {
   POLY_SYS_WRITE = 64,
   POLY_SYS_EXIT = 93,
@@ -93,6 +95,27 @@ uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t)
 __attribute__((visibility("default")))
 double poly_process_needed_fp64(double left, double right) {
   return left + right + 4.0;
+}
+
+#elif defined(POLY_PROCESS_NEEDED_VEC128_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_vec128 vec128_u32\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+poly_u32x4 poly_process_needed_vec128(poly_u32x4 left, poly_u32x4 right) {
+  const poly_u32x4 bias = { 100, 200, 300, 400 };
+  return left + right + bias;
 }
 
 #elif defined(POLY_PROCESS_ROOT_EXPORT_DEP)
@@ -298,6 +321,8 @@ extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 extern uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_FP64_MAIN)
 extern double poly_process_needed_fp64(double, double);
+#elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
+extern poly_u32x4 poly_process_needed_vec128(poly_u32x4, poly_u32x4);
 #else
 extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
 #endif
@@ -552,6 +577,24 @@ uint64_t poly_process_main(void) {
   if (poly_process_needed_fp64(1.5, 2.25) != 7.75)
     return 50;
   static const char marker[] = "POLY_PROCESS_CROSS_FP64_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
+  union {
+    poly_u32x4 v;
+    uint32_t u[4];
+  } a = { .u = { 1, 2, 3, 4 } };
+  union {
+    poly_u32x4 v;
+    uint32_t u[4];
+  } b = { .u = { 10, 20, 30, 40 } };
+  union {
+    poly_u32x4 v;
+    uint32_t u[4];
+  } result;
+  result.v = poly_process_needed_vec128(a.v, b.v);
+  if (result.u[0] != 111 || result.u[1] != 222 ||
+      result.u[2] != 333 || result.u[3] != 444)
+    return 51;
+  static const char marker[] = "POLY_PROCESS_CROSS_VEC128_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_PRELOAD_MAIN)
   if (poly_process_needed_add(0x20, 0x30) != 0x190)
     return 44;

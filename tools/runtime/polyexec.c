@@ -234,6 +234,7 @@ enum {
   MAX_LOAD_SEGMENTS = 16,
   MAX_PROCESS_DEPS = 8,
   MAX_PROCESS_DEP_DEPTH = 4,
+  MAX_PROCESS_BRIDGE_SPECS = 16,
   MAX_DEP_PATH = 160,
   MAX_PROCESS_TLS_BYTES = 64 * 1024,
   PROCESS_CROSS_STUB_BYTES = 64 * 1024,
@@ -247,6 +248,16 @@ struct poly_load_segment {
 };
 
 struct poly_program;
+
+enum poly_process_bridge_kind {
+  POLY_PROCESS_BRIDGE_DEFAULT = 0,
+  POLY_PROCESS_BRIDGE_VEC128_U32 = 1
+};
+
+struct poly_process_bridge_spec {
+  char symbol[80];
+  uint8_t bridge_kind;
+};
 
 struct poly_process_dependency {
   char path[MAX_DEP_PATH];
@@ -290,6 +301,8 @@ struct poly_program {
   uint8_t *code_bytes;
   size_t code_size;
   char soname[MAX_DEP_PATH];
+  struct poly_process_bridge_spec bridge_specs[MAX_PROCESS_BRIDGE_SPECS];
+  size_t bridge_spec_count;
   struct poly_process_dependency deps[MAX_PROCESS_DEPS];
   size_t dep_count;
   const struct poly_program *scope_root_program;
@@ -317,6 +330,7 @@ struct poly_request {
 };
 
 static uint32_t process_native_signature_slot = 3;
+static uint32_t process_vec128_signature_slot = 5;
 static __thread uint8_t poly_state_key_anchor;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
@@ -356,7 +370,7 @@ static int run_irelative_resolver(const struct poly_program *program,
     uint64_t return_pc, uint8_t *scratch, uint64_t resolver_vaddr,
     uint64_t *resolved);
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
-    uint64_t target, uint64_t *stub_addr);
+    uint64_t target, uint32_t signature_slot, uint64_t *stub_addr);
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 
@@ -483,15 +497,29 @@ static int read_poly_base_contract(int require_trap_vector) {
     poly_cpuid_expected_escape_leaf7();
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  const struct poly_cpuid_regs signature_ext =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 17);
+  const struct poly_cpuid_regs expected_signature_ext =
+    poly_cpuid_expected_escape_leaf17();
+  const uint32_t vec128_slot = signature_ext.ecx;
+  const uint32_t vec128_kind = signature_ext.edx;
   if (signature.eax != expected_signature.eax ||
       signature.ebx != expected_signature.ebx ||
       signature.ecx != expected_signature.ecx ||
       signature.edx != expected_signature.edx ||
+      signature_ext.eax != expected_signature_ext.eax ||
+      signature_ext.ebx != expected_signature_ext.ebx ||
+      signature_ext.ecx != expected_signature_ext.ecx ||
+      signature_ext.edx != expected_signature_ext.edx ||
       native_slot >= signature.ebx ||
-      native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+      native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
+      vec128_slot >= signature.ebx ||
+      vec128_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
-      signature.eax, signature.ebx, signature.ecx, signature.edx);
+      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x)\n",
+      signature.eax, signature.ebx, signature.ecx, signature.edx,
+      signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
+      signature_ext.edx);
     return -1;
   }
   if (poly_abi_signature_set(native_slot,
@@ -502,6 +530,14 @@ static int read_poly_base_contract(int require_trap_vector) {
     return -1;
   }
   process_native_signature_slot = native_slot;
+  if (poly_abi_signature_set(vec128_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly native vec128 signature slot setup failed slot=%u\n",
+      vec128_slot);
+    return -1;
+  }
+  process_vec128_signature_slot = vec128_slot;
 
   return 0;
 }
@@ -658,6 +694,118 @@ static uint16_t read_u16_le(const uint8_t *bytes) {
   for (unsigned n = 0; n < 2; n++)
     value |= (uint16_t) bytes[n] << (n * 8);
   return value;
+}
+
+static int process_bridge_kind_from_name(const char *name) {
+  if (strcmp(name, "default") == 0)
+    return POLY_PROCESS_BRIDGE_DEFAULT;
+  if (strcmp(name, "vec128_u32") == 0)
+    return POLY_PROCESS_BRIDGE_VEC128_U32;
+  return -1;
+}
+
+static int append_process_bridge_spec(struct poly_program *program,
+    const char *symbol, size_t symbol_len, const char *bridge,
+    size_t bridge_len, const char *source) {
+  if (symbol_len == 0 || symbol_len >= sizeof(program->bridge_specs[0].symbol) ||
+      bridge_len == 0 || bridge_len >= 40 ||
+      program->bridge_spec_count >= MAX_PROCESS_BRIDGE_SPECS) {
+    fprintf(stderr, "POLYEXEC_FAIL: bad Poly ABI metadata line: %s\n",
+      source);
+    return -1;
+  }
+
+  char bridge_name[40];
+  memcpy(bridge_name, bridge, bridge_len);
+  bridge_name[bridge_len] = '\0';
+  const int bridge_kind = process_bridge_kind_from_name(bridge_name);
+  if (bridge_kind < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unknown Poly ABI bridge kind: %s\n",
+      bridge_name);
+    return -1;
+  }
+
+  struct poly_process_bridge_spec *spec =
+    &program->bridge_specs[program->bridge_spec_count++];
+  memcpy(spec->symbol, symbol, symbol_len);
+  spec->symbol[symbol_len] = '\0';
+  spec->bridge_kind = (uint8_t) bridge_kind;
+  return 0;
+}
+
+static int parse_process_bridge_specs_text(struct poly_program *program,
+    const char *desc, size_t desc_size, const char *source) {
+  const char *line = desc;
+  const char *end = desc + desc_size;
+  while (line < end) {
+    const char *line_end = memchr(line, '\n', (size_t) (end - line));
+    if (!line_end)
+      line_end = end;
+    while (line < line_end && (*line == ' ' || *line == '\t'))
+      line++;
+    const char *space = line;
+    while (space < line_end && *space != ' ' && *space != '\t')
+      space++;
+    const char *bridge = space;
+    while (bridge < line_end && (*bridge == ' ' || *bridge == '\t'))
+      bridge++;
+    const char *bridge_end = bridge;
+    while (bridge_end < line_end && *bridge_end != ' ' &&
+           *bridge_end != '\t')
+      bridge_end++;
+    if (line < space && bridge < bridge_end &&
+        append_process_bridge_spec(program, line, (size_t) (space - line),
+          bridge, (size_t) (bridge_end - bridge), source) < 0)
+      return -1;
+    line = line_end < end ? line_end + 1 : end;
+  }
+  return 0;
+}
+
+static int parse_process_bridge_specs_notes(struct poly_program *program,
+    const unsigned char *data, size_t size, size_t offset, size_t note_size) {
+  if (offset > size || note_size > size - offset)
+    return -1;
+  const size_t end = offset + note_size;
+  while (offset < end) {
+    if (end - offset < 12)
+      return -1;
+    const uint32_t namesz = read_u32_le(data + offset);
+    const uint32_t descsz = read_u32_le(data + offset + 4);
+    offset += 12;
+    if (namesz > end - offset)
+      return -1;
+    const char *note_name = (const char *) (data + offset);
+    offset += (namesz + 3U) & ~3U;
+    if (offset > end || descsz > end - offset)
+      return -1;
+    const char *desc = (const char *) (data + offset);
+    offset += (descsz + 3U) & ~3U;
+    if (offset > end)
+      return -1;
+    if (namesz == 8 && memcmp(note_name, "POLYABI", 8) == 0 &&
+        parse_process_bridge_specs_text(program, desc, descsz,
+          program->path) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int process_bridge_kind_for_symbol(const struct poly_program *program,
+    const char *symbol_name) {
+  if (!symbol_name)
+    return POLY_PROCESS_BRIDGE_DEFAULT;
+  for (size_t n = 0; n < program->bridge_spec_count; n++) {
+    if (strcmp(program->bridge_specs[n].symbol, symbol_name) == 0)
+      return program->bridge_specs[n].bridge_kind;
+  }
+  return POLY_PROCESS_BRIDGE_DEFAULT;
+}
+
+static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
+  if (bridge_kind == POLY_PROCESS_BRIDGE_VEC128_U32)
+    return process_vec128_signature_slot;
+  return process_native_signature_slot;
 }
 
 static void write_u64_le(uint8_t *bytes, uint64_t value) {
@@ -1251,11 +1399,13 @@ static int resolve_loaded_dependency_symbol_at_depth(
         return -1;
       if (symbol_type)
         *symbol_type = resolved_type;
+      const uint32_t signature_slot = process_signature_slot_for_bridge_kind(
+        process_bridge_kind_for_symbol(dep->program, symbol_name));
       if (caller_arch != dep->program->arch &&
           (resolved_type == STT_FUNC || resolved_type == STT_NOTYPE ||
            resolved_type == STT_GNU_IFUNC) &&
           emit_process_cross_isa_call_stub(caller_arch, dep->program->arch,
-            *symbol_value, symbol_value) < 0)
+            *symbol_value, signature_slot, symbol_value) < 0)
         return -1;
       return 0;
     }
@@ -1438,11 +1588,14 @@ static int resolve_root_scope_symbol(const struct poly_program *program,
           return_pc, scratch, ifunc_resolver_vaddr, symbol_value) < 0)
       return -1;
   }
+  const uint32_t signature_slot = process_signature_slot_for_bridge_kind(
+    process_bridge_kind_for_symbol(program->scope_root_program, symbol_name));
   if (program->arch != program->scope_root_program->arch &&
       (resolved_type == STT_FUNC || resolved_type == STT_NOTYPE ||
        resolved_type == STT_GNU_IFUNC) &&
       emit_process_cross_isa_call_stub(program->arch,
-        program->scope_root_program->arch, *symbol_value, symbol_value) < 0)
+        program->scope_root_program->arch, *symbol_value, signature_slot,
+        symbol_value) < 0)
     return -1;
   if (symbol_type)
     *symbol_type = resolved_type;
@@ -3524,7 +3677,7 @@ static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
 }
 
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
-    uint64_t target, uint64_t *stub_addr) {
+    uint64_t target, uint32_t signature_slot, uint64_t *stub_addr) {
   if (caller_arch == callee_arch) {
     *stub_addr = target;
     return 0;
@@ -3559,8 +3712,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_aarch64_movabs(code, &offset, 16, target);
     emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
     emit_aarch64_movabs(code, &offset, 18, return_addr);
-    emit_u32(code, &offset,
-      aarch64_pcall_sig_imm(process_native_signature_slot));
+    emit_u32(code, &offset, aarch64_pcall_sig_imm(signature_slot));
     emit_u32(code, &offset, 0xf94007feU); // ldr x30, [sp, #8]
     emit_u32(code, &offset, 0x910083ffU); // add sp, sp, #32
     emit_u32(code, &offset, 0xd65f03c0U); // ret
@@ -3593,7 +3745,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
   emit_u32(code, &offset, riscv_ld(10, 2, 16)); // ld a0,16(sp)
-  emit_u32(code, &offset, riscv_pcall_sig_imm(process_native_signature_slot));
+  emit_u32(code, &offset, riscv_pcall_sig_imm(signature_slot));
   const size_t return_pc = offset;
   emit_u32(code, &offset, 0x00813083U); // ld ra,8(sp)
   emit_u32(code, &offset, 0x02010113U); // addi sp,sp,32
@@ -4521,6 +4673,15 @@ static int load_elf_program(const char *path, const char *symbol_name,
     if (phdr->p_type == PT_GNU_RELRO) {
       program->relro_vaddr = phdr->p_vaddr;
       program->relro_size = phdr->p_memsz;
+      continue;
+    }
+    if (phdr->p_type == PT_NOTE) {
+      if (parse_process_bridge_specs_notes(program, data, size,
+            (size_t) phdr->p_offset, (size_t) phdr->p_filesz) < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: bad Poly ABI note: %s\n", path);
+        free(data);
+        return -1;
+      }
       continue;
     }
     if (phdr->p_type == PT_TLS) {
