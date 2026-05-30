@@ -40,9 +40,13 @@ enum {
   POLY_PRIO_PROCESS = 0,
   POLY_RLIMIT_STACK = 3,
   POLY_RUSAGE_SELF = 0,
+  POLY_SCHED_OTHER = 0,
   POLY_SIG_BLOCK = 0,
   POLY_SIG_SETMASK = 2,
   POLY_SIGUSR1 = 10,
+  POLY_PR_SET_NAME = 15,
+  POLY_PR_GET_NAME = 16,
+  POLY_PERSONALITY_QUERY = 0xffffffffUL,
   POLY_S_IFMT = 0170000,
   POLY_S_IFDIR = 0040000,
   POLY_S_IFIFO = 0010000,
@@ -119,6 +123,7 @@ enum {
   POLY_SYS_TIMERFD_CREATE = 85,
   POLY_SYS_TIMERFD_SETTIME = 86,
   POLY_SYS_TIMERFD_GETTIME = 87,
+  POLY_SYS_PERSONALITY = 92,
   POLY_SYS_EXIT = 93,
   POLY_SYS_FUTEX = 98,
   POLY_SYS_SET_TID_ADDRESS = 96,
@@ -130,8 +135,12 @@ enum {
   POLY_SYS_CLOCK_GETTIME = 113,
   POLY_SYS_CLOCK_GETRES = 114,
   POLY_SYS_CLOCK_NANOSLEEP = 115,
+  POLY_SYS_SCHED_GETSCHEDULER = 120,
+  POLY_SYS_SCHED_GETPARAM = 121,
   POLY_SYS_SCHED_GETAFFINITY = 123,
   POLY_SYS_SCHED_YIELD = 124,
+  POLY_SYS_SCHED_GET_PRIORITY_MAX = 125,
+  POLY_SYS_SCHED_GET_PRIORITY_MIN = 126,
   POLY_SYS_KILL = 129,
   POLY_SYS_RT_SIGPROCMASK = 135,
   POLY_SYS_GETPRIORITY = 141,
@@ -142,6 +151,7 @@ enum {
   POLY_SYS_GETSID = 156,
   POLY_SYS_GETGROUPS = 158,
   POLY_SYS_UMASK = 166,
+  POLY_SYS_PRCTL = 167,
   POLY_SYS_GETCPU = 168,
   POLY_SYS_GETPID = 172,
   POLY_SYS_GETPPID = 173,
@@ -336,6 +346,10 @@ struct poly_tms {
   int64_t stime;
   int64_t cutime;
   int64_t cstime;
+};
+
+struct poly_sched_param {
+  int32_t priority;
 };
 
 struct poly_rlimit64 {
@@ -579,6 +593,33 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 235;
   if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
     return 236;
+  if (poly_syscall2(POLY_SYS_PERSONALITY, POLY_PERSONALITY_QUERY, 0) < 0)
+    return 345;
+  struct poly_sched_param sched_param;
+  if (poly_syscall2(POLY_SYS_SCHED_GETSCHEDULER, 0, 0) < 0)
+    return 346;
+  if (poly_syscall2(POLY_SYS_SCHED_GETPARAM, 0,
+        (long) &sched_param) != 0)
+    return 347;
+  if (sched_param.priority < 0)
+    return 348;
+  if (poly_syscall2(POLY_SYS_SCHED_GET_PRIORITY_MAX,
+        POLY_SCHED_OTHER, 0) < 0)
+    return 349;
+  if (poly_syscall2(POLY_SYS_SCHED_GET_PRIORITY_MIN,
+        POLY_SCHED_OTHER, 0) < 0)
+    return 350;
+  if (poly_syscall5(POLY_SYS_PRCTL, POLY_PR_SET_NAME,
+        (long) "poly-proc", 0, 0, 0) != 0)
+    return 351;
+  char task_name[16];
+  for (int n = 0; n < 16; n++)
+    task_name[n] = 0;
+  if (poly_syscall5(POLY_SYS_PRCTL, POLY_PR_GET_NAME,
+        (long) task_name, 0, 0, 0) != 0)
+    return 352;
+  if (!poly_streq(task_name, "poly-proc"))
+    return 353;
   uint32_t cpu = UINT32_MAX;
   uint32_t node = UINT32_MAX;
   if (poly_syscall3(POLY_SYS_GETCPU, (long) &cpu, (long) &node, 0) != 0)
