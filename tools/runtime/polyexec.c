@@ -271,6 +271,7 @@ enum {
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_X86_PENTER_GENERIC_SIZE = 10,
+  POLY_X86_TRAMPOLINE_SIZE = 14,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
   MAX_PROCESS_DEPS = 8,
@@ -364,6 +365,8 @@ static size_t process_cross_aarch64_to_riscv_stub_count;
 static size_t process_cross_riscv_to_aarch64_stub_count;
 static size_t process_cross_aarch64_to_x86_stub_count;
 static size_t process_cross_riscv_to_x86_stub_count;
+static size_t process_cross_x86_to_aarch64_stub_count;
+static size_t process_cross_x86_to_riscv_stub_count;
 static int process_cross_state_key_stub_reported;
 static const char *process_cross_report_path;
 
@@ -3316,6 +3319,53 @@ static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
   code[(*offset)++] = POLY_X86_CTRL_PENTER_MODE;
 }
 
+static void emit_x86_movabs_rax(uint8_t *code, size_t *offset,
+    uint64_t value) {
+  code[(*offset)++] = 0x48;
+  code[(*offset)++] = 0xb8;
+  emit_u64(code, offset, value);
+}
+
+static void emit_x86_movabs_rbx(uint8_t *code, size_t *offset,
+    uint64_t value) {
+  code[(*offset)++] = 0x48;
+  code[(*offset)++] = 0xbb;
+  emit_u64(code, offset, value);
+}
+
+static void emit_x86_movabs_r11(uint8_t *code, size_t *offset,
+    uint64_t value) {
+  code[(*offset)++] = 0x49;
+  code[(*offset)++] = 0xbb;
+  emit_u64(code, offset, value);
+}
+
+static void emit_x86_mov_r15d_imm(uint8_t *code, size_t *offset,
+    uint32_t value) {
+  code[(*offset)++] = 0x41;
+  code[(*offset)++] = 0xbf;
+  emit_u32(code, offset, value);
+}
+
+static void emit_x86_state_key_set(uint8_t *code, size_t *offset,
+    uint64_t state_key) {
+  emit_x86_movabs_rax(code, offset, state_key);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = 0x65;
+}
+
+static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
+    uint32_t frontend, uint32_t signature_slot) {
+  emit_x86_mov_r15d_imm(code, offset, frontend);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+  code[(*offset)++] = (uint8_t) signature_slot;
+}
+
 static void emit_x86_exit_group_from_eax(uint8_t *code, size_t *offset) {
   code[(*offset)++] = 0x89; // mov edi,eax
   code[(*offset)++] = 0xc7;
@@ -3477,8 +3527,9 @@ static int build_process_stack(const struct poly_program *program,
   }
 
   uint8_t *cursor = stack + stack_size;
-  if (copy_stack_string(stack, &cursor, program->arch == POLY_ARCH_AARCH64 ?
-        "aarch64" : "riscv64", &platform_ptr) < 0) {
+  const char *platform_name = program->arch == POLY_ARCH_AARCH64 ?
+    "aarch64" : program->arch == POLY_ARCH_RISCV ? "riscv64" : "x86_64";
+  if (copy_stack_string(stack, &cursor, platform_name, &platform_ptr) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: process platform does not fit stack\n");
     free(argv_ptrs);
     free(env_ptrs);
@@ -3611,7 +3662,7 @@ static int build_process_stack(const struct poly_program *program,
 
 static int emit_poly_trampoline(const struct poly_program *program,
     uint8_t *code, size_t prefix_size, uint64_t return_pc,
-    uint64_t target_pc) {
+    uint64_t target_pc, int tail_entry) {
   size_t offset = 0;
   if (program->arch == POLY_ARCH_AARCH64) {
     emit_x86_penter_frontend(code, &offset, POLY_ARCH_AARCH64);
@@ -3620,7 +3671,7 @@ static int emit_poly_trampoline(const struct poly_program *program,
     emit_aarch64_movabs(code, &offset, 16, target_pc);
     emit_u32(code, &offset, 0xd61f0200U); // br x16
   }
-  else {
+  else if (program->arch == POLY_ARCH_RISCV) {
     emit_x86_penter_frontend(code, &offset, POLY_ARCH_RISCV);
     int64_t escape_offset =
       (int64_t) return_pc - (int64_t) (uintptr_t) (code + offset);
@@ -3632,11 +3683,31 @@ static int emit_poly_trampoline(const struct poly_program *program,
     emit_u32(code, &offset, riscv_addi(5, 5, target_offset));
     emit_u32(code, &offset, riscv_jalr(0, 5, 0));
   }
+  else if (program->arch == POLY_ARCH_X86) {
+    emit_x86_movabs_r11(code, &offset, target_pc);
+    code[offset++] = 0x41;
+    code[offset++] = 0xff;
+    code[offset++] = tail_entry ? 0xe3 : 0xd3; // jmp/call *r11
+    if (!tail_entry)
+      code[offset++] = 0xc3; // ret to the x86 runtime caller.
+    else
+      code[offset++] = 0x90; // pad to the shared x86 trampoline size.
+  }
   if (offset != prefix_size) {
     fprintf(stderr, "POLYEXEC_FAIL: internal trampoline size mismatch: %s\n",
       program->path);
     return -1;
   }
+  return 0;
+}
+
+static size_t poly_trampoline_prefix_size(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return POLY_X86_PENTER_GENERIC_SIZE + 4 + 20;
+  if (arch == POLY_ARCH_RISCV)
+    return POLY_X86_PENTER_GENERIC_SIZE + 8 + 12;
+  if (arch == POLY_ARCH_X86)
+    return POLY_X86_TRAMPOLINE_SIZE;
   return 0;
 }
 
@@ -3814,16 +3885,22 @@ static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
     process_cross_aarch64_to_x86_stub_count++;
   else if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_X86)
     process_cross_riscv_to_x86_stub_count++;
+  else if (caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_AARCH64)
+    process_cross_x86_to_aarch64_stub_count++;
+  else if (caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_RISCV)
+    process_cross_x86_to_riscv_stub_count++;
 
   if (!process_cross_state_key_stub_reported) {
     printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
     process_cross_state_key_stub_reported = 1;
   }
-  printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu a64_to_x86=%zu rv_to_x86=%zu total=%zu path=%s\n",
+  printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu a64_to_x86=%zu rv_to_x86=%zu x86_to_a64=%zu x86_to_rv=%zu total=%zu path=%s\n",
     process_cross_aarch64_to_riscv_stub_count,
     process_cross_riscv_to_aarch64_stub_count,
     process_cross_aarch64_to_x86_stub_count,
     process_cross_riscv_to_x86_stub_count,
+    process_cross_x86_to_aarch64_stub_count,
+    process_cross_x86_to_riscv_stub_count,
     process_cross_state_key_stub_count,
     process_cross_report_path ? process_cross_report_path : "(unknown)");
   fflush(NULL);
@@ -3896,9 +3973,12 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   if (!((caller_arch == POLY_ARCH_AARCH64 &&
           (callee_arch == POLY_ARCH_RISCV || callee_arch == POLY_ARCH_X86)) ||
         (caller_arch == POLY_ARCH_RISCV &&
-          (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_X86))))
+          (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_X86)) ||
+        (caller_arch == POLY_ARCH_X86 &&
+          (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV))))
     return -1;
-  if (callee_arch == POLY_ARCH_X86 && bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT)
+  if ((callee_arch == POLY_ARCH_X86 || caller_arch == POLY_ARCH_X86) &&
+      bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT)
     return -1;
   if (ensure_process_cross_stub_arena() < 0 ||
       align_up_size(process_cross_stubs.offset, 8,
@@ -3914,6 +3994,42 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   const uint32_t callee_frontend = callee_arch == POLY_ARCH_AARCH64 ?
     POLY_ARCH_AARCH64 :
     callee_arch == POLY_ARCH_RISCV ? POLY_ARCH_RISCV : POLY_ARCH_X86;
+
+  if (caller_arch == POLY_ARCH_X86) {
+    if (process_cross_stubs.size - start < 96)
+      return -1;
+    size_t offset = start;
+    code[offset++] = 0x53; // push rbx
+    code[offset++] = 0x41; // push r15
+    code[offset++] = 0x57;
+    code[offset++] = 0x48; // sub rsp,8: keep the foreign ABI entry stack 16-byte aligned.
+    code[offset++] = 0x83;
+    code[offset++] = 0xec;
+    code[offset++] = 0x08;
+    code[offset++] = 0x50; // push rax: state-key programming must not clobber arg0.
+    emit_x86_state_key_set(code, &offset, state_key);
+    code[offset++] = 0x58; // pop rax
+    emit_x86_movabs_rbx(code, &offset, target);
+    const size_t return_imm_offset = offset + 2;
+    emit_x86_movabs_r11(code, &offset, 0);
+    emit_x86_pcall_sig_imm(code, &offset, callee_frontend, signature_slot);
+    const uint64_t return_addr = (uint64_t) (uintptr_t) (code + offset);
+    code[offset++] = 0x48; // add rsp,8
+    code[offset++] = 0x83;
+    code[offset++] = 0xc4;
+    code[offset++] = 0x08;
+    code[offset++] = 0x41; // pop r15
+    code[offset++] = 0x5f;
+    code[offset++] = 0x5b; // pop rbx
+    code[offset++] = 0xc3; // ret
+    for (unsigned n = 0; n < 8; n++)
+      code[return_imm_offset + n] =
+        (uint8_t) ((return_addr >> (n * 8)) & 0xff);
+    process_cross_stubs.offset = offset;
+    note_process_cross_isa_call_stub(caller_arch, callee_arch);
+    *stub_addr = start_addr;
+    return 0;
+  }
 
   if (caller_arch == POLY_ARCH_AARCH64) {
     if (process_cross_stubs.size - start < 128)
@@ -4055,7 +4171,7 @@ static int run_irelative_resolver(const struct poly_program *program,
     program->arch == POLY_ARCH_RISCV ? 30 : 0;
   if (expected_prefix_size != 0 && prefix_size == expected_prefix_size) {
     if (emit_poly_trampoline(program, trampoline_code, prefix_size,
-          return_pc, resolver_pc) < 0)
+          return_pc, resolver_pc, 0) < 0)
       return -1;
     *resolved = run_poly_entry(trampoline_code, scratch);
     poly_mode_x86();
@@ -4514,7 +4630,7 @@ static int call_process_initializer(const struct poly_program *program,
     uint64_t return_pc, uint64_t target_pc, uint8_t *scratch,
     const char *kind) {
   if (emit_poly_trampoline(program, trampoline_code, prefix_size, return_pc,
-        target_pc) < 0) {
+        target_pc, 0) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported %s lifecycle branch: %s\n",
       kind, program->path);
     return -1;
@@ -5766,14 +5882,15 @@ static int map_process_dependencies(struct poly_program *program,
 }
 
 static int emit_and_run(const struct poly_program *program, uint64_t *result) {
-  const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
-  const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 20 : 12;
-  const size_t raw_switch_size = POLY_X86_PENTER_GENERIC_SIZE;
-  const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
+  const size_t prefix_size = poly_trampoline_prefix_size(program->arch);
+  if (prefix_size == 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unsupported trampoline arch: %s\n",
+      program->path);
+    return -1;
+  }
   const size_t load_base_offset = 4096;
-  const size_t branch_offset = load_base_offset - branch_size;
-  const size_t code_offset = branch_offset - raw_switch_size - return_setup_size;
-  const size_t escape_return_size = 5;
+  const size_t code_offset = load_base_offset - prefix_size;
+  const size_t escape_return_size = program->arch == POLY_ARCH_X86 ? 1 : 5;
   const uint64_t image_mapping_size_u64 =
     align_up_u64((uint64_t) program->code_size + escape_return_size, 0x1000);
   if (image_mapping_size_u64 > SIZE_MAX - load_base_offset - 4096) {
@@ -5798,10 +5915,12 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     0xd5032e1fU : 0x0000700bU;
   size_t offset = load_base_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
-  emit_u32(mapping, &offset, escape);
+  if (program->arch != POLY_ARCH_X86)
+    emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
   offset = return_page_offset;
-  emit_u32(mapping, &offset, escape);
+  if (program->arch != POLY_ARCH_X86)
+    emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
   if (align_up_size(offset, 4, &offset) < 0) {
     munmap(mapping, mapping_size);
@@ -5838,7 +5957,7 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
+  if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc, 0) < 0) {
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
@@ -5886,16 +6005,19 @@ static int emit_and_run_process(struct poly_program *program,
   process_cross_riscv_to_aarch64_stub_count = 0;
   process_cross_aarch64_to_x86_stub_count = 0;
   process_cross_riscv_to_x86_stub_count = 0;
+  process_cross_x86_to_aarch64_stub_count = 0;
+  process_cross_x86_to_riscv_stub_count = 0;
   process_cross_state_key_stub_reported = 0;
 
-  const size_t return_setup_size = program->arch == POLY_ARCH_AARCH64 ? 4 : 8;
-  const size_t branch_size = program->arch == POLY_ARCH_AARCH64 ? 20 : 12;
-  const size_t raw_switch_size = POLY_X86_PENTER_GENERIC_SIZE;
-  const size_t prefix_size = raw_switch_size + return_setup_size + branch_size;
+  const size_t prefix_size = poly_trampoline_prefix_size(program->arch);
+  if (prefix_size == 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unsupported process trampoline arch: %s\n",
+      program->path);
+    return -1;
+  }
   const size_t load_base_offset = 4096;
-  const size_t branch_offset = load_base_offset - branch_size;
-  const size_t code_offset = branch_offset - raw_switch_size - return_setup_size;
-  const size_t escape_return_size = 5;
+  const size_t code_offset = load_base_offset - prefix_size;
+  const size_t escape_return_size = program->arch == POLY_ARCH_X86 ? 1 : 5;
   const size_t fixed_control_size = 64 * 1024;
   const int fixed_main_image = program->is_et_exec;
   const uint64_t image_mapping_size_u64 =
@@ -5961,14 +6083,17 @@ static int emit_and_run_process(struct poly_program *program,
   size_t offset = image_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
   if (!fixed_main_image) {
-    emit_u32(mapping, &offset, escape);
+    if (program->arch != POLY_ARCH_X86)
+      emit_u32(mapping, &offset, escape);
     mapping[offset++] = 0xc3;
   }
   offset = lifecycle_return_page_offset;
-  emit_u32(mapping, &offset, escape);
+  if (program->arch != POLY_ARCH_X86)
+    emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
   offset = process_return_page_offset;
-  emit_u32(mapping, &offset, escape);
+  if (program->arch != POLY_ARCH_X86)
+    emit_u32(mapping, &offset, escape);
   emit_x86_exit_group_from_eax(mapping, &offset);
   if (align_up_size(offset, 4, &offset) < 0) {
     munmap(mapping, mapping_size);
@@ -6021,7 +6146,7 @@ static int emit_and_run_process(struct poly_program *program,
     return -1;
   }
   if (emit_poly_trampoline(program, code, prefix_size, lifecycle_return_pc,
-        entry_pc) < 0) {
+        entry_pc, 0) < 0) {
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
@@ -6089,7 +6214,7 @@ static int emit_and_run_process(struct poly_program *program,
     return -1;
   }
   if (emit_poly_trampoline(program, code, prefix_size, process_return_pc,
-        entry_pc) < 0) {
+        entry_pc, 1) < 0) {
     if (process_tls)
       munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
