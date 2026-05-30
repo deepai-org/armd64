@@ -4763,6 +4763,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-logical.elf" 0xd2801fe1 0xf2a01fe1 0xf2c01fe1 0xf2e01fe1 0xd281e1e2 0xf2a1e1e2 0xf2c1e1e2 0xf2e1e1e2 0x4e080c21 0x4e080c42 0x4e221c23 0x4ea21c24 0x6e221c25 0x4e621c26 0x4ee21c27 0x0e013c60 0x0e013c88 0x8b080000 0x0e013ca8 0x8b080000 0x0e013cc8 0x8b080000 0x0e013ce8 0x8b080000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-addsub.elf" 0xd2800281 0xd2800062 0x4e010c21 0x4e010c42 0x4e228429 0x6e22842a 0x0e22842b 0x2e22842c 0x4e020c23 0x4e020c44 0x4e64846d 0x6e64846e 0x0e64846f 0x2e648470 0x4e040c25 0x4e040c46 0x4ea684b1 0x6ea684b2 0x0ea684b3 0x2ea684b4 0x4e080c27 0x4e080c48 0x4ee884f5 0x6ee884f6 0x0e013d20 0x0e013d57 0x8b170000 0x0e013d77 0x8b170000 0x0e013d97 0x8b170000 0x0e023db7 0x8b170000 0x0e023dd7 0x8b170000 0x0e023df7 0x8b170000 0x0e023e17 0x8b170000 0x0e043e37 0x8b170000 0x0e043e57 0x8b170000 0x0e043e77 0x8b170000 0x0e043e97 0x8b170000 0x4e083eb7 0x8b170000 0x4e083ed7 0x8b170000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-movi.elf" 0x4f00e4a1 0x4f008522 0x4f0005a3 0x6f05e544 0x6f02e6a5 0x0f00e4e6 0x0f008567 0x0f0005e8 0x6f00e409 0x0e013c20 0x0e023c4a 0x8b0a0000 0x0e043c6a 0x8b0a0000 0x0e013c8a 0x8b0a0000 0x0e013caa 0x8b0a0000 0x0e013cca 0x8b0a0000 0x0e023cea 0x8b0a0000 0x0e043d0a 0x8b0a0000 0x4e083d2a 0x8b0a0000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-modimm.elf" 0x6f008641 0x2f01a682 0x6f0206c3 0x2f036704 0x4f008405 0x4f009645 0x0f008406 0x0f01b686 0x6f000407 0x6f0216c7 0x2f000408 0x2f031708 0x0e013c20 0x0e013c4a 0x8b0a0000 0x0e013c6a 0x8b0a0000 0x0e013c8a 0x8b0a0000 0x0e013caa 0x8b0a0000 0x0e023cca 0x8b0a0000 0x0e013cea 0x8b0a0000 0x0e013d0a 0x8b0a0000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-regmix.elf" 0xd2800140 0xd28000a1 0xd2800062 0x8b020020 0xca020000 0xaa010000 0x8a020000 0x9b017c00 0xcb020000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-branch.elf" 0xd2800520 0x14000002 0xd2800020 0x91000400
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-condbranch.elf" 0xd2800000 0xb5000040 0x91000400 0xd2800000 0xb4000040 0xd2800c60 0x91000c00 0xb4000040 0x91001400 0xb5000040 0xd2800c60 0x91014c00
@@ -5484,6 +5485,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-simd-logical.elf=1005 \
     /usr/lib/polyapps/aarch64-simd-addsub.elf=280 \
     /usr/lib/polyapps/aarch64-simd-movi.elf=315 \
+    /usr/lib/polyapps/aarch64-simd-modimm.elf=14550 \
     /usr/lib/polyapps/aarch64-regmix.elf=12 \
     /usr/lib/polyapps/aarch64-branch.elf=42 \
     /usr/lib/polyapps/aarch64-condbranch.elf=91 \
@@ -7217,6 +7219,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-simd-logical.elf \
       /usr/lib/polyapps/aarch64-simd-addsub.elf \
       /usr/lib/polyapps/aarch64-simd-movi.elf \
+      /usr/lib/polyapps/aarch64-simd-modimm.elf \
       /usr/lib/polyapps/aarch64-regmix.elf \
       /usr/lib/polyapps/aarch64-branch.elf \
       /usr/lib/polyapps/aarch64-condbranch.elf \
@@ -7585,6 +7588,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-simd-logical.elf \
     /usr/lib/polyapps/aarch64-simd-addsub.elf \
     /usr/lib/polyapps/aarch64-simd-movi.elf \
+    /usr/lib/polyapps/aarch64-simd-modimm.elf \
     /usr/lib/polyapps/aarch64-regmix.elf \
     /usr/lib/polyapps/aarch64-branch.elf \
     /usr/lib/polyapps/aarch64-condbranch.elf \
