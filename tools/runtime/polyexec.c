@@ -4295,8 +4295,9 @@ static int append_origin_dir(const char *owner_path, char *out,
   return append_path_bytes(out, out_len, out_size, owner_path, dir_len);
 }
 
-static int expand_runpath_entry(const char *owner_path, const char *entry,
-    size_t entry_len, char *out, size_t out_size) {
+static int expand_runpath_entry(const char *owner_path,
+    const char *platform_name, const char *entry, size_t entry_len,
+    char *out, size_t out_size) {
   size_t out_len = 0;
   if (out_size == 0)
     return -1;
@@ -4312,6 +4313,35 @@ static int expand_runpath_entry(const char *owner_path, const char *entry,
       if (append_origin_dir(owner_path, out, &out_len, out_size) < 0)
         return -1;
       n += 7;
+      continue;
+    }
+    if (entry_len - n >= 6 && memcmp(entry + n, "${LIB}", 6) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, "lib", 3) < 0)
+        return -1;
+      n += 6;
+      continue;
+    }
+    if (entry_len - n >= 4 && memcmp(entry + n, "$LIB", 4) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, "lib", 3) < 0)
+        return -1;
+      n += 4;
+      continue;
+    }
+    if (platform_name &&
+        entry_len - n >= 11 &&
+        memcmp(entry + n, "${PLATFORM}", 11) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, platform_name,
+            strlen(platform_name)) < 0)
+        return -1;
+      n += 11;
+      continue;
+    }
+    if (platform_name &&
+        entry_len - n >= 9 && memcmp(entry + n, "$PLATFORM", 9) == 0) {
+      if (append_path_bytes(out, &out_len, out_size, platform_name,
+            strlen(platform_name)) < 0)
+        return -1;
+      n += 9;
       continue;
     }
     if (append_path_bytes(out, &out_len, out_size, entry + n, 1) < 0)
@@ -4336,8 +4366,8 @@ static int build_runpath_entry_needed_path(const char *entry, size_t entry_len,
 }
 
 static int build_runpath_needed_path(const char *owner_path,
-    const char *runpath, size_t runpath_len, const char *needed,
-    char *out, size_t out_size) {
+    const char *platform_name, const char *runpath, size_t runpath_len,
+    const char *needed, char *out, size_t out_size) {
   if (!runpath || runpath_len == 0 || needed[0] == '/')
     return -1;
 
@@ -4353,8 +4383,8 @@ static int build_runpath_needed_path(const char *owner_path,
       continue;
 
     char expanded[MAX_DEP_PATH];
-    if (expand_runpath_entry(owner_path, entry, entry_len, expanded,
-          sizeof(expanded)) == 0 &&
+    if (expand_runpath_entry(owner_path, platform_name, entry, entry_len,
+          expanded, sizeof(expanded)) == 0 &&
         build_runpath_entry_needed_path(expanded, strlen(expanded), needed,
           out, out_size) == 0 &&
         access(out, R_OK) == 0)
@@ -4363,13 +4393,45 @@ static int build_runpath_needed_path(const char *owner_path,
   return -1;
 }
 
+static const char *process_library_path(void) {
+  const char *library_path = getenv("POLY_LD_LIBRARY_PATH");
+  if (library_path && library_path[0] != '\0')
+    return library_path;
+  return getenv("LD_LIBRARY_PATH");
+}
+
 static int find_process_needed_path(const char *owner_path, const char *needed,
-    const char *runpath, size_t runpath_len, char *out, size_t out_size) {
-  if (needed[0] != '/' &&
-      build_runpath_needed_path(owner_path, runpath, runpath_len, needed, out,
-        out_size) == 0)
+    const char *platform_name, const char *runpath, size_t runpath_len,
+    char *out, size_t out_size) {
+  char expanded_needed[MAX_DEP_PATH];
+  if (expand_runpath_entry(owner_path, platform_name, needed, strlen(needed),
+        expanded_needed, sizeof(expanded_needed)) < 0)
+    return -1;
+  needed = expanded_needed;
+
+  const char *library_path = process_library_path();
+  const size_t library_path_len = library_path ? strlen(library_path) : 0;
+  if (needed[0] != '/' && library_path_len != 0 &&
+      build_runpath_needed_path(owner_path, platform_name, library_path,
+        library_path_len, needed, out, out_size) == 0)
     return 0;
-  return build_needed_path(owner_path, needed, out, out_size);
+  if (needed[0] != '/' &&
+      build_runpath_needed_path(owner_path, platform_name, runpath,
+        runpath_len, needed, out, out_size) == 0)
+    return 0;
+  if (build_needed_path(owner_path, needed, out, out_size) < 0)
+    return -1;
+  if (needed[0] != '/' && access(out, R_OK) != 0)
+    return -1;
+  return 0;
+}
+
+static const char *process_platform_name_for_arch(int arch) {
+  if (arch == POLY_ARCH_AARCH64)
+    return "aarch64";
+  if (arch == POLY_ARCH_RISCV)
+    return "riscv";
+  return NULL;
 }
 
 static int load_process_dependencies_at_depth(struct poly_program *program,
@@ -4446,7 +4508,8 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
 
     const char *needed = strings + needed_offset;
     struct poly_process_dependency *dep = &program->deps[program->dep_count];
-    if (find_process_needed_path(program->path, needed, runpath, runpath_len,
+    if (find_process_needed_path(program->path, needed,
+          process_platform_name_for_arch(program->arch), runpath, runpath_len,
           dep->path, sizeof(dep->path)) < 0) {
       fprintf(stderr, "POLYEXEC_FAIL: bad DT_NEEDED path: %s: %s\n",
         program->path, needed);
