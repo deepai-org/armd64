@@ -3232,6 +3232,7 @@ static int run_poly_frontend_tls_probe(void) {
     return 1;
   }
 
+  puts("NATIVE_POLY_FRONTEND_TLS_OK");
   return 0;
 }
 
