@@ -1575,6 +1575,18 @@ static void child_expect_bad_abi_signature_flags_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_abi_signature_map_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.abi_signature.slots[3].kind = POLY_ABI_SIGNATURE_KIND_NATIVE_REGS;
+  bad.abi_signature.slots[3].register_map =
+    POLY_ABI_REGISTER_MAP_EXCHANGE;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_malformed_cross_return_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -3920,6 +3932,9 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad ABI signature flags xstate", SIGILL,
         child_expect_bad_abi_signature_flags_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly bad ABI signature map xstate", SIGILL,
+        child_expect_bad_abi_signature_map_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly malformed cross-return xstate", SIGILL,
         child_expect_malformed_cross_return_xsave_signal) != 0)
     return 1;
@@ -4093,10 +4108,14 @@ static int run_poly_state_save_restore_probe(void) {
   }
   if (snapshot.abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
       snapshot.abi_signature.slots[3].kind !=
-        POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export ABI signature mismatch count=%llu slot3=%u\n",
+        POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
+      snapshot.abi_signature.slots[3].register_map !=
+        poly_abi_signature_register_map(
+          POLY_ABI_SIGNATURE_KIND_EXCHANGE)) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export ABI signature mismatch count=%llu slot3=%u map=%u\n",
       (unsigned long long) snapshot.abi_signature.slot_count,
-      snapshot.abi_signature.slots[3].kind);
+      snapshot.abi_signature.slots[3].kind,
+      snapshot.abi_signature.slots[3].register_map);
     return 1;
   }
   if (snapshot.landing_policy.flags != POLY_LANDING_POLICY_REQUIRE_CALL ||
@@ -4308,11 +4327,15 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   }
   if (saved->abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
       saved->abi_signature.slots[4].kind !=
-        POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+        POLY_ABI_SIGNATURE_KIND_EXCHANGE ||
+      saved->abi_signature.slots[4].register_map !=
+        poly_abi_signature_register_map(
+          POLY_ABI_SIGNATURE_KIND_EXCHANGE)) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XSAVE ABI signature mismatch count=%llu slot4=%u\n",
+      "NATIVE_CHECK_FAIL: real XSAVE ABI signature mismatch count=%llu slot4=%u map=%u\n",
       (unsigned long long) saved->abi_signature.slot_count,
-      saved->abi_signature.slots[4].kind);
+      saved->abi_signature.slots[4].kind,
+      saved->abi_signature.slots[4].register_map);
     return 1;
   }
   if (saved->landing_policy.flags != POLY_LANDING_POLICY_REQUIRE_CALL ||
