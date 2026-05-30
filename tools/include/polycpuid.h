@@ -535,14 +535,14 @@ struct poly_aarch64_status_state {
   uint64_t fpcr;
   uint64_t fpsr;
   uint64_t reservation_addr;
-  uint64_t reservation_value;
+  uint64_t reservation_size;
   uint64_t reserved[11];
 };
 
 struct poly_riscv_status_state {
   uint64_t fcsr;
   uint64_t reservation_addr;
-  uint64_t reservation_value;
+  uint64_t reservation_size;
   uint64_t reserved[13];
 };
 

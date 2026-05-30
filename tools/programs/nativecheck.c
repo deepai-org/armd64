@@ -5115,6 +5115,10 @@ static int run_poly_state_register_bank_probe(void) {
   const uint64_t aarch64_fpcr_rtz = 0x00c00000ULL;
   const uint64_t aarch64_fpsr_flags = 0x12ULL;
   const uint64_t riscv_fcsr_rtz_flags = 0x75ULL;
+  volatile uint64_t aarch64_reservation_word = 0x11ULL;
+  volatile uint64_t aarch64_other_reservation_word = 0x22ULL;
+  volatile uint64_t riscv_reservation_word = 0x33ULL;
+  volatile uint64_t riscv_other_reservation_word = 0x44ULL;
 
   memset(&snapshot, 0, sizeof(snapshot));
   poly_trap_vector_set_value(0);
@@ -5269,6 +5273,102 @@ static int run_poly_state_register_bank_probe(void) {
   if (read_xmm0_u64() != twelve_bits) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv f20 mismatch got=0x%llx\n",
       (unsigned long long) read_xmm0_u64());
+    return 1;
+  }
+
+  memset(&snapshot, 0, sizeof(snapshot));
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xc85f7c01\n" // ldxr x1,[x0]
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    :
+    : "a"((uint64_t) (uintptr_t) &aarch64_reservation_word)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  poly_state_export(&snapshot);
+  if (snapshot.aarch64_status.reservation_addr !=
+        (uint64_t) (uintptr_t) &aarch64_reservation_word ||
+      snapshot.aarch64_status.reservation_size != 8) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state export aarch64 reservation mismatch addr=0x%llx size=%llu expected_addr=0x%llx\n",
+      (unsigned long long) snapshot.aarch64_status.reservation_addr,
+      (unsigned long long) snapshot.aarch64_status.reservation_size,
+      (unsigned long long) (uintptr_t) &aarch64_reservation_word);
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xc85f7c01\n" // ldxr x1,[x0]
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    :
+    : "a"((uint64_t) (uintptr_t) &aarch64_other_reservation_word)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  poly_state_import(&snapshot);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0003e2\n" // mov x2,x0
+    ".long 0xd2800665\n" // movz x5,#0x33
+    ".long 0xc8047c45\n" // stxr w4,x5,[x2]
+    ".long 0xaa0403e0\n" // mov x0,x4
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    :
+    : "a"((uint64_t) (uintptr_t) &aarch64_reservation_word)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 0 || aarch64_reservation_word != 0x33ULL) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state import aarch64 reservation stxr status=%llu word=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) aarch64_reservation_word);
+    return 1;
+  }
+
+  memset(&snapshot, 0, sizeof(snapshot));
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x100535af\n" // lr.d a1,(a0)
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    :
+    : "a"((uint64_t) (uintptr_t) &riscv_reservation_word)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  poly_state_export(&snapshot);
+  if (snapshot.riscv_status.reservation_addr !=
+        (uint64_t) (uintptr_t) &riscv_reservation_word ||
+      snapshot.riscv_status.reservation_size != 8) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state export riscv reservation mismatch addr=0x%llx size=%llu expected_addr=0x%llx\n",
+      (unsigned long long) snapshot.riscv_status.reservation_addr,
+      (unsigned long long) snapshot.riscv_status.reservation_size,
+      (unsigned long long) (uintptr_t) &riscv_reservation_word);
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x100535af\n" // lr.d a1,(a0)
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    :
+    : "a"((uint64_t) (uintptr_t) &riscv_other_reservation_word)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  poly_state_import(&snapshot);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00050613\n" // addi a2,a0,0
+    ".long 0x04400793\n" // addi a5,zero,0x44
+    ".long 0x18f6372f\n" // sc.d a4,a5,(a2)
+    ".long 0x00070513\n" // addi a0,a4,0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    :
+    : "a"((uint64_t) (uintptr_t) &riscv_reservation_word)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != 0 || riscv_reservation_word != 0x44ULL) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state import riscv reservation sc status=%llu word=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) riscv_reservation_word);
     return 1;
   }
 
