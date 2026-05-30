@@ -2361,6 +2361,7 @@ static void poly_trap_vector_handler(void) {
     "movq $39, %rax\n"
     "syscall\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "1:\n"
@@ -2373,6 +2374,7 @@ static void poly_trap_vector_handler(void) {
     "movq $39, %rax\n"
     "syscall\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "3:\n"
@@ -2401,6 +2403,7 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $5555, %rax\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "4:\n"
@@ -2428,6 +2431,7 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $4444, %rax\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "5:\n"
@@ -2455,6 +2459,7 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $4545, %rax\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "6:\n"
@@ -2466,6 +2471,7 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $4664, %rax\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "7:\n"
@@ -2477,6 +2483,7 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $4665, %rax\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "8:\n"
@@ -2486,11 +2493,13 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $4666, %rax\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "9:\n"
     "movq $0xffffffffffffffff, %rax\n"
     "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n");
 }
@@ -2714,9 +2723,12 @@ static int run_poly_trap_vector_probe(void) {
 
   uint64_t saved_r13 = 0;
   uint64_t saved_r14 = 0;
+  uint64_t saved_xmm8 = 0;
+  const uint64_t expected_xmm8 = 0x1888188818881888ULL;
   asm volatile(
     "movq $0x13371337, %%r13\n"
     "movq $0x14471447, %%r14\n"
+    "movq %[expected_xmm8], %%xmm8\n"
     POLY_OP_ENTER_A64
     ".long 0xd28003e0\n" // movz x0,#31
     ".long 0xd2800401\n" // movz x1,#32
@@ -2731,15 +2743,19 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     "movq %%r13, %[saved_r13]\n"
     "movq %%r14, %[saved_r14]\n"
+    "movq %%xmm8, %[saved_xmm8]\n"
     : [saved_r13] "=m"(saved_r13),
-      [saved_r14] "=m"(saved_r14)
-    :
+      [saved_r14] "=m"(saved_r14),
+      [saved_xmm8] "=m"(saved_xmm8)
+    : [expected_xmm8] "r"(expected_xmm8)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
-  if (saved_r13 != 0x13371337 || saved_r14 != 0x14471447) {
+      "r8", "r9", "r10", "r11", "r13", "r14", "xmm8", "memory");
+  if (saved_r13 != 0x13371337 || saved_r14 != 0x14471447 ||
+      saved_xmm8 != expected_xmm8) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly aarch64 x86 monitor leaked r13/r14 r13=0x%llx r14=0x%llx\n",
-      (unsigned long long) saved_r13, (unsigned long long) saved_r14);
+      "NATIVE_CHECK_FAIL: poly aarch64 x86 monitor leaked r13/r14/xmm8 r13=0x%llx r14=0x%llx xmm8=0x%llx\n",
+      (unsigned long long) saved_r13, (unsigned long long) saved_r14,
+      (unsigned long long) saved_xmm8);
     return 1;
   }
 
@@ -2812,9 +2828,11 @@ static int run_poly_trap_vector_probe(void) {
 
   saved_r13 = 0;
   saved_r14 = 0;
+  saved_xmm8 = 0;
   asm volatile(
     "movq $0x23372337, %%r13\n"
     "movq $0x24472447, %%r14\n"
+    "movq %[expected_xmm8], %%xmm8\n"
     POLY_OP_ENTER_RV64
     ".long 0x01f00513\n" // addi a0,zero,31
     ".long 0x02000593\n" // addi a1,zero,32
@@ -2828,15 +2846,19 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     "movq %%r13, %[saved_r13]\n"
     "movq %%r14, %[saved_r14]\n"
+    "movq %%xmm8, %[saved_xmm8]\n"
     : [saved_r13] "=m"(saved_r13),
-      [saved_r14] "=m"(saved_r14)
-    :
+      [saved_r14] "=m"(saved_r14),
+      [saved_xmm8] "=m"(saved_xmm8)
+    : [expected_xmm8] "r"(expected_xmm8)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
-  if (saved_r13 != 0x23372337 || saved_r14 != 0x24472447) {
+      "r8", "r9", "r10", "r11", "r13", "r14", "xmm8", "memory");
+  if (saved_r13 != 0x23372337 || saved_r14 != 0x24472447 ||
+      saved_xmm8 != expected_xmm8) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly riscv x86 monitor leaked r13/r14 r13=0x%llx r14=0x%llx\n",
-      (unsigned long long) saved_r13, (unsigned long long) saved_r14);
+      "NATIVE_CHECK_FAIL: poly riscv x86 monitor leaked r13/r14/xmm8 r13=0x%llx r14=0x%llx xmm8=0x%llx\n",
+      (unsigned long long) saved_r13, (unsigned long long) saved_r14,
+      (unsigned long long) saved_xmm8);
     return 1;
   }
 
