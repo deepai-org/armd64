@@ -5112,6 +5112,8 @@ static int run_poly_state_register_bank_probe(void) {
   const uint64_t seven_bits = 0x401c000000000000ULL;
   const uint64_t ten_bits = 0x4024000000000000ULL;
   const uint64_t twelve_bits = 0x4028000000000000ULL;
+  const uint64_t aarch64_fpcr_rtz = 0x00c00000ULL;
+  const uint64_t aarch64_fpsr_flags = 0x12ULL;
 
   memset(&snapshot, 0, sizeof(snapshot));
   poly_trap_vector_set_value(0);
@@ -5122,6 +5124,10 @@ static int run_poly_state_register_bank_probe(void) {
     POLY_OP_ENTER_A64
     ".long 0xd28009b4\n" // movz x20,#77
     ".long 0x1e604014\n" // fmov d20,d0
+    ".long 0xd2a01801\n" // movz x1,#0xc0,lsl #16
+    ".long 0xd51b4401\n" // msr fpcr,x1
+    ".long 0xd2800242\n" // movz x2,#0x12
+    ".long 0xd51b4422\n" // msr fpsr,x2
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
@@ -5138,12 +5144,16 @@ static int run_poly_state_register_bank_probe(void) {
   poly_state_export(&snapshot);
   if (snapshot.aarch64_gpr[20] != 77 ||
       snapshot.aarch64_fp[20].lo != three_bits ||
+      snapshot.aarch64_status.fpcr != aarch64_fpcr_rtz ||
+      snapshot.aarch64_status.fpsr != aarch64_fpsr_flags ||
       snapshot.riscv_gpr[20] != 88 ||
       snapshot.riscv_fp[20].lo != five_bits) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state export register bank mismatch a64x20=%llu a64v20=0x%llx rvx20=%llu rvf20=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly state export register bank mismatch a64x20=%llu a64v20=0x%llx fpcr=0x%llx fpsr=0x%llx rvx20=%llu rvf20=0x%llx\n",
       (unsigned long long) snapshot.aarch64_gpr[20],
       (unsigned long long) snapshot.aarch64_fp[20].lo,
+      (unsigned long long) snapshot.aarch64_status.fpcr,
+      (unsigned long long) snapshot.aarch64_status.fpsr,
       (unsigned long long) snapshot.riscv_gpr[20],
       (unsigned long long) snapshot.riscv_fp[20].lo);
     return 1;
@@ -5154,6 +5164,9 @@ static int run_poly_state_register_bank_probe(void) {
     POLY_OP_ENTER_A64
     ".long 0xd2800174\n" // movz x20,#11
     ".long 0x1e604014\n" // fmov d20,d0
+    ".long 0xd2800001\n" // movz x1,#0
+    ".long 0xd51b4401\n" // msr fpcr,x1
+    ".long 0xd51b4421\n" // msr fpsr,x1
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
@@ -5178,6 +5191,25 @@ static int run_poly_state_register_bank_probe(void) {
   if (read_rax() != 77) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import aarch64 x20 mismatch got=%llu\n",
       (unsigned long long) read_rax());
+    return 1;
+  }
+
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd53b4400\n" // mrs x0,fpcr
+    ".long 0xd53b4421\n" // mrs x1,fpsr
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0xd2800001\n" // movz x1,#0
+    ".long 0xd51b4401\n" // msr fpcr,x1
+    ".long 0xd51b4421\n" // msr fpsr,x1
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (read_rax() != (aarch64_fpcr_rtz + aarch64_fpsr_flags)) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state import aarch64 fpcr/fpsr mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) (aarch64_fpcr_rtz + aarch64_fpsr_flags));
     return 1;
   }
 
