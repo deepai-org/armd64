@@ -5035,6 +5035,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fp-int-move.elf" 0xd2a82800 0x1e270000 0x1e260000 0x9e670001 0x9e660020 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fp32-to-int.elf" 0xd2a82800 0x1e270000 0x1e380000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fp32-to-int64.elf" 0xd2a82800 0x1e270000 0x9e390000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fp-softfloat.elf" 0xd2800000 0xd2a7f001 0x1e270020 0xd2a67002 0x1e270041 0x1e212802 0x1e260043 0x92400063 0xf100007f 0x9a9f17e3 0x8b030000 0xd2a02004 0x91000484 0x9e230083 0x1e260065 0xd357fca5 0x92401ca5 0xf1025cbf 0x9a9f17e5 0x8b050000 0x9e630084 0x1e624085 0x1e2600a6 0x924000c6 0xf10000df 0x9a9f17e6 0x8b060000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-uname.elf" 0x91000020 0xd2801408 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-exit.elf" 0xd28000e0 0xd2800ba8 0xd4000001 0xd2800c60
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-exit-group.elf" 0xd28000e0 0xd2800bc8 0xd4000001 0xd2800c80
@@ -5738,6 +5739,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-fp-int-move.elf=0x41400000 \
     /usr/lib/polyapps/aarch64-fp32-to-int.elf=12 \
     /usr/lib/polyapps/aarch64-fp32-to-int64.elf=12 \
+    /usr/lib/polyapps/aarch64-fp-softfloat.elf=3 \
     /usr/lib/polyapps/aarch64-uname.elf=0 \
     /usr/lib/polyapps/aarch64-exit.elf=7 \
     /usr/lib/polyapps/aarch64-exit-group.elf=7 \
@@ -7292,6 +7294,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-fp-int-move.elf \
       /usr/lib/polyapps/aarch64-fp32-to-int.elf \
       /usr/lib/polyapps/aarch64-fp32-to-int64.elf \
+      /usr/lib/polyapps/aarch64-fp-softfloat.elf \
       /usr/lib/polyapps/aarch64-brk.elf \
       /usr/lib/polyapps/aarch64-svc.elf \
       /usr/lib/polyapps/aarch64-pcall-needed-real.so \
@@ -7862,6 +7865,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-fp-int-move.elf \
     /usr/lib/polyapps/aarch64-fp32-to-int.elf \
     /usr/lib/polyapps/aarch64-fp32-to-int64.elf \
+    /usr/lib/polyapps/aarch64-fp-softfloat.elf \
     /usr/lib/polyapps/aarch64-uname.elf \
     /usr/lib/polyapps/aarch64-exit.elf \
     /usr/lib/polyapps/aarch64-exit-group.elf \
