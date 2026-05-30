@@ -321,7 +321,7 @@ enum {
   POLY_STATE_XSAVE_OFFSET_ARCH = 0x3000,
   POLY_STATE_XSAVE_BYTES_ARCH = 4096,
   POLY_STATE_XSAVE_ALIGN_ARCH = 64,
-  POLY_STATE_XSAVE_LAYOUT_VERSION = 8,
+  POLY_STATE_XSAVE_LAYOUT_VERSION = 9,
   POLY_STATE_XSAVE_FLAG_XCR0_USER = (1U << 0),
   POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED = (1U << 1),
   POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME = (1U << 2),
@@ -333,6 +333,8 @@ enum {
   POLY_STATE_XSAVE_FLAG_CROSS_RETURN = (1U << 8),
   POLY_STATE_XSAVE_FLAG_FRONTEND_TLS = (1U << 9),
   POLY_STATE_XSAVE_FLAG_LANDING_POLICY = (1U << 10),
+  POLY_STATE_XSAVE_FLAG_STATE_KEY = (1U << 11),
+  POLY_STATE_KEY_FLAG_EXPLICIT = (1U << 0),
   POLY_STATE_XSAVE_HEADER_OFFSET = 0x000,
   POLY_STATE_XSAVE_HEADER_BYTES = 0x040,
   POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
@@ -369,8 +371,10 @@ enum {
   POLY_STATE_XSAVE_FRONTEND_TLS_BYTES = 0x040,
   POLY_STATE_XSAVE_LANDING_POLICY_OFFSET = 0xee0,
   POLY_STATE_XSAVE_LANDING_POLICY_BYTES = 0x040,
-  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xf20,
-  POLY_STATE_XSAVE_RESERVED_BYTES = 0x0e0,
+  POLY_STATE_XSAVE_STATE_KEY_OFFSET = 0xf20,
+  POLY_STATE_XSAVE_STATE_KEY_BYTES = 0x040,
+  POLY_STATE_XSAVE_RESERVED_OFFSET = 0xf60,
+  POLY_STATE_XSAVE_RESERVED_BYTES = 0x0a0,
   POLY_TRAP_PACKET_LAYOUT_VERSION = 2,
   POLY_TRAP_PACKET_HEADER_BYTES = 64,
   POLY_TRAP_PACKET_ARG_COUNT = 8,
@@ -629,6 +633,13 @@ struct poly_landing_policy_state {
   uint64_t reserved[6];
 };
 
+struct poly_state_key_state {
+  uint64_t flags;
+  uint64_t explicit_key;
+  uint64_t supported_flags;
+  uint64_t reserved[5];
+};
+
 struct poly_xsave_state {
   struct poly_xsave_header header;
   struct poly_trap_packet trap;
@@ -645,6 +656,7 @@ struct poly_xsave_state {
   struct poly_cross_return_state cross_return;
   struct poly_frontend_tls_state frontend_tls;
   struct poly_landing_policy_state landing_policy;
+  struct poly_state_key_state state_key;
   uint8_t reserved[POLY_STATE_XSAVE_RESERVED_BYTES];
 };
 
@@ -690,6 +702,9 @@ POLY_STATIC_ASSERT(sizeof(struct poly_frontend_tls_state) ==
 POLY_STATIC_ASSERT(sizeof(struct poly_landing_policy_state) ==
   POLY_STATE_XSAVE_LANDING_POLICY_BYTES,
   "poly landing policy area size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_state_key_state) ==
+  POLY_STATE_XSAVE_STATE_KEY_BYTES,
+  "poly state-key area size must match XSAVE layout");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, header) ==
   POLY_STATE_XSAVE_HEADER_OFFSET,
   "poly XSAVE header offset drifted");
@@ -735,6 +750,9 @@ POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, frontend_tls) ==
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, landing_policy) ==
   POLY_STATE_XSAVE_LANDING_POLICY_OFFSET,
   "poly landing policy offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, state_key) ==
+  POLY_STATE_XSAVE_STATE_KEY_OFFSET,
+  "poly state-key offset drifted");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, reserved) ==
   POLY_STATE_XSAVE_RESERVED_OFFSET,
   "poly reserved area offset drifted");
@@ -1026,7 +1044,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
     POLY_STATE_XSAVE_FLAG_MONITOR_PACKET |
     POLY_STATE_XSAVE_FLAG_CROSS_RETURN |
     POLY_STATE_XSAVE_FLAG_FRONTEND_TLS |
-    POLY_STATE_XSAVE_FLAG_LANDING_POLICY;
+    POLY_STATE_XSAVE_FLAG_LANDING_POLICY |
+    POLY_STATE_XSAVE_FLAG_STATE_KEY;
   return regs;
 }
 

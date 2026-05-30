@@ -1649,6 +1649,37 @@ static void child_expect_bad_landing_supported_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_state_key_flags_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.state_key.flags |= 2;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_key_supported_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.state_key.supported_flags = 0;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_inactive_state_key_value_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  poly_state_key_set_value(0);
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.state_key.explicit_key = 0x5354415445424144ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_trap_vector_mode_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -1861,6 +1892,16 @@ static void child_expect_bad_inactive_cross_return_xsave_signal(void) {
   bad.cross_return.top = 0;
   bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
   bad.cross_return.frames[0].return_pc = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_key_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.state_key.reserved[0] = 1;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3362,6 +3403,7 @@ static int run_poly_trap_vector_probe(void) {
 static int run_poly_state_key_probe(void) {
   const uint64_t key_a = 0x53544154454b4101ULL;
   const uint64_t key_b = 0x53544154454b4202ULL;
+  struct poly_xsave_state snapshot __attribute__((aligned(64)));
   uint64_t result;
 
   if (poly_state_key_set_value(0) != 0 ||
@@ -3433,6 +3475,24 @@ static int run_poly_state_key_probe(void) {
     return 1;
   }
 
+  memset(&snapshot, 0, sizeof(snapshot));
+  poly_state_export(&snapshot);
+  if (snapshot.header.layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      snapshot.header.total_bytes != POLY_STATE_XSAVE_BYTES_ARCH ||
+      snapshot.state_key.flags != POLY_STATE_KEY_FLAG_EXPLICIT ||
+      snapshot.state_key.explicit_key != key_a ||
+      snapshot.state_key.supported_flags != POLY_STATE_KEY_FLAG_EXPLICIT ||
+      nativecheck_bytes_are_zero(snapshot.state_key.reserved,
+        sizeof(snapshot.state_key.reserved), "state-key reserved") != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state-key XSAVE snapshot mismatch version=%u bytes=%u flags=0x%llx key=0x%llx supported=0x%llx\n",
+      snapshot.header.layout_version, snapshot.header.total_bytes,
+      (unsigned long long) snapshot.state_key.flags,
+      (unsigned long long) snapshot.state_key.explicit_key,
+      (unsigned long long) snapshot.state_key.supported_flags);
+    return 1;
+  }
+
   if (poly_state_key_set_value(key_b) != 0 ||
       poly_state_key_get_value() != key_b) {
     fprintf(stderr,
@@ -3454,10 +3514,43 @@ static int run_poly_state_key_probe(void) {
     return 1;
   }
 
+  poly_state_import(&snapshot);
+  if (poly_state_key_get_value() != key_a) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state-key XSAVE import selector mismatch get=0x%llx\n",
+      (unsigned long long) poly_state_key_get_value());
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  result = read_rax();
+  if (result != 11) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly state-key XSAVE import bank mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
   if (poly_state_key_set_value(0) != 0 ||
       poly_state_key_get_value() != 0) {
     fputs("NATIVE_CHECK_FAIL: poly explicit state-key final clear failed\n",
       stderr);
+    return 1;
+  }
+  memset(&snapshot, 0, sizeof(snapshot));
+  poly_state_export(&snapshot);
+  if (snapshot.state_key.flags != 0 ||
+      snapshot.state_key.explicit_key != 0 ||
+      snapshot.state_key.supported_flags != POLY_STATE_KEY_FLAG_EXPLICIT) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly cleared state-key XSAVE mismatch flags=0x%llx key=0x%llx supported=0x%llx\n",
+      (unsigned long long) snapshot.state_key.flags,
+      (unsigned long long) snapshot.state_key.explicit_key,
+      (unsigned long long) snapshot.state_key.supported_flags);
     return 1;
   }
 
@@ -3819,6 +3912,15 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad landing supported xstate", SIGILL,
         child_expect_bad_landing_supported_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly bad state-key flags xstate", SIGILL,
+        child_expect_bad_state_key_flags_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad state-key supported xstate", SIGILL,
+        child_expect_bad_state_key_supported_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly inactive state-key value xstate", SIGILL,
+        child_expect_inactive_state_key_value_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly bad trap-vector mode xstate", SIGILL,
         child_expect_bad_trap_vector_mode_xsave_signal) != 0)
     return 1;
@@ -3878,6 +3980,9 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad inactive cross-return xstate", SIGILL,
         child_expect_bad_inactive_cross_return_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad state-key reserved xstate", SIGILL,
+        child_expect_bad_state_key_reserved_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad top reserved xstate", SIGILL,
         child_expect_bad_top_reserved_xsave_signal) != 0)
