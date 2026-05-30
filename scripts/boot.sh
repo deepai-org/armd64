@@ -4760,6 +4760,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mul.elf" 0xd28000e0 0xd28000c1 0x9b017c00
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-logical.elf" 0xd2801e00 0xd2800781 0xca010000 0x8a010000 0xaa010000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-shifted.elf" 0xd28000a0 0xd2800061 0x928000e2 0x8b010803 0xcb010464 0xaa0113e5 0xca4304a6 0x8a8204c7 0x8b060080 0x8b070000
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-logical.elf" 0xd2801fe1 0xf2a01fe1 0xf2c01fe1 0xf2e01fe1 0xd281e1e2 0xf2a1e1e2 0xf2c1e1e2 0xf2e1e1e2 0x4e080c21 0x4e080c42 0x4e221c23 0x4ea21c24 0x6e221c25 0x4e621c26 0x4ee21c27 0x0e013c60 0x0e013c88 0x8b080000 0x0e013ca8 0x8b080000 0x0e013cc8 0x8b080000 0x0e013ce8 0x8b080000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-regmix.elf" 0xd2800140 0xd28000a1 0xd2800062 0x8b020020 0xca020000 0xaa010000 0x8a020000 0x9b017c00 0xcb020000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-branch.elf" 0xd2800520 0x14000002 0xd2800020 0x91000400
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-condbranch.elf" 0xd2800000 0xb5000040 0x91000400 0xd2800000 0xb4000040 0xd2800c60 0x91000c00 0xb4000040 0x91001400 0xb5000040 0xd2800c60 0x91014c00
@@ -5478,6 +5479,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-mul.elf=42 \
     /usr/lib/polyapps/aarch64-logical.elf=60 \
     /usr/lib/polyapps/aarch64-shifted.elf=123 \
+    /usr/lib/polyapps/aarch64-simd-logical.elf=1005 \
     /usr/lib/polyapps/aarch64-regmix.elf=12 \
     /usr/lib/polyapps/aarch64-branch.elf=42 \
     /usr/lib/polyapps/aarch64-condbranch.elf=91 \
@@ -7208,6 +7210,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-mul.elf \
       /usr/lib/polyapps/aarch64-logical.elf \
       /usr/lib/polyapps/aarch64-shifted.elf \
+      /usr/lib/polyapps/aarch64-simd-logical.elf \
       /usr/lib/polyapps/aarch64-regmix.elf \
       /usr/lib/polyapps/aarch64-branch.elf \
       /usr/lib/polyapps/aarch64-condbranch.elf \
@@ -7573,6 +7576,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-mul.elf \
     /usr/lib/polyapps/aarch64-logical.elf \
     /usr/lib/polyapps/aarch64-shifted.elf \
+    /usr/lib/polyapps/aarch64-simd-logical.elf \
     /usr/lib/polyapps/aarch64-regmix.elf \
     /usr/lib/polyapps/aarch64-branch.elf \
     /usr/lib/polyapps/aarch64-condbranch.elf \
