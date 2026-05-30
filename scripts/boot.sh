@@ -4769,6 +4769,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-permute.elf" 0x0f00e421 0x0f00e542 0x0e023823 0x0e026824 0x0e021825 0x4f00e466 0x4f00e687 0x4e0778c8 0x4e0758c9 0x4e0728cb 0x0f00848c 0x0f0087cd 0x0e4d398e 0x0f0004af 0x0f010510 0x0e9019f1 0xd28000d2 0x4e080e52 0xd2800653 0x4e080e73 0x4ed36a54 0x0e033c60 0x0e013c8a 0x8b0a0000 0x0e093caa 0x8b0a0000 0x0e033d0a 0x8b0a0000 0x0e113d2a 0x8b0a0000 0x0e1f3d6a 0x8b0a0000 0x0e063dca 0x8b0a0000 0x0e0c3e2a 0x8b0a0000 0x4e183e8a 0x8b0a0000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-tbl.elf" 0xd2802001 0xf2a06041 0xf2c0a081 0xf2e0e0c1 0x4e080c21 0x4f01e402 0x0f00e4a3 0x0e030024 0x4f00e523 0x4e030025 0x0f00e663 0x0e032026 0x0f02e5a7 0x0f03e463 0x0e031027 0x4f02e708 0x4f00e483 0x4e031028 0x4f00e54a 0x4f00e68b 0x4f00e7cc 0x4f01e50d 0x4f01e44e 0x4e0e614f 0x0e013c80 0x0e013ca9 0x8b090000 0x0e013cc9 0x8b090000 0x0e013ce9 0x8b090000 0x0e013d09 0x8b090000 0x0e013de9 0x8b090000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-rev.elf" 0xd2802001 0xf2a06041 0xf2c0a081 0xf2e0e0c1 0x4e080c21 0x0e201822 0x2e200823 0x0e200824 0x4e201825 0x6e200826 0x4e200827 0x2e600828 0x0e600829 0x0ea0082a 0x0e013c40 0x0e013c6b 0x8b0b0000 0x0e013c8b 0x8b0b0000 0x0e113cab 0x8b0b0000 0x0e113ccb 0x8b0b0000 0x0e113ceb 0x8b0b0000 0x0e023d0b 0x8b0b0000 0x0e023d2b 0x8b0b0000 0x0e043d4b 0x8b0b0000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-reduce.elf" 0xd2900001 0xf2afffe1 0xf2dfffe1 0xf2e00021 0x4e080c21 0x4e30a822 0x6e30a823 0x4e31a824 0x6e31a825 0x4e70a826 0x6e70a827 0x4e71a828 0x6e71a829 0xd280000a 0xf2b0000a 0xf2dfffea 0xf2efffea 0x4e080d4a 0x4eb0a94c 0x6eb0a94d 0x4eb1a94e 0x6eb1a94f 0x0e013c40 0x0e013c6b 0x8b0b0000 0x0e013c8b 0x8b0b0000 0x0e013cab 0x8b0b0000 0x0e023ccb 0x8b0b0000 0x0e023ceb 0x8b0b0000 0x0e023d0b 0x8b0b0000 0x0e023d2b 0x8b0b0000 0x0e043d8b 0x8b0b0000 0x0e043dab 0x8b0b0000 0x0e043dcb 0x8b0b0000 0x0e043deb 0x8b0b0000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-regmix.elf" 0xd2800140 0xd28000a1 0xd2800062 0x8b020020 0xca020000 0xaa010000 0x8a020000 0x9b017c00 0xcb020000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-branch.elf" 0xd2800520 0x14000002 0xd2800020 0x91000400
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-condbranch.elf" 0xd2800000 0xb5000040 0x91000400 0xd2800000 0xb4000040 0xd2800c60 0x91000c00 0xb4000040 0x91001400 0xb5000040 0xd2800c60 0x91014c00
@@ -5496,6 +5497,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-simd-permute.elf=201 \
     /usr/lib/polyapps/aarch64-simd-tbl.elf=149 \
     /usr/lib/polyapps/aarch64-simd-rev.elf=117837602 \
+    /usr/lib/polyapps/aarch64-simd-reduce.elf=8590066171 \
     /usr/lib/polyapps/aarch64-regmix.elf=12 \
     /usr/lib/polyapps/aarch64-branch.elf=42 \
     /usr/lib/polyapps/aarch64-condbranch.elf=91 \
@@ -7235,6 +7237,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-simd-permute.elf \
       /usr/lib/polyapps/aarch64-simd-tbl.elf \
       /usr/lib/polyapps/aarch64-simd-rev.elf \
+      /usr/lib/polyapps/aarch64-simd-reduce.elf \
       /usr/lib/polyapps/aarch64-regmix.elf \
       /usr/lib/polyapps/aarch64-branch.elf \
       /usr/lib/polyapps/aarch64-condbranch.elf \
@@ -7609,6 +7612,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-simd-permute.elf \
     /usr/lib/polyapps/aarch64-simd-tbl.elf \
     /usr/lib/polyapps/aarch64-simd-rev.elf \
+    /usr/lib/polyapps/aarch64-simd-reduce.elf \
     /usr/lib/polyapps/aarch64-regmix.elf \
     /usr/lib/polyapps/aarch64-branch.elf \
     /usr/lib/polyapps/aarch64-condbranch.elf \
