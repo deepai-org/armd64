@@ -1036,6 +1036,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf19(void) {
   return regs;
 }
 
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf21(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_STATE_KEY_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_STATE_KEY_BYTES;
+  regs.ecx = POLY_STATE_KEY_FLAG_EXPLICIT;
+  regs.edx = 0;
+  return regs;
+}
+
 static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_CPUID_STATE_OVERLAP_GPRS |

@@ -7266,6 +7266,23 @@ int main(void) {
         compact_signature_manifest.ecx, compact_signature_manifest.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_state_key_detail_manifest =
+      poly_cpuid_expected_escape_leaf21();
+    struct poly_cpuid_regs state_key_detail_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 21);
+    if (state_key_detail_manifest.eax !=
+          expected_state_key_detail_manifest.eax ||
+        state_key_detail_manifest.ebx !=
+          expected_state_key_detail_manifest.ebx ||
+        state_key_detail_manifest.ecx !=
+          expected_state_key_detail_manifest.ecx ||
+        state_key_detail_manifest.edx !=
+          expected_state_key_detail_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID state-key detail manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        state_key_detail_manifest.eax, state_key_detail_manifest.ebx,
+        state_key_detail_manifest.ecx, state_key_detail_manifest.edx);
+      return 1;
+    }
     if (check_poly_abi_signature_slot_default(
           pcall_imm_manifest.ecx & 0xffU,
           pcall_imm_manifest.edx & 0xffU, "exchange") != 0 ||
