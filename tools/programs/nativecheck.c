@@ -6619,17 +6619,17 @@ int main(void) {
         expected_features, POLY_STATE_XSAVE_COMPONENT_ARCH);
       return 1;
     }
-    struct poly_cpuid_regs expected_import_manifest =
+    struct poly_cpuid_regs expected_x86_control_manifest =
       poly_cpuid_expected_escape_leaf5();
-    struct poly_cpuid_regs import_manifest =
+    struct poly_cpuid_regs x86_control_manifest =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
-    if (import_manifest.eax != expected_import_manifest.eax ||
-        import_manifest.ebx != expected_import_manifest.ebx ||
-        import_manifest.ecx != expected_import_manifest.ecx ||
-        import_manifest.edx != expected_import_manifest.edx) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID reserved import leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-        import_manifest.eax, import_manifest.ebx, import_manifest.ecx,
-        import_manifest.edx);
+    if (x86_control_manifest.eax != expected_x86_control_manifest.eax ||
+        x86_control_manifest.ebx != expected_x86_control_manifest.ebx ||
+        x86_control_manifest.ecx != expected_x86_control_manifest.ecx ||
+        x86_control_manifest.edx != expected_x86_control_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 control leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        x86_control_manifest.eax, x86_control_manifest.ebx,
+        x86_control_manifest.ecx, x86_control_manifest.edx);
       return 1;
     }
     struct poly_cpuid_regs expected_switch_manifest =

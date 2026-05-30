@@ -143,6 +143,8 @@ enum {
   POLY_RISCV_CTRL_SUBOP_MONITOR_PACKET_GET = 29,
   POLY_RISCV_CTRL_SUBOP_LANDING_POLICY_SET = 30,
   POLY_RISCV_CTRL_SUBOP_LANDING_POLICY_GET = 31,
+  POLY_X86_CTRL_PENTER_MODE = 0x03,
+  POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_LANDING = 0x05,
   POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_X86_CTRL_LANDING_POLICY_SET = 0x6d,
@@ -863,8 +865,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf4(void) {
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf5(void) {
   struct poly_cpuid_regs regs;
-  regs.eax = 0;
-  regs.ebx = 0;
+  regs.eax = POLY_X86_CTRL_PENTER_MODE;
+  regs.ebx = POLY_X86_CTRL_PSWITCH_MODE;
   regs.ecx = 0;
   regs.edx = 0;
   return regs;
