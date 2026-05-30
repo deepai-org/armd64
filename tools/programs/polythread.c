@@ -213,9 +213,8 @@ static int expect_monitor_packet(uintptr_t worker_id, const char *label,
       packet->trap.resume_pc == 0 ||
       packet->trap.reserved[0] != 0 ||
       packet->trap.reserved[1] != 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY) == 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0 ||
+      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
+        POLY_TRAP_PACKET_REQUIRED_FLAGS ||
       packet->args[0] != arg0 ||
       packet->args[6] != arg6 ||
       packet->args[7] != arg7) {

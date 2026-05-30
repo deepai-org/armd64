@@ -1970,10 +1970,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
 }
 
 static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
-  const uint64_t required_flags =
-    POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY |
-    POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY |
-    POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+  const uint64_t required_flags = POLY_TRAP_PACKET_REQUIRED_FLAGS;
   const uint64_t header = poly_monitor_packet[0];
   packet->reason = header & 0xffffffffULL;
   packet->mode = header >> 32;

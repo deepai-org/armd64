@@ -78,9 +78,8 @@ static int expect_monitor_packet(const char *label,
       packet->args[7] != arg7 ||
       packet->trap.reserved[0] != 0 ||
       packet->trap.reserved[1] != 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY) == 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0) {
+      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
+        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu flags=0x%llx reserved0=0x%llx reserved1=0x%llx\n",
       label, packet->trap.reason, packet->trap.source_mode,
@@ -107,9 +106,8 @@ static int expect_monitor_packet_args(const char *label,
       packet->trap.selector != selector ||
       packet->trap.reserved[0] != 0 ||
       packet->trap.reserved[1] != 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY) == 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY) == 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0) {
+      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
+        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly monitor packet %s header mismatch reason=%u mode=%u number=%llu selector=%llu flags=0x%llx reserved0=0x%llx reserved1=0x%llx\n",
       label, packet->trap.reason, packet->trap.source_mode,
