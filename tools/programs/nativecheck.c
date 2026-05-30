@@ -421,6 +421,41 @@ nativecheck_riscv_switch_aarch64_read_tls(uint64_t tls_base) {
 }
 
 static __attribute__((noinline)) uint64_t
+nativecheck_aarch64_barrier_sequence(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2802460\n" // movz x0,#0x123
+    ".long 0xd5033f9f\n" // dsb sy
+    ".long 0xd5033fbf\n" // dmb sy
+    ".long 0xd5033fdf\n" // isb
+    ".long 0x91000400\n" // add x0,x0,#1
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+      "r11", "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
+nativecheck_riscv_fence_sequence(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x12300513\n" // addi a0,zero,0x123
+    ".long 0x0ff0000f\n" // fence iorw,iorw
+    ".long 0x0000100f\n" // fence.i
+    ".long 0x00150513\n" // addi a0,a0,1
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+      "r11", "r13", "r14", "memory");
+  return result;
+}
+
+static __attribute__((noinline)) uint64_t
 poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
   uint64_t rdx = kind;
@@ -2255,6 +2290,22 @@ static int run_poly_landing_policy_probe(void) {
   }
 
   puts("NATIVE_POLY_LANDING_POLICY_OK");
+  return 0;
+}
+
+static int run_poly_memory_ordering_probe(void) {
+  uint64_t aarch64_result = nativecheck_aarch64_barrier_sequence();
+  uint64_t riscv_result = nativecheck_riscv_fence_sequence();
+
+  if (aarch64_result != 0x124 || riscv_result != 0x124) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly memory ordering barrier/fence result aarch64=0x%llx riscv=0x%llx\n",
+      (unsigned long long) aarch64_result,
+      (unsigned long long) riscv_result);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_MEMORY_ORDERING_OK");
   return 0;
 }
 
@@ -6687,6 +6738,8 @@ int main(void) {
     if (run_poly_invalid_generic_control_signal_probe() != 0)
       return 1;
     if (run_poly_landing_policy_probe() != 0)
+      return 1;
+    if (run_poly_memory_ordering_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;
