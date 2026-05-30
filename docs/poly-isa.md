@@ -1,11 +1,11 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly extends x86_64 with AArch64 and RISC-V64 user-mode frontends so existing
-precompiled code from all three ISAs can run in one virtual address space.
-x86_64 remains the system ISA: boot, privilege, paging, interrupts, faults,
-atomics, VM control, and global TSO memory ordering stay x86-owned.
+Poly adds AArch64 and RISC-V64 user-mode frontends to x86_64. The goal is to
+link and run existing precompiled objects from all three ISAs in one x86_64
+process without making the CPU or OS understand libc, Linux ABIs, or loader
+policy.
 
-## Run
+## Run Tests
 
 ```bash
 make image
@@ -13,61 +13,50 @@ make boot-poly-full-arch-traps
 rg -a 'BOOT_OK|POLY.*OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Faster focused smoke test:
-
 ```bash
 make boot-poly-binfmt-arch-traps
 ```
 
-## Architectural Delta From x86_64
+## x86_64 Differences
 
 - Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
-- Foreign frontends fetch native aligned 32-bit instructions from the same
-  linear address space; `RIP` is the shared frontend PC.
+- x86_64 remains the system ISA: boot, paging, privilege, interrupts, faults,
+  atomics, VM control, and TSO memory ordering are x86-owned.
+- Foreign frontends fetch aligned native 32-bit instructions from the same
+  linear address space. `RIP` is the shared frontend PC.
 - Poly transitions are decoded control instructions, not `#UD` envelopes.
-- Hardware only performs fixed-latency frontend switches, register aliasing, and
-  precise trap/return bookkeeping.
-- Hardware does not implement Linux, libc, dynamic-linker policy, user-memory
-  call descriptors, stack repacking, or aggregate marshalling.
-- Loader/runtime thunks handle stack arguments, by-value aggregates, variadics,
-  lazy binding, syscalls, libcalls, and incompatible vector layouts.
-- Register-only calls can use cached ABI signature slots for few-cycle native
-  ABI handoff.
+- Hardware may switch frontends, alias registers, track cross-ISA returns, and
+  report precise traps. It must not parse user-memory call descriptors, repack
+  stacks, marshal aggregates, or implement OS/libc policy.
+- Runtime thunks handle stack arguments, aggregates, variadics, lazy binding,
+  syscalls, libcalls, and incompatible vector layouts.
+- Register-only calls use cached ABI signature slots for few-cycle handoff.
 - Cross-ISA returns use native return instructions plus a hardware transition
-  stack/return-cookie mechanism; same-ISA returns stay ordinary returns.
+  stack/return cookie. Same-ISA returns remain ordinary returns.
 
 ## Encodings
 
-Prototype x86 control page:
-
-```text
-0f 3a fc <subop>
-```
-
-Current x86 subops: `PENTER=0x03`, `PSWITCH=0x04`, `PLANDING=0x05`,
-`PCALL_SIG=0x2d`, `PCALL_SIG_IMM=0x2e`, `LANDING_POLICY_SET=0x6d`, and
-`LANDING_POLICY_GET=0x6e`.
-
-Foreign control instructions use native reserved spaces:
-
 | Frontend | Encoding |
 | --- | --- |
+| x86_64 | `0f 3a fc <subop>` |
 | AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
-Key foreign subops: escape to x86, trap return, switch mode, call mode,
-call-with-signature, landing pad, and set/get ABI signature. See
-`tools/include/polycpuid.h` for the exact numeric assignments.
+Main subops include enter/switch frontend, call frontend, call with ABI
+signature, landing pad, trap return, and ABI signature set/get. Numeric
+assignments live in `tools/include/polycpuid.h`.
 
 ## State And Traps
 
-- Poly state is XSAVE-style architectural state. The current explicit state import layout version is `8`.
-- Foreign traps produce OS-neutral packets. A trap packet records the first eight native foreign ABI argument registers so a monitor or runtime can apply policy without the CPU knowing the host OS or C library.
-- The OS saves/restores the Poly XSAVE component; userspace policy lives in the
-  Poly runtime/monitor.
+- Poly register state is XSAVE-style architectural state. Current explicit
+  state import layout version: `8`.
+- Foreign traps produce OS-neutral packets. Packets include the first eight
+  native foreign ABI argument registers so userspace can translate syscalls,
+  libcalls, and lazy binding without CPU OS knowledge.
+- The OS saves/restores Poly state; userspace runtime/monitor owns policy.
 
 ## References
 
-- Design rationale: `docs/poly-isa-design-directions.md`
-- Constants and userspace helper ABI: `tools/include/polycpuid.h`
-- Prototype Bochs implementation: `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`
+- Rationale: `docs/poly-isa-design-directions.md`
+- Constants: `tools/include/polycpuid.h`
+- Bochs prototype: `bochs-prepoly-src/bochs/cpu/proc_ctrl.cc`
