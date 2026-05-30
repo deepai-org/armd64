@@ -23,8 +23,12 @@ extern int64_t poly_runtime_call_foreign_comparator_arg(void *callback,
 extern uint64_t poly_runtime_call_foreign_void(void *callback);
 extern const char *poly_runtime_foreign_execfn;
 extern uint64_t poly_runtime_foreign_arch;
+extern uint64_t poly_runtime_foreign_entry;
 extern uint64_t poly_runtime_foreign_hwcap;
 extern uint64_t poly_runtime_foreign_hwcap2;
+extern uint64_t poly_runtime_foreign_phdr;
+extern uint64_t poly_runtime_foreign_phent;
+extern uint64_t poly_runtime_foreign_phnum;
 
 static volatile uint64_t poly_host_x86_zero;
 static int poly_host_errno_value;
@@ -863,7 +867,13 @@ uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
   enum {
     POLY_ARCH_AARCH64 = 1,
     POLY_ARCH_RISCV = 2,
+    POLY_AT_PHDR = 3,
+    POLY_AT_PHENT = 4,
+    POLY_AT_PHNUM = 5,
     POLY_AT_PAGESZ = 6,
+    POLY_AT_BASE = 7,
+    POLY_AT_FLAGS = 8,
+    POLY_AT_ENTRY = 9,
     POLY_AT_UID = 11,
     POLY_AT_EUID = 12,
     POLY_AT_GID = 13,
@@ -880,8 +890,19 @@ uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
   static const char riscv_platform[] = "riscv64";
 
   switch (type) {
+  case POLY_AT_PHDR:
+    return poly_runtime_foreign_phdr;
+  case POLY_AT_PHENT:
+    return poly_runtime_foreign_phent;
+  case POLY_AT_PHNUM:
+    return poly_runtime_foreign_phnum;
   case POLY_AT_PAGESZ:
     return 4096;
+  case POLY_AT_BASE:
+  case POLY_AT_FLAGS:
+    return 0;
+  case POLY_AT_ENTRY:
+    return poly_runtime_foreign_entry;
   case POLY_AT_PLATFORM:
     if (poly_runtime_foreign_arch == POLY_ARCH_AARCH64)
       return (uint64_t) (uintptr_t) aarch64_platform;

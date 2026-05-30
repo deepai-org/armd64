@@ -65,6 +65,11 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
   const unsigned char *random = (const unsigned char *) getauxval(25);
   if (!random || !poly_random_nonzero(random))
     return 9007;
+  if (getauxval(3) == 0 || getauxval(4) != 56 || getauxval(5) == 0 ||
+      getauxval(9) == 0)
+    return 9008;
+  if (getauxval(7) != 0 || getauxval(8) != 0)
+    return 9009;
 
   return a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 +
     getauxval(6) + getauxval(17) + getauxval(16) + getauxval(26) +

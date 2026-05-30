@@ -775,6 +775,9 @@ struct poly_program {
   size_t image_size;
   size_t entry_offset;
   uint64_t base_vaddr;
+  uint64_t phdr_vaddr;
+  uint16_t phent;
+  uint16_t phnum;
   size_t loaded_bytes;
   struct poly_load_segment load_segments[MAX_LOAD_SEGMENTS];
   size_t load_segment_count;
@@ -840,12 +843,20 @@ static size_t poly_stub_state_key_verified_count;
 uint64_t poly_runtime_foreign_hwcap;
 uint64_t poly_runtime_foreign_hwcap2;
 uint64_t poly_runtime_foreign_arch;
+uint64_t poly_runtime_foreign_phdr;
+uint64_t poly_runtime_foreign_phent;
+uint64_t poly_runtime_foreign_phnum;
+uint64_t poly_runtime_foreign_entry;
 const char *poly_runtime_foreign_execfn;
 
 static void poly_runtime_set_foreign_auxv(int arch, const char *execfn)
 {
   poly_runtime_foreign_arch = (uint64_t) arch;
   poly_runtime_foreign_execfn = execfn;
+  poly_runtime_foreign_phdr = 0;
+  poly_runtime_foreign_phent = 0;
+  poly_runtime_foreign_phnum = 0;
+  poly_runtime_foreign_entry = 0;
   poly_runtime_foreign_hwcap = 0;
   poly_runtime_foreign_hwcap2 = 0;
   if (arch == POLY_ARCH_AARCH64) {
@@ -861,6 +872,17 @@ static void poly_runtime_set_foreign_auxv(int arch, const char *execfn)
       POLY_RISCV_HWCAP_ISA_I |
       POLY_RISCV_HWCAP_ISA_M;
   }
+}
+
+static void poly_runtime_set_foreign_image_auxv(
+    const struct poly_program *program, uint64_t load_bias)
+{
+  poly_runtime_foreign_phdr = program->phdr_vaddr ?
+    load_bias + program->phdr_vaddr : 0;
+  poly_runtime_foreign_phent = program->phent;
+  poly_runtime_foreign_phnum = program->phnum;
+  poly_runtime_foreign_entry = load_bias + program->base_vaddr +
+    (uint64_t) program->entry_offset;
 }
 
 void poly_runtime_reset_atexit_callbacks(void)
@@ -7789,6 +7811,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
     free(data);
     return -1;
   }
+  const uint64_t phdr_table_size =
+    (uint64_t) ehdr->e_phnum * ehdr->e_phentsize;
   program->elf_type = ehdr->e_type;
 
   uint64_t base_vaddr = UINT64_MAX;
@@ -7796,9 +7820,14 @@ static int load_elf_program(const char *path, const char *symbol_name,
   int found_load = 0;
   uint64_t dynamic_vaddr = 0;
   uint64_t dynamic_size = 0;
+  uint64_t phdr_vaddr = 0;
 
   for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
     const Elf64_Phdr *phdr = (const Elf64_Phdr *) (data + ehdr->e_phoff + (uint64_t) n * ehdr->e_phentsize);
+    if (phdr->p_type == PT_PHDR) {
+      phdr_vaddr = phdr->p_vaddr;
+      continue;
+    }
     if (phdr->p_type == PT_DYNAMIC) {
       dynamic_vaddr = phdr->p_vaddr;
       dynamic_size = phdr->p_filesz;
@@ -7832,6 +7861,12 @@ static int load_elf_program(const char *path, const char *symbol_name,
       free(data);
       return -1;
     }
+    if (!phdr_vaddr && ehdr->e_phoff >= phdr->p_offset) {
+      const uint64_t phdr_offset_in_segment = ehdr->e_phoff - phdr->p_offset;
+      if (phdr_offset_in_segment <= phdr->p_filesz &&
+          phdr_table_size <= phdr->p_filesz - phdr_offset_in_segment)
+        phdr_vaddr = phdr->p_vaddr + phdr_offset_in_segment;
+    }
     uint64_t segment_base = align_down_u64(phdr->p_vaddr, 0x1000);
     uint64_t segment_limit = phdr->p_vaddr + phdr->p_memsz;
     if (record_load_segment(program->load_segments,
@@ -7857,6 +7892,9 @@ static int load_elf_program(const char *path, const char *symbol_name,
 
   program->base_vaddr = base_vaddr;
   program->image_size = (size_t) (limit_vaddr - base_vaddr + 4);
+  program->phent = ehdr->e_phentsize;
+  program->phnum = ehdr->e_phnum;
+  program->phdr_vaddr = phdr_vaddr;
   program->image = calloc(1, program->image_size);
   if (!program->image) {
     fprintf(stderr, "POLYCALL_FAIL: out of memory loading %s\n", path);
@@ -9124,6 +9162,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     munmap(code, code_size);
     return -1;
   }
+  const uint64_t root_load_bias =
+    (uint64_t) (uintptr_t) foreign - program->base_vaddr;
+  poly_runtime_set_foreign_image_auxv(program, root_load_bias);
   uint8_t *import_page = mmap(NULL, 4096, PROT_READ | PROT_WRITE,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (import_page == MAP_FAILED) {
@@ -9374,8 +9415,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   }
   memcpy(foreign, program->image, program->image_size);
-  const uint64_t root_load_bias =
-    (uint64_t) (uintptr_t) foreign - program->base_vaddr;
   for (size_t n = 0; n < program->dep_count; n++) {
     dep_sizes[n] = program->deps[n].image_size;
     dep_foreign[n] = mmap(NULL, dep_sizes[n], PROT_READ | PROT_WRITE | PROT_EXEC,
