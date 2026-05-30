@@ -1137,6 +1137,34 @@ static void child_expect_riscv_compressed_illegal_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_aarch64_page_fault_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xf9400200\n" // ldr x0,[x16]
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_page_fault_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0
+    ".long 0x0002b503\n" // ld a0,0(t0)
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_invalid_generic_enter_frontend_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -1963,6 +1991,12 @@ static int run_poly_no_vector_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly riscv compressed illegal no-vector", SIGILL,
         child_expect_riscv_compressed_illegal_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly aarch64 page fault no-vector", SIGSEGV,
+        child_expect_aarch64_page_fault_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv page fault no-vector", SIGSEGV,
+        child_expect_riscv_page_fault_signal) != 0)
     return 1;
 
   puts("NATIVE_POLY_NO_VECTOR_SIGNALS_OK");
