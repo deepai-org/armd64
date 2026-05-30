@@ -84,6 +84,7 @@ enum {
   POLY_SYS_INOTIFY_ADD_WATCH = 27,
   POLY_SYS_INOTIFY_RM_WATCH = 28,
   POLY_SYS_IOCTL = 29,
+  POLY_SYS_IOPRIO_SET = 30,
   POLY_SYS_IOPRIO_GET = 31,
   POLY_SYS_FLOCK = 32,
   POLY_SYS_MKNODAT = 33,
@@ -607,8 +608,13 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 235;
   if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
     return 236;
-  if (poly_syscall2(POLY_SYS_IOPRIO_GET, POLY_IOPRIO_WHO_PROCESS, 0) < 0)
+  long current_ioprio = poly_syscall2(POLY_SYS_IOPRIO_GET,
+    POLY_IOPRIO_WHO_PROCESS, 0);
+  if (current_ioprio < 0)
     return 354;
+  if (poly_syscall3(POLY_SYS_IOPRIO_SET, POLY_IOPRIO_WHO_PROCESS, 0,
+        current_ioprio) != 0)
+    return 367;
   if (poly_syscall2(POLY_SYS_PERSONALITY, POLY_PERSONALITY_QUERY, 0) < 0)
     return 345;
   struct poly_sched_param sched_param;
