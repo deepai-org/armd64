@@ -1,8 +1,9 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 machine. The
-goal is to run existing precompiled libraries from all three ISAs in one
-process, with x86_64 still owning the OS-visible machine model.
+Poly adds AArch64 and RISC-V64 user-mode decode frontends to an x86_64 machine.
+x86_64 remains the system ISA for paging, faults, interrupts, syscalls,
+scheduling, and OS-visible state. The goal is compatibility with existing
+precompiled cross-ISA libraries, not a new compiler-only ABI.
 
 ## Run
 
@@ -12,38 +13,29 @@ make boot-poly
 rg -a 'BOOT_OK|POLY.*OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Full validation path: `make boot-poly-full-real-xsave-arch-traps`.
+Full validation: `make boot-poly-full-real-xsave-arch-traps`
 
-## How It Differs From x86_64
+## Architectural Rules
 
-- x86_64 remains the privileged/system ISA: paging, interrupts, faults, VM
-  control, atomics, syscalls, and TSO memory ordering stay x86-defined.
-- AArch64 and RISC-V64 are alternate user-mode decode frontends over the same
-  virtual address space, not separate machines or high-level emulators.
-- Foreign instructions are fetched directly as native 32-bit instructions after
-  an ISA switch. There are no per-instruction `#UD` envelopes.
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- Foreign code is direct-fetched as native 32-bit instructions. There are no
+  per-instruction `#UD` envelopes.
 - Cross-ISA calls target native ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
-- Fast calls use hardware ABI signature slots for register-only argument/return
-  mapping. Stack arguments, aggregates, and variadics use software thunks.
-- Non-shared foreign architectural state is explicit XSAVE-style state, not
-  hidden CR3-scoped emulator state.
-- Native returns cross ISA boundaries through transition cookies. Recoverable
-  foreign exits are reported as OS-neutral trap packets.
+- Register-only calls can use hardware ABI signature slots; stack arguments,
+  aggregates, and variadics use software thunks.
+- Non-shared foreign state is explicit XSAVE-style state, not hidden CR3 state.
+- Foreign syscalls/traps exit through OS-neutral trap packets or runtime code.
+- Memory ordering inherits the x86_64 machine contract.
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
-
-## Control Encodings
-
-Temporary decoded control instructions:
+## Prototype Control Opcodes
 
 - x86_64: `0f 3a fc <subop>`
 - AArch64: `0xd503201f | ((subop & 0x7f) << 5)`
 - RISC-V64: `0x0000700b | ((subop & 0x7f) << 25)`
 
-These are real frontend control opcodes in the prototype, not exception-based
-`#UD` envelopes.
+Temporary Bochs encodings; these model real frontend controls, not `ud2` traps.
 
-## References
+## More Detail
 
 - [README](../README.md)
 - [Design directions](poly-isa-design-directions.md)
