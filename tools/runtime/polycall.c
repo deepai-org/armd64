@@ -332,6 +332,9 @@ static const uint32_t POLY_CPUID_FORBIDDEN_FEATURES =
 #define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
 
 enum {
+  POLY_X86_CTRL_PENTER_MODE = 0x03,
+  POLY_X86_CTRL_PSWITCH_MODE = 0x04,
+  POLY_X86_CTRL_PCALL_SIG_MODE = 0x2d,
   POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_ABI_SIGNATURE_SLOT_COUNT = 8,
   POLY_ABI_SIGNATURE_KIND_EXCHANGE = 0,
@@ -958,6 +961,8 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
 }
 
 static int read_poly_signature_contract(struct poly_import_contract *contract) {
+  const struct poly_cpuid_regs x86_controls =
+    read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs signature =
     read_cpuid(POLY_CPUID_BASE + 2, 7);
   const struct poly_cpuid_regs signature_ext =
@@ -974,6 +979,17 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
   const uint32_t kind_native_regs = (signature.edx >> 24) & 0xffU;
   const uint32_t kind_native_regs_i128 = signature_ext.ebx;
   const uint32_t kind_native_regs_vec128_u32 = signature_ext.edx;
+
+  if (x86_controls.eax != POLY_X86_CTRL_PENTER_MODE ||
+      x86_controls.ebx != POLY_X86_CTRL_PSWITCH_MODE ||
+      x86_controls.ecx != POLY_X86_CTRL_PCALL_SIG_MODE ||
+      x86_controls.edx != 0) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: CPU x86 control manifest mismatch leaf5=(0x%x,0x%x,0x%x,0x%x)\n",
+      x86_controls.eax, x86_controls.ebx, x86_controls.ecx,
+      x86_controls.edx);
+    return -1;
+  }
 
   if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
       signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
