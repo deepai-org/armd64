@@ -2101,87 +2101,15 @@ int main(void) {
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
     return 1;
   }
-  struct poly_cpuid_regs expected_state =
-    poly_cpuid_expected_state_leaf();
-  struct poly_cpuid_regs poly_state =
-    poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
-  if (poly_state.eax != expected_state.eax ||
-      poly_state.ebx != expected_state.ebx ||
-      poly_state.ecx != expected_state.ecx ||
-      poly_state.edx != expected_state.edx) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID state leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      poly_state.eax, poly_state.ebx, poly_state.ecx, poly_state.edx);
-    return 1;
-  }
-  struct poly_cpuid_regs expected_arch_state =
-    poly_cpuid_expected_arch_state_leaf();
-  struct poly_cpuid_regs poly_arch_state =
-    poly_read_cpuid(POLY_CPUID_BASE + 4, 0);
-  if (poly_arch_state.eax != expected_arch_state.eax ||
-      poly_arch_state.ebx != expected_arch_state.ebx ||
-      poly_arch_state.ecx != expected_arch_state.ecx ||
-      poly_arch_state.edx != expected_arch_state.edx) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID arch state leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      poly_arch_state.eax, poly_arch_state.ebx, poly_arch_state.ecx,
-      poly_arch_state.edx);
-    return 1;
-  }
-  if (polyprobe_check_cpuid_regs("poly CPUID arch state header layout",
-        POLY_CPUID_BASE + 4, 1,
-        poly_cpuid_expected_arch_state_header_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID arch state trap layout",
-        POLY_CPUID_BASE + 4, 2,
-        poly_cpuid_expected_arch_state_trap_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID AArch64 GPR layout",
-        POLY_CPUID_BASE + 4, 3,
-        poly_cpuid_expected_arch_state_aarch64_gpr_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID AArch64 FP layout",
-        POLY_CPUID_BASE + 4, 4,
-        poly_cpuid_expected_arch_state_aarch64_fp_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID AArch64 status layout",
-        POLY_CPUID_BASE + 4, 5,
-        poly_cpuid_expected_arch_state_aarch64_status_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID RISC-V GPR layout",
-        POLY_CPUID_BASE + 4, 6,
-        poly_cpuid_expected_arch_state_riscv_gpr_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID RISC-V FP layout",
-        POLY_CPUID_BASE + 4, 7,
-        poly_cpuid_expected_arch_state_riscv_fp_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID RISC-V status layout",
-        POLY_CPUID_BASE + 4, 8,
-        poly_cpuid_expected_arch_state_riscv_status_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID ABI signature layout",
-        POLY_CPUID_BASE + 4, 9,
-        poly_cpuid_expected_arch_state_abi_signature_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID frontend TLS layout",
-        POLY_CPUID_BASE + 4, 10,
-        poly_cpuid_expected_arch_state_frontend_tls_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID landing policy layout",
-        POLY_CPUID_BASE + 4, 11,
-        poly_cpuid_expected_arch_state_landing_policy_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID state-key layout",
-        POLY_CPUID_BASE + 4, 12,
-        poly_cpuid_expected_arch_state_state_key_leaf()) != 0 ||
-      polyprobe_check_cpuid_regs("poly CPUID reserved layout",
-        POLY_CPUID_BASE + 4, 13,
-        poly_cpuid_expected_arch_state_reserved_leaf()) != 0)
-    return 1;
-  struct poly_cpuid_regs xsave_leaf0 =
-    poly_read_cpuid(0x0000000d, 0);
-  if ((xsave_leaf0.eax & (1U << POLY_STATE_XSAVE_COMPONENT_ARCH)) == 0 ||
-      xsave_leaf0.ecx < POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH) {
-    fprintf(stderr, "POLY_PROBE_FAIL: standard XSAVE poly component missing eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      xsave_leaf0.eax, xsave_leaf0.ebx, xsave_leaf0.ecx, xsave_leaf0.edx);
-    return 1;
-  }
-  struct poly_cpuid_regs xsave_poly =
-    poly_read_cpuid(0x0000000d, POLY_STATE_XSAVE_COMPONENT_ARCH);
-  if (xsave_poly.eax != POLY_STATE_XSAVE_BYTES_ARCH ||
-      xsave_poly.ebx != POLY_STATE_XSAVE_OFFSET_ARCH ||
-      xsave_poly.ecx != 0x2 ||
-      xsave_poly.edx != 0) {
-    fprintf(stderr, "POLY_PROBE_FAIL: standard XSAVE poly leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      xsave_poly.eax, xsave_poly.ebx, xsave_poly.ecx, xsave_poly.edx);
+  struct poly_cpuid_contract_failure state_failure;
+  if (!poly_cpuid_verify_arch_state_contract(&state_failure)) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: %s mismatch leaf=0x%x subleaf=%u got=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      state_failure.name, state_failure.leaf, state_failure.subleaf,
+      state_failure.actual.eax, state_failure.actual.ebx,
+      state_failure.actual.ecx, state_failure.actual.edx,
+      state_failure.expected.eax, state_failure.expected.ebx,
+      state_failure.expected.ecx, state_failure.expected.edx);
     return 1;
   }
   struct poly_cpuid_regs expected_trap =
@@ -2194,58 +2122,6 @@ int main(void) {
       poly_trap.edx != expected_trap.edx) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID trap leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_trap.eax, poly_trap.ebx, poly_trap.ecx, poly_trap.edx);
-    return 1;
-  }
-  struct poly_cpuid_regs expected_transition =
-    poly_cpuid_expected_transition_leaf();
-  struct poly_cpuid_regs poly_transition =
-    poly_read_cpuid(POLY_CPUID_BASE + 8, 0);
-  if (poly_transition.eax != expected_transition.eax ||
-      poly_transition.ebx != expected_transition.ebx ||
-      poly_transition.ecx != expected_transition.ecx ||
-      poly_transition.edx != expected_transition.edx) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID transition leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      poly_transition.eax, poly_transition.ebx, poly_transition.ecx,
-      poly_transition.edx);
-    return 1;
-  }
-  struct poly_cpuid_regs expected_transition_layout =
-    poly_cpuid_expected_transition_layout_leaf();
-  struct poly_cpuid_regs poly_transition_layout =
-    poly_read_cpuid(POLY_CPUID_BASE + 8, 2);
-  if (poly_transition_layout.eax != expected_transition_layout.eax ||
-      poly_transition_layout.ebx != expected_transition_layout.ebx ||
-      poly_transition_layout.ecx != expected_transition_layout.ecx ||
-      poly_transition_layout.edx != expected_transition_layout.edx) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID transition layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      poly_transition_layout.eax, poly_transition_layout.ebx,
-      poly_transition_layout.ecx, poly_transition_layout.edx);
-    return 1;
-  }
-  struct poly_cpuid_regs expected_cross_return =
-    poly_cpuid_expected_transition_cross_return_leaf();
-  struct poly_cpuid_regs poly_cross_return =
-    poly_read_cpuid(POLY_CPUID_BASE + 8, 3);
-  if (poly_cross_return.eax != expected_cross_return.eax ||
-      poly_cross_return.ebx != expected_cross_return.ebx ||
-      poly_cross_return.ecx != expected_cross_return.ecx ||
-      poly_cross_return.edx != expected_cross_return.edx) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID cross-return layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      poly_cross_return.eax, poly_cross_return.ebx,
-      poly_cross_return.ecx, poly_cross_return.edx);
-    return 1;
-  }
-  struct poly_cpuid_regs expected_import_return =
-    poly_cpuid_expected_transition_import_return_leaf();
-  struct poly_cpuid_regs poly_import_return =
-    poly_read_cpuid(POLY_CPUID_BASE + 8, 4);
-  if (poly_import_return.eax != expected_import_return.eax ||
-      poly_import_return.ebx != expected_import_return.ebx ||
-      poly_import_return.ecx != expected_import_return.ecx ||
-      poly_import_return.edx != expected_import_return.edx) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID import-return layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      poly_import_return.eax, poly_import_return.ebx,
-      poly_import_return.ecx, poly_import_return.edx);
     return 1;
   }
   struct poly_cpuid_regs expected_frontends =
