@@ -146,6 +146,7 @@ enum {
   POLY_X86_CTRL_PENTER_MODE = 0x03,
   POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_LANDING = 0x05,
+  POLY_X86_CTRL_PCALL_SIG_MODE = 0x2d,
   POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
   POLY_X86_CTRL_LANDING_POLICY_SET = 0x6d,
   POLY_X86_CTRL_LANDING_POLICY_GET = 0x6e,
@@ -867,7 +868,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf5(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_X86_CTRL_PENTER_MODE;
   regs.ebx = POLY_X86_CTRL_PSWITCH_MODE;
-  regs.ecx = 0;
+  regs.ecx = POLY_X86_CTRL_PCALL_SIG_MODE;
   regs.edx = 0;
   return regs;
 }
