@@ -403,6 +403,21 @@ static int read_poly_base_contract(int require_trap_vector) {
     return -1;
   }
 
+  const struct poly_cpuid_regs x86_controls =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
+  const struct poly_cpuid_regs expected_x86_controls =
+    poly_cpuid_expected_escape_leaf5();
+  if (x86_controls.eax != expected_x86_controls.eax ||
+      x86_controls.ebx != expected_x86_controls.ebx ||
+      x86_controls.ecx != expected_x86_controls.ecx ||
+      x86_controls.edx != expected_x86_controls.edx) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly x86 control manifest mismatch x86=(0x%x,0x%x,0x%x,0x%x)\n",
+      x86_controls.eax, x86_controls.ebx, x86_controls.ecx,
+      x86_controls.edx);
+    return -1;
+  }
+
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
   const struct poly_cpuid_regs expected_signature =
