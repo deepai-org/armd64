@@ -1584,14 +1584,17 @@ static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
   while ((offset & 3U) != 0)
     code[offset++] = 0x90;
   const size_t aarch64_body_offset = offset;
-  const size_t aarch64_return_offset = aarch64_body_offset + 16 + 16 + 4;
+  const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
   const size_t riscv_target_offset = aarch64_return_offset + 4;
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
-  emit_aarch64_movabs(code, &offset, 17,
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032effU); // aarch64 polyctrl vec128 call, vec128 call RISC-V
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32));
   emit_u32(code, &offset, 0xd65f03c0U); // ret to x86 PCALL return cookie
 
   while (offset < riscv_target_offset)
@@ -1647,11 +1650,14 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0x00100313U); // addi x6,zero,1 (AArch64 frontend)
   const size_t auipc_return_pc = offset;
-  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0e00700bU); // riscv polyctrl vec128 call AArch64
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00008067U); // ret to x86 PCALL return cookie
 
@@ -1674,7 +1680,7 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
     (uint64_t) (uintptr_t) (code + pcall_return_offset));
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   poly_foreign_insn_count_status();

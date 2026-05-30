@@ -3666,14 +3666,12 @@ static int reloc_base_is_root_ifunc(int base_kind) {
 }
 
 static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
-  if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
-    return 0xd5032effU; // aarch64 polyctrl vec128 call
+  (void) bridge_kind;
   return 0; // Register-only/compact calls must use PCALL_SIG_IMM.
 }
 
 static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
-  if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
-    return 0x0e00700bU;
+  (void) bridge_kind;
   return 0; // Register-only/compact calls must use PCALL_SIG_IMM.
 }
 

@@ -354,30 +354,34 @@ extract_function "execute_poly_raw_aarch64" "$CROSS_A64_FUNC"
 extract_function "execute_poly_raw_riscv" "$CROSS_RV_FUNC"
 extract_function "enter_poly_cross_call" "$CROSS_ENTER_FUNC"
 extract_function "return_poly_cross_call" "$CROSS_RETURN_FUNC"
-assert_contains "BX_POLY_AARCH64_CTRL_RISCV_SWITCH" "$CROSS_A64_FUNC" \
-  "AArch64 raw decoder must recognize the direct RISC-V switch opcode"
-assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*BX_POLY_MODE_RAW_RISCV" "$CROSS_A64_FUNC" \
-  "AArch64 direct switch must enter RISC-V without routing through x86"
-assert_contains "BX_POLY_AARCH64_CTRL_RISCV_CALL" "$CROSS_A64_FUNC" \
-  "AArch64 raw decoder must recognize the native RISC-V call gate"
+assert_contains "BX_POLY_AARCH64_CTRL_SWITCH_MODE" "$CROSS_A64_FUNC" \
+  "AArch64 raw decoder must recognize generic frontend switch"
+assert_contains "BX_POLY_AARCH64_CTRL_CALL_MODE" "$CROSS_A64_FUNC" \
+  "AArch64 raw decoder must recognize generic frontend call"
+assert_contains "bx_poly_frontend_id_to_mode" "$CROSS_A64_FUNC" \
+  "AArch64 generic transitions must resolve frontend IDs without routing through x86"
 assert_contains "read_poly_aarch64_reg\\(16" "$CROSS_A64_FUNC" \
-  "AArch64 cross-call gate must take the RISC-V target from x16"
+  "AArch64 generic transition must take the target from x16"
 assert_contains "read_poly_aarch64_reg\\(17" "$CROSS_A64_FUNC" \
-  "AArch64 cross-call gate must take the AArch64 return PC from x17"
+  "AArch64 generic transition must take the frontend ID from x17"
+assert_contains "read_poly_aarch64_reg\\(18" "$CROSS_A64_FUNC" \
+  "AArch64 generic call must take the return PC from x18"
 assert_contains "BX_POLY_MODE_RAW_AARCH64" "$CROSS_A64_FUNC" \
   "AArch64 cross-call gate must record AArch64 as the caller mode"
 assert_contains "BX_POLY_MODE_RAW_RISCV" "$CROSS_A64_FUNC" \
   "AArch64 cross-call gate must record RISC-V as the callee mode"
-assert_contains "BX_POLY_RISCV_CTRL_AARCH64_SWITCH" "$CROSS_RV_FUNC" \
-  "RISC-V raw decoder must recognize the direct AArch64 switch opcode"
-assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*BX_POLY_MODE_RAW_AARCH64" "$CROSS_RV_FUNC" \
-  "RISC-V direct switch must enter AArch64 without routing through x86"
-assert_contains "BX_POLY_RISCV_CTRL_AARCH64_CALL" "$CROSS_RV_FUNC" \
-  "RISC-V raw decoder must recognize the native AArch64 call gate"
+assert_contains "BX_POLY_RISCV_CTRL_SWITCH_MODE" "$CROSS_RV_FUNC" \
+  "RISC-V raw decoder must recognize generic frontend switch"
+assert_contains "BX_POLY_RISCV_CTRL_CALL_MODE" "$CROSS_RV_FUNC" \
+  "RISC-V raw decoder must recognize generic frontend call"
+assert_contains "bx_poly_frontend_id_to_mode" "$CROSS_RV_FUNC" \
+  "RISC-V generic transitions must resolve frontend IDs without routing through x86"
 assert_contains "read_poly_riscv_reg\\(5" "$CROSS_RV_FUNC" \
-  "RISC-V cross-call gate must take the AArch64 target from x5/t0"
+  "RISC-V generic transition must take the target from x5/t0"
 assert_contains "read_poly_riscv_reg\\(6" "$CROSS_RV_FUNC" \
-  "RISC-V cross-call gate must take the RISC-V return PC from x6/t1"
+  "RISC-V generic transition must take the frontend ID from x6/t1"
+assert_contains "read_poly_riscv_reg\\(7" "$CROSS_RV_FUNC" \
+  "RISC-V generic call must take the return PC from x7/t2"
 assert_contains "BX_POLY_MODE_RAW_RISCV" "$CROSS_RV_FUNC" \
   "RISC-V cross-call gate must record RISC-V as the caller mode"
 assert_contains "BX_POLY_MODE_RAW_AARCH64" "$CROSS_RV_FUNC" \
@@ -406,10 +410,14 @@ assert_contains "BX_ASYNC_EVENT_STOP_TRACE" "$CROSS_RETURN_FUNC" \
 assert_not_contains "BX_POLY_MODE_X86|return_poly_abi_call|deliver_poly_architectural_trap|handle_poly_foreign_syscall" \
   "$CROSS_RETURN_FUNC" \
   "cross-call return must not route native foreign-to-foreign returns through x86 policy"
-assert_contains "0xd5032e3f" "$POLYPROBE" \
-  "polyprobe must exercise AArch64-to-RISC-V direct switch"
-assert_contains "0x0200700b" "$POLYPROBE" \
-  "polyprobe must exercise RISC-V-to-AArch64 direct switch"
+assert_contains "0xd5032f1f" "$POLYPROBE" \
+  "polyprobe must exercise AArch64 generic frontend switch"
+assert_contains "0x1000700b" "$POLYPROBE" \
+  "polyprobe must exercise RISC-V generic frontend switch"
+assert_contains "0xd5032f3f" "$POLYPROBE" \
+  "polyprobe must exercise AArch64 generic frontend call"
+assert_contains "0x1200700b" "$POLYPROBE" \
+  "polyprobe must exercise RISC-V generic frontend call"
 assert_contains "aarch64-to-riscv" "$POLYBENCH" \
   "polybench must cover AArch64-to-RISC-V mixed execution"
 assert_contains "riscv-to-aarch64" "$POLYBENCH" \
