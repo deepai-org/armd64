@@ -162,8 +162,12 @@ enum {
   POLY_SYS_SIGALTSTACK = 132,
   POLY_SYS_RT_SIGPROCMASK = 135,
   POLY_SYS_GETPRIORITY = 141,
+  POLY_SYS_SETRESUID = 147,
   POLY_SYS_GETRESUID = 148,
+  POLY_SYS_SETRESGID = 149,
   POLY_SYS_GETRESGID = 150,
+  POLY_SYS_SETFSUID = 151,
+  POLY_SYS_SETFSGID = 152,
   POLY_SYS_TIMES = 153,
   POLY_SYS_GETPGID = 155,
   POLY_SYS_GETSID = 156,
@@ -636,6 +640,16 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 233;
   if (resgid[0] != (uint32_t) gid || resgid[1] != (uint32_t) egid)
     return 234;
+  if (poly_syscall3(POLY_SYS_SETRESUID, resuid[0], resuid[1],
+        resuid[2]) != 0)
+    return 375;
+  if (poly_syscall3(POLY_SYS_SETRESGID, resgid[0], resgid[1],
+        resgid[2]) != 0)
+    return 376;
+  if (poly_syscall2(POLY_SYS_SETFSUID, euid, 0) < 0)
+    return 377;
+  if (poly_syscall2(POLY_SYS_SETFSGID, egid, 0) < 0)
+    return 378;
   if (poly_syscall2(POLY_SYS_GETGROUPS, 0, 0) < 0)
     return 235;
   if (poly_syscall2(POLY_SYS_GETPRIORITY, POLY_PRIO_PROCESS, 0) < 0)
