@@ -54,20 +54,10 @@ struct polyprobe_monitor_packet {
 static const struct polyprobe_monitor_packet *polyprobe_current_monitor_packet;
 
 static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
-static inline void poly_syscall_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x30" ::: "memory"); }
-static inline void poly_syscall_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x31" ::: "memory"); }
-static inline void poly_syscall_mode_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x32" ::: "memory"); }
-static inline void poly_break_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x39" ::: "memory"); }
-static inline void poly_break_mode_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x3a" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x42" ::: "memory"); }
 static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x43" ::: "memory"); }
 static inline void poly_foreign_break_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x44" ::: "memory"); }
-static inline void poly_trap_reason_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x50" ::: "memory"); }
-static inline void poly_trap_mode_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x51" ::: "memory"); }
-static inline void poly_trap_number_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x52" ::: "memory"); }
-static inline void poly_trap_arg0_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x53" ::: "memory"); }
-static inline void poly_trap_selector_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x5a" ::: "memory"); }
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
@@ -2139,8 +2129,9 @@ int main(void) {
 
   stage("POLY_STAGE: x86-status");
   poly_mode_x86();
-  poly_syscall_x86();
-  if (read_rax() != POLY_MODE_X86) {
+  memset(&polyprobe_state, 0, sizeof(polyprobe_state));
+  poly_state_export(&polyprobe_state);
+  if (polyprobe_state.header.current_mode != POLY_MODE_X86) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 status mismatch\n");
     return 1;
   }
@@ -2830,21 +2821,6 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap vector mismatch\n");
     return 1;
   }
-  poly_break_number_status();
-  if (read_rax() != 1) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break number mismatch\n");
-    return 1;
-  }
-  poly_break_mode_status();
-  if (read_rax() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break mode mismatch\n");
-    return 1;
-  }
-  poly_trap_selector_status();
-  if (read_rax() != 1) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap selector mismatch\n");
-    return 1;
-  }
   if (expect_monitor_packet_header("aarch64 break", &monitor_packet,
         POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 1, 1, 1) != 0)
     return 1;
@@ -2858,41 +2834,6 @@ int main(void) {
   raw_riscv_break_probe(break_arg);
   if (read_rax() != (0x4c000001ULL | ((uint64_t) POLY_MODE_RAW_RISCV << 8))) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap vector mismatch\n");
-    return 1;
-  }
-  poly_break_number_status();
-  if (read_rax() != 1) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break number mismatch\n");
-    return 1;
-  }
-  poly_break_mode_status();
-  if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break mode mismatch\n");
-    return 1;
-  }
-  poly_trap_reason_status();
-  if (read_rax() != POLY_TRAP_BREAK) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap reason mismatch\n");
-    return 1;
-  }
-  poly_trap_mode_status();
-  if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap mode mismatch\n");
-    return 1;
-  }
-  poly_trap_number_status();
-  if (read_rax() != 1) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap number mismatch\n");
-    return 1;
-  }
-  poly_trap_selector_status();
-  if (read_rax() != 0) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap selector mismatch\n");
-    return 1;
-  }
-  poly_trap_arg0_status();
-  if (read_rax() != break_arg) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw break trap arg0 mismatch\n");
     return 1;
   }
   if (expect_monitor_packet_header("riscv break", &monitor_packet,
@@ -2912,21 +2853,6 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall mismatch\n");
     return 1;
   }
-  poly_syscall_number_status();
-  if (read_rax() != 172) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall number mismatch\n");
-    return 1;
-  }
-  poly_syscall_mode_status();
-  if (read_rax() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall mode mismatch\n");
-    return 1;
-  }
-  poly_trap_selector_status();
-  if (read_rax() != 0) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall selector mismatch\n");
-    return 1;
-  }
   if (expect_monitor_packet_header("aarch64 syscall", &monitor_packet,
         POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 0, 1) != 0)
     return 1;
@@ -2943,36 +2869,6 @@ int main(void) {
   raw_riscv_getpid_probe();
   if (read_rax() != 4242) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall mismatch\n");
-    return 1;
-  }
-  poly_syscall_number_status();
-  if (read_rax() != 172) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall number mismatch\n");
-    return 1;
-  }
-  poly_syscall_mode_status();
-  if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall mode mismatch\n");
-    return 1;
-  }
-  poly_trap_reason_status();
-  if (read_rax() != POLY_TRAP_SYSCALL) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw syscall trap reason mismatch\n");
-    return 1;
-  }
-  poly_trap_mode_status();
-  if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw syscall trap mode mismatch\n");
-    return 1;
-  }
-  poly_trap_number_status();
-  if (read_rax() != 172) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw syscall trap number mismatch\n");
-    return 1;
-  }
-  poly_trap_selector_status();
-  if (read_rax() != 0) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall selector mismatch\n");
     return 1;
   }
   if (expect_monitor_packet_header("riscv syscall", &monitor_packet,
@@ -2995,26 +2891,6 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap vector mismatch\n");
     return 1;
   }
-  poly_trap_reason_status();
-  if (read_rax() != POLY_TRAP_IMPORT) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap reason mismatch\n");
-    return 1;
-  }
-  poly_trap_mode_status();
-  if (read_rax() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap mode mismatch\n");
-    return 1;
-  }
-  poly_trap_number_status();
-  if (read_rax() != 8) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap number mismatch\n");
-    return 1;
-  }
-  poly_trap_arg0_status();
-  if (read_rax() != 77) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap arg0 mismatch\n");
-    return 1;
-  }
   if (expect_monitor_packet_header("aarch64 import", &monitor_packet,
         POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 0) != 0)
     return 1;
@@ -3032,26 +2908,6 @@ int main(void) {
   raw_riscv_import_probe();
   if (read_rax() != 5555) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap vector mismatch\n");
-    return 1;
-  }
-  poly_trap_reason_status();
-  if (read_rax() != POLY_TRAP_IMPORT) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap reason mismatch\n");
-    return 1;
-  }
-  poly_trap_mode_status();
-  if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap mode mismatch\n");
-    return 1;
-  }
-  poly_trap_number_status();
-  if (read_rax() != 8) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap number mismatch\n");
-    return 1;
-  }
-  poly_trap_arg0_status();
-  if (read_rax() != 77) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap arg0 mismatch\n");
     return 1;
   }
   if (expect_monitor_packet_header("riscv import", &monitor_packet,
@@ -3075,27 +2931,6 @@ int main(void) {
       (unsigned long long) read_rax());
     return 1;
   }
-  poly_trap_reason_status();
-  if (read_rax() != POLY_TRAP_ILLEGAL) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap reason mismatch\n");
-    return 1;
-  }
-  poly_trap_mode_status();
-  if (read_rax() != POLY_MODE_RAW_AARCH64) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap mode mismatch\n");
-    return 1;
-  }
-  poly_trap_number_status();
-  if (read_rax() != 0xffffffffULL) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap number mismatch got=0x%llx\n",
-      (unsigned long long) read_rax());
-    return 1;
-  }
-  poly_trap_selector_status();
-  if (read_rax() != 4) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap selector mismatch\n");
-    return 1;
-  }
   if (expect_monitor_packet_header("aarch64 illegal", &monitor_packet,
         POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xffffffffULL, 4, 1) != 0)
     return 1;
@@ -3105,27 +2940,6 @@ int main(void) {
   if (read_rax() != 6666) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap vector mismatch got=%llu\n",
       (unsigned long long) read_rax());
-    return 1;
-  }
-  poly_trap_reason_status();
-  if (read_rax() != POLY_TRAP_ILLEGAL) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap reason mismatch\n");
-    return 1;
-  }
-  poly_trap_mode_status();
-  if (read_rax() != POLY_MODE_RAW_RISCV) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap mode mismatch\n");
-    return 1;
-  }
-  poly_trap_number_status();
-  if (read_rax() != 0xffffffffULL) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap number mismatch got=0x%llx\n",
-      (unsigned long long) read_rax());
-    return 1;
-  }
-  poly_trap_selector_status();
-  if (read_rax() != 4) {
-    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap selector mismatch\n");
     return 1;
   }
   if (expect_monitor_packet_header("riscv illegal", &monitor_packet,
