@@ -2143,6 +2143,58 @@ int main(void) {
       poly_trap.eax, poly_trap.ebx, poly_trap.ecx, poly_trap.edx);
     return 1;
   }
+  struct poly_cpuid_regs expected_transition =
+    poly_cpuid_expected_transition_leaf();
+  struct poly_cpuid_regs poly_transition =
+    poly_read_cpuid(POLY_CPUID_BASE + 8, 0);
+  if (poly_transition.eax != expected_transition.eax ||
+      poly_transition.ebx != expected_transition.ebx ||
+      poly_transition.ecx != expected_transition.ecx ||
+      poly_transition.edx != expected_transition.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID transition leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_transition.eax, poly_transition.ebx, poly_transition.ecx,
+      poly_transition.edx);
+    return 1;
+  }
+  struct poly_cpuid_regs expected_transition_layout =
+    poly_cpuid_expected_transition_layout_leaf();
+  struct poly_cpuid_regs poly_transition_layout =
+    poly_read_cpuid(POLY_CPUID_BASE + 8, 2);
+  if (poly_transition_layout.eax != expected_transition_layout.eax ||
+      poly_transition_layout.ebx != expected_transition_layout.ebx ||
+      poly_transition_layout.ecx != expected_transition_layout.ecx ||
+      poly_transition_layout.edx != expected_transition_layout.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID transition layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_transition_layout.eax, poly_transition_layout.ebx,
+      poly_transition_layout.ecx, poly_transition_layout.edx);
+    return 1;
+  }
+  struct poly_cpuid_regs expected_cross_return =
+    poly_cpuid_expected_transition_cross_return_leaf();
+  struct poly_cpuid_regs poly_cross_return =
+    poly_read_cpuid(POLY_CPUID_BASE + 8, 3);
+  if (poly_cross_return.eax != expected_cross_return.eax ||
+      poly_cross_return.ebx != expected_cross_return.ebx ||
+      poly_cross_return.ecx != expected_cross_return.ecx ||
+      poly_cross_return.edx != expected_cross_return.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID cross-return layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_cross_return.eax, poly_cross_return.ebx,
+      poly_cross_return.ecx, poly_cross_return.edx);
+    return 1;
+  }
+  struct poly_cpuid_regs expected_import_return =
+    poly_cpuid_expected_transition_import_return_leaf();
+  struct poly_cpuid_regs poly_import_return =
+    poly_read_cpuid(POLY_CPUID_BASE + 8, 4);
+  if (poly_import_return.eax != expected_import_return.eax ||
+      poly_import_return.ebx != expected_import_return.ebx ||
+      poly_import_return.ecx != expected_import_return.ecx ||
+      poly_import_return.edx != expected_import_return.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID import-return layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_import_return.eax, poly_import_return.ebx,
+      poly_import_return.ecx, poly_import_return.edx);
+    return 1;
+  }
   struct poly_cpuid_regs expected_frontends =
     poly_cpuid_expected_frontend_leaf();
   struct poly_cpuid_regs poly_frontends =

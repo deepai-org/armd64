@@ -1151,6 +1151,36 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_transition_leaf(void) {
   return regs;
 }
 
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_transition_layout_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_TRANSITION_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_TRANSITION_BYTES;
+  regs.ecx = (uint32_t) sizeof(struct poly_transition_frame);
+  regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_transition_cross_return_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_CROSS_RETURN_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_CROSS_RETURN_BYTES;
+  regs.ecx = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  regs.edx = POLY_STATE_XSAVE_CROSS_RETURN_FRAME_BYTES;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_transition_import_return_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_IMPORT_RETURN_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_IMPORT_RETURN_BYTES;
+  regs.ecx = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  regs.edx = POLY_STATE_XSAVE_IMPORT_RETURN_FRAME_BYTES;
+  return regs;
+}
+
 static inline struct poly_cpuid_regs poly_cpuid_expected_frontend_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_FRONTEND_X86;
