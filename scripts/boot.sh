@@ -8494,6 +8494,10 @@ EOF
             continue 2
           fi
         done
+        if ! grep -Eq "NATIVE_POLY_REAL_XSAVE_(OK|SKIPPED)" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -q "NATIVE_CHECK_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
