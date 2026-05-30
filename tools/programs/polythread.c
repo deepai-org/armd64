@@ -235,11 +235,22 @@ static int expect_monitor_packet(uintptr_t worker_id, const char *label,
   return 0;
 }
 
+static int polythread_monitor_packet_contract_valid(
+    const struct polythread_monitor_packet *packet) {
+  return packet->trap.resume_pc != 0 &&
+    packet->trap.reserved[0] == 0 &&
+    packet->trap.reserved[1] == 0 &&
+    (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) ==
+      POLY_TRAP_PACKET_REQUIRED_FLAGS;
+}
+
 __attribute__((noinline, used))
 uint64_t polythread_trap_vector_dispatch(void) {
   const struct polythread_monitor_packet *packet =
     polythread_current_monitor_packet;
   if (packet == 0)
+    return (uint64_t) -1;
+  if (!polythread_monitor_packet_contract_valid(packet))
     return (uint64_t) -1;
   if (packet->trap.reason != POLY_TRAP_SYSCALL &&
       packet->trap.reason != POLY_TRAP_IMPORT)
