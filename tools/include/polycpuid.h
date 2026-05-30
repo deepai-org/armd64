@@ -1094,7 +1094,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_abi_bridge_leaf(void) {
   regs.ecx = POLY_ABI_BRIDGE_GPR_ARG_COUNT |
     (POLY_ABI_BRIDGE_FP_ARG_COUNT << 8) |
     (POLY_ABI_BRIDGE_STACK_ALIGN << 16);
-  regs.edx = POLY_IMPORT_CALL_STRIDE << 16;
+  regs.edx = 0;
   return regs;
 }
 

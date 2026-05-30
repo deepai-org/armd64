@@ -852,7 +852,7 @@ static int read_poly_abi_bridge_contract(struct poly_import_contract *contract) 
   const uint32_t abi_fp_arg_count = (abi_bridge.ecx >> 8) & 0xffU;
   const uint32_t abi_stack_align = (abi_bridge.ecx >> 16) & 0xffffU;
   const uint32_t abi_descriptor_size = abi_bridge.edx & 0xffffU;
-  const uint32_t abi_call_stride = (abi_bridge.edx >> 16) & 0xffffU;
+  const uint32_t abi_reserved = abi_bridge.edx >> 16;
 
   if (abi_bridge.eax != POLY_ABI_BRIDGE_ABI_VERSION ||
       (abi_bridge.ebx & POLY_ABI_BRIDGE_REQUIRED_FLAGS) !=
@@ -862,7 +862,7 @@ static int read_poly_abi_bridge_contract(struct poly_import_contract *contract) 
       abi_fp_arg_count != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
       abi_stack_align != POLY_ABI_BRIDGE_STACK_ALIGN ||
       abi_descriptor_size != 0 ||
-      abi_call_stride != POLY_IMPORT_CALL_STRIDE) {
+      abi_reserved != 0) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x)\n",
       abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx);

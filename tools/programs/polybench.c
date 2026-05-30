@@ -224,7 +224,7 @@ static int check_polybench_contract(void) {
   const uint32_t fp_arg_count = (abi_bridge.ecx >> 8) & 0xffU;
   const uint32_t stack_align = (abi_bridge.ecx >> 16) & 0xffffU;
   const uint32_t descriptor_size = abi_bridge.edx & 0xffffU;
-  const uint32_t call_stride = (abi_bridge.edx >> 16) & 0xffffU;
+  const uint32_t reserved = abi_bridge.edx >> 16;
   if (abi_bridge.eax != POLY_ABI_BRIDGE_ABI_VERSION ||
       abi_bridge.ebx != POLYBENCH_REQUIRED_ABI_BRIDGE_FLAGS ||
       (abi_bridge.ebx & POLYBENCH_FORBIDDEN_ABI_BRIDGE_FLAGS) != 0 ||
@@ -232,7 +232,7 @@ static int check_polybench_contract(void) {
       fp_arg_count != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
       stack_align != POLY_ABI_BRIDGE_STACK_ALIGN ||
       descriptor_size != 0 ||
-      call_stride != POLY_IMPORT_CALL_STRIDE) {
+      reserved != 0) {
     fprintf(stderr,
       "POLYBENCH_FAIL: CPU ABI bridge mismatch abi=(%u,0x%x,0x%x,0x%x) expected=(%u,0x%x,0x%x,0x%x)\n",
       abi_bridge.eax, abi_bridge.ebx, abi_bridge.ecx, abi_bridge.edx,
@@ -240,7 +240,7 @@ static int check_polybench_contract(void) {
       (uint32_t) (POLY_ABI_BRIDGE_GPR_ARG_COUNT |
         (POLY_ABI_BRIDGE_FP_ARG_COUNT << 8) |
         (POLY_ABI_BRIDGE_STACK_ALIGN << 16)),
-      (uint32_t) (POLY_IMPORT_CALL_STRIDE << 16));
+      0U);
     return -1;
   }
 
