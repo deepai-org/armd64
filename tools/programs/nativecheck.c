@@ -840,16 +840,16 @@ __attribute__((noreturn, noinline))
 static void expect_signature_pcall_stackless_target(
     uint64_t (*target)(void)) {
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0)
-    _exit(97);
+    _exit(93);
 
   const long page_size = sysconf(_SC_PAGESIZE);
   if (page_size <= 0)
-    _exit(97);
+    _exit(94);
   const size_t mapping_size = (size_t) page_size * 20U;
   void *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (mapping == MAP_FAILED)
-    _exit(97);
+    _exit(95);
 
   uint8_t *base = (uint8_t *) mapping;
   void *stack_top = base + ((size_t) page_size * 12U);
@@ -863,10 +863,18 @@ static void expect_signature_pcall_stackless_target(
     foreign_stack[i] = 0x2222000000000000ULL + i;
   }
 
+  void *guard_base = (void *) (foreign_rsp & ~((uintptr_t) page_size - 1U));
+  if (mprotect(guard_base, (size_t) page_size * 2U, PROT_NONE) != 0)
+    _exit(90);
+
   const uint64_t result = nativecheck_call_on_stack(
     target, stack_top);
   if (result != 42)
     _exit(96);
+
+  if (mprotect(guard_base, (size_t) page_size * 2U,
+        PROT_READ | PROT_WRITE) != 0)
+    _exit(91);
 
   for (unsigned i = 0; i < 16; ++i) {
     if (foreign_stack[i] == 0x1111000000000000ULL + i)
