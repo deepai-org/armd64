@@ -68,6 +68,8 @@ typedef uint8_t poly_native_xsave_area_t[POLY_NATIVE_XSAVE_AREA_BYTES];
 static uint8_t nativecheck_real_xsave_area[POLY_NATIVE_XSAVE_AREA_BYTES]
   __attribute__((aligned(64)));
 
+static void poly_unexpected_trap_vector_exit_handler(void);
+
 struct nativecheck_monitor_packet {
   struct poly_trap_packet trap;
   uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
@@ -1165,6 +1167,44 @@ static void child_expect_riscv_page_fault_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_aarch64_page_fault_signal_with_vector(void) {
+  static struct nativecheck_monitor_packet monitor_packet
+    __attribute__((aligned(64)));
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(
+    (uint64_t) (void *) poly_unexpected_trap_vector_exit_handler);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xf9400200\n" // ldr x0,[x16]
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_page_fault_signal_with_vector(void) {
+  static struct nativecheck_monitor_packet monitor_packet
+    __attribute__((aligned(64)));
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(
+    (uint64_t) (void *) poly_unexpected_trap_vector_exit_handler);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0
+    ".long 0x0002b503\n" // ld a0,0(t0)
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_invalid_generic_enter_frontend_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -1998,6 +2038,12 @@ static int run_poly_no_vector_signal_probe(void) {
   if (expect_child_signal("poly riscv page fault no-vector", SIGSEGV,
         child_expect_riscv_page_fault_signal) != 0)
     return 1;
+  if (expect_child_signal("poly aarch64 page fault with-vector", SIGSEGV,
+        child_expect_aarch64_page_fault_signal_with_vector) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv page fault with-vector", SIGSEGV,
+        child_expect_riscv_page_fault_signal_with_vector) != 0)
+    return 1;
 
   puts("NATIVE_POLY_NO_VECTOR_SIGNALS_OK");
   return 0;
@@ -2357,6 +2403,15 @@ static void poly_trap_vector_handler(void) {
     "movq $0xffffffffffffffff, %rax\n"
     "pxor %xmm0, %xmm0\n"
     POLY_OP_TRAP_RETURN
+    "ud2\n");
+}
+
+__attribute__((naked, noinline, used))
+static void poly_unexpected_trap_vector_exit_handler(void) {
+  __asm__(
+    "movl $88, %edi\n"
+    "movl $231, %eax\n"
+    "syscall\n"
     "ud2\n");
 }
 
