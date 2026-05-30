@@ -240,18 +240,22 @@ static int expect_monitor_packet_header(const char *label,
       packet->trap.selector != selector ||
       packet->trap.trap_pc == 0 ||
       packet->trap.resume_pc == 0 ||
+      packet->trap.reserved[0] != 0 ||
+      packet->trap.reserved[1] != 0 ||
       (require_linear_resume &&
        packet->trap.resume_pc != packet->trap.trap_pc + 4) ||
       (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
         POLY_TRAP_PACKET_REQUIRED_FLAGS) {
     fprintf(stderr,
-      "POLY_PROBE_FAIL: monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx\n",
+      "POLY_PROBE_FAIL: monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx reserved=(0x%llx,0x%llx)\n",
       label, packet->trap.reason, packet->trap.source_mode,
       (unsigned long long) packet->trap.number,
       (unsigned long long) packet->trap.selector,
       (unsigned long long) packet->trap.trap_pc,
       (unsigned long long) packet->trap.resume_pc,
-      (unsigned long long) packet->trap.flags);
+      (unsigned long long) packet->trap.flags,
+      (unsigned long long) packet->trap.reserved[0],
+      (unsigned long long) packet->trap.reserved[1]);
     return 1;
   }
   return 0;
