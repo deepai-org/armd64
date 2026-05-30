@@ -11,6 +11,8 @@
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
+#define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"
+#define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
 #define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
@@ -27,6 +29,7 @@ enum {
 
 static pthread_barrier_t start_barrier;
 static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
+static uint64_t explicit_state_key_counter __attribute__((aligned(8)));
 static uint32_t polythread_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
 
@@ -37,6 +40,7 @@ struct polythread_monitor_packet {
 
 static __thread const struct polythread_monitor_packet
   *polythread_current_monitor_packet;
+static __thread uint8_t polythread_state_key_anchor;
 
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
@@ -55,6 +59,46 @@ static inline uint64_t poly_abi_signature_get(uint64_t slot) {
     :
     : "memory");
   return rax;
+}
+
+static inline uint64_t poly_state_key_set(uint64_t value) {
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_state_key_get(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
+  return value;
+}
+
+static uint64_t polythread_state_key_value(void) {
+  return (uint64_t) (uintptr_t) &polythread_state_key_anchor;
+}
+
+static int polythread_select_state_key(uintptr_t worker_id,
+    uint64_t expected_key, const char *phase) {
+  if (expected_key == 0 ||
+      poly_state_key_set(expected_key) != 0 ||
+      poly_state_key_get() != expected_key) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu state-key %s set failed key=0x%llx got=0x%llx\n",
+      (unsigned long) worker_id, phase,
+      (unsigned long long) expected_key,
+      (unsigned long long) poly_state_key_get());
+    return -1;
+  }
+  return 0;
+}
+
+static int polythread_clear_state_key(uintptr_t worker_id) {
+  if (poly_state_key_set(0) != 0 || poly_state_key_get() != 0) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu state-key clear failed got=0x%llx\n",
+      (unsigned long) worker_id, (unsigned long long) poly_state_key_get());
+    return -1;
+  }
+  return 0;
 }
 
 static int check_polythread_contract(void) {
@@ -1061,6 +1105,48 @@ static uint64_t pcall_riscv_hidden_fp_get_deep(uint64_t addend_bits) {
   return pcall_riscv_hidden_fp_get(pad[0]);
 }
 
+static int run_explicit_state_key_probe(uintptr_t worker_id, uint64_t base) {
+  const uint64_t key = polythread_state_key_value();
+  const uint64_t aarch64_seed = base + 0x5100ULL;
+  const uint64_t riscv_seed = base + 0x6200ULL;
+  const uint64_t aarch64_fp = double_to_bits((double) worker_id + 17.5);
+  const uint64_t riscv_fp = double_to_bits((double) worker_id + 23.5);
+
+  if (polythread_select_state_key(worker_id, key, "select") != 0)
+    return -1;
+  if (pcall_aarch64_hidden_set(aarch64_seed) != aarch64_seed ||
+      pcall_riscv_hidden_set(riscv_seed) != riscv_seed ||
+      pcall_aarch64_hidden_fp_set(aarch64_fp) != aarch64_fp ||
+      pcall_riscv_hidden_fp_set(riscv_fp) != riscv_fp) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu explicit state-key bank setup failed\n",
+      (unsigned long) worker_id);
+    return -1;
+  }
+
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
+    sched_yield();
+
+  if (polythread_select_state_key(worker_id, key, "reselect") != 0)
+    return -1;
+  if (pcall_aarch64_hidden_get(3) != aarch64_seed + 3 ||
+      pcall_riscv_hidden_get(5) != riscv_seed + 5 ||
+      pcall_aarch64_hidden_fp_get(double_to_bits(3.0)) !=
+        double_to_bits((double) worker_id + 20.5) ||
+      pcall_riscv_hidden_fp_get(double_to_bits(5.0)) !=
+        double_to_bits((double) worker_id + 28.5)) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu explicit state-key bank isolation failed\n",
+      (unsigned long) worker_id);
+    return -1;
+  }
+  if (polythread_clear_state_key(worker_id) != 0)
+    return -1;
+
+  __atomic_add_fetch(&explicit_state_key_counter, 1, __ATOMIC_SEQ_CST);
+  return 0;
+}
+
 static int check_exported_thread_banks(uintptr_t worker_id,
     uint64_t expected_aarch64_gpr, uint64_t expected_riscv_gpr,
     uint64_t expected_aarch64_fp, uint64_t expected_riscv_fp) {
@@ -1146,6 +1232,10 @@ static void *worker_main(void *arg) {
   uint64_t base = 0x10000000ULL + worker_id * 0x10000ULL;
 
   if (wait_for_workers(worker_id, "start") != 0)
+    return (void *) 1;
+  if (run_explicit_state_key_probe(worker_id, base) != 0)
+    return (void *) 1;
+  if (wait_for_workers(worker_id, "explicit-state-key") != 0)
     return (void *) 1;
 
   uint32_t native_signature_slot = 0;
@@ -1850,6 +1940,16 @@ int main(void) {
       return 1;
     }
   }
+  uint64_t state_key_count =
+    __atomic_load_n(&explicit_state_key_counter, __ATOMIC_SEQ_CST);
+  if (state_key_count != POLYTHREAD_THREADS) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: explicit state-key workers got=%llu expected=%u\n",
+      (unsigned long long) state_key_count, POLYTHREAD_THREADS);
+    pthread_barrier_destroy(&start_barrier);
+    return 1;
+  }
+  printf("POLYTHREAD_STATE_KEY_OK workers=%u\n", POLYTHREAD_THREADS);
   printf("POLYTHREAD_STATE_ISOLATION_OK workers=%u rounds=%u\n",
     POLYTHREAD_THREADS, POLYTHREAD_ROUNDS);
 
