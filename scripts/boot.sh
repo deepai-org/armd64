@@ -21,6 +21,7 @@ BOCHS_LOG="$OUT_DIR/bochs.log"
 BOCHSRC="$TMP_DIR/bochsrc.txt"
 BOCHS_RC="$TMP_DIR/bochs.rc"
 CONSOLE_LOG="$OUT_DIR/bochs-console.log"
+BOCHS_MEGS="${BOCHS_MEGS:-256}"
 POLY_XCR0_MODULE="$OUT_DIR/poly_xcr0.ko"
 POLY_PROBE_SRC="$ROOT_DIR/tools/programs/polyprobe.c"
 POLY_PROBE_BIN="$OUT_DIR/polyprobe"
@@ -51,6 +52,7 @@ POLYEXEC_PROCESS_START_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_proc
 POLYEXEC_PROCESS_SYSCALL_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_syscall_real.c"
 POLYEXEC_PROCESS_RELOC_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_reloc_real.c"
 POLYEXEC_PROCESS_NEEDED_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_needed_real.c"
+POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_libc_main_real.c"
 POLYEXEC_PROCESS_VERSIONED_DEP_REAL_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_versioned_dep_real.map"
 POLYCALL_STATE_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_state.c"
 POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_import_real.c"
@@ -539,6 +541,9 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_RELOC_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-reloc-real.elf"
+  aarch64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
+    "$POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-libc-main-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocessneeded-aarch64.so \
@@ -2659,6 +2664,10 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_RELOC_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-reloc-real.elf"
+  riscv64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
+    -march=rv64gc -mabi=lp64d \
+    "$POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-libc-main-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_NEEDED_DEP \
@@ -5933,7 +5942,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-openat-read.elf=4 \
     /usr/lib/polyapps/aarch64-openat-read-close.elf=0 \
     /usr/lib/polyapps/aarch64-clock-gettime.elf=0 \
-    /usr/lib/polyapps/aarch64-clock-getres.elf=1 \
+    /usr/lib/polyapps/aarch64-clock-getres.elf=clockresnsec \
     /usr/lib/polyapps/aarch64-times.elf=0 \
     /usr/lib/polyapps/aarch64-getpgid.elf=pgid \
     /usr/lib/polyapps/aarch64-getsid.elf=sid \
@@ -6209,7 +6218,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-openat-read.elf=4 \
     /usr/lib/polyapps/riscv-openat-read-close.elf=0 \
     /usr/lib/polyapps/riscv-clock-gettime.elf=0 \
-    /usr/lib/polyapps/riscv-clock-getres.elf=1 \
+    /usr/lib/polyapps/riscv-clock-getres.elf=clockresnsec \
     /usr/lib/polyapps/riscv-times.elf=0 \
     /usr/lib/polyapps/riscv-getpgid.elf=pgid \
     /usr/lib/polyapps/riscv-getsid.elf=sid \
@@ -6420,6 +6429,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-reloc-real.elf=42 \
       reloc >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-libc-main-real.elf=42 \
+      libc-main >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-aarch64.so \
@@ -6544,6 +6556,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-reloc-real.elf=42 \
       reloc >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-libc-main-real.elf=42 \
+      libc-main >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1
@@ -8776,7 +8791,7 @@ build_bochsrc() {
   fi
 
   cat > "$BOCHSRC" <<EOF
-megs: 128
+megs: $BOCHS_MEGS
 display_library: nogui
 romimage: file=$bios_romimage
 vgaromimage: file=$vga_romimage
@@ -8913,6 +8928,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-libc-main-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-fini-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -8990,6 +9009,10 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-preinit-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-libc-main-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

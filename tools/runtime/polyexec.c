@@ -281,6 +281,7 @@ static uint32_t process_native_signature_slot = 3;
 static __thread uint8_t poly_state_key_anchor;
 static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
+static volatile uint64_t poly_process_terminal_exit_code;
 
 struct poly_runtime_trap_packet {
   uint64_t reason;
@@ -1561,6 +1562,17 @@ static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,
   return rax;
 }
 
+__attribute__((noreturn))
+static void poly_x86_exit_group_now(uint64_t code) {
+  register long rax __asm__("rax") = SYS_exit_group;
+  register long rdi __asm__("rdi") = (long) code;
+  asm volatile("syscall"
+      : "+a"(rax)
+      : "D"(rdi)
+      : "rcx", "r11", "memory");
+  __builtin_unreachable();
+}
+
 static void poly_store_linux_generic_stat(uint64_t destination,
     const struct stat *source) {
   struct poly_linux_generic_stat *target =
@@ -2045,12 +2057,17 @@ uint64_t poly_trap_vector_dispatch(void) {
     long x86_number = -1;
     if (!poly_generic_linux_syscall_to_x86(packet.number, &x86_number))
       return (uint64_t) -ENOSYS;
-    if ((x86_number == SYS_exit || x86_number == SYS_exit_group) &&
-        run_process_exit_finalizers() < 0)
-      packet.args[0] = 125;
-    return (uint64_t) poly_x86_syscall6(x86_number, packet.args[0],
-      packet.args[1], packet.args[2], packet.args[3], packet.args[4],
-      packet.args[5]);
+    if (x86_number == SYS_exit || x86_number == SYS_exit_group) {
+      poly_process_terminal_exit_code = packet.args[0];
+      if (run_process_exit_finalizers() < 0)
+        poly_process_terminal_exit_code = 125;
+      poly_x86_exit_group_now(poly_process_terminal_exit_code);
+    }
+    uint64_t args[6];
+    for (size_t n = 0; n < 6; n++)
+      args[n] = packet.args[n];
+    return (uint64_t) poly_x86_syscall6(x86_number, args[0], args[1],
+      args[2], args[3], args[4], args[5]);
   }
 
   if (packet.reason == POLY_TRAP_BREAK) {
@@ -2901,6 +2918,16 @@ static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
   code[(*offset)++] = POLY_X86_CTRL_PENTER_MODE;
 }
 
+static void emit_x86_exit_group_from_eax(uint8_t *code, size_t *offset) {
+  code[(*offset)++] = 0x89; // mov edi,eax
+  code[(*offset)++] = 0xc7;
+  code[(*offset)++] = 0xb8; // mov eax,SYS_exit_group
+  emit_u32(code, offset, (uint32_t) SYS_exit_group);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x05; // syscall
+  code[(*offset)++] = 0xf4; // hlt if the syscall unexpectedly returns
+}
+
 static int load_segment_prot(uint32_t flags) {
   int prot = 0;
   if ((flags & PF_R) != 0)
@@ -2998,12 +3025,14 @@ __attribute__((noreturn))
 static void run_poly_process_entry(const uint8_t *code,
     uint64_t initial_sp, uint64_t tls_base) {
   asm volatile(
+      "movq %0, %%r11\n"
       "movq %2, %%r13\n"
       "movq %1, %%rsp\n"
-      "jmp *%0\n"
+      "xorq %%rax, %%rax\n"
+      "jmp *%%r11\n"
       :
       : "r"(code), "r"(initial_sp), "r"(tls_base)
-      : "r13", "memory");
+      : "rax", "r11", "r13", "memory");
   __builtin_unreachable();
 }
 
@@ -5305,10 +5334,12 @@ static int emit_and_run_process(struct poly_program *program,
   const size_t image_offset = fixed_main_image ? 0 : load_base_offset;
   const size_t control_offset =
     fixed_main_image ? image_mapping_size : code_offset;
-  const size_t return_page_offset = fixed_main_image ?
+  const size_t lifecycle_return_page_offset = fixed_main_image ?
     image_mapping_size + 4096 : load_base_offset + image_mapping_size;
+  const size_t process_return_page_offset =
+    lifecycle_return_page_offset + 4096;
   const size_t mapping_size = fixed_main_image ?
-    image_mapping_size + fixed_control_size : return_page_offset + 4096;
+    image_mapping_size + fixed_control_size : process_return_page_offset + 4096;
   if (fixed_main_image &&
       (program->base_vaddr > UINTPTR_MAX ||
        (uint64_t) mapping_size > UINTPTR_MAX - program->base_vaddr)) {
@@ -5338,8 +5369,10 @@ static int emit_and_run_process(struct poly_program *program,
 
   uint8_t *loaded_image = mapping + image_offset;
   uint8_t *code = mapping + control_offset;
-  const uint64_t return_pc = (uint64_t) (uintptr_t)
-    (mapping + return_page_offset);
+  const uint64_t lifecycle_return_pc = (uint64_t) (uintptr_t)
+    (mapping + lifecycle_return_page_offset);
+  const uint64_t process_return_pc = (uint64_t) (uintptr_t)
+    (mapping + process_return_page_offset);
   const uint64_t entry_pc = (uint64_t) (uintptr_t)
     (loaded_image + program->entry_offset);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
@@ -5350,9 +5383,12 @@ static int emit_and_run_process(struct poly_program *program,
     emit_u32(mapping, &offset, escape);
     mapping[offset++] = 0xc3;
   }
-  offset = return_page_offset;
+  offset = lifecycle_return_page_offset;
   emit_u32(mapping, &offset, escape);
   mapping[offset++] = 0xc3;
+  offset = process_return_page_offset;
+  emit_u32(mapping, &offset, escape);
+  emit_x86_exit_group_from_eax(mapping, &offset);
   if (align_up_size(offset, 4, &offset) < 0) {
     munmap(mapping, mapping_size);
     return -1;
@@ -5386,7 +5422,7 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (map_process_dependencies(program, code, prefix_size, return_pc,
+  if (map_process_dependencies(program, code, prefix_size, lifecycle_return_pc,
         tlsdesc_helper_pc, tls_get_addr_helper_pc, scratch) < 0) {
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
@@ -5394,8 +5430,8 @@ static int emit_and_run_process(struct poly_program *program,
     return -1;
   }
   if (apply_relative_relocations(program, loaded_image, code,
-        prefix_size, return_pc, tlsdesc_helper_pc, tls_get_addr_helper_pc,
-        scratch) < 0) {
+        prefix_size, lifecycle_return_pc, tlsdesc_helper_pc,
+        tls_get_addr_helper_pc, scratch) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
       program->path);
     unmap_process_dependencies(program);
@@ -5403,7 +5439,8 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
+  if (emit_poly_trampoline(program, code, prefix_size, lifecycle_return_pc,
+        entry_pc) < 0) {
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
@@ -5440,7 +5477,9 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (protect_image_range(program, loaded_image,
+  const int static_et_exec = program->is_et_exec && program->dynamic_size == 0;
+  if (!static_et_exec &&
+      protect_image_range(program, loaded_image,
         program->relro_vaddr, program->relro_size, PROT_READ,
         "PT_GNU_RELRO") < 0) {
     if (process_tls)
@@ -5451,7 +5490,7 @@ static int emit_and_run_process(struct poly_program *program,
     return -1;
   }
   if (run_process_preinitializers(program, loaded_image, code,
-        prefix_size, return_pc, scratch) < 0) {
+        prefix_size, lifecycle_return_pc, scratch) < 0) {
     if (process_tls)
       munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
@@ -5460,7 +5499,7 @@ static int emit_and_run_process(struct poly_program *program,
     return -1;
   }
   if (run_process_initializers(program, loaded_image, code,
-        prefix_size, return_pc, scratch, "root") < 0) {
+        prefix_size, lifecycle_return_pc, scratch, "root") < 0) {
     if (process_tls)
       munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
@@ -5468,7 +5507,8 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  if (emit_poly_trampoline(program, code, prefix_size, return_pc, entry_pc) < 0) {
+  if (emit_poly_trampoline(program, code, prefix_size, process_return_pc,
+        entry_pc) < 0) {
     if (process_tls)
       munmap(process_tls, process_tls_size);
     unmap_process_dependencies(program);
@@ -5507,7 +5547,7 @@ static int emit_and_run_process(struct poly_program *program,
       .loaded_image = loaded_image,
       .trampoline_code = code,
       .prefix_size = prefix_size,
-      .return_pc = return_pc,
+      .return_pc = lifecycle_return_pc,
       .scratch = scratch,
       .active = 1,
     };
