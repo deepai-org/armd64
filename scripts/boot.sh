@@ -6017,8 +6017,8 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-uname.elf=0 \
     /usr/lib/polyapps/riscv-exit.elf=7 \
     /usr/lib/polyapps/riscv-exit-group.elf=7 \
-    /usr/lib/polyapps/riscv-ebreak.elf=0x4c000405 \
-    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 \
+    /usr/lib/polyapps/riscv-ebreak.elf=0x4c000205 \
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000205 \
     /usr/lib/polyapps/riscv-ecall.elf=0xffffffffffffffda \
     /usr/lib/polyapps/riscv-long.elf=80 >/dev/ttyS0 2>&1
     echo "POLY_EXEC_BLOCK_OK" >/dev/ttyS0 2>&1
@@ -6117,7 +6117,7 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
-    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000405 >/dev/ttyS0 2>&1
+    /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000205 >/dev/ttyS0 2>&1
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-argv-envp-real.elf=42 \
       alpha beta >/dev/ttyS0 2>&1
