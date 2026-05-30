@@ -5603,28 +5603,53 @@ build_binfmt_module() {
     return
   fi
 
-  if ! command -v unsquashfs >/dev/null 2>&1; then
-    echo "unsquashfs is required to extract binfmt_misc from Alpine modloop." >&2
+  local linux_virt_version
+  local linux_virt_apk
+  local module_path
+
+  prepare_alpine_index
+  linux_virt_version="$({
+    apk_package_version linux-virt
+  } || true)"
+  if [[ -z "$linux_virt_version" ]]; then
+    echo "Unable to determine Alpine linux-virt version." >&2
     exit 1
   fi
 
-  local modloop_extract="$TMP_DIR/modloop-extract"
-  local module_path
-  download "$MODLOOP_URL" "$MODLOOP_IMAGE"
-  rm -rf "$modloop_extract"
-  mkdir -p "$modloop_extract"
-  unsquashfs -q -d "$modloop_extract" "$MODLOOP_IMAGE" 'modules/*/kernel/fs/binfmt_misc.ko*'
-  module_path="$(find "$modloop_extract" -path '*/binfmt_misc.ko*' | head -n 1)"
+  linux_virt_apk="$CACHE_DIR/linux-virt-$linux_virt_version.apk"
+  download \
+    "$ALPINE_X86_64_MAIN_URL/linux-virt-$linux_virt_version.apk" \
+    "$linux_virt_apk"
+  tar -xOzf "$linux_virt_apk" boot/vmlinuz-virt \
+    > "$KERNEL_IMAGE" 2>/dev/null
+  module_path="$(
+    tar -tzf "$linux_virt_apk" 2>/dev/null |
+      awk '
+        /lib\/modules\/.*\/kernel\/fs\/binfmt_misc\.ko/ && found == 0 {
+          print;
+          found = 1;
+        }
+      '
+  )"
   if [[ -z "$module_path" ]]; then
-    echo "Unable to extract binfmt_misc module from $MODLOOP_IMAGE." >&2
+    echo "Unable to find binfmt_misc module in $linux_virt_apk." >&2
     exit 1
   fi
 
   mkdir -p "$TMP_DIR/initramfs-root/lib/modules/poly"
   case "$module_path" in
-    *.gz) gzip -dc "$module_path" > "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko" ;;
-    *.xz) xz -dc "$module_path" > "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko" ;;
-    *.ko) cp "$module_path" "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko" ;;
+    *.gz)
+      tar -xOzf "$linux_virt_apk" "$module_path" 2>/dev/null |
+        gzip -dc > "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko"
+      ;;
+    *.xz)
+      tar -xOzf "$linux_virt_apk" "$module_path" 2>/dev/null |
+        xz -dc > "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko"
+      ;;
+    *.ko)
+      tar -xOzf "$linux_virt_apk" "$module_path" 2>/dev/null \
+        > "$TMP_DIR/initramfs-root/lib/modules/poly/binfmt_misc.ko"
+      ;;
     *)
       echo "Unsupported binfmt_misc module compression: $module_path" >&2
       exit 1
