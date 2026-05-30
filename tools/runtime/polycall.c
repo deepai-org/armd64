@@ -840,10 +840,12 @@ static size_t poly_stub_state_key_verified_count;
 uint64_t poly_runtime_foreign_hwcap;
 uint64_t poly_runtime_foreign_hwcap2;
 uint64_t poly_runtime_foreign_arch;
+const char *poly_runtime_foreign_execfn;
 
-static void poly_runtime_set_foreign_auxv(int arch)
+static void poly_runtime_set_foreign_auxv(int arch, const char *execfn)
 {
   poly_runtime_foreign_arch = (uint64_t) arch;
+  poly_runtime_foreign_execfn = execfn;
   poly_runtime_foreign_hwcap = 0;
   poly_runtime_foreign_hwcap2 = 0;
   if (arch == POLY_ARCH_AARCH64) {
@@ -10457,7 +10459,7 @@ int main(int argc, char **argv) {
     const char *symbol_name = request.symbol[0] ? request.symbol : NULL;
     if (load_elf_program(request.path, symbol_name, &program) < 0)
       return 1;
-    poly_runtime_set_foreign_auxv(program.arch);
+    poly_runtime_set_foreign_auxv(program.arch, program.path);
 
     size_t dep_init_count = 0;
     size_t dep_fini_count = 0;

@@ -21,6 +21,7 @@ extern int64_t poly_runtime_call_foreign_comparator(void *callback,
 extern int64_t poly_runtime_call_foreign_comparator_arg(void *callback,
   const void *left, const void *right, void *arg);
 extern uint64_t poly_runtime_call_foreign_void(void *callback);
+extern const char *poly_runtime_foreign_execfn;
 extern uint64_t poly_runtime_foreign_arch;
 extern uint64_t poly_runtime_foreign_hwcap;
 extern uint64_t poly_runtime_foreign_hwcap2;
@@ -862,7 +863,9 @@ uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
     POLY_AT_PLATFORM = 15,
     POLY_AT_CLKTCK = 17,
     POLY_AT_HWCAP = 16,
-    POLY_AT_HWCAP2 = 26
+    POLY_AT_SECURE = 23,
+    POLY_AT_HWCAP2 = 26,
+    POLY_AT_EXECFN = 31
   };
   static const char aarch64_platform[] = "aarch64";
   static const char riscv_platform[] = "riscv64";
@@ -880,8 +883,12 @@ uint64_t POLY_HOST_HELPER poly_host_x86_getauxval(uint64_t type)
     return 100;
   case POLY_AT_HWCAP:
     return poly_runtime_foreign_hwcap;
+  case POLY_AT_SECURE:
+    return 0;
   case POLY_AT_HWCAP2:
     return poly_runtime_foreign_hwcap2;
+  case POLY_AT_EXECFN:
+    return (uint64_t) (uintptr_t) poly_runtime_foreign_execfn;
   }
 
   return 0;
