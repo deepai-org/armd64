@@ -90,6 +90,7 @@ boot-poly-thread-arch-traps:
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_THREAD=1 \
+		-e RUN_POLY_SIGNAL=0 \
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
 		./scripts/boot.sh
