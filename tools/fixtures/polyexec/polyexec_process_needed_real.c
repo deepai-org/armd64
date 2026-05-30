@@ -212,6 +212,9 @@ extern __thread uint64_t poly_process_tls_trad_dep_counter;
 extern uint64_t poly_process_tls_trad_dep_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_COPY_MAIN)
 extern uint64_t poly_process_copy_value;
+#elif defined(POLY_PROCESS_SONAME_ONCE_MAIN)
+extern uint64_t poly_soname_once_a(void);
+extern uint64_t poly_soname_once_b(void);
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
 extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_IFUNC_MAIN)
@@ -399,6 +402,10 @@ uint64_t poly_process_main(void) {
   if (poly_process_copy_value != 0x123456789abcdf00ULL)
     return 43;
   static const char marker[] = "POLY_PROCESS_COPY_RELOC_OK\n";
+#elif defined(POLY_PROCESS_SONAME_ONCE_MAIN)
+  if (poly_soname_once_a() + poly_soname_once_b() + 5 != 235)
+    return 47;
+  static const char marker[] = "POLY_PROCESS_SONAME_ONCE_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_TRANSITIVE_MAIN)
   if (poly_process_needed_mid(0x10, 0x20) != 0x63)
     return 23;

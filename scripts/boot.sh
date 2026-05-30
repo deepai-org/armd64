@@ -1702,6 +1702,16 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolysonameonce-a-aarch64.so \
     -Wl,--no-as-needed -l:libpolysonameonce-b-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/aarch64/aarch64-pcall-soname-once-real.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_SONAME_ONCE_MAIN \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/a:$ORIGIN/b' \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/aarch64/a" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/aarch64/b" \
+    -Wl,--no-as-needed -l:libpolysonameonce-a-aarch64.so \
+    -Wl,--no-as-needed -l:libpolysonameonce-b-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real.elf"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-soname,libpolycolonrunpath-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -3911,6 +3921,17 @@ build_poly_elf_payloads() {
     -Wl,--no-as-needed -l:libpolysonameonce-a-riscv.so \
     -Wl,--no-as-needed -l:libpolysonameonce-b-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/riscv/riscv-pcall-soname-once-real.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_SONAME_ONCE_MAIN \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-rpath,'$ORIGIN/a:$ORIGIN/b' \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/riscv/a" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/riscv/b" \
+    -Wl,--no-as-needed -l:libpolysonameonce-a-riscv.so \
+    -Wl,--no-as-needed -l:libpolysonameonce-b-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real.elf"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-soname,libpolycolonrunpath-riscv.so \
@@ -6349,6 +6370,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-copy-reloc-real.elf=42 \
       copy-reloc >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real.elf=42 \
+      soname-once >/dev/ttyS0 2>&1
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
       alpha beta >/dev/ttyS0 2>&1
@@ -6447,6 +6471,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-copy-reloc-real.elf=42 \
       copy-reloc >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real.elf=42 \
+      soname-once >/dev/ttyS0 2>&1
     echo "POLY_ARCH_TRAP_EXEC_OK" >/dev/ttyS0 2>&1
 fi
 
@@ -7287,6 +7314,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 process copy relocation" >/dev/ttyS0
       exit 1
     }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real.elf=42 \
+      soname-once >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process soname once" >/dev/ttyS0
+      exit 1
+    }
     POLY_PROCESS_ENV=present \
       /usr/lib/polyapps/aarch64-process-argv-envp-real.elf \
       alpha beta >/dev/ttyS0 2>&1 || {
@@ -7474,6 +7507,12 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-copy-reloc-real.elf=42 \
       copy-reloc >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process copy relocation" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real.elf=42 \
+      soname-once >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process soname once" >/dev/ttyS0
       exit 1
     }
     POLY_PROCESS_ENV=present \
@@ -8614,6 +8653,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-needed-envpath-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -8635,6 +8678,10 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-preinit-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

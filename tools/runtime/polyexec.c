@@ -1245,6 +1245,38 @@ static int resolve_loaded_dependency_object_symbol(
     requested_version, source_dep, source_vaddr, source_size, 0);
 }
 
+static int resolve_root_scope_dependency_symbol(const struct poly_program *program,
+    const char *symbol_name, const char *requested_version,
+    uint64_t *symbol_value, uint8_t *symbol_type,
+    uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
+    uint8_t *scratch) {
+  if (!program->scope_root_program || program == program->scope_root_program)
+    return -1;
+  return resolve_loaded_dependency_symbol_at_depth(program->scope_root_program,
+    program->arch, symbol_name, requested_version, symbol_value, symbol_type,
+    trampoline_code, prefix_size, return_pc, scratch, 0);
+}
+
+static int resolve_root_scope_dependency_tls_symbol(
+    const struct poly_program *program, const char *symbol_name,
+    const char *requested_version, uint64_t *tls_offset) {
+  if (!program->scope_root_program || program == program->scope_root_program)
+    return -1;
+  return resolve_loaded_dependency_tls_symbol_at_depth(
+    program->scope_root_program, symbol_name, requested_version, tls_offset, 0);
+}
+
+static int resolve_root_scope_dependency_object_symbol(
+    const struct poly_program *program, const char *symbol_name,
+    const char *requested_version, const struct poly_process_dependency **source_dep,
+    uint64_t *source_vaddr, size_t *source_size) {
+  if (!program->scope_root_program || program == program->scope_root_program)
+    return -1;
+  return resolve_loaded_dependency_object_symbol_at_depth(
+    program->scope_root_program, symbol_name, requested_version, source_dep,
+    source_vaddr, source_size, 0);
+}
+
 static int resolve_root_scope_symbol(const struct poly_program *program,
     const char *symbol_name, const char *requested_version,
     uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
@@ -1315,6 +1347,10 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
         trampoline_code,
         prefix_size, return_pc, scratch, symbol_value, symbol_type) == 0)
     return 0;
+  if (resolve_root_scope_dependency_symbol(program, symbol_name,
+        requested_version, symbol_value, symbol_type, trampoline_code,
+        prefix_size, return_pc, scratch) == 0)
+    return 0;
   if (resolve_loaded_dependency_symbol(program, symbol_name, requested_version,
         symbol_value, symbol_type, trampoline_code, prefix_size, return_pc,
         scratch) == 0)
@@ -1347,7 +1383,9 @@ static int apply_process_copy_relocation(const struct poly_program *program,
   const struct poly_process_dependency *source_dep = NULL;
   uint64_t source_vaddr = 0;
   size_t source_size = 0;
-  if (resolve_loaded_dependency_object_symbol(program, symbol_name,
+  if (resolve_root_scope_dependency_object_symbol(program, symbol_name,
+        requested_version, &source_dep, &source_vaddr, &source_size) < 0 &&
+      resolve_loaded_dependency_object_symbol(program, symbol_name,
         requested_version, &source_dep, &source_vaddr, &source_size) < 0)
     return -1;
 
@@ -1408,6 +1446,9 @@ static int resolve_process_tls_reloc_symbol(const struct poly_program *program,
   if (sym->st_shndx == SHN_UNDEF) {
     if (resolve_root_scope_tls_symbol(program, symbol_name, requested_version,
           tls_offset) == 0)
+      return 0;
+    if (resolve_root_scope_dependency_tls_symbol(program, symbol_name,
+          requested_version, tls_offset) == 0)
       return 0;
     if (resolve_loaded_dependency_tls_symbol(program, symbol_name,
           requested_version, tls_offset) == 0)
