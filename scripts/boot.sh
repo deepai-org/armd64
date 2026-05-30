@@ -544,6 +544,12 @@ build_poly_elf_payloads() {
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocessneeded-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_PRELOAD_OVERRIDE_DEP \
+    -Wl,-soname,libpolyprocesspreload-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocesspreload-aarch64.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocessenv-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -592,6 +598,13 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessneeded-aarch64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-needed-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_PRELOAD_MAIN \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyprocessneeded-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-preload-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2569,6 +2582,13 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocessneeded-riscv.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_PRELOAD_OVERRIDE_DEP \
+    -Wl,-soname,libpolyprocesspreload-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocesspreload-riscv.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocessenv-riscv.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -2623,6 +2643,14 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
     -Wl,--no-as-needed -l:libpolyprocessneeded-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-needed-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_PRELOAD_MAIN \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/initramfs-root/usr/lib/polyapps" \
+    -Wl,--no-as-needed -l:libpolyprocessneeded-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-preload-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -6171,6 +6199,10 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-aarch64.so \
+      /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-preload-real.elf=42 \
+      preload >/dev/ttyS0 2>&1
     POLY_LD_LIBRARY_PATH='/usr/lib/polyapps/processenvdeps/\$PLATFORM' \
       /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-envpath-real.elf=42 \
@@ -6256,6 +6288,10 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-riscv.so \
+      /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-preload-real.elf=42 \
+      preload >/dev/ttyS0 2>&1
     POLY_LD_LIBRARY_PATH='/usr/lib/polyapps/processenvdeps/\$PLATFORM' \
       /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-envpath-real.elf=42 \
@@ -7002,6 +7038,13 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 process needed" >/dev/ttyS0
       exit 1
     }
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-aarch64.so \
+      /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-preload-real.elf=42 \
+      preload >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process preload" >/dev/ttyS0
+      exit 1
+    }
     POLY_LD_LIBRARY_PATH='/usr/lib/polyapps/processenvdeps/\$PLATFORM' \
       /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-envpath-real.elf=42 \
@@ -7167,6 +7210,13 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process needed" >/dev/ttyS0
+      exit 1
+    }
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-riscv.so \
+      /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-preload-real.elf=42 \
+      preload >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process preload" >/dev/ttyS0
       exit 1
     }
     POLY_LD_LIBRARY_PATH='/usr/lib/polyapps/processenvdeps/\$PLATFORM' \
@@ -8410,6 +8460,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-preload-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-needed-envpath-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -8419,6 +8473,10 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-cross-needed-ifunc-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-preload-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

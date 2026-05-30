@@ -186,7 +186,7 @@ enum {
   POLY_X86_PENTER_GENERIC_SIZE = 10,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
-  MAX_PROCESS_DEPS = 4,
+  MAX_PROCESS_DEPS = 8,
   MAX_PROCESS_DEP_DEPTH = 4,
   MAX_DEP_PATH = 160,
   MAX_PROCESS_TLS_BYTES = 64 * 1024,
@@ -4434,6 +4434,55 @@ static const char *process_platform_name_for_arch(int arch) {
   return NULL;
 }
 
+static int preload_separator(char c) {
+  return c == ':' || c == ' ' || c == '\t' || c == '\n';
+}
+
+static int process_dependency_path_already_loaded(
+    const struct poly_program *program, const char *path) {
+  for (size_t d = 0; d < program->dep_count; d++) {
+    if (strcmp(program->deps[d].path, path) == 0)
+      return 1;
+  }
+  return 0;
+}
+
+static int build_process_preload_path(const struct poly_program *program,
+    const char *token, size_t token_len, char *out, size_t out_size) {
+  if (token_len == 0 || token_len >= MAX_DEP_PATH)
+    return -1;
+
+  char raw[MAX_DEP_PATH];
+  memcpy(raw, token, token_len);
+  raw[token_len] = '\0';
+
+  char expanded[MAX_DEP_PATH];
+  if (expand_runpath_entry(program->path,
+        process_platform_name_for_arch(program->arch), raw, token_len,
+        expanded, sizeof(expanded)) < 0)
+    return -1;
+
+  if (expanded[0] == '/') {
+    if (strlen(expanded) >= out_size || access(expanded, R_OK) != 0)
+      return -1;
+    strcpy(out, expanded);
+    return 0;
+  }
+
+  const char *library_path = process_library_path();
+  if (library_path && library_path[0] != '\0' &&
+      build_runpath_needed_path(program->path,
+        process_platform_name_for_arch(program->arch), library_path,
+        strlen(library_path), expanded, out, out_size) == 0)
+    return 0;
+
+  if (build_needed_path(program->path, expanded, out, out_size) == 0 &&
+      access(out, R_OK) == 0)
+    return 0;
+
+  return -1;
+}
+
 static int load_process_dependencies_at_depth(struct poly_program *program,
     size_t depth) {
   if (!program->dynamic_size)
@@ -4536,6 +4585,55 @@ static int load_process_dependencies_at_depth(struct poly_program *program,
 }
 
 static int load_process_dependencies(struct poly_program *program) {
+  const char *preload = getenv("POLY_LD_PRELOAD");
+  if (!preload || preload[0] == '\0')
+    preload = getenv("LD_PRELOAD");
+  if (preload && preload[0] != '\0') {
+    size_t offset = 0;
+    while (preload[offset] != '\0') {
+      while (preload[offset] != '\0' && preload_separator(preload[offset]))
+        offset++;
+      const size_t start = offset;
+      while (preload[offset] != '\0' && !preload_separator(preload[offset]))
+        offset++;
+      const size_t token_len = offset - start;
+      if (token_len == 0)
+        continue;
+
+      char path[MAX_DEP_PATH];
+      if (build_process_preload_path(program, preload + start, token_len,
+            path, sizeof(path)) < 0) {
+        fprintf(stderr, "POLYEXEC_FAIL: bad preload dependency path: %.*s\n",
+          (int) token_len, preload + start);
+        return -1;
+      }
+      if (process_dependency_path_already_loaded(program, path))
+        continue;
+      if (program->dep_count >= MAX_PROCESS_DEPS) {
+        fprintf(stderr, "POLYEXEC_FAIL: too many preload dependencies: %s\n",
+          program->path);
+        return -1;
+      }
+      struct poly_process_dependency *dep = &program->deps[program->dep_count];
+      if (strlen(path) >= sizeof(dep->path))
+        return -1;
+      strcpy(dep->path, path);
+      dep->program = calloc(1, sizeof(*dep->program));
+      if (!dep->program) {
+        fprintf(stderr, "POLYEXEC_FAIL: out of memory loading dependency: %s\n",
+          dep->path);
+        return -1;
+      }
+      if (load_elf_program(dep->path, "", dep->program) < 0) {
+        free(dep->program);
+        dep->program = NULL;
+        return -1;
+      }
+      program->dep_count++;
+      if (load_process_dependencies_at_depth(dep->program, 1) < 0)
+        return -1;
+    }
+  }
   return load_process_dependencies_at_depth(program, 0);
 }
 
