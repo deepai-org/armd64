@@ -5822,6 +5822,7 @@ int main(void) {
         poly_xsave.edx);
       return 1;
     }
+    puts("NATIVE_POLY_CPUID_ARCH_STATE_OK");
     uint64_t xcr0 = read_xcr0();
     if ((xcr0 & (1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH)) != 0)
       puts("NATIVE_POLY_XSAVE_OS_ENABLED");
