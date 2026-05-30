@@ -1,7 +1,7 @@
 # Poly ISA Quick Reference
 
-Poly is a Bochs prototype of one virtual address space with three user-code
-frontends: x86_64, AArch64, and RISC-V64. x86_64 remains the system ISA.
+Poly runs existing x86_64, AArch64, and RISC-V64 user code in one virtual
+address space. x86_64 remains the system ISA.
 
 ## Run
 
@@ -11,32 +11,32 @@ make boot-poly-binfmt-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYEXEC_RESULT|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused tests:
+Focused gates:
 
 - `make boot-poly-arch-traps`
 - `make boot-poly-call-arch-traps`
 - `make boot-poly-full-arch-traps`
 
-## Architecture
+## ISA Contract
 
-| Area | Contract |
-| --- | --- |
-| System ISA | x86_64 owns boot, privilege, paging, faults, interrupts, VM control, atomics, and TSO ordering. |
-| Foreign code | AArch64 and RISC-V64 fetch normal aligned 32-bit instructions from the same virtual address space. |
-| Transitions | Decoded Poly control instructions switch/call frontends. The fast path is not a `#UD` trap envelope. |
-| State | Foreign registers, trap packets, ABI signatures, transition frames, and landing policy are XSAVE-style architectural state. |
-| ABI interop | Fast calls use register-only signature slots. Stack args, aggregates, variadics, lazy binding, libcalls, and syscall translation stay in software/runtime code. |
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- x86_64 owns boot, privilege, paging, faults, interrupts, atomics, VM control,
+  and TSO ordering.
+- AArch64 and RISC-V64 are user-mode frontends that fetch normal aligned
+  32-bit instructions from `RIP` in the same virtual address space.
+- Frontend changes use decoded Poly control opcodes, not `#UD` trap envelopes.
+- Poly state is XSAVE-style architectural state: foreign registers, trap
+  packets, ABI signatures, transition state, and landing policy.
+- Fast interop uses register-only ABI signature slots. Runtime thunks handle
+  stack args, aggregates, variadics, lazy binding, libcalls, and syscall
+  translation.
 
-## Frontends
+## Operations
 
-| ID | Frontend |
-| --- | --- |
-| `0` | x86_64 |
-| `1` | AArch64 |
-| `2` | RISC-V64 |
+Core operations are `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING`.
+The current x86 prototype uses `0f 3a fc <op>` as a temporary decoded control
+space. AArch64 and RISC-V control encodings are generated from subops in
+`tools/include/polycpuid.h`.
 
-Core operations: `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, `PLANDING`.
-
-Prototype constants and exact encodings live in
-`tools/include/polycpuid.h`. Design rationale and hardware direction live in
-`docs/poly-isa-design-directions.md`.
+- Constants and prototype encodings: `tools/include/polycpuid.h`
+- Hardware and ABI rationale: `docs/poly-isa-design-directions.md`
