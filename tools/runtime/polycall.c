@@ -3581,8 +3581,6 @@ static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
     return 0xd5032e7fU; // aarch64 polyctrl compact u32-f32 call
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
     return 0xd5032e9fU; // aarch64 polyctrl compact f32-u32 call
-  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
-    return 0xd5032ebfU; // aarch64 polyctrl FP64-stack call
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return 0xd5032effU; // aarch64 polyctrl vec128 call
   return 0; // Default register-only calls must use PCALL_SIG_IMM.
@@ -3593,8 +3591,6 @@ static uint32_t riscv_cross_call_opcode_for_bridge(int bridge_kind) {
     return 0x0600700bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
     return 0x0800700bU;
-  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
-    return 0x0a00700bU;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return 0x0e00700bU;
   return 0; // Default register-only calls must use PCALL_SIG_IMM.

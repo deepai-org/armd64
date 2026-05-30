@@ -408,6 +408,12 @@ static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
     (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
 }
 
+static uint32_t riscv_sd(uint32_t rs2, uint32_t rs1, int32_t imm) {
+  const uint32_t imm12 = (uint32_t) imm & 0xfffU;
+  return ((imm12 >> 5) << 25) | (rs2 << 20) | (rs1 << 15) |
+    (0x3U << 12) | ((imm12 & 0x1fU) << 7) | 0x23U;
+}
+
 static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (rd << 7) | 0x13U;
@@ -1362,7 +1368,8 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
-  const size_t aarch64_return_offset = aarch64_body_offset + 4 + 8 * 8 + 16 + 16 + 4;
+  const size_t aarch64_return_offset =
+    aarch64_body_offset + 4 + 8 * 8 + 8 * 4 + 16 + 4 + 16 + 4;
   const size_t riscv_target_offset = aarch64_return_offset + 4 + 4 + 1;
 
   emit_u32(code, &offset, 0xd10103ffU); // sub sp,sp,#64
@@ -1370,11 +1377,15 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
     emit_u32(code, &offset, aarch64_ldr_x_sp(8, 72 + n * 8));
     emit_u32(code, &offset, aarch64_str_x_sp(8, n * 8));
   }
+  for (uint32_t n = 0; n < 8; n++)
+    emit_u32(code, &offset, aarch64_ldr_x_sp(n, n * 8));
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
-  emit_aarch64_movabs(code, &offset, 17,
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V)
+  emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset, 0xd5032ebfU); // aarch64 polyctrl FP64-stack call, FP64-stack call RISC-V
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x910103ffU); // add sp,sp,#64
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1432,15 +1443,19 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
   for (uint32_t n = 0; n < 8; n++)
     emit_u32(code, &offset, riscv_ld(10 + n, 2, 8 + n * 8));
   emit_u32(code, &offset, riscv_addi(2, 2, -64));
+  for (uint32_t n = 0; n < 8; n++)
+    emit_u32(code, &offset, riscv_sd(10 + n, 2, n * 8));
   const size_t auipc_target_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
   const size_t auipc_return_pc = offset;
-  emit_u32(code, &offset, 0x00000317U); // auipc x6,0
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0x0a00700bU); // riscv polyctrl FP64-stack call AArch64
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_addi(2, 2, 64));
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -1466,7 +1481,7 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
 
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
-  store_u32(code, ld_return_offset, riscv_ld(6, 6,
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   poly_foreign_insn_count_status();
