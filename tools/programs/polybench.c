@@ -25,17 +25,27 @@ enum {
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
   LOOP_ITERS = 200,
   POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA = 3,
+  POLYBENCH_LOOP_MAX_RAW_INSNS = 410,
   POLYBENCH_MIXED_EXPECTED_SWITCH_DELTA = 4,
   POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
+  POLYBENCH_MIXED_MAX_RAW_INSNS = 8,
   POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA = 5,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
+  POLYBENCH_CROSS_CALL_MAX_RAW_INSNS = 16,
   POLYBENCH_CROSS_CALL_VEC128_EXPECTED_SWITCH_DELTA = 4,
+  POLYBENCH_CROSS_CALL_VEC128_MAX_RAW_INSNS = 25,
   POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA = 7,
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
+  POLYBENCH_NESTED_CROSS_CALL_MAX_RAW_INSNS = 26,
   POLYBENCH_DIRECT_X86_PCALL_EXPECTED_SWITCH_DELTA = 5,
   POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA = 5,
+  POLYBENCH_DIRECT_X86_PCALL_MAX_RAW_INSNS = 18,
   POLYBENCH_X86_PCALL_SIGNATURE_EXPECTED_SWITCH_DELTA = 2,
   POLYBENCH_X86_PCALL_SIGNATURE_MAX_SWITCH_DELTA = 2,
+  POLYBENCH_X86_PCALL_SIGNATURE_MAX_RAW_INSNS = 7,
+  POLYBENCH_X86_PCALL_SRET_SIGNATURE_MAX_RAW_INSNS = 10,
+  POLYBENCH_X86_PCALL_VEC128_SIGNATURE_MAX_RAW_INSNS = 14,
+  POLYBENCH_CROSS_CALL_SIGNATURE_MAX_RAW_INSNS = 16,
   POLYBENCH_DIRECT_X86_LIBCALL_EXPECTED_SWITCH_DELTA = 7,
   POLYBENCH_DIRECT_X86_LIBCALL_MAX_SWITCH_DELTA = 7,
   POLYBENCH_DIRECT_X86_MEMOPS_EXPECTED_SWITCH_DELTA = 11,
@@ -5117,10 +5127,26 @@ static int check_loop(const char *name, int arch) {
       name, (unsigned long long) min_expected_delta, (unsigned long long) delta);
     return -1;
   }
+  if (delta > POLYBENCH_LOOP_MAX_RAW_INSNS) {
+    fprintf(stderr, "POLYBENCH_FAIL: %s raw instruction delta expected at most %u got %llu\n",
+      name, POLYBENCH_LOOP_MAX_RAW_INSNS, (unsigned long long) delta);
+    return -1;
+  }
   if (switch_delta != POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA) {
     fprintf(stderr, "POLYBENCH_FAIL: %s loop switch delta expected exactly %u got %llu\n",
       name, POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA,
       (unsigned long long) switch_delta);
+    return -1;
+  }
+  return 0;
+}
+
+static int check_raw_insn_delta_max(const char *kind, const char *name,
+    uint64_t insn_delta, uint64_t max_insn_delta) {
+  if (insn_delta > max_insn_delta) {
+    fprintf(stderr, "POLYBENCH_FAIL: %s %s raw instruction delta expected at most %llu got %llu\n",
+      kind, name, (unsigned long long) max_insn_delta,
+      (unsigned long long) insn_delta);
     return -1;
   }
   return 0;
@@ -5170,6 +5196,9 @@ static int check_mixed_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("mixed", name, insn_delta,
+        POLYBENCH_MIXED_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("mixed", name, switch_delta,
         POLYBENCH_MIXED_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5195,6 +5224,7 @@ static int check_mixed(void) {
 
 static int check_cross_call_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *),
+    uint64_t max_insn_delta,
     uint64_t expected_switch_delta,
     uint64_t max_switch_delta) {
   uint64_t result = 0;
@@ -5217,6 +5247,9 @@ static int check_cross_call_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("cross call", name, insn_delta,
+        max_insn_delta) < 0)
+    return -1;
   if (check_switch_delta_exact("cross call", name, switch_delta,
         expected_switch_delta) < 0)
     return -1;
@@ -5248,6 +5281,9 @@ static int check_direct_x86_pcall_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("direct x86 pcall", name, insn_delta,
+        POLYBENCH_DIRECT_X86_PCALL_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("direct x86 pcall", name, switch_delta,
         POLYBENCH_DIRECT_X86_PCALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5403,6 +5439,9 @@ static int check_x86_pcall_signature_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("x86 pcall signature", name, insn_delta,
+        POLYBENCH_X86_PCALL_SIGNATURE_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("x86 pcall signature", name, switch_delta,
         POLYBENCH_X86_PCALL_SIGNATURE_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5434,6 +5473,9 @@ static int check_x86_pcall_sret_signature_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("x86 pcall SRET signature", name, insn_delta,
+        POLYBENCH_X86_PCALL_SRET_SIGNATURE_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("x86 pcall SRET signature", name,
         switch_delta, POLYBENCH_X86_PCALL_SIGNATURE_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5465,6 +5507,9 @@ static int check_x86_pcall_fp32_signature_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("x86 pcall FP32 signature", name, insn_delta,
+        POLYBENCH_X86_PCALL_SIGNATURE_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("x86 pcall FP32 signature", name, switch_delta,
         POLYBENCH_X86_PCALL_SIGNATURE_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5496,6 +5541,9 @@ static int check_x86_pcall_fp64_signature_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("x86 pcall FP64 signature", name, insn_delta,
+        POLYBENCH_X86_PCALL_SIGNATURE_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("x86 pcall FP64 signature", name, switch_delta,
         POLYBENCH_X86_PCALL_SIGNATURE_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5527,6 +5575,9 @@ static int check_x86_pcall_vec128_signature_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("x86 pcall vec128 signature", name, insn_delta,
+        POLYBENCH_X86_PCALL_VEC128_SIGNATURE_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("x86 pcall vec128 signature", name,
         switch_delta, POLYBENCH_X86_PCALL_SIGNATURE_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5620,6 +5671,9 @@ static int check_cross_call_fp64_signature_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("cross call FP64 signature", name, insn_delta,
+        POLYBENCH_CROSS_CALL_SIGNATURE_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("cross call FP64 signature", name,
         switch_delta, POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5651,6 +5705,9 @@ static int check_cross_call_fp32_signature_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("cross call FP32 signature", name, insn_delta,
+        POLYBENCH_CROSS_CALL_SIGNATURE_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("cross call FP32 signature", name,
         switch_delta, POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -5713,6 +5770,9 @@ static int check_cross_call_vec128_direction(const char *name,
       name, (unsigned long long) insn_delta);
     return -1;
   }
+  if (check_raw_insn_delta_max("cross call vec128", name, insn_delta,
+        POLYBENCH_CROSS_CALL_VEC128_MAX_RAW_INSNS) < 0)
+    return -1;
   if (check_switch_delta_exact("cross call vec128", name, switch_delta,
         POLYBENCH_CROSS_CALL_VEC128_EXPECTED_SWITCH_DELTA) < 0)
     return -1;
@@ -6098,21 +6158,25 @@ static int check_cross_call_direct_x86_memops_direction(const char *name,
 static int check_cross_calls(void) {
   if (check_cross_call_direction("aarch64-calls-riscv",
         run_cross_call_aarch64_to_riscv,
+        POLYBENCH_CROSS_CALL_MAX_RAW_INSNS,
         POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_direction("riscv-calls-aarch64",
         run_cross_call_riscv_to_aarch64,
+        POLYBENCH_CROSS_CALL_MAX_RAW_INSNS,
         POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_direction("nested-aarch64-riscv-aarch64",
         run_nested_cross_call,
+        POLYBENCH_NESTED_CROSS_CALL_MAX_RAW_INSNS,
         POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
   if (check_cross_call_direction("nested-riscv-aarch64-riscv",
         run_nested_reverse_cross_call,
+        POLYBENCH_NESTED_CROSS_CALL_MAX_RAW_INSNS,
         POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
