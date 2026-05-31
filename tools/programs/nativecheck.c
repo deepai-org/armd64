@@ -7720,6 +7720,7 @@ int main(void) {
       return 1;
     if (run_poly_state_register_bank_probe() != 0)
       return 1;
+    puts("NATIVE_POLY_TRAP_VECTOR_OK");
   }
   puts("NATIVE_CHECK_OK");
   return 0;
