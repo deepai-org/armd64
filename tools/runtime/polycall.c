@@ -4076,7 +4076,8 @@ static int call_kind_for_bridge_result(int root_arch, int call_kind,
 
 static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
   if (call_kind == POLY_CALL_FP64_STACK ||
-      call_kind == POLY_CALL_SRET_U64)
+      call_kind == POLY_CALL_SRET_U64 ||
+      call_kind == POLY_CALL_VEC128_U32)
     return 0xff; // Invalid subop: these call kinds require signature PCALL.
   if (arch == POLY_ARCH_AARCH64) {
     if (call_kind == POLY_CALL_FPAIR32)
@@ -4093,8 +4094,6 @@ static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
       return 0x1a;
     if (call_kind == POLY_CALL_HETERO_F32_U64)
       return 0x1b;
-    if (call_kind == POLY_CALL_VEC128_U32)
-      return 0x21;
     return 0x10;
   }
   if (call_kind == POLY_CALL_FPAIR32)
@@ -4105,8 +4104,6 @@ static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
     return 0x1c;
   if (call_kind == POLY_CALL_COMPACT_F32_U32)
     return 0x1d;
-  if (call_kind == POLY_CALL_VEC128_U32)
-    return 0x22;
   return 0x11;
 }
 
@@ -9979,8 +9976,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x1a;
     else if (call_kind == POLY_CALL_HETERO_F32_U64)
       pcall_op = 0x1b;
-    else if (call_kind == POLY_CALL_VEC128_U32)
-      pcall_op = 0x21;
     const uint8_t pcall[] = {
       0x0f, 0x3a, 0xfc, pcall_op
     };
@@ -9997,8 +9992,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x1c;
     else if (call_kind == POLY_CALL_COMPACT_F32_U32)
       pcall_op = 0x1d;
-    else if (call_kind == POLY_CALL_VEC128_U32)
-      pcall_op = 0x22;
     const uint8_t pcall[] = {
       0x0f, 0x3a, 0xfc, pcall_op
     };
