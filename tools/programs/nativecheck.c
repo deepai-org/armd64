@@ -1614,7 +1614,7 @@ static void child_expect_aarch64_invalid_generic_signature_slot_signal(void) {
     ".long 0xd2800010\n" // movz x16,#0
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0xd2800012\n" // movz x18,#0
-    ".long 0xd2800173\n" // movz x19,#11 (invalid signature slot)
+    ".long 0xd2800193\n" // movz x19,#12 (invalid signature slot)
     ".long 0xd5032f5f\n" // aarch64 generic signature pcall
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -1662,7 +1662,7 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
     ".long 0x00000293\n" // addi x5,zero,0
     ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
     ".long 0x00000393\n" // addi x7,zero,0
-    ".long 0x00b00e13\n" // addi x28,zero,11 (invalid signature slot)
+    ".long 0x00c00e13\n" // addi x28,zero,12 (invalid signature slot)
     ".long 0x1400700b\n" // riscv generic signature pcall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -6805,7 +6805,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = poly_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS + 1);
+    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6919,7 +6919,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_aarch64_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS + 1);
+    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6962,7 +6962,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_riscv_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS + 1);
+    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -7750,6 +7750,10 @@ int main(void) {
       poly_cpuid_expected_escape_leaf24();
     struct poly_cpuid_regs sret_signature_manifest =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 24);
+    struct poly_cpuid_regs expected_fp128_ret_signature_manifest =
+      poly_cpuid_expected_escape_leaf25();
+    struct poly_cpuid_regs fp128_ret_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 25);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -7789,6 +7793,21 @@ int main(void) {
         sret_signature_manifest.ecx, sret_signature_manifest.edx);
       return 1;
     }
+    if (fp128_ret_signature_manifest.eax !=
+          expected_fp128_ret_signature_manifest.eax ||
+        fp128_ret_signature_manifest.ebx !=
+          expected_fp128_ret_signature_manifest.ebx ||
+        fp128_ret_signature_manifest.ecx !=
+          expected_fp128_ret_signature_manifest.ecx ||
+        fp128_ret_signature_manifest.edx !=
+          expected_fp128_ret_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 SysV FP128 return ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        fp128_ret_signature_manifest.eax,
+        fp128_ret_signature_manifest.ebx,
+        fp128_ret_signature_manifest.ecx,
+        fp128_ret_signature_manifest.edx);
+      return 1;
+    }
     if (check_poly_abi_signature_slot_default(
           pcall_imm_manifest.ecx & 0xffU,
           pcall_imm_manifest.edx & 0xffU, "exchange") != 0 ||
@@ -7822,7 +7841,11 @@ int main(void) {
           "native-regs-fp32") != 0 ||
         check_poly_abi_signature_slot_default(
           sret_signature_manifest.eax, sret_signature_manifest.ebx,
-          "sret-x86-sysv-regs") != 0)
+          "sret-x86-sysv-regs") != 0 ||
+        check_poly_abi_signature_slot_default(
+          fp128_ret_signature_manifest.eax,
+          fp128_ret_signature_manifest.ebx,
+          "x86-sysv-regs-fp128-ret") != 0)
       return 1;
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);

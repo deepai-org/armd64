@@ -663,7 +663,7 @@ static inline void aarch64_abi_signature_control_probe(void) {
 static inline void aarch64_abi_signature_invalid_slot_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
-    ".long 0xd2800160\n" // movz x0,#11 (invalid slot)
+    ".long 0xd2800180\n" // movz x0,#12 (invalid slot)
     ".long 0xd2800001\n" // movz x1,#0
     ".long 0xd5032f9f\n" // aarch64 ABI signature set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
@@ -674,7 +674,7 @@ static inline void aarch64_abi_signature_invalid_kind_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd28000a0\n" // movz x0,#5
-    ".long 0xd2800181\n" // movz x1,#12 (invalid kind)
+    ".long 0xd28001a1\n" // movz x1,#13 (invalid kind)
     ".long 0xd5032f9f\n" // aarch64 ABI signature set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
@@ -695,7 +695,7 @@ static inline void riscv_abi_signature_control_probe(void) {
 static inline void riscv_abi_signature_invalid_slot_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
-    ".long 0x00b00513\n" // addi a0,zero,11 (invalid slot)
+    ".long 0x00c00513\n" // addi a0,zero,12 (invalid slot)
     ".long 0x00000593\n" // addi a1,zero,0
     ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
@@ -706,7 +706,7 @@ static inline void riscv_abi_signature_invalid_kind_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00600513\n" // addi a0,zero,6
-    ".long 0x00c00593\n" // addi a1,zero,12 (invalid kind)
+    ".long 0x00d00593\n" // addi a1,zero,13 (invalid kind)
     ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
@@ -2272,6 +2272,25 @@ int main(void) {
       (unsigned long long) poly_abi_signature_get(poly_escapes.eax));
     return 1;
   }
+  expected_escapes = poly_cpuid_expected_escape_leaf25();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 25);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID x86 SysV FP128 return ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  if (poly_escapes.eax >= POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      poly_abi_signature_get(poly_escapes.eax) !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: default x86 SysV FP128 return ABI signature slot mismatch slot=%u count=%u kind=%llu\n",
+      poly_escapes.eax, POLY_ABI_SIGNATURE_SLOT_COUNT,
+      (unsigned long long) poly_abi_signature_get(poly_escapes.eax));
+    return 1;
+  }
   struct poly_cpuid_contract_failure state_failure;
   if (!poly_cpuid_verify_arch_state_contract(&state_failure)) {
     fprintf(stderr,
@@ -2570,7 +2589,8 @@ int main(void) {
       poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_COUNT) !=
         POLY_ERR_INVAL ||
       poly_abi_signature_set(3,
-        POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS + 1) != POLY_ERR_INVAL ||
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET + 1) !=
+        POLY_ERR_INVAL ||
       poly_abi_signature_get(3) !=
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 ABI signature invalid control mismatch\n");
