@@ -33,6 +33,8 @@ static uint64_t explicit_state_key_counter __attribute__((aligned(8)));
 static uint64_t real_xsave_context_counter __attribute__((aligned(8)));
 static uint32_t polythread_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
+static uint32_t polythread_fp64_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
 
 struct polythread_monitor_packet {
   struct poly_trap_packet trap;
@@ -180,12 +182,17 @@ static int check_polythread_contract(void) {
 static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
   const struct poly_cpuid_regs expected_x86_controls =
     poly_cpuid_expected_escape_leaf5();
+  const struct poly_cpuid_regs expected_fp64_signature =
+    poly_cpuid_expected_escape_leaf22();
   const struct poly_cpuid_regs x86_controls =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const struct poly_cpuid_regs fp64_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  const uint32_t fp64_slot = fp64_signature.edx;
   if (x86_controls.eax != expected_x86_controls.eax ||
       x86_controls.ebx != expected_x86_controls.ebx ||
       x86_controls.ecx != expected_x86_controls.ecx ||
@@ -205,14 +212,30 @@ static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
       signature.eax, signature.ebx, signature.ecx, signature.edx);
     return -1;
   }
-  if (poly_abi_signature_set(native_slot,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+  if (fp64_signature.eax != expected_fp64_signature.eax ||
+      fp64_signature.ebx != expected_fp64_signature.ebx ||
+      fp64_signature.ecx != expected_fp64_signature.ecx ||
+      fp64_signature.edx != expected_fp64_signature.edx ||
+      fp64_slot >= signature.ebx) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: native signature slot setup failed slot=%u\n",
-      native_slot);
+      "POLYTHREAD_FAIL: FP64 signature manifest mismatch fp64=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      fp64_signature.eax, fp64_signature.ebx, fp64_signature.ecx,
+      fp64_signature.edx, expected_fp64_signature.eax,
+      expected_fp64_signature.ebx, expected_fp64_signature.ecx,
+      expected_fp64_signature.edx);
+    return -1;
+  }
+  if (poly_abi_signature_set(native_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_abi_signature_set(fp64_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: native signature slot setup failed native=%u fp64=%u\n",
+      native_slot, fp64_slot);
     return -1;
   }
   polythread_native_signature_slot = native_slot;
+  polythread_fp64_signature_slot = fp64_slot;
   *slot_out = native_slot;
   return 0;
 }
@@ -849,7 +872,7 @@ static uint64_t direct_riscv_x86_signature_sum6(uint64_t a0) {
 static uint64_t direct_aarch64_x86_signature_fp64_mul(uint64_t left_bits,
     uint64_t right_bits) {
   register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
+    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
@@ -876,7 +899,7 @@ static uint64_t direct_aarch64_x86_signature_fp64_mul(uint64_t left_bits,
 static uint64_t direct_riscv_x86_signature_fp64_mul(uint64_t left_bits,
     uint64_t right_bits) {
   register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
+    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
@@ -972,7 +995,7 @@ static uint64_t direct_riscv_aarch64_signature_sum6(uint64_t a0) {
 static uint64_t direct_aarch64_riscv_signature_fp64_mix(uint64_t left_bits,
     uint64_t right_bits) {
   register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
+    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
@@ -1002,7 +1025,7 @@ static uint64_t direct_aarch64_riscv_signature_fp64_mix(uint64_t left_bits,
 static uint64_t direct_riscv_aarch64_signature_fp64_mix(uint64_t left_bits,
     uint64_t right_bits) {
   register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
+    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
