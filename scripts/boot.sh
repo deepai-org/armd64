@@ -6362,8 +6362,10 @@ if [ "$RUN_POLY_NEUTRAL" = "1" ]; then
   /usr/bin/polyapp \
     /usr/lib/polyapps/aarch64-generic-call-riscv.poly \
     /usr/lib/polyapps/aarch64-generic-switch-riscv.poly \
+    /usr/lib/polyapps/aarch64-generic-switch-x86.poly \
     /usr/lib/polyapps/riscv-generic-call-aarch64.poly \
-    /usr/lib/polyapps/riscv-generic-switch-aarch64.poly >/dev/ttyS0 2>&1
+    /usr/lib/polyapps/riscv-generic-switch-aarch64.poly \
+    /usr/lib/polyapps/riscv-generic-switch-x86.poly >/dev/ttyS0 2>&1
   echo "POLY_NEUTRAL_OK" >/dev/ttyS0
 fi
 
@@ -10059,11 +10061,19 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYAPP_RESULT: arch=aarch64 value=45 path=/usr/lib/polyapps/aarch64-generic-switch-x86\\.poly" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-call-aarch64\\.poly" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
         if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-switch-aarch64\\.poly" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-switch-x86\\.poly" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

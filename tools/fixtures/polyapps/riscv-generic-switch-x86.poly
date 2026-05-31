@@ -1,0 +1,9 @@
+# poly payload v1
+arch=riscv
+final_arch=x86
+expected=45
+insn=0x02800513
+insn=0x00000297
+insn=0x01028293
+insn=0x00000313
+insn=0x1000700b

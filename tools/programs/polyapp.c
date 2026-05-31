@@ -16,6 +16,7 @@
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 
 enum {
+  POLY_ARCH_X86 = POLY_FRONTEND_X86,
   POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
   POLY_BREAK_STATUS = 0,
@@ -605,6 +606,11 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
 }
 
 static int parse_arch(const char *arch, int *arch_value, const char **arch_name) {
+  if (strcmp(arch, "x86") == 0 || strcmp(arch, "x86_64") == 0) {
+    *arch_value = POLY_ARCH_X86;
+    *arch_name = "x86";
+    return 0;
+  }
   if (strcmp(arch, "aarch64") == 0) {
     *arch_value = POLY_ARCH_AARCH64;
     *arch_name = "aarch64";
@@ -728,6 +734,7 @@ static int load_elf_instructions(struct payload *payload) {
 static int load_payload(const char *path, struct payload *payload) {
   memset(payload, 0, sizeof(*payload));
   payload->path = path;
+  payload->final_arch = -1;
   FILE *file = fopen(path, "r");
   if (!file) {
     fprintf(stderr, "POLYAPP_FAIL: unable to open %s: %s\n", path, strerror(errno));
@@ -854,7 +861,7 @@ static int load_payload(const char *path, struct payload *payload) {
     fprintf(stderr, "POLYAPP_FAIL: incomplete payload %s\n", path);
     return -1;
   }
-  if (payload->final_arch == 0) {
+  if (payload->final_arch < 0) {
     payload->final_arch = payload->arch;
     payload->final_arch_name = payload->arch_name;
   }
@@ -937,7 +944,8 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     char scratch_result[SCRATCH_CHECK_SIZE + 1],
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
   const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 2 : 3;
-  const size_t code_size = 3 + 8 + (return_setup_insns + payload->insn_count) * 4 + 4 + 1;
+  const size_t final_tail_size = 5;
+  const size_t code_size = 3 + 8 + (return_setup_insns + payload->insn_count) * 4 + final_tail_size;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
     fprintf(stderr, "POLYAPP_FAIL: mmap failed: %s\n", strerror(errno));
@@ -966,8 +974,15 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   for (size_t n = 0; n < payload->insn_count; n++) {
     emit_u32(code, &offset, payload->insns[n]);
   }
-  const uint32_t escape = payload->final_arch == POLY_ARCH_AARCH64 ? 0xd5032e1fU : 0x0000700bU;
-  emit_u32(code, &offset, escape);
+  if (payload->final_arch == POLY_ARCH_X86) {
+    code[offset++] = 0x48;
+    code[offset++] = 0x83;
+    code[offset++] = 0xc0;
+    code[offset++] = 0x05;
+  } else {
+    const uint32_t escape = payload->final_arch == POLY_ARCH_AARCH64 ? 0xd5032e1fU : 0x0000700bU;
+    emit_u32(code, &offset, escape);
+  }
   code[offset++] = 0xc3;
 
   char scratch[SCRATCH_SIZE] = "poly!";
