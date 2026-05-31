@@ -690,6 +690,32 @@ build_poly_elf_payloads() {
     -Wl,--hash-style=sysv -Wl,--build-id=none -Wl,--unresolved-symbols=ignore-all \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/poly-link/x86_64/libpolyprocessrootifunc-riscv.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_VERSIONED_DEP \
+    -Wl,-soname,libpolyprocessversioned-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--version-script="$POLYEXEC_PROCESS_VERSIONED_DEP_REAL_MAP" \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/x86_64/libpolyprocessversioned-aarch64.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_VERSIONED_DEP \
+    -Wl,-soname,libpolyprocessversioned-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,--version-script="$POLYEXEC_PROCESS_VERSIONED_DEP_REAL_MAP" \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/x86_64/libpolyprocessversioned-riscv.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_WEAK_DEP \
+    -Wl,-soname,libpolyprocessweak-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/x86_64/libpolyprocessweak-aarch64.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_WEAK_DEP \
+    -Wl,-soname,libpolyprocessweak-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/x86_64/libpolyprocessweak-riscv.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocesscrossneeded-x86_64.so \
@@ -926,6 +952,34 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/x86_64" \
     -Wl,--no-as-needed -l:libpolyprocessrootifunc-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-riscv-root-ifunc-real.elf"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_VERSIONED_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/x86_64" \
+    -Wl,--no-as-needed -l:libpolyprocessversioned-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-aarch64-versioned-real.elf"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_VERSIONED_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/x86_64" \
+    -Wl,--no-as-needed -l:libpolyprocessversioned-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-riscv-versioned-real.elf"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_WEAK_DEP_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/x86_64" \
+    -Wl,--no-as-needed -l:libpolyprocessweak-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-aarch64-weak-real.elf"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_WEAK_DEP_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/x86_64" \
+    -Wl,--no-as-needed -l:libpolyprocessweak-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-riscv-weak-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_IFUNC_MAIN \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -6917,6 +6971,18 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/x86_64-process-cross-riscv-root-ifunc-real.elf=42 \
       x86-cross-riscv-root-ifunc >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-aarch64-versioned-real.elf=42 \
+      x86-cross-aarch64-versioned >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-riscv-versioned-real.elf=42 \
+      x86-cross-riscv-versioned >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-aarch64-weak-real.elf=42 \
+      x86-cross-aarch64-weak >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-riscv-weak-real.elf=42 \
+      x86-cross-riscv-weak >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-ifunc-real.elf=42 \
       ifunc-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -9572,6 +9638,38 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-root-ifunc-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-aarch64-versioned-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-versioned-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-riscv-versioned-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-versioned-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-aarch64-weak-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-weak-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-riscv-weak-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-weak-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
