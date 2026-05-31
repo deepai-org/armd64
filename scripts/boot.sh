@@ -11859,7 +11859,7 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_vec128=0.*thunks=[1-9].*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_vec128=[1-9].*thunks=0 .*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
             ! grep -Eq "POLYCALL_RESULT_VEC128_U32: arch=riscv .*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
