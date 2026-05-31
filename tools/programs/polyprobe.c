@@ -708,10 +708,13 @@ static inline void aarch64_abi_signature_invalid_kind_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd28000a0\n" // movz x0,#5
-    ".long 0xd28002c1\n" // movz x1,#22 (invalid kind)
+    ".long %c0\n" // movz x1,#POLY_ABI_SIGNATURE_KIND_INVALID_TEST
     ".long 0xd5032f9f\n" // aarch64 ABI signature set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+    :
+    : "i"(0xd2800001U |
+        (POLY_ABI_SIGNATURE_KIND_INVALID_TEST << 5))
+    : POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline void riscv_abi_signature_control_probe(void) {
@@ -740,10 +743,13 @@ static inline void riscv_abi_signature_invalid_kind_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00600513\n" // addi a0,zero,6
-    ".long 0x01600593\n" // addi a1,zero,22 (invalid kind)
+    ".long %c0\n" // addi a1,zero,POLY_ABI_SIGNATURE_KIND_INVALID_TEST
     ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+    :
+    : "i"((POLY_ABI_SIGNATURE_KIND_INVALID_TEST << 20) |
+        0x00000593U)
+    : POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
 static inline uint64_t aarch64_landing_policy_control_probe(uint64_t policy) {
@@ -2641,7 +2647,7 @@ int main(void) {
       poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_COUNT) !=
         POLY_ERR_INVAL ||
       poly_abi_signature_set(3,
-        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_MIXED_U64_FP64 + 1) !=
+        POLY_ABI_SIGNATURE_KIND_INVALID_TEST) !=
         POLY_ERR_INVAL ||
       poly_abi_signature_get(3) !=
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
