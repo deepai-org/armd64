@@ -87,7 +87,14 @@ static const uint64_t polybench_aarch64_trap_args[POLY_TRAP_PACKET_ARG_COUNT] =
 static const uint64_t polybench_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 172};
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
+static inline void poly_mode_x86(void) {
+  asm volatile(
+    "movq %%r15, %%r11\n"
+    "xorl %%r15d, %%r15d\n"
+    ".byte 0x0f,0x3a,0xfc,0x03\n"
+    "movq %%r11, %%r15\n"
+    ::: "r11", "memory");
+}
 static inline uint64_t poly_switch_count_status_value(void) {
   uint64_t value;
   asm volatile(".byte 0x0f,0x3a,0xfc,0x40" : "=a"(value) :: "memory");

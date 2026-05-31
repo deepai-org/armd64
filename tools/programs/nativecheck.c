@@ -1731,6 +1731,14 @@ static void child_expect_legacy_riscv_instruction_envelope_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_removed_x86_penter_x86_alias_signal(void) {
+  asm volatile(
+    ".byte 0x0f,0x3a,0xfc,0x00\n"
+    ::: "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_removed_x86_aarch64_penter_alias_signal(void) {
   asm volatile(
     ".byte 0x0f,0x3a,0xfc,0x01\n"
@@ -2545,6 +2553,9 @@ static int run_poly_legacy_envelope_rejection_probe(void) {
     return 1;
   if (expect_child_signal("poly legacy riscv instruction envelope", SIGILL,
         child_expect_legacy_riscv_instruction_envelope_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly removed x86 penter x86 alias", SIGILL,
+        child_expect_removed_x86_penter_x86_alias_signal) != 0)
     return 1;
   if (expect_child_signal("poly removed x86 aarch64 penter alias", SIGILL,
         child_expect_removed_x86_aarch64_penter_alias_signal) != 0)

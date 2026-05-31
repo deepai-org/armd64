@@ -454,7 +454,14 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t target, int bridge_kind, uint32_t signature_slot,
     uint64_t *stub_addr);
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
+static inline void poly_mode_x86(void) {
+  asm volatile(
+    "movq %%r15, %%r11\n"
+    "xorl %%r15d, %%r15d\n"
+    ".byte 0x0f,0x3a,0xfc,0x03\n"
+    "movq %%r11, %%r15\n"
+    ::: "r11", "memory");
+}
 
 static uint64_t poly_state_key_set(uint64_t value) {
   asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");

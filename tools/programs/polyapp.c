@@ -69,7 +69,14 @@ static struct polyapp_monitor_packet polyapp_last_syscall_packet
 static struct polyapp_monitor_packet polyapp_last_break_packet
   __attribute__((aligned(64)));
 
-static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
+static inline void poly_mode_x86(void) {
+  asm volatile(
+    "movq %%r15, %%r11\n"
+    "xorl %%r15d, %%r15d\n"
+    ".byte 0x0f,0x3a,0xfc,0x03\n"
+    "movq %%r11, %%r15\n"
+    ::: "r11", "memory");
+}
 
 static inline uint64_t poly_switch_count(void) {
   uint64_t value;

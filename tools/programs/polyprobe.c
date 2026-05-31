@@ -6,7 +6,11 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_EXIT ".byte 0x0f,0x3a,0xfc,0x00\n"
+#define POLY_OP_EXIT \
+  "movq %%r15, %%r11\n" \
+  "xorl %%r15d, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x03\n" \
+  "movq %%r11, %%r15\n"
 #define POLY_OP_ENTER_A64 \
   "movl $1, %%r15d\n" \
   ".byte 0x0f,0x3a,0xfc,0x03\n"
@@ -117,7 +121,9 @@ static int expect_monitor_packet_args(const char *label,
   return 1;
 }
 
-static inline void poly_mode_x86(void) { asm volatile(POLY_OP_EXIT ::: "memory"); }
+static inline void poly_mode_x86(void) {
+  asm volatile(POLY_OP_EXIT ::: "r11", "memory");
+}
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
 static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x42" ::: "memory"); }
 static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x43" ::: "memory"); }
