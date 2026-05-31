@@ -1730,6 +1730,20 @@ static void child_expect_bad_cross_return_bridge_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_reserved_cross_return_bridge_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.cross_return.top = 1;
+  bad.cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
+  bad.cross_return.frames[0].caller_mode = POLY_MODE_RAW_AARCH64;
+  bad.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  bad.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_RESERVED_1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_cross_return_flags_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -4342,6 +4356,9 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad cross-return bridge xstate", SIGILL,
         child_expect_bad_cross_return_bridge_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly reserved cross-return bridge xstate", SIGILL,
+        child_expect_reserved_cross_return_bridge_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad cross-return flags xstate", SIGILL,
         child_expect_bad_cross_return_flags_xsave_signal) != 0)
