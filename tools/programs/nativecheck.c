@@ -21,6 +21,8 @@
 #define POLY_OP_PCALL_SIG_IMM_SLOT3 ".byte 0x0f,0x3a,0xfc,0x33\n"
 #define POLY_OP_PCALL_SIG_IMM_INVALID_SLOT \
   ".byte 0x0f,0x3a,0xfc,0x3a\n"
+#define POLY_OP_REMOVED_PCALL_SIG_IMM_TRAILER \
+  ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
 #define POLY_OP_PCALL_FP64_STACK_AARCH64 ".byte 0x0f,0x3a,0xfc,0x1e\n"
 #define POLY_OP_PCALL_FP64_STACK_RISCV ".byte 0x0f,0x3a,0xfc,0x1f\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
@@ -1705,6 +1707,23 @@ static void child_expect_legacy_riscv_instruction_envelope_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_removed_x86_pcall_sig_imm_trailer_signal(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "movq %0, %%r15\n"
+    POLY_OP_REMOVED_PCALL_SIG_IMM_TRAILER
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_malformed_import_return_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -2484,6 +2503,9 @@ static int run_poly_legacy_envelope_rejection_probe(void) {
     return 1;
   if (expect_child_signal("poly legacy riscv instruction envelope", SIGILL,
         child_expect_legacy_riscv_instruction_envelope_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly removed x86 pcall signature trailer", SIGILL,
+        child_expect_removed_x86_pcall_sig_imm_trailer_signal) != 0)
     return 1;
 
   puts("NATIVE_POLY_LEGACY_ENVELOPES_REJECTED_OK");
