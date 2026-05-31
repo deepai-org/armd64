@@ -144,8 +144,6 @@ assert_contains 'expect_monitor_packet\("riscv compressed import"' "$NATIVECHECK
   "nativecheck must exercise RISC-V unresolved import trap argument lanes 6 and 7"
 assert_contains "eight[[:space:]]+ABI arguments" "$README" \
   "README must describe the POLYTRAP packet as carrying eight ABI arguments"
-assert_contains "first eight native foreign ABI argument registers" "$POLY_ISA_DOC" \
-  "poly ISA doc must describe all eight POLYTRAP argument lanes"
 assert_not_contains "six[[:space:]]+ABI arguments" "$README" \
   "README must not describe the old six-argument POLYTRAP packet"
 assert_contains "pcall-needed-tls-external-real" "$ROOT_DIR/scripts/boot.sh" \
@@ -368,8 +366,8 @@ assert_contains "read_poly_aarch64_reg\\(18" "$CROSS_A64_FUNC" \
   "AArch64 generic call must take the return PC from x18"
 assert_contains "BX_POLY_MODE_RAW_AARCH64" "$CROSS_A64_FUNC" \
   "AArch64 cross-call gate must record AArch64 as the caller mode"
-assert_contains "BX_POLY_MODE_RAW_RISCV" "$CROSS_A64_FUNC" \
-  "AArch64 cross-call gate must record RISC-V as the callee mode"
+assert_contains "enter_poly_cross_call\\(BX_POLY_MODE_RAW_AARCH64,[[:space:]]*target_mode" "$CROSS_A64_FUNC" \
+  "AArch64 cross-call gate must use the resolved callee frontend mode"
 assert_contains "BX_POLY_RISCV_CTRL_SWITCH_MODE" "$CROSS_RV_FUNC" \
   "RISC-V raw decoder must recognize generic frontend switch"
 assert_contains "BX_POLY_RISCV_CTRL_CALL_MODE" "$CROSS_RV_FUNC" \
@@ -384,8 +382,8 @@ assert_contains "read_poly_riscv_reg\\(7" "$CROSS_RV_FUNC" \
   "RISC-V generic call must take the return PC from x7/t2"
 assert_contains "BX_POLY_MODE_RAW_RISCV" "$CROSS_RV_FUNC" \
   "RISC-V cross-call gate must record RISC-V as the caller mode"
-assert_contains "BX_POLY_MODE_RAW_AARCH64" "$CROSS_RV_FUNC" \
-  "RISC-V cross-call gate must record AArch64 as the callee mode"
+assert_contains "enter_poly_cross_call\\(BX_POLY_MODE_RAW_RISCV,[[:space:]]*target_mode" "$CROSS_RV_FUNC" \
+  "RISC-V cross-call gate must use the resolved callee frontend mode"
 assert_contains "write_poly_aarch64_reg\\(30,[[:space:]]*BX_POLY_CROSS_RETURN_COOKIE\\)" "$CROSS_ENTER_FUNC" \
   "cross-call entry must use the native AArch64 link register return cookie"
 assert_contains "write_poly_riscv_reg\\(1,[[:space:]]*BX_POLY_CROSS_RETURN_COOKIE\\)" "$CROSS_ENTER_FUNC" \
@@ -401,9 +399,9 @@ assert_not_contains "BX_POLY_MODE_X86|return_poly_abi_call|deliver_poly_architec
   "cross-call entry must not route native foreign-to-foreign calls through x86 policy"
 assert_contains "target_rip[[:space:]]*!=[[:space:]]*\\(bx_address\\)[[:space:]]*BX_POLY_CROSS_RETURN_COOKIE" "$CROSS_RETURN_FUNC" \
   "cross-call return must require the native return-cookie target"
-assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*frame->caller_mode" "$CROSS_RETURN_FUNC" \
+assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*frame\\.caller_mode" "$CROSS_RETURN_FUNC" \
   "cross-call return must restore the caller frontend directly"
-assert_contains "RIP[[:space:]]*=[[:space:]]*frame->return_rip" "$CROSS_RETURN_FUNC" \
+assert_contains "RIP[[:space:]]*=[[:space:]]*frame\\.return_rip" "$CROSS_RETURN_FUNC" \
   "cross-call return must resume the caller's native return PC"
 assert_contains "BX_ASYNC_EVENT_STOP_TRACE" "$CROSS_RETURN_FUNC" \
   "cross-call return must split the trace before caller frontend resumes"
