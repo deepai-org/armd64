@@ -1,77 +1,63 @@
 # Poly ISA
 
-Poly is an x86_64 CPU extension for running precompiled AArch64 and RISC-V64
-user code in one process and virtual address space. The target is binary
-interop with normal SysV x86_64, AAPCS64, and RISC-V psABI objects.
+Poly is an x86_64 extension for running precompiled AArch64 and RISC-V64 user
+code in the same process and virtual address space. The compatibility target is
+normal SysV x86_64, AAPCS64, and RISC-V psABI objects.
 
-## Contract
+## Architectural Contract
 
-- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  faults, atomics, VM control, and the global TSO memory model.
-- AArch64 and RISC-V64 are user-mode frontends over that machine.
-- Foreign instructions are fetched directly; there are no per-instruction
-  `#UD` envelopes.
-- AArch64 fetch is 4-byte aligned; RISC-V fetch is 2-byte aligned for RVC.
-- Non-x86 state is explicit per-thread XSAVE-style architectural state.
+- x86_64 remains the system ISA for boot, kernel entry, paging, exceptions,
+  interrupts, atomics, VM control, and the global TSO memory model.
+- AArch64 and RISC-V64 are user-mode decode frontends over that x86 machine.
+- Foreign code is fetched directly: AArch64 at 4-byte alignment, RISC-V at
+  2-byte alignment for RVC. There are no per-instruction `#UD` envelopes.
+- Non-x86 architectural state is explicit per-thread XSAVE-style state.
 
-Frontend IDs: `0` = x86_64, `1` = AArch64, `2` = RISC-V64.
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 
 ## Control
 
-| Operation | Meaning |
-| --- | --- |
-| `PENTER frontend` | Enter another frontend at the current PC. |
-| `PSWITCH frontend, target` | Cross-ISA branch with no return. |
-| `PCALL frontend, target, sig` | Cross-ISA call using ABI signature slot `sig`. |
-| `PTRAPRET` | Resume from a Ring 3 Poly trap monitor. |
-| `PLANDING` | Mark or validate an indirect cross-ISA landing point. |
+- `PENTER frontend`: enter a foreign frontend at the current PC.
+- `PSWITCH frontend, target`: cross-ISA branch with no return.
+- `PCALL frontend, target, sig`: cross-ISA call using ABI signature slot `sig`.
+- `PTRAPRET`: return from a Ring 3 Poly trap monitor.
+- `PLANDING`: mark or validate an indirect cross-ISA landing point.
 
-These are decoded control instructions. Same-ISA code uses normal native calls,
-branches, and returns.
+Same-ISA code uses ordinary native calls, branches, and returns.
 
 ## ABI Boundary
 
-Hardware owns only fixed-latency frontend switching, return-cookie handling,
-and register aliasing. Runtime/loader thunks own memory-shaped ABI work:
-stack arguments, aggregates, variadics, hidden structure returns, lazy binding,
-syscall translation, and libcalls.
+Hardware provides fixed-latency frontend switching, return-cookie handling, and
+register aliasing. It must not parse user-memory descriptors or rewrite stack
+layouts.
 
-`PCALL` selects an ABI signature slot. Silicon can apply the slot by
-register-renaming/RAT updates instead of executing register moves. Invalid
-slots trap before changing frontend or PC.
+`PCALL` records caller frontend, PC, SP, and flags in Poly state, then places a
+reserved return cookie in the callee return location. Ordinary native return
+instructions cross back by resolving that cookie.
 
-Cross-ISA calls return through ordinary native return instructions. `PCALL`
-records caller frontend, PC, SP, and flags in Poly state, then installs a
-reserved return cookie in the callee return location.
+ABI signature slots define register mappings. Silicon may apply them with
+rename/RAT updates. Software thunks handle stack arguments, aggregates,
+variadics, hidden structure returns, lazy binding, syscall translation, and
+libcalls.
 
-Foreign `svc`/`ecall`, breakpoints, illegal instructions, unsupported
-instructions, unresolved imports, and recoverable exits produce OS-neutral trap
-packets for a Ring 3 Poly monitor.
+Foreign `svc`/`ecall`, breakpoints, illegal or unsupported instructions,
+unresolved imports, and recoverable exits produce OS-neutral trap packets for a
+Ring 3 Poly monitor. The kernel only sees normal architectural faults or
+interrupts.
 
-## Register Window
+## Fixed Register Window
 
-Low-level thunks can use this fixed register window. Native ABI calls that need
-different source/target mappings should use programmed signature slots.
+This window is for low-level thunks. Native ABI interop should use signature
+slots when ABI register orders differ.
 
-| P-reg | x86_64 | AArch64 | RISC-V64 |
-| --- | --- | --- | --- |
-| `P0` | `RAX` | `x0` | `a0` |
-| `P1` | `RDX` | `x1` | `a1` |
-| `P2` | `RCX` | `x2` | `a2` |
-| `P3` | `RDI` | `x3` | `a3` |
-| `P4` | `RSI` | `x4` | `a4` |
-| `P5` | `R8` | `x5` | `a5` |
-| `P6` | `R9` | `x6` | `a6` |
-| `P7` | `R10` | `x7` | `a7` |
+`P0..P7` map to x86_64 `RAX,RDX,RCX,RDI,RSI,R8,R9,R10`, AArch64 `x0..x7`, and
+RISC-V64 `a0..a7`.
 
 ## Prototype Encodings
 
-| Frontend | Encoding family |
-| --- | --- |
-| x86_64 | `0f 3a fc <subop>` Poly Control Opcode Page |
-| AArch64 | reserved `HINT`: `0xd503201f | (subop << 5)` |
-| RISC-V64 | `custom-0`: `0x0000700b | (subop << 25)` |
+- x86_64: `0f 3a fc <subop>` Poly Control Opcode Page.
+- AArch64: reserved `HINT`, `0xd503201f | (subop << 5)`.
+- RISC-V64: `custom-0`, `0x0000700b | (subop << 25)`.
 
-Hot signature-slot forms use immediate subopcodes so calls do not need a
-temporary register move. Hardware rationale and open design direction live in
-`docs/poly-isa-design-directions.md`.
+Hot `PCALL` forms encode the signature slot as an immediate. Design rationale
+and open hardware questions live in `docs/poly-isa-design-directions.md`.
