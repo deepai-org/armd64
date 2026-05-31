@@ -11935,6 +11935,7 @@ EOF
         polybench_patterns=(
           "POLYBENCH_RESULT: arch=aarch64 .*switch_delta=3"
           "POLYBENCH_RESULT: arch=riscv .*switch_delta=3"
+          "POLYBENCH_RESULT: arch=riscv-compressed .*switch_delta=3"
           "POLYBENCH_MIXED_RESULT: direction=aarch64-to-riscv .*switch_delta=4"
           "POLYBENCH_MIXED_RESULT: direction=aarch64-to-compressed-riscv .*switch_delta=4"
           "POLYBENCH_MIXED_RESULT: direction=riscv-to-aarch64 .*switch_delta=4"

@@ -23,6 +23,7 @@
 enum {
   POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
+  POLY_ARCH_RISCV_COMPRESSED = 3,
   LOOP_ITERS = 200,
   POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA = 3,
   POLYBENCH_LOOP_MAX_RAW_INSNS = 410,
@@ -1091,7 +1092,7 @@ static uint64_t call_code_sret5(const uint8_t *code) {
 
 static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
     uint64_t *switch_delta) {
-  const size_t code_size = 3 + 8 + 4 * 4 + 1;
+  const size_t code_size = 4 + 8 + 4 * 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -1102,8 +1103,9 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
   code[0] = 0x90;
   code[1] = 0x90;
   code[2] = 0x90;
+  code[3] = 0x90;
 
-  size_t offset = 3;
+  size_t offset = arch == POLY_ARCH_RISCV_COMPRESSED ? 4 : 3;
   if (arch == POLY_ARCH_AARCH64) {
     const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x01 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
@@ -1112,13 +1114,21 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
     emit_u32(code, &offset, 0xd1000400U); // sub x0,x0,#1
     emit_u32(code, &offset, 0xb5ffffe0U); // cbnz x0, previous instruction
     emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
-  } else {
+  } else if (arch == POLY_ARCH_RISCV) {
     const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x02 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
     emit_u32(code, &offset, 0xfff50513U); // addi a0,a0,-1
     emit_u32(code, &offset, 0xfe051ee3U); // bne a0,zero, previous instruction
+    emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  } else {
+    const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+    memcpy(code + offset, raw_switch, sizeof(raw_switch));
+    offset += sizeof(raw_switch);
+    emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
+    emit_u16(code, &offset, 0x157dU); // c.addi a0,-1
+    emit_u16(code, &offset, 0xfd7dU); // c.bnez a0, previous instruction
     emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   }
   code[offset++] = 0xc3;
@@ -6385,6 +6395,8 @@ int main(void) {
   if (check_loop("aarch64", POLY_ARCH_AARCH64) < 0)
     return 1;
   if (check_loop("riscv", POLY_ARCH_RISCV) < 0)
+    return 1;
+  if (check_loop("riscv-compressed", POLY_ARCH_RISCV_COMPRESSED) < 0)
     return 1;
   if (check_mixed() < 0)
     return 1;
