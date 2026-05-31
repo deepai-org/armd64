@@ -351,8 +351,8 @@ compare_polycall_const POLY_ABI_BRIDGE_FLAG_ORDINARY_X86_RET
 compare_polycall_const POLY_ABI_BRIDGE_GPR_ARG_COUNT
 compare_polycall_const POLY_ABI_BRIDGE_FP_ARG_COUNT
 compare_polycall_const POLY_ABI_BRIDGE_STACK_ALIGN
-assert_contains 'state import layout version is `8`' "$POLY_ISA_DOC" \
-  "poly ISA doc must describe explicit state import with layout version 8"
+assert_contains 'state import layout version is `9`' "$POLY_ISA_DOC" \
+  "poly ISA doc must describe explicit state import with layout version 9"
 assert_not_contains 'state import layout version is `1`' "$POLY_ISA_DOC" \
   "poly ISA doc must not describe the old state import layout version"
 

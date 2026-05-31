@@ -19,7 +19,7 @@ rg -a 'BOOT_OK|POLYBINFMT_OK|POLYTHREAD_OK|FAIL|Kernel panic|Oops' out/serial.lo
 - Foreign frontends fetch native instructions directly from `RIP`; the fast
   path does not use per-instruction `#UD` envelopes.
 - Foreign register state is explicit XSAVE-style per-thread state; the state
-  import layout version is `8`.
+  import layout version is `9`.
 - Hardware is limited to frontend switching, register alias signatures, return
   cookies, transition-stack state, and trap packets.
 - Software owns dynamic linking, syscall/libcall policy, stack arguments,
