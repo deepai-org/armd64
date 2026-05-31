@@ -90,6 +90,9 @@
 #define POLY_RISCV_CTRL_LANDING_POLICY_GET \
   POLY_RISCV_CTRL_ENCODING(POLY_RISCV_CTRL_SUBOP_LANDING_POLICY_GET)
 
+#define POLY_X86_CTRL_PCALL_SIG_IMM(slot) \
+  (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + ((uint32_t) (slot)))
+
 enum {
   POLY_FRONTEND_X86 = 0,
   POLY_FRONTEND_AARCH64 = 1,
@@ -147,7 +150,8 @@ enum {
   POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_LANDING = 0x05,
   POLY_X86_CTRL_PCALL_SIG_MODE = 0x2d,
-  POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
+  POLY_X86_CTRL_PCALL_SIG_IMM_LEGACY = 0x2e,
+  POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 0x30,
   POLY_X86_CTRL_LANDING_POLICY_SET = 0x6d,
   POLY_X86_CTRL_LANDING_POLICY_GET = 0x6e,
   POLY_IMPORT_FUNC_X86_SLOT0 = 106,
@@ -911,7 +915,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf6(void) {
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf7(void) {
   struct poly_cpuid_regs regs;
-  regs.eax = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+  regs.eax = POLY_X86_CTRL_PCALL_SIG_IMM_BASE;
   regs.ebx = POLY_ABI_SIGNATURE_SLOT_COUNT;
   regs.ecx = POLY_ABI_SIGNATURE_SLOT_EXCHANGE |
     (POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS << 8) |
@@ -956,7 +960,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf11(void) {
   regs.eax = POLY_AARCH64_CTRL_CALL_SIG_IMM(0);
   regs.ebx = POLY_RISCV_CTRL_CALL_SIG_IMM(0);
   regs.ecx = POLY_ABI_SIGNATURE_SLOT_COUNT;
-  regs.edx = 0;
+  regs.edx = POLY_X86_CTRL_PCALL_SIG_IMM(0);
   return regs;
 }
 

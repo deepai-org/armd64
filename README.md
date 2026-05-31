@@ -92,9 +92,9 @@ Other useful targets:
   private runtime table layout. CPUID keeps descriptor hardware support
   reserved/forbidden; reserved import targets trap instead of making the CPU
   parse user-memory descriptors.
-- Hot signature calls encode the slot in the control instruction where
-  possible, so foreign callers do not need an extra temporary-register move
-  before the frontend switch.
+- Hot signature calls encode the slot in the control instruction using fixed
+  subopcode ranges, so callers do not need an extra temporary-register move or
+  a decoder-visible immediate fetch before the frontend switch.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
   OS-neutral trap records carrying eight ABI arguments for runtime or OS
   policy.

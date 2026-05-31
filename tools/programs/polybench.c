@@ -16,6 +16,8 @@
   POLY_AARCH64_CTRL_CALL_SIG_IMM(slot)
 #define POLYBENCH_RISCV_PCALL_SIG_IMM(slot) \
   POLY_RISCV_CTRL_CALL_SIG_IMM(slot)
+#define POLYBENCH_X86_PCALL_SIG_IMM(slot) \
+  POLY_X86_CTRL_PCALL_SIG_IMM(slot)
 
 enum {
   POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
@@ -666,8 +668,7 @@ static void emit_x86_pcall_sig_imm_mode(uint8_t *code, size_t *offset,
   const size_t target_imm_offset = emit_x86_movabs_rbx(code, offset, 0);
   const size_t return_imm_offset = emit_x86_movabs_r11(code, offset, 0);
   const uint8_t pcall[] = {
-    0x0f, 0x3a, 0xfc, POLY_X86_CTRL_PCALL_SIG_IMM_MODE,
-    (uint8_t) signature_slot
+    0x0f, 0x3a, 0xfc, (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(signature_slot)
   };
   emit_bytes(code, offset, pcall, sizeof(pcall));
   const size_t target_offset = *offset;
@@ -708,8 +709,7 @@ static void emit_x86_pcall_sig_imm_mode_fp32(uint8_t *code, size_t *offset,
   const size_t target_imm_offset = emit_x86_movabs_rbx(code, offset, 0);
   const size_t return_imm_offset = emit_x86_movabs_r11(code, offset, 0);
   const uint8_t pcall[] = {
-    0x0f, 0x3a, 0xfc, POLY_X86_CTRL_PCALL_SIG_IMM_MODE,
-    (uint8_t) signature_slot
+    0x0f, 0x3a, 0xfc, (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(signature_slot)
   };
   emit_bytes(code, offset, pcall, sizeof(pcall));
   const size_t target_offset = *offset;
@@ -750,8 +750,7 @@ static void emit_x86_pcall_sig_imm_mode_fp64(uint8_t *code, size_t *offset,
   const size_t target_imm_offset = emit_x86_movabs_rbx(code, offset, 0);
   const size_t return_imm_offset = emit_x86_movabs_r11(code, offset, 0);
   const uint8_t pcall[] = {
-    0x0f, 0x3a, 0xfc, POLY_X86_CTRL_PCALL_SIG_IMM_MODE,
-    (uint8_t) signature_slot
+    0x0f, 0x3a, 0xfc, (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(signature_slot)
   };
   emit_bytes(code, offset, pcall, sizeof(pcall));
   const size_t target_offset = *offset;
@@ -2478,8 +2477,9 @@ static int run_x86_pcall_vec128_signature_aarch64(uint64_t *result,
   const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
   const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
   const uint8_t pcall[] = {
-    0x0f, 0x3a, 0xfc, POLY_X86_CTRL_PCALL_SIG_IMM_MODE,
-    POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32
+    0x0f, 0x3a, 0xfc,
+    (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32)
   };
   emit_bytes(code, &offset, pcall, sizeof(pcall));
   const size_t target_offset = offset;
@@ -2529,8 +2529,9 @@ static int run_x86_pcall_vec128_signature_riscv(uint64_t *result,
   const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
   const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
   const uint8_t pcall[] = {
-    0x0f, 0x3a, 0xfc, POLY_X86_CTRL_PCALL_SIG_IMM_MODE,
-    POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32
+    0x0f, 0x3a, 0xfc,
+    (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32)
   };
   emit_bytes(code, &offset, pcall, sizeof(pcall));
   const size_t target_offset = offset;

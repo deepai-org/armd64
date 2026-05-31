@@ -17,7 +17,7 @@
 #define POLY_OP_PCALL_SIG_A64 ".byte 0x0f,0x3a,0xfc,0x2b\n"
 #define POLY_OP_PCALL_SIG_RV64 ".byte 0x0f,0x3a,0xfc,0x2c\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
-#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
+#define POLY_OP_PCALL_SIG_IMM_SLOT3 ".byte 0x0f,0x3a,0xfc,0x33\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
@@ -1402,7 +1402,7 @@ static inline void pcall_signature_imm_mode_aarch64_sysv_args_probe(void) {
     "movq %0, %%r15\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    POLY_OP_PCALL_SIG_IMM_SLOT3
     "1:\n"
     ".long 0x8b010000\n" // add x0,x0,x1
     ".long 0x8b020000\n" // add x0,x0,x2
@@ -1431,7 +1431,7 @@ static inline void pcall_signature_imm_mode_riscv_sysv_args_probe(void) {
     "movq %0, %%r15\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    POLY_OP_PCALL_SIG_IMM_SLOT3
     "1:\n"
     ".long 0x00b50533\n" // add a0,a0,a1
     ".long 0x00c50533\n" // add a0,a0,a2
@@ -1460,7 +1460,7 @@ static inline void pcall_signature_imm_mode_x86_sysv_args_probe(void) {
     "movq %0, %%r15\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    POLY_OP_PCALL_SIG_IMM_SLOT3
     "1:\n"
     "movq %%rdi, %%rax\n"
     "addq %%rsi, %%rax\n"

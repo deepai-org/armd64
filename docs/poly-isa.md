@@ -27,7 +27,8 @@ Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 - `PLANDING`: validate an indirect cross-ISA landing point.
 
 Prototype encodings are real decoded instructions, not `#UD` traps: x86_64
-`0f 3a fc <subop>`, AArch64 reserved `HINT`, and RISC-V64 `custom-0`.
+`0f 3a fc <subop>` with fixed subopcode slot forms for hot `PCALL`,
+AArch64 reserved `HINT`, and RISC-V64 `custom-0`.
 
 See `README.md` for how to run the prototype and
 `docs/poly-isa-design-directions.md` for hardware rationale.

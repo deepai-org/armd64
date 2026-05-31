@@ -203,7 +203,7 @@ static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
       x86_controls.edx);
     return -1;
   }
-  if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_MODE ||
+  if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_BASE ||
       signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
       native_slot >= signature.ebx ||
       native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {

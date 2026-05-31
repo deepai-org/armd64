@@ -38,9 +38,10 @@ stack arguments, by-value aggregates, variadics, hidden structure returns, lazy
 binding, incompatible vectors, and all other memory-shaped ABI work.
 
 The loader/runtime programs a small bank of register alias signature slots. A
-hot `PCALL` selects one slot. On an out-of-order CPU this can be implemented in
-rename by rebinding architectural names to existing physical registers; no data
-moves through execution units and no memory is touched.
+hot `PCALL` selects one slot through a fixed control-instruction subopcode. On
+an out-of-order CPU this can be implemented in rename by rebinding
+architectural names to existing physical registers; no data moves through
+execution units and no memory is touched.
 
 Example x86_64 SysV to AArch64 AAPCS64 slot:
 

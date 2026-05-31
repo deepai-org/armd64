@@ -17,10 +17,10 @@
 #define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
-#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT0 ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
-#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
-#define POLY_OP_PCALL_SIG_IMM_MODE_INVALID_SLOT \
-  ".byte 0x0f,0x3a,0xfc,0x2e,0x0a\n"
+#define POLY_OP_PCALL_SIG_IMM_SLOT0 ".byte 0x0f,0x3a,0xfc,0x30\n"
+#define POLY_OP_PCALL_SIG_IMM_SLOT3 ".byte 0x0f,0x3a,0xfc,0x33\n"
+#define POLY_OP_PCALL_SIG_IMM_INVALID_SLOT \
+  ".byte 0x0f,0x3a,0xfc,0x3a\n"
 #define POLY_OP_PCALL_FP64_STACK_AARCH64 ".byte 0x0f,0x3a,0xfc,0x1e\n"
 #define POLY_OP_PCALL_FP64_STACK_RISCV ".byte 0x0f,0x3a,0xfc,0x1f\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
@@ -662,7 +662,7 @@ nativecheck_invalid_pcall_sig_imm_slot(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     "movq %0, %%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_INVALID_SLOT
+    POLY_OP_PCALL_SIG_IMM_INVALID_SLOT
     "1:\n"
     "retq\n"
     "2:\n"
@@ -1046,7 +1046,7 @@ static uint64_t nativecheck_x86_signature_pcall_aarch64_leaf(void) {
     "leaq 1f(%rip),%rbx\n"
     "leaq 2f(%rip),%r11\n"
     "movq $1,%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    POLY_OP_PCALL_SIG_IMM_SLOT3
     "1:\n"
     ".long 0xd2800540\n" // movz x0,#42
     ".long 0xd65f03c0\n" // ret x30
@@ -1060,7 +1060,7 @@ static uint64_t nativecheck_x86_signature_pcall_riscv_leaf(void) {
     "leaq 1f(%rip),%rbx\n"
     "leaq 2f(%rip),%r11\n"
     "movq $2,%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT3
+    POLY_OP_PCALL_SIG_IMM_SLOT3
     "1:\n"
     ".long 0x02a00513\n" // addi a0,zero,42
     ".long 0x00008067\n" // ret
@@ -1450,7 +1450,7 @@ static void child_expect_invalid_generic_pcall_imm_slot_signal(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     "movq %0, %%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_INVALID_SLOT
+    POLY_OP_PCALL_SIG_IMM_INVALID_SLOT
     "1:\n"
     "retq\n"
     "2:\n"
@@ -1503,7 +1503,7 @@ static void child_expect_landing_policy_missing_pcall_signal(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     "movq %0, %%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT0
+    POLY_OP_PCALL_SIG_IMM_SLOT0
     "1:\n"
     ".long 0xd2800540\n" // movz x0,#42, intentionally no landing pad
     ".long 0xd65f03c0\n" // ret x30
@@ -2304,7 +2304,7 @@ static uint64_t nativecheck_landing_policy_pcall_aarch64(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     "movq %1, %%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT0
+    POLY_OP_PCALL_SIG_IMM_SLOT0
     "1:\n"
     ".long 0xd5032f7f\n" // aarch64 landing pad
     ".long 0xd2800540\n" // movz x0,#42

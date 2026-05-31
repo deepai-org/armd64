@@ -3481,8 +3481,7 @@ static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x0f;
   code[(*offset)++] = 0x3a;
   code[(*offset)++] = 0xfc;
-  code[(*offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
-  code[(*offset)++] = (uint8_t) signature_slot;
+  code[(*offset)++] = (uint8_t) POLY_X86_CTRL_PCALL_SIG_IMM(signature_slot);
 }
 
 static void emit_x86_exit_group_from_eax(uint8_t *code, size_t *offset) {
