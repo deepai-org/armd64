@@ -10914,6 +10914,18 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=0" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=0 syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-cross-needed-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
