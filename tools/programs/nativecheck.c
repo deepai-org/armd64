@@ -20,6 +20,8 @@
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT0 ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT8 ".byte 0x0f,0x3a,0xfc,0x2e,0x08\n"
+#define POLY_OP_PCALL_FP64_STACK_AARCH64 ".byte 0x0f,0x3a,0xfc,0x1e\n"
+#define POLY_OP_PCALL_FP64_STACK_RISCV ".byte 0x0f,0x3a,0xfc,0x1f\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
@@ -1359,6 +1361,38 @@ static void child_expect_invalid_generic_pcall_imm_slot_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_removed_aarch64_fp64_stack_pcall_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_FP64_STACK_AARCH64
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_removed_riscv_fp64_stack_pcall_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_FP64_STACK_RISCV
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_landing_policy_missing_pcall_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -2280,6 +2314,12 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly invalid generic pcall immediate slot", SIGILL,
         child_expect_invalid_generic_pcall_imm_slot_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly removed aarch64 fp64-stack pcall", SIGILL,
+        child_expect_removed_aarch64_fp64_stack_pcall_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly removed riscv fp64-stack pcall", SIGILL,
+        child_expect_removed_riscv_fp64_stack_pcall_signal) != 0)
     return 1;
   if (expect_child_signal("poly aarch64 invalid generic switch", SIGILL,
         child_expect_aarch64_invalid_generic_switch_signal) != 0)

@@ -3889,6 +3889,8 @@ static int call_kind_for_bridge_result(int root_arch, int call_kind,
 }
 
 static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
+  if (call_kind == POLY_CALL_FP64_STACK)
+    return 0;
   if (arch == POLY_ARCH_AARCH64) {
     if (call_kind == POLY_CALL_SRET_U64)
       return 0x12;
@@ -3906,8 +3908,6 @@ static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
       return 0x1a;
     if (call_kind == POLY_CALL_HETERO_F32_U64)
       return 0x1b;
-    if (call_kind == POLY_CALL_FP64_STACK)
-      return 0x1e;
     if (call_kind == POLY_CALL_VEC128_U32)
       return 0x21;
     if (call_kind == POLY_CALL_AARCH64_HFA3_F64)
@@ -3938,8 +3938,6 @@ static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
     return 0x1c;
   if (call_kind == POLY_CALL_COMPACT_F32_U32)
     return 0x1d;
-  if (call_kind == POLY_CALL_FP64_STACK)
-    return 0x1f;
   if (call_kind == POLY_CALL_VEC128_U32)
     return 0x22;
   return 0x11;
