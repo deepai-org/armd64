@@ -1,47 +1,42 @@
-# Poly ISA Reference
+# Poly ISA
 
 Poly is an x86_64 extension for running existing x86_64, AArch64, and RISC-V64
-user-mode code in one process address space. This file is the short ISA
-contract; rationale lives in [poly-isa-design-directions.md](poly-isa-design-directions.md).
+user-mode code in one virtual address space. This is the short contract; design
+rationale lives in [poly-isa-design-directions.md](poly-isa-design-directions.md).
 
-## Execution Model
+## Contract
 
-- x86_64 remains the system ISA for privilege, paging, faults, interrupts,
-  atomics, VM control, syscalls, and TSO memory ordering.
-- AArch64 and RISC-V64 are user-mode frontends that fetch native 32-bit
-  instructions directly from `RIP`.
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
+- x86_64 stays responsible for privilege, paging, faults, interrupts, VM
+  control, syscalls, atomics, and TSO ordering.
+- AArch64 and RISC-V64 are user frontends fetched directly from `RIP`.
+  AArch64 is fixed 32-bit; RISC-V may use 16-bit compressed instructions.
 - Poly controls are decoded instructions, not `#UD` envelopes.
 - Foreign architectural state is explicit per-thread XSAVE-style state.
-- Hardware is OS-neutral: no ELF, libc, syscall-number, stack-layout,
-  aggregate-layout, or user-memory descriptor parsing.
+- Hardware must not parse ELF, libc, syscall numbers, stacks, aggregates, or
+  user-memory call descriptors.
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
+## Controls
 
-## Control Operations
+`PENTER` enters a frontend at fall-through. `PSWITCH` tail-switches to a
+frontend and PC. `PCALL` calls a frontend and PC using ABI signature slot `sig`.
+`PTRAPRET` returns from the user-space Poly trap monitor. `PLANDING` validates
+an indirect cross-ISA landing pad.
 
-| Operation | Meaning |
-| --- | --- |
-| `PENTER frontend` | Enter a frontend at the fall-through PC. |
-| `PSWITCH frontend, target` | Tail-switch to another frontend and PC. |
-| `PCALL frontend, target, sig` | Cross-ISA call using ABI signature slot `sig`. |
-| `PTRAPRET` | Return from the user-space Poly trap monitor. |
-| `PLANDING` | Validate an indirect cross-ISA landing pad. |
-
-## Call Boundary
+## Calls
 
 `PCALL` is fixed-latency and register-only. Signature slots may rename
-architectural registers, but they must not touch memory, repack stacks,
-classify aggregates, translate syscalls, or call helpers.
+architectural registers, but they never read memory, repack stacks, classify
+aggregates, translate syscalls, or call helpers.
 
-The null signature exposes this low-level exchange window:
+Null-signature exchange window: `P0..P7` maps to x86_64
+`RAX,RDX,RCX,RDI,RSI,R8,R9,R10`, AArch64 `x0..x7`, and RISC-V64 `a0..a7`.
+`F0..F7` maps to x86_64 `XMM0..XMM7`, AArch64 `v0..v7`, and RISC-V64
+`fa0..fa7`.
 
-| Poly | x86_64 | AArch64 | RISC-V64 |
-| --- | --- | --- | --- |
-| `P0..P7` | `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` | `x0..x7` | `a0..a7` |
-| `F0..F7` | `XMM0..XMM7` | `v0..v7` | `fa0..fa7` |
-
-Software thunks handle stack arguments, variadics, by-value aggregates,
-incompatible vectors, lazy binding, imports, and syscall policy.
+Software thunks handle everything memory-shaped: stack arguments, variadics,
+by-value aggregates, incompatible vectors, lazy binding, imports, and syscall
+policy.
 
 ## Prototype Encodings
 
@@ -49,4 +44,4 @@ incompatible vectors, lazy binding, imports, and syscall policy.
 - AArch64: reserved `HINT`, `0xd503201f | (subop << 5)`
 - RISC-V64: `custom-0`, `0x0000700b | (subop << 25)`
 
-Run commands are documented in [../README.md](../README.md).
+Run commands are in [../README.md](../README.md).
