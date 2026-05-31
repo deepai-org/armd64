@@ -382,6 +382,14 @@ uint64_t POLY_HOST_HELPER poly_host_x86_atomic_compare_exchange_16(
   return 0;
 }
 
+uint64_t POLY_HOST_HELPER poly_host_x86_atomic_compare_exchange_16_regonly(
+    uint64_t *ptr, uint64_t *expected, uint64_t desired_lo,
+    uint64_t desired_hi)
+{
+  return poly_host_x86_atomic_compare_exchange_16(ptr, expected, desired_lo,
+    desired_hi, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+}
+
 unsigned __int128 POLY_HOST_HELPER poly_host_x86_atomic_load_16(
     uint64_t *ptr, uint64_t order)
 {

@@ -1792,6 +1792,9 @@ extern float poly_host_x86_floatuntisf(unsigned __int128 source);
 extern uint64_t poly_host_x86_atomic_compare_exchange_16(uint64_t *ptr,
     uint64_t *expected, uint64_t desired_lo, uint64_t desired_hi,
     uint64_t weak, uint64_t success_order, uint64_t failure_order);
+extern uint64_t poly_host_x86_atomic_compare_exchange_16_regonly(
+    uint64_t *ptr, uint64_t *expected, uint64_t desired_lo,
+    uint64_t desired_hi);
 extern unsigned __int128 poly_host_x86_atomic_load_16(uint64_t *ptr,
     uint64_t order);
 extern uint64_t poly_host_x86_atomic_store_16(uint64_t *ptr,
@@ -2665,7 +2668,8 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
     case POLY_IMPORT_FUNC_FLOATUNTISF:
       return (uint64_t) (uintptr_t) poly_host_x86_floatuntisf;
     case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
-      return (uint64_t) (uintptr_t) poly_host_x86_atomic_compare_exchange_16;
+      return (uint64_t) (uintptr_t)
+        poly_host_x86_atomic_compare_exchange_16_regonly;
     case POLY_IMPORT_FUNC_ATOMIC_LOAD_16:
       return (uint64_t) (uintptr_t) poly_host_x86_atomic_load_16;
     case POLY_IMPORT_FUNC_ATOMIC_STORE_16:
@@ -2818,7 +2822,6 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
 static uint64_t x86_descriptor_flags_for_import_id(int arch,
     uint64_t import_id) {
   switch (import_id) {
-    case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
     case POLY_IMPORT_FUNC_X86_SUM10:
     case POLY_IMPORT_FUNC_X86_SUM14:
     case POLY_IMPORT_FUNC_X86_ALIGN14:
@@ -2905,8 +2908,6 @@ static uint64_t x86_descriptor_stack_arg_count_for_import_id(
       return 1;
     case POLY_IMPORT_FUNC_X86_SRET_U64_STACK10:
       return 5;
-    case POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16:
-      return 2;
     default:
       return 0;
   }
@@ -4806,9 +4807,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     return -1;
 
   uint32_t int_stack_arg_count = 0;
-  if (import_id == POLY_IMPORT_FUNC_ATOMIC_COMPARE_EXCHANGE_16)
-    int_stack_arg_count = 1;
-  else if (import_id == POLY_IMPORT_FUNC_X86_SLOT5)
+  if (import_id == POLY_IMPORT_FUNC_X86_SLOT5)
     int_stack_arg_count = 2;
   else if (import_id == POLY_IMPORT_FUNC_X86_SUM10)
     int_stack_arg_count = 4;
