@@ -1,27 +1,21 @@
-# Poly ISA Quick Reference
+# Poly ISA Reference
 
-Poly is an x86_64 CPU extension for running existing x86_64, AArch64, and
-RISC-V64 user-mode binaries in one process address space.
+Poly is an x86_64 extension for running existing x86_64, AArch64, and RISC-V64
+user-mode code in one process address space. This file is the short ISA
+contract; rationale lives in [poly-isa-design-directions.md](poly-isa-design-directions.md).
 
-## Difference From x86_64
+## Execution Model
 
-- x86_64 remains the system ISA: privilege, paging, interrupts, faults,
-  atomics, VM control, syscalls, and TSO memory ordering stay x86-owned.
-- AArch64 and RISC-V64 are user-mode frontends. They fetch native 32-bit
-  instructions directly from `RIP`; there are no per-instruction envelopes.
-- Poly controls are decoded instructions, not `#UD` traps.
-- Extra foreign state is explicit per-thread XSAVE-style architectural state.
-- Hardware stays OS-neutral. It does not parse libc, Linux, linker policy,
-  stack layouts, aggregates, syscall numbers, or user-memory descriptors.
+- x86_64 remains the system ISA for privilege, paging, faults, interrupts,
+  atomics, VM control, syscalls, and TSO memory ordering.
+- AArch64 and RISC-V64 are user-mode frontends that fetch native 32-bit
+  instructions directly from `RIP`.
+- Poly controls are decoded instructions, not `#UD` envelopes.
+- Foreign architectural state is explicit per-thread XSAVE-style state.
+- Hardware is OS-neutral: no ELF, libc, syscall-number, stack-layout,
+  aggregate-layout, or user-memory descriptor parsing.
 
-## Frontends
-
-| ID | Frontend |
-| --- | --- |
-| `0` | x86_64 |
-| `1` | AArch64 |
-| `2` | RISC-V64 |
-| `3..255` | reserved |
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
 
 ## Control Operations
 
@@ -33,13 +27,13 @@ RISC-V64 user-mode binaries in one process address space.
 | `PTRAPRET` | Return from the user-space Poly trap monitor. |
 | `PLANDING` | Validate an indirect cross-ISA landing pad. |
 
-## Fast ABI Boundary
+## Call Boundary
 
-`PCALL` is fixed-latency and register-only. Signature slots may remap register
-names, but must not read memory, repack stacks, classify aggregates, translate
-syscalls, or call helpers.
+`PCALL` is fixed-latency and register-only. Signature slots may rename
+architectural registers, but they must not touch memory, repack stacks,
+classify aggregates, translate syscalls, or call helpers.
 
-Default exchange window:
+The null signature exposes this low-level exchange window:
 
 | Poly | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
@@ -49,11 +43,10 @@ Default exchange window:
 Software thunks handle stack arguments, variadics, by-value aggregates,
 incompatible vectors, lazy binding, imports, and syscall policy.
 
-## Temporary Prototype Encodings
+## Prototype Encodings
 
 - x86_64: `0f 3a fc <subop>`
 - AArch64: reserved `HINT`, `0xd503201f | (subop << 5)`
 - RISC-V64: `custom-0`, `0x0000700b | (subop << 25)`
 
-For commands, see [../README.md](../README.md). For rationale and future
-directions, see [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Run commands are documented in [../README.md](../README.md).
