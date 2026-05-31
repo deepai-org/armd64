@@ -5578,6 +5578,39 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     poly_state_import(&clean);
     return 1;
   }
+
+  uint64_t restored_key_fsbase_result = 0;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2801cd6\n" // movz x22,#230
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  if (native_arch_prctl_raw(ARCH_SET_FS, 0) != 0) {
+    poly_state_import(&clean);
+    fputs("NATIVE_CHECK_FAIL: real XRSTOR explicit-key FSBASE switch failed\n",
+      stderr);
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1603e0\n" // mov x0,x22
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(restored_key_fsbase_result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  if (native_arch_prctl_raw(ARCH_SET_FS,
+        (unsigned long) original_fsbase) != 0) {
+    _exit(125);
+  }
+  if (restored_key_fsbase_result != 230) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR explicit-key bank split by FSBASE got=%llu\n",
+      (unsigned long long) restored_key_fsbase_result);
+    poly_state_import(&clean);
+    return 1;
+  }
   poly_state_import(&clean);
 
   poly_trap_vector_clear();
