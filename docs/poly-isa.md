@@ -1,7 +1,7 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 machine so
-existing native objects can run in one virtual address space.
+Poly lets native x86_64, AArch64, and RISC-V64 user objects run in one x86_64
+virtual address space. x86_64 remains the system ISA.
 
 ## Run
 
@@ -11,43 +11,36 @@ make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## What Changes From x86_64
+## Model
 
-- Frontends are `0` x86_64, `1` AArch64, and `2` RISC-V64.
-- x86_64 remains the system ISA: boot, privilege, paging, faults, interrupts,
-  atomics, and the global TSO memory model.
-- Foreign code fetches native 32-bit instructions directly from `RIP`; Poly
-  does not wrap each instruction in `#UD`.
-- All frontends share x86_64 virtual memory, permissions, and TSO ordering.
-- Non-x86 register state is explicit XSAVE-style architectural state, not
-  emulator-hidden CR3/process state.
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- x86_64 owns boot, privilege, paging, faults, interrupts, atomics, and TSO.
+- AArch64/RISC-V fetch native 32-bit instructions directly from `RIP`.
+- All frontends share one virtual address space and protection model.
+- Foreign registers are XSAVE-style architectural state, not hidden CR3 state.
 
-## Control Instructions
+## Control Flow
 
-`PENTER` enters a frontend. `PSWITCH` tail-branches. `PCALL` cross-calls using
-an ABI signature slot. `PTRAPRET` resumes from a trap packet. `PLANDING`
-validates an indirect cross-frontend landing pad.
+- `PENTER`: enter a frontend
+- `PSWITCH`: tail-branch to another frontend
+- `PCALL`: cross-frontend call with a register-only ABI signature slot
+- `PTRAPRET`: resume after a trap packet
+- `PLANDING`: validate an indirect cross-frontend landing pad
 
-Native returns remain native. Cross-frontend returns use a hardware transition
-stack plus return cookie, so ordinary same-ISA `ret` paths stay fast.
+Native same-ISA returns stay ordinary. Cross-frontend returns use a hardware
+transition stack and return cookies.
 
-## Hardware Boundary
+## Boundary
 
-Hardware owns frontend switching, call/return state, precise trap packets, and
-register-only ABI signatures. Software owns linking policy, syscalls, libcalls,
-stack arguments, aggregates, variadics, lazy binding, and memory-shaped ABI
-work. Recoverable exits produce OS-neutral trap packets for runtime or OS
-policy.
+- Hardware: frontend switching, call/return state, trap packets, register-only
+  ABI remapping.
+- Software: linking policy, syscalls, libcalls, stack arguments, aggregates,
+  variadics, lazy binding, and memory-shaped ABI work.
 
 ## Prototype Encodings
 
-The Bochs prototype uses temporary decoded control opcodes:
-
 - x86_64: `0f 3a fc <subop>`
 - AArch64: reserved HINT subspace
-- RISC-V: custom-0 opcode family
+- RISC-V: custom-0 family
 
-These are not fast-path `#UD` traps. Real hardware should allocate normal
-frontend opcodes.
-
-Long-form design notes: [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Design rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
