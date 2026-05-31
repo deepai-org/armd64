@@ -18,6 +18,8 @@
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
+#define POLY_OP_PCALL_SIG_IMM_NATIVE ".byte 0x0f,0x3a,0xfc,0x33\n"
+#define POLY_OP_PCALL_SIG_IMM_FP64 ".byte 0x0f,0x3a,0xfc,0x38\n"
 
 enum {
   POLYTHREAD_THREADS = 4,
@@ -206,7 +208,8 @@ static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
   if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_BASE ||
       signature.ebx != POLY_ABI_SIGNATURE_SLOT_COUNT ||
       native_slot >= signature.ebx ||
-      native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+      native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
+      native_slot != POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx);
@@ -216,7 +219,8 @@ static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
       fp64_signature.ebx != expected_fp64_signature.ebx ||
       fp64_signature.ecx != expected_fp64_signature.ecx ||
       fp64_signature.edx != expected_fp64_signature.edx ||
-      fp64_slot >= signature.ebx) {
+      fp64_slot >= signature.ebx ||
+      fp64_slot != POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: FP64 signature manifest mismatch fp64=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
       fp64_signature.eax, fp64_signature.ebx, fp64_signature.ecx,
@@ -447,71 +451,61 @@ static uint64_t pcall_riscv_busy(uint64_t seed) {
   return result;
 }
 
-static uint64_t pcall_sig_imm_aarch64_add1(uint64_t seed,
-    uint64_t signature_slot) {
+static uint64_t pcall_sig_imm_aarch64_add1(uint64_t seed) {
   uint64_t result;
   uint64_t arg0 = seed;
   asm volatile(
     "pushq %%rbx\n"
-    "pushq %%r12\n"
     "pushq %%r15\n"
     "movq %2, %%r15\n"
-    "movq %3, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_MODE
+    POLY_OP_PCALL_SIG_IMM_NATIVE
     "1:\n"
     ".long 0x91000400\n" // add x0,x0,#1
     ".long 0xd65f03c0\n" // ret x30
     "2:\n"
     "popq %%r15\n"
-    "popq %%r12\n"
     "popq %%rbx\n"
     : "=a"(result), "+D"(arg0)
-    : "i"(POLY_FRONTEND_AARCH64), "r"(signature_slot)
+    : "i"(POLY_FRONTEND_AARCH64)
     : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
   return result;
 }
 
-static uint64_t pcall_sig_imm_riscv_add1(uint64_t seed,
-    uint64_t signature_slot) {
+static uint64_t pcall_sig_imm_riscv_add1(uint64_t seed) {
   uint64_t result;
   uint64_t arg0 = seed;
   asm volatile(
     "pushq %%rbx\n"
-    "pushq %%r12\n"
     "pushq %%r15\n"
     "movq %2, %%r15\n"
-    "movq %3, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_MODE
+    POLY_OP_PCALL_SIG_IMM_NATIVE
     "1:\n"
     ".long 0x00150513\n" // addi a0,a0,1
     ".long 0x00008067\n" // ret
     "2:\n"
     "popq %%r15\n"
-    "popq %%r12\n"
     "popq %%rbx\n"
     : "=a"(result), "+D"(arg0)
-    : "i"(POLY_FRONTEND_RISCV), "r"(signature_slot)
+    : "i"(POLY_FRONTEND_RISCV)
     : "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory");
   return result;
 }
 
 static uint64_t pcall_sig_imm_aarch64_fp64_mix(uint64_t left_bits,
-    uint64_t right_bits, uint64_t signature_slot) {
+    uint64_t right_bits) {
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
     "pushq %%rbx\n"
-    "pushq %%r12\n"
     "pushq %%r15\n"
     "movq %0, %%r15\n"
-    "movq %1, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_MODE
+    POLY_OP_PCALL_SIG_IMM_FP64
     "1:\n"
     ".long 0x1e612800\n" // fadd d0,d0,d1
     ".long 0x1e613800\n" // fsub d0,d0,d1
@@ -519,28 +513,25 @@ static uint64_t pcall_sig_imm_aarch64_fp64_mix(uint64_t left_bits,
     ".long 0xd65f03c0\n" // ret x30
     "2:\n"
     "popq %%r15\n"
-    "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_FRONTEND_AARCH64), "r"(signature_slot)
+    : "i"(POLY_FRONTEND_AARCH64)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
 static uint64_t pcall_sig_imm_riscv_fp64_mix(uint64_t left_bits,
-    uint64_t right_bits, uint64_t signature_slot) {
+    uint64_t right_bits) {
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
     "pushq %%rbx\n"
-    "pushq %%r12\n"
     "pushq %%r15\n"
     "movq %0, %%r15\n"
-    "movq %1, %%r12\n"
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_SIG_MODE
+    POLY_OP_PCALL_SIG_IMM_FP64
     "1:\n"
     ".long 0x02b50553\n" // fadd.d fa0,fa0,fa1
     ".long 0x0ab50553\n" // fsub.d fa0,fa0,fa1
@@ -548,10 +539,9 @@ static uint64_t pcall_sig_imm_riscv_fp64_mix(uint64_t left_bits,
     ".long 0x00008067\n" // ret
     "2:\n"
     "popq %%r15\n"
-    "popq %%r12\n"
     "popq %%rbx\n"
     :
-    : "i"(POLY_FRONTEND_RISCV), "r"(signature_slot)
+    : "i"(POLY_FRONTEND_RISCV)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
@@ -1415,7 +1405,7 @@ static void *worker_main(void *arg) {
   }
   uint64_t sig_imm_seed = base + 0x12000ULL;
   uint64_t sig_imm_aarch64_result =
-    pcall_sig_imm_aarch64_add1(sig_imm_seed, native_signature_slot);
+    pcall_sig_imm_aarch64_add1(sig_imm_seed);
   if (sig_imm_aarch64_result != sig_imm_seed + 1) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu sig-slot aarch64 got=%llu expected=%llu\n",
@@ -1425,7 +1415,7 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   }
   uint64_t sig_imm_riscv_result =
-    pcall_sig_imm_riscv_add1(sig_imm_seed + 1, native_signature_slot);
+    pcall_sig_imm_riscv_add1(sig_imm_seed + 1);
   if (sig_imm_riscv_result != sig_imm_seed + 2) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu sig-slot riscv got=%llu expected=%llu\n",
@@ -1438,8 +1428,7 @@ static void *worker_main(void *arg) {
   uint64_t sig_fp_right = double_to_bits(2.25);
   uint64_t sig_fp_expected = double_to_bits(3.375);
   uint64_t sig_fp_aarch64_result =
-    pcall_sig_imm_aarch64_fp64_mix(sig_fp_left, sig_fp_right,
-      native_signature_slot);
+    pcall_sig_imm_aarch64_fp64_mix(sig_fp_left, sig_fp_right);
   if (sig_fp_aarch64_result != sig_fp_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu sig-slot aarch64 fp got=0x%llx expected=0x%llx\n",
@@ -1449,8 +1438,7 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   }
   uint64_t sig_fp_riscv_result =
-    pcall_sig_imm_riscv_fp64_mix(sig_fp_left, sig_fp_right,
-      native_signature_slot);
+    pcall_sig_imm_riscv_fp64_mix(sig_fp_left, sig_fp_right);
   if (sig_fp_riscv_result != sig_fp_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu sig-slot riscv fp got=0x%llx expected=0x%llx\n",
