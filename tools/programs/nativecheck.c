@@ -353,6 +353,36 @@ static uint64_t poly_riscv_monitor_packet_set_get(uint64_t value) {
   return result;
 }
 
+static uint64_t nativecheck_generic_enter_aarch64_add(void) {
+  uint64_t result;
+  asm volatile(
+    "movq %1, %%r15\n"
+    POLY_OP_ENTER_MODE
+    ".long 0xd2800520\n" // movz x0,#41
+    ".long 0x91000400\n" // add x0,x0,#1
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
+static uint64_t nativecheck_generic_enter_riscv_add(void) {
+  uint64_t result;
+  asm volatile(
+    "movq %1, %%r15\n"
+    POLY_OP_ENTER_MODE
+    ".long 0x02900513\n" // addi a0,zero,41
+    ".long 0x00150513\n" // addi a0,a0,1
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    : "i"(POLY_FRONTEND_RISCV)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
 static inline void poly_trap_vector_clear(void) {
   asm volatile(
     "xor %%eax,%%eax\n"
@@ -2784,6 +2814,27 @@ __asm__(
   ".size poly_riscv_trap_vector_ext_raw, .-poly_riscv_trap_vector_ext_raw\n"
   ".popsection\n");
 
+static int run_poly_generic_enter_probe(void) {
+  uint64_t result = nativecheck_generic_enter_aarch64_add();
+  if (result != 42) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic aarch64 enter result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  result = nativecheck_generic_enter_riscv_add();
+  if (result != 42) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic riscv enter result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_GENERIC_ENTER_OK");
+  return 0;
+}
+
 static int run_poly_trap_vector_probe(void) {
   void *handler = (void *) poly_trap_vector_handler;
   uint64_t expected_pid = (uint64_t) getpid();
@@ -3762,6 +3813,7 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   puts("NATIVE_POLY_TRAP_VECTOR_OK");
+  fflush(stdout);
   return 0;
 }
 
@@ -7638,6 +7690,8 @@ int main(void) {
       return 1;
     }
     puts("NATIVE_CPUID_POLY_PRESENT");
+    if (run_poly_generic_enter_probe() != 0)
+      return 1;
     if (run_poly_trap_vector_probe() != 0)
       return 1;
     if (run_poly_no_vector_signal_probe() != 0)
