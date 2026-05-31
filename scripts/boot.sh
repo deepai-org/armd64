@@ -728,6 +728,24 @@ build_poly_elf_payloads() {
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/poly-link/x86_64/libpolyprocesstls-riscv.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_TLS_DEFAULT_DEP \
+    -Wl,-soname,libpolyprocesstlsdefault-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/x86_64/libpolyprocesstlsdefault-aarch64.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_TLS_DEFAULT_DEP \
+    -Wl,-soname,libpolyprocesstlsdefault-riscv.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/x86_64/libpolyprocesstlsdefault-riscv.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_TLS_TRAD_DEP \
+    -Wl,-soname,libpolyprocesstlstrad-aarch64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/x86_64/libpolyprocesstlstrad-aarch64.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocesscrossneeded-x86_64.so \
@@ -1006,6 +1024,27 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/x86_64" \
     -Wl,--no-as-needed -l:libpolyprocesstls-riscv.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-riscv-tls-real.elf"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_TLS_DEFAULT_DEP_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/x86_64" \
+    -Wl,--no-as-needed -l:libpolyprocesstlsdefault-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-aarch64-tls-default-real.elf"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_TLS_DEFAULT_DEP_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/x86_64" \
+    -Wl,--no-as-needed -l:libpolyprocesstlsdefault-riscv.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-riscv-tls-default-real.elf"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_TLS_TRAD_DEP_MAIN \
+    -Wl,-e,_start -Wl,-E -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/x86_64" \
+    -Wl,--no-as-needed -l:libpolyprocesstlstrad-aarch64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/x86_64-process-cross-aarch64-tls-trad-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_IFUNC_MAIN \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -7015,6 +7054,15 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/x86_64-process-cross-riscv-tls-real.elf=42 \
       x86-cross-riscv-tls >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-aarch64-tls-default-real.elf=42 \
+      x86-cross-aarch64-tls-default >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-riscv-tls-default-real.elf=42 \
+      x86-cross-riscv-tls-default >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-aarch64-tls-trad-real.elf=42 \
+      x86-cross-aarch64-tls-trad >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-ifunc-real.elf=42 \
       ifunc-needed >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -9718,6 +9766,30 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-tls-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-aarch64-tls-default-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-tls-default-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-riscv-tls-default-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-tls-default-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-aarch64-tls-trad-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-tls-trad-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

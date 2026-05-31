@@ -273,6 +273,7 @@ enum {
   POLY_ARCH_X86 = POLY_FRONTEND_X86,
   POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
+  POLY_ARCH_COUNT = 3,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
   POLY_X86_PENTER_GENERIC_SIZE = 10,
   POLY_X86_TRAMPOLINE_SIZE = 14,
@@ -1739,7 +1740,8 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
   if (relocation_requested_version_name(program, loaded_image, strtab_vaddr,
         strsz, symbol_index, &requested_version) < 0)
     return -1;
-  if ((program->arch == POLY_ARCH_AARCH64 ||
+  if ((program->arch == POLY_ARCH_X86 ||
+       program->arch == POLY_ARCH_AARCH64 ||
        program->arch == POLY_ARCH_RISCV) &&
       tls_get_addr_helper_pc != 0 &&
       strcmp(symbol_name, "__tls_get_addr") == 0) {
@@ -4144,11 +4146,18 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   return 0;
 }
 
-static int emit_process_tlsdesc_helper(const struct poly_program *program,
+static uint64_t process_helper_for_arch(const uint64_t helpers[POLY_ARCH_COUNT],
+    int arch) {
+  if (arch < 0 || arch >= POLY_ARCH_COUNT)
+    return 0;
+  return helpers[arch];
+}
+
+static int emit_process_tlsdesc_helper_for_arch(int arch,
     uint8_t *mapping, size_t *offset, uint64_t *helper_pc) {
-  if (*offset > SIZE_MAX - 16)
+  if (align_up_size(*offset, 4, offset) < 0 || *offset > SIZE_MAX - 16)
     return -1;
-  if (program->arch != POLY_ARCH_AARCH64) {
+  if (arch != POLY_ARCH_AARCH64) {
     *helper_pc = 0;
     return 0;
   }
@@ -4158,17 +4167,25 @@ static int emit_process_tlsdesc_helper(const struct poly_program *program,
   return 0;
 }
 
-static int emit_process_tls_get_addr_helper(const struct poly_program *program,
+static int emit_process_tls_get_addr_helper_for_arch(int arch,
     uint8_t *mapping, size_t *offset, uint64_t *helper_pc) {
-  if (*offset > SIZE_MAX - 16)
+  if (align_up_size(*offset, 4, offset) < 0 || *offset > SIZE_MAX - 16)
     return -1;
-  if (program->arch != POLY_ARCH_AARCH64 &&
-      program->arch != POLY_ARCH_RISCV) {
+  if (arch != POLY_ARCH_X86 && arch != POLY_ARCH_AARCH64 &&
+      arch != POLY_ARCH_RISCV) {
     *helper_pc = 0;
     return 0;
   }
   *helper_pc = (uint64_t) (uintptr_t) (mapping + *offset);
-  if (program->arch == POLY_ARCH_AARCH64) {
+  if (arch == POLY_ARCH_X86) {
+    emit_bytes(mapping, offset, (const uint8_t []) {
+      0x48, 0x8b, 0x47, 0x08, // mov rax,[rdi+8]
+      0x4c, 0x01, 0xe8,       // add rax,r13
+      0xc3                    // ret
+    }, 8);
+    return 0;
+  }
+  if (arch == POLY_ARCH_AARCH64) {
     emit_u32(mapping, offset, 0xd53bd041U); // mrs x1, tpidr_el0
     emit_u32(mapping, offset, 0xf9400400U); // ldr x0, [x0, #8]
     emit_u32(mapping, offset, 0x8b000020U); // add x0, x1, x0
@@ -4178,6 +4195,19 @@ static int emit_process_tls_get_addr_helper(const struct poly_program *program,
   emit_u32(mapping, offset, riscv_ld(10, 10, 8)); // ld a0, 8(a0)
   emit_u32(mapping, offset, riscv_add(10, 10, 4)); // add a0, a0, tp
   emit_u32(mapping, offset, riscv_jalr(0, 1, 0)); // ret
+  return 0;
+}
+
+static int emit_process_tls_helpers_for_arches(uint8_t *mapping,
+    size_t *offset, uint64_t tlsdesc_helpers[POLY_ARCH_COUNT],
+    uint64_t tls_get_addr_helpers[POLY_ARCH_COUNT]) {
+  for (int arch = 0; arch < POLY_ARCH_COUNT; arch++) {
+    if (emit_process_tlsdesc_helper_for_arch(arch, mapping, offset,
+          &tlsdesc_helpers[arch]) < 0 ||
+        emit_process_tls_get_addr_helper_for_arch(arch, mapping, offset,
+          &tls_get_addr_helpers[arch]) < 0)
+      return -1;
+  }
   return 0;
 }
 
@@ -5855,7 +5885,8 @@ static int copy_process_dependency_tls_images(const struct poly_program *program
 
 static int map_process_dependencies(struct poly_program *program,
     uint8_t *trampoline_code, size_t prefix_size, uint64_t return_pc,
-    uint64_t tlsdesc_helper_pc, uint64_t tls_get_addr_helper_pc,
+    const uint64_t tlsdesc_helpers[POLY_ARCH_COUNT],
+    const uint64_t tls_get_addr_helpers[POLY_ARCH_COUNT],
     uint8_t *scratch) {
   for (size_t d = 0; d < program->dep_count; d++) {
     struct poly_process_dependency *dep = &program->deps[d];
@@ -5873,7 +5904,7 @@ static int map_process_dependencies(struct poly_program *program,
       continue;
     }
     if (map_process_dependencies(dep->program, trampoline_code, prefix_size,
-          return_pc, tlsdesc_helper_pc, tls_get_addr_helper_pc, scratch) < 0)
+          return_pc, tlsdesc_helpers, tls_get_addr_helpers, scratch) < 0)
       return -1;
     const uint64_t mapping_size_u64 =
       align_up_u64((uint64_t) dep->program->code_size, 0x1000);
@@ -5896,8 +5927,10 @@ static int map_process_dependencies(struct poly_program *program,
       dep->program->code_size);
 
     if (apply_relative_relocations(dep->program, dep->loaded_image,
-          trampoline_code, prefix_size, return_pc, tlsdesc_helper_pc,
-          tls_get_addr_helper_pc, scratch) < 0) {
+          trampoline_code, prefix_size, return_pc,
+          process_helper_for_arch(tlsdesc_helpers, dep->program->arch),
+          process_helper_for_arch(tls_get_addr_helpers, dep->program->arch),
+          scratch) < 0) {
       fprintf(stderr, "POLYEXEC_FAIL: unsupported dependency relocations: %s\n",
         dep->path);
       return -1;
@@ -5962,13 +5995,14 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     return -1;
   }
   uint64_t tlsdesc_helper_pc = 0;
-  if (emit_process_tlsdesc_helper(program, mapping, &offset,
+  if (emit_process_tlsdesc_helper_for_arch(program->arch, mapping, &offset,
         &tlsdesc_helper_pc) < 0) {
     munmap(mapping, mapping_size);
     return -1;
   }
   uint64_t tls_get_addr_helper_pc = 0;
-  if (emit_process_tls_get_addr_helper(program, mapping, &offset,
+  if (emit_process_tls_get_addr_helper_for_arch(program->arch, mapping,
+        &offset,
         &tls_get_addr_helper_pc) < 0) {
     munmap(mapping, mapping_size);
     return -1;
@@ -6134,15 +6168,10 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  uint64_t tlsdesc_helper_pc = 0;
-  if (emit_process_tlsdesc_helper(program, mapping, &offset,
-        &tlsdesc_helper_pc) < 0) {
-    munmap(mapping, mapping_size);
-    return -1;
-  }
-  uint64_t tls_get_addr_helper_pc = 0;
-  if (emit_process_tls_get_addr_helper(program, mapping, &offset,
-        &tls_get_addr_helper_pc) < 0) {
+  uint64_t tlsdesc_helpers[POLY_ARCH_COUNT] = {0};
+  uint64_t tls_get_addr_helpers[POLY_ARCH_COUNT] = {0};
+  if (emit_process_tls_helpers_for_arches(mapping, &offset, tlsdesc_helpers,
+        tls_get_addr_helpers) < 0) {
     munmap(mapping, mapping_size);
     return -1;
   }
@@ -6164,15 +6193,17 @@ static int emit_and_run_process(struct poly_program *program,
     return -1;
   }
   if (map_process_dependencies(program, code, prefix_size, lifecycle_return_pc,
-        tlsdesc_helper_pc, tls_get_addr_helper_pc, scratch) < 0) {
+        tlsdesc_helpers, tls_get_addr_helpers, scratch) < 0) {
     unmap_process_dependencies(program);
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
   }
   if (apply_relative_relocations(program, loaded_image, code,
-        prefix_size, lifecycle_return_pc, tlsdesc_helper_pc,
-        tls_get_addr_helper_pc, scratch) < 0) {
+        prefix_size, lifecycle_return_pc,
+        process_helper_for_arch(tlsdesc_helpers, program->arch),
+        process_helper_for_arch(tls_get_addr_helpers, program->arch),
+        scratch) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported dynamic relocations: %s\n",
       program->path);
     unmap_process_dependencies(program);
