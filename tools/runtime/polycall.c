@@ -4526,8 +4526,9 @@ static int x86_direct_import_uses_i128_signature(uint64_t import_id) {
     import_id == POLY_IMPORT_FUNC_X86_I128;
 }
 
-static int x86_direct_import_uses_fp64_signature(uint64_t import_id) {
+static int x86_direct_import_uses_fp_register_signature(uint64_t import_id) {
   return import_id == POLY_IMPORT_FUNC_X86_SLOT3 ||
+    import_id == POLY_IMPORT_FUNC_X86_SLOT4 ||
     import_id == POLY_IMPORT_FUNC_X86_SLOT6;
 }
 
@@ -4962,7 +4963,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       contract->signature_slot_x86_sysv_regs_i128 :
     x86_direct_import_uses_i128_signature(import_id) ?
       contract->signature_slot_native_regs_i128 :
-    x86_direct_import_uses_fp64_signature(import_id) ?
+    x86_direct_import_uses_fp_register_signature(import_id) ?
       contract->signature_slot_native_regs_fp64 :
     x86_direct_import_uses_single_result_signature(import_id) ?
       contract->signature_slot_x86_sysv_regs :
