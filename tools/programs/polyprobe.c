@@ -45,6 +45,8 @@
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 static uint32_t polyprobe_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
+static uint32_t polyprobe_fp64_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
 
 struct polyprobe_monitor_packet {
   struct poly_trap_packet trap;
@@ -2109,6 +2111,17 @@ int main(void) {
       poly_escapes.edx != expected_escapes.edx) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID FP64 ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
       poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  polyprobe_fp64_signature_slot = poly_escapes.edx;
+  if (polyprobe_fp64_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      poly_abi_signature_get(polyprobe_fp64_signature_slot) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: default FP64 ABI signature slot mismatch slot=%u count=%u kind=%llu\n",
+      polyprobe_fp64_signature_slot, POLY_ABI_SIGNATURE_SLOT_COUNT,
+      (unsigned long long) poly_abi_signature_get(
+        polyprobe_fp64_signature_slot));
     return 1;
   }
   struct poly_cpuid_contract_failure state_failure;
