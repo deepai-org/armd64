@@ -1,7 +1,7 @@
 # Poly ISA
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 machine so
-existing native code can share one virtual address space.
+Poly is a Bochs prototype of one x86_64 machine that can also execute existing
+AArch64 and RISC-V64 userspace code in the same virtual address space.
 
 ## Run
 
@@ -11,33 +11,37 @@ make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYTHREAD_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## x86_64 Differences
+## x64 Changes
 
-- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64 still owns privilege, paging, faults, interrupts, VM control, and TSO.
-- Foreign modes fetch native 32-bit instructions from `RIP`, not `#UD`
-  envelopes.
-- Foreign registers are XSAVE-style per-thread state.
-- Hardware only switches frontends, tracks return cookies, emits trap packets,
-  and aliases registers.
-- Software handles linking, syscalls/libcalls, stack arguments, aggregates,
-  variadics, and incompatible vectors.
+- x86_64 remains the system ISA for privilege, paging, faults, interrupts,
+  atomics, VM control, and TSO memory ordering.
+- Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+- Foreign frontends fetch native instructions directly from `RIP`; the fast
+  path does not use per-instruction `#UD` envelopes.
+- Foreign register state is explicit XSAVE-style per-thread state; the state
+  import layout version is `8`.
+- Hardware is limited to frontend switching, register alias signatures, return
+  cookies, transition-stack state, and trap packets.
+- Software owns dynamic linking, syscall/libcall policy, stack arguments,
+  aggregates, variadics, incompatible vectors, and loader/runtime thunks.
 
-## Control Instructions
+## Controls
 
 - `PENTER frontend`: enter a frontend from trusted runtime code.
-- `PSWITCH frontend, target`: non-returning cross-frontend branch.
-- `PCALL frontend, target, sig`: cross-frontend call with ABI signature slot.
-- `PTRAPRET`: return from a precise Poly trap.
+- `PSWITCH frontend, target`: branch to another frontend without return.
+- `PCALL frontend, target, sig`: call another frontend using ABI signature
+  slot `sig`.
+- `PTRAPRET`: resume from a precise Poly trap.
 - `PLANDING`: mark or validate indirect cross-frontend targets.
 
-Same-ISA returns are native. Cross-frontend returns use native return
-instructions plus hardware transition-stack cookies.
+Same-ISA returns use normal native returns. Cross-frontend returns use normal
+native returns to hardware return cookies.
 
 ## Prototype Encodings
 
-- x86_64: `0f 3a fc <subop>`
-- AArch64: reserved HINT subspace
-- RISC-V64: custom-0 opcode family
+- x86_64: decoded `0f 3a fc <subop>` Poly control page.
+- AArch64: reserved HINT subspace.
+- RISC-V64: custom-0 opcode family.
 
-Design rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Rationale and future hardware direction:
+[poly-isa-design-directions.md](poly-isa-design-directions.md).
