@@ -1246,15 +1246,29 @@ static int run_real_xsave_context_probe(uintptr_t worker_id, uint64_t base) {
   for (unsigned n = 0; n < POLYTHREAD_YIELDS * 4; n++)
     sched_yield();
 
-  if (pcall_aarch64_hidden_get(29) != aarch64_seed + 29 ||
-      pcall_riscv_hidden_get(31) != riscv_seed + 31 ||
-      pcall_aarch64_hidden_fp_get(double_to_bits(29.0)) !=
-        double_to_bits((double) worker_id + 70.25) ||
-      pcall_riscv_hidden_fp_get(double_to_bits(31.0)) !=
-        double_to_bits((double) worker_id + 84.75)) {
+  uint64_t got_aarch64 = pcall_aarch64_hidden_get(29);
+  uint64_t got_riscv = pcall_riscv_hidden_get(31);
+  uint64_t got_aarch64_fp =
+    pcall_aarch64_hidden_fp_get(double_to_bits(29.0));
+  uint64_t got_riscv_fp =
+    pcall_riscv_hidden_fp_get(double_to_bits(31.0));
+  if (got_aarch64 != aarch64_seed + 29 ||
+      got_riscv != riscv_seed + 31 ||
+      got_aarch64_fp != double_to_bits((double) worker_id + 70.25) ||
+      got_riscv_fp != double_to_bits((double) worker_id + 84.75)) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu real XSAVE context isolation failed\n",
-      (unsigned long) worker_id);
+      "POLYTHREAD_FAIL: worker=%lu real XSAVE context isolation failed "
+      "a64=0x%llx/0x%llx rv=0x%llx/0x%llx "
+      "a64fp=0x%llx/0x%llx rvfp=0x%llx/0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) got_aarch64,
+      (unsigned long long) (aarch64_seed + 29),
+      (unsigned long long) got_riscv,
+      (unsigned long long) (riscv_seed + 31),
+      (unsigned long long) got_aarch64_fp,
+      (unsigned long long) double_to_bits((double) worker_id + 70.25),
+      (unsigned long long) got_riscv_fp,
+      (unsigned long long) double_to_bits((double) worker_id + 84.75));
     return -1;
   }
 

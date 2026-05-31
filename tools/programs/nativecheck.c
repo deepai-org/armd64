@@ -54,6 +54,12 @@
 #ifndef ARCH_REQ_XCOMP_PERM
 #define ARCH_REQ_XCOMP_PERM 0x1023
 #endif
+#ifndef ARCH_SET_FS
+#define ARCH_SET_FS 0x1002
+#endif
+#ifndef ARCH_GET_FS
+#define ARCH_GET_FS 0x1003
+#endif
 
 #define POLY_NATIVE_XSAVE_AREA_BYTES \
   (POLY_STATE_XSAVE_OFFSET_ARCH + POLY_STATE_XSAVE_BYTES_ARCH)
@@ -1008,6 +1014,20 @@ static inline uint64_t read_xcr0(void) {
 
 static long native_arch_prctl(int code, unsigned long addr) {
   return syscall(SYS_arch_prctl, code, addr);
+}
+
+__attribute__((no_stack_protector))
+static long native_arch_prctl_raw(int code, unsigned long addr) {
+  long result;
+  register long rax __asm__("rax") = SYS_arch_prctl;
+  register long rdi __asm__("rdi") = code;
+  register long rsi __asm__("rsi") = (long) addr;
+  __asm__ volatile("syscall"
+    : "+a"(rax)
+    : "D"(rdi), "S"(rsi)
+    : "rcx", "r11", "memory");
+  result = rax;
+  return result;
 }
 
 static inline void native_xsave64(void *area, uint64_t mask) {
@@ -5205,6 +5225,56 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR riscv f21 mismatch got=0x%llx\n",
       (unsigned long long) read_xmm0_u64());
+    return 1;
+  }
+
+  uint64_t original_fsbase = 0;
+  uint64_t explicit_key_fsbase_result = 0;
+  if (native_arch_prctl_raw(ARCH_GET_FS,
+        (unsigned long) (uintptr_t) &original_fsbase) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XSAVE explicit-key FSBASE get failed\n",
+      stderr);
+    return 1;
+  }
+  if (poly_state_key_set_value(real_xsave_state_key) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XSAVE explicit-key setup failed\n",
+      stderr);
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28018d6\n" // movz x22,#198
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (native_arch_prctl_raw(ARCH_SET_FS, 0) != 0) {
+    poly_state_key_set_value(0);
+    fputs("NATIVE_CHECK_FAIL: real XSAVE explicit-key FSBASE switch failed\n",
+      stderr);
+    return 1;
+  }
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa1603e0\n" // mov x0,x22
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(explicit_key_fsbase_result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+  if (native_arch_prctl_raw(ARCH_SET_FS,
+        (unsigned long) original_fsbase) != 0) {
+    _exit(125);
+  }
+  if (explicit_key_fsbase_result != 198) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XSAVE explicit-key bank split by FSBASE got=%llu\n",
+      (unsigned long long) explicit_key_fsbase_result);
+    poly_state_key_set_value(0);
+    return 1;
+  }
+  if (poly_state_key_set_value(0) != 0) {
+    fputs("NATIVE_CHECK_FAIL: real XSAVE explicit-key cleanup failed\n",
+      stderr);
     return 1;
   }
 
