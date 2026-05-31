@@ -311,7 +311,9 @@ enum poly_process_bridge_kind {
   POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET = 7,
   POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET = 8,
   POLY_PROCESS_BRIDGE_FPAIR32_ARG = 9,
-  POLY_PROCESS_BRIDGE_FPAIR64_ARG = 10
+  POLY_PROCESS_BRIDGE_FPAIR64_ARG = 10,
+  POLY_PROCESS_BRIDGE_FPAIR32_RET = 11,
+  POLY_PROCESS_BRIDGE_FPAIR64_RET = 12
 };
 
 struct poly_process_bridge_spec {
@@ -890,6 +892,10 @@ static int process_bridge_kind_from_name(const char *name) {
     return POLY_PROCESS_BRIDGE_FPAIR32_ARG;
   if (strcmp(name, "fpair64_arg") == 0)
     return POLY_PROCESS_BRIDGE_FPAIR64_ARG;
+  if (strcmp(name, "fpair32_ret") == 0)
+    return POLY_PROCESS_BRIDGE_FPAIR32_RET;
+  if (strcmp(name, "fpair64_ret") == 0)
+    return POLY_PROCESS_BRIDGE_FPAIR64_RET;
   return -1;
 }
 
@@ -1008,7 +1014,9 @@ static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET)
     return POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_FP128_RET;
   if (bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_ARG ||
-      bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG)
+      bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG ||
+      bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_RET ||
+      bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET)
     return POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_FP128_RET;
   return process_native_signature_slot;
 }
@@ -4145,10 +4153,16 @@ static int process_bridge_is_aarch64_hfa32_ret(int bridge_kind) {
     bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET;
 }
 
+static int process_bridge_is_fpair(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_ARG ||
+    bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG ||
+    bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_RET ||
+    bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET;
+}
+
 static int process_bridge_is_x86_source_signature(int bridge_kind) {
   return process_bridge_is_aarch64_hfa32_ret(bridge_kind) ||
-    bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_ARG ||
-    bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG;
+    process_bridge_is_fpair(bridge_kind);
 }
 
 static uint32_t process_bridge_signature_kind(int bridge_kind) {
@@ -4160,6 +4174,10 @@ static uint32_t process_bridge_signature_kind(int bridge_kind) {
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_ARG;
   if (bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG)
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR64_ARG;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_RET)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_RET;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR64_RET;
   return UINT32_MAX;
 }
 
@@ -4378,8 +4396,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   if (process_bridge_is_aarch64_hfa32_ret(bridge_kind) &&
       !(caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_AARCH64))
     return -1;
-  if ((bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_ARG ||
-       bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG) &&
+  if (process_bridge_is_fpair(bridge_kind) &&
       !(caller_arch == POLY_ARCH_X86 &&
         (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV)))
     return -1;
@@ -4403,7 +4420,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET &&
       bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET &&
       bridge_kind != POLY_PROCESS_BRIDGE_FPAIR32_ARG &&
-      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_ARG)
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_ARG &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR32_RET &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_RET)
     return -1;
   if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
       caller_arch != POLY_ARCH_X86 &&

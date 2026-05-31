@@ -257,6 +257,40 @@ double poly_process_needed_fpair64_arg(struct poly_fpair64 pair, double scale) {
   return (pair.lo + pair.hi) * scale;
 }
 
+#elif defined(POLY_PROCESS_NEEDED_FPAIR_RET_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_fpair32_ret fpair32_ret\\n\"\n"
+  "   .ascii \"poly_process_needed_fpair64_ret fpair64_ret\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+struct poly_fpair32 poly_process_needed_fpair32_ret(float a, float b,
+    float c) {
+  struct poly_fpair32 out;
+  out.lo = a + b;
+  out.hi = b + c + 1.0f;
+  return out;
+}
+
+__attribute__((visibility("default")))
+struct poly_fpair64 poly_process_needed_fpair64_ret(double a, double b,
+    double c) {
+  struct poly_fpair64 out;
+  out.lo = a + b;
+  out.hi = b + c + 1.0;
+  return out;
+}
+
 #elif defined(POLY_PROCESS_NEEDED_VEC128_DEP)
 
 __asm__(
@@ -545,6 +579,10 @@ extern struct poly_hfa4_f32 poly_process_needed_hfa4_f32(float, float, float);
 #elif defined(POLY_PROCESS_NEEDED_FPAIR_ARG_MAIN)
 extern float poly_process_needed_fpair32_arg(struct poly_fpair32, float);
 extern double poly_process_needed_fpair64_arg(struct poly_fpair64, double);
+#elif defined(POLY_PROCESS_NEEDED_FPAIR_RET_MAIN)
+extern struct poly_fpair32 poly_process_needed_fpair32_ret(float, float, float);
+extern struct poly_fpair64 poly_process_needed_fpair64_ret(double, double,
+    double);
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
 extern poly_u32x4 poly_process_needed_vec128(poly_u32x4, poly_u32x4);
 #elif defined(POLY_PROCESS_NEEDED_COMPACT_MAIN)
@@ -847,6 +885,20 @@ uint64_t poly_process_main(void) {
       f64_result.u != 0x4043800000000000ULL)
     return 56;
   static const char marker[] = "POLY_PROCESS_CROSS_FPAIR_ARG_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_FPAIR_RET_MAIN)
+  const struct poly_fpair32 f32_pair =
+    poly_process_needed_fpair32_ret(1.5f, 2.25f, 3.0f);
+  const struct poly_fpair64 f64_pair =
+    poly_process_needed_fpair64_ret(1.5, 2.25, 3.0);
+  const union poly_float_bits f32_lo = { .f = f32_pair.lo };
+  const union poly_float_bits f32_hi = { .f = f32_pair.hi };
+  const union poly_double_bits f64_lo = { .d = f64_pair.lo };
+  const union poly_double_bits f64_hi = { .d = f64_pair.hi };
+  if (f32_lo.u != 0x40700000U || f32_hi.u != 0x40c80000U ||
+      f64_lo.u != 0x400e000000000000ULL ||
+      f64_hi.u != 0x4019000000000000ULL)
+    return 57;
+  static const char marker[] = "POLY_PROCESS_CROSS_FPAIR_RET_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
   union {
     poly_u32x4 v;
