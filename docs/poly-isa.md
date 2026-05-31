@@ -1,34 +1,35 @@
 # Poly ISA
 
-Short hardware contract for running precompiled x86_64, AArch64, and RISC-V64 code in one x86_64 process. Rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
+Hardware contract for running precompiled x86_64, AArch64, and RISC-V64 code in one x86_64 process. Rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
 
 ## Model
 
-- x86_64 is the system ISA: privilege, paging, interrupts, hard faults, syscalls, VM control, atomics, and global TSO stay x86-owned.
-- AArch64 and RISC-V64 are user-mode peer frontends that fetch real native 32-bit instructions from the same address space.
+- x86_64 owns privilege, paging, interrupts, hard faults, syscalls, VM control, atomics, and global TSO.
+- AArch64 and RISC-V64 are user frontends fetching native instructions from the same virtual address space.
 - Poly controls are decoded instructions, not `#UD` envelopes.
-- Poly state is explicit per-thread XSAVE-style state. Recoverable exits use Ring 3 trap packets; the OS still owns hard faults, scheduling, and syscalls.
+- Extra state is per-thread XSAVE-style state; recoverable exits use Ring 3 trap packets.
 
-## Frontends And Controls
+## Controls
 
 Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
 
-- `PENTER frontend`: enter a frontend at the current PC.
-- `PSWITCH frontend, target`: tail-branch to another frontend.
-- `PCALL frontend, target, sig`: cross-ISA call using ABI signature slot `sig`.
-- `PTRAPRET`: resume after a Ring 3 Poly trap packet.
-- `PLANDING`: mark or validate an indirect cross-ISA landing pad.
+- `PENTER frontend`: enter at current PC.
+- `PSWITCH frontend, target`: tail-branch across frontends.
+- `PCALL frontend, target, sig`: call across frontends using ABI signature slot `sig`.
+- `PTRAPRET`: resume after a Ring 3 trap packet.
+- `PLANDING`: validate indirect cross-ISA landing pads.
 
-## ABI Boundary
+## ABI
 
-- Fast `PCALL` is fixed-latency register aliasing only; it never reads user memory, parses descriptors, or repacks stack layouts.
-- Signature slots describe native ABI register mappings. The null exchange window is `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = `x0..x7` = `a0..a7`.
-- Native returns cross ISAs through a hardware transition stack and reserved return cookie.
-- Software thunks handle stack args, aggregates, variadics, lazy binding, syscalls, libcalls, and incompatible vector ABIs.
+- Fast `PCALL` aliases registers only; it never reads user memory or repacks stacks.
+- Signature slots map native ABI argument/result registers, ideally by RAT remapping.
+- Exchange window: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = `x0..x7` = `a0..a7`.
+- Cross-ISA returns use a hardware transition stack and reserved return cookies.
+- Thunks handle stack args, aggregates, variadics, lazy binding, syscalls, libcalls, and incompatible vector ABIs.
 
 ## Prototype Encodings
 
-Prototype only; final architectural allocations are still open.
+Temporary Bochs encodings; final silicon allocations are open.
 
 - x86_64: `0f 3a fc <subop>`
 - AArch64: `0xd503201f | (subop << 5)` in reserved `HINT` space

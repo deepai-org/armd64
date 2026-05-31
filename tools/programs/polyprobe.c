@@ -486,6 +486,24 @@ static inline void raw_riscv_sp_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void raw_riscv_compressed_frame_probe(void) {
+  asm volatile(
+    "movq $17, %%rax\n"
+    "movq $25, %%rdx\n"
+    POLY_OP_ENTER_RV64
+    ".short 0x717d\n" // c.addi16sp -16
+    ".short 0xe02a\n" // c.sdsp a0,0(sp)
+    ".short 0xe42e\n" // c.sdsp a1,8(sp)
+    ".long 0x00000513\n" // addi a0,zero,0
+    ".short 0x6602\n" // c.ldsp a2,0(sp)
+    ".short 0x66a2\n" // c.ldsp a3,8(sp)
+    ".short 0x9532\n" // c.add a0,a2
+    ".short 0x9536\n" // c.add a0,a3
+    ".short 0x6141\n" // c.addi16sp 16
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 static inline void raw_aarch64_wide_regs_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -2427,6 +2445,15 @@ int main(void) {
   rsp_after = read_rsp();
   if (read_rax() != 42 || rsp_after != rsp_before) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv SP frame mismatch result=%llu rsp_before=0x%llx rsp_after=0x%llx\n",
+      (unsigned long long) read_rax(), (unsigned long long) rsp_before,
+      (unsigned long long) rsp_after);
+    return 1;
+  }
+  rsp_before = read_rsp();
+  raw_riscv_compressed_frame_probe();
+  rsp_after = read_rsp();
+  if (read_rax() != 42 || rsp_after != rsp_before) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv compressed frame mismatch result=%llu rsp_before=0x%llx rsp_after=0x%llx\n",
       (unsigned long long) read_rax(), (unsigned long long) rsp_before,
       (unsigned long long) rsp_after);
     return 1;
