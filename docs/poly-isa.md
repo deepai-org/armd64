@@ -13,26 +13,32 @@ rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLYBENCH_OK|FAIL|Kernel panic|Oops' ou
 
 Use `make boot-poly` for a shorter smoke run.
 
-## Contract
+## Difference From x86_64
 
 - x86_64 remains the system ISA for privilege, paging, interrupts, faults,
   virtual memory, atomics, VM control, and TSO memory ordering.
-- AArch64 and RISC-V64 are user-mode direct-fetch frontends, not `#UD`
-  per-instruction envelopes.
-- Cross-frontend control uses decoded Poly instructions: `PENTER`, `PSWITCH`,
-  `PCALL`, `PTRAPRET`, and `PLANDING`; frontend IDs are `0` x86_64,
-  `1` AArch64, and `2` RISC-V64.
-- Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI.
+- AArch64 and RISC-V64 are user-mode frontends that direct-fetch 32-bit
+  instructions from the same virtual address space.
+- There are no per-instruction x86 `#UD` envelopes in the ISA model.
+- Cross-ISA calls target existing native ABIs: x86_64 SysV, AArch64 AAPCS64,
+  and RISC-V psABI.
 - Fast calls use fixed register-only ABI signature slots. Stack arguments,
   large aggregates, variadics, relocation, syscalls, libcalls, and loader policy
   stay in software.
-- Foreign register state is explicit per-thread XSAVE-style architectural state.
+- Foreign architectural state is explicit per-thread XSAVE-style state, not
+  hidden CR3-scoped emulator state.
 
-## Prototype Encodings
+## Control
 
-- x86_64 control page: `0f 3a fc <subop>`
-- AArch64 control space: reserved `HINT` encodings
-- RISC-V64 control space: `custom-0` encodings
+- `PENTER`: enter a foreign frontend
+- `PSWITCH`: switch frontend without call semantics
+- `PCALL`: cross-ISA call
+- `PTRAPRET`: return from a runtime trap/monitor path
+- `PLANDING`: validated cross-ISA landing point
 
-More detail: `../README.md` and `poly-isa-design-directions.md`.
+Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+
+Prototype encodings are `0f 3a fc <subop>` on x86_64, reserved `HINT`
+encodings on AArch64, and `custom-0` encodings on RISC-V64.
+
+Detailed architecture notes: `poly-isa-design-directions.md`.
