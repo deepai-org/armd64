@@ -1,7 +1,7 @@
 IMAGE ?= armd64-bochs
 POLY_XCR0_MODULE ?= out/poly_xcr0.ko
 
-.PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract boot boot-poly boot-poly-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-cross-arch-traps boot-poly-call-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
+.PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract boot boot-poly boot-poly-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -107,6 +107,16 @@ boot-poly-exec-cross-arch-traps:
 		-v "$(CURDIR)":/work \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_EXEC_CROSS=1 \
+		-e EXPECT_POLY_CPUID=1 \
+		$(IMAGE) \
+		./scripts/boot.sh
+
+boot-poly-exec-syscall-arch-traps:
+	docker run --rm \
+		--platform=linux/arm64 \
+		-v "$(CURDIR)":/work \
+		-e POLY_ENABLED=1 \
+		-e RUN_POLY_EXEC_SYSCALL=1 \
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
 		./scripts/boot.sh

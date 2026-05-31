@@ -318,6 +318,7 @@ RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 RUN_POLY_NEUTRAL="${RUN_POLY_NEUTRAL:-0}"
 RUN_POLY_EXEC_CROSS="${RUN_POLY_EXEC_CROSS:-0}"
+RUN_POLY_EXEC_SYSCALL="${RUN_POLY_EXEC_SYSCALL:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
@@ -6319,6 +6320,7 @@ RUN_POLY_PROBE="$RUN_POLY_PROBE"
 RUN_POLY_APPS="$RUN_POLY_APPS"
 RUN_POLY_NEUTRAL="$RUN_POLY_NEUTRAL"
 RUN_POLY_EXEC_CROSS="$RUN_POLY_EXEC_CROSS"
+RUN_POLY_EXEC_SYSCALL="$RUN_POLY_EXEC_SYSCALL"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_CALL="$RUN_POLY_CALL"
 RUN_POLY_THREAD="$RUN_POLY_THREAD"
@@ -6395,6 +6397,19 @@ if [ "$RUN_POLY_EXEC_CROSS" = "1" ]; then
       /usr/lib/polyapps/x86_64-process-cross-riscv-needed-real.elf=42 \
       cross-x86-to-riscv-needed >/dev/ttyS0 2>&1
     echo "POLY_EXEC_CROSS_OK" >/dev/ttyS0
+fi
+
+if [ "$RUN_POLY_EXEC_SYSCALL" = "1" ]; then
+    POLYEXEC_TRAP_VECTOR=1 /usr/bin/polyexec \
+      /usr/lib/polyapps/aarch64-svc.elf=0xffffffffffffffda \
+      /usr/lib/polyapps/riscv-ecall.elf=0xffffffffffffffda >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-syscall-real.elf=42 \
+      probe >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-syscall-real.elf=42 \
+      probe >/dev/ttyS0 2>&1
+    echo "POLY_EXEC_SYSCALL_OK" >/dev/ttyS0
 fi
 
 if [ "$RUN_POLY_EXEC" = "1" ]; then
@@ -10142,6 +10157,36 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_EXEC_SYSCALL" == "1" ]]; then
+        if ! grep -q "POLY_EXEC_SYSCALL_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=18446744073709551578 path=/usr/lib/polyapps/aarch64-svc\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=18446744073709551578 path=/usr/lib/polyapps/riscv-ecall\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-syscall-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-syscall-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -Ec "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 1 ]]; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -c "SYSCALL_OK" "$SERIAL_LOG" || true)" -lt 2 ]]; then
           sleep 1
           continue
         fi
