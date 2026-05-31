@@ -4398,22 +4398,24 @@ static uint32_t foreign_pcall_sig_slot_insn_count(uint32_t signature_slot) {
   return 1U;
 }
 
-static void emit_aarch64_pcall_sig_slot(uint8_t *stubs,
+static int emit_aarch64_pcall_sig_slot(uint8_t *stubs,
     size_t *stub_offset, uint32_t signature_slot) {
   if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(stubs, stub_offset,
       0xd5032a1fU | (signature_slot << 5)); // PCALL_SIG_IMM
-    return;
+    return 0;
   }
+  return -1;
 }
 
-static void emit_riscv_pcall_sig_slot(uint8_t *stubs, size_t *stub_offset,
+static int emit_riscv_pcall_sig_slot(uint8_t *stubs, size_t *stub_offset,
     uint32_t signature_slot) {
   if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(stubs, stub_offset,
       0x4000700bU | (signature_slot << 25)); // PCALL_SIG_IMM
-    return;
+    return 0;
   }
+  return -1;
 }
 
 static void emit_aarch64_compact_pre_pcall(uint8_t *stubs,
@@ -4544,8 +4546,9 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       emit_aarch64_movabs(stubs, stub_offset, 16, target);
       emit_u32(stubs, stub_offset, 0xd2800051U); // movz x17,#2 (RISC-V)
       emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
-      emit_aarch64_pcall_sig_slot(stubs, stub_offset,
-        selected_signature_slot);
+      if (emit_aarch64_pcall_sig_slot(stubs, stub_offset,
+            selected_signature_slot) < 0)
+        return -1;
       emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
       record_cross_stub_stats(stats, caller_arch, callee_arch, bridge_kind);
       *stub_addr = start_addr;
@@ -4569,8 +4572,9 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     if (uses_signature_slot) {
       emit_u32(stubs, stub_offset, 0xd2800051U); // movz x17,#2 (RISC-V)
       emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
-      emit_aarch64_pcall_sig_slot(stubs, stub_offset,
-        selected_signature_slot);
+      if (emit_aarch64_pcall_sig_slot(stubs, stub_offset,
+            selected_signature_slot) < 0)
+        return -1;
     }
     else {
       const uint32_t call_opcode =
@@ -4632,8 +4636,9 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       const uint32_t selected_signature_slot =
         cross_signature_slot_for_bridge(bridge_kind, signature_slot,
           vec128_signature_slot, fp64_signature_slot, fp32_signature_slot);
-      emit_riscv_pcall_sig_slot(stubs, stub_offset,
-        selected_signature_slot);
+      if (emit_riscv_pcall_sig_slot(stubs, stub_offset,
+            selected_signature_slot) < 0)
+        return -1;
     }
     else {
       const uint32_t call_opcode =
@@ -5215,7 +5220,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_aarch64_movabs(stubs, stub_offset, 16, pcall_target);
     emit_aarch64_movabs(stubs, stub_offset, 17, 0);
     emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
-    emit_aarch64_pcall_sig_slot(stubs, stub_offset, signature_slot);
+    if (emit_aarch64_pcall_sig_slot(stubs, stub_offset, signature_slot) < 0)
+      return -1;
     if (split_fp32_pair_return) {
       emit_u32(stubs, stub_offset, 0x0e0c3c09U); // umov w9, v0.s[1]
       emit_u32(stubs, stub_offset, 0x1e270121U); // fmov s1, w9
@@ -5261,7 +5267,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, riscv_sd(25, 2, 80)); // s9
     emit_u32(stubs, stub_offset, riscv_sd(26, 2, 88)); // s10
     emit_u32(stubs, stub_offset, riscv_sd(27, 2, 96)); // s11
-    emit_riscv_pcall_sig_slot(stubs, stub_offset, signature_slot);
+    if (emit_riscv_pcall_sig_slot(stubs, stub_offset, signature_slot) < 0)
+      return -1;
     const size_t return_pc = *stub_offset;
     if (split_fp32_pair_return) {
       emit_u32(stubs, stub_offset, riscv_fmv_x_d(5, 10)); // fmv.x.d t0,fa0
