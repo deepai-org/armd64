@@ -17,9 +17,12 @@
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
-#define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
 #define POLY_OP_PCALL_SIG_IMM_NATIVE ".byte 0x0f,0x3a,0xfc,0x33\n"
 #define POLY_OP_PCALL_SIG_IMM_FP64 ".byte 0x0f,0x3a,0xfc,0x38\n"
+#define POLY_AARCH64_PCALL_SIG_IMM_NATIVE ".long 0xd5032a7f\n"
+#define POLY_AARCH64_PCALL_SIG_IMM_FP64 ".long 0xd5032b1f\n"
+#define POLY_RISCV_PCALL_SIG_IMM_NATIVE ".long 0x4600700b\n"
+#define POLY_RISCV_PCALL_SIG_IMM_FP64 ".long 0x5000700b\n"
 
 enum {
   POLYTHREAD_THREADS = 4,
@@ -33,11 +36,6 @@ static pthread_barrier_t start_barrier;
 static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
 static uint64_t explicit_state_key_counter __attribute__((aligned(8)));
 static uint64_t real_xsave_context_counter __attribute__((aligned(8)));
-static uint32_t polythread_native_signature_slot =
-  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
-static uint32_t polythread_fp64_signature_slot =
-  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
-
 struct polythread_monitor_packet {
   struct poly_trap_packet trap;
   uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
@@ -181,7 +179,7 @@ static int check_polythread_contract(void) {
   return 0;
 }
 
-static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
+static int setup_polythread_native_signature_slot(void) {
   const struct poly_cpuid_regs expected_x86_controls =
     poly_cpuid_expected_escape_leaf5();
   const struct poly_cpuid_regs expected_fp64_signature =
@@ -238,9 +236,6 @@ static int setup_polythread_native_signature_slot(uint32_t *slot_out) {
       native_slot, fp64_slot);
     return -1;
   }
-  polythread_native_signature_slot = native_slot;
-  polythread_fp64_signature_slot = fp64_slot;
-  *slot_out = native_slot;
   return 0;
 }
 
@@ -800,30 +795,25 @@ static uint64_t trap_riscv_import(uint64_t arg0, uint64_t arg6,
 static uint64_t direct_aarch64_x86_sum6(uint64_t a0, uint64_t a1,
     uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   register uint64_t r8_arg asm("r8") = a5;
-  register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
   register uint64_t target asm("r10") =
     (uint64_t) (uintptr_t) polythread_x86_import_sum6;
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0x10000072\n" // adr x18,return
-    ".long 0xaa0603f3\n" // mov x19,x6, signature slot from R9/P6
-    ".long 0xd5032f5f\n" // generic signature pcall
+    ".long 0x10000052\n" // adr x18,return
+    POLY_AARCH64_PCALL_SIG_IMM_NATIVE // signature slot 3
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg), "+r"(signature_slot), "+r"(target)
+      "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
   return a0;
 }
 
 static uint64_t direct_riscv_x86_sum6(uint64_t a0, uint64_t a1,
     uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
   register uint64_t r8_arg asm("r8") = a5;
-  register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
   register uint64_t target asm("r10") =
     (uint64_t) (uintptr_t) polythread_x86_import_sum6;
   asm volatile(
@@ -831,20 +821,17 @@ static uint64_t direct_riscv_x86_sum6(uint64_t a0, uint64_t a1,
     ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
-    ".long 0x01038393\n" // addi t2,t2,16 -> return
-    ".long 0x00080e13\n" // addi t3,a6,0, signature slot from R9/P6
-    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    POLY_RISCV_PCALL_SIG_IMM_NATIVE // signature slot 3
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg), "+r"(signature_slot), "+r"(target)
+      "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
   return a0;
 }
 
 static uint64_t direct_aarch64_x86_signature_sum6(uint64_t a0) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
   register uint64_t target asm("r10") =
     (uint64_t) (uintptr_t) polythread_x86_import_sum6;
   asm volatile(
@@ -856,20 +843,17 @@ static uint64_t direct_aarch64_x86_signature_sum6(uint64_t a0) {
     ".long 0x91001004\n" // add x4,x0,#4
     ".long 0x91001405\n" // add x5,x0,#5
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0x10000072\n" // adr x18,return
-    ".long 0xaa0603f3\n" // mov x19,x6, signature slot from R9/P6
-    ".long 0xd5032f5f\n" // generic signature pcall
+    ".long 0x10000052\n" // adr x18,return
+    POLY_AARCH64_PCALL_SIG_IMM_NATIVE // signature slot 3
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(a0), "+r"(signature_slot), "+r"(target)
+    : "+a"(a0), "+r"(target)
     :
-    : "rdx", "rcx", "rdi", "rsi", "r8", "r11", "r12", "r13",
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
       "r14", "memory");
   return a0;
 }
 
 static uint64_t direct_riscv_x86_signature_sum6(uint64_t a0) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
   register uint64_t target asm("r10") =
     (uint64_t) (uintptr_t) polythread_x86_import_sum6;
   asm volatile(
@@ -882,21 +866,18 @@ static uint64_t direct_riscv_x86_signature_sum6(uint64_t a0) {
     ".long 0x00550793\n" // addi a5,a0,5
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
-    ".long 0x01038393\n" // addi t2,t2,16 -> return
-    ".long 0x00080e13\n" // addi t3,a6,0, signature slot from R9/P6
-    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    POLY_RISCV_PCALL_SIG_IMM_NATIVE // signature slot 3
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(a0), "+r"(signature_slot), "+r"(target)
+    : "+a"(a0), "+r"(target)
     :
-    : "rdx", "rcx", "rdi", "rsi", "r8", "r11", "r12", "r13",
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
       "r14", "memory");
   return a0;
 }
 
 static uint64_t direct_aarch64_x86_signature_fp64_mul(uint64_t left_bits,
     uint64_t right_bits) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
@@ -906,24 +887,21 @@ static uint64_t direct_aarch64_x86_signature_fp64_mul(uint64_t left_bits,
     ".long 0xaa0003f0\n" // mov x16,x0 (target)
     ".long 0xaa0103f2\n" // mov x18,x1 (return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xaa0603f3\n" // mov x19,x6, signature slot from R9/P6
-    ".long 0xd5032f5f\n" // generic signature pcall
+    POLY_AARCH64_PCALL_SIG_IMM_FP64 // signature slot 8
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
     "2:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+r"(signature_slot)
     :
-    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r10", "r11",
+    :
+    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
         "r12", "r13", "r14", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
 static uint64_t direct_riscv_x86_signature_fp64_mul(uint64_t left_bits,
     uint64_t right_bits) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
@@ -933,23 +911,20 @@ static uint64_t direct_riscv_x86_signature_fp64_mul(uint64_t left_bits,
     ".long 0x00050293\n" // mv x5,a0 (target)
     ".long 0x00058393\n" // mv x7,a1 (return)
     ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
-    ".long 0x00080e13\n" // addi t3,a6,0, signature slot from R9/P6
-    ".long 0x1400700b\n" // generic signature pcall
+    POLY_RISCV_PCALL_SIG_IMM_FP64 // signature slot 8
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
     "2:\n"
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+r"(signature_slot)
     :
-    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r10", "r11",
+    :
+    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
         "r12", "r13", "r14", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
 static uint64_t direct_aarch64_riscv_signature_sum6(uint64_t a0) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     POLY_OP_ENTER_A64
@@ -960,9 +935,8 @@ static uint64_t direct_aarch64_riscv_signature_sum6(uint64_t a0) {
     ".long 0x91001004\n" // add x4,x0,#4
     ".long 0x91001405\n" // add x5,x0,#5
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
-    ".long 0x10000072\n" // adr x18,return
-    ".long 0xaa0603f3\n" // mov x19,x6, signature slot from R9/P6
-    ".long 0xd5032f5f\n" // generic signature pcall
+    ".long 0x10000052\n" // adr x18,return
+    POLY_AARCH64_PCALL_SIG_IMM_NATIVE // signature slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -974,16 +948,14 @@ static uint64_t direct_aarch64_riscv_signature_sum6(uint64_t a0) {
     ".long 0x00f50533\n" // add a0,a0,a5
     ".long 0x00008067\n" // ret through hardware return cookie
     "2:\n"
-    : "+a"(a0), "+r"(signature_slot)
+    : "+a"(a0)
     :
-    : "rdx", "rcx", "rdi", "rsi", "r8", "r10", "r11", "r12",
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
       "r13", "r14", "memory");
   return a0;
 }
 
 static uint64_t direct_riscv_aarch64_signature_sum6(uint64_t a0) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_native_signature_slot;
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     POLY_OP_ENTER_RV64
@@ -995,9 +967,8 @@ static uint64_t direct_riscv_aarch64_signature_sum6(uint64_t a0) {
     ".long 0x00550793\n" // addi a5,a0,5
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
-    ".long 0x01038393\n" // addi t2,t2,16 -> return
-    ".long 0x00080e13\n" // addi t3,a6,0, signature slot from R9/P6
-    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    POLY_RISCV_PCALL_SIG_IMM_NATIVE // signature slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -1009,17 +980,15 @@ static uint64_t direct_riscv_aarch64_signature_sum6(uint64_t a0) {
     ".long 0x8b050000\n" // add x0,x0,x5
     ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
     "2:\n"
-    : "+a"(a0), "+r"(signature_slot)
+    : "+a"(a0)
     :
-    : "rdx", "rcx", "rdi", "rsi", "r8", "r10", "r11", "r12",
+    : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
       "r13", "r14", "memory");
   return a0;
 }
 
 static uint64_t direct_aarch64_riscv_signature_fp64_mix(uint64_t left_bits,
     uint64_t right_bits) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
@@ -1027,9 +996,8 @@ static uint64_t direct_aarch64_riscv_signature_fp64_mix(uint64_t left_bits,
     POLY_OP_ENTER_A64
     ".long 0xaa0703f0\n" // mov x16,x7, RISC-V target from R10/P7
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
-    ".long 0x10000072\n" // adr x18,return
-    ".long 0xaa0603f3\n" // mov x19,x6, signature slot from R9/P6
-    ".long 0xd5032f5f\n" // generic signature pcall
+    ".long 0x10000052\n" // adr x18,return
+    POLY_AARCH64_PCALL_SIG_IMM_FP64 // signature slot 8
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -1039,17 +1007,15 @@ static uint64_t direct_aarch64_riscv_signature_fp64_mix(uint64_t left_bits,
     ".long 0x12b50553\n" // fmul.d fa0,fa0,fa1
     ".long 0x00008067\n" // ret through hardware return cookie
     "2:\n"
-    : "+r"(signature_slot)
     :
-    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r10", "r11",
+    :
+    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
         "r12", "r13", "r14", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
 static uint64_t direct_riscv_aarch64_signature_fp64_mix(uint64_t left_bits,
     uint64_t right_bits) {
-  register uint64_t signature_slot asm("r9") =
-    polythread_fp64_signature_slot;
   write_xmm0_u64(left_bits);
   write_xmm1_u64(right_bits);
   asm volatile(
@@ -1058,9 +1024,8 @@ static uint64_t direct_riscv_aarch64_signature_fp64_mix(uint64_t left_bits,
     ".long 0x00088293\n" // addi t0,a7,0, AArch64 target from R10/P7
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
-    ".long 0x01038393\n" // addi t2,t2,16 -> return
-    ".long 0x00080e13\n" // addi t3,a6,0, signature slot from R9/P6
-    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    POLY_RISCV_PCALL_SIG_IMM_FP64 // signature slot 8
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -1070,9 +1035,9 @@ static uint64_t direct_riscv_aarch64_signature_fp64_mix(uint64_t left_bits,
     ".long 0x1e610800\n" // fmul d0,d0,d1
     ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
     "2:\n"
-    : "+r"(signature_slot)
     :
-    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r10", "r11",
+    :
+    : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
         "r12", "r13", "r14", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
@@ -1397,8 +1362,7 @@ static void *worker_main(void *arg) {
   if (wait_for_workers(worker_id, "real-xsave-context") != 0)
     return (void *) 1;
 
-  uint32_t native_signature_slot = 0;
-  if (setup_polythread_native_signature_slot(&native_signature_slot) != 0) {
+  if (setup_polythread_native_signature_slot() != 0) {
     fprintf(stderr, "POLYTHREAD_FAIL: worker=%lu native ABI signature setup failed\n",
       (unsigned long) worker_id);
     return (void *) 1;
