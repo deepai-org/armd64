@@ -4786,9 +4786,6 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       import_id == POLY_IMPORT_FUNC_X86_ALIGN14)
     int_stack_arg_count = 8;
   const int needs_int_stack_x86_thunk = int_stack_arg_count != 0;
-  const int needs_riscv_vec128_x86_thunk =
-    caller_arch == POLY_ARCH_RISCV &&
-    import_id == POLY_IMPORT_FUNC_X86_VEC128_U32;
   const int needs_riscv_fp128_return_x86_thunk =
     x86_direct_import_needs_riscv_fp128_return_thunk(caller_arch, import_id);
   const int needs_fp64_stack_x86_thunk =
@@ -4800,7 +4797,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   const int needs_mixed_stack_x86_thunk =
     import_id == POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK;
   const int needs_x86_thunk =
-    needs_int_stack_x86_thunk || needs_riscv_vec128_x86_thunk ||
+    needs_int_stack_x86_thunk ||
     needs_riscv_fp128_return_x86_thunk ||
     needs_fp64_stack_x86_thunk || needs_sret_stack_x86_thunk ||
     needs_sret_stack10_x86_thunk || needs_mixed_stack_x86_thunk;
@@ -4859,71 +4856,6 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     stubs[(*stub_offset)++] = 0x83;
     stubs[(*stub_offset)++] = 0xc4;
     stubs[(*stub_offset)++] = stack_bytes;
-    stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
-  }
-  else if (needs_riscv_vec128_x86_thunk) {
-    if (stub_limit - *stub_offset < 96)
-      return -1;
-    x86_thunk_addr = (uint64_t) (uintptr_t) (stubs + *stub_offset);
-    stubs[(*stub_offset)++] = 0x66; // movq xmm0,rdi
-    stubs[(*stub_offset)++] = 0x48;
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x6e;
-    stubs[(*stub_offset)++] = 0xc7;
-    stubs[(*stub_offset)++] = 0x66; // movq xmm2,rsi
-    stubs[(*stub_offset)++] = 0x48;
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x6e;
-    stubs[(*stub_offset)++] = 0xd6;
-    stubs[(*stub_offset)++] = 0x66; // punpcklqdq xmm0,xmm2
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x6c;
-    stubs[(*stub_offset)++] = 0xc2;
-    stubs[(*stub_offset)++] = 0x66; // movq xmm1,rdx
-    stubs[(*stub_offset)++] = 0x48;
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x6e;
-    stubs[(*stub_offset)++] = 0xca;
-    stubs[(*stub_offset)++] = 0x66; // movq xmm2,rcx
-    stubs[(*stub_offset)++] = 0x48;
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x6e;
-    stubs[(*stub_offset)++] = 0xd1;
-    stubs[(*stub_offset)++] = 0x66; // punpcklqdq xmm1,xmm2
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x6c;
-    stubs[(*stub_offset)++] = 0xca;
-    stubs[(*stub_offset)++] = 0x48; // sub rsp,8: align before x86 call.
-    stubs[(*stub_offset)++] = 0x83;
-    stubs[(*stub_offset)++] = 0xec;
-    stubs[(*stub_offset)++] = 0x08;
-    emit_movabs_r11(stubs, stub_offset, target);
-    stubs[(*stub_offset)++] = 0x41; // call r11
-    stubs[(*stub_offset)++] = 0xff;
-    stubs[(*stub_offset)++] = 0xd3;
-    stubs[(*stub_offset)++] = 0x48; // add rsp,8
-    stubs[(*stub_offset)++] = 0x83;
-    stubs[(*stub_offset)++] = 0xc4;
-    stubs[(*stub_offset)++] = 0x08;
-    stubs[(*stub_offset)++] = 0x66; // movq rax,xmm0
-    stubs[(*stub_offset)++] = 0x48;
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x7e;
-    stubs[(*stub_offset)++] = 0xc0;
-    stubs[(*stub_offset)++] = 0x66; // movdqa xmm2,xmm0
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x6f;
-    stubs[(*stub_offset)++] = 0xd0;
-    stubs[(*stub_offset)++] = 0x66; // psrldq xmm2,8
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x73;
-    stubs[(*stub_offset)++] = 0xda;
-    stubs[(*stub_offset)++] = 0x08;
-    stubs[(*stub_offset)++] = 0x66; // movq rdx,xmm2
-    stubs[(*stub_offset)++] = 0x48;
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x7e;
-    stubs[(*stub_offset)++] = 0xd2;
     stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
   }
   else if (needs_riscv_fp128_return_x86_thunk) {
@@ -5170,8 +5102,6 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     needs_sret_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_sret_stack10_x86_thunk ? contract->signature_slot_exchange :
     needs_mixed_stack_x86_thunk ? contract->signature_slot_exchange :
-    needs_riscv_vec128_x86_thunk ?
-      contract->signature_slot_x86_sysv_regs_i128 :
     needs_riscv_fp128_return_x86_thunk ?
       contract->signature_slot_x86_sysv_regs_i128 :
     x86_direct_import_uses_vec128_signature(import_id) ?
