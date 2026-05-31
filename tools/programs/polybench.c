@@ -11,6 +11,7 @@
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
+#define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLYBENCH_AARCH64_PCALL_SIG_IMM(slot) \
   POLY_AARCH64_CTRL_CALL_SIG_IMM(slot)
@@ -157,6 +158,15 @@ static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
+static inline uint64_t poly_abi_signature_get(uint64_t slot) {
+  uint64_t rax = slot;
+  asm volatile(POLY_OP_ABI_SIGNATURE_GET
+    : "+a"(rax)
+    :
+    : "memory");
+  return rax;
+}
+
 static int setup_polybench_signature_slots(void) {
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
@@ -170,10 +180,15 @@ static int setup_polybench_signature_slots(void) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 23);
   const struct poly_cpuid_regs expected_fp32_signature =
     poly_cpuid_expected_escape_leaf23();
+  const struct poly_cpuid_regs sret_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 24);
+  const struct poly_cpuid_regs expected_sret_signature =
+    poly_cpuid_expected_escape_leaf24();
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
   const uint32_t fp64_slot = fp64_signature.edx;
   const uint32_t fp32_slot = fp32_signature.edx;
+  const uint32_t sret_slot = sret_signature.eax;
   if (signature.eax != expected_signature.eax ||
       signature.ebx != expected_signature.ebx ||
       signature.ecx != expected_signature.ecx ||
@@ -209,6 +224,22 @@ static int setup_polybench_signature_slots(void) {
       fp32_signature.edx, expected_fp32_signature.eax,
       expected_fp32_signature.ebx, expected_fp32_signature.ecx,
       expected_fp32_signature.edx);
+    return -1;
+  }
+  if (sret_signature.eax != expected_sret_signature.eax ||
+      sret_signature.ebx != expected_sret_signature.ebx ||
+      sret_signature.ecx != expected_sret_signature.ecx ||
+      sret_signature.edx != expected_sret_signature.edx ||
+      sret_slot >= signature.ebx ||
+      poly_abi_signature_get(sret_slot) !=
+        POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: SRET signature manifest mismatch sret=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x) kind=%llu\n",
+      sret_signature.eax, sret_signature.ebx, sret_signature.ecx,
+      sret_signature.edx, expected_sret_signature.eax,
+      expected_sret_signature.ebx, expected_sret_signature.ecx,
+      expected_sret_signature.edx,
+      (unsigned long long) poly_abi_signature_get(sret_slot));
     return -1;
   }
   if (poly_abi_signature_set(native_slot,

@@ -29,8 +29,10 @@ code in the same process and virtual address space. Deeper rationale lives in
 ## ABI
 
 - Fast `PCALL` is register-only.
-- ABI signatures alias `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` to `x0..x7` and `a0..a7`
-  without moving data.
+- ABI signatures select fixed register maps for native ABI calls without moving
+  data.
+- The null exchange map is `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = `x0..x7` =
+  `a0..a7`.
 - Software thunks handle stack arguments, aggregates, variadics, structure returns,
   lazy binding, syscall translation, libcalls, and incompatible vectors.
 
