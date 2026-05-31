@@ -10728,11 +10728,19 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-needed-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-riscv-needed-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
         if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-needed-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
@@ -10856,11 +10864,19 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-stack9-real\\.elf.*stack_bridges=[1-9][0-9]*" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-riscv-stack9-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
         if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-stack9-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-stack9-real\\.elf.*stack_bridges=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
