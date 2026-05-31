@@ -8166,6 +8166,10 @@ int main(void) {
       poly_cpuid_expected_escape_leaf25();
     struct poly_cpuid_regs fp128_ret_signature_manifest =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 25);
+    struct poly_cpuid_regs expected_hfa32_ret_signature_manifest =
+      poly_cpuid_expected_escape_leaf26();
+    struct poly_cpuid_regs hfa32_ret_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 26);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -8218,6 +8222,21 @@ int main(void) {
         fp128_ret_signature_manifest.ebx,
         fp128_ret_signature_manifest.ecx,
         fp128_ret_signature_manifest.edx);
+      return 1;
+    }
+    if (hfa32_ret_signature_manifest.eax !=
+          expected_hfa32_ret_signature_manifest.eax ||
+        hfa32_ret_signature_manifest.ebx !=
+          expected_hfa32_ret_signature_manifest.ebx ||
+        hfa32_ret_signature_manifest.ecx !=
+          expected_hfa32_ret_signature_manifest.ecx ||
+        hfa32_ret_signature_manifest.edx !=
+          expected_hfa32_ret_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID AArch64 HFA32 return ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        hfa32_ret_signature_manifest.eax,
+        hfa32_ret_signature_manifest.ebx,
+        hfa32_ret_signature_manifest.ecx,
+        hfa32_ret_signature_manifest.edx);
       return 1;
     }
     if (check_poly_abi_signature_slot_default(
