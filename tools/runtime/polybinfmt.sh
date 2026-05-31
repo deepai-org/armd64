@@ -49,6 +49,10 @@ case "$path" in
   */aarch64-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-syscall-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-reloc-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-needed-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-needed-envpath-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-needed-runpath-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-needed-rpath-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-needed-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
@@ -57,6 +61,10 @@ case "$path" in
   */aarch64-process-cross-fp64-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-vec128-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-compact-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-tls-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-tls-needed-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-tls-default-needed-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-copy-reloc-real.elf) expected=42; process_mode=1 ;;
   */aarch64-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */aarch64-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
@@ -276,6 +284,10 @@ case "$path" in
   */riscv-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-syscall-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-reloc-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-needed-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-needed-envpath-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-needed-runpath-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-needed-rpath-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-needed-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
@@ -284,6 +296,10 @@ case "$path" in
   */riscv-process-cross-fp64-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-vec128-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-compact-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-tls-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-tls-needed-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-tls-default-needed-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-copy-reloc-real.elf) expected=42; process_mode=1 ;;
   */riscv-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */riscv-polyexec-gnu-hash-rv64gc.so) expected=45; entry="#poly_entry" ;;
   */riscv-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
