@@ -12,7 +12,7 @@ __asm__(
   ".previous\n");
 
 __attribute__((visibility("default")))
-double poly_cross_fp64_mix(double left, double right)
+double poly_cross_fp64_mix(double left, double right, double scale)
 {
-  return ((left + right) - right) * right;
+  return (left + right) * scale;
 }

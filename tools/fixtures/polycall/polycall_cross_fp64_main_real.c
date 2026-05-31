@@ -3,13 +3,13 @@ union poly_fp64_bits {
   unsigned long u;
 };
 
-extern double poly_cross_fp64_mix(double, double);
+extern double poly_cross_fp64_mix(double, double, double);
 
 __attribute__((visibility("default")))
 unsigned long poly_entry(void)
 {
   const union poly_fp64_bits result = {
-    .f = poly_cross_fp64_mix(1.5, 2.25)
+    .f = poly_cross_fp64_mix(1.5, 2.25, 3.0)
   };
   return result.u;
 }
