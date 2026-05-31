@@ -144,6 +144,28 @@ double poly_process_needed_fp64(double left, double right) {
   return left + right + 4.0;
 }
 
+#elif defined(POLY_PROCESS_NEEDED_FP32_DEP)
+
+#if defined(__x86_64__)
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_fp32 fp32\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+#endif
+
+__attribute__((visibility("default")))
+float poly_process_needed_fp32(float left, float right) {
+  return left + right + 4.0f;
+}
+
 #elif defined(POLY_PROCESS_NEEDED_VEC128_DEP)
 
 __asm__(
@@ -424,6 +446,8 @@ extern uint64_t poly_process_needed_mid(uint64_t, uint64_t);
 extern uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_FP64_MAIN)
 extern double poly_process_needed_fp64(double, double);
+#elif defined(POLY_PROCESS_NEEDED_FP32_MAIN)
+extern float poly_process_needed_fp32(float, float);
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
 extern poly_u32x4 poly_process_needed_vec128(poly_u32x4, poly_u32x4);
 #elif defined(POLY_PROCESS_NEEDED_COMPACT_MAIN)
@@ -688,6 +712,13 @@ uint64_t poly_process_main(void) {
   if (poly_process_needed_fp64(1.5, 2.25) != 7.75)
     return 50;
   static const char marker[] = "POLY_PROCESS_CROSS_FP64_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_FP32_MAIN)
+  const union poly_float_bits result = {
+    .f = poly_process_needed_fp32(1.5f, 2.25f)
+  };
+  if (result.u != 0x40f80000U)
+    return 54;
+  static const char marker[] = "POLY_PROCESS_CROSS_FP32_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
   union {
     poly_u32x4 v;
