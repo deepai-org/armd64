@@ -4987,6 +4987,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10;
     const uint32_t aarch64_save_bytes =
       needs_aarch64_sret_stack10_stage ? 112U : 96U;
+    const int generic_signature_slot = signature_slot >= 8;
     uint32_t pre_pcall_insns = 7; // sp adjust plus x19-x30 saves.
     if (needs_aarch64_sret_stack10_stage)
       pre_pcall_insns += 2;
@@ -4997,7 +4998,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       pre_pcall_insns += 4;
     pre_pcall_insns += 12; // x16 target, x17 mode, x18 return PC.
     const uint64_t return_addr = start_addr +
-      ((uint64_t) pre_pcall_insns + 1U) * 4U;
+      ((uint64_t) pre_pcall_insns + (generic_signature_slot ? 2U : 1U)) *
+      4U;
     emit_u32(stubs, stub_offset,
       aarch64_sub_sp_imm(aarch64_save_bytes));
     emit_u32(stubs, stub_offset, aarch64_stp_sp(19, 20, 0));
@@ -5029,8 +5031,15 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_aarch64_movabs(stubs, stub_offset, 16, pcall_target);
     emit_aarch64_movabs(stubs, stub_offset, 17, 0);
     emit_aarch64_movabs(stubs, stub_offset, 18, return_addr);
-    emit_u32(stubs, stub_offset,
-      0xd5032c1fU | ((signature_slot & 0x7U) << 5)); // aarch64 PCALL_SIG_IMM
+    if (generic_signature_slot) {
+      emit_u32(stubs, stub_offset,
+        0xd2800013U | (signature_slot << 5)); // movz x19,#slot
+      emit_u32(stubs, stub_offset, 0xd5032f5fU); // aarch64 PCALL_SIG
+    }
+    else {
+      emit_u32(stubs, stub_offset,
+        0xd5032c1fU | ((signature_slot & 0x7U) << 5)); // PCALL_SIG_IMM
+    }
     if (split_fp32_pair_return) {
       emit_u32(stubs, stub_offset, 0x0e0c3c09U); // umov w9, v0.s[1]
       emit_u32(stubs, stub_offset, 0x1e270121U); // fmov s1, w9
@@ -5051,7 +5060,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   }
 
   if (caller_arch == POLY_ARCH_RISCV) {
-    if (stub_limit - start < 160)
+    if (stub_limit - start < 168)
       return -1;
     const size_t auipc_target_pc = *stub_offset;
     emit_u32(stubs, stub_offset, 0x00000297U); // auipc x5,0
@@ -5076,8 +5085,15 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     emit_u32(stubs, stub_offset, riscv_sd(25, 2, 80)); // s9
     emit_u32(stubs, stub_offset, riscv_sd(26, 2, 88)); // s10
     emit_u32(stubs, stub_offset, riscv_sd(27, 2, 96)); // s11
-    emit_u32(stubs, stub_offset,
-      0x2000700bU | ((signature_slot & 0x7U) << 25)); // riscv PCALL_SIG_IMM
+    if (signature_slot >= 8) {
+      emit_u32(stubs, stub_offset,
+        riscv_addi(28, 0, signature_slot)); // addi t3,zero,slot
+      emit_u32(stubs, stub_offset, 0x1400700bU); // riscv PCALL_SIG
+    }
+    else {
+      emit_u32(stubs, stub_offset,
+        0x2000700bU | ((signature_slot & 0x7U) << 25)); // PCALL_SIG_IMM
+    }
     const size_t return_pc = *stub_offset;
     if (split_fp32_pair_return) {
       emit_u32(stubs, stub_offset, riscv_fmv_x_d(5, 10)); // fmv.x.d t0,fa0
