@@ -230,6 +230,7 @@ POLYCALL_ATOMIC_AARCH64_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_atomic_a
 POLYCALL_ATOMIC_RISCV_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_atomic_riscv.c"
 POLYCALL_UNSCALED_MEM_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_unscaled_mem_real.c"
 POLYCALL_INDEXED_MEM_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_indexed_mem_real.c"
+POLYCALL_SIGREGS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_sigregs_real.c"
 POLYCALL_CALLEE_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_callee_real.c"
 POLYCALL_FP64_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_fp64_real.c"
 POLYCALL_FP64_STACK_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_fp64_stack_real.c"
@@ -2744,6 +2745,10 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-indexed-mem-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_SIGREGS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sigregs-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_CALLEE_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-callee-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -5212,6 +5217,11 @@ build_poly_elf_payloads() {
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_SIGREGS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-sigregs-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_CALLEE_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-callee-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -7550,6 +7560,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-atomic-lse.so#poly_entry=8590005819 \
     /usr/lib/polyapps/aarch64-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/aarch64-pcall-indexed-mem-real.so#poly_entry=41 \
+    sigregs:/usr/lib/polyapps/aarch64-pcall-sigregs-real.so#poly_entry=183 \
     /usr/lib/polyapps/aarch64-pcall-callee-real.so#poly_entry=420 \
     fp64:/usr/lib/polyapps/aarch64-pcall-fp64-real.so#poly_entry=0x4026800000000000 \
     sigregs-fp64:/usr/lib/polyapps/aarch64-pcall-fp64-real.so#poly_entry=0x4026800000000000 \
@@ -7792,6 +7803,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-atomic.so#poly_entry=8590005819 \
     /usr/lib/polyapps/riscv-pcall-unscaled-mem-real.so#poly_entry=0xffffffffffffffc1 \
     /usr/lib/polyapps/riscv-pcall-indexed-mem-real.so#poly_entry=41 \
+    sigregs:/usr/lib/polyapps/riscv-pcall-sigregs-real.so#poly_entry=183 \
     /usr/lib/polyapps/riscv-pcall-callee-real.so#poly_entry=420 \
     fp64:/usr/lib/polyapps/riscv-pcall-fp64-real.so#poly_entry=0x4026800000000000 \
     sigregs-fp64:/usr/lib/polyapps/riscv-pcall-fp64-real.so#poly_entry=0x4026800000000000 \
