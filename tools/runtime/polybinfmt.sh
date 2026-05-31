@@ -219,6 +219,7 @@ case "$path" in
   */aarch64-pcall-cross-needed-transitive-real.so) expected=1770; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-cross-compact-real.so) expected=0x426d00d642020070; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-cross-ifunc-compact-real.so) expected=0x431f020242a50138; entry="#poly_entry"; runner="polycall" ;;
+  */aarch64-pcall-cross-fp64-real.so) expected=0x400b000000000000; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-cross-ifunc-fp64-stack-real.so) expected=0x4061100000000000; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-cross-ifunc-vec128-real.so) expected=0x01bc014d00de006f; entry="#poly_entry"; runner="polycall" ;;
   */aarch64-pcall-cross-fp64-stack-real.so) expected=0x4061100000000000; entry="#poly_entry"; runner="polycall" ;;
@@ -473,6 +474,7 @@ case "$path" in
   */riscv-pcall-cross-needed-transitive-real.so) expected=1770; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-cross-compact-real.so) expected=0x426d00d642020070; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-cross-ifunc-compact-real.so) expected=0x431f020242a50138; entry="#poly_entry"; runner="polycall" ;;
+  */riscv-pcall-cross-fp64-real.so) expected=0x400b000000000000; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-cross-ifunc-fp64-stack-real.so) expected=0x4061100000000000; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-cross-ifunc-vec128-real.so) expected=0x01bc014d00de006f; entry="#poly_entry"; runner="polycall" ;;
   */riscv-pcall-cross-fp64-stack-real.so) expected=0x4061100000000000; entry="#poly_entry"; runner="polycall" ;;

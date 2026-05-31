@@ -197,6 +197,8 @@ enum {
   RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 = 16,
   RELOC_BASE_ROOT_IFUNC_FP64_STACK = 17,
   RELOC_BASE_X86_DIRECT_IMPORT_STUB = 18,
+  RELOC_BASE_ROOT_CROSS_STUB_FP64 = 19,
+  RELOC_BASE_ROOT_IFUNC_FP64 = 20,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
@@ -211,11 +213,14 @@ enum {
   RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 = 1200,
   RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 = 1300,
   RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK = 1400,
+  RELOC_BASE_DEP_CROSS_STUB_FP64 = 1500,
+  RELOC_BASE_DEP_CROSS_IFUNC_FP64 = 1600,
   POLY_CROSS_BRIDGE_DEFAULT = 0,
   POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK = 1, /* Runtime thunk selector, not XSAVE. */
   POLY_CROSS_BRIDGE_COMPACT_U32_F32 = 2,
   POLY_CROSS_BRIDGE_COMPACT_F32_U32 = 3,
-  POLY_CROSS_BRIDGE_VEC128_U32 = 4
+  POLY_CROSS_BRIDGE_VEC128_U32 = 4,
+  POLY_CROSS_BRIDGE_FP64 = 5
 };
 
 static const uint32_t POLY_CPUID_BASE = 0x40000000U;
@@ -3470,6 +3475,7 @@ static int reloc_base_is_resolver(int base_kind) {
     base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32 ||
     base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 ||
     base_kind == RELOC_BASE_ROOT_IFUNC_FP64_STACK ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_FP64 ||
     (base_kind >= RELOC_BASE_DEP_IFUNC &&
      base_kind < RELOC_BASE_DEP_IFUNC + MAX_NEEDED_DEPS) ||
     (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC &&
@@ -3483,7 +3489,9 @@ static int reloc_base_is_resolver(int base_kind) {
      base_kind <
        RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + MAX_NEEDED_DEPS) ||
     (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
-     base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS);
+     base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64 &&
+     base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64 + MAX_NEEDED_DEPS);
 }
 
 static int reloc_base_is_dep_cross_stub(int base_kind) {
@@ -3498,7 +3506,9 @@ static int reloc_base_is_dep_cross_stub(int base_kind) {
       base_kind <
         RELOC_BASE_DEP_CROSS_STUB_COMPACT_F32_U32 + MAX_NEEDED_DEPS) ||
     (base_kind >= RELOC_BASE_DEP_CROSS_STUB_FP64_STACK &&
-      base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64_STACK + MAX_NEEDED_DEPS);
+      base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64_STACK + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_STUB_FP64 &&
+      base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64 + MAX_NEEDED_DEPS);
 }
 
 static int reloc_base_is_dep_cross_ifunc(int base_kind) {
@@ -3513,7 +3523,9 @@ static int reloc_base_is_dep_cross_ifunc(int base_kind) {
       base_kind <
         RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + MAX_NEEDED_DEPS) ||
     (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
-      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS);
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS) ||
+    (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64 &&
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64 + MAX_NEEDED_DEPS);
 }
 
 static int cross_bridge_kind_from_name(const char *name) {
@@ -3525,6 +3537,8 @@ static int cross_bridge_kind_from_name(const char *name) {
     return POLY_CROSS_BRIDGE_COMPACT_F32_U32;
   if (strcmp(name, "fp64_stack") == 0)
     return POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK;
+  if (strcmp(name, "fp64") == 0)
+    return POLY_CROSS_BRIDGE_FP64;
   if (strcmp(name, "vec128_u32") == 0)
     return POLY_CROSS_BRIDGE_VEC128_U32;
   return -1;
@@ -3779,6 +3793,8 @@ static int dep_cross_stub_base_kind(size_t dep_index, int bridge_kind) {
     return RELOC_BASE_DEP_CROSS_STUB_COMPACT_F32_U32 + (int) dep_index;
   if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_DEP_CROSS_STUB_FP64_STACK + (int) dep_index;
+  if (bridge_kind == POLY_CROSS_BRIDGE_FP64)
+    return RELOC_BASE_DEP_CROSS_STUB_FP64 + (int) dep_index;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_DEP_CROSS_STUB_VEC128 + (int) dep_index;
   return RELOC_BASE_DEP_CROSS_STUB + (int) dep_index;
@@ -3791,6 +3807,8 @@ static int dep_cross_ifunc_base_kind(size_t dep_index, int bridge_kind) {
     return RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + (int) dep_index;
   if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + (int) dep_index;
+  if (bridge_kind == POLY_CROSS_BRIDGE_FP64)
+    return RELOC_BASE_DEP_CROSS_IFUNC_FP64 + (int) dep_index;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + (int) dep_index;
   return RELOC_BASE_DEP_CROSS_IFUNC + (int) dep_index;
@@ -3808,6 +3826,9 @@ static size_t dep_cross_stub_index(int base_kind) {
   if (base_kind >= RELOC_BASE_DEP_CROSS_STUB_FP64_STACK &&
       base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64_STACK + MAX_NEEDED_DEPS)
     return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_STUB_FP64_STACK);
+  if (base_kind >= RELOC_BASE_DEP_CROSS_STUB_FP64 &&
+      base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64 + MAX_NEEDED_DEPS)
+    return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_STUB_FP64);
   if (base_kind >= RELOC_BASE_DEP_CROSS_STUB_VEC128 &&
       base_kind < RELOC_BASE_DEP_CROSS_STUB_VEC128 + MAX_NEEDED_DEPS)
     return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_STUB_VEC128);
@@ -3826,6 +3847,9 @@ static size_t dep_cross_ifunc_index(int base_kind) {
   if (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
       base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS)
     return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK);
+  if (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64 &&
+      base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64 + MAX_NEEDED_DEPS)
+    return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC_FP64);
   if (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_VEC128 &&
       base_kind < RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + MAX_NEEDED_DEPS)
     return (size_t) (base_kind - RELOC_BASE_DEP_CROSS_IFUNC_VEC128);
@@ -3847,6 +3871,10 @@ static int cross_bridge_kind_for_base(int base_kind) {
       (base_kind >= RELOC_BASE_DEP_CROSS_STUB_FP64_STACK &&
         base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64_STACK + MAX_NEEDED_DEPS))
     return POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK;
+  if (base_kind == RELOC_BASE_ROOT_CROSS_STUB_FP64 ||
+      (base_kind >= RELOC_BASE_DEP_CROSS_STUB_FP64 &&
+        base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64 + MAX_NEEDED_DEPS))
+    return POLY_CROSS_BRIDGE_FP64;
   if (base_kind == RELOC_BASE_ROOT_CROSS_STUB_VEC128 ||
       (base_kind >= RELOC_BASE_DEP_CROSS_STUB_VEC128 &&
         base_kind < RELOC_BASE_DEP_CROSS_STUB_VEC128 + MAX_NEEDED_DEPS))
@@ -3869,6 +3897,10 @@ static int cross_bridge_kind_for_ifunc_base(int base_kind) {
       (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
         base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS))
     return POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK;
+  if (base_kind == RELOC_BASE_ROOT_IFUNC_FP64 ||
+      (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64 &&
+        base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64 + MAX_NEEDED_DEPS))
+    return POLY_CROSS_BRIDGE_FP64;
   if (base_kind == RELOC_BASE_ROOT_IFUNC_VEC128 ||
       (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_VEC128 &&
         base_kind < RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + MAX_NEEDED_DEPS))
@@ -3883,6 +3915,8 @@ static int root_cross_stub_base_kind(int bridge_kind) {
     return RELOC_BASE_ROOT_CROSS_STUB_COMPACT_F32_U32;
   if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_ROOT_CROSS_STUB_FP64_STACK;
+  if (bridge_kind == POLY_CROSS_BRIDGE_FP64)
+    return RELOC_BASE_ROOT_CROSS_STUB_FP64;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_ROOT_CROSS_STUB_VEC128;
   return RELOC_BASE_ROOT_CROSS_STUB;
@@ -3895,6 +3929,8 @@ static int root_ifunc_base_kind(int bridge_kind) {
     return RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32;
   if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_ROOT_IFUNC_FP64_STACK;
+  if (bridge_kind == POLY_CROSS_BRIDGE_FP64)
+    return RELOC_BASE_ROOT_IFUNC_FP64;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_ROOT_IFUNC_VEC128;
   return RELOC_BASE_ROOT_IFUNC;
@@ -4139,7 +4175,8 @@ static int reloc_base_is_root_cross_stub(int base_kind) {
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_VEC128 ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_COMPACT_U32_F32 ||
     base_kind == RELOC_BASE_ROOT_CROSS_STUB_COMPACT_F32_U32 ||
-    base_kind == RELOC_BASE_ROOT_CROSS_STUB_FP64_STACK;
+    base_kind == RELOC_BASE_ROOT_CROSS_STUB_FP64_STACK ||
+    base_kind == RELOC_BASE_ROOT_CROSS_STUB_FP64;
 }
 
 static int reloc_base_is_root_ifunc(int base_kind) {
@@ -4147,7 +4184,8 @@ static int reloc_base_is_root_ifunc(int base_kind) {
     base_kind == RELOC_BASE_ROOT_IFUNC_VEC128 ||
     base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32 ||
     base_kind == RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32 ||
-    base_kind == RELOC_BASE_ROOT_IFUNC_FP64_STACK;
+    base_kind == RELOC_BASE_ROOT_IFUNC_FP64_STACK ||
+    base_kind == RELOC_BASE_ROOT_IFUNC_FP64;
 }
 
 static uint32_t aarch64_cross_call_opcode_for_bridge(int bridge_kind) {
@@ -4165,7 +4203,8 @@ static int cross_bridge_uses_signature_slot(int bridge_kind) {
     bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32 ||
     bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32 ||
     bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK ||
-    bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32;
+    bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32 ||
+    bridge_kind == POLY_CROSS_BRIDGE_FP64;
 }
 
 static uint32_t cross_signature_slot_for_bridge(int bridge_kind,
@@ -4173,7 +4212,8 @@ static uint32_t cross_signature_slot_for_bridge(int bridge_kind,
     uint32_t fp64_signature_slot) {
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return vec128_signature_slot;
-  if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
+  if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK ||
+      bridge_kind == POLY_CROSS_BRIDGE_FP64)
     return fp64_signature_slot;
   return signature_slot;
 }
@@ -4277,7 +4317,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     return 0;
   }
   if (bridge_kind < POLY_CROSS_BRIDGE_DEFAULT ||
-      bridge_kind > POLY_CROSS_BRIDGE_VEC128_U32)
+      bridge_kind > POLY_CROSS_BRIDGE_FP64)
     return -1;
 
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
