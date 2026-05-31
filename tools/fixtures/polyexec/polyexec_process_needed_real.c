@@ -231,6 +231,34 @@ struct poly_hfa4_f32 poly_process_needed_hfa4_f32(float a, float b, float c) {
   return out;
 }
 
+#elif defined(POLY_PROCESS_NEEDED_HFA32_ARG_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_hfa3_f32_arg aarch64_hfa3_f32_arg\\n\"\n"
+  "   .ascii \"poly_process_needed_hfa4_f32_arg aarch64_hfa4_f32_arg\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+float poly_process_needed_hfa3_f32_arg(struct poly_hfa3_f32 arg,
+    float scale) {
+  return (arg.a + arg.b + arg.c) * scale;
+}
+
+__attribute__((visibility("default")))
+float poly_process_needed_hfa4_f32_arg(struct poly_hfa4_f32 arg,
+    float scale) {
+  return (arg.a + arg.b + arg.c + arg.d) * scale;
+}
+
 #elif defined(POLY_PROCESS_NEEDED_FPAIR_ARG_DEP)
 
 __asm__(
@@ -576,6 +604,9 @@ extern float poly_process_needed_fp32(float, float);
 #elif defined(POLY_PROCESS_NEEDED_HFA32_MAIN)
 extern struct poly_hfa3_f32 poly_process_needed_hfa3_f32(float, float, float);
 extern struct poly_hfa4_f32 poly_process_needed_hfa4_f32(float, float, float);
+#elif defined(POLY_PROCESS_NEEDED_HFA32_ARG_MAIN)
+extern float poly_process_needed_hfa3_f32_arg(struct poly_hfa3_f32, float);
+extern float poly_process_needed_hfa4_f32_arg(struct poly_hfa4_f32, float);
 #elif defined(POLY_PROCESS_NEEDED_FPAIR_ARG_MAIN)
 extern float poly_process_needed_fpair32_arg(struct poly_fpair32, float);
 extern double poly_process_needed_fpair64_arg(struct poly_fpair64, double);
@@ -872,6 +903,18 @@ uint64_t poly_process_main(void) {
       packed_hfa4 != 0x407040a840b0410cULL)
     return 55;
   static const char marker[] = "POLY_PROCESS_CROSS_HFA32_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_HFA32_ARG_MAIN)
+  const struct poly_hfa3_f32 hfa3 = { 1.5f, 2.25f, 3.0f };
+  const struct poly_hfa4_f32 hfa4 = { 1.5f, 2.25f, 3.0f, 4.0f };
+  const union poly_float_bits hfa3_result = {
+    .f = poly_process_needed_hfa3_f32_arg(hfa3, 6.0f)
+  };
+  const union poly_float_bits hfa4_result = {
+    .f = poly_process_needed_hfa4_f32_arg(hfa4, 6.0f)
+  };
+  if (hfa3_result.u != 0x42220000U || hfa4_result.u != 0x42810000U)
+    return 58;
+  static const char marker[] = "POLY_PROCESS_CROSS_HFA32_ARG_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_FPAIR_ARG_MAIN)
   const struct poly_fpair32 f32_pair = { 2.5f, 4.0f };
   const struct poly_fpair64 f64_pair = { 2.5, 4.0 };
