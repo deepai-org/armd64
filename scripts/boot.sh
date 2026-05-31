@@ -11796,6 +11796,21 @@ EOF
           sleep 1
           continue
         fi
+        if [[ "$RUN_POLY_BINFMT_ARCH_TRAPS" == "1" ]]; then
+          polybinfmt_arch_trap_patterns=(
+            "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-brk\\.elf .*expected=0x4c000105 .*process=0"
+            "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-ebreak\\.elf .*expected=0x4c000205 .*process=0"
+            "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-compressed-ebreak\\.elf .*expected=0x4c000205 .*process=0"
+            "POLYEXEC_MONITOR_PACKETS: .*break_a64=[1-9][0-9]*"
+            "POLYEXEC_MONITOR_PACKETS: .*break_rv=[1-9][0-9]*"
+          )
+          for pattern in "${polybinfmt_arch_trap_patterns[@]}"; do
+            if ! grep -Eq "$pattern" "$SERIAL_LOG"; then
+              sleep 1
+              continue 2
+            fi
+          done
+        fi
         if ! grep -Eq "POLYEXEC_ROOT_PENTER: arch=aarch64 generic=1 process=1 .*aarch64-process-argv-envp-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
