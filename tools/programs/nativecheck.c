@@ -5483,6 +5483,17 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.frontend_tls.active_mode = POLY_MODE_X86;
   complex.frontend_tls.aarch64_tls_base = 0x1111222233334444ULL;
   complex.frontend_tls.riscv_tls_base = 0x5555666677778888ULL;
+  complex.header.trap_vector_pc = 0x1234500012345000ULL;
+  complex.header.trap_vector_mode = POLY_MODE_RAW_RISCV;
+  complex.header.monitor_packet_addr = 0x2345600023456000ULL;
+  complex.trap.reason = POLY_TRAP_SYSCALL;
+  complex.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  complex.trap.number = 172;
+  complex.trap.selector = 7;
+  complex.trap.trap_pc = 0x3456700034567000ULL;
+  complex.trap.resume_pc = 0x3456700034567004ULL;
+  complex.trap_args[6] = 0x4567800045678006ULL;
+  complex.trap_args[7] = 0x4567800045678007ULL;
   complex.state_key.flags = 1;
   complex.state_key.explicit_key = real_xsave_state_key;
   complex.state_key.supported_flags = 1;
@@ -5514,6 +5525,18 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
         complex.frontend_tls.aarch64_tls_base ||
       saved->frontend_tls.riscv_tls_base !=
         complex.frontend_tls.riscv_tls_base ||
+      saved->header.trap_vector_pc != complex.header.trap_vector_pc ||
+      saved->header.trap_vector_mode != complex.header.trap_vector_mode ||
+      saved->header.monitor_packet_addr !=
+        complex.header.monitor_packet_addr ||
+      saved->trap.reason != complex.trap.reason ||
+      saved->trap.source_mode != complex.trap.source_mode ||
+      saved->trap.number != complex.trap.number ||
+      saved->trap.selector != complex.trap.selector ||
+      saved->trap.trap_pc != complex.trap.trap_pc ||
+      saved->trap.resume_pc != complex.trap.resume_pc ||
+      saved->trap_args[6] != complex.trap_args[6] ||
+      saved->trap_args[7] != complex.trap_args[7] ||
       saved->state_key.flags != 1 ||
       saved->state_key.explicit_key != real_xsave_state_key ||
       saved->state_key.supported_flags != 1 ||
@@ -5553,6 +5576,18 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
         complex.frontend_tls.aarch64_tls_base ||
       roundtrip.frontend_tls.riscv_tls_base !=
         complex.frontend_tls.riscv_tls_base ||
+      roundtrip.header.trap_vector_pc != complex.header.trap_vector_pc ||
+      roundtrip.header.trap_vector_mode != complex.header.trap_vector_mode ||
+      roundtrip.header.monitor_packet_addr !=
+        complex.header.monitor_packet_addr ||
+      roundtrip.trap.reason != complex.trap.reason ||
+      roundtrip.trap.source_mode != complex.trap.source_mode ||
+      roundtrip.trap.number != complex.trap.number ||
+      roundtrip.trap.selector != complex.trap.selector ||
+      roundtrip.trap.trap_pc != complex.trap.trap_pc ||
+      roundtrip.trap.resume_pc != complex.trap.resume_pc ||
+      roundtrip.trap_args[6] != complex.trap_args[6] ||
+      roundtrip.trap_args[7] != complex.trap_args[7] ||
       roundtrip.state_key.flags != 1 ||
       roundtrip.state_key.explicit_key != real_xsave_state_key ||
       roundtrip.import_return.top != 1 ||
