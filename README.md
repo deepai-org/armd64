@@ -82,12 +82,14 @@ Other useful targets:
   Signature slots expose fixed register-map IDs for hardware rename/RAT
   implementations. Stack arguments, large or memory-shaped aggregates,
   variadics, ABI reshaping, and loader policy stay in software.
+- Hidden structure-return pointers can use a dedicated register-only SRET
+  signature slot when no stack reshaping is required. Structure-return cases
+  that need stack argument staging or aggregate layout work still use thunks.
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
   descriptor parsing.
-- The current Bochs runtime has already moved direct non-sret `PCALL` stack
-  handling and direct structure-return stack argument handling into software
-  thunks.
+- The current Bochs runtime keeps direct `PCALL` stack handling and
+  structure-return stack argument handling in software thunks.
 - Descriptor-backed import calls are a Bochs/runtime compatibility path with a
   private runtime table layout. CPUID keeps descriptor hardware support
   reserved/forbidden; reserved import targets trap instead of making the CPU

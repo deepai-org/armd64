@@ -27,7 +27,11 @@ in `docs/poly-isa-design-directions.md`.
 - Fast `PCALL` is register-only.
 - ABI signatures select fixed register maps without moving data.
 - Null map: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = `x0..x7` = `a0..a7`.
-- Software thunks handle stack arguments, aggregates, variadics, structure returns, lazy binding, syscall translation, libcalls, and incompatible vectors.
+- Register-only signatures cover ordinary argument/result registers and hidden
+  structure-return pointers.
+- Software thunks handle stack arguments, memory-shaped aggregates, variadics,
+  structure-return stack reshaping, lazy binding, syscall translation, libcalls,
+  and incompatible vectors.
 
 ## Traps
 
