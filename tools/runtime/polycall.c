@@ -4101,34 +4101,19 @@ static int call_kind_for_bridge_result(int root_arch, int call_kind,
 static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
   if (call_kind == POLY_CALL_FP64_STACK ||
       call_kind == POLY_CALL_SRET_U64 ||
-      call_kind == POLY_CALL_VEC128_U32)
+      call_kind == POLY_CALL_VEC128_U32 ||
+      call_kind == POLY_CALL_FPAIR32 ||
+      call_kind == POLY_CALL_FPAIR32_ARG ||
+      call_kind == POLY_CALL_HETERO_U64_F64 ||
+      call_kind == POLY_CALL_HETERO_U32_F64 ||
+      call_kind == POLY_CALL_HETERO_F64_U64 ||
+      call_kind == POLY_CALL_HETERO_F64_U32 ||
+      call_kind == POLY_CALL_HETERO_U64_F32 ||
+      call_kind == POLY_CALL_HETERO_F32_U64 ||
+      call_kind == POLY_CALL_COMPACT_U32_F32 ||
+      call_kind == POLY_CALL_COMPACT_F32_U32)
     return 0xff; // Invalid subop: these call kinds require signature PCALL.
-  if (arch == POLY_ARCH_AARCH64) {
-    if (call_kind == POLY_CALL_FPAIR32)
-      return 0x14;
-    if (call_kind == POLY_CALL_FPAIR32_ARG)
-      return 0x16;
-    if (call_kind == POLY_CALL_HETERO_U64_F64 ||
-        call_kind == POLY_CALL_HETERO_U32_F64)
-      return 0x18;
-    if (call_kind == POLY_CALL_HETERO_F64_U64 ||
-        call_kind == POLY_CALL_HETERO_F64_U32)
-      return 0x19;
-    if (call_kind == POLY_CALL_HETERO_U64_F32)
-      return 0x1a;
-    if (call_kind == POLY_CALL_HETERO_F32_U64)
-      return 0x1b;
-    return 0x10;
-  }
-  if (call_kind == POLY_CALL_FPAIR32)
-    return 0x15;
-  if (call_kind == POLY_CALL_FPAIR32_ARG)
-    return 0x17;
-  if (call_kind == POLY_CALL_COMPACT_U32_F32)
-    return 0x1c;
-  if (call_kind == POLY_CALL_COMPACT_F32_U32)
-    return 0x1d;
-  return 0x11;
+  return arch == POLY_ARCH_AARCH64 ? 0x10 : 0x11;
 }
 
 static uint32_t x86_signature_kind_for_special_call_kind(int arch,
@@ -10032,39 +10017,15 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       import_contract.signature_slot_native_regs_fp32);
   }
   else if (program->arch == POLY_ARCH_AARCH64) {
-    uint8_t pcall_op = 0x10;
-    if (call_kind == POLY_CALL_FPAIR32)
-      pcall_op = 0x14;
-    else if (call_kind == POLY_CALL_FPAIR32_ARG)
-      pcall_op = 0x16;
-    else if (call_kind == POLY_CALL_HETERO_U64_F64 ||
-        call_kind == POLY_CALL_HETERO_U32_F64)
-      pcall_op = 0x18;
-    else if (call_kind == POLY_CALL_HETERO_F64_U64 ||
-        call_kind == POLY_CALL_HETERO_F64_U32)
-      pcall_op = 0x19;
-    else if (call_kind == POLY_CALL_HETERO_U64_F32)
-      pcall_op = 0x1a;
-    else if (call_kind == POLY_CALL_HETERO_F32_U64)
-      pcall_op = 0x1b;
     const uint8_t pcall[] = {
-      0x0f, 0x3a, 0xfc, pcall_op
+      0x0f, 0x3a, 0xfc, 0x10
     };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
   }
   else {
-    uint8_t pcall_op = 0x11;
-    if (call_kind == POLY_CALL_FPAIR32)
-      pcall_op = 0x15;
-    else if (call_kind == POLY_CALL_FPAIR32_ARG)
-      pcall_op = 0x17;
-    else if (call_kind == POLY_CALL_COMPACT_U32_F32)
-      pcall_op = 0x1c;
-    else if (call_kind == POLY_CALL_COMPACT_F32_U32)
-      pcall_op = 0x1d;
     const uint8_t pcall[] = {
-      0x0f, 0x3a, 0xfc, pcall_op
+      0x0f, 0x3a, 0xfc, 0x11
     };
     memcpy(code + offset, pcall, sizeof(pcall));
     offset += sizeof(pcall);
