@@ -181,6 +181,10 @@ extern char **environ;
 #define ARCH_SET_FS 0x1002
 #endif
 
+#ifndef ARCH_GET_FS
+#define ARCH_GET_FS 0x1003
+#endif
+
 #define POLY_RISCV_SYS_HWPROBE 258
 #define POLY_RISCV_HWPROBE_KEY_MVENDORID 0
 #define POLY_RISCV_HWPROBE_KEY_MARCHID 1
@@ -365,6 +369,8 @@ struct poly_cross_stub_arena {
 };
 
 static struct poly_cross_stub_arena process_cross_stubs;
+static uint64_t process_runtime_x86_tls_base;
+static uint64_t process_runtime_host_fs_base;
 static size_t process_cross_state_key_stub_count;
 static size_t process_cross_aarch64_to_riscv_stub_count;
 static size_t process_cross_riscv_to_aarch64_stub_count;
@@ -3382,6 +3388,18 @@ static void emit_x86_exit_group_from_eax(uint8_t *code, size_t *offset) {
   code[(*offset)++] = 0xf4; // hlt if the syscall unexpectedly returns
 }
 
+static uint64_t get_x86_fs_base(void) {
+  uint64_t fs_base = 0;
+  register long rax __asm__("rax") = SYS_arch_prctl;
+  register long rdi __asm__("rdi") = ARCH_GET_FS;
+  register uint64_t rsi __asm__("rsi") = (uint64_t) (uintptr_t) &fs_base;
+  __asm__ volatile("syscall"
+      : "+a"(rax)
+      : "D"(rdi), "S"(rsi)
+      : "rcx", "r11", "memory");
+  return rax < 0 ? 0 : fs_base;
+}
+
 static int load_segment_prot(uint32_t flags) {
   int prot = 0;
   if ((flags & PF_R) != 0)
@@ -3477,11 +3495,12 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
 
 __attribute__((noreturn))
 static void run_poly_process_entry(const uint8_t *code,
-    uint64_t initial_sp, uint64_t tls_base, int arch) {
-  if (arch == POLY_ARCH_X86 && tls_base != 0) {
+    uint64_t initial_sp, uint64_t tls_base, uint64_t x86_fs_base, int arch) {
+  (void) arch;
+  if (x86_fs_base != 0) {
     register long rax __asm__("rax") = SYS_arch_prctl;
     register long rdi __asm__("rdi") = ARCH_SET_FS;
-    register uint64_t rsi __asm__("rsi") = tls_base;
+    register uint64_t rsi __asm__("rsi") = x86_fs_base;
     __asm__ volatile("syscall"
         : "+a"(rax)
         : "D"(rdi), "S"(rsi)
@@ -3987,6 +4006,93 @@ static void emit_process_riscv_compact_post_pcall(uint8_t *code,
   }
 }
 
+static void emit_x86_set_fs_from_global(uint8_t *code, size_t *offset,
+    uint64_t global_addr) {
+  emit_x86_movabs_rax(code, offset, global_addr);
+  code[(*offset)++] = 0x48; // mov rsi,[rax]
+  code[(*offset)++] = 0x8b;
+  code[(*offset)++] = 0x30;
+  code[(*offset)++] = 0xb8; // mov eax,SYS_arch_prctl
+  emit_u32(code, offset, (uint32_t) SYS_arch_prctl);
+  code[(*offset)++] = 0xbf; // mov edi,ARCH_SET_FS
+  emit_u32(code, offset, (uint32_t) ARCH_SET_FS);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x05; // syscall
+}
+
+static int emit_process_x86_tls_call_wrapper(uint64_t target,
+    uint64_t *wrapper_addr) {
+  if (ensure_process_cross_stub_arena() < 0 ||
+      align_up_size(process_cross_stubs.offset, 8,
+        &process_cross_stubs.offset) < 0)
+    return -1;
+  if (process_cross_stubs.size - process_cross_stubs.offset < 192)
+    return -1;
+
+  uint8_t *code = process_cross_stubs.mapping;
+  size_t offset = process_cross_stubs.offset;
+  *wrapper_addr = (uint64_t) (uintptr_t) (code + offset);
+
+  code[offset++] = 0x57; // push rdi
+  code[offset++] = 0x56; // push rsi
+  code[offset++] = 0x52; // push rdx
+  code[offset++] = 0x51; // push rcx
+  code[offset++] = 0x41; // push r8
+  code[offset++] = 0x50;
+  code[offset++] = 0x41; // push r9
+  code[offset++] = 0x51;
+  emit_x86_movabs_rax(code, &offset,
+    (uint64_t) (uintptr_t) &process_runtime_x86_tls_base);
+  code[offset++] = 0x48; // mov rsi,[rax]
+  code[offset++] = 0x8b;
+  code[offset++] = 0x30;
+  code[offset++] = 0x48; // test rsi,rsi
+  code[offset++] = 0x85;
+  code[offset++] = 0xf6;
+  code[offset++] = 0x74; // jz skip_set
+  const size_t skip_set_disp = offset++;
+  code[offset++] = 0xb8; // mov eax,SYS_arch_prctl
+  emit_u32(code, &offset, (uint32_t) SYS_arch_prctl);
+  code[offset++] = 0xbf; // mov edi,ARCH_SET_FS
+  emit_u32(code, &offset, (uint32_t) ARCH_SET_FS);
+  code[offset++] = 0x0f;
+  code[offset++] = 0x05; // syscall
+  code[skip_set_disp] = (uint8_t) (offset - (skip_set_disp + 1));
+  code[offset++] = 0x41; // pop r9
+  code[offset++] = 0x59;
+  code[offset++] = 0x41; // pop r8
+  code[offset++] = 0x58;
+  code[offset++] = 0x59; // pop rcx
+  code[offset++] = 0x5a; // pop rdx
+  code[offset++] = 0x5e; // pop rsi
+  code[offset++] = 0x5f; // pop rdi
+  emit_x86_movabs_r11(code, &offset, target);
+  code[offset++] = 0x41; // call r11
+  code[offset++] = 0xff;
+  code[offset++] = 0xd3;
+  code[offset++] = 0x50; // push rax
+  code[offset++] = 0x52; // push rdx
+  emit_x86_movabs_rax(code, &offset,
+    (uint64_t) (uintptr_t) &process_runtime_x86_tls_base);
+  code[offset++] = 0x48; // mov rsi,[rax]
+  code[offset++] = 0x8b;
+  code[offset++] = 0x30;
+  code[offset++] = 0x48; // test rsi,rsi
+  code[offset++] = 0x85;
+  code[offset++] = 0xf6;
+  code[offset++] = 0x74; // jz skip_restore
+  const size_t skip_restore_disp = offset++;
+  emit_x86_set_fs_from_global(code, &offset,
+    (uint64_t) (uintptr_t) &process_runtime_host_fs_base);
+  code[skip_restore_disp] = (uint8_t) (offset - (skip_restore_disp + 1));
+  code[offset++] = 0x5a; // pop rdx
+  code[offset++] = 0x58; // pop rax
+  code[offset++] = 0xc3; // ret
+
+  process_cross_stubs.offset = offset;
+  return 0;
+}
+
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t target, int bridge_kind, uint32_t signature_slot,
     uint64_t *stub_addr) {
@@ -4013,6 +4119,14 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       align_up_size(process_cross_stubs.offset, 8,
         &process_cross_stubs.offset) < 0)
     return -1;
+
+  uint64_t pcall_target = target;
+  if (caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86) {
+    if (emit_process_x86_tls_call_wrapper(target, &pcall_target) < 0 ||
+        align_up_size(process_cross_stubs.offset, 8,
+          &process_cross_stubs.offset) < 0)
+      return -1;
+  }
 
   uint8_t *code = process_cross_stubs.mapping;
   const size_t start = process_cross_stubs.offset;
@@ -4076,7 +4190,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_u32(code, &offset, 0xf9400be0U); // ldr x0, [sp, #16]
     if (is_compact_bridge)
       emit_process_aarch64_compact_pre_pcall(code, &offset, bridge_kind);
-    emit_aarch64_movabs(code, &offset, 16, target);
+    emit_aarch64_movabs(code, &offset, 16, pcall_target);
     emit_u32(code, &offset,
       0xd2800011U | ((callee_frontend & 0xffffU) << 5)); // movz x17,frontend
     emit_aarch64_movabs(code, &offset, 18, return_addr);
@@ -4128,7 +4242,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       process_cross_stubs.size - offset < 24)
     return -1;
   const size_t target_data_offset = offset;
-  emit_u64(code, &offset, target);
+  emit_u64(code, &offset, pcall_target);
   const size_t return_data_offset = offset;
   emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + return_pc));
   const size_t state_key_data_offset = offset;
@@ -5832,6 +5946,18 @@ static void set_process_dependency_root_scope(struct poly_program *program,
   }
 }
 
+static int process_tree_has_arch_tls(const struct poly_program *program,
+    int arch) {
+  if (program->arch == arch && program->tls_memsz != 0)
+    return 1;
+  for (size_t d = 0; d < program->dep_count; d++) {
+    const struct poly_process_dependency *dep = &program->deps[d];
+    if (dep->program && process_tree_has_arch_tls(dep->program, arch))
+      return 1;
+  }
+  return 0;
+}
+
 static int reserve_process_tls_tree(struct poly_program *program,
     size_t *total_size) {
   if (reserve_process_tls_range(total_size, program->tls_memsz,
@@ -6325,8 +6451,16 @@ static int emit_and_run_process(struct poly_program *program,
     };
 
   (void) result;
-  run_poly_process_entry(code, initial_sp,
-    (uint64_t) (uintptr_t) process_tls, program->arch);
+  process_runtime_x86_tls_base =
+    process_tls != NULL &&
+    (program->arch == POLY_ARCH_X86 ||
+     process_tree_has_arch_tls(program, POLY_ARCH_X86)) ?
+    (uint64_t) (uintptr_t) process_tls : 0;
+  process_runtime_host_fs_base = get_x86_fs_base();
+  const uint64_t startup_x86_tls_base =
+    program->arch == POLY_ARCH_X86 ? process_runtime_x86_tls_base : 0;
+  run_poly_process_entry(code, initial_sp, (uint64_t) (uintptr_t) process_tls,
+    startup_x86_tls_base, program->arch);
 }
 
 static int program_exits_process(const char *path) {
