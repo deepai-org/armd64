@@ -24,6 +24,8 @@ Other useful targets:
 - `make boot-poly-arch-traps`: raw foreign trap/syscall tests.
 - `make boot-poly-neutral-arch-traps`: direct AArch64<->RISC-V generic switch
   and call tests.
+- `make boot-poly-exec-cross-arch-traps`: focused real ELF/shared-library
+  cross-frontend process-loader tests.
 - `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
 - `make boot-poly-binfmt-arch-traps`: loader/binfmt smoke tests.
 - `make boot-poly-full-arch-traps`: broad regression run.

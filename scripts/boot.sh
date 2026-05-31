@@ -317,6 +317,7 @@ POLY_ENABLED="${POLY_ENABLED:-0}"
 RUN_POLY_PROBE="${RUN_POLY_PROBE:-0}"
 RUN_POLY_APPS="${RUN_POLY_APPS:-0}"
 RUN_POLY_NEUTRAL="${RUN_POLY_NEUTRAL:-0}"
+RUN_POLY_EXEC_CROSS="${RUN_POLY_EXEC_CROSS:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
@@ -6317,6 +6318,7 @@ set -eu
 RUN_POLY_PROBE="$RUN_POLY_PROBE"
 RUN_POLY_APPS="$RUN_POLY_APPS"
 RUN_POLY_NEUTRAL="$RUN_POLY_NEUTRAL"
+RUN_POLY_EXEC_CROSS="$RUN_POLY_EXEC_CROSS"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_CALL="$RUN_POLY_CALL"
 RUN_POLY_THREAD="$RUN_POLY_THREAD"
@@ -6377,6 +6379,22 @@ if [ "$RUN_POLY_NEUTRAL" = "1" ]; then
     /usr/lib/polyapps/riscv-generic-switch-aarch64.poly \
     /usr/lib/polyapps/riscv-generic-switch-x86.poly >/dev/ttyS0 2>&1
   echo "POLY_NEUTRAL_OK" >/dev/ttyS0
+fi
+
+if [ "$RUN_POLY_EXEC_CROSS" = "1" ]; then
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-cross-needed-real.elf=42 \
+      cross-aarch64-to-riscv-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-cross-needed-real.elf=42 \
+      cross-riscv-to-aarch64-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-aarch64-needed-real.elf=42 \
+      cross-x86-to-aarch64-needed >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/x86_64-process-cross-riscv-needed-real.elf=42 \
+      cross-x86-to-riscv-needed >/dev/ttyS0 2>&1
+    echo "POLY_EXEC_CROSS_OK" >/dev/ttyS0
 fi
 
 if [ "$RUN_POLY_EXEC" = "1" ]; then
@@ -10086,6 +10104,44 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-switch-x86\\.poly final_arch=x86" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_EXEC_CROSS" == "1" ]]; then
+        if ! grep -q "POLY_EXEC_CROSS_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-cross-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*a64_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-cross-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*rv_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-aarch64-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=x86_64 value=42 process=1 path=/usr/lib/polyapps/x86_64-process-cross-riscv-needed-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*x86_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/x86_64-process-cross-riscv-needed-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
