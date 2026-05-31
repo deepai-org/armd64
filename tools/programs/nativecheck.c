@@ -6048,9 +6048,8 @@ static uint64_t nativecheck_nested_signature_imm_pcall_aarch64_riscv_aarch64(
     ".long 0x00080293\n" // addi t0,a6,0, AArch64 target from a6/P6
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
-    ".long 0x01038393\n" // addi t2,t2,16 -> return
-    ".long 0x00300e13\n" // addi t3,zero,3 (signature slot)
-    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x00c38393\n" // addi t2,t2,12 -> return
+    ".long 0x4600700b\n" // immediate signature pcall, slot 3
     ".long 0x00550513\n" // return: addi a0,a0,5
     ".long 0x00008067\n" // ret through hardware return cookie
     ".p2align 2\n"
