@@ -883,9 +883,6 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
     POLY_CPUID_FEATURE_TRAP_VECTOR |
     POLY_CPUID_FEATURE_STATE_KEY |
     POLY_CPUID_FEATURE_VEC128_BRIDGE |
-    POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
-    POLY_CPUID_FEATURE_AARCH64_HFA32_RET |
-    POLY_CPUID_FEATURE_AARCH64_HFA_ARGS |
     POLY_CPUID_FEATURE_FOREIGN_PCALL_SIG_IMM;
   return mask;
 }
@@ -893,7 +890,10 @@ static inline uint32_t poly_cpuid_expected_feature_mask(void) {
 static inline uint32_t poly_cpuid_forbidden_feature_mask(void) {
   return POLY_CPUID_FEATURE_RESERVED_IMPORT_DESCRIPTORS |
     POLY_CPUID_FEATURE_FP64_STACK_ARGS |
-    POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK;
+    POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
+    POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
+    POLY_CPUID_FEATURE_AARCH64_HFA32_RET |
+    POLY_CPUID_FEATURE_AARCH64_HFA_ARGS;
 }
 
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf0(void) {

@@ -88,6 +88,8 @@ Other useful targets:
 - Hidden structure-return pointers can use a dedicated register-only SRET
   signature slot when no stack reshaping is required. Structure-return cases
   that need stack argument staging or aggregate layout work still use thunks.
+- AArch64 HFA aggregate flags are intentionally not advertised yet; those calls
+  go through software thunks until they have a real register-only signature.
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
   descriptor parsing.
