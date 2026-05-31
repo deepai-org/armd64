@@ -53,6 +53,8 @@ case "$path" in
   */aarch64-process-needed-envpath-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-needed-runpath-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-needed-rpath-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-needed-transitive-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-needed-indirect-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-preload-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-preload-second-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-needed-real.elf) expected=42; process_mode=1 ;;
@@ -310,6 +312,8 @@ case "$path" in
   */riscv-process-needed-envpath-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-needed-runpath-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-needed-rpath-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-needed-transitive-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-needed-indirect-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-preload-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-preload-second-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-needed-real.elf) expected=42; process_mode=1 ;;
