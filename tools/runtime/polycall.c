@@ -4414,10 +4414,13 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
       signature_slot);
   }
   else {
+    const uint8_t pcall_opcode = pcall_opcode_for_call_kind(arch, call_kind);
+    if (pcall_opcode == 0xff)
+      return -1;
     stubs[(*stub_offset)++] = 0x0f;
     stubs[(*stub_offset)++] = 0x3a;
     stubs[(*stub_offset)++] = 0xfc;
-    stubs[(*stub_offset)++] = pcall_opcode_for_call_kind(arch, call_kind);
+    stubs[(*stub_offset)++] = pcall_opcode;
   }
   write_le64(stubs + return_imm_offset,
     (uint64_t) (uintptr_t) (stubs + *stub_offset));
@@ -10909,9 +10912,22 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       const int patch_pcall_op = result_call_kind != POLY_CALL_U64;
       const uint8_t saved_pcall_op = patch_pcall_op ?
         code[pcall_opcode_offset + 3] : 0;
+      const uint8_t patch_pcall_opcode = patch_pcall_op ?
+        pcall_opcode_for_call_kind(program->arch, result_call_kind) : 0;
+      if (patch_pcall_opcode == 0xff) {
+        fprintf(stderr,
+          "POLYCALL_FAIL: fini result requires signature PCALL path: %s\n",
+          program->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
       if (patch_pcall_op)
-        code[pcall_opcode_offset + 3] =
-          pcall_opcode_for_call_kind(program->arch, result_call_kind);
+        code[pcall_opcode_offset + 3] = patch_pcall_opcode;
       *result = call_poly_stub(code, target_imm_offset, fini_result_target,
         result_call_kind);
       if (patch_pcall_op)
@@ -11100,18 +11116,29 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       const int patch_pcall_op = result_call_kind != POLY_CALL_U64;
       const uint8_t saved_pcall_op = patch_pcall_op ?
         code[pcall_opcode_offset + 3] : 0;
-      if (patch_pcall_op)
-        code[pcall_opcode_offset + 3] =
-          pcall_opcode_for_call_kind(program->arch, result_call_kind);
-      call_status = call_target_from_root_arch(code,
-        target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
-        cross_signature_slot, cross_vec128_signature_slot,
-        cross_fp64_signature_slot, cross_fp32_signature_slot,
-        &cross_stub_stats, program->arch,
-        program->deps[dep_index].arch, fini_result_target, result_call_kind,
-        bridge_kind,
-        program->deps[dep_index].path, "dependency fini result", result);
-      if (patch_pcall_op)
+      const uint8_t patch_pcall_opcode = patch_pcall_op ?
+        pcall_opcode_for_call_kind(program->arch, result_call_kind) : 0;
+      if (patch_pcall_opcode == 0xff) {
+        fprintf(stderr,
+          "POLYCALL_FAIL: dependency fini result requires signature PCALL path: %s\n",
+          program->deps[dep_index].path);
+        call_status = -1;
+      }
+      int pcall_patched = 0;
+      if (call_status == 0 && patch_pcall_op) {
+        code[pcall_opcode_offset + 3] = patch_pcall_opcode;
+        pcall_patched = 1;
+      }
+      if (call_status == 0)
+        call_status = call_target_from_root_arch(code,
+          target_imm_offset, cross_stubs, cross_stub_size, &cross_stub_offset,
+          cross_signature_slot, cross_vec128_signature_slot,
+          cross_fp64_signature_slot, cross_fp32_signature_slot,
+          &cross_stub_stats, program->arch,
+          program->deps[dep_index].arch, fini_result_target, result_call_kind,
+          bridge_kind,
+          program->deps[dep_index].path, "dependency fini result", result);
+      if (pcall_patched)
         code[pcall_opcode_offset + 3] = saved_pcall_op;
     }
     if (call_status < 0) {
