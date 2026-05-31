@@ -8363,9 +8363,24 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process dependency tls" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/aarch64-process-tls-default-real.elf \
+      tls-default >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process default tls" >/dev/ttyS0
+      exit 1
+    }
     /usr/lib/polyapps/aarch64-process-tls-default-needed-real.elf \
       tls-default-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process dependency default tls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-tls-trad-real.elf \
+      tls-trad >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process traditional tls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-tls-trad-needed-real.elf \
+      tls-trad-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process dependency traditional tls" >/dev/ttyS0
       exit 1
     }
     /usr/lib/polyapps/aarch64-process-copy-reloc-real.elf \
@@ -8770,6 +8785,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-process-tls-needed-real.elf \
       tls-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process dependency tls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-tls-default-real.elf \
+      tls-default >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process default tls" >/dev/ttyS0
       exit 1
     }
     /usr/lib/polyapps/riscv-process-tls-default-needed-real.elf \
@@ -10677,7 +10697,10 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-compact-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-default-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-default-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-trad-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-trad-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-copy-reloc-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-root-export-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-root-ifunc-real\\.elf .*process=1"
@@ -10712,6 +10735,7 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-compact-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-default-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-default-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-copy-reloc-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-root-export-real\\.elf .*process=1"

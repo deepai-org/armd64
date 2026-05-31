@@ -65,7 +65,10 @@ case "$path" in
   */aarch64-process-cross-compact-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-tls-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-tls-needed-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-tls-default-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-tls-default-needed-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-tls-trad-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-tls-trad-needed-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-copy-reloc-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-needed-root-export-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-needed-root-ifunc-real.elf) expected=42; process_mode=1 ;;
@@ -319,6 +322,7 @@ case "$path" in
   */riscv-process-cross-compact-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-tls-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-tls-needed-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-tls-default-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-tls-default-needed-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-copy-reloc-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-needed-root-export-real.elf) expected=42; process_mode=1 ;;
