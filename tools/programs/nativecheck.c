@@ -419,6 +419,39 @@ static uint64_t nativecheck_generic_switch_riscv_add(void) {
   return result;
 }
 
+static uint64_t nativecheck_generic_switch_aarch64_x86_add(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800500\n" // movz x0,#40
+    ".long 0x10000070\n" // adr x16,target
+    ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
+    ".long 0xd5032f1f\n" // aarch64 generic poly switch
+    "addq $5, %%rax\n"
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
+static uint64_t nativecheck_generic_switch_riscv_x86_add(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x02800513\n" // addi a0,zero,40
+    ".long 0x00000297\n" // auipc x5,0
+    ".long 0x01028293\n" // addi x5,x5,16
+    ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
+    ".long 0x1000700b\n" // riscv generic poly switch
+    "addq $5, %%rax\n"
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
 static inline void poly_trap_vector_clear(void) {
   asm volatile(
     "xor %%eax,%%eax\n"
@@ -2889,6 +2922,27 @@ static int run_poly_generic_switch_probe(void) {
   }
 
   puts("NATIVE_POLY_GENERIC_SWITCH_OK");
+  return 0;
+}
+
+static int run_poly_generic_switch_x86_probe(void) {
+  uint64_t result = nativecheck_generic_switch_aarch64_x86_add();
+  if (result != 45) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic aarch64-x86 switch result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  result = nativecheck_generic_switch_riscv_x86_add();
+  if (result != 45) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic riscv-x86 switch result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_GENERIC_SWITCH_X86_OK");
   return 0;
 }
 
@@ -7751,6 +7805,8 @@ int main(void) {
       return 1;
     if (run_poly_generic_switch_probe() != 0)
       return 1;
+    if (run_poly_generic_switch_x86_probe() != 0)
+      return 1;
     if (run_poly_trap_vector_probe() != 0)
       return 1;
     if (run_poly_no_vector_signal_probe() != 0)
@@ -7780,6 +7836,7 @@ int main(void) {
     if (run_poly_state_register_bank_probe() != 0)
       return 1;
     puts("NATIVE_POLY_GENERIC_SWITCH_OK");
+    puts("NATIVE_POLY_GENERIC_SWITCH_X86_OK");
     puts("NATIVE_POLY_TRAP_VECTOR_OK");
   }
   puts("NATIVE_CHECK_OK");
