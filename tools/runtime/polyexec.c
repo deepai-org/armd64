@@ -381,6 +381,11 @@ static size_t process_cross_aarch64_to_x86_stub_count;
 static size_t process_cross_riscv_to_x86_stub_count;
 static size_t process_cross_x86_to_aarch64_stub_count;
 static size_t process_cross_x86_to_riscv_stub_count;
+static size_t process_cross_signature_slot_stub_count;
+static size_t process_cross_register_signature_stub_count;
+static size_t process_cross_stack_bridge_stub_count;
+static size_t process_cross_compact_shuffle_stub_count;
+static size_t process_cross_x86_wrapper_stub_count;
 static int process_cross_state_key_stub_reported;
 static const char *process_cross_report_path;
 
@@ -3997,8 +4002,21 @@ static int ensure_process_cross_stub_arena(void) {
   return 0;
 }
 
-static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
+static int process_bridge_is_compact(int bridge_kind);
+
+static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch,
+    int bridge_kind, int emitted_x86_wrapper) {
   process_cross_state_key_stub_count++;
+  process_cross_signature_slot_stub_count++;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9)
+    process_cross_stack_bridge_stub_count++;
+  else if (process_bridge_is_compact(bridge_kind))
+    process_cross_compact_shuffle_stub_count++;
+  else
+    process_cross_register_signature_stub_count++;
+  if (emitted_x86_wrapper)
+    process_cross_x86_wrapper_stub_count++;
+
   if (caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV)
     process_cross_aarch64_to_riscv_stub_count++;
   else if (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)
@@ -4016,7 +4034,7 @@ static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
     printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
     process_cross_state_key_stub_reported = 1;
   }
-  printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu a64_to_x86=%zu rv_to_x86=%zu x86_to_a64=%zu x86_to_rv=%zu total=%zu path=%s\n",
+  printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu a64_to_x86=%zu rv_to_x86=%zu x86_to_a64=%zu x86_to_rv=%zu total=%zu path=%s sig_slots=%zu reg_sig=%zu stack_bridges=%zu compact_shuffles=%zu x86_wrappers=%zu\n",
     process_cross_aarch64_to_riscv_stub_count,
     process_cross_riscv_to_aarch64_stub_count,
     process_cross_aarch64_to_x86_stub_count,
@@ -4024,7 +4042,12 @@ static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch) {
     process_cross_x86_to_aarch64_stub_count,
     process_cross_x86_to_riscv_stub_count,
     process_cross_state_key_stub_count,
-    process_cross_report_path ? process_cross_report_path : "(unknown)");
+    process_cross_report_path ? process_cross_report_path : "(unknown)",
+    process_cross_signature_slot_stub_count,
+    process_cross_register_signature_stub_count,
+    process_cross_stack_bridge_stub_count,
+    process_cross_compact_shuffle_stub_count,
+    process_cross_x86_wrapper_stub_count);
   fflush(NULL);
 }
 
@@ -4389,7 +4412,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       code[return_imm_offset + n] =
         (uint8_t) ((return_addr >> (n * 8)) & 0xff);
     process_cross_stubs.offset = offset;
-    note_process_cross_isa_call_stub(caller_arch, callee_arch);
+    note_process_cross_isa_call_stub(caller_arch, callee_arch, bridge_kind,
+      0);
     *stub_addr = start_addr;
     return 0;
   }
@@ -4438,7 +4462,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       is_stack9_x86_callee ? 0x9100c3ffU : 0x910083ffU); // add sp,sp
     emit_u32(code, &offset, 0xd65f03c0U); // ret
     process_cross_stubs.offset = offset;
-    note_process_cross_isa_call_stub(caller_arch, callee_arch);
+    note_process_cross_isa_call_stub(caller_arch, callee_arch, bridge_kind,
+      callee_arch == POLY_ARCH_X86);
     *stub_addr = start_addr;
     return 0;
   }
@@ -4506,7 +4531,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     (int16_t) ((int64_t) state_key_data_offset -
       (int64_t) auipc_state_key_pc)));
   process_cross_stubs.offset = offset;
-  note_process_cross_isa_call_stub(caller_arch, callee_arch);
+  note_process_cross_isa_call_stub(caller_arch, callee_arch, bridge_kind,
+    callee_arch == POLY_ARCH_X86);
   *stub_addr = start_addr;
   return 0;
 }
@@ -6453,6 +6479,11 @@ static int emit_and_run_process(struct poly_program *program,
   process_cross_riscv_to_x86_stub_count = 0;
   process_cross_x86_to_aarch64_stub_count = 0;
   process_cross_x86_to_riscv_stub_count = 0;
+  process_cross_signature_slot_stub_count = 0;
+  process_cross_register_signature_stub_count = 0;
+  process_cross_stack_bridge_stub_count = 0;
+  process_cross_compact_shuffle_stub_count = 0;
+  process_cross_x86_wrapper_stub_count = 0;
   process_cross_state_key_stub_reported = 0;
 
   const size_t prefix_size = poly_trampoline_prefix_size(program->arch);
