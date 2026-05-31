@@ -8301,6 +8301,18 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process rpath needed" >/dev/ttyS0
       exit 1
     }
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-aarch64.so \
+      /usr/lib/polyapps/aarch64-process-preload-real.elf \
+      preload >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process preload" >/dev/ttyS0
+      exit 1
+    }
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreloadsecond-aarch64.so:/usr/lib/polyapps/libpolyprocesspreload-aarch64.so \
+      /usr/lib/polyapps/aarch64-process-preload-second-real.elf \
+      preload-second-wins >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process preload second wins" >/dev/ttyS0
+      exit 1
+    }
     /usr/lib/polyapps/aarch64-process-cross-needed-real.elf \
       cross-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process cross needed" >/dev/ttyS0
@@ -8359,6 +8371,36 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-process-copy-reloc-real.elf \
       copy-reloc >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process copy relocation" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-needed-root-export-real.elf \
+      root-export-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process root export needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-needed-root-ifunc-real.elf \
+      root-ifunc-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process root ifunc needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-weak-real.elf \
+      weak-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process weak unresolved" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-weak-needed-real.elf \
+      weak-needed-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process weak needed unresolved" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-versioned-needed-real.elf \
+      versioned-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process versioned needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real.elf \
+      soname-once >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process soname once" >/dev/ttyS0
       exit 1
     }
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
@@ -8613,6 +8655,18 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: riscv direct process rpath needed" >/dev/ttyS0
       exit 1
     }
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-riscv.so \
+      /usr/lib/polyapps/riscv-process-preload-real.elf \
+      preload >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process preload" >/dev/ttyS0
+      exit 1
+    }
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreloadsecond-riscv.so:/usr/lib/polyapps/libpolyprocesspreload-riscv.so \
+      /usr/lib/polyapps/riscv-process-preload-second-real.elf \
+      preload-second-wins >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process preload second wins" >/dev/ttyS0
+      exit 1
+    }
     /usr/lib/polyapps/riscv-process-cross-needed-real.elf \
       cross-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process cross needed" >/dev/ttyS0
@@ -8671,6 +8725,36 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-process-copy-reloc-real.elf \
       copy-reloc >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process copy relocation" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-needed-root-export-real.elf \
+      root-export-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process root export needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-needed-root-ifunc-real.elf \
+      root-ifunc-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process root ifunc needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-weak-real.elf \
+      weak-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process weak unresolved" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-weak-needed-real.elf \
+      weak-needed-unresolved >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process weak needed unresolved" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-versioned-needed-real.elf \
+      versioned-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process versioned needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real.elf \
+      soname-once >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process soname once" >/dev/ttyS0
       exit 1
     }
     for foreign in \
@@ -10472,6 +10556,8 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-envpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-runpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-rpath-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preload-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preload-second-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf .*process=1"
@@ -10483,11 +10569,19 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-default-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-copy-reloc-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-root-export-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-root-ifunc-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-weak-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-weak-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-versioned-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-envpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-runpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-rpath-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preload-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preload-second-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf .*process=1"
@@ -10499,6 +10593,12 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-default-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-copy-reloc-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-root-export-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-root-ifunc-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-weak-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-weak-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-versioned-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real\\.elf .*process=1"
         )
         for pattern in "${polybinfmt_process_patterns[@]}"; do
           if ! grep -Eq "$pattern" "$SERIAL_LOG"; then
