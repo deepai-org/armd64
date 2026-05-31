@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/time.h>
@@ -91,6 +92,38 @@ static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
     :
     : "memory");
   return rax;
+}
+
+static inline uint64_t polysignal_read_xcr0(void) {
+  uint32_t eax;
+  uint32_t edx;
+  asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
+  return ((uint64_t) edx << 32) | eax;
+}
+
+static int polysignal_poly_xsave_enabled(void) {
+  return (polysignal_read_xcr0() &
+    (1ULL << POLY_STATE_XSAVE_COMPONENT_ARCH)) != 0;
+}
+
+static int polysignal_require_real_xsave(void) {
+  const char *value = getenv("REQUIRE_POLY_REAL_XSAVE");
+  return value != 0 && strcmp(value, "0") != 0 && value[0] != '\0';
+}
+
+static int check_polysignal_real_xsave_requirement(void) {
+  if (polysignal_poly_xsave_enabled()) {
+    puts("POLYSIGNAL_REAL_XSAVE_CONTEXT_OK");
+    return 0;
+  }
+  if (polysignal_require_real_xsave()) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: real XSAVE required but XCR0 lacks Poly bit %u\n",
+      POLY_STATE_XSAVE_COMPONENT_ARCH);
+    return -1;
+  }
+  puts("POLYSIGNAL_REAL_XSAVE_CONTEXT_SKIPPED");
+  return 0;
 }
 
 static int check_polysignal_arch_state_contract(void) {
@@ -771,6 +804,8 @@ int main(void) {
   struct sigaction sa;
   stack_t altstack;
   if (check_polysignal_contract() < 0)
+    return 1;
+  if (check_polysignal_real_xsave_requirement() < 0)
     return 1;
   if (install_polysignal_state_key() < 0)
     return 1;

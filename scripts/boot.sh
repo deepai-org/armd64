@@ -11922,6 +11922,12 @@ EOF
         fi
       fi
       if [[ "$RUN_POLY_SIGNAL" == "1" ]]; then
+        if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" ]]; then
+          if ! grep -q "POLYSIGNAL_REAL_XSAVE_CONTEXT_OK" "$SERIAL_LOG"; then
+            sleep 1
+            continue
+          fi
+        fi
         if ! grep -q "POLYSIGNAL_STATE_KEY_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
