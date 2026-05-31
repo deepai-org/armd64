@@ -1,32 +1,38 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends so
-precompiled native objects can share one x86_64 virtual address space.
+Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system ISA so
+existing native objects can run in one x86_64 virtual address space.
 
-## Run
+## Run The Prototype
 
 ```sh
 make image
-make boot-poly-full-real-xsave-arch-traps
+make boot-poly
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYBENCH_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## x86_64 Delta
+Use `make boot-poly-full-real-xsave-arch-traps` for the broad XSAVE-backed
+regression run.
 
-- System semantics stay x86_64: privilege, paging, faults, interrupts, VM
-  control, atomics, virtual memory, and TSO ordering.
-- Foreign frontends fetch native instructions directly in user mode. No
-  per-instruction `#UD` envelopes.
-- Cross-frontend control uses decoded `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`,
-  and `PLANDING` instructions.
-- Foreign register state is per-thread XSAVE-style architectural state.
-- Register-only ABI calls may use fixed signature slots. Stack arguments,
-  aggregates, variadics, relocation, syscalls, and libcalls stay in software.
+## What Changes From x86_64
 
-## Controls
+- x86_64 remains the system ISA for privilege, paging, interrupts, faults,
+  atomics, VM control, virtual memory, and TSO memory ordering.
+- AArch64 and RISC-V64 execute as direct-fetch user-mode frontends. There are
+  no per-instruction `#UD` envelopes in the fast path.
+- Cross-frontend control uses decoded Poly instructions: `PENTER`, `PSWITCH`,
+  `PCALL`, `PTRAPRET`, and `PLANDING`.
+- Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+- Foreign register state is explicit per-thread XSAVE-style architectural
+  state, not hidden CR3-scoped emulator state.
+- Fast native-ABI calls use fixed register signature slots. Stack arguments,
+  aggregates, variadics, relocation, syscalls, libcalls, and loader policy stay
+  in software/runtime code.
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+## Prototype Encodings
 
-Prototype encodings: x86_64 `0f 3a fc <subop>`, reserved AArch64 `HINT` space,
-and RISC-V `custom-0` space. Longer rationale lives in
-[`poly-isa-design-directions.md`](poly-isa-design-directions.md).
+- x86_64 control page: `0f 3a fc <subop>`
+- AArch64 control space: reserved `HINT` encodings
+- RISC-V64 control space: `custom-0` encodings
+
+Long-form rationale: [`poly-isa-design-directions.md`](poly-isa-design-directions.md).
