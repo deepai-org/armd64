@@ -6,8 +6,12 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_ENTER_A64 ".byte 0x0f,0x3a,0xfc,0x01\n"
-#define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
+#define POLY_OP_ENTER_A64 \
+  "movl $1, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x03\n"
+#define POLY_OP_ENTER_RV64 \
+  "movl $2, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
@@ -713,7 +717,7 @@ static uint64_t trap_aarch64_syscall(uint64_t number, uint64_t arg6,
     : "+a"(result), "+d"(arg6_lane), "+c"(arg7_lane)
     :
     : "rbx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r13", "r14",
-      "memory");
+      "r15", "memory");
   return result;
 }
 
@@ -734,7 +738,7 @@ static uint64_t trap_riscv_syscall(uint64_t number, uint64_t arg6) {
     : "+a"(result), "+d"(arg6_lane)
     :
     : "rbx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -762,7 +766,7 @@ static uint64_t trap_aarch64_import(uint64_t arg0, uint64_t arg6,
     : "+a"(result), "+d"(arg6_lane), "+c"(arg7_lane)
     :
     : "rbx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -788,7 +792,7 @@ static uint64_t trap_riscv_import(uint64_t arg0, uint64_t arg6,
     : "+a"(result), "+d"(arg6_lane), "+c"(arg7_lane)
     :
     : "rbx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -807,7 +811,7 @@ static uint64_t direct_aarch64_x86_sum6(uint64_t a0, uint64_t a1,
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -827,7 +831,7 @@ static uint64_t direct_riscv_x86_sum6(uint64_t a0, uint64_t a1,
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -849,7 +853,7 @@ static uint64_t direct_aarch64_x86_signature_sum6(uint64_t a0) {
     : "+a"(a0), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return a0;
 }
 
@@ -872,7 +876,7 @@ static uint64_t direct_riscv_x86_signature_sum6(uint64_t a0) {
     : "+a"(a0), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return a0;
 }
 
@@ -896,7 +900,7 @@ static uint64_t direct_aarch64_x86_signature_fp64_mul(uint64_t left_bits,
     :
     :
     : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "r15", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
@@ -920,7 +924,7 @@ static uint64_t direct_riscv_x86_signature_fp64_mul(uint64_t left_bits,
     :
     :
     : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "r15", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
@@ -951,7 +955,7 @@ static uint64_t direct_aarch64_riscv_signature_sum6(uint64_t a0) {
     : "+a"(a0)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -983,7 +987,7 @@ static uint64_t direct_riscv_aarch64_signature_sum6(uint64_t a0) {
     : "+a"(a0)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -1010,7 +1014,7 @@ static uint64_t direct_aarch64_riscv_signature_fp64_mix(uint64_t left_bits,
     :
     :
     : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "r15", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
@@ -1038,7 +1042,7 @@ static uint64_t direct_riscv_aarch64_signature_fp64_mix(uint64_t left_bits,
     :
     :
     : "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "r15", "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
 }
 
