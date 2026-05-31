@@ -11832,31 +11832,39 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_sigregs=[1-9]" "$SERIAL_LOG" ||
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_sigregs=[1-9].*thunks=0 .*aarch64-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG" ||
             ! grep -Eq "POLYCALL_RESULT_FP64: arch=aarch64 .*aarch64-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_sigregs=[1-9]" "$SERIAL_LOG" ||
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_sigregs=[1-9].*thunks=0 .*riscv-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG" ||
             ! grep -Eq "POLYCALL_RESULT_FP64: arch=riscv .*riscv-pcall-x86-fp64-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_vec128=[1-9].*aarch64-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_i128=[1-9].*thunks=0 .*aarch64-pcall-x86-i128-import-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_i128=[1-9].*thunks=0 .*riscv-pcall-x86-i128-import-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_vec128=[1-9].*thunks=0 .*aarch64-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
             ! grep -Eq "POLYCALL_RESULT_VEC128_U32: arch=aarch64 .*aarch64-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*thunks=[1-9].*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*direct_vec128=0.*thunks=[1-9].*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
             ! grep -Eq "POLYCALL_RESULT_VEC128_U32: arch=riscv .*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=aarch64 .*a64_to_rv_sigregs=[1-9].*aarch64-pcall-cross-needed-real\\.so" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=aarch64 .*a64_to_rv_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*aarch64-pcall-cross-needed-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=riscv .*rv_to_a64_sigregs=[1-9].*riscv-pcall-cross-needed-real\\.so" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=riscv .*rv_to_a64_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*riscv-pcall-cross-needed-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
