@@ -10847,6 +10847,7 @@ EOF
         if [[ "$EXPECT_POLY_CPUID" == "1" ]]; then
           native_markers=(
             "NATIVE_POLY_GENERIC_ENTER_OK"
+            "NATIVE_POLY_GENERIC_SWITCH_OK"
             "NATIVE_POLY_TRAP_VECTOR_OK"
             "NATIVE_POLY_NO_VECTOR_SIGNALS_OK"
             "NATIVE_POLY_INVALID_GENERIC_CONTROLS_OK"
