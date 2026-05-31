@@ -454,6 +454,22 @@ static inline void raw_aarch64_sp_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void raw_aarch64_frame_pair_probe(void) {
+  asm volatile(
+    "movq $19, %%rax\n"
+    "movq $23, %%rdx\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0003fd\n" // mov x29,x0
+    ".long 0xaa0103fe\n" // mov x30,x1
+    ".long 0xa9bf7bfd\n" // stp x29,x30,[sp,#-16]!
+    ".long 0xaa1f03fd\n" // mov x29,xzr
+    ".long 0xaa1f03fe\n" // mov x30,xzr
+    ".long 0xa8c17bfd\n" // ldp x29,x30,[sp],#16
+    ".long 0x8b1e03a0\n" // add x0,x29,x30
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 static inline void raw_riscv_sp_probe(void) {
   asm volatile(
     "movq $17, %%rax\n"
@@ -2393,6 +2409,15 @@ int main(void) {
   uint64_t rsp_after = read_rsp();
   if (read_rax() != 42 || rsp_after != rsp_before) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 SP frame mismatch result=%llu rsp_before=0x%llx rsp_after=0x%llx\n",
+      (unsigned long long) read_rax(), (unsigned long long) rsp_before,
+      (unsigned long long) rsp_after);
+    return 1;
+  }
+  rsp_before = read_rsp();
+  raw_aarch64_frame_pair_probe();
+  rsp_after = read_rsp();
+  if (read_rax() != 42 || rsp_after != rsp_before) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 frame pair mismatch result=%llu rsp_before=0x%llx rsp_after=0x%llx\n",
       (unsigned long long) read_rax(), (unsigned long long) rsp_before,
       (unsigned long long) rsp_after);
     return 1;
