@@ -1656,7 +1656,7 @@ static inline void pcall_signature_fp64_aarch64_probe(void) {
     "popq %%rbx\n"
     :
     : "i"(POLY_FRONTEND_AARCH64),
-      "r"((uint64_t) polyprobe_native_signature_slot)
+      "r"((uint64_t) polyprobe_fp64_signature_slot)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "memory");
 }
@@ -1682,7 +1682,7 @@ static inline void pcall_signature_fp64_riscv_probe(void) {
     "popq %%rbx\n"
     :
     : "i"(POLY_FRONTEND_RISCV),
-      "r"((uint64_t) polyprobe_native_signature_slot)
+      "r"((uint64_t) polyprobe_fp64_signature_slot)
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "memory");
 }
