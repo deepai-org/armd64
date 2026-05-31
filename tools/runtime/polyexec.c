@@ -3918,9 +3918,6 @@ static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
     emit_u32(code, offset, aarch64_pcall_sig_imm(signature_slot));
     return;
   }
-  emit_u32(code, offset,
-    0xd2800013U | ((signature_slot & 0xffffU) << 5)); // movz x19,slot
-  emit_u32(code, offset, POLY_AARCH64_CTRL_CALL_SIG_MODE);
 }
 
 static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
@@ -3929,8 +3926,6 @@ static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
     emit_u32(code, offset, riscv_pcall_sig_imm(signature_slot));
     return;
   }
-  emit_u32(code, offset, riscv_addi(28, 0, signature_slot)); // addi t3,x0,slot
-  emit_u32(code, offset, POLY_RISCV_CTRL_CALL_SIG_MODE);
 }
 
 static uint32_t riscv_srli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
@@ -4359,6 +4354,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     callee_arch == POLY_ARCH_X86;
   if (is_stack9_x86_callee)
     signature_slot = process_native_signature_slot;
+  if (signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT)
+    return -1;
   const uint32_t callee_frontend = callee_arch == POLY_ARCH_AARCH64 ?
     POLY_ARCH_AARCH64 :
     callee_arch == POLY_ARCH_RISCV ? POLY_ARCH_RISCV : POLY_ARCH_X86;
@@ -4470,11 +4467,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     if (process_cross_stubs.size - start < 160)
       return -1;
     size_t offset = start;
-    const uint64_t aarch64_pcall_return_extra =
-      signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 0 : 4;
     const uint64_t return_addr = start_addr +
-      (is_stack9_x86_callee ? 92 : 84 + (emit_compact_shuffle ? 8 : 0)) +
-      aarch64_pcall_return_extra;
+      (is_stack9_x86_callee ? 92 : 84 + (emit_compact_shuffle ? 8 : 0));
     if (is_stack9_x86_callee) {
       emit_u32(code, &offset, 0xd100c3ffU); // sub sp, sp, #48
       emit_u32(code, &offset, 0xf9401bf2U); // ldr x18, [sp, #48]

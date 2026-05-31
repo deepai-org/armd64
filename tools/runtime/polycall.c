@@ -4394,7 +4394,8 @@ static uint32_t cross_signature_slot_for_bridge(int bridge_kind,
 }
 
 static uint32_t foreign_pcall_sig_slot_insn_count(uint32_t signature_slot) {
-  return signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 1U : 2U;
+  (void) signature_slot;
+  return 1U;
 }
 
 static void emit_aarch64_pcall_sig_slot(uint8_t *stubs,
@@ -4404,10 +4405,6 @@ static void emit_aarch64_pcall_sig_slot(uint8_t *stubs,
       0xd5032a1fU | (signature_slot << 5)); // PCALL_SIG_IMM
     return;
   }
-
-  emit_u32(stubs, stub_offset,
-    0xd2800013U | (signature_slot << 5)); // movz x19,#slot
-  emit_u32(stubs, stub_offset, 0xd5032f5fU); // PCALL_SIG
 }
 
 static void emit_riscv_pcall_sig_slot(uint8_t *stubs, size_t *stub_offset,
@@ -4417,10 +4414,6 @@ static void emit_riscv_pcall_sig_slot(uint8_t *stubs, size_t *stub_offset,
       0x4000700bU | (signature_slot << 25)); // PCALL_SIG_IMM
     return;
   }
-
-  emit_u32(stubs, stub_offset,
-    riscv_addi(28, 0, signature_slot)); // addi t3,zero,slot
-  emit_u32(stubs, stub_offset, 0x1400700bU); // PCALL_SIG
 }
 
 static void emit_aarch64_compact_pre_pcall(uint8_t *stubs,
@@ -4525,6 +4518,11 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
   if (bridge_kind < POLY_CROSS_BRIDGE_DEFAULT ||
       bridge_kind > POLY_CROSS_BRIDGE_FP32)
     return -1;
+  if (signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      vec128_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      fp64_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      fp32_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT)
+    return -1;
 
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
@@ -4540,10 +4538,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       const uint32_t selected_signature_slot =
         cross_signature_slot_for_bridge(bridge_kind, signature_slot,
           vec128_signature_slot, fp64_signature_slot, fp32_signature_slot);
-      const int generic_signature_slot =
-        selected_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT;
-      const uint64_t return_addr = start_addr +
-        (generic_signature_slot ? 76 : 72);
+      const uint64_t return_addr = start_addr + 72;
       for (uint32_t n = 0; n < 8; n++)
         emit_u32(stubs, stub_offset, aarch64_ldr_sp(n, n * 8));
       emit_aarch64_movabs(stubs, stub_offset, 16, target);
@@ -4562,11 +4557,8 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     const uint32_t selected_signature_slot =
       cross_signature_slot_for_bridge(bridge_kind, signature_slot,
         vec128_signature_slot, fp64_signature_slot, fp32_signature_slot);
-    const int generic_signature_slot = uses_signature_slot &&
-      selected_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT;
     const uint64_t return_addr = start_addr +
-      (uses_signature_slot ? 56 : 52) + (is_compact_bridge ? 8 : 0) +
-      (generic_signature_slot ? 4 : 0);
+      (uses_signature_slot ? 56 : 52) + (is_compact_bridge ? 8 : 0);
     if (is_compact_bridge)
       emit_aarch64_compact_pre_pcall(stubs, stub_offset, bridge_kind);
     emit_u32(stubs, stub_offset, 0xd10043ffU); // sub sp, sp, #16
