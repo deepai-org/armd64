@@ -1281,6 +1281,8 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
     read_cpuid(POLY_CPUID_BASE + 2, 17);
   const struct poly_cpuid_regs signature_compact =
     read_cpuid(POLY_CPUID_BASE + 2, 20);
+  const struct poly_cpuid_regs signature_fp64 =
+    read_cpuid(POLY_CPUID_BASE + 2, 22);
   const uint32_t slot_exchange = signature.ecx & 0xffU;
   const uint32_t slot_x86_sysv_regs = (signature.ecx >> 8) & 0xffU;
   const uint32_t slot_x86_sysv_regs_i128 = (signature.ecx >> 16) & 0xffU;
@@ -1330,13 +1332,18 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32 ||
       slot_native_regs_compact_f32_u32 >= signature.ebx ||
       kind_native_regs_compact_f32_u32 !=
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) {
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 ||
+      signature_fp64.eax != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64 ||
+      signature_fp64.ebx != POLY_ABI_REGISTER_MAP_NATIVE_FP64 ||
+      signature_fp64.ecx != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
+      signature_fp64.edx != 0) {
     fprintf(stderr,
-      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u)\n",
+      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
-      signature_compact.ecx, signature_compact.edx);
+      signature_compact.ecx, signature_compact.edx, signature_fp64.eax,
+      signature_fp64.ebx, signature_fp64.ecx, signature_fp64.edx);
     return -1;
   }
 

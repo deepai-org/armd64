@@ -570,6 +570,10 @@ static int read_poly_base_contract(int require_trap_vector) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 20);
   const struct poly_cpuid_regs expected_signature_compact =
     poly_cpuid_expected_escape_leaf20();
+  const struct poly_cpuid_regs signature_fp64 =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
+  const struct poly_cpuid_regs expected_signature_fp64 =
+    poly_cpuid_expected_escape_leaf22();
   const uint32_t vec128_slot = signature_ext.ecx;
   const uint32_t vec128_kind = signature_ext.edx;
   const uint32_t compact_u32_f32_slot = signature_compact.eax;
@@ -588,6 +592,10 @@ static int read_poly_base_contract(int require_trap_vector) {
       signature_compact.ebx != expected_signature_compact.ebx ||
       signature_compact.ecx != expected_signature_compact.ecx ||
       signature_compact.edx != expected_signature_compact.edx ||
+      signature_fp64.eax != expected_signature_fp64.eax ||
+      signature_fp64.ebx != expected_signature_fp64.ebx ||
+      signature_fp64.ecx != expected_signature_fp64.ecx ||
+      signature_fp64.edx != expected_signature_fp64.edx ||
       native_slot >= signature.ebx ||
       native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
       vec128_slot >= signature.ebx ||
@@ -599,11 +607,12 @@ static int read_poly_base_contract(int require_trap_vector) {
       compact_f32_u32_kind !=
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u)\n",
+      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
-      signature_compact.ecx, signature_compact.edx);
+      signature_compact.ecx, signature_compact.edx, signature_fp64.eax,
+      signature_fp64.ebx, signature_fp64.ecx, signature_fp64.edx);
     return -1;
   }
   if (poly_abi_signature_set(native_slot,
