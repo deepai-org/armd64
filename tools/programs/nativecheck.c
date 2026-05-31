@@ -458,6 +458,48 @@ static uint64_t nativecheck_generic_enter_riscv_preserve_f20(
   return read_xmm0_u64();
 }
 
+static uint64_t nativecheck_generic_enter_aarch64_preserve_fp_status(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2a01801\n" // movz x1,#0xc0,lsl #16
+    ".long 0xd51b4401\n" // msr fpcr,x1
+    ".long 0xd2800242\n" // movz x2,#0x12
+    ".long 0xd51b4422\n" // msr fpsr,x2
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    POLY_OP_ENTER_A64
+    ".long 0xd53b4400\n" // mrs x0,fpcr
+    ".long 0xd53b4421\n" // mrs x1,fpsr
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0xd2800001\n" // movz x1,#0
+    ".long 0xd51b4401\n" // msr fpcr,x1
+    ".long 0xd51b4421\n" // msr fpsr,x1
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
+static uint64_t nativecheck_generic_enter_riscv_preserve_fcsr(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x07500293\n" // addi t0,zero,0x75
+    ".long 0x00329073\n" // csrw fcsr,t0
+    ".long 0x0000700b\n" // riscv x86 escape.
+    POLY_OP_ENTER_RV64
+    ".long 0x00302573\n" // csrr a0,fcsr
+    ".long 0x00301073\n" // csrw fcsr,zero
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
 static uint64_t nativecheck_generic_switch_aarch64_add(void) {
   uint64_t result;
   asm volatile(
@@ -3093,6 +3135,26 @@ static int run_poly_generic_enter_probe(void) {
       "NATIVE_CHECK_FAIL: poly generic riscv enter f20 preservation result=0x%llx expected=0x%llx\n",
       (unsigned long long) result,
       (unsigned long long) riscv_f20_bits);
+    return 1;
+  }
+
+  const uint64_t aarch64_fp_status = 0x00c00000ULL + 0x12ULL;
+  result = nativecheck_generic_enter_aarch64_preserve_fp_status();
+  if (result != aarch64_fp_status) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic aarch64 enter fp status preservation result=0x%llx expected=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) aarch64_fp_status);
+    return 1;
+  }
+
+  const uint64_t riscv_fcsr = 0x75ULL;
+  result = nativecheck_generic_enter_riscv_preserve_fcsr();
+  if (result != riscv_fcsr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic riscv enter fcsr preservation result=0x%llx expected=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) riscv_fcsr);
     return 1;
   }
 
