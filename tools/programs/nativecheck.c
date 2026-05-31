@@ -6875,7 +6875,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = poly_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET + 1);
+    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_ARG + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6989,7 +6989,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_aarch64_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET + 1);
+    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_ARG + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -7032,7 +7032,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_riscv_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET + 1);
+    POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_ARG + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,

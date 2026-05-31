@@ -378,6 +378,8 @@ enum {
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 = 10,
   POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS = 11,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET = 12,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_RET = 13,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_ARG = 14,
   POLY_ABI_REGISTER_MAP_EXCHANGE = 0,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE = 1,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_I128 = 2,
@@ -390,6 +392,8 @@ enum {
   POLY_ABI_REGISTER_MAP_NATIVE_FP32 = 9,
   POLY_ABI_REGISTER_MAP_SRET_X86_SYSV_TO_NATIVE = 10,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_FP128_RET = 11,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_FPAIR32_RET = 12,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_FPAIR32_ARG = 13,
   POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT = 0,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT = 1,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT = 2,
@@ -665,6 +669,10 @@ static uint32_t poly_abi_signature_register_map(uint32_t kind) {
     return POLY_ABI_REGISTER_MAP_SRET_X86_SYSV_TO_NATIVE;
   case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET:
     return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_FP128_RET;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_RET:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_FPAIR32_RET;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_ARG:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_FPAIR32_ARG;
   default:
     return UINT32_MAX;
   }
@@ -4105,6 +4113,14 @@ static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
   if (call_kind == POLY_CALL_COMPACT_F32_U32)
     return 0x1d;
   return 0x11;
+}
+
+static uint32_t x86_signature_kind_for_special_call_kind(int call_kind) {
+  if (call_kind == POLY_CALL_FPAIR32)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_RET;
+  if (call_kind == POLY_CALL_FPAIR32_ARG)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_ARG;
+  return UINT32_MAX;
 }
 
 static int align_stub_offset(size_t *offset, size_t alignment,
@@ -9705,6 +9721,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     call_kind == POLY_CALL_VEC128_U32 ||
     call_kind == POLY_CALL_COMPACT_U32_F32 ||
     call_kind == POLY_CALL_COMPACT_F32_U32;
+  const uint32_t special_signature_kind =
+    x86_signature_kind_for_special_call_kind(call_kind);
+  const int use_special_sig_pcall = special_signature_kind != UINT32_MAX;
+  const uint32_t special_signature_slot =
+    import_contract.signature_slot_x86_sysv_regs_fp128_ret;
   const int use_sret_pcall = call_kind == POLY_CALL_SRET_U64;
   const int use_fp64_stack_pcall = call_kind == POLY_CALL_FP64_STACK;
   const int use_hfa_f64_arg_sig_pcall = program->arch == POLY_ARCH_AARCH64 &&
@@ -9748,13 +9769,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
-      (use_sret_pcall ? sret_pcall_sequence_size :
-        (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
-          (use_hfa_f64_arg_sig_pcall ? hfa_f64_arg_pcall_sequence_size :
-            (use_hfa_f32_arg_sig_pcall ? hfa_f32_arg_pcall_sequence_size :
-              (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
-                (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
-                  POLY_X86_CONTROL_OPCODE_SIZE)))))));
+      (use_special_sig_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
+        (use_sret_pcall ? sret_pcall_sequence_size :
+          (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
+            (use_hfa_f64_arg_sig_pcall ? hfa_f64_arg_pcall_sequence_size :
+              (use_hfa_f32_arg_sig_pcall ? hfa_f32_arg_pcall_sequence_size :
+                (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
+                  (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
+                    POLY_X86_CONTROL_OPCODE_SIZE))))))));
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
     state_key_setup_size + pcall_sequence_size;
@@ -9929,6 +9951,26 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       signature_slot =
         import_contract.signature_slot_native_regs_compact_f32_u32;
     emit_x86_pcall_sig_imm(code, &offset, pcall_frontend, signature_slot);
+  }
+  else if (use_special_sig_pcall) {
+    const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
+      POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
+    if (poly_abi_signature_set(special_signature_slot,
+          special_signature_kind) != 0) {
+      fprintf(stderr,
+        "POLYCALL_FAIL: special ABI signature slot programming failed kind=%u slot=%u\n",
+        special_signature_kind, special_signature_slot);
+      unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+      if (tls)
+        munmap(tls, tls_size);
+      munmap(heap, POLY_IMPORT_HEAP_SIZE);
+      munmap(import_page, 4096);
+      munmap(foreign, foreign_size);
+      munmap(code, code_size);
+      return -1;
+    }
+    emit_x86_pcall_sig_imm(code, &offset, pcall_frontend,
+      special_signature_slot);
   }
   else if (use_fp64_stack_pcall) {
     emit_x86_pcall_fp64_stack_thunk(code, &offset, program->arch,
