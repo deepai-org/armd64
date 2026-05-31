@@ -4214,6 +4214,11 @@ static int call_kind_is_aarch64_hfa_f64_return(int call_kind) {
     call_kind == POLY_CALL_AARCH64_HFA4_F64;
 }
 
+static int call_kind_is_aarch64_hfa_f32_return(int call_kind) {
+  return call_kind == POLY_CALL_AARCH64_HFA3_F32 ||
+    call_kind == POLY_CALL_AARCH64_HFA4_F32;
+}
+
 static uint32_t aarch64_hfa_f64_return_count(int call_kind) {
   return call_kind == POLY_CALL_AARCH64_HFA4_F64 ? 4U : 3U;
 }
@@ -4233,6 +4238,18 @@ static void emit_x86_store_hfa_f64_return_to_sret(uint8_t *code,
     code[(*offset)++] = (uint8_t) (0x45U + (n << 3));
     code[(*offset)++] = (uint8_t) (n * 8U);
   }
+}
+
+static void emit_x86_pack_hfa_f32_return(uint8_t *code, size_t *offset) {
+  code[(*offset)++] = 0x0f; // unpcklps xmm0,xmm1: pack f0,f1.
+  code[(*offset)++] = 0x14;
+  code[(*offset)++] = 0xc1;
+  code[(*offset)++] = 0x0f; // unpcklps xmm2,xmm3: pack f2,f3.
+  code[(*offset)++] = 0x14;
+  code[(*offset)++] = 0xd3;
+  code[(*offset)++] = 0x0f; // movaps xmm1,xmm2.
+  code[(*offset)++] = 0x28;
+  code[(*offset)++] = 0xca;
 }
 
 static void emit_x86_shuffle_hfa_f32_arg_regs(uint8_t *code, size_t *offset,
@@ -4267,6 +4284,8 @@ static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
     uint32_t vec128_slot, uint32_t compact_u32_f32_slot,
     uint32_t compact_f32_u32_slot, uint32_t fp64_slot, uint32_t fp32_slot) {
   if (call_kind == POLY_CALL_FP32)
+    return fp32_slot;
+  if (call_kind_is_aarch64_hfa_f32_return(call_kind))
     return fp32_slot;
   if (call_kind == POLY_CALL_FP64 ||
       call_kind == POLY_CALL_SIGREGS_FP64)
@@ -9754,6 +9773,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
      call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG);
   const int use_hfa_f64_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
     call_kind_is_aarch64_hfa_f64_return(call_kind);
+  const int use_hfa_f32_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
+    call_kind_is_aarch64_hfa_f32_return(call_kind);
   const size_t fp64_stack_pcall_sequence_size =
     program->arch == POLY_ARCH_AARCH64 ?
       POLY_X86_PCALL_FP64_STACK_AARCH64_SEQUENCE_SIZE :
@@ -9777,6 +9798,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t hfa_f64_return_post_sequence_size =
     use_hfa_f64_return_thunk ?
       (size_t) aarch64_hfa_f64_return_count(call_kind) * 5U : 0U;
+  const size_t hfa_f32_return_pcall_sequence_size =
+    POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
+  const size_t hfa_f32_return_post_sequence_size =
+    use_hfa_f32_return_thunk ? 9U : 0U;
   const size_t state_key_setup_size = POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE;
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
@@ -9786,12 +9811,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           (use_hfa_f64_arg_sig_pcall ? hfa_f64_arg_pcall_sequence_size :
             (use_hfa_f32_arg_sig_pcall ? hfa_f32_arg_pcall_sequence_size :
               (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
-                POLY_X86_CONTROL_OPCODE_SIZE))))));
+                (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
+                  POLY_X86_CONTROL_OPCODE_SIZE)))))));
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
     state_key_setup_size + pcall_sequence_size;
   const size_t main_stub_size = pcall_return_offset +
-    hfa_f64_return_post_sequence_size + callee_restore_size + 1;
+    hfa_f64_return_post_sequence_size + hfa_f32_return_post_sequence_size +
+    callee_restore_size + 1;
   const size_t import_return_size = needs_x86_import ?
     POLY_X86_CONTROL_OPCODE_SIZE : 0;
   const size_t import_descriptor_count = needs_x86_import ?
@@ -9986,6 +10013,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
       import_contract.signature_slot_native_regs_fp64);
   }
+  else if (use_hfa_f32_return_thunk) {
+    emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
+      import_contract.signature_slot_native_regs_fp32);
+  }
   else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
     if (call_kind == POLY_CALL_FPAIR32)
@@ -10040,6 +10071,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_x86_store_hfa_f64_return_to_sret(code, &offset,
       aarch64_hfa_f64_return_count(call_kind));
   }
+  if (use_hfa_f32_return_thunk)
+    emit_x86_pack_hfa_f32_return(code, &offset);
   emit_restore_callee_regs(code, &offset, callee_save_area);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
