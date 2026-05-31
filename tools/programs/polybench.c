@@ -45,6 +45,8 @@ union polybench_vec128_u32_bits {
 };
 
 static uint32_t polybench_native_signature_slot = 3;
+static uint32_t polybench_fp64_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
 
 struct polybench_monitor_packet {
   struct poly_trap_packet trap;
@@ -145,13 +147,18 @@ static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
-static int setup_polybench_native_signature_slot(void) {
+static int setup_polybench_signature_slots(void) {
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
   const struct poly_cpuid_regs expected_signature =
     poly_cpuid_expected_escape_leaf7();
+  const struct poly_cpuid_regs fp64_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
+  const struct poly_cpuid_regs expected_fp64_signature =
+    poly_cpuid_expected_escape_leaf22();
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  const uint32_t fp64_slot = fp64_signature.edx;
   if (signature.eax != expected_signature.eax ||
       signature.ebx != expected_signature.ebx ||
       signature.ecx != expected_signature.ecx ||
@@ -163,14 +170,30 @@ static int setup_polybench_native_signature_slot(void) {
       signature.eax, signature.ebx, signature.ecx, signature.edx);
     return -1;
   }
-  if (poly_abi_signature_set(native_slot,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+  if (fp64_signature.eax != expected_fp64_signature.eax ||
+      fp64_signature.ebx != expected_fp64_signature.ebx ||
+      fp64_signature.ecx != expected_fp64_signature.ecx ||
+      fp64_signature.edx != expected_fp64_signature.edx ||
+      fp64_slot >= signature.ebx) {
     fprintf(stderr,
-      "POLYBENCH_FAIL: native signature slot setup failed slot=%u\n",
-      native_slot);
+      "POLYBENCH_FAIL: FP64 signature manifest mismatch fp64=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      fp64_signature.eax, fp64_signature.ebx, fp64_signature.ecx,
+      fp64_signature.edx, expected_fp64_signature.eax,
+      expected_fp64_signature.ebx, expected_fp64_signature.ecx,
+      expected_fp64_signature.edx);
+    return -1;
+  }
+  if (poly_abi_signature_set(native_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_abi_signature_set(fp64_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: signature slot setup failed native=%u fp64=%u\n",
+      native_slot, fp64_slot);
     return -1;
   }
   polybench_native_signature_slot = native_slot;
+  polybench_fp64_signature_slot = fp64_slot;
   return 0;
 }
 
@@ -484,6 +507,26 @@ static uint32_t riscv_sd(uint32_t rs2, uint32_t rs1, int32_t imm) {
 static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (rd << 7) | 0x13U;
+}
+
+static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
+    uint32_t signature_slot) {
+  if (signature_slot < 8) {
+    emit_u32(code, offset, POLYBENCH_AARCH64_PCALL_SIG_IMM(signature_slot));
+    return;
+  }
+  emit_u32(code, offset, 0xd2800013U | (signature_slot << 5)); // movz x19,#slot
+  emit_u32(code, offset, POLY_AARCH64_CTRL_CALL_SIG_MODE);
+}
+
+static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
+    uint32_t signature_slot) {
+  if (signature_slot < 8) {
+    emit_u32(code, offset, POLYBENCH_RISCV_PCALL_SIG_IMM(signature_slot));
+    return;
+  }
+  emit_u32(code, offset, riscv_addi(28, 0, signature_slot)); // t3 = slot
+  emit_u32(code, offset, POLY_RISCV_CTRL_CALL_SIG_MODE);
 }
 
 static void emit_riscv_direct_x86_pcall(uint8_t *code, size_t *offset) {
@@ -1445,8 +1488,9 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
+  const size_t pcall_size = polybench_fp64_signature_slot < 8 ? 4 : 8;
   const size_t aarch64_return_offset =
-    aarch64_body_offset + 4 + 8 * 8 + 8 * 4 + 16 + 4 + 16 + 4;
+    aarch64_body_offset + 4 + 8 * 8 + 8 * 4 + 16 + 4 + 16 + pcall_size;
   const size_t riscv_target_offset = aarch64_return_offset + 4 + 4 + 1;
 
   emit_u32(code, &offset, 0xd10103ffU); // sub sp,sp,#64
@@ -1461,8 +1505,7 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V)
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
-  emit_u32(code, &offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
+  emit_aarch64_pcall_sig(code, &offset, polybench_fp64_signature_slot);
   emit_u32(code, &offset, 0x910103ffU); // add sp,sp,#64
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
@@ -1531,8 +1574,7 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
+  emit_riscv_pcall_sig(code, &offset, polybench_fp64_signature_slot);
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_addi(2, 2, 64));
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
@@ -4526,7 +4568,7 @@ int main(void) {
   puts("POLYBENCH: start");
   if (check_polybench_contract() < 0)
     return 1;
-  if (setup_polybench_native_signature_slot() < 0)
+  if (setup_polybench_signature_slots() < 0)
     return 1;
   install_polybench_trap_vector();
   if (check_loop("aarch64", POLY_ARCH_AARCH64) < 0)
