@@ -1068,8 +1068,9 @@ int main(int argc, char **argv) {
       return 1;
     }
 
-    printf("POLYAPP_RESULT: arch=%s value=%llu path=%s\n",
-      payload.arch_name, (unsigned long long) result, payload.path);
+    printf("POLYAPP_RESULT: arch=%s value=%llu path=%s final_arch=%s\n",
+      payload.arch_name, (unsigned long long) result, payload.path,
+      payload.final_arch_name);
     if (result != payload.expected) {
       fprintf(stderr, "POLYAPP_FAIL: %s expected %llu got %llu\n",
         payload.path, (unsigned long long) payload.expected, (unsigned long long) result);
