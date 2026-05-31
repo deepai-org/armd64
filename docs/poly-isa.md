@@ -4,7 +4,7 @@ Poly lets one x86_64 process execute precompiled x86_64, AArch64, and RISC-V64
 user-mode code in one virtual address space. The goal is native ABI
 compatibility and fast cross-ISA linking, not a new compiler-only ABI.
 
-## System Contract
+## Architectural Contract
 
 - Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 - x86_64 remains the system ISA for privilege, paging, interrupts, faults,
@@ -15,11 +15,13 @@ compatibility and fast cross-ISA linking, not a new compiler-only ABI.
 - Extra foreign architectural state is per-thread XSAVE-style state.
 - Hardware stays OS-neutral: the CPU does not parse Linux, libc, linker,
   syscall, or descriptor policy.
+- Foreign traps report architectural state to userspace policy code or the host
+  OS; the CPU does not emulate syscalls or libcalls.
 
 ## Control Instructions
 
 - `PENTER frontend`: enter a frontend at the fall-through PC.
-- `PSWITCH frontend, target`: tail-branch to another frontend.
+- `PSWITCH frontend, target`: tail-branch to another frontend and target PC.
 - `PCALL frontend, target, sig`: cross-call using ABI signature slot `sig`.
 - `PTRAPRET`: return from a userspace Poly trap monitor.
 - `PLANDING`: mark or validate an indirect cross-ISA landing pad.
@@ -30,8 +32,11 @@ Fast `PCALL` is register-only. ABI signature slots may rename registers, but
 must not read memory, parse descriptors, repack stacks, classify aggregates,
 translate syscalls, or call helpers.
 
-Exchange window: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = AArch64 `x0..x7` = RISC-V
-`a0..a7`; `XMM0..XMM7` = AArch64 `v0..v7` = RISC-V `fa0..fa7`.
+Integer exchange window: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = AArch64 `x0..x7`
+= RISC-V `a0..a7`.
+
+Floating-point exchange window: `XMM0..XMM7` = AArch64 `v0..v7` = RISC-V
+`fa0..fa7`.
 
 Software thunks handle stack arguments, variadics, by-value aggregates,
 incompatible vectors, lazy binding, imports, and syscall policy.
