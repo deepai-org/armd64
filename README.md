@@ -90,8 +90,8 @@ Other useful targets:
   descriptor parsing.
 - The current Bochs runtime keeps direct `PCALL` stack handling and
   structure-return stack argument handling in software thunks.
-- Descriptor-backed import calls are a Bochs/runtime compatibility path with a
-  private runtime table layout. CPUID keeps descriptor hardware support
+- Runtime-backed import calls are a Bochs compatibility path with a private
+  loader table layout. CPUID keeps descriptor hardware support
   reserved/forbidden; reserved import targets trap instead of making the CPU
   parse user-memory descriptors.
 - Hot signature calls encode the slot in the control instruction using fixed
