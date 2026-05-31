@@ -12,10 +12,29 @@ struct poly_compact_f32_u32 {
   uint32_t i;
 };
 
+struct poly_hfa3_f32 {
+  float a;
+  float b;
+  float c;
+};
+
+struct poly_hfa4_f32 {
+  float a;
+  float b;
+  float c;
+  float d;
+};
+
 union poly_float_bits {
   float f;
   uint32_t u;
 };
+
+static uint32_t pack_poly_f32_hi16(float value) {
+  union poly_float_bits bits;
+  bits.f = value;
+  return bits.u >> 16;
+}
 
 enum {
   POLY_SYS_WRITE = 64,
@@ -160,6 +179,41 @@ __asm__(
 __attribute__((visibility("default")))
 float poly_process_needed_fp32(float left, float right) {
   return left + right + 4.0f;
+}
+
+#elif defined(POLY_PROCESS_NEEDED_HFA32_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_hfa3_f32 aarch64_hfa3_f32_ret\\n\"\n"
+  "   .ascii \"poly_process_needed_hfa4_f32 aarch64_hfa4_f32_ret\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+struct poly_hfa3_f32 poly_process_needed_hfa3_f32(float a, float b, float c) {
+  struct poly_hfa3_f32 out;
+  out.a = a + b;
+  out.b = b + c;
+  out.c = a + c + 1.0f;
+  return out;
+}
+
+__attribute__((visibility("default")))
+struct poly_hfa4_f32 poly_process_needed_hfa4_f32(float a, float b, float c) {
+  struct poly_hfa4_f32 out;
+  out.a = a + b;
+  out.b = b + c;
+  out.c = a + c + 1.0f;
+  out.d = a + b + c + 2.0f;
+  return out;
 }
 
 #elif defined(POLY_PROCESS_NEEDED_VEC128_DEP)
@@ -444,6 +498,9 @@ extern uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t);
 extern double poly_process_needed_fp64(double, double);
 #elif defined(POLY_PROCESS_NEEDED_FP32_MAIN)
 extern float poly_process_needed_fp32(float, float);
+#elif defined(POLY_PROCESS_NEEDED_HFA32_MAIN)
+extern struct poly_hfa3_f32 poly_process_needed_hfa3_f32(float, float, float);
+extern struct poly_hfa4_f32 poly_process_needed_hfa4_f32(float, float, float);
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
 extern poly_u32x4 poly_process_needed_vec128(poly_u32x4, poly_u32x4);
 #elif defined(POLY_PROCESS_NEEDED_COMPACT_MAIN)
@@ -715,6 +772,24 @@ uint64_t poly_process_main(void) {
   if (result.u != 0x40f80000U)
     return 54;
   static const char marker[] = "POLY_PROCESS_CROSS_FP32_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_HFA32_MAIN)
+  const struct poly_hfa3_f32 hfa3 =
+    poly_process_needed_hfa3_f32(1.5f, 2.25f, 3.0f);
+  const struct poly_hfa4_f32 hfa4 =
+    poly_process_needed_hfa4_f32(1.5f, 2.25f, 3.0f);
+  const uint64_t packed_hfa3 =
+    ((uint64_t) pack_poly_f32_hi16(hfa3.a) << 32) |
+    ((uint64_t) pack_poly_f32_hi16(hfa3.b) << 16) |
+    pack_poly_f32_hi16(hfa3.c);
+  const uint64_t packed_hfa4 =
+    ((uint64_t) pack_poly_f32_hi16(hfa4.a) << 48) |
+    ((uint64_t) pack_poly_f32_hi16(hfa4.b) << 32) |
+    ((uint64_t) pack_poly_f32_hi16(hfa4.c) << 16) |
+    pack_poly_f32_hi16(hfa4.d);
+  if (packed_hfa3 != 0x0000407040a840b0ULL ||
+      packed_hfa4 != 0x407040a840b0410cULL)
+    return 55;
+  static const char marker[] = "POLY_PROCESS_CROSS_HFA32_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
   union {
     poly_u32x4 v;

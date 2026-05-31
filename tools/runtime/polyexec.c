@@ -307,7 +307,9 @@ enum poly_process_bridge_kind {
   POLY_PROCESS_BRIDGE_COMPACT_F32_U32 = 3,
   POLY_PROCESS_BRIDGE_U64_STACK9 = 4,
   POLY_PROCESS_BRIDGE_FP64 = 5,
-  POLY_PROCESS_BRIDGE_FP32 = 6
+  POLY_PROCESS_BRIDGE_FP32 = 6,
+  POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET = 7,
+  POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET = 8
 };
 
 struct poly_process_bridge_spec {
@@ -602,6 +604,10 @@ static int read_poly_base_contract(int require_trap_vector) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 23);
   const struct poly_cpuid_regs expected_signature_fp32 =
     poly_cpuid_expected_escape_leaf23();
+  const struct poly_cpuid_regs signature_hfa32 =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 26);
+  const struct poly_cpuid_regs expected_signature_hfa32 =
+    poly_cpuid_expected_escape_leaf26();
   const uint32_t vec128_slot = signature_ext.ecx;
   const uint32_t vec128_kind = signature_ext.edx;
   const uint32_t compact_u32_f32_slot = signature_compact.eax;
@@ -630,6 +636,10 @@ static int read_poly_base_contract(int require_trap_vector) {
       signature_fp32.ebx != expected_signature_fp32.ebx ||
       signature_fp32.ecx != expected_signature_fp32.ecx ||
       signature_fp32.edx != expected_signature_fp32.edx ||
+      signature_hfa32.eax != expected_signature_hfa32.eax ||
+      signature_hfa32.ebx != expected_signature_hfa32.ebx ||
+      signature_hfa32.ecx != expected_signature_hfa32.ecx ||
+      signature_hfa32.edx != expected_signature_hfa32.edx ||
       native_slot >= signature.ebx ||
       native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
       vec128_slot >= signature.ebx ||
@@ -643,14 +653,15 @@ static int read_poly_base_contract(int require_trap_vector) {
       fp64_slot >= signature.ebx ||
       fp32_slot >= signature.ebx) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u)\n",
+      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) hfa32=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
       signature_compact.ecx, signature_compact.edx, signature_fp64.eax,
       signature_fp64.ebx, signature_fp64.ecx, signature_fp64.edx,
       signature_fp32.eax, signature_fp32.ebx, signature_fp32.ecx,
-      signature_fp32.edx);
+      signature_fp32.edx, signature_hfa32.eax, signature_hfa32.ebx,
+      signature_hfa32.ecx, signature_hfa32.edx);
     return -1;
   }
   if (poly_abi_signature_set(native_slot,
@@ -869,6 +880,10 @@ static int process_bridge_kind_from_name(const char *name) {
     return POLY_PROCESS_BRIDGE_FP64;
   if (strcmp(name, "fp32") == 0)
     return POLY_PROCESS_BRIDGE_FP32;
+  if (strcmp(name, "aarch64_hfa3_f32_ret") == 0)
+    return POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET;
+  if (strcmp(name, "aarch64_hfa4_f32_ret") == 0)
+    return POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET;
   return -1;
 }
 
@@ -983,6 +998,9 @@ static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
     return process_fp64_signature_slot;
   if (bridge_kind == POLY_PROCESS_BRIDGE_FP32)
     return process_fp32_signature_slot;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET ||
+      bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET)
+    return POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_FP128_RET;
   return process_native_signature_slot;
 }
 
@@ -1598,8 +1616,13 @@ static int resolve_loaded_dependency_symbol_at_depth(
           (resolved_type == STT_FUNC || resolved_type == STT_NOTYPE ||
            resolved_type == STT_GNU_IFUNC) &&
           emit_process_cross_isa_call_stub(caller_arch, dep->program->arch,
-            *symbol_value, bridge_kind, signature_slot, symbol_value) < 0)
+            *symbol_value, bridge_kind, signature_slot, symbol_value) < 0) {
+        fprintf(stderr,
+          "POLYEXEC_FAIL: cross-ISA relocation stub failed symbol=%s caller=%d callee=%d bridge=%d slot=%u\n",
+          symbol_name, caller_arch, dep->program->arch, bridge_kind,
+          signature_slot);
         return -1;
+      }
       return 0;
     }
     if (resolve_loaded_dependency_symbol_at_depth(dep->program, caller_arch,
@@ -1852,6 +1875,11 @@ static int resolve_dependency_reloc_symbol(const struct poly_program *program,
       *symbol_type = ELF64_ST_TYPE(unresolved_info);
     return 0;
   }
+  fprintf(stderr,
+    "POLYEXEC_FAIL: unresolved relocation symbol=%s arch=%d bind=%u type=%u\n",
+    symbol_name ? symbol_name : "(null)", program->arch,
+    (unsigned) ELF64_ST_BIND(unresolved_info),
+    (unsigned) ELF64_ST_TYPE(unresolved_info));
   return -1;
 }
 
@@ -4103,6 +4131,37 @@ static int process_bridge_is_compact(int bridge_kind) {
     bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32;
 }
 
+static int process_bridge_is_aarch64_hfa32_ret(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET ||
+    bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET;
+}
+
+static uint32_t process_bridge_signature_kind(int bridge_kind) {
+  if (bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_RET;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_RET;
+  return UINT32_MAX;
+}
+
+static void emit_x86_abi_signature_set(uint8_t *code, size_t *offset,
+    uint32_t slot, uint32_t kind) {
+  const uint64_t value = poly_abi_signature_control_value(kind);
+  code[(*offset)++] = 0x50; // push rax
+  code[(*offset)++] = 0x52; // push rdx
+  code[(*offset)++] = 0xb8; // mov eax,slot
+  emit_u32(code, offset, slot);
+  code[(*offset)++] = 0x48; // movabs rdx,value
+  code[(*offset)++] = 0xba;
+  emit_u64(code, offset, value);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = 0x69;
+  code[(*offset)++] = 0x5a; // pop rdx
+  code[(*offset)++] = 0x58; // pop rax
+}
+
 static void emit_process_aarch64_compact_pre_pcall(uint8_t *code,
     size_t *offset, int bridge_kind) {
   if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_U32_F32) {
@@ -4297,6 +4356,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
         (caller_arch == POLY_ARCH_X86 &&
           (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV))))
     return -1;
+  if (process_bridge_is_aarch64_hfa32_ret(bridge_kind) &&
+      !(caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_AARCH64))
+    return -1;
   if (callee_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
       bridge_kind != POLY_PROCESS_BRIDGE_VEC128_U32 &&
@@ -4313,7 +4375,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_F32_U32 &&
       bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9 &&
       bridge_kind != POLY_PROCESS_BRIDGE_FP64 &&
-      bridge_kind != POLY_PROCESS_BRIDGE_FP32)
+      bridge_kind != POLY_PROCESS_BRIDGE_FP32 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET &&
+      bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET)
     return -1;
   if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
       caller_arch != POLY_ARCH_X86 &&
@@ -4370,7 +4434,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     callee_arch == POLY_ARCH_RISCV ? POLY_ARCH_RISCV : POLY_ARCH_X86;
 
   if (caller_arch == POLY_ARCH_X86) {
-    if (process_cross_stubs.size - start < 192)
+    if (process_cross_stubs.size - start < 224)
       return -1;
     size_t offset = start;
     code[offset++] = 0x53; // push rbx
@@ -4443,6 +4507,15 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       code[offset++] = 0x24;
       code[offset++] = 0x30;
       signature_slot = POLY_ABI_SIGNATURE_SLOT_EXCHANGE;
+    }
+
+    if (process_bridge_is_aarch64_hfa32_ret(bridge_kind)) {
+      const uint32_t signature_kind =
+        process_bridge_signature_kind(bridge_kind);
+      if (signature_kind == UINT32_MAX)
+        return -1;
+      emit_x86_abi_signature_set(code, &offset, signature_slot,
+        signature_kind);
     }
 
     emit_x86_movabs_rbx(code, &offset, target);
@@ -4857,6 +4930,11 @@ static int apply_relative_relocations(const struct poly_program *program,
         reloc_value += (uint64_t) rela->r_addend;
       }
       else {
+        fprintf(stderr,
+          "POLYEXEC_FAIL: unsupported rela relocation arch=%d type=%u symbol=%llu offset=0x%llx\n",
+          program->arch, (unsigned) reloc_type,
+          (unsigned long long) symbol_index,
+          (unsigned long long) rela->r_offset);
         return -1;
       }
       write_u64_le(loaded_image + target,
@@ -4963,6 +5041,11 @@ static int apply_relative_relocations(const struct poly_program *program,
         }
       }
       else {
+        fprintf(stderr,
+          "POLYEXEC_FAIL: unsupported rel relocation arch=%d type=%u symbol=%llu offset=0x%llx\n",
+          program->arch, (unsigned) reloc_type,
+          (unsigned long long) symbol_index,
+          (unsigned long long) rel->r_offset);
         return -1;
       }
       write_u64_le(loaded_image + target,
@@ -5035,8 +5118,14 @@ static int apply_relative_relocations(const struct poly_program *program,
           continue;
         }
         if (symbol_index == 0 ||
-            !symbolic_64_reloc_type_for_arch(program->arch, reloc_type))
+            !symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
+          fprintf(stderr,
+            "POLYEXEC_FAIL: unsupported plt rela relocation arch=%d type=%u symbol=%llu offset=0x%llx\n",
+            program->arch, (unsigned) reloc_type,
+            (unsigned long long) symbol_index,
+            (unsigned long long) rela->r_offset);
           return -1;
+        }
         uint64_t reloc_value = 0;
         uint8_t symbol_type = 0;
         int from_dependency = 0;
@@ -5098,8 +5187,14 @@ static int apply_relative_relocations(const struct poly_program *program,
           continue;
         }
         if (symbol_index == 0 ||
-            !symbolic_64_reloc_type_for_arch(program->arch, reloc_type))
+            !symbolic_64_reloc_type_for_arch(program->arch, reloc_type)) {
+          fprintf(stderr,
+            "POLYEXEC_FAIL: unsupported plt rel relocation arch=%d type=%u symbol=%llu offset=0x%llx\n",
+            program->arch, (unsigned) reloc_type,
+            (unsigned long long) symbol_index,
+            (unsigned long long) rel->r_offset);
           return -1;
+        }
         size_t target = 0;
         if (elf_vaddr_to_image_offset(program, rel->r_offset, 8, &target) < 0)
           return -1;
