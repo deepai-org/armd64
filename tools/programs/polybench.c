@@ -88,8 +88,26 @@ static const uint64_t polybench_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 172};
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
-static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
-static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x42" ::: "memory"); }
+static inline uint64_t poly_switch_count_status_value(void) {
+  uint64_t value;
+  asm volatile(".byte 0x0f,0x3a,0xfc,0x40" : "=a"(value) :: "memory");
+  return value;
+}
+static inline uint64_t poly_foreign_insn_count_status_value(void) {
+  uint64_t value;
+  asm volatile(".byte 0x0f,0x3a,0xfc,0x42" : "=a"(value) :: "memory");
+  return value;
+}
+static uint64_t polybench_saved_r15;
+#define POLYBENCH_SAVE_R15() \
+  asm volatile("movq %%r15, %0" : "=m"(polybench_saved_r15) :: "memory")
+#define POLYBENCH_RESTORE_R15() \
+  asm volatile("movq %0, %%r15" :: "m"(polybench_saved_r15) : "memory")
+#define POLYBENCH_CALL_SAVE_R15(lvalue, call_expr) do { \
+  POLYBENCH_SAVE_R15(); \
+  (lvalue) = (call_expr); \
+  POLYBENCH_RESTORE_R15(); \
+} while (0)
 
 static int check_polybench_arch_state_contract(void) {
   struct poly_cpuid_contract_failure failure;
@@ -290,12 +308,6 @@ static inline void poly_trap_vector_mode_set_value(uint64_t value) {
 
 static inline void poly_monitor_packet_set_value(uint64_t value) {
   asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
-}
-
-static inline uint64_t read_rax(void) {
-  uint64_t value;
-  asm volatile("" : "=a"(value));
-  return value;
 }
 
 static void emit_u16(uint8_t *code, size_t *offset, uint16_t value) {
@@ -1051,7 +1063,9 @@ static uint64_t call_code_vec128_u32(const uint8_t *code) {
     (polybench_vec128_u32 (*)(polybench_vec128_u32,
       polybench_vec128_u32)) code;
 
+  POLYBENCH_SAVE_R15();
   result.v = entry(arg0.v, arg1.v);
+  POLYBENCH_RESTORE_R15();
   return ((uint64_t) (result.u[3] & 0xffffU) << 48) |
     ((uint64_t) (result.u[2] & 0xffffU) << 32) |
     ((uint64_t) (result.u[1] & 0xffffU) << 16) |
@@ -1061,13 +1075,19 @@ static uint64_t call_code_vec128_u32(const uint8_t *code) {
 static uint64_t call_code_fp64_6(const uint8_t *code) {
   double (*entry)(double, double, double, double, double, double) =
     (double (*)(double, double, double, double, double, double)) code;
-  return fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
+  POLYBENCH_SAVE_R15();
+  double result = entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+  POLYBENCH_RESTORE_R15();
+  return fp64_to_bits(result);
 }
 
 static uint32_t call_code_fp32_6(const uint8_t *code) {
   float (*entry)(float, float, float, float, float, float) =
     (float (*)(float, float, float, float, float, float)) code;
-  return fp32_to_bits(entry(1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f));
+  POLYBENCH_SAVE_R15();
+  float result = entry(1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f);
+  POLYBENCH_RESTORE_R15();
+  return fp32_to_bits(result);
 }
 
 static uint64_t call_code_u64_6(const uint8_t *code) {
@@ -1075,7 +1095,10 @@ static uint64_t call_code_u64_6(const uint8_t *code) {
     uint64_t) =
     (uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
       uint64_t)) code;
-  return entry(1, 2, 3, 4, 5, 6);
+  POLYBENCH_SAVE_R15();
+  uint64_t result = entry(1, 2, 3, 4, 5, 6);
+  POLYBENCH_RESTORE_R15();
+  return result;
 }
 
 static uint64_t call_code_sret5(const uint8_t *code) {
@@ -1083,7 +1106,9 @@ static uint64_t call_code_sret5(const uint8_t *code) {
     uint64_t) =
     (struct polybench_sret4 (*)(uint64_t, uint64_t, uint64_t, uint64_t,
       uint64_t)) code;
+  POLYBENCH_SAVE_R15();
   struct polybench_sret4 result = entry(1, 2, 3, 4, 5);
+  POLYBENCH_RESTORE_R15();
   return ((result.a & 0xffffULL) << 48) |
     ((result.b & 0xffffULL) << 32) |
     ((result.c & 0xffffULL) << 16) |
@@ -1107,7 +1132,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
 
   size_t offset = arch == POLY_ARCH_RISCV_COMPRESSED ? 4 : 3;
   if (arch == POLY_ARCH_AARCH64) {
-    const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+    const uint8_t raw_switch[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, 0xd2800000U | ((uint32_t) LOOP_ITERS << 5)); // movz x0,#LOOP_ITERS
@@ -1115,7 +1140,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
     emit_u32(code, &offset, 0xb5ffffe0U); // cbnz x0, previous instruction
     emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
   } else if (arch == POLY_ARCH_RISCV) {
-    const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+    const uint8_t raw_switch[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
@@ -1123,7 +1148,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
     emit_u32(code, &offset, 0xfe051ee3U); // bne a0,zero, previous instruction
     emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   } else {
-    const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+    const uint8_t raw_switch[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
@@ -1133,17 +1158,13 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
   }
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  uint64_t after = read_rax();
+  uint64_t after = poly_foreign_insn_count_status_value();
   *insn_delta = after - before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1164,7 +1185,7 @@ static int run_direct_x86_pcall_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd2800020U); // movz x0,#1
   emit_u32(code, &offset, 0xd2800041U); // movz x1,#2
@@ -1177,16 +1198,12 @@ static int run_direct_x86_pcall_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1207,7 +1224,7 @@ static int run_direct_x86_pcall_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, 0x00100513U); // addi a0,zero,1
   emit_u32(code, &offset, 0x00200593U); // addi a1,zero,2
@@ -1231,16 +1248,12 @@ static int run_direct_x86_pcall_riscv(uint64_t *result,
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1261,7 +1274,7 @@ static int run_direct_x86_sret_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd10083ffU); // sub sp,sp,#32
   emit_u32(code, &offset, 0x910003e8U); // mov x8,sp (sret pointer)
@@ -1287,16 +1300,12 @@ static int run_direct_x86_sret_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1317,7 +1326,7 @@ static int run_direct_x86_sret_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, riscv_addi(2, 2, -32));
   emit_u32(code, &offset, riscv_addi(10, 2, 0)); // a0 = sret pointer
@@ -1354,16 +1363,12 @@ static int run_direct_x86_sret_riscv(uint64_t *result,
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1384,7 +1389,7 @@ static int run_direct_x86_fp64_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 1));
   emit_aarch64_direct_x86_pcall_sig(code, &offset,
@@ -1394,16 +1399,12 @@ static int run_direct_x86_fp64_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp64_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1424,7 +1425,7 @@ static int run_direct_x86_fp64_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, riscv_fadd_d(10, 10, 11));
   const size_t auipc_target_pc = offset;
@@ -1445,16 +1446,12 @@ static int run_direct_x86_fp64_riscv(uint64_t *result_bits,
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp64_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1475,7 +1472,7 @@ static int run_direct_x86_fp32_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, aarch64_fadd_s(0, 0, 1));
   emit_aarch64_direct_x86_pcall_sig(code, &offset,
@@ -1485,16 +1482,12 @@ static int run_direct_x86_fp32_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp32_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1515,7 +1508,7 @@ static int run_direct_x86_fp32_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, riscv_fadd_s(10, 10, 11));
   const size_t auipc_target_pc = offset;
@@ -1536,16 +1529,12 @@ static int run_direct_x86_fp32_riscv(uint64_t *result_bits,
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp32_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1566,16 +1555,12 @@ static int run_x86_pcall_signature_aarch64(uint64_t *result,
   emit_x86_pcall_sig_imm_mode(code, &offset, POLY_FRONTEND_AARCH64,
     polybench_native_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_u64_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1596,16 +1581,12 @@ static int run_x86_pcall_signature_riscv(uint64_t *result,
   emit_x86_pcall_sig_imm_mode(code, &offset, POLY_FRONTEND_RISCV,
     polybench_native_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_u64_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1626,16 +1607,12 @@ static int run_x86_pcall_sret_signature_aarch64(uint64_t *result,
   emit_x86_pcall_sret_sig_imm_mode(code, &offset, POLY_FRONTEND_AARCH64,
     polybench_sret_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_sret5(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1656,16 +1633,12 @@ static int run_x86_pcall_sret_signature_riscv(uint64_t *result,
   emit_x86_pcall_sret_sig_imm_mode(code, &offset, POLY_FRONTEND_RISCV,
     polybench_sret_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_sret5(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1686,16 +1659,12 @@ static int run_x86_pcall_fp32_signature_aarch64(uint64_t *result_bits,
   emit_x86_pcall_sig_imm_mode_fp32(code, &offset, POLY_FRONTEND_AARCH64,
     polybench_fp32_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp32_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1716,16 +1685,12 @@ static int run_x86_pcall_fp32_signature_riscv(uint64_t *result_bits,
   emit_x86_pcall_sig_imm_mode_fp32(code, &offset, POLY_FRONTEND_RISCV,
     polybench_fp32_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp32_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1746,16 +1711,12 @@ static int run_x86_pcall_fp64_signature_aarch64(uint64_t *result_bits,
   emit_x86_pcall_sig_imm_mode_fp64(code, &offset, POLY_FRONTEND_AARCH64,
     polybench_fp64_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp64_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1776,16 +1737,12 @@ static int run_x86_pcall_fp64_signature_riscv(uint64_t *result_bits,
   emit_x86_pcall_sig_imm_mode_fp64(code, &offset, POLY_FRONTEND_RISCV,
     polybench_fp64_signature_slot);
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result_bits = call_code_fp64_6(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1805,7 +1762,7 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
   emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
@@ -1817,16 +1774,12 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1847,7 +1800,7 @@ static int run_compressed_mixed_program(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
   emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
@@ -1859,16 +1812,12 @@ static int run_compressed_mixed_program(uint64_t *result,
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1889,7 +1838,7 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u16(code, &offset, 0x451dU); // c.li a0,7
   const size_t auipc_target_pc = offset;
@@ -1905,16 +1854,12 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
   store_u32(code, addi_target_offset, riscv_addi(5, 5,
     (int32_t) aarch64_target_offset - (int32_t) auipc_target_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1934,7 +1879,7 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   emit_u32(code, &offset, 0x00700513U); // addi a0,zero,7
   const size_t auipc_target_pc = offset;
@@ -1950,16 +1895,12 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   store_u32(code, addi_target_offset, riscv_addi(5, 5,
     (int32_t) aarch64_target_offset - (int32_t) auipc_target_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -1981,7 +1922,7 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -2006,16 +1947,12 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x01550513U); // addi a0,a0,21
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2037,7 +1974,7 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x01400513U); // addi a0,zero,20
@@ -2075,16 +2012,12 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2106,7 +2039,7 @@ static int run_cross_call_fp_aarch64_to_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -2131,17 +2064,13 @@ static int run_cross_call_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double) = (double (*)(double)) code;
-  *result_bits = fp64_to_bits(entry(2.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(2.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2163,7 +2092,7 @@ static int run_cross_call_fp_riscv_to_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
@@ -2201,17 +2130,13 @@ static int run_cross_call_fp_riscv_to_aarch64(uint64_t *result_bits,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double) = (double (*)(double)) code;
-  *result_bits = fp64_to_bits(entry(2.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(2.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2233,7 +2158,7 @@ static int run_cross_call_fp8_aarch64_to_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -2256,19 +2181,16 @@ static int run_cross_call_fp8_aarch64_to_riscv(uint64_t *result_bits,
     emit_u32(code, &offset, riscv_fadd_d(10, 10, reg));
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double, double, double, double, double, double, double,
     double) = (double (*)(double, double, double, double, double, double,
       double, double)) code;
-  *result_bits = fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits,
+    fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2290,7 +2212,7 @@ static int run_cross_call_fp8_riscv_to_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -2327,19 +2249,16 @@ static int run_cross_call_fp8_riscv_to_aarch64(uint64_t *result_bits,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double, double, double, double, double, double, double,
     double) = (double (*)(double, double, double, double, double, double,
       double, double)) code;
-  *result_bits = fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits,
+    fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2362,7 +2281,7 @@ static int run_cross_call_fp64_signature_aarch64_to_riscv(
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -2386,17 +2305,13 @@ static int run_cross_call_fp64_signature_aarch64_to_riscv(
   emit_u32(code, &offset, riscv_fmul_d(10, 10, 11));
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double, double) = (double (*)(double, double)) code;
-  *result_bits = fp64_to_bits(entry(1.5, 2.25));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(1.5, 2.25)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2419,7 +2334,7 @@ static int run_cross_call_fp64_signature_riscv_to_aarch64(
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -2456,17 +2371,13 @@ static int run_cross_call_fp64_signature_riscv_to_aarch64(
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double, double) = (double (*)(double, double)) code;
-  *result_bits = fp64_to_bits(entry(1.5, 2.25));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(1.5, 2.25)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2489,7 +2400,7 @@ static int run_cross_call_fp32_signature_aarch64_to_riscv(
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -2513,17 +2424,13 @@ static int run_cross_call_fp32_signature_aarch64_to_riscv(
   emit_u32(code, &offset, riscv_fmul_s(10, 10, 11));
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   float (*entry)(float, float) = (float (*)(float, float)) code;
-  *result_bits = fp32_to_bits(entry(1.5f, 2.25f));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp32_to_bits(entry(1.5f, 2.25f)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2546,7 +2453,7 @@ static int run_cross_call_fp32_signature_riscv_to_aarch64(
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -2583,17 +2490,13 @@ static int run_cross_call_fp32_signature_riscv_to_aarch64(
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   float (*entry)(float, float) = (float (*)(float, float)) code;
-  *result_bits = fp32_to_bits(entry(1.5f, 2.25f));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp32_to_bits(entry(1.5f, 2.25f)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2615,7 +2518,7 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -2650,22 +2553,19 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
   }
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double, double, double, double, double, double, double,
     double, double, double, double, double, double, double, double, double) =
     (double (*)(double, double, double, double, double, double, double,
       double, double, double, double, double, double, double, double,
       double)) code;
-  *result_bits = fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-    9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits,
+    fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+      9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2687,7 +2587,7 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   for (uint32_t n = 0; n < 8; n++)
@@ -2733,22 +2633,19 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double, double, double, double, double, double, double,
     double, double, double, double, double, double, double, double, double) =
     (double (*)(double, double, double, double, double, double, double,
       double, double, double, double, double, double, double, double,
       double)) code;
-  *result_bits = fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-    9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits,
+    fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+      9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2787,7 +2684,7 @@ static int run_direct_x86_vec128_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, 0x4ea18400U); // add v0.4s,v0.4s,v1.4s
   emit_aarch64_direct_x86_pcall_sig(code, &offset,
@@ -2797,16 +2694,12 @@ static int run_direct_x86_vec128_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_vec128_u32(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2827,7 +2720,7 @@ static int run_direct_x86_vec128_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
   code[offset++] = 0x90;
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
   const size_t auipc_data_pc = offset;
   emit_u32(code, &offset, 0x00000e17U); // auipc x28,0
@@ -2883,16 +2776,12 @@ static int run_direct_x86_vec128_riscv(uint64_t *result,
   store_u32(code, ld_target_offset, riscv_ld(5, 28,
     (int32_t) target_data_offset - (int32_t) auipc_data_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2935,16 +2824,12 @@ static int run_x86_pcall_vec128_signature_aarch64(uint64_t *result,
   store_u64(code, return_imm_offset,
     (uint64_t) (uintptr_t) (code + return_offset));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_vec128_u32(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -2987,16 +2872,12 @@ static int run_x86_pcall_vec128_signature_riscv(uint64_t *result,
   store_u64(code, return_imm_offset,
     (uint64_t) (uintptr_t) (code + return_offset));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_vec128_u32(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3058,16 +2939,12 @@ static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
   store_u64(code, return_imm_offset,
     (uint64_t) (uintptr_t) (code + pcall_return_offset));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_vec128_u32(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3143,16 +3020,12 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_vec128_u32(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3174,7 +3047,7 @@ static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -3201,17 +3074,13 @@ static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0x02b57553U); // fadd.d fa0,fa0,fa1
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double) = (double (*)(double)) code;
-  *result_bits = fp64_to_bits(entry(2.5));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(2.5)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3233,7 +3102,7 @@ static int run_cross_call_mixed_riscv_to_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x00700513U); // addi a0,zero,7
@@ -3273,17 +3142,13 @@ static int run_cross_call_mixed_riscv_to_aarch64(uint64_t *result_bits,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double) = (double (*)(double)) code;
-  *result_bits = fp64_to_bits(entry(2.5));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(2.5)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3305,7 +3170,7 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -3335,16 +3200,12 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00550533U); // add a0,a0,t0
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3366,7 +3227,7 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0xff010113U); // addi sp,sp,-16
@@ -3409,16 +3270,12 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3440,7 +3297,7 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -3466,16 +3323,12 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x01150513U); // addi a0,a0,17
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3497,7 +3350,7 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x00500413U); // addi s0,zero,5
@@ -3536,16 +3389,12 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3568,7 +3417,7 @@ static int run_cross_call_saved_fp_aarch64_to_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
 
   const uint8_t raw_aarch64[] =
-    { 0x0f, 0x3a, 0xfc, 0x01 };
+    { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -3595,17 +3444,13 @@ static int run_cross_call_saved_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, riscv_fadd_d(10, 8, 10));
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double) = (double (*)(double)) code;
-  *result_bits = fp64_to_bits(entry(3.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(3.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3627,7 +3472,7 @@ static int run_cross_call_saved_fp_riscv_to_aarch64(uint64_t *result_bits,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, riscv_fsgnj_d(8, 10, 10)); // fmv.d fs0,fa0
@@ -3667,17 +3512,13 @@ static int run_cross_call_saved_fp_riscv_to_aarch64(uint64_t *result_bits,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   double (*entry)(double) = (double (*)(double)) code;
-  *result_bits = fp64_to_bits(entry(3.0));
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(3.0)));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3699,7 +3540,7 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -3723,16 +3564,12 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x01600593U); // addi a1,zero,22
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3754,7 +3591,7 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -3792,16 +3629,12 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3823,7 +3656,7 @@ static int run_cross_call_compact_u32_f32_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -3855,16 +3688,12 @@ static int run_cross_call_compact_u32_f32_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00a7f553U); // fadd.s fa0,fa5,fa0
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3886,7 +3715,7 @@ static int run_cross_call_compact_f32_u32_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -3918,16 +3747,12 @@ static int run_cross_call_compact_f32_u32_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00a7f553U); // fadd.s fa0,fa5,fa0
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -3949,7 +3774,7 @@ static int run_cross_call_compact_u32_f32_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x00300513U); // addi a0,zero,3
@@ -3995,17 +3820,13 @@ static int run_cross_call_compact_u32_f32_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   uint64_t (*entry)(float) = (uint64_t (*)(float)) code;
-  *result = entry(2.25f);
+  POLYBENCH_CALL_SAVE_R15(*result, entry(2.25f));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4027,7 +3848,7 @@ static int run_cross_call_compact_f32_u32_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x00300513U); // addi a0,zero,3
@@ -4074,17 +3895,13 @@ static int run_cross_call_compact_f32_u32_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   uint64_t (*entry)(float) = (uint64_t (*)(float)) code;
-  *result = entry(2.25f);
+  POLYBENCH_CALL_SAVE_R15(*result, entry(2.25f));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4106,7 +3923,7 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -4136,16 +3953,12 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00000073U); // ecall
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4167,7 +3980,7 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -4212,16 +4025,12 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4243,7 +4052,7 @@ static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -4266,16 +4075,12 @@ static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00100073U); // ebreak
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4297,7 +4102,7 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -4333,16 +4138,12 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4364,7 +4165,7 @@ static int run_cross_call_import_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -4396,16 +4197,12 @@ static int run_cross_call_import_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0x00028367U); // jalr t1,0(t0), preserve ra cookie
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4427,7 +4224,7 @@ static int run_cross_call_import_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -4472,16 +4269,12 @@ static int run_cross_call_import_riscv_to_aarch64(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4503,7 +4296,7 @@ static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -4540,16 +4333,12 @@ static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
   static const char payload[] = "polyglot";
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_with_rax_arg(code, payload);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4571,7 +4360,7 @@ static int run_cross_call_direct_x86_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -4611,16 +4400,12 @@ static int run_cross_call_direct_x86_riscv_to_aarch64(uint64_t *result,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
   static const char payload[] = "polyglot";
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_with_rax_arg(code, payload);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4642,7 +4427,7 @@ static int run_cross_call_direct_x86_memcmp_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -4681,16 +4466,12 @@ static int run_cross_call_direct_x86_memcmp_aarch64_to_riscv(uint64_t *result,
 
   static const char left[] = "polyglot";
   static const char right[] = "polyglot";
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_with_poly3_args(code, left, right, sizeof(left));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4712,7 +4493,7 @@ static int run_cross_call_direct_x86_memcmp_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -4754,16 +4535,12 @@ static int run_cross_call_direct_x86_memcmp_riscv_to_aarch64(uint64_t *result,
 
   static const char left[] = "polyglot";
   static const char right[] = "polyglot";
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_with_poly3_args(code, left, right, sizeof(left));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -4785,7 +4562,7 @@ static int run_cross_call_direct_x86_memops_aarch64_to_riscv(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
@@ -4852,17 +4629,13 @@ static int run_cross_call_direct_x86_memops_aarch64_to_riscv(uint64_t *result,
   static const char source[] = "polyglot";
   char dest[sizeof(source)];
   memset(dest, 0, sizeof(dest));
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   uint64_t raw_result = call_code_with_poly3_args(code, dest,
     source, sizeof(source));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
   *result = (raw_result == 42 &&
       memcmp(dest, source, sizeof(source)) == 0) ? 42 : 0;
 
@@ -4886,7 +4659,7 @@ static int run_cross_call_direct_x86_memops_riscv_to_aarch64(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   const size_t auipc_target_pc = offset;
@@ -4942,17 +4715,13 @@ static int run_cross_call_direct_x86_memops_riscv_to_aarch64(uint64_t *result,
   static const char source[] = "polyglot";
   char dest[sizeof(source)];
   memset(dest, 0, sizeof(dest));
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   uint64_t raw_result = call_code_with_poly3_args(code, dest,
     source, sizeof(source));
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
   *result = (raw_result == 42 &&
       memcmp(dest, source, sizeof(source)) == 0) ? 42 : 0;
 
@@ -4976,7 +4745,7 @@ static int run_nested_cross_call(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  const uint8_t raw_aarch64[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_outer_offset = offset;
@@ -5031,16 +4800,12 @@ static int run_nested_cross_call(uint64_t *result,
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int32_t) return_data_offset - (int32_t) auipc_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
@@ -5062,7 +4827,7 @@ static int run_nested_reverse_cross_call(uint64_t *result,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
 
   emit_u32(code, &offset, 0x00a00513U); // addi a0,zero,10
@@ -5118,16 +4883,12 @@ static int run_nested_reverse_cross_call(uint64_t *result,
   store_u32(code, outer_ld_return_offset, riscv_ld(7, 7,
     (int32_t) outer_return_data_offset - (int32_t) outer_return_pc));
 
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
-  poly_foreign_insn_count_status();
-  *insn_delta = read_rax() - insns_before;
-  poly_switch_count_status();
-  *switch_delta = read_rax() - switches_before;
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
 
   munmap(code, code_size);
   return 0;
