@@ -374,6 +374,7 @@ struct poly_cross_stub_arena {
 static struct poly_cross_stub_arena process_cross_stubs;
 static uint64_t process_runtime_x86_tls_base;
 static uint64_t process_runtime_host_fs_base;
+static int process_runtime_needs_x86_tls_wrapper;
 static size_t process_cross_state_key_stub_count;
 static size_t process_cross_aarch64_to_riscv_stub_count;
 static size_t process_cross_riscv_to_aarch64_stub_count;
@@ -4332,8 +4333,13 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
         &process_cross_stubs.offset) < 0)
     return -1;
 
+  const int needs_x86_call_wrapper =
+    caller_arch != POLY_ARCH_X86 &&
+    callee_arch == POLY_ARCH_X86 &&
+    (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 ||
+      process_runtime_needs_x86_tls_wrapper);
   uint64_t pcall_target = target;
-  if (caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86) {
+  if (needs_x86_call_wrapper) {
     if (emit_process_x86_tls_call_wrapper(target, bridge_kind,
           &pcall_target) < 0 ||
         align_up_size(process_cross_stubs.offset, 8,
@@ -4506,7 +4512,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_u32(code, &offset, 0xd65f03c0U); // ret
     process_cross_stubs.offset = offset;
     note_process_cross_isa_call_stub(caller_arch, callee_arch, bridge_kind,
-      callee_arch == POLY_ARCH_X86);
+      needs_x86_call_wrapper);
     *stub_addr = start_addr;
     return 0;
   }
@@ -4575,7 +4581,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       (int64_t) auipc_state_key_pc)));
   process_cross_stubs.offset = offset;
   note_process_cross_isa_call_stub(caller_arch, callee_arch, bridge_kind,
-    callee_arch == POLY_ARCH_X86);
+    needs_x86_call_wrapper);
   *stub_addr = start_addr;
   return 0;
 }
@@ -6643,6 +6649,8 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
+  process_runtime_needs_x86_tls_wrapper =
+    process_tls_size != 0 && process_tree_has_arch_tls(program, POLY_ARCH_X86);
   if (map_process_dependencies(program, code, prefix_size, lifecycle_return_pc,
         tlsdesc_helpers, tls_get_addr_helpers, scratch) < 0) {
     unmap_process_dependencies(program);
