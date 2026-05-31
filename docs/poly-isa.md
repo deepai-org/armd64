@@ -1,8 +1,7 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to one x86_64 machine. The
-goal is compatibility with existing native ABI objects in one virtual address
-space, not a new compiler-only ABI.
+Poly adds user-mode AArch64 and RISC-V64 frontends to one x86_64 machine so
+existing native ABI objects can share one virtual address space.
 
 ## Run
 
@@ -10,31 +9,28 @@ space, not a new compiler-only ABI.
 make image
 make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYTHREAD_OK|FAIL|Kernel panic|Oops' out/serial.log
-```
 
-Focused cross-ISA loader path:
-
-```sh
+# focused cross-ISA loader test
 make boot-poly-exec-cross-arch-traps
 rg -a 'POLY_EXEC_CROSS_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Model
+## Architecture Contract
 
 - x86_64 remains the system ISA for boot, paging, privilege, interrupts,
-  faults, atomics, VM control, and the global TSO memory model.
-- AArch64 and RISC-V64 are user frontends. AArch64 fetches aligned 32-bit
-  instructions from `RIP`; RISC-V fetches native 16/32-bit instructions so
-  compressed RVC code remains valid.
-- Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
-- Cross-ISA control flow uses decoded Poly control instructions. It does not
-  wrap each foreign instruction in a `#UD` envelope.
-- Foreign register state is explicit per-thread XSAVE-style architectural
-  state. The current state import layout version is `9`.
-- Fast calls use register-only ABI signature slots. Hardware can implement
-  these as register alias/RAT remaps.
-- Software owns dynamic linking, syscall/libcall policy, stack arguments,
-  aggregates, variadics, incompatible vectors, and loader/runtime thunks.
+  faults, atomics, VM control, and TSO memory ordering.
+- AArch64 and RISC-V64 are user frontends fetched from `RIP`.
+- AArch64 fetch is aligned 32-bit; RISC-V fetch is native 16/32-bit so RVC
+  remains valid.
+- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- Cross-ISA control flow uses decoded Poly control instructions, not per-
+  instruction `#UD` envelopes.
+- Foreign register state is explicit per-thread XSAVE-style state. Current
+  state import layout version: `9`.
+- Fast calls use register-only ABI signature slots, implementable as register
+  alias/RAT remaps.
+- Software owns linking, syscall/libcall policy, stack arguments, aggregates,
+  variadics, incompatible vectors, and thunks.
 
 ## Control
 
@@ -44,16 +40,15 @@ rg -a 'POLY_EXEC_CROSS_OK|FAIL|Kernel panic|Oops' out/serial.log
   slot `sig`.
 - `PTRAPRET`: resume from a precise Poly trap packet.
 - `PLANDING`: mark or validate indirect cross-frontend targets.
-
-Same-ISA returns use native returns. Cross-ISA returns use native returns to
-reserved hardware return cookies.
+- Same-ISA returns use native returns; cross-ISA returns use native returns to
+  reserved hardware return cookies.
 
 ## Encodings
 
 - x86_64: temporary decoded `0f 3a fc <subop>` control page.
 - AArch64: reserved HINT subspace.
 - RISC-V64: custom-0 opcode family.
+- Bochs encodings are prototype stand-ins for future dedicated silicon opcodes.
 
-The Bochs encodings are prototype stand-ins for future dedicated silicon
-opcodes. See [poly-isa-design-directions.md](poly-isa-design-directions.md) for
-the hardware/software boundary rationale.
+See [poly-isa-design-directions.md](poly-isa-design-directions.md) for the
+hardware/software boundary rationale.
