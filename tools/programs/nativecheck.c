@@ -1798,6 +1798,19 @@ static void child_expect_bad_active_transition_bridge_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_reserved_active_transition_bridge_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.transition.active.return_pc = 0x1111222233334444ULL;
+  bad.transition.active.caller_mode = POLY_MODE_RAW_AARCH64;
+  bad.transition.active.target_mode = POLY_MODE_RAW_RISCV;
+  bad.transition.active.abi_kind = POLY_CROSS_BRIDGE_RESERVED_1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_active_transition_flags_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -4371,6 +4384,10 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad active transition bridge xstate", SIGILL,
         child_expect_bad_active_transition_bridge_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly reserved active transition bridge xstate",
+        SIGILL, child_expect_reserved_active_transition_bridge_xsave_signal) !=
+      0)
     return 1;
   if (expect_child_signal("poly bad active transition flags xstate", SIGILL,
         child_expect_bad_active_transition_flags_xsave_signal) != 0)

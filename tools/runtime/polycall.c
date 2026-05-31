@@ -212,7 +212,7 @@ enum {
   RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 = 1300,
   RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK = 1400,
   POLY_CROSS_BRIDGE_DEFAULT = 0,
-  POLY_CROSS_BRIDGE_FP64_STACK = 1, /* Runtime thunk selector, not XSAVE. */
+  POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK = 1, /* Runtime thunk selector, not XSAVE. */
   POLY_CROSS_BRIDGE_COMPACT_U32_F32 = 2,
   POLY_CROSS_BRIDGE_COMPACT_F32_U32 = 3,
   POLY_CROSS_BRIDGE_VEC128_U32 = 4
@@ -3499,7 +3499,7 @@ static int cross_bridge_kind_from_name(const char *name) {
   if (strcmp(name, "compact_f32_u32") == 0)
     return POLY_CROSS_BRIDGE_COMPACT_F32_U32;
   if (strcmp(name, "fp64_stack") == 0)
-    return POLY_CROSS_BRIDGE_FP64_STACK;
+    return POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK;
   if (strcmp(name, "vec128_u32") == 0)
     return POLY_CROSS_BRIDGE_VEC128_U32;
   return -1;
@@ -3752,7 +3752,7 @@ static int dep_cross_stub_base_kind(size_t dep_index, int bridge_kind) {
     return RELOC_BASE_DEP_CROSS_STUB_COMPACT_U32_F32 + (int) dep_index;
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
     return RELOC_BASE_DEP_CROSS_STUB_COMPACT_F32_U32 + (int) dep_index;
-  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
+  if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_DEP_CROSS_STUB_FP64_STACK + (int) dep_index;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_DEP_CROSS_STUB_VEC128 + (int) dep_index;
@@ -3764,7 +3764,7 @@ static int dep_cross_ifunc_base_kind(size_t dep_index, int bridge_kind) {
     return RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_U32_F32 + (int) dep_index;
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
     return RELOC_BASE_DEP_CROSS_IFUNC_COMPACT_F32_U32 + (int) dep_index;
-  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
+  if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + (int) dep_index;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + (int) dep_index;
@@ -3821,7 +3821,7 @@ static int cross_bridge_kind_for_base(int base_kind) {
   if (base_kind == RELOC_BASE_ROOT_CROSS_STUB_FP64_STACK ||
       (base_kind >= RELOC_BASE_DEP_CROSS_STUB_FP64_STACK &&
         base_kind < RELOC_BASE_DEP_CROSS_STUB_FP64_STACK + MAX_NEEDED_DEPS))
-    return POLY_CROSS_BRIDGE_FP64_STACK;
+    return POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK;
   if (base_kind == RELOC_BASE_ROOT_CROSS_STUB_VEC128 ||
       (base_kind >= RELOC_BASE_DEP_CROSS_STUB_VEC128 &&
         base_kind < RELOC_BASE_DEP_CROSS_STUB_VEC128 + MAX_NEEDED_DEPS))
@@ -3843,7 +3843,7 @@ static int cross_bridge_kind_for_ifunc_base(int base_kind) {
   if (base_kind == RELOC_BASE_ROOT_IFUNC_FP64_STACK ||
       (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK &&
         base_kind < RELOC_BASE_DEP_CROSS_IFUNC_FP64_STACK + MAX_NEEDED_DEPS))
-    return POLY_CROSS_BRIDGE_FP64_STACK;
+    return POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK;
   if (base_kind == RELOC_BASE_ROOT_IFUNC_VEC128 ||
       (base_kind >= RELOC_BASE_DEP_CROSS_IFUNC_VEC128 &&
         base_kind < RELOC_BASE_DEP_CROSS_IFUNC_VEC128 + MAX_NEEDED_DEPS))
@@ -3856,7 +3856,7 @@ static int root_cross_stub_base_kind(int bridge_kind) {
     return RELOC_BASE_ROOT_CROSS_STUB_COMPACT_U32_F32;
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
     return RELOC_BASE_ROOT_CROSS_STUB_COMPACT_F32_U32;
-  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
+  if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_ROOT_CROSS_STUB_FP64_STACK;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_ROOT_CROSS_STUB_VEC128;
@@ -3868,7 +3868,7 @@ static int root_ifunc_base_kind(int bridge_kind) {
     return RELOC_BASE_ROOT_IFUNC_COMPACT_U32_F32;
   if (bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32)
     return RELOC_BASE_ROOT_IFUNC_COMPACT_F32_U32;
-  if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK)
+  if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK)
     return RELOC_BASE_ROOT_IFUNC_FP64_STACK;
   if (bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32)
     return RELOC_BASE_ROOT_IFUNC_VEC128;
@@ -4139,7 +4139,7 @@ static int cross_bridge_uses_signature_slot(int bridge_kind) {
   return bridge_kind == POLY_CROSS_BRIDGE_DEFAULT ||
     bridge_kind == POLY_CROSS_BRIDGE_COMPACT_U32_F32 ||
     bridge_kind == POLY_CROSS_BRIDGE_COMPACT_F32_U32 ||
-    bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK ||
+    bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK ||
     bridge_kind == POLY_CROSS_BRIDGE_VEC128_U32;
 }
 
@@ -4255,7 +4255,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       return -1;
     const int uses_signature_slot =
       cross_bridge_uses_signature_slot(bridge_kind);
-    if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
+    if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK) {
       const uint64_t return_addr = start_addr + 72;
       for (uint32_t n = 0; n < 8; n++)
         emit_u32(stubs, stub_offset, aarch64_ldr_sp(n, n * 8));
@@ -4330,7 +4330,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     }
     const size_t ld_return_offset = *stub_offset;
     emit_u32(stubs, stub_offset, 0);
-    if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
+    if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK) {
       emit_u32(stubs, stub_offset, riscv_addi(2, 2, -80)); // addi sp,sp,-80
       for (uint32_t n = 0; n < 8; n++)
         emit_u32(stubs, stub_offset, riscv_sd(10 + n, 2, n * 8));
@@ -4365,7 +4365,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     const size_t return_pc = *stub_offset;
     if (is_compact_bridge)
       emit_riscv_compact_post_pcall(stubs, stub_offset, bridge_kind);
-    if (bridge_kind == POLY_CROSS_BRIDGE_FP64_STACK) {
+    if (bridge_kind == POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK) {
       emit_u32(stubs, stub_offset, riscv_ld(1, 2, 72)); // ld ra,72(sp)
       emit_u32(stubs, stub_offset, riscv_addi(2, 2, 80)); // addi sp,sp,80
     }
