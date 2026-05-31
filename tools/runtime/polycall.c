@@ -130,6 +130,8 @@ enum {
   POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE = 14,
   POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 14,
   POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 88,
+  POLY_X86_PCALL_FP64_STACK_AARCH64_SEQUENCE_SIZE = 98,
+  POLY_X86_PCALL_FP64_STACK_RISCV_SEQUENCE_SIZE = 54,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -3987,6 +3989,67 @@ static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
   code[(*offset)++] = (uint8_t) signature_slot;
 }
 
+static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
+    int arch, uint32_t signature_slot_exchange,
+    uint32_t signature_slot_native_regs) {
+  code[(*offset)++] = 0x4c; // mov rbx,r10: target operand.
+  code[(*offset)++] = 0x89;
+  code[(*offset)++] = 0xd3;
+
+  if (arch == POLY_ARCH_AARCH64) {
+    const uint8_t stack_prefix[] = {
+      0x4c, 0x8d, 0xbc, 0x24, 0x00, 0xc0, 0xff, 0xff, // lea r15,[rsp-0x4000].
+      0x49, 0x83, 0xe7, 0xf0                         // and r15,-16.
+    };
+    memcpy(code + *offset, stack_prefix, sizeof(stack_prefix));
+    *offset += sizeof(stack_prefix);
+    for (uint8_t n = 0; n < 8; n++) {
+      const uint8_t src_disp = (uint8_t) (8 + n * 8);
+      const uint8_t dst_disp = (uint8_t) (n * 8);
+      const uint8_t load[] = {
+        0x48, 0x8b, 0x44, 0x24, src_disp // mov rax,[rsp+src].
+      };
+      const uint8_t store[] = {
+        0x49, 0x89, 0x47, dst_disp       // mov [r15+dst],rax.
+      };
+      memcpy(code + *offset, load, sizeof(load));
+      *offset += sizeof(load);
+      memcpy(code + *offset, store, sizeof(store));
+      *offset += sizeof(store);
+    }
+    code[(*offset)++] = 0x41; // mov r15d,AArch64 frontend.
+    code[(*offset)++] = 0xbf;
+    emit_u32(code, offset, POLY_ARCH_AARCH64);
+    code[(*offset)++] = 0x0f;
+    code[(*offset)++] = 0x3a;
+    code[(*offset)++] = 0xfc;
+    code[(*offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+    code[(*offset)++] = (uint8_t) signature_slot_native_regs;
+    return;
+  }
+
+  const uint8_t riscv_loads[] = {
+    0x48, 0x8b, 0x44, 0x24, 0x08, // mov rax,[rsp+8].
+    0x48, 0x8b, 0x54, 0x24, 0x10, // mov rdx,[rsp+16].
+    0x48, 0x8b, 0x4c, 0x24, 0x18, // mov rcx,[rsp+24].
+    0x48, 0x8b, 0x7c, 0x24, 0x20, // mov rdi,[rsp+32].
+    0x48, 0x8b, 0x74, 0x24, 0x28, // mov rsi,[rsp+40].
+    0x4c, 0x8b, 0x44, 0x24, 0x30, // mov r8,[rsp+48].
+    0x4c, 0x8b, 0x4c, 0x24, 0x38, // mov r9,[rsp+56].
+    0x4c, 0x8b, 0x54, 0x24, 0x40  // mov r10,[rsp+64].
+  };
+  memcpy(code + *offset, riscv_loads, sizeof(riscv_loads));
+  *offset += sizeof(riscv_loads);
+  code[(*offset)++] = 0x41; // mov r15d,RISC-V frontend.
+  code[(*offset)++] = 0xbf;
+  emit_u32(code, offset, POLY_ARCH_RISCV);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
+  code[(*offset)++] = (uint8_t) signature_slot_exchange;
+}
+
 static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
     uint32_t vec128_slot, uint32_t compact_u32_f32_slot,
     uint32_t compact_f32_u32_slot) {
@@ -4002,14 +4065,15 @@ static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
 static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int arch, int call_kind, uint64_t target,
     uint64_t tls, uint64_t heap, uint64_t import_x86_table,
-    int needs_x86_import, uint64_t state_key, uint32_t vec128_signature_slot,
+    int needs_x86_import, uint64_t state_key, uint32_t exchange_signature_slot,
+    uint32_t native_regs_signature_slot, uint32_t vec128_signature_slot,
     uint32_t compact_u32_f32_signature_slot,
     uint32_t compact_f32_u32_signature_slot, uint64_t *stub_addr,
     size_t *target_imm_offset) {
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
   const size_t start = *stub_offset;
-  if (stub_limit - start < 128)
+  if (stub_limit - start < 256)
     return -1;
 
   emit_x86_push_callee_regs(stubs, stub_offset);
@@ -4025,7 +4089,11 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
   const uint32_t signature_slot = x86_direct_signature_slot_for_call_kind(
     call_kind, vec128_signature_slot, compact_u32_f32_signature_slot,
     compact_f32_u32_signature_slot);
-  if (signature_slot != UINT32_MAX) {
+  if (call_kind == POLY_CALL_FP64_STACK) {
+    emit_x86_pcall_fp64_stack_thunk(stubs, stub_offset, arch,
+      exchange_signature_slot, native_regs_signature_slot);
+  }
+  else if (signature_slot != UINT32_MAX) {
     emit_x86_pcall_sig_imm(stubs, stub_offset, (uint32_t) arch,
       signature_slot);
   }
@@ -9351,11 +9419,17 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     call_kind == POLY_CALL_VEC128_U32 ||
     call_kind == POLY_CALL_COMPACT_U32_F32 ||
     call_kind == POLY_CALL_COMPACT_F32_U32;
+  const int use_fp64_stack_pcall = call_kind == POLY_CALL_FP64_STACK;
+  const size_t fp64_stack_pcall_sequence_size =
+    program->arch == POLY_ARCH_AARCH64 ?
+      POLY_X86_PCALL_FP64_STACK_AARCH64_SEQUENCE_SIZE :
+      POLY_X86_PCALL_FP64_STACK_RISCV_SEQUENCE_SIZE;
   const size_t state_key_setup_size = POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE;
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_native_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
-      POLY_X86_CONTROL_OPCODE_SIZE);
+      (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
+        POLY_X86_CONTROL_OPCODE_SIZE));
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
     state_key_setup_size + pcall_sequence_size;
@@ -9523,6 +9597,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         import_contract.signature_slot_native_regs_compact_f32_u32;
     emit_x86_pcall_sig_imm(code, &offset, pcall_frontend, signature_slot);
   }
+  else if (use_fp64_stack_pcall) {
+    emit_x86_pcall_fp64_stack_thunk(code, &offset, program->arch,
+      import_contract.signature_slot_exchange,
+      import_contract.signature_slot_native_regs);
+  }
   else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
     if (call_kind == POLY_CALL_FPAIR32)
@@ -9539,8 +9618,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x1a;
     else if (call_kind == POLY_CALL_HETERO_F32_U64)
       pcall_op = 0x1b;
-    else if (call_kind == POLY_CALL_FP64_STACK)
-      pcall_op = 0x1e;
     else if (call_kind == POLY_CALL_VEC128_U32)
       pcall_op = 0x21;
     else if (call_kind == POLY_CALL_AARCH64_HFA3_F64)
@@ -9575,8 +9652,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x1c;
     else if (call_kind == POLY_CALL_COMPACT_F32_U32)
       pcall_op = 0x1d;
-    else if (call_kind == POLY_CALL_FP64_STACK)
-      pcall_op = 0x1f;
     else if (call_kind == POLY_CALL_VEC128_U32)
       pcall_op = 0x22;
     const uint8_t pcall[] = {
@@ -10426,7 +10501,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             &cross_stub_offset, program->arch, result_call_kind,
             fini_result_target, (uint64_t) (uintptr_t) tls,
             (uint64_t) (uintptr_t) import_page, import_x86_table,
-            needs_x86_import, stub_state_key, cross_vec128_signature_slot,
+            needs_x86_import, stub_state_key,
+            import_contract.signature_slot_exchange,
+            import_contract.signature_slot_native_regs,
+            cross_vec128_signature_slot,
             import_contract.signature_slot_native_regs_compact_u32_f32,
             import_contract.signature_slot_native_regs_compact_f32_u32,
             &direct_stub, &direct_target_imm_offset) < 0) {
@@ -10608,7 +10686,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               &cross_stub_offset, program->arch, result_call_kind,
               call_target, (uint64_t) (uintptr_t) tls,
               (uint64_t) (uintptr_t) import_page, import_x86_table,
-              needs_x86_import, stub_state_key, cross_vec128_signature_slot,
+              needs_x86_import, stub_state_key,
+              import_contract.signature_slot_exchange,
+              import_contract.signature_slot_native_regs,
+              cross_vec128_signature_slot,
               import_contract.signature_slot_native_regs_compact_u32_f32,
               import_contract.signature_slot_native_regs_compact_f32_u32,
               &direct_stub, &direct_target_imm_offset) < 0) {
