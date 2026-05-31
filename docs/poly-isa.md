@@ -1,45 +1,39 @@
 # Poly ISA
 
-Poly lets one x86_64 process execute precompiled x86_64, AArch64, and RISC-V64
-user-mode code in one virtual address space. The goal is native ABI
-compatibility and fast cross-ISA linking, not a new compiler-only ABI.
+Poly lets one x86_64 process link and execute precompiled x86_64, AArch64, and
+RISC-V64 user-mode code in one virtual address space.
 
-## Architectural Contract
+## Contract
 
-- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64 remains the system ISA for privilege, paging, interrupts, faults,
-  atomics, VM control, syscalls, and TSO memory ordering.
-- AArch64 and RISC-V fetch native instructions directly from the same virtual
-  address space.
-- Poly controls are decoded instructions, not `#UD` envelopes.
-- Extra foreign architectural state is per-thread XSAVE-style state.
-- Hardware stays OS-neutral: the CPU does not parse Linux, libc, linker,
-  syscall, or descriptor policy.
-- Foreign traps report architectural state to userspace policy code or the host
-  OS; the CPU does not emulate syscalls or libcalls.
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- x86_64 owns privilege, paging, interrupts, faults, atomics, VM control,
+  syscalls, and TSO memory ordering.
+- Foreign frontends fetch native 32-bit instructions directly from `RIP`.
+- Poly controls are decoded opcodes, not `#UD` traps or instruction envelopes.
+- Non-aliased foreign state is per-thread XSAVE-style architectural state.
+- Hardware is OS-neutral: it never parses Linux, libc, linker, syscall, stack,
+  aggregate, or descriptor policy.
 
-## Control Instructions
+## Controls
 
-- `PENTER frontend`: enter a frontend at the fall-through PC.
-- `PSWITCH frontend, target`: tail-branch to another frontend and target PC.
-- `PCALL frontend, target, sig`: cross-call using ABI signature slot `sig`.
-- `PTRAPRET`: return from a userspace Poly trap monitor.
-- `PLANDING`: mark or validate an indirect cross-ISA landing pad.
+- `PENTER frontend`: enter `frontend` at the fall-through PC.
+- `PSWITCH frontend, target`: tail-switch to `frontend:target`.
+- `PCALL frontend, target, sig`: call `frontend:target` with ABI signature slot
+  `sig`.
+- `PTRAPRET`: return from a user-space Poly trap monitor.
+- `PLANDING`: validate an indirect cross-ISA landing pad.
 
 ## ABI Boundary
 
-Fast `PCALL` is register-only. ABI signature slots may rename registers, but
-must not read memory, parse descriptors, repack stacks, classify aggregates,
-translate syscalls, or call helpers.
+Fast `PCALL` is register-only. ABI signature slots may rename registers but must
+not read memory, repack stacks, classify aggregates, translate syscalls, or call
+helpers.
 
-Integer exchange window: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = AArch64 `x0..x7`
-= RISC-V `a0..a7`.
-
-Floating-point exchange window: `XMM0..XMM7` = AArch64 `v0..v7` = RISC-V
-`fa0..fa7`.
-
-Software thunks handle stack arguments, variadics, by-value aggregates,
-incompatible vectors, lazy binding, imports, and syscall policy.
+- Integer window: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = AArch64 `x0..x7` = RISC-V
+  `a0..a7`.
+- FP window: `XMM0..XMM7` = AArch64 `v0..v7` = RISC-V `fa0..fa7`.
+- Software thunks handle stack args, variadics, by-value aggregates,
+  incompatible vectors, lazy binding, imports, and syscall policy.
 
 ## Prototype Encodings
 
@@ -47,5 +41,5 @@ incompatible vectors, lazy binding, imports, and syscall policy.
 - AArch64: reserved `HINT`, `0xd503201f | (subop << 5)`.
 - RISC-V64: `custom-0`, `0x0000700b | (subop << 25)`.
 
-Run commands: [../README.md](../README.md). Rationale:
+Run commands: [../README.md](../README.md). Design rationale:
 [poly-isa-design-directions.md](poly-isa-design-directions.md).
