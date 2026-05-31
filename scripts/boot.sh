@@ -12018,6 +12018,7 @@ EOF
             "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-brk\\.elf .*expected=0x4c000105 .*process=0"
             "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-ebreak\\.elf .*expected=0x4c000205 .*process=0"
             "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-compressed-ebreak\\.elf .*expected=0x4c000205 .*process=0"
+            "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-compressed-frame\\.elf .*expected=42 .*process=0"
             "POLYEXEC_MONITOR_PACKETS: .*break_a64=[1-9][0-9]*"
             "POLYEXEC_MONITOR_PACKETS: .*break_rv=[1-9][0-9]*"
           )

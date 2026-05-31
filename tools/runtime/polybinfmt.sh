@@ -280,6 +280,7 @@ case "$path" in
   */riscv-compressed-alu.elf) expected=42 ;;
   */riscv-compressed-fp.elf) expected=64 ;;
   */riscv-compressed-sdsp.elf) expected=27 ;;
+  */riscv-compressed-frame.elf) expected=42 ;;
   */riscv-compressed-hints.elf) expected=27 ;;
   */riscv-fp-int-move.elf) expected=0xffffffff8000002a ;;
   */riscv-fp-class.elf) expected=32 ;;
