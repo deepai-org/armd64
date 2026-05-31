@@ -585,6 +585,17 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
 }
 
+static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
+    uint32_t frontend) {
+  code[(*offset)++] = 0x41; // mov r15d,frontend
+  code[(*offset)++] = 0xbf;
+  emit_u32(code, offset, frontend);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = POLY_X86_CTRL_PENTER_MODE;
+}
+
 static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
   uint64_t rax = (uint64_t) (uintptr_t) scratch;
   asm volatile(
@@ -955,8 +966,10 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     char scratch_result[SCRATCH_CHECK_SIZE + 1],
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
   const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 2 : 3;
+  const size_t penter_size = 10;
   const size_t final_tail_size = 5;
-  const size_t code_size = 3 + 8 + (return_setup_insns + payload->insn_count) * 4 + final_tail_size;
+  const size_t code_size = 3 + penter_size +
+    (return_setup_insns + payload->insn_count) * 4 + final_tail_size;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
     fprintf(stderr, "POLYAPP_FAIL: mmap failed: %s\n", strerror(errno));
@@ -968,15 +981,11 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   code[2] = 0x90;
   size_t offset = 3;
   if (payload->arch == POLY_ARCH_AARCH64) {
-    const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x01 };
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
+    emit_x86_penter_frontend(code, &offset, POLY_FRONTEND_AARCH64);
     emit_u32(code, &offset, aarch64_adr(30, (int64_t) (payload->insn_count + 2) * 4));
     emit_u32(code, &offset, 0xd2800008U);
   } else if (payload->arch == POLY_ARCH_RISCV) {
-    const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x02 };
-    memcpy(code + offset, raw_switch, sizeof(raw_switch));
-    offset += sizeof(raw_switch);
+    emit_x86_penter_frontend(code, &offset, POLY_FRONTEND_RISCV);
     int64_t escape_offset = (int64_t) (payload->insn_count + 3) * 4;
     emit_u32(code, &offset, riscv_auipc(1, escape_offset));
     emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));

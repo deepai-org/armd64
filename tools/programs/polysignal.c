@@ -243,6 +243,17 @@ static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
     code[(*offset)++] = (uint8_t) ((value >> (n * 8)) & 0xff);
 }
 
+static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
+    uint32_t frontend) {
+  code[(*offset)++] = 0x41; // mov r15d,frontend
+  code[(*offset)++] = 0xbf;
+  emit_u32(code, offset, frontend);
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x3a;
+  code[(*offset)++] = 0xfc;
+  code[(*offset)++] = POLY_X86_CTRL_PENTER_MODE;
+}
+
 static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes,
     size_t count) {
   for (size_t n = 0; n < count; n++)
@@ -569,10 +580,7 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_aarch64[] = {
-    0x0f, 0x3a, 0xfc, 0x01
-  };
-  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+  emit_x86_penter_frontend(code, &offset, POLY_FRONTEND_AARCH64);
 
   const size_t aarch64_return_offset = offset + 16 + 16 + 16 + 4 + 16 + 4;
   const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
@@ -621,10 +629,7 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
   code[offset++] = 0x90;
   code[offset++] = 0x90;
 
-  const uint8_t raw_riscv[] = {
-    0x0f, 0x3a, 0xfc, 0x02
-  };
-  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_x86_penter_frontend(code, &offset, POLY_FRONTEND_RISCV);
 
   const size_t auipc_seed_pc = offset;
   emit_u32(code, &offset, 0x00000517U); // auipc x10,0
