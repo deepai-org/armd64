@@ -4171,6 +4171,14 @@ static int run_irelative_resolver(const struct poly_program *program,
     (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
   const uint64_t resolver_pc = load_bias + resolver_vaddr;
 
+  if (program->arch == POLY_ARCH_X86) {
+    poly_mode_x86();
+    uint64_t (*resolver_fn)(void) =
+      (uint64_t (*)(void)) (uintptr_t) resolver_pc;
+    *resolved = resolver_fn();
+    return 0;
+  }
+
   const size_t expected_prefix_size =
     program->arch == POLY_ARCH_AARCH64 ? 18 :
     program->arch == POLY_ARCH_RISCV ? 30 : 0;
