@@ -7545,6 +7545,23 @@ int main(void) {
         state_key_detail_manifest.ecx, state_key_detail_manifest.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_fp64_signature_manifest =
+      poly_cpuid_expected_escape_leaf22();
+    struct poly_cpuid_regs fp64_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
+    if (fp64_signature_manifest.eax !=
+          expected_fp64_signature_manifest.eax ||
+        fp64_signature_manifest.ebx !=
+          expected_fp64_signature_manifest.ebx ||
+        fp64_signature_manifest.ecx !=
+          expected_fp64_signature_manifest.ecx ||
+        fp64_signature_manifest.edx !=
+          expected_fp64_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID FP64 ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        fp64_signature_manifest.eax, fp64_signature_manifest.ebx,
+        fp64_signature_manifest.ecx, fp64_signature_manifest.edx);
+      return 1;
+    }
     if (check_poly_abi_signature_slot_default(
           pcall_imm_manifest.ecx & 0xffU,
           pcall_imm_manifest.edx & 0xffU, "exchange") != 0 ||

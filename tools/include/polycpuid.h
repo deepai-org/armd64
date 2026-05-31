@@ -1051,6 +1051,15 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf21(void) {
   return regs;
 }
 
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf22(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64;
+  regs.ebx = POLY_ABI_REGISTER_MAP_NATIVE_FP64;
+  regs.ecx = POLY_ABI_BRIDGE_FP_ARG_COUNT;
+  regs.edx = 0;
+  return regs;
+}
+
 static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_CPUID_STATE_OVERLAP_GPRS |
