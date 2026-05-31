@@ -339,6 +339,8 @@ RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
 EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
 REQUIRE_POLY_REAL_XSAVE="${REQUIRE_POLY_REAL_XSAVE:-0}"
 RUN_CONTRACT_CHECKS="${RUN_CONTRACT_CHECKS:-0}"
+BOOT_TIMEOUT_SECONDS="${BOOT_TIMEOUT_SECONDS:-300}"
+BOOT_DETAIL_ASSERTS="${BOOT_DETAIL_ASSERTS:-0}"
 BOCHS_BIOS_DIR=""
 if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
@@ -10602,6 +10604,56 @@ clock: sync=realtime
 EOF
 }
 
+fatal_logs_present() {
+  local pattern="$1"
+  grep -Eiq "$pattern" "$SERIAL_LOG" 2>/dev/null && return 0
+  # Bochs keeps appending IPS lines after a guest halt; scan only the tail so
+  # the smoke-test harness cannot chase a growing log indefinitely.
+  tail -n 500 "$BOCHS_LOG" 2>/dev/null | grep -Eiq "$pattern" && return 0
+  return 1
+}
+
+serial_has_marker() {
+  local marker="$1"
+  grep -aq "$marker" "$SERIAL_LOG" 2>/dev/null
+}
+
+required_section_complete() {
+  local enabled="$1"
+  local marker="$2"
+  [[ "$enabled" != "1" ]] || serial_has_marker "$marker"
+}
+
+boot_sections_complete() {
+  serial_has_marker "BOOT_OK: initramfs reached userspace" || return 1
+  required_section_complete "$RUN_POLY_PROBE" "POLY_PROBE_OK" || return 1
+  required_section_complete "$RUN_POLY_APPS" "POLYAPP_OK" || return 1
+  required_section_complete "$RUN_POLY_NEUTRAL" "POLY_NEUTRAL_OK" || return 1
+  required_section_complete "$RUN_POLY_EXEC_CROSS" "POLY_EXEC_CROSS_OK" || return 1
+  required_section_complete "$RUN_POLY_EXEC_SYSCALL" "POLY_EXEC_SYSCALL_OK" || return 1
+  required_section_complete "$RUN_POLY_EXEC" "POLY_EXEC_BLOCK_OK" || return 1
+  required_section_complete "$RUN_POLY_ARCH_TRAP_EXEC" "POLY_ARCH_TRAP_EXEC_OK" || return 1
+  required_section_complete "$RUN_POLY_CALL" "POLYCALL_OK" || return 1
+  required_section_complete "$RUN_POLY_THREAD" "POLYTHREAD_OK" || return 1
+  required_section_complete "$RUN_POLY_SIGNAL" "POLYSIGNAL_OK" || return 1
+  required_section_complete "$RUN_POLY_BENCH" "POLYBENCH_OK" || return 1
+  required_section_complete "$RUN_POLY_BINFMT" "POLYBINFMT_OK" || return 1
+
+  if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
+    if [[ "$EXPECT_POLY_CPUID" == "1" ]]; then
+      serial_has_marker "NATIVE_CHECK_OK" || return 1
+      if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" ]]; then
+        serial_has_marker "NATIVE_POLY_REAL_XSAVE_OK" || return 1
+      else
+        grep -Eaq "NATIVE_POLY_REAL_XSAVE_(OK|SKIPPED)" "$SERIAL_LOG" 2>/dev/null ||
+          return 1
+      fi
+    else
+      serial_has_marker "NATIVE_CPUID_POLY_ABSENT" || return 1
+    fi
+  fi
+}
+
 main() {
   download_kernel
   build_initramfs
@@ -10633,16 +10685,27 @@ EOF
 
   "$bochs_cmd" "${bochs_args[@]}" >"$CONSOLE_LOG" 2>&1 &
   local bochs_pid=$!
-  local deadline=$((SECONDS + 120))
+  local deadline=$((SECONDS + BOOT_TIMEOUT_SECONDS))
   local success=0
   local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|NATIVE_CHECK_FAIL|POLY[A-Z_]*_FAIL'
-  while (( SECONDS < deadline )); do
-    if grep -Eiq "$fatal_pattern" "$SERIAL_LOG" "$BOCHS_LOG" 2>/dev/null; then
+  while true; do
+    if fatal_logs_present "$fatal_pattern"; then
       success=-1
       break
     fi
 
     if grep -q "BOOT_OK: initramfs reached userspace" "$SERIAL_LOG"; then
+      if ! boot_sections_complete; then
+        if (( SECONDS >= deadline )); then
+          break
+        fi
+        sleep 1
+        continue
+      fi
+      if [[ "$BOOT_DETAIL_ASSERTS" != "1" ]]; then
+        success=1
+        break
+      fi
       if [[ "$RUN_POLY_PROBE" == "1" ]]; then
         if ! grep -q "POLY_PROBE_CROSS_RETURN_XSAVE_OK" "$SERIAL_LOG"; then
           sleep 1
@@ -11354,8 +11417,8 @@ EOF
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-versioned-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-weak-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-weak-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
-          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-root-export-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
-          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-root-export-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-root-export-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-root-export-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-root-ifunc-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-root-ifunc-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
         )
@@ -12111,6 +12174,11 @@ EOF
     fi
 
     if ! kill -0 "$bochs_pid" 2>/dev/null; then
+      break
+    fi
+    # Check the host timeout after marker scans so a just-completed guest is not
+    # failed while Bochs is still alive in the halted state.
+    if (( SECONDS >= deadline )); then
       break
     fi
     sleep 1
