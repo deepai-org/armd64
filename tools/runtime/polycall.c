@@ -364,6 +364,8 @@ enum {
   POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_PCALL_SIG_MODE = 0x2d,
   POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 0x30,
+  POLY_AARCH64_CTRL_SUBOP_CALL_SIG_IMM_BASE = 0x50,
+  POLY_RISCV_CTRL_SUBOP_CALL_SIG_IMM_BASE = 32,
   POLY_ABI_SIGNATURE_SLOT_COUNT = 12,
   POLY_ABI_SIGNATURE_KIND_EXCHANGE = 0,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
@@ -3176,6 +3178,28 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
 }
 
+static uint32_t poly_aarch64_ctrl_encoding(uint32_t subop) {
+  return 0xd503201fU | ((subop & 0x7fU) << 5);
+}
+
+static uint32_t poly_riscv_ctrl_encoding(uint32_t subop) {
+  return 0x0000700bU | ((subop & 0x7fU) << 25);
+}
+
+static uint8_t poly_x86_pcall_sig_imm(uint32_t signature_slot) {
+  return (uint8_t) (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + signature_slot);
+}
+
+static uint32_t poly_aarch64_pcall_sig_imm(uint32_t signature_slot) {
+  return poly_aarch64_ctrl_encoding(
+    POLY_AARCH64_CTRL_SUBOP_CALL_SIG_IMM_BASE + signature_slot);
+}
+
+static uint32_t poly_riscv_pcall_sig_imm(uint32_t signature_slot) {
+  return poly_riscv_ctrl_encoding(
+    POLY_RISCV_CTRL_SUBOP_CALL_SIG_IMM_BASE + signature_slot);
+}
+
 static void store_u32(uint8_t *code, size_t offset, uint32_t value) {
   code[offset] = (uint8_t) (value & 0xff);
   code[offset + 1] = (uint8_t) ((value >> 8) & 0xff);
@@ -4198,8 +4222,7 @@ static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x0f;
   code[(*offset)++] = 0x3a;
   code[(*offset)++] = 0xfc;
-  code[(*offset)++] = (uint8_t)
-    (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + signature_slot);
+  code[(*offset)++] = poly_x86_pcall_sig_imm(signature_slot);
 }
 
 static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
@@ -4236,8 +4259,8 @@ static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
     code[(*offset)++] = 0x0f;
     code[(*offset)++] = 0x3a;
     code[(*offset)++] = 0xfc;
-    code[(*offset)++] = (uint8_t)
-      (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + signature_slot_native_regs);
+    code[(*offset)++] = poly_x86_pcall_sig_imm(
+      signature_slot_native_regs);
     return;
   }
 
@@ -4259,8 +4282,7 @@ static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x0f;
   code[(*offset)++] = 0x3a;
   code[(*offset)++] = 0xfc;
-  code[(*offset)++] = (uint8_t)
-    (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + signature_slot_exchange);
+  code[(*offset)++] = poly_x86_pcall_sig_imm(signature_slot_exchange);
 }
 
 static void emit_x86_pcall_sret_thunk(uint8_t *code, size_t *offset,
@@ -4517,7 +4539,7 @@ static int emit_aarch64_pcall_sig_slot(uint8_t *stubs,
     size_t *stub_offset, uint32_t signature_slot) {
   if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(stubs, stub_offset,
-      0xd5032a1fU | (signature_slot << 5)); // PCALL_SIG_IMM
+      poly_aarch64_pcall_sig_imm(signature_slot));
     return 0;
   }
   return -1;
@@ -4527,7 +4549,7 @@ static int emit_riscv_pcall_sig_slot(uint8_t *stubs, size_t *stub_offset,
     uint32_t signature_slot) {
   if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(stubs, stub_offset,
-      0x4000700bU | (signature_slot << 25)); // PCALL_SIG_IMM
+      poly_riscv_pcall_sig_imm(signature_slot));
     return 0;
   }
   return -1;
@@ -9967,9 +9989,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     code[offset++] = 0x0f;
     code[offset++] = 0x3a;
     code[offset++] = 0xfc;
-    code[offset++] = (uint8_t)
-      (POLY_X86_CTRL_PCALL_SIG_IMM_BASE +
-       import_contract.signature_slot_exchange);
+    code[offset++] = poly_x86_pcall_sig_imm(
+      import_contract.signature_slot_exchange);
   }
   else if (use_sig_imm_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
