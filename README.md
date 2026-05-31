@@ -83,6 +83,11 @@ Other useful targets:
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
   descriptor parsing.
+- The current Bochs runtime has already moved direct non-sret `PCALL` stack
+  handling into software thunks. One remaining compatibility shim is direct
+  RISC-V structure-return calls with an eighth user argument, where Bochs still
+  copies the final stack argument until that path is split into a runtime
+  thunk.
 - Descriptor-backed import calls are a Bochs/runtime compatibility path with a
   private runtime table layout. CPUID keeps descriptor hardware support
   reserved/forbidden; reserved import targets trap instead of making the CPU
