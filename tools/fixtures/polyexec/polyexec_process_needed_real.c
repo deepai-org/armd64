@@ -146,7 +146,6 @@ double poly_process_needed_fp64(double left, double right) {
 
 #elif defined(POLY_PROCESS_NEEDED_FP32_DEP)
 
-#if defined(__x86_64__)
 __asm__(
   ".section .note.polyabi,\"a\",%note\n"
   ".balign 4\n"
@@ -159,7 +158,6 @@ __asm__(
   "2:\n"
   ".balign 4\n"
   ".previous\n");
-#endif
 
 __attribute__((visibility("default")))
 float poly_process_needed_fp32(float left, float right) {

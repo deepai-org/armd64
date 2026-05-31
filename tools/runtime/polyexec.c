@@ -4241,7 +4241,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_VEC128_U32 &&
       bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_U32_F32 &&
       bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_F32_U32 &&
-      bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9)
+      bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FP32)
     return -1;
   if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
       caller_arch != POLY_ARCH_X86 &&
@@ -4249,8 +4250,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       !((caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) ||
         (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)))
     return -1;
-  if ((bridge_kind == POLY_PROCESS_BRIDGE_FP64 ||
-       bridge_kind == POLY_PROCESS_BRIDGE_FP32) &&
+  if (bridge_kind == POLY_PROCESS_BRIDGE_FP64 &&
       !(caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86))
     return -1;
   if (bridge_kind == POLY_PROCESS_BRIDGE_VEC128_U32 &&
