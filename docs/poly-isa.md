@@ -23,8 +23,9 @@ rg -a 'POLY_EXEC_CROSS_OK|FAIL|Kernel panic|Oops' out/serial.log
 
 - x86_64 remains the system ISA for boot, paging, privilege, interrupts,
   faults, atomics, VM control, and the global TSO memory model.
-- AArch64 and RISC-V64 are user frontends. They fetch native 32-bit
-  instructions directly from `RIP`.
+- AArch64 and RISC-V64 are user frontends. AArch64 fetches aligned 32-bit
+  instructions from `RIP`; RISC-V fetches native 16/32-bit instructions so
+  compressed RVC code remains valid.
 - Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
 - Cross-ISA control flow uses decoded Poly control instructions. It does not
   wrap each foreign instruction in a `#UD` envelope.
