@@ -2442,6 +2442,108 @@ static void emit_riscv_vec128_u32_pair_add(uint8_t *code, size_t *offset,
   emit_u32(code, offset, riscv_or(rd_hi, 5, 6));
 }
 
+static int run_x86_pcall_vec128_signature_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 128;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: x86-to-aarch64 vec128 signature pcall mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x53; // push rbx
+  code[offset++] = 0x41;
+  code[offset++] = 0x57; // push r15
+  emit_x86_movabs_r15(code, &offset, POLY_FRONTEND_AARCH64);
+  const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
+  const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  const uint8_t pcall[] = {
+    0x0f, 0x3a, 0xfc, POLY_X86_CTRL_PCALL_SIG_IMM_MODE,
+    POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32
+  };
+  emit_bytes(code, &offset, pcall, sizeof(pcall));
+  const size_t target_offset = offset;
+  emit_u32(code, &offset, 0x4ea18400U); // add v0.4s,v0.4s,v1.4s
+  emit_u32(code, &offset, 0xd65f03c0U); // ret x30
+  const size_t return_offset = offset;
+  code[offset++] = 0x41;
+  code[offset++] = 0x5f; // pop r15
+  code[offset++] = 0x5b; // pop rbx
+  code[offset++] = 0xc3;
+  store_u64(code, target_imm_offset,
+    (uint64_t) (uintptr_t) (code + target_offset));
+  store_u64(code, return_imm_offset,
+    (uint64_t) (uintptr_t) (code + return_offset));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_vec128_u32(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_x86_pcall_vec128_signature_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 128;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: x86-to-riscv vec128 signature pcall mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x53; // push rbx
+  code[offset++] = 0x41;
+  code[offset++] = 0x57; // push r15
+  emit_x86_movabs_r15(code, &offset, POLY_FRONTEND_RISCV);
+  const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
+  const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  const uint8_t pcall[] = {
+    0x0f, 0x3a, 0xfc, POLY_X86_CTRL_PCALL_SIG_IMM_MODE,
+    POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32
+  };
+  emit_bytes(code, &offset, pcall, sizeof(pcall));
+  const size_t target_offset = offset;
+  emit_riscv_vec128_u32_pair_add(code, &offset, 10, 11, 10, 11, 12, 13);
+  emit_u32(code, &offset, 0x00008067U); // ret
+  const size_t return_offset = offset;
+  code[offset++] = 0x41;
+  code[offset++] = 0x5f; // pop r15
+  code[offset++] = 0x5b; // pop rbx
+  code[offset++] = 0xc3;
+  store_u64(code, target_imm_offset,
+    (uint64_t) (uintptr_t) (code + target_offset));
+  store_u64(code, return_imm_offset,
+    (uint64_t) (uintptr_t) (code + return_offset));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_vec128_u32(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 256;
@@ -4847,6 +4949,37 @@ static int check_x86_pcall_fp64_signature_direction(const char *name,
   return 0;
 }
 
+static int check_x86_pcall_vec128_signature_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+  uint64_t result = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  printf("POLYBENCH_X86_PCALL_VEC128_SIGNATURE_RESULT: direction=%s packed=0x%016llx raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta);
+
+  if (result != UINT64_C(0x002c00210016000b)) {
+    fprintf(stderr, "POLYBENCH_FAIL: x86 pcall vec128 signature %s expected 0x002c00210016000b got 0x%016llx\n",
+      name, (unsigned long long) result);
+    return -1;
+  }
+  if (insn_delta < 2) {
+    fprintf(stderr, "POLYBENCH_FAIL: x86 pcall vec128 signature %s raw instruction delta expected at least 2 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (check_switch_delta_exact("x86 pcall vec128 signature", name,
+        switch_delta, POLYBENCH_X86_PCALL_SIGNATURE_EXPECTED_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_switch_delta_max("x86 pcall vec128 signature", name, switch_delta,
+        POLYBENCH_X86_PCALL_SIGNATURE_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  return 0;
+}
+
 static int check_cross_call_fp_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result_bits = 0;
@@ -5466,6 +5599,14 @@ static int check_cross_calls(void) {
   if (check_x86_pcall_fp32_signature_direction(
         "x86-calls-riscv-fp32-signature",
         run_x86_pcall_fp32_signature_riscv) < 0)
+    return -1;
+  if (check_x86_pcall_vec128_signature_direction(
+        "x86-calls-aarch64-vec128-signature",
+        run_x86_pcall_vec128_signature_aarch64) < 0)
+    return -1;
+  if (check_x86_pcall_vec128_signature_direction(
+        "x86-calls-riscv-vec128-signature",
+        run_x86_pcall_vec128_signature_riscv) < 0)
     return -1;
   if (check_cross_call_fp_direction("aarch64-calls-riscv-fp",
         run_cross_call_fp_aarch64_to_riscv) < 0)
