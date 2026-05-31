@@ -428,6 +428,36 @@ static uint64_t nativecheck_generic_enter_riscv_preserve_s4(void) {
   return result;
 }
 
+static uint64_t nativecheck_generic_enter_aarch64_preserve_d20(
+    uint64_t value_bits) {
+  write_xmm0_u64(value_bits);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x1e604014\n" // fmov d20,d0
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    POLY_OP_ENTER_A64
+    ".long 0x1e604280\n" // fmov d0,d20
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r13", "r14", "xmm0", "r15", "memory");
+  return read_xmm0_u64();
+}
+
+static uint64_t nativecheck_generic_enter_riscv_preserve_f20(
+    uint64_t value_bits) {
+  write_xmm0_u64(value_bits);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
+    ".long 0x0000700b\n" // riscv x86 escape.
+    POLY_OP_ENTER_RV64
+    ".long 0x234a0553\n" // fsgnj.d fa0,f20,f20
+    ".long 0x0000700b\n" // riscv x86 escape.
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r13", "r14", "xmm0", "r15", "memory");
+  return read_xmm0_u64();
+}
+
 static uint64_t nativecheck_generic_switch_aarch64_add(void) {
   uint64_t result;
   asm volatile(
@@ -3043,6 +3073,26 @@ static int run_poly_generic_enter_probe(void) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly generic riscv enter s4 preservation result=%llu\n",
       (unsigned long long) result);
+    return 1;
+  }
+
+  const uint64_t aarch64_d20_bits = 0x4008000000000000ULL;
+  result = nativecheck_generic_enter_aarch64_preserve_d20(aarch64_d20_bits);
+  if (result != aarch64_d20_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic aarch64 enter d20 preservation result=0x%llx expected=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) aarch64_d20_bits);
+    return 1;
+  }
+
+  const uint64_t riscv_f20_bits = 0x4014000000000000ULL;
+  result = nativecheck_generic_enter_riscv_preserve_f20(riscv_f20_bits);
+  if (result != riscv_f20_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic riscv enter f20 preservation result=0x%llx expected=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) riscv_f20_bits);
     return 1;
   }
 
