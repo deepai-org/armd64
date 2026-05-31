@@ -7746,6 +7746,10 @@ int main(void) {
       poly_cpuid_expected_escape_leaf23();
     struct poly_cpuid_regs fp32_signature_manifest =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 23);
+    struct poly_cpuid_regs expected_sret_signature_manifest =
+      poly_cpuid_expected_escape_leaf24();
+    struct poly_cpuid_regs sret_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 24);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -7770,6 +7774,19 @@ int main(void) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID FP32 ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         fp32_signature_manifest.eax, fp32_signature_manifest.ebx,
         fp32_signature_manifest.ecx, fp32_signature_manifest.edx);
+      return 1;
+    }
+    if (sret_signature_manifest.eax !=
+          expected_sret_signature_manifest.eax ||
+        sret_signature_manifest.ebx !=
+          expected_sret_signature_manifest.ebx ||
+        sret_signature_manifest.ecx !=
+          expected_sret_signature_manifest.ecx ||
+        sret_signature_manifest.edx !=
+          expected_sret_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID SRET ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        sret_signature_manifest.eax, sret_signature_manifest.ebx,
+        sret_signature_manifest.ecx, sret_signature_manifest.edx);
       return 1;
     }
     if (check_poly_abi_signature_slot_default(
@@ -7802,7 +7819,10 @@ int main(void) {
           "native-regs-fp64") != 0 ||
         check_poly_abi_signature_slot_default(
           fp32_signature_manifest.edx, fp32_signature_manifest.eax,
-          "native-regs-fp32") != 0)
+          "native-regs-fp32") != 0 ||
+        check_poly_abi_signature_slot_default(
+          sret_signature_manifest.eax, sret_signature_manifest.ebx,
+          "sret-x86-sysv-regs") != 0)
       return 1;
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
