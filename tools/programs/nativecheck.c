@@ -12,8 +12,12 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_ENTER_A64 ".byte 0x0f,0x3a,0xfc,0x01\n"
-#define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
+#define POLY_OP_ENTER_A64 \
+  "movl $1, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x03\n"
+#define POLY_OP_ENTER_RV64 \
+  "movl $2, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
@@ -189,11 +193,11 @@ static inline uint64_t read_xmm0_u64(void) {
 }
 
 static inline void write_xmm0_u64(uint64_t value) {
-  asm volatile("movq %0,%%xmm0" :: "r"(value) : "xmm0", "memory");
+  asm volatile("movq %0,%%xmm0" :: "r"(value) : "xmm0", "r15", "memory");
 }
 
 static inline void write_xmm1_u64(uint64_t value) {
-  asm volatile("movq %0,%%xmm1" :: "r"(value) : "xmm1", "memory");
+  asm volatile("movq %0,%%xmm1" :: "r"(value) : "xmm1", "r15", "memory");
 }
 
 struct nativecheck_u128 {
@@ -210,25 +214,25 @@ static inline void write_xmm0_xmm1_u128(uint64_t x0_lo, uint64_t x0_hi,
     "movdqu %1,%%xmm1\n"
     :
     : "m"(x0), "m"(x1)
-    : "xmm0", "xmm1", "memory");
+    : "xmm0", "xmm1", "r15", "memory");
 }
 
 static inline struct nativecheck_u128 read_xmm0_u128(void) {
   struct nativecheck_u128 value;
-  asm volatile("movdqu %%xmm0,%0" : "=m"(value) :: "memory");
+  asm volatile("movdqu %%xmm0,%0" : "=m"(value) :: "r15", "memory");
   return value;
 }
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
-  asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
+  asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "r15", "memory");
 }
 
 static inline void poly_trap_vector_get(void) {
-  asm volatile(POLY_OP_TRAP_VECTOR_GET ::: "memory");
+  asm volatile(POLY_OP_TRAP_VECTOR_GET ::: "r15", "memory");
 }
 
 static inline void poly_trap_vector_mode_set_value(uint64_t value) {
-  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "r15", "memory");
 }
 
 static inline uint64_t poly_trap_vector_mode_set_result(uint64_t value) {
@@ -236,20 +240,20 @@ static inline uint64_t poly_trap_vector_mode_set_result(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET
       : "+a"(result)
       :
-      : "memory");
+      : "r15", "memory");
   return result;
 }
 
 static inline void poly_trap_vector_mode_get(void) {
-  asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "memory");
+  asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET ::: "r15", "memory");
 }
 
 static inline void poly_monitor_packet_set_value(uint64_t value) {
-  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
+  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "r15", "memory");
 }
 
 static inline void poly_monitor_packet_get(void) {
-  asm volatile(POLY_OP_MONITOR_PACKET_GET ::: "memory");
+  asm volatile(POLY_OP_MONITOR_PACKET_GET ::: "r15", "memory");
 }
 
 static uint64_t poly_aarch64_trap_vector_set_get(uint64_t value) {
@@ -262,7 +266,7 @@ static uint64_t poly_aarch64_trap_vector_set_get(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -276,7 +280,7 @@ static uint64_t poly_aarch64_trap_vector_mode_set_get(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -289,7 +293,7 @@ static uint64_t poly_aarch64_trap_vector_mode_set(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -303,7 +307,7 @@ static uint64_t poly_aarch64_monitor_packet_set_get(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -317,7 +321,7 @@ static uint64_t poly_riscv_trap_vector_set_get(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -331,7 +335,7 @@ static uint64_t poly_riscv_trap_vector_mode_set_get(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -344,7 +348,7 @@ static uint64_t poly_riscv_trap_vector_mode_set(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -358,7 +362,7 @@ static uint64_t poly_riscv_monitor_packet_set_get(uint64_t value) {
     : "=a"(result)
     : "0"(value)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -470,25 +474,25 @@ static inline void poly_trap_vector_clear(void) {
     "xor %%eax,%%eax\n"
     POLY_OP_MONITOR_PACKET_SET
     :::
-    "rax", "memory");
+    "rax", "r15", "memory");
 }
 
 static inline void poly_state_export(struct poly_xsave_state *state) {
-  asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "memory");
+  asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "r15", "memory");
 }
 
 static inline void poly_state_import(struct poly_xsave_state *state) {
-  asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "memory");
+  asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "r15", "memory");
 }
 
 static inline uint64_t poly_state_key_set_value(uint64_t value) {
-  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "r15", "memory");
   return value;
 }
 
 static inline uint64_t poly_state_key_get_value(void) {
   uint64_t value = 0;
-  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "r15", "memory");
   return value;
 }
 
@@ -500,7 +504,7 @@ static inline uint64_t poly_aarch64_state_key_set_get(uint64_t value) {
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "+a"(value)
     :
-    : "memory");
+    : "r15", "memory");
   return value;
 }
 
@@ -512,7 +516,7 @@ static inline uint64_t poly_riscv_state_key_set_get(uint64_t value) {
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(value)
     :
-    : "memory");
+    : "r15", "memory");
   return value;
 }
 
@@ -541,7 +545,7 @@ nativecheck_aarch64_read_tls(uint64_t tls_base) {
     : "=a"(result)
     : "r"(tls_base)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
-      "r11", "r13", "r14", "memory");
+      "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -556,7 +560,7 @@ nativecheck_riscv_read_tls(uint64_t tls_base) {
     : "=a"(result)
     : "r"(tls_base)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
-      "r11", "r13", "r14", "memory");
+      "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -574,7 +578,7 @@ nativecheck_aarch64_switch_riscv_read_tls(uint64_t tls_base) {
     : "=a"(result)
     : "r"(tls_base)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
-      "r11", "r13", "r14", "memory");
+      "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -593,7 +597,7 @@ nativecheck_riscv_switch_aarch64_read_tls(uint64_t tls_base) {
     : "=a"(result)
     : "r"(tls_base)
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
-      "r11", "r13", "r14", "memory");
+      "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -611,7 +615,7 @@ nativecheck_aarch64_barrier_sequence(void) {
     : "=a"(result)
     :
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
-      "r11", "r13", "r14", "memory");
+      "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -628,7 +632,7 @@ nativecheck_riscv_fence_sequence(void) {
     : "=a"(result)
     :
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
-      "r11", "r13", "r14", "memory");
+      "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -639,7 +643,7 @@ poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   asm volatile(POLY_OP_ABI_SIGNATURE_SET
       : "+a"(rax), "+d"(rdx)
       :
-      : "memory");
+      : "r15", "memory");
   return rax;
 }
 
@@ -650,7 +654,7 @@ poly_abi_signature_set_raw(uint64_t slot, uint64_t value) {
   asm volatile(POLY_OP_ABI_SIGNATURE_SET
       : "+a"(rax), "+d"(rdx)
       :
-      : "memory");
+      : "r15", "memory");
   return rax;
 }
 
@@ -660,7 +664,7 @@ poly_abi_signature_get(uint64_t slot) {
   asm volatile(POLY_OP_ABI_SIGNATURE_GET
       : "+a"(rax)
       :
-      : "memory");
+      : "r15", "memory");
   return rax;
 }
 
@@ -706,7 +710,7 @@ nativecheck_aarch64_abi_signature_set_get_slot5(void) {
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -724,7 +728,7 @@ nativecheck_riscv_abi_signature_set_get_slot5(void) {
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -742,7 +746,7 @@ nativecheck_aarch64_abi_signature_set_get_slot6_i128(void) {
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -758,7 +762,7 @@ nativecheck_aarch64_abi_signature_set(uint64_t slot, uint64_t kind) {
     : "+a"(result), "+d"(kind_reg)
     :
     : "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -772,7 +776,7 @@ nativecheck_aarch64_abi_signature_get(uint64_t slot) {
     : "+a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -790,7 +794,7 @@ nativecheck_riscv_abi_signature_set_get_slot6_i128(void) {
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -806,7 +810,7 @@ nativecheck_riscv_abi_signature_set(uint64_t slot, uint64_t kind) {
     : "+a"(result), "+d"(kind_reg)
     :
     : "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -820,7 +824,7 @@ nativecheck_riscv_abi_signature_get(uint64_t slot) {
     : "+a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -830,7 +834,7 @@ poly_landing_policy_set(uint64_t policy) {
   asm volatile(POLY_OP_LANDING_POLICY_SET
       : "+a"(rax)
       :
-      : "memory");
+      : "r15", "memory");
   return rax;
 }
 
@@ -840,7 +844,7 @@ poly_landing_policy_get(void) {
   asm volatile(POLY_OP_LANDING_POLICY_GET
       : "=a"(rax)
       :
-      : "memory");
+      : "r15", "memory");
   return rax;
 }
 
@@ -855,7 +859,7 @@ nativecheck_aarch64_landing_policy_set_get(uint64_t policy) {
     : "=a"(result)
     : "0"(policy)
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -869,7 +873,7 @@ nativecheck_aarch64_landing_policy_set(uint64_t policy) {
     : "=a"(result)
     : "0"(policy)
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -884,7 +888,7 @@ nativecheck_riscv_landing_policy_set_get(uint64_t policy) {
     : "=a"(result)
     : "0"(policy)
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -898,7 +902,7 @@ nativecheck_riscv_landing_policy_set(uint64_t policy) {
     : "=a"(result)
     : "0"(policy)
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -1008,7 +1012,7 @@ static void nativecheck_install_descriptor_poison(void) {
 static inline uint64_t read_xcr0(void) {
   uint32_t eax;
   uint32_t edx;
-  asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
+  asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "r15", "memory");
   return ((uint64_t) edx << 32) | eax;
 }
 
@@ -1025,7 +1029,7 @@ static long native_arch_prctl_raw(int code, unsigned long addr) {
   __asm__ volatile("syscall"
     : "+a"(rax)
     : "D"(rdi), "S"(rsi)
-    : "rcx", "r11", "memory");
+    : "rcx", "r11", "r15", "memory");
   result = rax;
   return result;
 }
@@ -1036,7 +1040,7 @@ static inline void native_xsave64(void *area, uint64_t mask) {
   asm volatile("xsave64 %0"
     : "+m" (*(poly_native_xsave_area_t *) area)
     : "a" (eax), "d" (edx)
-    : "memory");
+    : "r15", "memory");
 }
 
 static inline void native_xrstor64(void *area, uint64_t mask) {
@@ -1045,7 +1049,7 @@ static inline void native_xrstor64(void *area, uint64_t mask) {
   asm volatile("xrstor64 %0"
     :
     : "m" (*(poly_native_xsave_area_t *) area), "a" (eax), "d" (edx)
-    : "memory");
+    : "r15", "memory");
 }
 
 __attribute__((naked, noinline, used))
@@ -1160,7 +1164,7 @@ static void child_expect_aarch64_svc_signal(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1174,7 +1178,7 @@ static void child_expect_riscv_ecall_signal(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1187,7 +1191,7 @@ static void child_expect_aarch64_brk_signal(void) {
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1205,7 +1209,7 @@ static void child_expect_aarch64_brk1_signal(void) {
     : "+a"(rax), "+D"(rdi)
     :
     : "rbx", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1219,7 +1223,7 @@ static void child_expect_riscv_ebreak_signal(void) {
     ".long 0x00100073\n" // ebreak
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1238,7 +1242,7 @@ static void child_expect_riscv_ebreak1_signal(void) {
     : "+a"(rax), "+D"(rdi)
     :
     : "rbx", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1252,7 +1256,7 @@ static void child_expect_riscv_compressed_ebreak_signal(void) {
     ".short 0x9002\n" // c.ebreak
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1271,7 +1275,7 @@ static void child_expect_aarch64_import_signal(void) {
     ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1290,7 +1294,7 @@ static void child_expect_riscv_import_signal(void) {
     ".long 0x000280e7\n" // jalr ra,0(t0)
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1303,7 +1307,7 @@ static void child_expect_aarch64_illegal_signal(void) {
     ".long 0xffffffff\n" // unallocated in the supported AArch64 subset
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1316,7 +1320,7 @@ static void child_expect_riscv_illegal_signal(void) {
     ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1329,7 +1333,7 @@ static void child_expect_riscv_compressed_illegal_signal(void) {
     ".short 0x0000\n" // reserved 16-bit compressed encoding
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1343,7 +1347,7 @@ static void child_expect_aarch64_page_fault_signal(void) {
     ".long 0xf9400200\n" // ldr x0,[x16]
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1357,7 +1361,7 @@ static void child_expect_riscv_page_fault_signal(void) {
     ".long 0x0002b503\n" // ld a0,0(t0)
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1376,7 +1380,7 @@ static void child_expect_aarch64_page_fault_signal_with_vector(void) {
     ".long 0xf9400200\n" // ldr x0,[x16]
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1395,7 +1399,7 @@ static void child_expect_riscv_page_fault_signal_with_vector(void) {
     ".long 0x0002b503\n" // ld a0,0(t0)
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1571,7 +1575,7 @@ static void child_expect_landing_policy_missing_aarch64_riscv_signal(void) {
     ".long 0x02d00513\n" // target: addi a0,zero,45, no landing pad
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1590,7 +1594,7 @@ static void child_expect_landing_policy_missing_riscv_aarch64_signal(void) {
     ".long 0xd28005a0\n" // target: movz x0,#45, no landing pad
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1605,7 +1609,7 @@ static void child_expect_aarch64_invalid_generic_switch_signal(void) {
     ".long 0xd5032f1f\n" // aarch64 generic switch frontend=x17 target=x16
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1621,7 +1625,7 @@ static void child_expect_aarch64_invalid_generic_call_signal(void) {
     ".long 0xd5032f3f\n" // aarch64 generic pcall frontend=x17 target=x16
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1638,7 +1642,7 @@ static void child_expect_aarch64_invalid_generic_signature_slot_signal(void) {
     ".long 0xd5032f5f\n" // aarch64 generic signature pcall
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1653,7 +1657,7 @@ static void child_expect_riscv_invalid_generic_switch_signal(void) {
     ".long 0x1000700b\n" // riscv generic switch frontend=x6 target=x5
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1669,7 +1673,7 @@ static void child_expect_riscv_invalid_generic_call_signal(void) {
     ".long 0x1200700b\n" // riscv generic pcall frontend=x6 target=x5
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1686,7 +1690,7 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
     ".long 0x1400700b\n" // riscv generic signature pcall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -1694,7 +1698,7 @@ __attribute__((noreturn, noinline))
 static void child_expect_legacy_aarch64_mode_envelope_signal(void) {
   asm volatile(
     ".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34\n"
-    ::: "memory");
+    ::: "r15", "memory");
   _exit(99);
 }
 
@@ -1702,7 +1706,7 @@ __attribute__((noreturn, noinline))
 static void child_expect_legacy_riscv_mode_envelope_signal(void) {
   asm volatile(
     ".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56\n"
-    ::: "memory");
+    ::: "r15", "memory");
   _exit(99);
 }
 
@@ -1712,7 +1716,7 @@ static void child_expect_legacy_aarch64_instruction_envelope_signal(void) {
     ".byte 0x67,0x0f,0x0b\n"
     ".long 0xd65f03c0\n"
     ".byte 0x00\n"
-    ::: "memory");
+    ::: "r15", "memory");
   _exit(99);
 }
 
@@ -1722,7 +1726,7 @@ static void child_expect_legacy_riscv_instruction_envelope_signal(void) {
     ".byte 0x26,0x0f,0x0b\n"
     ".long 0x00008067\n"
     ".byte 0x00\n"
-    ::: "memory");
+    ::: "r15", "memory");
   _exit(99);
 }
 
@@ -2389,7 +2393,7 @@ static uint64_t nativecheck_landing_policy_switch_aarch64_riscv(void) {
     : "=a"(result)
     :
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9",
-      "r10", "r11", "r13", "r14", "memory");
+      "r10", "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -2408,7 +2412,7 @@ static uint64_t nativecheck_landing_policy_switch_riscv_aarch64(void) {
     : "=a"(result)
     :
     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9",
-      "r10", "r11", "r13", "r14", "memory");
+      "r10", "r11", "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -3195,7 +3199,7 @@ static int run_poly_trap_vector_probe(void) {
       [saved_xmm8] "=m"(saved_xmm8)
     : [expected_xmm8] "r"(expected_xmm8)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "xmm8", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "xmm8", "r15", "memory");
   if (saved_r13 != 0x13371337 || saved_r14 != 0x14471447 ||
       saved_xmm8 != expected_xmm8) {
     fprintf(stderr,
@@ -3310,7 +3314,7 @@ static int run_poly_trap_vector_probe(void) {
       [saved_xmm8] "=m"(saved_xmm8)
     : [expected_xmm8] "r"(expected_xmm8)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "xmm8", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "xmm8", "r15", "memory");
   if (saved_r13 != 0x23372337 || saved_r14 != 0x24472447 ||
       saved_xmm8 != expected_xmm8) {
     fprintf(stderr,
@@ -3335,7 +3339,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x8b050000\n" // add x0,x0,x5
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 20) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved args mismatch got=%llu\n",
@@ -3358,7 +3362,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00f50533\n" // add a0,a0,a5
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 20) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved args mismatch got=%llu\n",
@@ -3373,7 +3377,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xaa0803e0\n" // mov x0,x8
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 172) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved syscall register mismatch got=%llu\n",
@@ -3388,7 +3392,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00088513\n" // addi a0,a7,0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 172) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved syscall register mismatch got=%llu\n",
@@ -3403,7 +3407,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   uint64_t fp_result = read_xmm0_u64();
   if (fp_result != 0x4008000000000000ULL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved fp register mismatch got=0x%llx\n",
@@ -3418,7 +3422,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   fp_result = read_xmm0_u64();
   if (fp_result != 0x4010000000000000ULL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved fp register mismatch got=0x%llx\n",
@@ -3440,7 +3444,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 4444) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 brk trap vector result mismatch got=%llu\n",
@@ -3509,7 +3513,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00100073\n" // ebreak
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 4545) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv ebreak trap vector result mismatch got=%llu\n",
@@ -3541,7 +3545,7 @@ static int run_poly_trap_vector_probe(void) {
     ".short 0x9002\n" // c.ebreak
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 4545) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed ebreak trap vector result mismatch got=%llu\n",
@@ -3566,7 +3570,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 5555) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 import trap result mismatch got=%llu\n",
@@ -3580,7 +3584,7 @@ static int run_poly_trap_vector_probe(void) {
   nativecheck_install_descriptor_poison();
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
-    "movq %[descriptor], %%r12\n"
+    "leaq %[descriptor], %%r12\n"
     POLY_OP_ENTER_A64
     ".long 0xd29c1010\n" // movz x16,#0xe080
     ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
@@ -3592,9 +3596,9 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd63f0200\n" // blr x16, import must trap despite descriptor
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     :
-    : [descriptor] "r"(nativecheck_import_descriptor_table)
+    : [descriptor] "m"(nativecheck_import_descriptor_table)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 5555) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 descriptor-backed import trap result mismatch got=%llu\n",
@@ -3622,7 +3626,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x000280e7\n" // jalr ra,0(t0)
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 5555) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv import trap result mismatch got=%llu\n",
@@ -3636,7 +3640,7 @@ static int run_poly_trap_vector_probe(void) {
   nativecheck_install_descriptor_poison();
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
-    "movq %[descriptor], %%r12\n"
+    "leaq %[descriptor], %%r12\n"
     POLY_OP_ENTER_RV64
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
     ".long 0x08028293\n" // addi t0,t0,0x80 -> strlen import
@@ -3646,9 +3650,9 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x000280e7\n" // jalr ra,0(t0), must trap despite descriptor
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     :
-    : [descriptor] "r"(nativecheck_import_descriptor_table)
+    : [descriptor] "m"(nativecheck_import_descriptor_table)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 5555) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv descriptor-backed import trap result mismatch got=%llu\n",
@@ -3676,7 +3680,7 @@ static int run_poly_trap_vector_probe(void) {
     ".short 0x9282\n" // c.jalr t0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 5555) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed import trap result mismatch got=%llu\n",
@@ -3693,7 +3697,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xffffffff\n" // unallocated in the supported AArch64 subset
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 4664) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 illegal trap result mismatch got=%llu\n",
@@ -3711,7 +3715,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 4665) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv illegal trap result mismatch got=%llu\n",
@@ -3729,7 +3733,7 @@ static int run_poly_trap_vector_probe(void) {
     ".short 0x0000\n" // reserved 16-bit compressed encoding
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 4666) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv compressed illegal trap result mismatch got=%llu\n",
@@ -3756,7 +3760,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 trap vector result mismatch got=%llu\n",
@@ -3785,7 +3789,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 6) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv trap vector result mismatch got=%llu\n",
@@ -3813,7 +3817,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x00100073\n" // ebreak
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 32) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 extended trap vector result mismatch got=%llu\n",
@@ -3841,7 +3845,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd42000a0\n" // brk #5
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 35) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv extended trap vector result mismatch got=%llu\n",
@@ -3872,7 +3876,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x000280e7\n" // jalr ra,0(t0)
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 32) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 import trap vector result mismatch got=%llu\n",
@@ -3905,7 +3909,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 35) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv import trap vector result mismatch got=%llu\n",
@@ -3933,7 +3937,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x8b0b0000\n" // add x0,x0,x11
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 83) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 trap return preserved synthetic register mismatch got=%llu\n",
@@ -3957,7 +3961,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x01250533\n" // add a0,a0,s2
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 83) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv trap return preserved synthetic register mismatch got=%llu\n",
@@ -3999,7 +4003,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xd2800174\n" // movz x20,#11
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 
   if (poly_state_key_set_value(key_b) != 0 ||
       poly_state_key_get_value() != key_b) {
@@ -4013,7 +4017,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xaa1403e0\n" // mov x0,x20
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 0) {
     fprintf(stderr,
@@ -4026,7 +4030,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xd28002d4\n" // movz x20,#22
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 
   if (poly_state_key_set_value(key_a) != 0 ||
       poly_state_key_get_value() != key_a) {
@@ -4040,7 +4044,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xaa1403e0\n" // mov x0,x20
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 11) {
     fprintf(stderr,
@@ -4079,7 +4083,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xaa1403e0\n" // mov x0,x20
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 22) {
     fprintf(stderr,
@@ -4100,7 +4104,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xaa1403e0\n" // mov x0,x20
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 11) {
     fprintf(stderr,
@@ -4122,7 +4126,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xd2800434\n" // movz x20,#33
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 
   result = poly_riscv_state_key_set_get(key_d);
   if (result != key_d || poly_state_key_get_value() != key_d) {
@@ -4137,7 +4141,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xaa1403e0\n" // mov x0,x20
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 0) {
     fprintf(stderr,
@@ -4158,7 +4162,7 @@ static int run_poly_state_key_probe(void) {
     ".long 0xaa1403e0\n" // mov x0,x20
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 33) {
     fprintf(stderr,
@@ -4820,7 +4824,7 @@ static int run_poly_state_save_restore_probe(void) {
     ".long 0xd40000e1\n" // svc #7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   memset(&trap_snapshot, 0, sizeof(trap_snapshot));
   poly_state_export(&trap_snapshot);
   if (trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
@@ -4847,7 +4851,7 @@ static int run_poly_state_save_restore_probe(void) {
     ".long 0x00000073\n" // ecall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   memset(&trap_snapshot, 0, sizeof(trap_snapshot));
   poly_state_export(&trap_snapshot);
   if (trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
@@ -5012,7 +5016,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x1e604015\n" // fmov d21,d0
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
   write_xmm0_u64(five_bits);
   asm volatile(
     POLY_OP_ENTER_RV64
@@ -5020,7 +5024,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x22a50ad3\n" // fsgnj.d f21,fa0,fa0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
   native_xsave64(nativecheck_real_xsave_area, poly_mask);
 
   if (saved->header.magic != POLY_STATE_XSAVE_MAGIC ||
@@ -5116,7 +5120,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x1e604015\n" // fmov d21,d0
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
   write_xmm0_u64(seven_bits);
   asm volatile(
     POLY_OP_ENTER_RV64
@@ -5124,7 +5128,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x22a50ad3\n" // fsgnj.d f21,fa0,fa0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
   native_xrstor64(nativecheck_real_xsave_area, poly_mask);
 
   poly_trap_vector_get();
@@ -5182,7 +5186,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0xaa1503e0\n" // mov x0,x21
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 99) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR aarch64 x21 mismatch got=%llu\n",
@@ -5195,7 +5199,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x1e612aa0\n" // fadd d0,d21,d1
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   if (read_xmm0_u64() != ten_bits) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR aarch64 d21 mismatch got=0x%llx\n",
@@ -5207,7 +5211,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x000a8513\n" // addi a0,s5,0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 111) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR riscv s5 mismatch got=%llu\n",
@@ -5220,7 +5224,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x02baf553\n" // fadd.d fa0,f21,fa1
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   if (read_xmm0_u64() != twelve_bits) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR riscv f21 mismatch got=0x%llx\n",
@@ -5246,7 +5250,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0xd28018d6\n" // movz x22,#198
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (native_arch_prctl_raw(ARCH_SET_FS, 0) != 0) {
     poly_state_key_set_value(0);
     fputs("NATIVE_CHECK_FAIL: real XSAVE explicit-key FSBASE switch failed\n",
@@ -5260,7 +5264,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     : "=a"(explicit_key_fsbase_result)
     :
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (native_arch_prctl_raw(ARCH_SET_FS,
         (unsigned long) original_fsbase) != 0) {
     _exit(125);
@@ -5306,7 +5310,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x1e604015\n" // fmov d21,d0
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
   write_xmm0_u64(seven_bits);
   asm volatile(
     POLY_OP_ENTER_RV64
@@ -5314,7 +5318,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x22a50ad3\n" // fsgnj.d f21,fa0,fa0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
   native_xrstor64(nativecheck_real_xsave_area, poly_mask);
 
   poly_trap_vector_get();
@@ -5371,7 +5375,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0xaa1503e0\n" // mov x0,x21
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR init aarch64 x21 not cleared got=%llu\n",
@@ -5384,7 +5388,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x1e612aa0\n" // fadd d0,d21,d1
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   if (read_xmm0_u64() != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR init aarch64 d21 not cleared got=0x%llx\n",
@@ -5396,7 +5400,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x000a8513\n" // addi a0,s5,0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR init riscv s5 not cleared got=%llu\n",
@@ -5409,7 +5413,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
     ".long 0x02baf553\n" // fadd.d fa0,f21,fa1
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   if (read_xmm0_u64() != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR init riscv f21 not cleared got=0x%llx\n",
@@ -5587,7 +5591,7 @@ static uint64_t nativecheck_direct_pcall_aarch64_import_sum6(uint64_t a0,
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -5608,7 +5612,7 @@ static uint64_t nativecheck_direct_pcall_riscv_import_sum6(uint64_t a0,
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -5629,7 +5633,7 @@ static uint64_t nativecheck_signature_imm_direct_pcall_aarch64_import_sum6(
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -5651,7 +5655,7 @@ static uint64_t nativecheck_signature_imm_direct_pcall_riscv_import_sum6(
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
   return a0;
 }
 
@@ -5676,7 +5680,7 @@ static uint64_t nativecheck_generic_pcall_aarch64_x86_direct_sum6(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5702,7 +5706,7 @@ static uint64_t nativecheck_generic_pcall_riscv_x86_direct_sum6(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5722,7 +5726,7 @@ static uint64_t nativecheck_aarch64_direct_x86_source_sp_matches(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5743,7 +5747,7 @@ static uint64_t nativecheck_riscv_direct_x86_source_sp_matches(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5763,7 +5767,7 @@ static uint64_t nativecheck_aarch64_signature_imm_direct_x86_source_sp_matches(v
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5784,7 +5788,7 @@ static uint64_t nativecheck_riscv_signature_imm_direct_x86_source_sp_matches(voi
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5811,7 +5815,7 @@ static uint64_t nativecheck_signature_pcall_aarch64_x86_direct_sum6(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5839,7 +5843,7 @@ static uint64_t nativecheck_signature_pcall_riscv_x86_direct_sum6(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5865,7 +5869,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_x86_direct_sum6(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5892,7 +5896,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_x86_direct_sum6(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -5913,7 +5917,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_x86_direct_fp64(
     : "+r"(target)
     :
     : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
-      "r13", "r14", "xmm0", "xmm1", "memory");
+      "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -5935,7 +5939,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_x86_direct_fp64(
     : "+r"(target)
     :
     : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
-      "r13", "r14", "xmm0", "xmm1", "memory");
+      "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -5958,7 +5962,7 @@ nativecheck_signature_imm_pcall_aarch64_x86_direct_fp64_raw_consume(
     : "+r"(target)
     :
     : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
-      "r13", "r14", "xmm0", "xmm1", "memory");
+      "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -5982,7 +5986,7 @@ nativecheck_signature_imm_pcall_riscv_x86_direct_fp64_raw_consume(
     : "+r"(target)
     :
     : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
-      "r13", "r14", "xmm0", "xmm1", "memory");
+      "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -6002,7 +6006,7 @@ nativecheck_signature_imm_pcall_aarch64_x86_direct_vec128(void) {
     : "+r"(target)
     :
     : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
-      "r13", "r14", "xmm0", "xmm1", "memory");
+      "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u128();
 }
 
@@ -6023,7 +6027,7 @@ nativecheck_signature_imm_pcall_riscv_x86_direct_vec128(void) {
     : "+r"(target)
     :
     : "rax", "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12",
-      "r13", "r14", "xmm0", "xmm1", "memory");
+      "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u128();
 }
 
@@ -6057,7 +6061,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_riscv_sum6(void) {
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -6092,7 +6096,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_aarch64_sum6(void) {
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -6131,7 +6135,7 @@ static uint64_t nativecheck_nested_signature_imm_pcall_aarch64_riscv_aarch64(
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -6170,7 +6174,7 @@ static uint64_t nativecheck_nested_signature_imm_pcall_riscv_aarch64_riscv(
     : "=a"(result)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12",
-      "r13", "r14", "memory");
+      "r13", "r14", "r15", "memory");
   return result;
 }
 
@@ -6196,7 +6200,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_riscv_fp64(
     ".long 0x00008067\n" // ret through hardware return cookie
     "2:\n"
     ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -6223,7 +6227,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_aarch64_fp64(
     ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
     "2:\n"
     ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -6250,7 +6254,7 @@ static uint64_t nativecheck_signature_pcall_aarch64_riscv_fp64_slot8(
     ".long 0x00008067\n" // ret through hardware return cookie
     "2:\n"
     ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -6278,7 +6282,7 @@ static uint64_t nativecheck_signature_pcall_riscv_aarch64_fp64_slot8(
     ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
     "2:\n"
     ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u64();
 }
 
@@ -6302,7 +6306,7 @@ nativecheck_signature_imm_pcall_aarch64_riscv_vec128(void) {
     ".long 0x00008067\n" // ret through hardware return cookie
     "2:\n"
     ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
-        "r12", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r12", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   return read_xmm0_u128();
 }
 
@@ -6332,7 +6336,7 @@ nativecheck_signature_imm_pcall_riscv_aarch64_vec128(void) {
     : "+a"(v0_lo), "+d"(v0_hi), "+c"(v1_lo), "+D"(v1_hi)
     :
     : "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14",
-      "xmm0", "xmm1", "memory");
+      "xmm0", "xmm1", "r15", "memory");
   result.lo = v0_lo;
   result.hi = v0_hi;
   return result;
@@ -6357,7 +6361,7 @@ static uint64_t nativecheck_signature_pcall_aarch64_x86_direct_i128(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -6381,7 +6385,7 @@ static uint64_t nativecheck_signature_pcall_riscv_x86_direct_i128(void) {
     : "=a"(result), "+r"(target)
     :
     : "rdx", "rcx", "rdi", "rsi", "r8", "r9", "r11", "r12", "r13",
-      "r14", "memory");
+      "r14", "r15", "memory");
   return result;
 }
 
@@ -7223,7 +7227,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0xd51b4422\n" // msr fpsr,x2
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
 
   write_xmm0_u64(five_bits);
   asm volatile(
@@ -7234,7 +7238,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0x00329073\n" // csrw fcsr,t0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
 
   poly_state_export(&snapshot);
   if (snapshot.aarch64_gpr[20] != 77 ||
@@ -7266,7 +7270,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0xd51b4421\n" // msr fpsr,x1
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
 
   write_xmm0_u64(seven_bits);
   asm volatile(
@@ -7276,7 +7280,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0x00301073\n" // csrw fcsr,zero
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "r15", "memory");
 
   poly_state_import(&snapshot);
 
@@ -7285,7 +7289,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0xaa1403e0\n" // mov x0,x20
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 77) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import aarch64 x20 mismatch got=%llu\n",
       (unsigned long long) read_rax());
@@ -7302,7 +7306,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0xd51b4421\n" // msr fpsr,x1
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != (aarch64_fpcr_rtz + aarch64_fpsr_flags)) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state import aarch64 fpcr/fpsr mismatch got=0x%llx expected=0x%llx\n",
@@ -7317,7 +7321,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0x1e612a80\n" // fadd d0,d20,d1
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   if (read_xmm0_u64() != ten_bits) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import aarch64 d20 mismatch got=0x%llx\n",
       (unsigned long long) read_xmm0_u64());
@@ -7329,7 +7333,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0x000a0513\n" // addi a0,s4,0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 88) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv s4 mismatch got=%llu\n",
       (unsigned long long) read_rax());
@@ -7342,7 +7346,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0x00301073\n" // csrw fcsr,zero
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != riscv_fcsr_rtz_flags) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state import riscv fcsr mismatch got=0x%llx expected=0x%llx\n",
@@ -7357,7 +7361,7 @@ static int run_poly_state_register_bank_probe(void) {
     ".long 0x02ba7553\n" // fadd.d fa0,f20,fa1
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "memory");
+        "r8", "r9", "r10", "r11", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
   if (read_xmm0_u64() != twelve_bits) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import riscv f20 mismatch got=0x%llx\n",
       (unsigned long long) read_xmm0_u64());
@@ -7372,7 +7376,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &aarch64_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   poly_state_export(&snapshot);
   if (snapshot.aarch64_status.reservation_addr !=
         (uint64_t) (uintptr_t) &aarch64_reservation_word ||
@@ -7391,7 +7395,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &aarch64_other_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   poly_state_import(&snapshot);
   asm volatile(
     POLY_OP_ENTER_A64
@@ -7403,7 +7407,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &aarch64_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 0 || aarch64_reservation_word != 0x33ULL) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state import aarch64 reservation stxr status=%llu word=0x%llx\n",
@@ -7420,7 +7424,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &riscv_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   poly_state_export(&snapshot);
   if (snapshot.riscv_status.reservation_addr !=
         (uint64_t) (uintptr_t) &riscv_reservation_word ||
@@ -7439,7 +7443,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &riscv_other_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   poly_state_import(&snapshot);
   asm volatile(
     POLY_OP_ENTER_RV64
@@ -7451,7 +7455,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &riscv_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() != 0 || riscv_reservation_word != 0x44ULL) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state import riscv reservation sc status=%llu word=0x%llx\n",
@@ -7467,7 +7471,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &cross_riscv_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800aa1\n" // mov x1,#0x55
@@ -7476,7 +7480,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &cross_riscv_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x06600593\n" // addi a1,zero,0x66
@@ -7486,7 +7490,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &cross_riscv_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() == 0 || cross_riscv_reservation_word != 0x55ULL) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly cross reservation aarch64 store did not invalidate riscv lr status=%llu word=0x%llx\n",
@@ -7502,7 +7506,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &cross_aarch64_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x06600593\n" // addi a1,zero,0x66
@@ -7511,7 +7515,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &cross_aarch64_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800ee1\n" // mov x1,#0x77
@@ -7521,7 +7525,7 @@ static int run_poly_state_register_bank_probe(void) {
     :
     : "a"((uint64_t) (uintptr_t) &cross_aarch64_reservation_word)
     : "rbx", "rcx", "rdx", "rsi", "rdi",
-      "r8", "r9", "r10", "r11", "r13", "r14", "memory");
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   if (read_rax() == 0 || cross_aarch64_reservation_word != 0x66ULL) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly cross reservation riscv store did not invalidate aarch64 ldxr status=%llu word=0x%llx\n",
