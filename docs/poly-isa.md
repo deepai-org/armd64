@@ -1,43 +1,45 @@
 # Poly ISA
 
-Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends so existing
-native objects from all three ISAs can run in one process and address space.
+Poly is an x86_64 extension that adds user-mode AArch64 and RISC-V64
+frontends in the same process and virtual address space.
 
-## Contract
+## Architecture Contract
 
-- x86_64 remains the system ISA for privilege, paging, faults, interrupts, VM
-  control, atomics, and TSO memory ordering.
-- AArch64 and RISC-V64 are peer user frontends that fetch native instructions
-  from the same x86_64 virtual address space.
-- Cross-ISA calls target real ABIs: x86_64 SysV, AArch64 AAPCS64, and RISC-V
-  psABI. This is not a compiler-only `PolyFast` ABI.
-- Hardware accelerates register-only calls with ABI signature slots that rename
-  or alias registers. Software thunks handle stack arguments, aggregates,
-  variadics, lazy binding, and incompatible vector layouts.
-- Foreign state is explicit per-thread XSAVE-style state.
-- Foreign syscalls and recoverable traps produce OS-neutral trap packets for a
-  user runtime. Hardware does not implement OS, libc, linker, libgcc, or
-  libatomic policy.
+| Area | Contract |
+| --- | --- |
+| System ISA | x86_64 owns privilege, paging, faults, interrupts, VM control, atomics, and TSO ordering. |
+| User frontends | AArch64 and RISC-V64 fetch native instructions from x86_64 virtual memory. |
+| ABI target | Real precompiled ABI compatibility: SysV x86_64, AAPCS64, and RISC-V psABI. |
+| Fast calls | Register-only calls may use ABI signature slots to rename or alias registers. |
+| Slow calls | Software thunks handle stack args, aggregates, variadics, lazy binding, and incompatible vectors. |
+| State | Non-x86 architectural state is explicit per-thread XSAVE-style state. |
+| Traps | Recoverable foreign exits produce OS-neutral trap packets for a user runtime. |
+
+Hardware must not implement OS, libc, linker, libgcc, or libatomic policy.
 
 ## Differences From x86_64
 
-- The decoder can switch between x86_64, AArch64, and RISC-V64.
-- AArch64 fetch is 4-byte aligned; RISC-V fetch is 2-byte aligned for RVC.
-- Cross-ISA calls return through native returns using a hardware transition
-  stack and reserved return cookies.
-- Recoverable foreign exits produce precise trap packets, not hidden OS/libc
-  emulation.
+| Topic | Poly behavior |
+| --- | --- |
+| Decode | The frontend can switch among x86_64, AArch64, and RISC-V64. |
+| Fetch width | x86_64 remains variable length; AArch64 is 4-byte aligned; RISC-V is 2-byte aligned when RVC is enabled. |
+| Returns | Cross-ISA calls use native return instructions plus a hardware transition stack and reserved return cookies. |
+| Syscalls/traps | Foreign syscalls and recoverable traps exit through trap packets, not hidden OS or libc emulation. |
 
 ## Control Ops
 
 Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 
-Ops: `PENTER` enters a frontend, `PSWITCH` branches across frontends, `PCALL`
-calls across frontends using an ABI signature slot, `PTRAPRET` resumes from a
-trap monitor, and `PLANDING` validates indirect landing points when enabled.
+| Op | Purpose |
+| --- | --- |
+| `PENTER` | Enter a frontend at the next instruction. |
+| `PSWITCH` | Branch to another frontend. |
+| `PCALL` | Cross-ISA call using an ABI signature slot. |
+| `PTRAPRET` | Resume from the user trap monitor. |
+| `PLANDING` | Validate indirect cross-ISA landing points when enabled. |
 
-Prototype encodings: x86_64 `0f 3a fc <subop>`, AArch64 reserved `HINT`, and
-RISC-V `custom-0`. They are decoded control instructions, not `#UD` envelopes.
+Prototype encodings are decoded control instructions, not `#UD` envelopes:
+x86_64 `0f 3a fc <subop>`, AArch64 reserved `HINT`, and RISC-V `custom-0`.
 
-See `docs/poly-isa-design-directions.md` for rationale and `README.md` for
-build/test commands.
+See `README.md` for build/test commands and
+`docs/poly-isa-design-directions.md` for design rationale.
