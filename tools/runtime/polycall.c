@@ -4143,7 +4143,7 @@ static uint32_t x86_signature_kind_for_special_call_kind(int arch,
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR64_ARG;
   if (call_kind == POLY_CALL_MIXED_ARGS)
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_MIXED_U64_FP64;
-  if (arch != POLY_ARCH_AARCH64)
+  if (arch != POLY_ARCH_AARCH64 && arch != POLY_ARCH_RISCV)
     return UINT32_MAX;
   if (call_kind == POLY_CALL_HETERO_U64_F64 ||
       call_kind == POLY_CALL_HETERO_U32_F64)
@@ -10040,19 +10040,18 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
       import_contract.signature_slot_native_regs_fp32);
   }
-  else if (program->arch == POLY_ARCH_AARCH64) {
-    const uint8_t pcall[] = {
-      0x0f, 0x3a, 0xfc, 0x10
-    };
-    memcpy(code + offset, pcall, sizeof(pcall));
-    offset += sizeof(pcall);
-  }
   else {
-    const uint8_t pcall[] = {
-      0x0f, 0x3a, 0xfc, 0x11
-    };
-    memcpy(code + offset, pcall, sizeof(pcall));
-    offset += sizeof(pcall);
+    fprintf(stderr,
+      "POLYCALL_FAIL: root call kind requires explicit ABI signature or thunk arch=%s call_kind=%d path=%s\n",
+      program->arch_name, call_kind, program->path);
+    unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+    if (tls)
+      munmap(tls, tls_size);
+    munmap(heap, POLY_IMPORT_HEAP_SIZE);
+    munmap(import_page, 4096);
+    munmap(foreign, foreign_size);
+    munmap(code, code_size);
+    return -1;
   }
   if (use_hfa_f64_return_thunk) {
     emit_x86_store_hfa_f64_return_to_sret(code, &offset,
