@@ -4169,6 +4169,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   if (callee_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
       bridge_kind != POLY_PROCESS_BRIDGE_VEC128_U32 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_U32_F32 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_F32_U32 &&
       bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9 &&
       bridge_kind != POLY_PROCESS_BRIDGE_FP64)
     return -1;
@@ -4218,6 +4220,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   const uint64_t state_key =
     (uint64_t) (uintptr_t) &poly_state_key_anchor;
   const int is_compact_bridge = process_bridge_is_compact(bridge_kind);
+  const int emit_compact_shuffle =
+    is_compact_bridge && callee_arch != POLY_ARCH_X86;
   const int is_stack9_x86_callee =
     bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
     callee_arch == POLY_ARCH_X86;
@@ -4334,7 +4338,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       return -1;
     size_t offset = start;
     const uint64_t return_addr = start_addr +
-      (is_stack9_x86_callee ? 92 : 84 + (is_compact_bridge ? 8 : 0));
+      (is_stack9_x86_callee ? 92 : 84 + (emit_compact_shuffle ? 8 : 0));
     if (is_stack9_x86_callee) {
       emit_u32(code, &offset, 0xd100c3ffU); // sub sp, sp, #48
       emit_u32(code, &offset, 0xf9401bf2U); // ldr x18, [sp, #48]
@@ -4355,14 +4359,14 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_u32(code, &offset, POLY_AARCH64_CTRL_STATE_KEY_SET);
     emit_u32(code, &offset,
       is_stack9_x86_callee ? 0xf94013e0U : 0xf9400be0U); // ldr x0,saved
-    if (is_compact_bridge)
+    if (emit_compact_shuffle)
       emit_process_aarch64_compact_pre_pcall(code, &offset, bridge_kind);
     emit_aarch64_movabs(code, &offset, 16, pcall_target);
     emit_u32(code, &offset,
       0xd2800011U | ((callee_frontend & 0xffffU) << 5)); // movz x17,frontend
     emit_aarch64_movabs(code, &offset, 18, return_addr);
     emit_u32(code, &offset, aarch64_pcall_sig_imm(signature_slot));
-    if (is_compact_bridge)
+    if (emit_compact_shuffle)
       emit_process_aarch64_compact_post_pcall(code, &offset, bridge_kind);
     emit_u32(code, &offset,
       is_stack9_x86_callee ? 0xf9400ffeU : 0xf94007feU); // ldr x30,saved
@@ -4410,11 +4414,11 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
   emit_u32(code, &offset,
     riscv_ld(10, 2, is_stack9_x86_callee ? 32 : 16)); // ld a0,saved
-  if (is_compact_bridge)
+  if (emit_compact_shuffle)
     emit_process_riscv_compact_pre_pcall(code, &offset, bridge_kind);
   emit_u32(code, &offset, riscv_pcall_sig_imm(signature_slot));
   const size_t return_pc = offset;
-  if (is_compact_bridge)
+  if (emit_compact_shuffle)
     emit_process_riscv_compact_post_pcall(code, &offset, bridge_kind);
   emit_u32(code, &offset,
     riscv_ld(1, 2, is_stack9_x86_callee ? 24 : 8)); // ld ra,saved

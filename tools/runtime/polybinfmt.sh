@@ -63,6 +63,7 @@ case "$path" in
   */aarch64-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-tls-default-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-x86-compact-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-needed-ifunc-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-fp64-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-vec128-real.elf) expected=42; process_mode=1 ;;
@@ -324,6 +325,7 @@ case "$path" in
   */riscv-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-tls-default-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-x86-compact-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-needed-ifunc-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-fp64-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-vec128-real.elf) expected=42; process_mode=1 ;;
