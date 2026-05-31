@@ -177,6 +177,10 @@ extern char **environ;
 #define AT_HWCAP2 26
 #endif
 
+#ifndef ARCH_SET_FS
+#define ARCH_SET_FS 0x1002
+#endif
+
 #define POLY_RISCV_SYS_HWPROBE 258
 #define POLY_RISCV_HWPROBE_KEY_MVENDORID 0
 #define POLY_RISCV_HWPROBE_KEY_MARCHID 1
@@ -3471,7 +3475,25 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
 
 __attribute__((noreturn))
 static void run_poly_process_entry(const uint8_t *code,
-    uint64_t initial_sp, uint64_t tls_base) {
+    uint64_t initial_sp, uint64_t tls_base, int arch) {
+  if (arch == POLY_ARCH_X86 && tls_base != 0) {
+    register long rax __asm__("rax") = SYS_arch_prctl;
+    register long rdi __asm__("rdi") = ARCH_SET_FS;
+    register uint64_t rsi __asm__("rsi") = tls_base;
+    __asm__ volatile("syscall"
+        : "+a"(rax)
+        : "D"(rdi), "S"(rsi)
+        : "rcx", "r11", "memory");
+    if (rax < 0) {
+      register long exit_rax __asm__("rax") = SYS_exit_group;
+      register long exit_rdi __asm__("rdi") = 127;
+      __asm__ volatile("syscall"
+          :
+          : "a"(exit_rax), "D"(exit_rdi)
+          : "rcx", "r11", "memory");
+      __builtin_unreachable();
+    }
+  }
   asm volatile(
       "movq %0, %%r11\n"
       "movq %2, %%r13\n"
@@ -6273,7 +6295,7 @@ static int emit_and_run_process(struct poly_program *program,
 
   (void) result;
   run_poly_process_entry(code, initial_sp,
-    (uint64_t) (uintptr_t) process_tls);
+    (uint64_t) (uintptr_t) process_tls, program->arch);
 }
 
 static int program_exits_process(const char *path) {
