@@ -4040,14 +4040,6 @@ static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
       return 0x1b;
     if (call_kind == POLY_CALL_VEC128_U32)
       return 0x21;
-    if (call_kind == POLY_CALL_AARCH64_HFA3_F64)
-      return 0x23;
-    if (call_kind == POLY_CALL_AARCH64_HFA4_F64)
-      return 0x24;
-    if (call_kind == POLY_CALL_AARCH64_HFA3_F32)
-      return 0x25;
-    if (call_kind == POLY_CALL_AARCH64_HFA4_F32)
-      return 0x26;
     return 0x10;
   }
   if (call_kind == POLY_CALL_SRET_U64)
@@ -10035,14 +10027,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       pcall_op = 0x1b;
     else if (call_kind == POLY_CALL_VEC128_U32)
       pcall_op = 0x21;
-    else if (call_kind == POLY_CALL_AARCH64_HFA3_F64)
-      pcall_op = 0x23;
-    else if (call_kind == POLY_CALL_AARCH64_HFA4_F64)
-      pcall_op = 0x24;
-    else if (call_kind == POLY_CALL_AARCH64_HFA3_F32)
-      pcall_op = 0x25;
-    else if (call_kind == POLY_CALL_AARCH64_HFA4_F32)
-      pcall_op = 0x26;
     const uint8_t pcall[] = {
       0x0f, 0x3a, 0xfc, pcall_op
     };
