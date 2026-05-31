@@ -1,44 +1,46 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly lets one x86_64 process execute real precompiled x86_64, AArch64, and
+Poly is a CPU extension for one process to run existing x86_64, AArch64, and
 RISC-V64 code in one virtual address space.
 
 ## Run
 
 ```bash
 make image
+make boot-poly
 make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLYBENCH_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Use `make boot-poly` for a shorter smoke run.
-
-## Difference From x86_64
+## What Changes From x86_64
 
 - x86_64 remains the system ISA for privilege, paging, interrupts, faults,
-  virtual memory, atomics, VM control, and TSO memory ordering.
-- AArch64 and RISC-V64 are user-mode frontends that direct-fetch 32-bit
+  atomics, VM control, and TSO memory ordering.
+- AArch64 and RISC-V64 are user-mode frontends that fetch normal 32-bit native
   instructions from the same virtual address space.
-- There are no per-instruction x86 `#UD` envelopes in the ISA model.
-- Cross-ISA calls target existing native ABIs: x86_64 SysV, AArch64 AAPCS64,
+- Cross-ISA calls target the real native ABIs: x86_64 SysV, AArch64 AAPCS64,
   and RISC-V psABI.
-- Fast calls use fixed register-only ABI signature slots. Stack arguments,
-  large aggregates, variadics, relocation, syscalls, libcalls, and loader policy
-  stay in software.
-- Foreign architectural state is explicit per-thread XSAVE-style state, not
-  hidden CR3-scoped emulator state.
+- Fast calls use fixed register-only ABI signature slots; stack and aggregate
+  reshaping stays in software thunks.
+- Syscalls, libcalls, relocation, lazy binding, debugging, and policy stay in
+  the runtime or OS, not in the ISA.
+- Foreign state is explicit per-thread XSAVE-style state, not hidden emulator
+  state keyed by CR3 or process address space.
+- The ISA has no single-instruction `#UD` envelopes.
 
-## Control
+## Control Instructions
 
-- `PENTER`: enter a foreign frontend
-- `PSWITCH`: switch frontend without call semantics
-- `PCALL`: cross-ISA call
-- `PTRAPRET`: return from a runtime trap/monitor path
-- `PLANDING`: validated cross-ISA landing point
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 
-Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+| Instruction | Purpose |
+| --- | --- |
+| `PENTER` | Enter another frontend from trusted runtime/system code. |
+| `PSWITCH` | Switch frontend and branch without call semantics. |
+| `PCALL` | Cross-ISA call using an ABI signature slot. |
+| `PTRAPRET` | Resume from a Poly monitor/trap path. |
+| `PLANDING` | Mark or validate an indirect cross-ISA landing point. |
 
-Prototype encodings are `0f 3a fc <subop>` on x86_64, reserved `HINT`
-encodings on AArch64, and `custom-0` encodings on RISC-V64.
+Prototype encodings: x86_64 `0f 3a fc <subop>`, AArch64 reserved `HINT`, and
+RISC-V `custom-0`.
 
-Detailed architecture notes: `poly-isa-design-directions.md`.
+Detailed design rationale lives in `docs/poly-isa-design-directions.md`.
