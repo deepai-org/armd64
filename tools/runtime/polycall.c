@@ -353,7 +353,7 @@ enum {
   POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_PCALL_SIG_MODE = 0x2d,
   POLY_X86_CTRL_PCALL_SIG_IMM_MODE = 0x2e,
-  POLY_ABI_SIGNATURE_SLOT_COUNT = 9,
+  POLY_ABI_SIGNATURE_SLOT_COUNT = 10,
   POLY_ABI_SIGNATURE_KIND_EXCHANGE = 0,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV = 1,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS = 2,
@@ -364,6 +364,7 @@ enum {
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32 = 7,
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 = 8,
   POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64 = 9,
+  POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 = 10,
   POLY_ABI_REGISTER_MAP_EXCHANGE = 0,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE = 1,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_I128 = 2,
@@ -373,6 +374,7 @@ enum {
   POLY_ABI_REGISTER_MAP_NATIVE_COMPACT_U32_F32 = 6,
   POLY_ABI_REGISTER_MAP_NATIVE_COMPACT_F32_U32 = 7,
   POLY_ABI_REGISTER_MAP_NATIVE_FP64 = 8,
+  POLY_ABI_REGISTER_MAP_NATIVE_FP32 = 9,
   POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT = 0,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT = 1,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT = 2,
@@ -382,6 +384,7 @@ enum {
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_COMPACT_U32_F32_DEFAULT = 6,
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_COMPACT_F32_U32_DEFAULT = 7,
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64_DEFAULT = 8,
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32_DEFAULT = 9,
   POLY_IMPORT_FUNC_ADD = 0,
   POLY_IMPORT_FUNC_MUL = 1,
   POLY_IMPORT_FUNC_RESERVED_LEGACY_X86_ADD = 2,
@@ -639,6 +642,8 @@ static uint32_t poly_abi_signature_register_map(uint32_t kind) {
     return POLY_ABI_REGISTER_MAP_NATIVE_COMPACT_F32_U32;
   case POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64:
     return POLY_ABI_REGISTER_MAP_NATIVE_FP64;
+  case POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32:
+    return POLY_ABI_REGISTER_MAP_NATIVE_FP32;
   default:
     return UINT32_MAX;
   }
@@ -690,6 +695,7 @@ struct poly_import_contract {
   uint32_t signature_slot_native_regs_compact_u32_f32;
   uint32_t signature_slot_native_regs_compact_f32_u32;
   uint32_t signature_slot_native_regs_fp64;
+  uint32_t signature_slot_native_regs_fp32;
 };
 
 struct poly_import_stub_stats {
@@ -1290,6 +1296,8 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
     read_cpuid(POLY_CPUID_BASE + 2, 20);
   const struct poly_cpuid_regs signature_fp64 =
     read_cpuid(POLY_CPUID_BASE + 2, 22);
+  const struct poly_cpuid_regs signature_fp32 =
+    read_cpuid(POLY_CPUID_BASE + 2, 23);
   const uint32_t slot_exchange = signature.ecx & 0xffU;
   const uint32_t slot_x86_sysv_regs = (signature.ecx >> 8) & 0xffU;
   const uint32_t slot_x86_sysv_regs_i128 = (signature.ecx >> 16) & 0xffU;
@@ -1299,6 +1307,7 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
   const uint32_t slot_native_regs_compact_u32_f32 = signature_compact.eax;
   const uint32_t slot_native_regs_compact_f32_u32 = signature_compact.ecx;
   const uint32_t slot_native_regs_fp64 = signature_fp64.edx;
+  const uint32_t slot_native_regs_fp32 = signature_fp32.edx;
   const uint32_t kind_exchange = signature.edx & 0xffU;
   const uint32_t kind_x86_sysv_regs = (signature.edx >> 8) & 0xffU;
   const uint32_t kind_x86_sysv_regs_i128 = (signature.edx >> 16) & 0xffU;
@@ -1344,14 +1353,20 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
       signature_fp64.eax != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64 ||
       signature_fp64.ebx != POLY_ABI_REGISTER_MAP_NATIVE_FP64 ||
       signature_fp64.ecx != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
-      slot_native_regs_fp64 >= signature.ebx) {
+      slot_native_regs_fp64 >= signature.ebx ||
+      signature_fp32.eax != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 ||
+      signature_fp32.ebx != POLY_ABI_REGISTER_MAP_NATIVE_FP32 ||
+      signature_fp32.ecx != POLY_ABI_BRIDGE_FP_ARG_COUNT ||
+      slot_native_regs_fp32 >= signature.ebx) {
     fprintf(stderr,
-      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u)\n",
+      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
       signature_compact.ecx, signature_compact.edx, signature_fp64.eax,
-      signature_fp64.ebx, signature_fp64.ecx, signature_fp64.edx);
+      signature_fp64.ebx, signature_fp64.ecx, signature_fp64.edx,
+      signature_fp32.eax, signature_fp32.ebx, signature_fp32.ecx,
+      signature_fp32.edx);
     return -1;
   }
 
@@ -1368,6 +1383,7 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
   contract->signature_slot_native_regs_compact_f32_u32 =
     slot_native_regs_compact_f32_u32;
   contract->signature_slot_native_regs_fp64 = slot_native_regs_fp64;
+  contract->signature_slot_native_regs_fp32 = slot_native_regs_fp32;
   return 0;
 }
 
@@ -1418,6 +1434,14 @@ static int program_hot_abi_signature_slots(
       contract->signature_slot_count);
     return -1;
   }
+  if (contract->signature_slot_native_regs_fp32 >=
+        contract->signature_slot_count) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: native fp32 signature slot out of range slot=%u count=%u\n",
+      contract->signature_slot_native_regs_fp32,
+      contract->signature_slot_count);
+    return -1;
+  }
 
   if (poly_abi_signature_set(contract->signature_slot_x86_sysv_regs,
         POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
@@ -1436,7 +1460,9 @@ static int program_hot_abi_signature_slots(
         contract->signature_slot_native_regs_compact_f32_u32,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) != 0 ||
       poly_abi_signature_set(contract->signature_slot_native_regs_fp64,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0 ||
+      poly_abi_signature_set(contract->signature_slot_native_regs_fp32,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32) != 0) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU ABI signature slot programming failed\n");
     return -1;
@@ -4111,9 +4137,10 @@ static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
 
 static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
     uint32_t vec128_slot, uint32_t compact_u32_f32_slot,
-    uint32_t compact_f32_u32_slot, uint32_t fp64_slot) {
-  if (call_kind == POLY_CALL_FP32 ||
-      call_kind == POLY_CALL_FP64 ||
+    uint32_t compact_f32_u32_slot, uint32_t fp64_slot, uint32_t fp32_slot) {
+  if (call_kind == POLY_CALL_FP32)
+    return fp32_slot;
+  if (call_kind == POLY_CALL_FP64 ||
       call_kind == POLY_CALL_SIGREGS_FP64)
     return fp64_slot;
   if (call_kind == POLY_CALL_VEC128_U32)
@@ -4132,7 +4159,8 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
     uint32_t native_regs_signature_slot, uint32_t vec128_signature_slot,
     uint32_t compact_u32_f32_signature_slot,
     uint32_t compact_f32_u32_signature_slot,
-    uint32_t fp64_signature_slot, uint64_t *stub_addr,
+    uint32_t fp64_signature_slot, uint32_t fp32_signature_slot,
+    uint64_t *stub_addr,
     size_t *target_imm_offset) {
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
@@ -4152,7 +4180,7 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
   emit_x86_state_key_set(stubs, stub_offset, state_key);
   const uint32_t signature_slot = x86_direct_signature_slot_for_call_kind(
     call_kind, vec128_signature_slot, compact_u32_f32_signature_slot,
-    compact_f32_u32_signature_slot, fp64_signature_slot);
+    compact_f32_u32_signature_slot, fp64_signature_slot, fp32_signature_slot);
   if (call_kind == POLY_CALL_FP64_STACK) {
     emit_x86_pcall_fp64_stack_thunk(stubs, stub_offset, arch,
       exchange_signature_slot, native_regs_signature_slot);
@@ -4526,10 +4554,13 @@ static int x86_direct_import_uses_i128_signature(uint64_t import_id) {
     import_id == POLY_IMPORT_FUNC_X86_I128;
 }
 
-static int x86_direct_import_uses_fp_register_signature(uint64_t import_id) {
+static int x86_direct_import_uses_fp64_register_signature(uint64_t import_id) {
   return import_id == POLY_IMPORT_FUNC_X86_SLOT3 ||
-    import_id == POLY_IMPORT_FUNC_X86_SLOT4 ||
     import_id == POLY_IMPORT_FUNC_X86_SLOT6;
+}
+
+static int x86_direct_import_uses_fp32_register_signature(uint64_t import_id) {
+  return import_id == POLY_IMPORT_FUNC_X86_SLOT4;
 }
 
 static int x86_direct_import_uses_single_result_signature(
@@ -4963,8 +4994,10 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       contract->signature_slot_x86_sysv_regs_i128 :
     x86_direct_import_uses_i128_signature(import_id) ?
       contract->signature_slot_native_regs_i128 :
-    x86_direct_import_uses_fp_register_signature(import_id) ?
+    x86_direct_import_uses_fp64_register_signature(import_id) ?
       contract->signature_slot_native_regs_fp64 :
+    x86_direct_import_uses_fp32_register_signature(import_id) ?
+      contract->signature_slot_native_regs_fp32 :
     x86_direct_import_uses_single_result_signature(import_id) ?
       contract->signature_slot_x86_sysv_regs :
       contract->signature_slot_native_regs;
@@ -4976,7 +5009,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       stats->x86_direct_i128_sigreg_stubs++;
     else if (signature_slot == contract->signature_slot_x86_sysv_regs ||
         signature_slot == contract->signature_slot_native_regs ||
-        signature_slot == contract->signature_slot_native_regs_fp64)
+        signature_slot == contract->signature_slot_native_regs_fp64 ||
+        signature_slot == contract->signature_slot_native_regs_fp32)
       stats->x86_direct_sigreg_stubs++;
   }
 
@@ -9507,7 +9541,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     .signature_slot_native_regs_compact_f32_u32 =
       POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_COMPACT_F32_U32_DEFAULT,
     .signature_slot_native_regs_fp64 =
-      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64_DEFAULT
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64_DEFAULT,
+    .signature_slot_native_regs_fp32 =
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32_DEFAULT
   };
   if (read_poly_base_contract() < 0)
     return -1;
@@ -9718,10 +9754,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
     uint32_t signature_slot = import_contract.signature_slot_x86_sysv_regs;
-    // The FP64 signature kind maps the native FP argument register window; the
-    // register mapping is shared by FP32 and FP64 scalar calls.
-    if (call_kind == POLY_CALL_FP32 ||
-        call_kind == POLY_CALL_FP64 ||
+    if (call_kind == POLY_CALL_FP32)
+      signature_slot = import_contract.signature_slot_native_regs_fp32;
+    else if (call_kind == POLY_CALL_FP64 ||
         call_kind == POLY_CALL_SIGREGS_FP64)
       signature_slot = import_contract.signature_slot_native_regs_fp64;
     else if (call_kind == POLY_CALL_VEC128_U32)
@@ -10649,6 +10684,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             import_contract.signature_slot_native_regs_compact_u32_f32,
             import_contract.signature_slot_native_regs_compact_f32_u32,
             import_contract.signature_slot_native_regs_fp64,
+            import_contract.signature_slot_native_regs_fp32,
             &direct_stub, &direct_target_imm_offset) < 0) {
         fprintf(stderr,
           "POLYCALL_FAIL: fini result direct x86 stub overflow: %s\n",
@@ -10838,6 +10874,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               import_contract.signature_slot_native_regs_compact_u32_f32,
               import_contract.signature_slot_native_regs_compact_f32_u32,
               import_contract.signature_slot_native_regs_fp64,
+              import_contract.signature_slot_native_regs_fp32,
               &direct_stub, &direct_target_imm_offset) < 0) {
           fprintf(stderr,
             "POLYCALL_FAIL: dependency fini result direct x86 stub overflow: %s\n",

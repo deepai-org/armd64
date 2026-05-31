@@ -20,7 +20,7 @@
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT0 ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_INVALID_SLOT \
-  ".byte 0x0f,0x3a,0xfc,0x2e,0x09\n"
+  ".byte 0x0f,0x3a,0xfc,0x2e,0x0a\n"
 #define POLY_OP_PCALL_FP64_STACK_AARCH64 ".byte 0x0f,0x3a,0xfc,0x1e\n"
 #define POLY_OP_PCALL_FP64_STACK_RISCV ".byte 0x0f,0x3a,0xfc,0x1f\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
@@ -1612,7 +1612,7 @@ static void child_expect_aarch64_invalid_generic_signature_slot_signal(void) {
     ".long 0xd2800010\n" // movz x16,#0
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0xd2800012\n" // movz x18,#0
-    ".long 0xd2800133\n" // movz x19,#9 (invalid signature slot)
+    ".long 0xd2800153\n" // movz x19,#10 (invalid signature slot)
     ".long 0xd5032f5f\n" // aarch64 generic signature pcall
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -1660,7 +1660,7 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
     ".long 0x00000293\n" // addi x5,zero,0
     ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
     ".long 0x00000393\n" // addi x7,zero,0
-    ".long 0x00900e13\n" // addi x28,zero,9 (invalid signature slot)
+    ".long 0x00a00e13\n" // addi x28,zero,10 (invalid signature slot)
     ".long 0x1400700b\n" // riscv generic signature pcall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -4737,15 +4737,26 @@ static int run_poly_state_save_restore_probe(void) {
       snapshot.abi_signature.slots[
         POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].register_map !=
           poly_abi_signature_register_map(
-            POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64)) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export ABI signature mismatch count=%llu slot3=%u map=%u fp64=%u fp64_map=%u\n",
+            POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) ||
+      snapshot.abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].kind !=
+          POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 ||
+      snapshot.abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].register_map !=
+          poly_abi_signature_register_map(
+            POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32)) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export ABI signature mismatch count=%llu slot3=%u map=%u fp64=%u fp64_map=%u fp32=%u fp32_map=%u\n",
       (unsigned long long) snapshot.abi_signature.slot_count,
       snapshot.abi_signature.slots[3].kind,
       snapshot.abi_signature.slots[3].register_map,
       snapshot.abi_signature.slots[
         POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].kind,
       snapshot.abi_signature.slots[
-        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].register_map);
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].register_map,
+      snapshot.abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].kind,
+      snapshot.abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].register_map);
     return 1;
   }
   if (snapshot.landing_policy.flags != POLY_LANDING_POLICY_REQUIRE_CALL ||
@@ -4855,6 +4866,13 @@ static int run_poly_state_save_restore_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import FP64 ABI signature mismatch got=%llu\n",
       (unsigned long long) poly_abi_signature_get(
         POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64));
+    return 1;
+  }
+  if (poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly state import FP32 ABI signature mismatch got=%llu\n",
+      (unsigned long long) poly_abi_signature_get(
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32));
     return 1;
   }
   if (poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
@@ -4993,16 +5011,27 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->abi_signature.slots[
         POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].register_map !=
           poly_abi_signature_register_map(
-            POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64)) {
+            POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) ||
+      saved->abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].kind !=
+          POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 ||
+      saved->abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].register_map !=
+          poly_abi_signature_register_map(
+            POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32)) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XSAVE ABI signature mismatch count=%llu slot4=%u map=%u fp64=%u fp64_map=%u\n",
+      "NATIVE_CHECK_FAIL: real XSAVE ABI signature mismatch count=%llu slot4=%u map=%u fp64=%u fp64_map=%u fp32=%u fp32_map=%u\n",
       (unsigned long long) saved->abi_signature.slot_count,
       saved->abi_signature.slots[4].kind,
       saved->abi_signature.slots[4].register_map,
       saved->abi_signature.slots[
         POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].kind,
       saved->abi_signature.slots[
-        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].register_map);
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64].register_map,
+      saved->abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].kind,
+      saved->abi_signature.slots[
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32].register_map);
     return 1;
   }
   if (saved->landing_policy.flags != POLY_LANDING_POLICY_REQUIRE_CALL ||
@@ -5083,6 +5112,14 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       "NATIVE_CHECK_FAIL: real XRSTOR FP64 ABI signature mismatch got=%llu\n",
       (unsigned long long) poly_abi_signature_get(
         POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64));
+    return 1;
+  }
+  if (poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR FP32 ABI signature mismatch got=%llu\n",
+      (unsigned long long) poly_abi_signature_get(
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32));
     return 1;
   }
   if (poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
@@ -6747,7 +6784,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = poly_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64 + 1);
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6861,7 +6898,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_aarch64_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64 + 1);
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6904,7 +6941,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_riscv_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64 + 1);
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -7684,6 +7721,10 @@ int main(void) {
       poly_cpuid_expected_escape_leaf22();
     struct poly_cpuid_regs fp64_signature_manifest =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
+    struct poly_cpuid_regs expected_fp32_signature_manifest =
+      poly_cpuid_expected_escape_leaf23();
+    struct poly_cpuid_regs fp32_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 23);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -7695,6 +7736,19 @@ int main(void) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID FP64 ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         fp64_signature_manifest.eax, fp64_signature_manifest.ebx,
         fp64_signature_manifest.ecx, fp64_signature_manifest.edx);
+      return 1;
+    }
+    if (fp32_signature_manifest.eax !=
+          expected_fp32_signature_manifest.eax ||
+        fp32_signature_manifest.ebx !=
+          expected_fp32_signature_manifest.ebx ||
+        fp32_signature_manifest.ecx !=
+          expected_fp32_signature_manifest.ecx ||
+        fp32_signature_manifest.edx !=
+          expected_fp32_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID FP32 ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        fp32_signature_manifest.eax, fp32_signature_manifest.ebx,
+        fp32_signature_manifest.ecx, fp32_signature_manifest.edx);
       return 1;
     }
     if (check_poly_abi_signature_slot_default(
@@ -7721,7 +7775,13 @@ int main(void) {
           "native-regs-compact-u32-f32") != 0 ||
         check_poly_abi_signature_slot_default(
           compact_signature_manifest.ecx, compact_signature_manifest.edx,
-          "native-regs-compact-f32-u32") != 0)
+          "native-regs-compact-f32-u32") != 0 ||
+        check_poly_abi_signature_slot_default(
+          fp64_signature_manifest.edx, fp64_signature_manifest.eax,
+          "native-regs-fp64") != 0 ||
+        check_poly_abi_signature_slot_default(
+          fp32_signature_manifest.edx, fp32_signature_manifest.eax,
+          "native-regs-fp32") != 0)
       return 1;
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
