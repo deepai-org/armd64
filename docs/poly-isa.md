@@ -16,8 +16,9 @@ rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLYBENCH_OK|FAIL|Oops|Kernel panic' ou
 
 - x86_64 remains the system ISA: privilege, paging, faults, interrupts, VM
   control, atomics, and global TSO memory ordering stay x86-owned.
-- AArch64 and RISC-V64 are user frontends. They direct-fetch normal 32-bit
-  native instructions from the same address space.
+- AArch64 and RISC-V64 are user frontends. AArch64 direct-fetches 32-bit
+  instructions; RISC-V64 direct-fetches 16-bit compressed and 32-bit
+  instructions from the same address space.
 - Cross-ISA calls target the real native ABIs: x86_64 SysV, AArch64 AAPCS64,
   and RISC-V psABI.
 - Fast calls use fixed register signature slots suitable for hardware RAT

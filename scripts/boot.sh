@@ -11523,6 +11523,30 @@ EOF
           sleep 1
           continue
         fi
+        polyexec_foreign_x86_bridge_patterns=(
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-needed-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-needed-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-stack9-real\\.elf.*stack_bridges=[1-9][0-9]*.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-stack9-real\\.elf.*stack_bridges=[1-9][0-9]*.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-fp64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-fp64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-fp32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-fp32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-compact-real\\.elf.*sig_slots=[1-9][0-9]*.*stack_bridges=0.*compact_shuffles=[1-9][0-9]*.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-compact-real\\.elf.*sig_slots=[1-9][0-9]*.*stack_bridges=0.*compact_shuffles=[1-9][0-9]*.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=[1-9][0-9]*"
+        )
+        for pattern in "${polyexec_foreign_x86_bridge_patterns[@]}"; do
+          if ! grep -Eq "$pattern" "$SERIAL_LOG"; then
+            sleep 1
+            continue 2
+          fi
+        done
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-cross-needed-ifunc-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
