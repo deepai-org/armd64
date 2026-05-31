@@ -4122,7 +4122,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9)
     return -1;
   if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
-      caller_arch != POLY_ARCH_X86)
+      caller_arch != POLY_ARCH_X86 &&
+      !((caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) ||
+        (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)))
     return -1;
   if (ensure_process_cross_stub_arena() < 0 ||
       align_up_size(process_cross_stubs.offset, 8,
