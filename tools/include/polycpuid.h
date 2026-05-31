@@ -475,7 +475,8 @@ enum {
   POLY_CROSS_BRIDGE_RESERVED_1 = 1,
   POLY_CROSS_BRIDGE_COMPACT_U32_F32 = 2,
   POLY_CROSS_BRIDGE_COMPACT_F32_U32 = 3,
-  POLY_CROSS_BRIDGE_VEC128_U32 = 4
+  POLY_CROSS_BRIDGE_VEC128_U32 = 4,
+  POLY_CROSS_BRIDGE_FP64 = 5
 };
 
 static inline uint32_t poly_abi_signature_register_map(uint32_t kind) {
