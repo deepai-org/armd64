@@ -625,6 +625,18 @@ static uint64_t polybench_x86_sum6_direct(uint64_t a0, uint64_t a1,
 }
 
 __attribute__((noinline, noipa, used))
+static struct polybench_sret4 polybench_x86_sret4_direct(uint64_t a0,
+    uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4) {
+  struct polybench_sret4 result = {
+    .a = a0 + a1,
+    .b = a2 + a3,
+    .c = a4,
+    .d = a0 + a4
+  };
+  return result;
+}
+
+__attribute__((noinline, noipa, used))
 static double polybench_x86_fp64_sum6_direct(double a0, double a1,
     double a2, double a3, double a4, double a5) {
   return a0 + a1 + a2 + a3 + a4 + a5;
@@ -1190,6 +1202,129 @@ static int run_direct_x86_pcall_riscv(uint64_t *result,
   const size_t target_data_offset = offset;
   emit_u64(code, &offset,
     (uint64_t) (uintptr_t) polybench_x86_sum6_direct);
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_direct_x86_sret_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64 direct x86 SRET mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+  emit_u32(code, &offset, 0xd10083ffU); // sub sp,sp,#32
+  emit_u32(code, &offset, 0x910003e8U); // mov x8,sp (sret pointer)
+  emit_u32(code, &offset, 0xd2800020U); // movz x0,#1
+  emit_u32(code, &offset, 0xd2800041U); // movz x1,#2
+  emit_u32(code, &offset, 0xd2800062U); // movz x2,#3
+  emit_u32(code, &offset, 0xd2800083U); // movz x3,#4
+  emit_u32(code, &offset, 0xd28000a4U); // movz x4,#5
+  emit_aarch64_direct_x86_pcall_sig(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_sret4_direct,
+    polybench_sret_signature_slot);
+  emit_u32(code, &offset, aarch64_ldr_x_sp(0, 0));
+  emit_u32(code, &offset, aarch64_ldr_x_sp(1, 8));
+  emit_u32(code, &offset, aarch64_ldr_x_sp(2, 16));
+  emit_u32(code, &offset, aarch64_ldr_x_sp(3, 24));
+  emit_u32(code, &offset, aarch64_lsl_imm(0, 0, 48));
+  emit_u32(code, &offset, aarch64_lsl_imm(1, 1, 32));
+  emit_u32(code, &offset, aarch64_orr_reg(0, 0, 1));
+  emit_u32(code, &offset, aarch64_lsl_imm(2, 2, 16));
+  emit_u32(code, &offset, aarch64_orr_reg(0, 0, 2));
+  emit_u32(code, &offset, aarch64_orr_reg(0, 0, 3));
+  emit_u32(code, &offset, 0x910083ffU); // add sp,sp,#32
+  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_direct_x86_sret_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: riscv direct x86 SRET mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u32(code, &offset, riscv_addi(2, 2, -32));
+  emit_u32(code, &offset, riscv_addi(10, 2, 0)); // a0 = sret pointer
+  emit_u32(code, &offset, riscv_addi(11, 0, 1));
+  emit_u32(code, &offset, riscv_addi(12, 0, 2));
+  emit_u32(code, &offset, riscv_addi(13, 0, 3));
+  emit_u32(code, &offset, riscv_addi(14, 0, 4));
+  emit_u32(code, &offset, riscv_addi(15, 0, 5));
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_direct_x86_pcall_sig(code, &offset,
+    polybench_sret_signature_slot);
+  emit_u32(code, &offset, riscv_ld(10, 2, 0));
+  emit_u32(code, &offset, riscv_ld(11, 2, 8));
+  emit_u32(code, &offset, riscv_ld(12, 2, 16));
+  emit_u32(code, &offset, riscv_ld(13, 2, 24));
+  emit_u32(code, &offset, riscv_slli(10, 10, 48));
+  emit_u32(code, &offset, riscv_slli(11, 11, 32));
+  emit_u32(code, &offset, riscv_or(10, 10, 11));
+  emit_u32(code, &offset, riscv_slli(12, 12, 16));
+  emit_u32(code, &offset, riscv_or(10, 10, 12));
+  emit_u32(code, &offset, riscv_or(10, 10, 13));
+  emit_u32(code, &offset, riscv_addi(2, 2, 32));
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_sret4_direct);
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
 
@@ -4990,6 +5125,37 @@ static int check_direct_x86_pcall_direction(const char *name,
   return 0;
 }
 
+static int check_direct_x86_sret_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+  uint64_t result = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  printf("POLYBENCH_DIRECT_X86_SRET_RESULT: direction=%s packed=0x%016llx raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta);
+
+  if (result != UINT64_C(0x0003000700050006)) {
+    fprintf(stderr, "POLYBENCH_FAIL: direct x86 SRET %s expected 0x0003000700050006 got 0x%016llx\n",
+      name, (unsigned long long) result);
+    return -1;
+  }
+  if (insn_delta < 18) {
+    fprintf(stderr, "POLYBENCH_FAIL: direct x86 SRET %s raw instruction delta expected at least 18 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (check_switch_delta_exact("direct x86 SRET", name, switch_delta,
+        POLYBENCH_DIRECT_X86_PCALL_EXPECTED_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_switch_delta_max("direct x86 SRET", name, switch_delta,
+        POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  return 0;
+}
+
 static int check_direct_x86_fp64_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result_bits = 0;
@@ -5792,6 +5958,12 @@ static int check_cross_calls(void) {
     return -1;
   if (check_direct_x86_pcall_direction("riscv-calls-x86-direct",
         run_direct_x86_pcall_riscv) < 0)
+    return -1;
+  if (check_direct_x86_sret_direction("aarch64-calls-x86-direct-sret",
+        run_direct_x86_sret_aarch64) < 0)
+    return -1;
+  if (check_direct_x86_sret_direction("riscv-calls-x86-direct-sret",
+        run_direct_x86_sret_riscv) < 0)
     return -1;
   if (check_direct_x86_fp64_direction("aarch64-calls-x86-direct-fp64",
         run_direct_x86_fp64_aarch64) < 0)
