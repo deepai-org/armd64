@@ -6350,6 +6350,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-alu.elf" 0x25794531 0x05068105 0x858955c1 0x462989bd 0x8e15468d 0x8e558e35 0x9e298e75 0x85329e15 0x00008082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-fp.elf" 0x4541717d 0xe02a050a 0x00202502 0x200ca008 0x6502a02e 0x00016141 0x00008082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-sdsp.elf" 0xff010113 h:0x456d h:0xe02a 0x00000513 0x00013503 0x01010113 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-frame.elf" 0x01100513 0x01900593 h:0x717d h:0xe02a h:0xe42e 0x00000513 h:0x6602 h:0x66a2 h:0x9532 h:0x9536 h:0x6141 h:0x8082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-hints.elf" 0x01b00513 h:0x0005 h:0x4005 h:0x8006 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-int-move.elf" 0x80000537 0x02a50513 0xf0050553 0xe0050553 0xf20505d3 0xe2058553 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-class.elf" 0xf0000553 0xe0051553 0xf20005d3 0xe20595d3 0x00b50533 0x00008067
@@ -7190,6 +7191,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-compressed-alu.elf=42 \
     /usr/lib/polyapps/riscv-compressed-fp.elf=64 \
     /usr/lib/polyapps/riscv-compressed-sdsp.elf=27 \
+    /usr/lib/polyapps/riscv-compressed-frame.elf=42 \
     /usr/lib/polyapps/riscv-compressed-hints.elf=27 \
     /usr/lib/polyapps/riscv-fp-int-move.elf=0xffffffff8000002a \
     /usr/lib/polyapps/riscv-fp-class.elf=32 \
@@ -9798,6 +9800,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-compressed-alu.elf \
       /usr/lib/polyapps/riscv-compressed-fp.elf \
       /usr/lib/polyapps/riscv-compressed-sdsp.elf \
+      /usr/lib/polyapps/riscv-compressed-frame.elf \
       /usr/lib/polyapps/riscv-compressed-hints.elf \
       /usr/lib/polyapps/riscv-fp-int-move.elf \
       /usr/lib/polyapps/riscv-fp-class.elf \
@@ -10266,6 +10269,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-compressed-alu.elf \
     /usr/lib/polyapps/riscv-compressed-fp.elf \
     /usr/lib/polyapps/riscv-compressed-sdsp.elf \
+    /usr/lib/polyapps/riscv-compressed-frame.elf \
     /usr/lib/polyapps/riscv-compressed-hints.elf \
     /usr/lib/polyapps/riscv-fp-int-move.elf \
     /usr/lib/polyapps/riscv-fp-class.elf \
