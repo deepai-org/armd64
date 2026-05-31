@@ -13,7 +13,7 @@ Requires Docker with `linux/arm64` support.
 ```bash
 make image
 make boot-poly-full-real-xsave-arch-traps
-rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLYBENCH_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
+rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLY_NEUTRAL_OK|POLY_EXEC_CROSS_OK|POLY_EXEC_SYSCALL_OK|POLYBENCH_OK|POLYBINFMT_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
 Other useful targets:
@@ -30,7 +30,8 @@ Other useful targets:
   through OS-neutral trap packets.
 - `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
 - `make boot-poly-binfmt-arch-traps`: loader/binfmt smoke tests.
-- `make boot-poly-full-arch-traps`: broad regression run.
+- `make boot-poly-full-arch-traps`: broad regression run, including focused
+  process cross-call and syscall gates.
 - `make boot-poly-full-real-xsave-arch-traps`: broad regression run with the
   guest Poly XCR0 module loaded so direct XSAVE/XRSTOR is required.
 

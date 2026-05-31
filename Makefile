@@ -175,6 +175,8 @@ boot-poly-full-arch-traps:
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_NEUTRAL=1 \
+		-e RUN_POLY_EXEC_CROSS=1 \
+		-e RUN_POLY_EXEC_SYSCALL=1 \
 		-e RUN_POLY_EXEC=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e RUN_POLY_CALL=1 \
@@ -196,6 +198,8 @@ boot-poly-full-real-xsave-arch-traps: $(POLY_XCR0_MODULE)
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_NEUTRAL=1 \
+		-e RUN_POLY_EXEC_CROSS=1 \
+		-e RUN_POLY_EXEC_SYSCALL=1 \
 		-e RUN_POLY_EXEC=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e RUN_POLY_CALL=1 \
@@ -218,6 +222,8 @@ boot-poly-full:
 		-e RUN_POLY_PROBE=1 \
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_NEUTRAL=1 \
+		-e RUN_POLY_EXEC_CROSS=1 \
+		-e RUN_POLY_EXEC_SYSCALL=1 \
 		-e RUN_POLY_EXEC=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e RUN_POLY_CALL=1 \
