@@ -620,7 +620,7 @@ static inline void aarch64_abi_signature_control_probe(void) {
 static inline void aarch64_abi_signature_invalid_slot_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
-    ".long 0xd2800100\n" // movz x0,#8 (invalid slot)
+    ".long 0xd2800120\n" // movz x0,#9 (invalid slot)
     ".long 0xd2800001\n" // movz x1,#0
     ".long 0xd5032f9f\n" // aarch64 ABI signature set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
@@ -652,7 +652,7 @@ static inline void riscv_abi_signature_control_probe(void) {
 static inline void riscv_abi_signature_invalid_slot_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
-    ".long 0x00800513\n" // addi a0,zero,8 (invalid slot)
+    ".long 0x00900513\n" // addi a0,zero,9 (invalid slot)
     ".long 0x00000593\n" // addi a1,zero,0
     ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape

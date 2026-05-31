@@ -391,7 +391,8 @@ struct poly_request {
 };
 
 static uint32_t process_native_signature_slot = 3;
-static uint32_t process_fp64_signature_slot = 4;
+static uint32_t process_fp64_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
 static uint32_t process_vec128_signature_slot = 5;
 static uint32_t process_compact_u32_f32_signature_slot = 6;
 static uint32_t process_compact_f32_u32_signature_slot = 7;
@@ -580,6 +581,7 @@ static int read_poly_base_contract(int require_trap_vector) {
   const uint32_t compact_u32_f32_kind = signature_compact.ebx;
   const uint32_t compact_f32_u32_slot = signature_compact.ecx;
   const uint32_t compact_f32_u32_kind = signature_compact.edx;
+  const uint32_t fp64_slot = signature_fp64.edx;
   if (signature.eax != expected_signature.eax ||
       signature.ebx != expected_signature.ebx ||
       signature.ecx != expected_signature.ecx ||
@@ -605,7 +607,8 @@ static int read_poly_base_contract(int require_trap_vector) {
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32 ||
       compact_f32_u32_slot >= signature.ebx ||
       compact_f32_u32_kind !=
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) {
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 ||
+      fp64_slot >= signature.ebx) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
@@ -623,6 +626,7 @@ static int read_poly_base_contract(int require_trap_vector) {
     return -1;
   }
   process_native_signature_slot = native_slot;
+  process_fp64_signature_slot = fp64_slot;
   if (poly_abi_signature_set(process_fp64_signature_slot,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
     fprintf(stderr,
@@ -3833,6 +3837,27 @@ static uint32_t riscv_pcall_sig_imm(uint32_t slot) {
   return 0x2000700bU | ((slot & 0x7U) << 25);
 }
 
+static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
+    uint32_t signature_slot) {
+  if (signature_slot < 8) {
+    emit_u32(code, offset, aarch64_pcall_sig_imm(signature_slot));
+    return;
+  }
+  emit_u32(code, offset,
+    0xd2800013U | ((signature_slot & 0xffffU) << 5)); // movz x19,slot
+  emit_u32(code, offset, POLY_AARCH64_CTRL_CALL_SIG_MODE);
+}
+
+static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
+    uint32_t signature_slot) {
+  if (signature_slot < 8) {
+    emit_u32(code, offset, riscv_pcall_sig_imm(signature_slot));
+    return;
+  }
+  emit_u32(code, offset, riscv_addi(28, 0, signature_slot)); // addi t3,x0,slot
+  emit_u32(code, offset, POLY_RISCV_CTRL_CALL_SIG_MODE);
+}
+
 static uint32_t riscv_srli(uint32_t rd, uint32_t rs1, uint32_t shamt) {
   return 0x00005013U | ((shamt & 63U) << 20) | (rs1 << 15) |
     (rd << 7);
@@ -4346,8 +4371,11 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     if (process_cross_stubs.size - start < 160)
       return -1;
     size_t offset = start;
+    const uint64_t aarch64_pcall_return_extra =
+      signature_slot < 8 ? 0 : 4;
     const uint64_t return_addr = start_addr +
-      (is_stack9_x86_callee ? 92 : 84 + (emit_compact_shuffle ? 8 : 0));
+      (is_stack9_x86_callee ? 92 : 84 + (emit_compact_shuffle ? 8 : 0)) +
+      aarch64_pcall_return_extra;
     if (is_stack9_x86_callee) {
       emit_u32(code, &offset, 0xd100c3ffU); // sub sp, sp, #48
       emit_u32(code, &offset, 0xf9401bf2U); // ldr x18, [sp, #48]
@@ -4374,7 +4402,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_u32(code, &offset,
       0xd2800011U | ((callee_frontend & 0xffffU) << 5)); // movz x17,frontend
     emit_aarch64_movabs(code, &offset, 18, return_addr);
-    emit_u32(code, &offset, aarch64_pcall_sig_imm(signature_slot));
+    emit_aarch64_pcall_sig(code, &offset, signature_slot);
     if (emit_compact_shuffle)
       emit_process_aarch64_compact_post_pcall(code, &offset, bridge_kind);
     emit_u32(code, &offset,
@@ -4425,7 +4453,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     riscv_ld(10, 2, is_stack9_x86_callee ? 32 : 16)); // ld a0,saved
   if (emit_compact_shuffle)
     emit_process_riscv_compact_pre_pcall(code, &offset, bridge_kind);
-  emit_u32(code, &offset, riscv_pcall_sig_imm(signature_slot));
+  emit_riscv_pcall_sig(code, &offset, signature_slot);
   const size_t return_pc = offset;
   if (emit_compact_shuffle)
     emit_process_riscv_compact_post_pcall(code, &offset, bridge_kind);

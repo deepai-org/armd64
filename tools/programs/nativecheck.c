@@ -19,7 +19,8 @@
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT0 ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
 #define POLY_OP_PCALL_SIG_IMM_MODE_SLOT3 ".byte 0x0f,0x3a,0xfc,0x2e,0x03\n"
-#define POLY_OP_PCALL_SIG_IMM_MODE_SLOT8 ".byte 0x0f,0x3a,0xfc,0x2e,0x08\n"
+#define POLY_OP_PCALL_SIG_IMM_MODE_INVALID_SLOT \
+  ".byte 0x0f,0x3a,0xfc,0x2e,0x09\n"
 #define POLY_OP_PCALL_FP64_STACK_AARCH64 ".byte 0x0f,0x3a,0xfc,0x1e\n"
 #define POLY_OP_PCALL_FP64_STACK_RISCV ".byte 0x0f,0x3a,0xfc,0x1f\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
@@ -656,12 +657,12 @@ poly_abi_signature_get(uint64_t slot) {
 }
 
 static __attribute__((noinline)) void
-nativecheck_invalid_pcall_sig_imm_slot8(void) {
+nativecheck_invalid_pcall_sig_imm_slot(void) {
   asm volatile(
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     "movq %0, %%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT8
+    POLY_OP_PCALL_SIG_IMM_MODE_INVALID_SLOT
     "1:\n"
     "retq\n"
     "2:\n"
@@ -1427,14 +1428,15 @@ static void child_expect_invalid_generic_pcall_slot_signal(void) {
   asm volatile(
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
-    "movq $8, %%r12\n"
-    "movq %0, %%r15\n"
+    "movq %0, %%r12\n"
+    "movq %1, %%r15\n"
     POLY_OP_PCALL_SIG_MODE
     "1:\n"
     "retq\n"
     "2:\n"
     :
-    : "i"(POLY_FRONTEND_AARCH64)
+    : "i"(POLY_ABI_SIGNATURE_SLOT_COUNT),
+      "i"(POLY_FRONTEND_AARCH64)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
       "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   _exit(99);
@@ -1448,7 +1450,7 @@ static void child_expect_invalid_generic_pcall_imm_slot_signal(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "leaq 2f(%%rip), %%r11\n"
     "movq %0, %%r15\n"
-    POLY_OP_PCALL_SIG_IMM_MODE_SLOT8
+    POLY_OP_PCALL_SIG_IMM_MODE_INVALID_SLOT
     "1:\n"
     "retq\n"
     "2:\n"
@@ -1610,7 +1612,7 @@ static void child_expect_aarch64_invalid_generic_signature_slot_signal(void) {
     ".long 0xd2800010\n" // movz x16,#0
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0xd2800012\n" // movz x18,#0
-    ".long 0xd2800113\n" // movz x19,#8 (invalid signature slot)
+    ".long 0xd2800133\n" // movz x19,#9 (invalid signature slot)
     ".long 0xd5032f5f\n" // aarch64 generic signature pcall
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -1658,7 +1660,7 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
     ".long 0x00000293\n" // addi x5,zero,0
     ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
     ".long 0x00000393\n" // addi x7,zero,0
-    ".long 0x00800e13\n" // addi x28,zero,8 (invalid signature slot)
+    ".long 0x00900e13\n" // addi x28,zero,9 (invalid signature slot)
     ".long 0x1400700b\n" // riscv generic signature pcall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -4288,7 +4290,7 @@ static int run_poly_invalid_pcall_no_mutation_probe(void) {
 
   nativecheck_expect_sigill = 1;
   if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
-    nativecheck_invalid_pcall_sig_imm_slot8();
+    nativecheck_invalid_pcall_sig_imm_slot();
     nativecheck_expect_sigill = 0;
     sigaction(SIGILL, &old_action, 0);
     fputs("NATIVE_CHECK_FAIL: poly invalid pcall returned without SIGILL\n",
