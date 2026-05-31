@@ -9412,7 +9412,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     call_kind == POLY_CALL_MIXED_STACK_ARGS ||
     call_kind == POLY_CALL_FINI_RESULT ||
     call_kind == POLY_CALL_DEP_FINI_RESULT;
-  const int use_native_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
+  const int use_sig_imm_pcall = call_kind == POLY_CALL_SIGREGS_U64 ||
     call_kind == POLY_CALL_SIGREGS_FP64 ||
     call_kind == POLY_CALL_VEC128_U32 ||
     call_kind == POLY_CALL_COMPACT_U32_F32 ||
@@ -9425,7 +9425,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t state_key_setup_size = POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE;
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
-    (use_native_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
+    (use_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
       (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
         POLY_X86_CONTROL_OPCODE_SIZE));
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
@@ -9581,10 +9581,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     code[offset++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
     code[offset++] = (uint8_t) import_contract.signature_slot_exchange;
   }
-  else if (use_native_sig_imm_pcall) {
+  else if (use_sig_imm_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
-    uint32_t signature_slot = import_contract.signature_slot_native_regs;
+    uint32_t signature_slot = import_contract.signature_slot_x86_sysv_regs;
     if (call_kind == POLY_CALL_VEC128_U32)
       signature_slot = import_contract.signature_slot_native_regs_vec128_u32;
     else if (call_kind == POLY_CALL_COMPACT_U32_F32)
