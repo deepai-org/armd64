@@ -11552,6 +11552,16 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=aarch64 .*direct_vec128=[1-9].*aarch64-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT_VEC128_U32: arch=aarch64 .*aarch64-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_X86_IMPORT_STUBS: arch=riscv .*thunks=[1-9].*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT_VEC128_U32: arch=riscv .*riscv-pcall-x86-vec128-import-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=aarch64 .*a64_to_rv_sigregs=[1-9].*aarch64-pcall-cross-needed-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue

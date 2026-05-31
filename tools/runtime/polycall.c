@@ -706,6 +706,7 @@ struct poly_import_contract {
 struct poly_import_stub_stats {
   uint32_t x86_direct_sigreg_stubs;
   uint32_t x86_direct_i128_sigreg_stubs;
+  uint32_t x86_direct_vec128_sigreg_stubs;
   uint32_t x86_thunk_stubs;
 };
 
@@ -4597,6 +4598,10 @@ static int x86_direct_import_uses_i128_signature(uint64_t import_id) {
     import_id == POLY_IMPORT_FUNC_X86_I128;
 }
 
+static int x86_direct_import_uses_vec128_signature(uint64_t import_id) {
+  return import_id == POLY_IMPORT_FUNC_X86_VEC128_U32;
+}
+
 static int x86_direct_import_uses_fp64_register_signature(uint64_t import_id) {
   return import_id == POLY_IMPORT_FUNC_X86_SLOT3 ||
     import_id == POLY_IMPORT_FUNC_X86_SLOT6;
@@ -5035,6 +5040,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       contract->signature_slot_x86_sysv_regs_i128 :
     needs_riscv_fp128_return_x86_thunk ?
       contract->signature_slot_x86_sysv_regs_i128 :
+    x86_direct_import_uses_vec128_signature(import_id) ?
+      contract->signature_slot_native_regs_vec128_u32 :
     x86_direct_import_uses_i128_signature(import_id) ?
       contract->signature_slot_native_regs_i128 :
     x86_direct_import_uses_fp64_register_signature(import_id) ?
@@ -5048,6 +5055,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
   if (stats) {
     if (needs_x86_thunk)
       stats->x86_thunk_stubs++;
+    else if (signature_slot == contract->signature_slot_native_regs_vec128_u32)
+      stats->x86_direct_vec128_sigreg_stubs++;
     else if (signature_slot == contract->signature_slot_native_regs_i128)
       stats->x86_direct_i128_sigreg_stubs++;
     else if (signature_slot == contract->signature_slot_x86_sysv_regs ||
@@ -10981,11 +10990,13 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const uint32_t x86_import_stub_total =
     import_stub_stats.x86_direct_sigreg_stubs +
     import_stub_stats.x86_direct_i128_sigreg_stubs +
+    import_stub_stats.x86_direct_vec128_sigreg_stubs +
     import_stub_stats.x86_thunk_stubs;
   if (x86_import_stub_total != 0) {
-    printf("POLYCALL_X86_IMPORT_STUBS: arch=%s direct_sigregs=%u direct_i128=%u thunks=%u path=%s\n",
+    printf("POLYCALL_X86_IMPORT_STUBS: arch=%s direct_sigregs=%u direct_i128=%u direct_vec128=%u thunks=%u path=%s\n",
       program->arch_name, import_stub_stats.x86_direct_sigreg_stubs,
       import_stub_stats.x86_direct_i128_sigreg_stubs,
+      import_stub_stats.x86_direct_vec128_sigreg_stubs,
       import_stub_stats.x86_thunk_stubs, program->path);
   }
   const uint32_t cross_stub_total =
