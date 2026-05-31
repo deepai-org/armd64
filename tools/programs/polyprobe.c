@@ -800,6 +800,55 @@ static inline uint64_t riscv_foreign_control_plane_probe(uint64_t vector,
   return rax;
 }
 
+static inline uint64_t riscv_trap_to_aarch64_monitor_probe(void) {
+  uint64_t result;
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    POLY_OP_TRAP_VECTOR_SET
+    "movq $1, %%rax\n"
+    POLY_OP_TRAP_VECTOR_MODE_SET
+    POLY_OP_ENTER_RV64
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x00100893\n" // addi a7,zero,1
+    ".long 0x00100073\n" // ebreak
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x910190a0\n" // add x0,x5,#100 (x5 carries trap arg0)
+    ".long 0xd5032edf\n" // aarch64 trap return
+    "2:\n"
+    : "=a"(result)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "r10", "r11", "r12", "r13", "r14",
+      "memory");
+  return result;
+}
+
+static inline uint64_t aarch64_trap_to_riscv_monitor_probe(void) {
+  uint64_t result;
+  asm volatile(
+    "leaq 1f(%%rip), %%rax\n"
+    POLY_OP_TRAP_VECTOR_SET
+    "movq $2, %%rax\n"
+    POLY_OP_TRAP_VECTOR_MODE_SET
+    POLY_OP_ENTER_A64
+    ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd4200020\n" // brk #1
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x0c878513\n" // addi a0,a5,200 (a5 carries trap arg0)
+    ".long 0x0c00700b\n" // riscv trap return
+    "2:\n"
+    : "=a"(result)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "r10", "r11", "r12", "r13", "r14",
+      "memory");
+  return result;
+}
+
 static inline void aarch64_generic_switch_riscv_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -2763,6 +2812,21 @@ int main(void) {
     return 1;
   }
   poly_monitor_packet_set_value(0);
+  install_polyprobe_trap_vector();
+
+  stage("POLY_STAGE: foreign-trap-vectors");
+  if (riscv_trap_to_aarch64_monitor_probe() != 177) {
+    fprintf(stderr, "POLY_PROBE_FAIL: riscv trap to aarch64 monitor mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    install_polyprobe_trap_vector();
+    return 1;
+  }
+  if (aarch64_trap_to_riscv_monitor_probe() != 277) {
+    fprintf(stderr, "POLY_PROBE_FAIL: aarch64 trap to riscv monitor mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    install_polyprobe_trap_vector();
+    return 1;
+  }
   install_polyprobe_trap_vector();
 
   pcall_signature_aarch64_sysv_args_probe();
