@@ -132,6 +132,8 @@ enum {
   POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 88,
   POLY_X86_PCALL_FP64_STACK_AARCH64_SEQUENCE_SIZE = 98,
   POLY_X86_PCALL_FP64_STACK_RISCV_SEQUENCE_SIZE = 54,
+  POLY_X86_HFA3_F64_ARG_LOAD_SEQUENCE_SIZE = 18,
+  POLY_X86_HFA4_F64_ARG_LOAD_SEQUENCE_SIZE = 24,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -4170,6 +4172,18 @@ static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0xfc;
   code[(*offset)++] = POLY_X86_CTRL_PCALL_SIG_IMM_MODE;
   code[(*offset)++] = (uint8_t) signature_slot_exchange;
+}
+
+static void emit_x86_load_hfa_f64_arg_from_stack(uint8_t *code,
+    size_t *offset, uint32_t count) {
+  for (uint32_t n = 0; n < count; n++) {
+    code[(*offset)++] = 0xf2; // movsd xmmN,[rsp+disp8].
+    code[(*offset)++] = 0x0f;
+    code[(*offset)++] = 0x10;
+    code[(*offset)++] = (uint8_t) (0x44U + (n << 3));
+    code[(*offset)++] = 0x24;
+    code[(*offset)++] = (uint8_t) (8U + n * 8U);
+  }
 }
 
 static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
@@ -9644,16 +9658,25 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     call_kind == POLY_CALL_COMPACT_U32_F32 ||
     call_kind == POLY_CALL_COMPACT_F32_U32;
   const int use_fp64_stack_pcall = call_kind == POLY_CALL_FP64_STACK;
+  const int use_hfa_f64_arg_sig_pcall = program->arch == POLY_ARCH_AARCH64 &&
+    (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG ||
+     call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG);
   const size_t fp64_stack_pcall_sequence_size =
     program->arch == POLY_ARCH_AARCH64 ?
       POLY_X86_PCALL_FP64_STACK_AARCH64_SEQUENCE_SIZE :
       POLY_X86_PCALL_FP64_STACK_RISCV_SEQUENCE_SIZE;
+  const size_t hfa_f64_arg_pcall_sequence_size =
+    (call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG ?
+      POLY_X86_HFA4_F64_ARG_LOAD_SEQUENCE_SIZE :
+      POLY_X86_HFA3_F64_ARG_LOAD_SEQUENCE_SIZE) +
+    POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
   const size_t state_key_setup_size = POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE;
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
       (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
-        POLY_X86_CONTROL_OPCODE_SIZE));
+        (use_hfa_f64_arg_sig_pcall ? hfa_f64_arg_pcall_sequence_size :
+          POLY_X86_CONTROL_OPCODE_SIZE)));
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
     state_key_setup_size + pcall_sequence_size;
@@ -9830,6 +9853,12 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_x86_pcall_fp64_stack_thunk(code, &offset, program->arch,
       import_contract.signature_slot_exchange,
       import_contract.signature_slot_native_regs);
+  }
+  else if (use_hfa_f64_arg_sig_pcall) {
+    emit_x86_load_hfa_f64_arg_from_stack(code, &offset,
+      call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG ? 4U : 3U);
+    emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
+      import_contract.signature_slot_native_regs_fp64);
   }
   else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
