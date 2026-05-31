@@ -1812,6 +1812,20 @@ static void child_expect_bad_import_return_id_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_import_return_map_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].source_mode = POLY_MODE_RAW_AARCH64;
+  bad.import_return.frames[0].import_id = UINT64_MAX;
+  bad.import_return.frames[0].return_map = POLY_X86_RETURN_MAP_MAX + 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_abi_signature_flags_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -4596,6 +4610,9 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad import-return id xstate", SIGILL,
         child_expect_bad_import_return_id_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly bad import-return map xstate", SIGILL,
+        child_expect_bad_import_return_map_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly bad ABI signature flags xstate", SIGILL,
         child_expect_bad_abi_signature_flags_xsave_signal) != 0)
     return 1;
@@ -5476,7 +5493,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.import_return.frames[0].return_pc = 0x1000010000100001ULL;
   complex.import_return.frames[0].return_sp = 0x2000020000200002ULL;
   complex.import_return.frames[0].import_id = POLY_IMPORT_FUNC_X86_SLOT0;
-  complex.import_return.frames[0].return_flags = 0x3000030000300003ULL;
+  complex.import_return.frames[0].return_map = POLY_X86_RETURN_MAP_DEFAULT;
   for (unsigned n = 0; n < 6; n++)
     complex.import_return.frames[0].alias[n] =
       0x4000040000400000ULL + n;
@@ -6448,16 +6465,16 @@ static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
       frame->return_pc == 0 ||
       frame->return_sp == 0 ||
       frame->import_id != expected_import_id ||
-      frame->return_flags != 0) {
+      frame->return_map != POLY_X86_RETURN_MAP_DEFAULT) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly import xsave frame mismatch expected_mode=%u mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu flags=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly import xsave frame mismatch expected_mode=%u mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu map=0x%llx\n",
       expected_mode,
       frame->source_mode,
       frame->alias_valid,
       (unsigned long long) frame->return_pc,
       (unsigned long long) frame->return_sp,
       (unsigned long long) frame->import_id,
-      (unsigned long long) frame->return_flags);
+      (unsigned long long) frame->return_map);
     return 1;
   }
 
