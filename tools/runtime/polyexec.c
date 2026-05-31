@@ -304,7 +304,8 @@ enum poly_process_bridge_kind {
   POLY_PROCESS_BRIDGE_DEFAULT = 0,
   POLY_PROCESS_BRIDGE_VEC128_U32 = 1,
   POLY_PROCESS_BRIDGE_COMPACT_U32_F32 = 2,
-  POLY_PROCESS_BRIDGE_COMPACT_F32_U32 = 3
+  POLY_PROCESS_BRIDGE_COMPACT_F32_U32 = 3,
+  POLY_PROCESS_BRIDGE_U64_STACK9 = 4
 };
 
 struct poly_process_bridge_spec {
@@ -797,6 +798,8 @@ static int process_bridge_kind_from_name(const char *name) {
     return POLY_PROCESS_BRIDGE_COMPACT_U32_F32;
   if (strcmp(name, "compact_f32_u32") == 0)
     return POLY_PROCESS_BRIDGE_COMPACT_F32_U32;
+  if (strcmp(name, "u64_stack9") == 0)
+    return POLY_PROCESS_BRIDGE_U64_STACK9;
   return -1;
 }
 
@@ -905,6 +908,8 @@ static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
     return process_compact_u32_f32_signature_slot;
   if (bridge_kind == POLY_PROCESS_BRIDGE_COMPACT_F32_U32)
     return process_compact_f32_u32_signature_slot;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9)
+    return POLY_ABI_SIGNATURE_SLOT_EXCHANGE;
   return process_native_signature_slot;
 }
 
@@ -4113,7 +4118,11 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
       bridge_kind != POLY_PROCESS_BRIDGE_VEC128_U32 &&
       bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_U32_F32 &&
-      bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_F32_U32)
+      bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_F32_U32 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9)
+    return -1;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
+      caller_arch != POLY_ARCH_X86)
     return -1;
   if (ensure_process_cross_stub_arena() < 0 ||
       align_up_size(process_cross_stubs.offset, 8,
@@ -4139,10 +4148,14 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     callee_arch == POLY_ARCH_RISCV ? POLY_ARCH_RISCV : POLY_ARCH_X86;
 
   if (caller_arch == POLY_ARCH_X86) {
-    if (process_cross_stubs.size - start < 96)
+    if (process_cross_stubs.size - start < 192)
       return -1;
     size_t offset = start;
     code[offset++] = 0x53; // push rbx
+    if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9) {
+      code[offset++] = 0x41; // push r12
+      code[offset++] = 0x54;
+    }
     code[offset++] = 0x41; // push r15
     code[offset++] = 0x57;
     code[offset++] = 0x48; // sub rsp,8: keep the foreign ABI entry stack 16-byte aligned.
@@ -4152,6 +4165,64 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     code[offset++] = 0x50; // push rax: state-key programming must not clobber arg0.
     emit_x86_state_key_set(code, &offset, state_key);
     code[offset++] = 0x58; // pop rax
+
+    if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9) {
+      // Translate x86_64 SysV u64 args 0..8 to the exchange register window:
+      // RAX,RDX,RCX,RDI,RSI,R8,R9,R10 -> x0..x7/a0..a7, plus arg8 at [SP].
+      code[offset++] = 0x4c; // mov r12,[rsp+56]
+      code[offset++] = 0x8b;
+      code[offset++] = 0x64;
+      code[offset++] = 0x24;
+      code[offset++] = 0x38;
+      code[offset++] = 0x4c; // lea r11,[rsp-0x4000]
+      code[offset++] = 0x8d;
+      code[offset++] = 0x9c;
+      code[offset++] = 0x24;
+      emit_u32(code, &offset, 0xffffc000U);
+      code[offset++] = 0x49; // and r11,-16
+      code[offset++] = 0x83;
+      code[offset++] = 0xe3;
+      code[offset++] = 0xf0;
+      code[offset++] = 0x4d; // mov [r11],r12
+      code[offset++] = 0x89;
+      code[offset++] = 0x23;
+      code[offset++] = 0x49; // mov r11,rcx
+      code[offset++] = 0x89;
+      code[offset++] = 0xcb;
+      code[offset++] = 0x49; // mov r12,rdx
+      code[offset++] = 0x89;
+      code[offset++] = 0xd4;
+      code[offset++] = 0x48; // mov rax,rdi
+      code[offset++] = 0x89;
+      code[offset++] = 0xf8;
+      code[offset++] = 0x48; // mov rdx,rsi
+      code[offset++] = 0x89;
+      code[offset++] = 0xf2;
+      code[offset++] = 0x4c; // mov rcx,r12
+      code[offset++] = 0x89;
+      code[offset++] = 0xe1;
+      code[offset++] = 0x4c; // mov rdi,r11
+      code[offset++] = 0x89;
+      code[offset++] = 0xdf;
+      code[offset++] = 0x4c; // mov rsi,r8
+      code[offset++] = 0x89;
+      code[offset++] = 0xc6;
+      code[offset++] = 0x4d; // mov r8,r9
+      code[offset++] = 0x89;
+      code[offset++] = 0xc8;
+      code[offset++] = 0x4c; // mov r9,[rsp+40]
+      code[offset++] = 0x8b;
+      code[offset++] = 0x4c;
+      code[offset++] = 0x24;
+      code[offset++] = 0x28;
+      code[offset++] = 0x4c; // mov r10,[rsp+48]
+      code[offset++] = 0x8b;
+      code[offset++] = 0x54;
+      code[offset++] = 0x24;
+      code[offset++] = 0x30;
+      signature_slot = POLY_ABI_SIGNATURE_SLOT_EXCHANGE;
+    }
+
     emit_x86_movabs_rbx(code, &offset, target);
     const size_t return_imm_offset = offset + 2;
     emit_x86_movabs_r11(code, &offset, 0);
@@ -4163,6 +4234,10 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     code[offset++] = 0x08;
     code[offset++] = 0x41; // pop r15
     code[offset++] = 0x5f;
+    if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9) {
+      code[offset++] = 0x41; // pop r12
+      code[offset++] = 0x5c;
+    }
     code[offset++] = 0x5b; // pop rbx
     code[offset++] = 0xc3; // ret
     for (unsigned n = 0; n < 8; n++)

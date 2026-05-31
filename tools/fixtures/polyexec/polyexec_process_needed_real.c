@@ -184,6 +184,28 @@ struct poly_compact_f32_u32 poly_process_needed_compact_f32_u32(
   return out;
 }
 
+#elif defined(POLY_PROCESS_NEEDED_STACK9_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_sum9 u64_stack9\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+uint64_t poly_process_needed_sum9(uint64_t a0, uint64_t a1, uint64_t a2,
+    uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6, uint64_t a7,
+    uint64_t a8) {
+  return a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + 0x90;
+}
+
 #elif defined(POLY_PROCESS_ROOT_EXPORT_DEP)
 
 extern uint64_t poly_process_root_export(uint64_t);
@@ -394,6 +416,9 @@ extern struct poly_compact_u32_f32 poly_process_needed_compact_u32_f32(
     struct poly_compact_u32_f32, uint32_t);
 extern struct poly_compact_f32_u32 poly_process_needed_compact_f32_u32(
     struct poly_compact_f32_u32, uint32_t);
+#elif defined(POLY_PROCESS_NEEDED_STACK9_MAIN)
+extern uint64_t poly_process_needed_sum9(uint64_t, uint64_t, uint64_t,
+    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 #else
 extern uint64_t poly_process_needed_add(uint64_t, uint64_t);
 #endif
@@ -679,6 +704,10 @@ uint64_t poly_process_main(void) {
       rb.i != 214 || fb.u != 0x426d0000U)
     return 52;
   static const char marker[] = "POLY_PROCESS_CROSS_COMPACT_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_STACK9_MAIN)
+  if (poly_process_needed_sum9(1, 2, 3, 4, 5, 6, 7, 8, 9) != 0xbd)
+    return 53;
+  static const char marker[] = "POLY_PROCESS_CROSS_STACK9_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_PRELOAD_MAIN)
   if (poly_process_needed_add(0x20, 0x30) != 0x190)
     return 44;
