@@ -7785,9 +7785,10 @@ int main(void) {
       return 1;
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
-    uint32_t forbidden_state_bits = POLY_CPUID_STATE_SYNTHETIC_BANKS;
+    const uint32_t forbidden_state_bits =
+      (1U << 1) | (1U << 2) | (1U << 3) | (1U << 4);
     if ((state.eax & forbidden_state_bits) != 0) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: synthetic-bank CPUID state bits advertised eax=0x%x forbidden=0x%x\n",
+      fprintf(stderr, "NATIVE_CHECK_FAIL: emulator-private CPUID state bits advertised eax=0x%x forbidden=0x%x\n",
         state.eax, forbidden_state_bits);
       return 1;
     }
