@@ -7,8 +7,12 @@
 #include "../include/polycpuid.h"
 
 #define POLY_OP_EXIT ".byte 0x0f,0x3a,0xfc,0x00\n"
-#define POLY_OP_ENTER_A64 ".byte 0x0f,0x3a,0xfc,0x01\n"
-#define POLY_OP_ENTER_RV64 ".byte 0x0f,0x3a,0xfc,0x02\n"
+#define POLY_OP_ENTER_A64 \
+  "movl $1, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x03\n"
+#define POLY_OP_ENTER_RV64 \
+  "movl $2, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
 #define POLY_OP_LANDING ".byte 0x0f,0x3a,0xfc,0x05\n"
@@ -31,10 +35,14 @@
 #define POLY_OP_MONITOR_PACKET_GET ".byte 0x0f,0x3a,0xfc,0x6c\n"
 #define POLY_OP_LANDING_POLICY_SET ".byte 0x0f,0x3a,0xfc,0x6d\n"
 #define POLY_OP_LANDING_POLICY_GET ".byte 0x0f,0x3a,0xfc,0x6e\n"
-#define POLY_ABI_GPR_CLOBBERS "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9"
-#define POLY_ABI_GPR_CLOBBERS_NO_RAX "rcx", "rdx", "rsi", "rdi", "r8", "r9"
-#define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI "rcx", "rdx", "rsi", "r8", "r9"
-#define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX "rcx", "rsi", "rdi", "r8", "r9"
+#define POLY_ABI_GPR_CLOBBERS \
+  "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r15"
+#define POLY_ABI_GPR_CLOBBERS_NO_RAX \
+  "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r15"
+#define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI \
+  "rcx", "rdx", "rsi", "r8", "r9", "r15"
+#define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX \
+  "rcx", "rsi", "rdi", "r8", "r9", "r15"
 #define POLY_ABI_FP_CLOBBERS \
   "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"
 #define POLY_ERR_INVAL ((uint64_t) -22)
@@ -1130,7 +1138,8 @@ static inline void raw_aarch64_abi_args_probe(void) {
     ".long 0x8b060000\n"
     ".long 0x8b070000\n"
     ".long 0xd5032e1f\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "memory");
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r15", "memory");
 }
 
 static inline void raw_riscv_abi_args_probe(void) {
@@ -1152,7 +1161,8 @@ static inline void raw_riscv_abi_args_probe(void) {
     ".long 0x01050533\n"
     ".long 0x01150533\n"
     ".long 0x0000700b\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "memory");
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r15", "memory");
 }
 
 static inline void pcall_aarch64_sysv_args_probe(void) {
@@ -1724,7 +1734,7 @@ static inline void raw_fp64_aarch64_probe(void) {
     ".long 0x1e613800\n"
     ".long 0x1e610800\n"
     ".long 0xd5032e1f\n"
-    ::: "xmm0", "memory");
+    ::: "r15", "xmm0", "memory");
 }
 
 static inline void raw_fp64_riscv_probe(void) {
@@ -1734,7 +1744,7 @@ static inline void raw_fp64_riscv_probe(void) {
     ".long 0x0ab50553\n"
     ".long 0x12b50553\n"
     ".long 0x0000700b\n"
-    ::: "xmm0", "memory");
+    ::: "r15", "xmm0", "memory");
 }
 
 static inline void pcall_fp64_aarch64_probe(void) {
