@@ -1,40 +1,38 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 machine so precompiled code from different ISAs can share one process and virtual address space. Design rationale lives in `docs/poly-isa-design-directions.md`.
+Poly runs precompiled x86_64, AArch64, and RISC-V64 user code in one x86_64 process and address space. Design rationale lives in `docs/poly-isa-design-directions.md`.
 
 ## Contract
 
 - Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64 owns boot, privilege, paging, faults, interrupts, VM control, real syscalls, atomics, and the global TSO memory model.
-- AArch64 and RISC-V64 are user frontends, not independent machines.
-- Cross-ISA control flow uses decoded Poly opcodes, never `#UD` envelopes.
-- Extra foreign registers are per-thread XSAVE-style architectural state.
-- Hardware switches frontends, remaps registers, records returns, and emits precise traps. It does not implement libc, loaders, syscall policy, stack repacking, or user-memory call descriptors.
+- x86_64 remains the system ISA: privilege, paging, interrupts, faults, real syscalls, atomics, VM control, and TSO memory ordering.
+- AArch64/RISC-V64 are direct-fetch user frontends. No per-instruction `#UD` envelopes.
+- Foreign register state is explicit per-thread XSAVE-style state.
+- Hardware does frontend switching, register remapping, return-cookie recovery, and precise trap packets. Software does loaders, libc, syscall policy, and complex ABI thunks.
 
-## Control Flow
+## Instructions
 
-| Instruction | Purpose |
+| Instruction | Meaning |
 | --- | --- |
 | `PENTER frontend` | Enter a frontend at the current PC. |
 | `PSWITCH frontend, target` | Tail-switch to another frontend. |
-| `PCALL frontend, target, sig` | Cross-ISA call using ABI signature slot `sig`. |
-| `PTRAPRET` | Resume from a Ring 3 Poly trap packet. |
-| `PLANDING` | Validate an indirect cross-ISA landing point. |
+| `PCALL frontend, target, sig` | Cross-ISA call using register signature slot `sig`. |
+| `PTRAPRET` | Resume from a Ring 3 trap packet. |
+| `PLANDING` | Mark/validate an indirect cross-ISA target. |
 
-Native same-ISA branches, calls, and returns stay native. Cross-ISA returns use ordinary return instructions plus a hardware return cookie and transition stack.
+Same-ISA branches and returns stay native. Cross-ISA returns use the callee's ordinary return instruction plus a hardware transition stack and reserved return cookie.
 
 ## ABI And Traps
 
-- Fast `PCALL` is register-only. Signature slots remap architectural register names without moving data.
-- Null signature: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = `x0..x7` = `a0..a7`.
-- Other signatures cover native argument/result registers and hidden structure-return pointers.
-- Thunks handle stack arguments, memory-shaped aggregates, variadics, lazy binding, syscall translation, libcalls, and incompatible vector types.
-- Foreign `svc`/`ecall`, breakpoints, illegal or unsupported instructions, and unresolved imports produce OS-neutral Ring 3 trap packets for the user monitor.
-- Page faults, scheduling, hardware interrupts, and signals remain kernel-owned.
+- Fast `PCALL` is register-only. Signature slots remap names without moving data or reading memory.
+- Null exchange window: `RAX,RDX,RCX,RDI,RSI,R8,R9,R10` = `x0..x7` = `a0..a7`.
+- Native signatures cover SysV, AAPCS64, RISC-V psABI, FP/vector, and hidden structure-return register cases.
+- Thunks handle stack arguments, memory-shaped aggregates, variadics, lazy binding, syscalls, libcalls, and incompatible vectors.
+- Foreign `svc`/`ecall`, breakpoints, illegal/unsupported instructions, and unresolved imports produce OS-neutral Ring 3 trap packets.
 
-## Encodings
+## Prototype Encodings
 
-| Frontend | Encoding |
+| Frontend | Encoding space |
 | --- | --- |
 | x86_64 | `0f 3a fc <subop>` Poly Control Opcode Page |
 | AArch64 | reserved `HINT`, `0xd503201f | (subop << 5)` |
