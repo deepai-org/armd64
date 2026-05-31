@@ -8270,6 +8270,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process argv/env" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/aarch64-process-libc-main-real.elf \
+      libc-main >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process libc main" >/dev/ttyS0
+      exit 1
+    }
     /usr/lib/polyapps/aarch64-process-syscall-real.elf \
       probe >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process syscalls" >/dev/ttyS0
@@ -8716,6 +8721,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/riscv-process-argv-envp-real.elf \
       alpha beta >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process argv/env" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-libc-main-real.elf \
+      libc-main >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process libc main" >/dev/ttyS0
       exit 1
     }
     /usr/lib/polyapps/riscv-process-syscall-real.elf \
@@ -10760,6 +10770,7 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-weak-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-versioned-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-libc-main-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-init-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preinit-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-init-needed-real\\.elf .*process=1"
@@ -10800,6 +10811,7 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-weak-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-versioned-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-libc-main-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-init-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preinit-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-init-needed-real\\.elf .*process=1"
