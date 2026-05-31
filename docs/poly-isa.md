@@ -1,58 +1,59 @@
 # Poly ISA
 
 Poly is an x86_64 CPU extension for running precompiled AArch64 and RISC-V64
-user code in one process and one virtual address space. The compatibility
-targets are normal SysV x86_64, AAPCS64, and RISC-V psABI objects. Poly is not
-a new compiler-only ABI.
+user code in one process and virtual address space. The target is binary
+interop with normal SysV x86_64, AAPCS64, and RISC-V psABI objects.
 
-## Model
+## Contract
 
-- x86_64 remains the system ISA for boot, privilege, paging, faults,
-  interrupts, VM control, atomics, and the global TSO memory model.
-- AArch64 and RISC-V64 are user-mode instruction frontends over the same
-  x86_64-owned virtual machine.
-- Foreign code is fetched directly as native instructions. There are no
-  per-instruction `#UD` envelopes.
-- AArch64 fetch is 4-byte aligned. RISC-V fetch is 2-byte aligned so RVC can be
-  supported.
-- Non-x86 architectural state is explicit per-thread XSAVE-style state.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  faults, atomics, VM control, and the global TSO memory model.
+- AArch64 and RISC-V64 are user-mode frontends over that machine.
+- Foreign instructions are fetched directly; there are no per-instruction
+  `#UD` envelopes.
+- AArch64 fetch is 4-byte aligned; RISC-V fetch is 2-byte aligned for RVC.
+- Non-x86 state is explicit per-thread XSAVE-style architectural state.
 
-Frontend IDs:
+Frontend IDs: `0` = x86_64, `1` = AArch64, `2` = RISC-V64.
 
-| ID | Frontend |
+## Control
+
+| Operation | Meaning |
 | --- | --- |
-| `0` | x86_64 |
-| `1` | AArch64 |
-| `2` | RISC-V64 |
-
-## Control Operations
-
-| Operation | Purpose |
-| --- | --- |
-| `PENTER frontend` | Enter a frontend at the current PC. |
-| `PSWITCH frontend, target` | Branch to another frontend without return. |
-| `PCALL frontend, target, sig` | Call another frontend using ABI signature slot `sig`. |
-| `PTRAPRET` | Resume from a user-mode Poly trap monitor. |
+| `PENTER frontend` | Enter another frontend at the current PC. |
+| `PSWITCH frontend, target` | Cross-ISA branch with no return. |
+| `PCALL frontend, target, sig` | Cross-ISA call using ABI signature slot `sig`. |
+| `PTRAPRET` | Resume from a Ring 3 Poly trap monitor. |
 | `PLANDING` | Mark or validate an indirect cross-ISA landing point. |
 
-These are decoded instructions, not exception tricks. Same-ISA code keeps using
-normal native branches and calls.
+These are decoded control instructions. Same-ISA code uses normal native calls,
+branches, and returns.
 
 ## ABI Boundary
 
-Hardware only performs fixed-latency frontend switching and register aliasing.
-The loader/runtime owns everything that touches memory layout: stack arguments,
-by-value aggregates, variadics, hidden structure returns, lazy binding,
-dynamic-linker policy, syscall translation, and libcalls.
+Hardware owns only fixed-latency frontend switching, return-cookie handling,
+and register aliasing. Runtime/loader thunks own memory-shaped ABI work:
+stack arguments, aggregates, variadics, hidden structure returns, lazy binding,
+syscall translation, and libcalls.
 
-Hot `PCALL` instructions select a small ABI signature slot. A hardware
-implementation can apply the slot by register renaming/RAT updates rather than
-moving data through execution units. Invalid slots trap before changing PC or
-frontend.
+`PCALL` selects an ABI signature slot. Silicon can apply the slot by
+register-renaming/RAT updates instead of executing register moves. Invalid
+slots trap before changing frontend or PC.
 
-The null exchange window is for low-level thunks:
+Cross-ISA calls return through ordinary native return instructions. `PCALL`
+records caller frontend, PC, SP, and flags in Poly state, then installs a
+reserved return cookie in the callee return location.
 
-| Window | x86_64 | AArch64 | RISC-V64 |
+Foreign `svc`/`ecall`, breakpoints, illegal instructions, unsupported
+instructions, unresolved imports, and recoverable exits produce OS-neutral trap
+packets for a Ring 3 Poly monitor.
+
+## Register Window
+
+Low-level thunks can use this fixed register window. Native ABI calls that need
+different source/target mappings should use programmed signature slots.
+
+| P-reg | x86_64 | AArch64 | RISC-V64 |
 | --- | --- | --- | --- |
 | `P0` | `RAX` | `x0` | `a0` |
 | `P1` | `RDX` | `x1` | `a1` |
@@ -63,36 +64,14 @@ The null exchange window is for low-level thunks:
 | `P6` | `R9` | `x6` | `a6` |
 | `P7` | `R10` | `x7` | `a7` |
 
-Native ABI register-only calls use programmed signature slots instead of this
-fixed window when the source and target ABIs differ.
-
-## Returns, State, And Traps
-
-Cross-ISA calls return through ordinary native return instructions:
-x86_64 `ret`, AArch64 `ret x30`, and RISC-V `ret` / `jalr x0, ra, 0`.
-`PCALL` records caller frontend, PC, SP, and flags in Poly XSAVE state and
-installs a reserved return cookie in the callee return location.
-
-Foreign `svc`/`ecall`, breakpoints, illegal instructions, unsupported
-instructions, unresolved imports, and recoverable exits produce OS-neutral trap
-packets. A Ring 3 Poly monitor may handle these packets. The kernel still owns
-hard page faults, interrupts, scheduling, signals, and real syscalls issued by
-the monitor.
-
 ## Prototype Encodings
-
-The Bochs prototype uses temporary encodings chosen to model real decoded
-hardware control instructions:
 
 | Frontend | Encoding family |
 | --- | --- |
 | x86_64 | `0f 3a fc <subop>` Poly Control Opcode Page |
-| AArch64 | reserved `HINT` subspace, `0xd503201f | (subop << 5)` |
-| RISC-V64 | `custom-0`, `0x0000700b | (subop << 25)` |
+| AArch64 | reserved `HINT`: `0xd503201f | (subop << 5)` |
+| RISC-V64 | `custom-0`: `0x0000700b | (subop << 25)` |
 
-Hot x86_64 `PCALL` signature slots use fixed subopcodes
-`0f 3a fc 30..39`. AArch64 and RISC-V64 have matching immediate-slot control
-forms so hot calls do not need a temporary register move.
-
-Hardware rationale and open design direction live in
+Hot signature-slot forms use immediate subopcodes so calls do not need a
+temporary register move. Hardware rationale and open design direction live in
 `docs/poly-isa-design-directions.md`.
