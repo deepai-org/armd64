@@ -44,6 +44,7 @@ Prefer real boot tests:
 
 - `make boot-poly-binfmt-arch-traps`
 - `make boot-poly-call-arch-traps`
+- `make boot-poly-call-real-xsave-arch-traps`
 - `make boot-poly-full-arch-traps`
 
 Use `scripts/checks/` only for quick consistency checks such as import ID drift.

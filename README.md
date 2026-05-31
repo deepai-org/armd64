@@ -29,6 +29,9 @@ Other useful targets:
 - `make boot-poly-exec-syscall-arch-traps`: focused real process syscall tests
   through OS-neutral trap packets.
 - `make boot-poly-call-arch-traps`: cross-ISA calls, threads, and signals.
+- `make boot-poly-call-real-xsave-arch-traps`: focused cross-ISA call, thread,
+  and signal run with the guest Poly XCR0 module loaded, so real
+  XSAVE/XRSTOR-backed context switching is required.
 - `make boot-poly-binfmt-arch-traps`: loader/binfmt smoke tests.
 - `make boot-poly-full-arch-traps`: broad regression run, including focused
   process cross-call and syscall gates.
