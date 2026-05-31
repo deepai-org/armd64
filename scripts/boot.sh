@@ -11333,6 +11333,8 @@ EOF
           "POLYBENCH_DIRECT_X86_PCALL_RESULT: direction=riscv-calls-x86-direct .*switch_delta=5"
           "POLYBENCH_DIRECT_X86_FP64_RESULT: direction=aarch64-calls-x86-direct-fp64 .*switch_delta=5"
           "POLYBENCH_DIRECT_X86_FP64_RESULT: direction=riscv-calls-x86-direct-fp64 .*switch_delta=5"
+          "POLYBENCH_DIRECT_X86_FP32_RESULT: direction=aarch64-calls-x86-direct-fp32 .*switch_delta=5"
+          "POLYBENCH_DIRECT_X86_FP32_RESULT: direction=riscv-calls-x86-direct-fp32 .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP_RESULT: direction=aarch64-calls-riscv-fp .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP_RESULT: direction=riscv-calls-aarch64-fp .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP8_RESULT: direction=aarch64-calls-riscv-fp8 .*switch_delta=5"

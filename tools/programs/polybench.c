@@ -47,6 +47,8 @@ union polybench_vec128_u32_bits {
 static uint32_t polybench_native_signature_slot = 3;
 static uint32_t polybench_fp64_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
+static uint32_t polybench_fp32_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32;
 
 struct polybench_monitor_packet {
   struct poly_trap_packet trap;
@@ -156,9 +158,14 @@ static int setup_polybench_signature_slots(void) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
   const struct poly_cpuid_regs expected_fp64_signature =
     poly_cpuid_expected_escape_leaf22();
+  const struct poly_cpuid_regs fp32_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 23);
+  const struct poly_cpuid_regs expected_fp32_signature =
+    poly_cpuid_expected_escape_leaf23();
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
   const uint32_t fp64_slot = fp64_signature.edx;
+  const uint32_t fp32_slot = fp32_signature.edx;
   if (signature.eax != expected_signature.eax ||
       signature.ebx != expected_signature.ebx ||
       signature.ecx != expected_signature.ecx ||
@@ -183,17 +190,33 @@ static int setup_polybench_signature_slots(void) {
       expected_fp64_signature.edx);
     return -1;
   }
+  if (fp32_signature.eax != expected_fp32_signature.eax ||
+      fp32_signature.ebx != expected_fp32_signature.ebx ||
+      fp32_signature.ecx != expected_fp32_signature.ecx ||
+      fp32_signature.edx != expected_fp32_signature.edx ||
+      fp32_slot >= signature.ebx) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: FP32 signature manifest mismatch fp32=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      fp32_signature.eax, fp32_signature.ebx, fp32_signature.ecx,
+      fp32_signature.edx, expected_fp32_signature.eax,
+      expected_fp32_signature.ebx, expected_fp32_signature.ecx,
+      expected_fp32_signature.edx);
+    return -1;
+  }
   if (poly_abi_signature_set(native_slot,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
       poly_abi_signature_set(fp64_slot,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0 ||
+      poly_abi_signature_set(fp32_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32) != 0) {
     fprintf(stderr,
-      "POLYBENCH_FAIL: signature slot setup failed native=%u fp64=%u\n",
-      native_slot, fp64_slot);
+      "POLYBENCH_FAIL: signature slot setup failed native=%u fp64=%u fp32=%u\n",
+      native_slot, fp64_slot, fp32_slot);
     return -1;
   }
   polybench_native_signature_slot = native_slot;
   polybench_fp64_signature_slot = fp64_slot;
+  polybench_fp32_signature_slot = fp32_slot;
   return 0;
 }
 
@@ -257,16 +280,8 @@ static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
   emit_u32(code, offset, 0xf2e00000U | ((((uint32_t) (value >> 48)) & 0xffffU) << 5) | rd);
 }
 
-static void emit_aarch64_direct_x86_pcall(uint8_t *code, size_t *offset,
-    uint64_t target) {
-  emit_aarch64_movabs(code, offset, 16, target);
-  emit_u32(code, offset, 0xd2800011U); // movz x17,#0 (x86 frontend)
-  const uint64_t return_pc =
-    (uint64_t) (uintptr_t) (code + *offset + 16 + 4);
-  emit_aarch64_movabs(code, offset, 18, return_pc);
-  emit_u32(code, offset,
-    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-}
+static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
+    uint32_t signature_slot);
 
 static size_t emit_x86_movabs_r10(uint8_t *code, size_t *offset,
     uint64_t value) {
@@ -292,6 +307,11 @@ static uint32_t aarch64_mov_reg(uint32_t rd, uint32_t rn) {
 
 static uint32_t aarch64_fadd_d(uint32_t rd, uint32_t rn, uint32_t rm) {
   return 0x1e602800U | ((rm & 0x1fU) << 16) |
+    ((rn & 0x1fU) << 5) | (rd & 0x1fU);
+}
+
+static uint32_t aarch64_fadd_s(uint32_t rd, uint32_t rn, uint32_t rm) {
+  return 0x1e202800U | ((rm & 0x1fU) << 16) |
     ((rn & 0x1fU) << 5) | (rd & 0x1fU);
 }
 
@@ -350,6 +370,15 @@ static uint64_t fp64_to_bits(double value) {
     uint64_t u;
   } fp;
   fp.d = value;
+  return fp.u;
+}
+
+static uint32_t fp32_to_bits(float value) {
+  union {
+    float f;
+    uint32_t u;
+  } fp;
+  fp.f = value;
   return fp.u;
 }
 
@@ -503,6 +532,12 @@ static double polybench_x86_fp64_sum6_direct(double a0, double a1,
   return a0 + a1 + a2 + a3 + a4 + a5;
 }
 
+__attribute__((noinline, noipa, used))
+static float polybench_x86_fp32_sum6_direct(float a0, float a1,
+    float a2, float a3, float a4, float a5) {
+  return a0 + a1 + a2 + a3 + a4 + a5;
+}
+
 static uint32_t riscv_ld(uint32_t rd, uint32_t rs1, int32_t imm) {
   return (((uint32_t) imm & 0xfffU) << 20) |
     (rs1 << 15) | (0x3U << 12) | (rd << 7) | 0x03U;
@@ -529,6 +564,22 @@ static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
   emit_u32(code, offset, POLY_AARCH64_CTRL_CALL_SIG_MODE);
 }
 
+static void emit_aarch64_direct_x86_pcall_sig(uint8_t *code, size_t *offset,
+    uint64_t target, uint32_t signature_slot) {
+  emit_aarch64_movabs(code, offset, 16, target);
+  emit_u32(code, offset, 0xd2800011U); // movz x17,#0 (x86 frontend)
+  const uint64_t return_pc = (uint64_t) (uintptr_t)
+    (code + *offset + 16 + (signature_slot < 8 ? 4 : 8));
+  emit_aarch64_movabs(code, offset, 18, return_pc);
+  emit_aarch64_pcall_sig(code, offset, signature_slot);
+}
+
+static void emit_aarch64_direct_x86_pcall(uint8_t *code, size_t *offset,
+    uint64_t target) {
+  emit_aarch64_direct_x86_pcall_sig(code, offset, target,
+    polybench_native_signature_slot);
+}
+
 static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
     uint32_t signature_slot) {
   if (signature_slot < 8) {
@@ -539,16 +590,26 @@ static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
   emit_u32(code, offset, POLY_RISCV_CTRL_CALL_SIG_MODE);
 }
 
-static void emit_riscv_direct_x86_pcall(uint8_t *code, size_t *offset) {
+static void emit_riscv_direct_x86_pcall_sig(uint8_t *code, size_t *offset,
+    uint32_t signature_slot) {
   emit_u32(code, offset, riscv_addi(6, 0, 0)); // t1 = x86 frontend
   const size_t auipc_return_pc = *offset;
   emit_u32(code, offset, 0x00000397U); // auipc t2,0
   const size_t addi_return_offset = *offset;
   emit_u32(code, offset, 0);
-  emit_u32(code, offset,
-    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
+  emit_riscv_pcall_sig(code, offset, signature_slot);
   store_u32(code, addi_return_offset, riscv_addi(7, 7,
     (int32_t) *offset - (int32_t) auipc_return_pc));
+}
+
+static void emit_riscv_direct_x86_pcall(uint8_t *code, size_t *offset) {
+  emit_riscv_direct_x86_pcall_sig(code, offset,
+    polybench_native_signature_slot);
+}
+
+static uint32_t riscv_fadd_s(uint32_t rd, uint32_t rs1, uint32_t rs2) {
+  return ((rs2 & 0x1fU) << 20) | ((rs1 & 0x1fU) << 15) |
+    (0x7U << 12) | ((rd & 0x1fU) << 7) | 0x53U;
 }
 
 static uint32_t riscv_addw(uint32_t rd, uint32_t rs1, uint32_t rs2) {
@@ -698,6 +759,12 @@ static uint64_t call_code_fp64_6(const uint8_t *code) {
   double (*entry)(double, double, double, double, double, double) =
     (double (*)(double, double, double, double, double, double)) code;
   return fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
+}
+
+static uint32_t call_code_fp32_6(const uint8_t *code) {
+  float (*entry)(float, float, float, float, float, float) =
+    (float (*)(float, float, float, float, float, float)) code;
+  return fp32_to_bits(entry(1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f));
 }
 
 static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
@@ -865,8 +932,9 @@ static int run_direct_x86_fp64_aarch64(uint64_t *result_bits,
   const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 1));
-  emit_aarch64_direct_x86_pcall(code, &offset,
-    (uint64_t) (uintptr_t) polybench_x86_fp64_sum6_direct);
+  emit_aarch64_direct_x86_pcall_sig(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_fp64_sum6_direct,
+    polybench_fp64_signature_slot);
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 5));
   emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -908,7 +976,8 @@ static int run_direct_x86_fp64_riscv(uint64_t *result_bits,
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_riscv_direct_x86_pcall(code, &offset);
+  emit_riscv_direct_x86_pcall_sig(code, &offset,
+    polybench_fp64_signature_slot);
   emit_u32(code, &offset, riscv_fadd_d(10, 10, 15));
   emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
@@ -926,6 +995,97 @@ static int run_direct_x86_fp64_riscv(uint64_t *result_bits,
   poly_switch_count_status();
   uint64_t switches_before = read_rax();
   *result_bits = call_code_fp64_6(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_direct_x86_fp32_aarch64(uint64_t *result_bits,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: aarch64 direct x86 FP32 mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_aarch64[] = { 0x0f, 0x3a, 0xfc, 0x01 };
+  emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
+  emit_u32(code, &offset, aarch64_fadd_s(0, 0, 1));
+  emit_aarch64_direct_x86_pcall_sig(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_fp32_sum6_direct,
+    polybench_fp32_signature_slot);
+  emit_u32(code, &offset, aarch64_fadd_s(0, 0, 5));
+  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result_bits = call_code_fp32_6(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_direct_x86_fp32_riscv(uint64_t *result_bits,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: riscv direct x86 FP32 mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u32(code, &offset, riscv_fadd_s(10, 10, 11));
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_direct_x86_pcall_sig(code, &offset,
+    polybench_fp32_signature_slot);
+  emit_u32(code, &offset, riscv_fadd_s(10, 10, 15));
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_fp32_sum6_direct);
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result_bits = call_code_fp32_6(code);
   poly_mode_x86();
   poly_foreign_insn_count_status();
   *insn_delta = read_rax() - insns_before;
@@ -4073,6 +4233,37 @@ static int check_direct_x86_fp64_direction(const char *name,
   return 0;
 }
 
+static int check_direct_x86_fp32_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+  uint64_t result_bits = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result_bits, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  printf("POLYBENCH_DIRECT_X86_FP32_RESULT: direction=%s bits=0x%08llx raw_insn_delta=%llu switch_delta=%llu\n",
+    name, (unsigned long long) result_bits, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta);
+
+  if (result_bits != UINT64_C(0x41e80000)) {
+    fprintf(stderr, "POLYBENCH_FAIL: direct x86 FP32 %s expected 0x41e80000 got 0x%08llx\n",
+      name, (unsigned long long) result_bits);
+    return -1;
+  }
+  if (insn_delta < 8) {
+    fprintf(stderr, "POLYBENCH_FAIL: direct x86 FP32 %s raw instruction delta expected at least 8 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (check_switch_delta_exact("direct x86 FP32", name, switch_delta,
+        POLYBENCH_DIRECT_X86_PCALL_EXPECTED_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_switch_delta_max("direct x86 FP32", name, switch_delta,
+        POLYBENCH_DIRECT_X86_PCALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  return 0;
+}
+
 static int check_cross_call_fp_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result_bits = 0;
@@ -4633,6 +4824,12 @@ static int check_cross_calls(void) {
     return -1;
   if (check_direct_x86_fp64_direction("riscv-calls-x86-direct-fp64",
         run_direct_x86_fp64_riscv) < 0)
+    return -1;
+  if (check_direct_x86_fp32_direction("aarch64-calls-x86-direct-fp32",
+        run_direct_x86_fp32_aarch64) < 0)
+    return -1;
+  if (check_direct_x86_fp32_direction("riscv-calls-x86-direct-fp32",
+        run_direct_x86_fp32_riscv) < 0)
     return -1;
   if (check_cross_call_fp_direction("aarch64-calls-riscv-fp",
         run_cross_call_fp_aarch64_to_riscv) < 0)
