@@ -10666,27 +10666,27 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYAPP_RESULT: arch=aarch64 value=45 path=/usr/lib/polyapps/aarch64-generic-call-riscv\\.poly final_arch=aarch64" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYAPP_RESULT: arch=aarch64 value=45 path=/usr/lib/polyapps/aarch64-generic-call-riscv\\.poly final_arch=aarch64 switch_delta=4" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYAPP_RESULT: arch=aarch64 value=45 path=/usr/lib/polyapps/aarch64-generic-switch-riscv\\.poly final_arch=riscv" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYAPP_RESULT: arch=aarch64 value=45 path=/usr/lib/polyapps/aarch64-generic-switch-riscv\\.poly final_arch=riscv switch_delta=3" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYAPP_RESULT: arch=aarch64 value=45 path=/usr/lib/polyapps/aarch64-generic-switch-x86\\.poly final_arch=x86" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYAPP_RESULT: arch=aarch64 value=45 path=/usr/lib/polyapps/aarch64-generic-switch-x86\\.poly final_arch=x86 switch_delta=2" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-call-aarch64\\.poly final_arch=riscv" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-call-aarch64\\.poly final_arch=riscv switch_delta=4" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-switch-aarch64\\.poly final_arch=aarch64" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-switch-aarch64\\.poly final_arch=aarch64 switch_delta=3" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-switch-x86\\.poly final_arch=x86" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYAPP_RESULT: arch=riscv value=45 path=/usr/lib/polyapps/riscv-generic-switch-x86\\.poly final_arch=x86 switch_delta=2" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

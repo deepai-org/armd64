@@ -71,6 +71,12 @@ static struct polyapp_monitor_packet polyapp_last_break_packet
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 
+static inline uint64_t poly_switch_count(void) {
+  uint64_t value;
+  asm volatile(".byte 0x0f,0x3a,0xfc,0x40" : "=a"(value) :: "memory");
+  return value;
+}
+
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
 }
@@ -945,7 +951,7 @@ static int read_polyapp_base_contract(void) {
 static int emit_and_run(const struct payload *payload, uint64_t *result,
     uint64_t *syscall_result, uint64_t *syscall_number_result,
     uint64_t *syscall_selector_result, uint64_t *break_result,
-    uint64_t *break_number_result,
+    uint64_t *break_number_result, uint64_t *switch_delta,
     char scratch_result[SCRATCH_CHECK_SIZE + 1],
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
   const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 2 : 3;
@@ -999,12 +1005,15 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   memset(&polyapp_monitor_packet, 0, sizeof(polyapp_monitor_packet));
   memset(&polyapp_last_syscall_packet, 0, sizeof(polyapp_last_syscall_packet));
   memset(&polyapp_last_break_packet, 0, sizeof(polyapp_last_break_packet));
+  const uint64_t switches_before = poly_switch_count();
   polyapp_exit_env_valid = 1;
   if (setjmp(polyapp_exit_env) == 0)
     *result = run_poly_entry(code, (uint8_t *) scratch);
   else
     *result = polyapp_exit_result;
   polyapp_exit_env_valid = 0;
+  const uint64_t switches_after = poly_switch_count();
+  *switch_delta = switches_after - switches_before;
   const uint64_t raw_mode = payload->arch == POLY_ARCH_AARCH64 ?
     POLY_MODE_RAW_AARCH64 : POLY_MODE_RAW_RISCV;
   if (payload->check_syscall) {
@@ -1059,18 +1068,20 @@ int main(int argc, char **argv) {
     uint64_t syscall_selector_result = 0;
     uint64_t break_result = 0;
     uint64_t break_number_result = 0;
+    uint64_t switch_delta = 0;
     char scratch_result[SCRATCH_CHECK_SIZE + 1];
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1];
     if (emit_and_run(&payload, &result, &syscall_result,
           &syscall_number_result, &syscall_selector_result, &break_result,
-          &break_number_result, scratch_result, scratch_hex_result) < 0) {
+          &break_number_result, &switch_delta, scratch_result,
+          scratch_hex_result) < 0) {
       free_payload(&payload);
       return 1;
     }
 
-    printf("POLYAPP_RESULT: arch=%s value=%llu path=%s final_arch=%s\n",
+    printf("POLYAPP_RESULT: arch=%s value=%llu path=%s final_arch=%s switch_delta=%llu\n",
       payload.arch_name, (unsigned long long) result, payload.path,
-      payload.final_arch_name);
+      payload.final_arch_name, (unsigned long long) switch_delta);
     if (result != payload.expected) {
       fprintf(stderr, "POLYAPP_FAIL: %s expected %llu got %llu\n",
         payload.path, (unsigned long long) payload.expected, (unsigned long long) result);
