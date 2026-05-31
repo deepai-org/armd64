@@ -8316,6 +8316,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process indirect needed" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/aarch64-process-needed-ifunc-real.elf \
+      ifunc-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process ifunc needed" >/dev/ttyS0
+      exit 1
+    }
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-aarch64.so \
       /usr/lib/polyapps/aarch64-process-preload-real.elf \
       preload >/dev/ttyS0 2>&1 || {
@@ -8767,6 +8772,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-process-needed-indirect-real.elf \
       indirect-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process indirect needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-needed-ifunc-real.elf \
+      ifunc-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process ifunc needed" >/dev/ttyS0
       exit 1
     }
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-riscv.so \
@@ -10746,6 +10756,7 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-rpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-transitive-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-indirect-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-ifunc-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preload-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preload-second-real\\.elf .*process=1"
           "POLYBINFMT_DIRECT_PRELOAD: arch=aarch64 variant=origin-platform"
@@ -10789,6 +10800,7 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-rpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-transitive-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-indirect-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-ifunc-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preload-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preload-second-real\\.elf .*process=1"
           "POLYBINFMT_DIRECT_PRELOAD: arch=riscv variant=origin-platform"
