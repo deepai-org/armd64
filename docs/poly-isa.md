@@ -1,8 +1,7 @@
 # Poly ISA
 
 Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 machine so
-existing native ABI objects can link and run in one virtual address space. The
-goal is compatibility with precompiled code, not a new compiler-only ABI.
+existing native ABI objects can link and run in one virtual address space.
 
 ## Run
 
@@ -10,44 +9,38 @@ goal is compatibility with precompiled code, not a new compiler-only ABI.
 make image
 make boot-poly-full-real-xsave-arch-traps
 rg -a 'BOOT_OK|POLYBINFMT_OK|POLYTHREAD_OK|FAIL|Kernel panic|Oops' out/serial.log
-
-# Focused cross-ISA smoke test:
 make boot-poly-exec-cross-arch-traps
 rg -a 'POLY_EXEC_CROSS_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Difference From x86_64
+## ISA Delta
 
 - x86_64 remains the system ISA for boot, privilege, paging, faults,
-  interrupts, VM control, atomics, and memory ordering.
-- AArch64 and RISC-V64 are user frontends over the same address space and
-  shared `RIP`/PC stream.
-- AArch64 fetches aligned 32-bit instructions. RISC-V64 fetches 16/32-bit
-  instructions, including RVC.
-- Cross-ISA control uses real decoded Poly instructions, not `#UD` envelopes.
-- Foreign register state is explicit per-thread XSAVE-style state. Current
-  import layout version: `9`.
-- Hardware switches frontends, branches, records precise trap packets, and
-  applies register-only ABI signature slots. Software handles loading,
-  relocations, syscalls, libcalls, stack arguments, variadics, aggregates, and
-  incompatible vector layouts.
+  interrupts, VM control, atomics, and TSO memory ordering.
+- AArch64 and RISC-V64 are user-mode frontends in the same address space.
+- AArch64 fetches aligned 32-bit instructions; RISC-V64 fetches 16/32-bit
+  instructions including RVC.
+- Cross-ISA control uses decoded instructions, not `#UD` envelopes.
+- Poly state is explicit per-thread XSAVE-style state. Import layout: `9`.
+- Hardware only switches frontends, branches, records trap packets, handles
+  return cookies, and applies register-only ABI signature slots.
+- Software handles loading, relocation, syscalls, libcalls, stack arguments,
+  variadics, aggregates, and incompatible vector layouts.
 
-## Control Instructions
+## Controls
 
-- `PENTER`: enter a foreign frontend from trusted runtime code.
-- `PSWITCH`: switch frontend and branch without a return.
-- `PCALL`: cross-ISA call using an ABI signature slot.
-- `PTRAPRET`: resume from a precise Poly trap packet.
-- `PLANDING`: validate indirect cross-frontend landing targets.
+| Instruction | Purpose |
+| --- | --- |
+| `PENTER frontend` | Enter a frontend from trusted runtime code. |
+| `PSWITCH frontend, target` | Switch frontend and branch without return. |
+| `PCALL frontend, target, sig` | Call through ABI signature slot `sig`. |
+| `PTRAPRET` | Resume from a precise Poly trap packet. |
+| `PLANDING` | Validate indirect cross-frontend landing targets. |
 
-Native returns remain native. Cross-ISA returns use hardware return cookies.
+Native returns stay native; cross-ISA returns use hardware return cookies.
 
-## IDs And Encodings
+Prototype encodings: frontend IDs are `0` x86_64, `1` AArch64, `2` RISC-V64.
+x86_64 uses decoded `0f 3a fc <subop>`, AArch64 uses a reserved HINT subspace,
+and RISC-V64 uses custom-0.
 
-- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64: decoded `0f 3a fc <subop>`.
-- AArch64: reserved HINT subspace.
-- RISC-V64: custom-0 opcode family.
-
-Design rationale lives in
-[poly-isa-design-directions.md](poly-isa-design-directions.md).
+Detailed design notes: [poly-isa-design-directions.md](poly-isa-design-directions.md).
