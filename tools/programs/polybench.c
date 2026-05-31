@@ -59,6 +59,10 @@ struct polybench_monitor_packet {
 
 static struct polybench_monitor_packet polybench_monitor_packet
   __attribute__((aligned(64)));
+static const uint64_t polybench_aarch64_trap_args[POLY_TRAP_PACKET_ARG_COUNT] =
+  {77, 78, 79, 80, 81, 82, 88, 99};
+static const uint64_t polybench_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] =
+  {77, 78, 79, 80, 81, 82, 88, 172};
 
 static inline void poly_mode_x86(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x00" ::: "memory"); }
 static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
@@ -438,26 +442,39 @@ static int polybench_monitor_packet_valid(
   return 1;
 }
 
+static int polybench_trap_args_equal(
+    const uint64_t got[POLY_TRAP_PACKET_ARG_COUNT],
+    const uint64_t expected[POLY_TRAP_PACKET_ARG_COUNT]) {
+  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++) {
+    if (got[n] != expected[n])
+      return 0;
+  }
+  return 1;
+}
+
 __attribute__((noinline, used))
 uint64_t polybench_trap_vector_dispatch(void) {
-  const struct polybench_monitor_packet packet = polybench_monitor_packet;
-  const uint64_t reason = packet.trap.reason;
-  const uint64_t mode = packet.trap.source_mode;
-  const uint64_t number = packet.trap.number;
-  const uint64_t arg0 = packet.args[0];
-  const uint64_t arg6 = packet.args[6];
-  const uint64_t arg7 = packet.args[7];
+  const struct polybench_monitor_packet *packet = &polybench_monitor_packet;
+  const uint64_t reason = packet->trap.reason;
+  const uint64_t mode = packet->trap.source_mode;
+  const uint64_t number = packet->trap.number;
 
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -38;
-  if (!polybench_monitor_packet_valid(&packet))
+  if (!polybench_monitor_packet_valid(packet))
     return (uint64_t) -38;
-  if (reason == POLY_TRAP_SYSCALL && number == 172)
+  if (reason == POLY_TRAP_SYSCALL && number == 172 &&
+      ((mode == POLY_MODE_RAW_AARCH64 &&
+        polybench_trap_args_equal(packet->args,
+          polybench_aarch64_trap_args)) ||
+       (mode == POLY_MODE_RAW_RISCV &&
+        polybench_trap_args_equal(packet->args,
+          polybench_riscv_syscall_args))))
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
-  if (reason == POLY_TRAP_IMPORT && number == 8 && arg0 == 77 &&
-      arg6 == 88 && arg7 == 99)
+  if (reason == POLY_TRAP_IMPORT && number == 8 &&
+      polybench_trap_args_equal(packet->args, polybench_aarch64_trap_args))
     return 5555;
   return (uint64_t) -38;
 }
@@ -3649,6 +3666,13 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
 
   while (offset < riscv_target_offset)
     code[offset++] = 0x90;
+  emit_u32(code, &offset, 0x04d00513U); // addi a0,zero,77
+  emit_u32(code, &offset, 0x04e00593U); // addi a1,zero,78
+  emit_u32(code, &offset, 0x04f00613U); // addi a2,zero,79
+  emit_u32(code, &offset, 0x05000693U); // addi a3,zero,80
+  emit_u32(code, &offset, 0x05100713U); // addi a4,zero,81
+  emit_u32(code, &offset, 0x05200793U); // addi a5,zero,82
+  emit_u32(code, &offset, 0x05800813U); // addi a6,zero,88
   emit_u32(code, &offset, 0x0ac00893U); // addi a7,zero,172
   emit_u32(code, &offset, 0x00000073U); // ecall
   emit_u32(code, &offset, 0x00008067U); // ret
@@ -3705,6 +3729,14 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   while ((offset & 3U) != 0)
     code[offset++] = 0x90;
   const size_t aarch64_target_offset = offset;
+  emit_u32(code, &offset, 0xd28009a0U); // movz x0,#77
+  emit_u32(code, &offset, 0xd28009c1U); // movz x1,#78
+  emit_u32(code, &offset, 0xd28009e2U); // movz x2,#79
+  emit_u32(code, &offset, 0xd2800a03U); // movz x3,#80
+  emit_u32(code, &offset, 0xd2800a24U); // movz x4,#81
+  emit_u32(code, &offset, 0xd2800a45U); // movz x5,#82
+  emit_u32(code, &offset, 0xd2800b06U); // movz x6,#88
+  emit_u32(code, &offset, 0xd2800c67U); // movz x7,#99
   emit_u32(code, &offset, 0xd2801588U); // movz x8,#172
   emit_u32(code, &offset, 0xd4000001U); // svc #0
   emit_u32(code, &offset, 0xd65f03c0U); // ret
@@ -3895,6 +3927,11 @@ static int run_cross_call_import_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, 0xffffe2b7U); // lui t0,0xffffe
   emit_u32(code, &offset, 0x08028293U); // addi t0,t0,0x80 -> import id 8
   emit_u32(code, &offset, 0x04d00513U); // addi a0,zero,77
+  emit_u32(code, &offset, 0x04e00593U); // addi a1,zero,78
+  emit_u32(code, &offset, 0x04f00613U); // addi a2,zero,79
+  emit_u32(code, &offset, 0x05000693U); // addi a3,zero,80
+  emit_u32(code, &offset, 0x05100713U); // addi a4,zero,81
+  emit_u32(code, &offset, 0x05200793U); // addi a5,zero,82
   emit_u32(code, &offset, 0x05800813U); // addi a6,zero,88
   emit_u32(code, &offset, 0x06300893U); // addi a7,zero,99
   emit_u32(code, &offset, 0x00028367U); // jalr t1,0(t0), preserve ra cookie
@@ -3954,6 +3991,11 @@ static int run_cross_call_import_riscv_to_aarch64(uint64_t *result,
   const size_t aarch64_target_offset = offset;
   emit_aarch64_movabs(code, &offset, 16, UINT64_C(0xffffffffffffe080));
   emit_u32(code, &offset, 0xd28009a0U); // movz x0,#77
+  emit_u32(code, &offset, 0xd28009c1U); // movz x1,#78
+  emit_u32(code, &offset, 0xd28009e2U); // movz x2,#79
+  emit_u32(code, &offset, 0xd2800a03U); // movz x3,#80
+  emit_u32(code, &offset, 0xd2800a24U); // movz x4,#81
+  emit_u32(code, &offset, 0xd2800a45U); // movz x5,#82
   emit_u32(code, &offset, 0xd2800b06U); // movz x6,#88
   emit_u32(code, &offset, 0xd2800c67U); // movz x7,#99
   emit_u32(code, &offset, 0xd61f0200U); // br x16, preserve x30 cookie
