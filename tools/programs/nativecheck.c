@@ -20,7 +20,7 @@
 #define POLY_OP_PCALL_SIG_IMM_SLOT0 ".byte 0x0f,0x3a,0xfc,0x30\n"
 #define POLY_OP_PCALL_SIG_IMM_SLOT3 ".byte 0x0f,0x3a,0xfc,0x33\n"
 #define POLY_OP_PCALL_SIG_IMM_INVALID_SLOT \
-  ".byte 0x0f,0x3a,0xfc,0x3a\n"
+  ".byte 0x0f,0x3a,0xfc,0x3b\n"
 #define POLY_OP_REMOVED_PCALL_SIG_IMM_TRAILER \
   ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
 #define POLY_OP_PCALL_FP64_STACK_AARCH64 ".byte 0x0f,0x3a,0xfc,0x1e\n"
@@ -1614,7 +1614,7 @@ static void child_expect_aarch64_invalid_generic_signature_slot_signal(void) {
     ".long 0xd2800010\n" // movz x16,#0
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0xd2800012\n" // movz x18,#0
-    ".long 0xd2800153\n" // movz x19,#10 (invalid signature slot)
+    ".long 0xd2800173\n" // movz x19,#11 (invalid signature slot)
     ".long 0xd5032f5f\n" // aarch64 generic signature pcall
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -1662,7 +1662,7 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
     ".long 0x00000293\n" // addi x5,zero,0
     ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
     ".long 0x00000393\n" // addi x7,zero,0
-    ".long 0x00a00e13\n" // addi x28,zero,10 (invalid signature slot)
+    ".long 0x00b00e13\n" // addi x28,zero,11 (invalid signature slot)
     ".long 0x1400700b\n" // riscv generic signature pcall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -6805,7 +6805,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = poly_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 + 1);
+    POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6919,7 +6919,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_aarch64_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 + 1);
+    POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
@@ -6962,7 +6962,7 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_riscv_abi_signature_set(5,
-    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32 + 1);
+    POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS + 1);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
