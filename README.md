@@ -55,10 +55,11 @@ Other useful targets:
   boot-poly-full-real-xsave-arch-traps` additionally builds and inserts a small
   guest kernel module that enables the Poly XCR0 component for direct
   XSAVE/XRSTOR validation in the broad regression run.
-- The public CPUID contract exposes XSAVE state plus explicit state-key
-  controls. Bochs still uses CR3/FSBASE and a stack-region fallback internally
-  to isolate prototype register banks, but those emulator keys are not part of
-  the silicon-facing ABI.
+- The public CPUID contract exposes XSAVE state plus an explicit architectural
+  state-key control. Bochs still uses CR3/FSBASE and a stack-region fallback
+  internally to isolate prototype register banks, but those emulator fallback
+  selectors are not public CPUID state bits and are not part of the
+  silicon-facing ABI.
 
 ## ISA Differences From x86_64
 
