@@ -850,7 +850,7 @@ static inline void export_live_cross_return_state_probe(
     ".long 0x00068293\n" // mv t0,a3 (x86 helper target)
     ".long 0x00070393\n" // mv t2,a4 (RISC-V helper return)
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
-    ".long 0x2600700b\n" // RISC-V PCALL_SIG_IMM slot 3
+    ".long 0x4600700b\n" // RISC-V PCALL_SIG_IMM slot 3
     "2:\n"
     ".long 0x04d00513\n" // addi a0,zero,77
     ".long 0x00008067\n" // ret through AArch64 cross-return cookie
@@ -884,7 +884,7 @@ static inline void export_live_reverse_cross_return_state_probe(
     ".long 0xaa0303f0\n" // mov x16,x3 (x86 helper target)
     ".long 0xaa0403f2\n" // mov x18,x4 (AArch64 helper return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xd5032c7f\n" // AArch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032a7f\n" // AArch64 PCALL_SIG_IMM slot 3
     "2:\n"
     ".long 0xd2800c60\n" // movz x0,#99
     ".long 0xd65f03c0\n" // ret through RISC-V cross-return cookie
@@ -1401,7 +1401,7 @@ static inline void aarch64_signature_imm_call_x86_probe(void) {
     ".long 0xd2800083\n" // movz x3,#4
     ".long 0xd28000a4\n" // movz x4,#5
     ".long 0xd28000c5\n" // movz x5,#6
-    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032a7f\n" // aarch64 PCALL_SIG_IMM slot 3
     "1:\n"
     "movq %%rdi, %%rax\n"
     "addq %%rsi, %%rax\n"
@@ -1429,7 +1429,7 @@ static inline void riscv_signature_imm_call_x86_probe(void) {
     ".long 0x00400693\n" // addi a3,zero,4
     ".long 0x00500713\n" // addi a4,zero,5
     ".long 0x00600793\n" // addi a5,zero,6
-    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    ".long 0x4600700b\n" // riscv PCALL_SIG_IMM slot 3
     "1:\n"
     "movq %%rdi, %%rax\n"
     "addq %%rsi, %%rax\n"
@@ -1451,7 +1451,7 @@ static inline void aarch64_landing_policy_call_x86_probe(void) {
     ".long 0xaa0003f0\n" // mov x16,x0 (target)
     ".long 0xaa0103f2\n" // mov x18,x1 (return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032a7f\n" // aarch64 PCALL_SIG_IMM slot 3
     "1:\n"
     POLY_OP_LANDING
     "movq $61, %%rax\n"
@@ -1469,7 +1469,7 @@ static inline void riscv_landing_policy_call_x86_probe(void) {
     ".long 0x00050293\n" // mv x5,a0 (target)
     ".long 0x00058393\n" // mv x7,a1 (return)
     ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
-    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    ".long 0x4600700b\n" // riscv PCALL_SIG_IMM slot 3
     "1:\n"
     POLY_OP_LANDING
     "movq $62, %%rax\n"
@@ -1489,7 +1489,7 @@ static inline void aarch64_signature_imm_call_x86_stack_probe(void) {
     ".long 0xaa0003f0\n" // mov x16,x0 (target)
     ".long 0xaa0103f2\n" // mov x18,x1 (return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032a7f\n" // aarch64 PCALL_SIG_IMM slot 3
     "1:\n"
     "movq (%%r11), %%rax\n"
     "retq\n"
@@ -1509,7 +1509,7 @@ static inline void riscv_signature_imm_call_x86_stack_probe(void) {
     ".long 0x00050293\n" // mv x5,a0 (target)
     ".long 0x00058393\n" // mv x7,a1 (return)
     ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
-    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    ".long 0x4600700b\n" // riscv PCALL_SIG_IMM slot 3
     "1:\n"
     "movq (%%r11), %%rax\n"
     "retq\n"
@@ -1527,7 +1527,7 @@ static inline void aarch64_signature_imm_call_x86_fp64_probe(void) {
     ".long 0xaa0003f0\n" // mov x16,x0 (target)
     ".long 0xaa0103f2\n" // mov x18,x1 (return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032a7f\n" // aarch64 PCALL_SIG_IMM slot 3
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
@@ -1544,7 +1544,7 @@ static inline void riscv_signature_imm_call_x86_fp64_probe(void) {
     ".long 0x00050293\n" // mv x5,a0 (target)
     ".long 0x00058393\n" // mv x7,a1 (return)
     ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
-    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    ".long 0x4600700b\n" // riscv PCALL_SIG_IMM slot 3
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
@@ -1561,7 +1561,7 @@ static inline void aarch64_signature_imm_call_x86_vec128_probe(void) {
     ".long 0xaa0003f0\n" // mov x16,x0 (target)
     ".long 0xaa0103f2\n" // mov x18,x1 (return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xd5032c7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032a7f\n" // aarch64 PCALL_SIG_IMM slot 3
     "1:\n"
     "paddq %%xmm1, %%xmm0\n"
     "retq\n"
@@ -1578,7 +1578,7 @@ static inline void riscv_signature_imm_call_x86_vec128_probe(void) {
     ".long 0x00050293\n" // mv x5,a0 (target)
     ".long 0x00058393\n" // mv x7,a1 (return)
     ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
-    ".long 0x2600700b\n" // riscv PCALL_SIG_IMM slot 3
+    ".long 0x4600700b\n" // riscv PCALL_SIG_IMM slot 3
     "1:\n"
     "paddq %%xmm1, %%xmm0\n"
     "retq\n"

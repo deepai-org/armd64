@@ -3835,7 +3835,7 @@ static uint32_t riscv_jalr(unsigned rd, unsigned rs1, int16_t byte_offset) {
 }
 
 static uint32_t aarch64_pcall_sig_imm(uint32_t slot) {
-  return 0xd5032c1fU | ((slot & 0x7U) << 5);
+  return POLY_AARCH64_CTRL_CALL_SIG_IMM(slot);
 }
 
 static uint32_t aarch64_lsr_imm(uint32_t rd, uint32_t rn, uint32_t shift) {
@@ -3861,12 +3861,12 @@ static uint32_t aarch64_fmov_w_from_s(uint32_t rd, uint32_t rn) {
 }
 
 static uint32_t riscv_pcall_sig_imm(uint32_t slot) {
-  return 0x2000700bU | ((slot & 0x7U) << 25);
+  return POLY_RISCV_CTRL_CALL_SIG_IMM(slot);
 }
 
 static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
     uint32_t signature_slot) {
-  if (signature_slot < 8) {
+  if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(code, offset, aarch64_pcall_sig_imm(signature_slot));
     return;
   }
@@ -3877,7 +3877,7 @@ static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
 
 static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
     uint32_t signature_slot) {
-  if (signature_slot < 8) {
+  if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(code, offset, riscv_pcall_sig_imm(signature_slot));
     return;
   }
@@ -4399,7 +4399,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       return -1;
     size_t offset = start;
     const uint64_t aarch64_pcall_return_extra =
-      signature_slot < 8 ? 0 : 4;
+      signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 0 : 4;
     const uint64_t return_addr = start_addr +
       (is_stack9_x86_callee ? 92 : 84 + (emit_compact_shuffle ? 8 : 0)) +
       aarch64_pcall_return_extra;

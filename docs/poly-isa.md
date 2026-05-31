@@ -1,33 +1,33 @@
 # Poly ISA Quick Reference
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system ISA so
-existing native objects can run in one x86_64 virtual address space.
+Poly lets one x86_64 process execute real precompiled x86_64, AArch64, and
+RISC-V64 code in one virtual address space.
 
-## Run The Prototype
+## Run
 
-```sh
+```bash
 make image
-make boot-poly
-rg -a 'BOOT_OK|POLYBINFMT_OK|POLYBENCH_OK|FAIL|Kernel panic|Oops' out/serial.log
+make boot-poly-full-real-xsave-arch-traps
+rg -a 'BOOT_OK|NATIVE_POLY_REAL_XSAVE_OK|POLYBENCH_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Use `make boot-poly-full-real-xsave-arch-traps` for the broad XSAVE-backed
-regression run.
+Use `make boot-poly` for a shorter smoke run.
 
-## What Changes From x86_64
+## Contract
 
 - x86_64 remains the system ISA for privilege, paging, interrupts, faults,
-  atomics, VM control, virtual memory, and TSO memory ordering.
-- AArch64 and RISC-V64 execute as direct-fetch user-mode frontends. There are
-  no per-instruction `#UD` envelopes in the fast path.
+  virtual memory, atomics, VM control, and TSO memory ordering.
+- AArch64 and RISC-V64 are user-mode direct-fetch frontends, not `#UD`
+  per-instruction envelopes.
 - Cross-frontend control uses decoded Poly instructions: `PENTER`, `PSWITCH`,
-  `PCALL`, `PTRAPRET`, and `PLANDING`.
-- Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
-- Foreign register state is explicit per-thread XSAVE-style architectural
-  state, not hidden CR3-scoped emulator state.
-- Fast native-ABI calls use fixed register signature slots. Stack arguments,
-  aggregates, variadics, relocation, syscalls, libcalls, and loader policy stay
-  in software/runtime code.
+  `PCALL`, `PTRAPRET`, and `PLANDING`; frontend IDs are `0` x86_64,
+  `1` AArch64, and `2` RISC-V64.
+- Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
+  RISC-V psABI.
+- Fast calls use fixed register-only ABI signature slots. Stack arguments,
+  large aggregates, variadics, relocation, syscalls, libcalls, and loader policy
+  stay in software.
+- Foreign register state is explicit per-thread XSAVE-style architectural state.
 
 ## Prototype Encodings
 
@@ -35,4 +35,4 @@ regression run.
 - AArch64 control space: reserved `HINT` encodings
 - RISC-V64 control space: `custom-0` encodings
 
-Long-form rationale: [`poly-isa-design-directions.md`](poly-isa-design-directions.md).
+More detail: `../README.md` and `poly-isa-design-directions.md`.

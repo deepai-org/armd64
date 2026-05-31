@@ -5532,7 +5532,7 @@ static uint64_t nativecheck_signature_imm_direct_pcall_aarch64_import_sum6(
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
@@ -5554,7 +5554,7 @@ static uint64_t nativecheck_signature_imm_direct_pcall_riscv_import_sum6(
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
@@ -5666,7 +5666,7 @@ static uint64_t nativecheck_aarch64_signature_imm_direct_x86_source_sp_matches(v
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     : "=a"(result), "+r"(target)
     :
@@ -5687,7 +5687,7 @@ static uint64_t nativecheck_riscv_signature_imm_direct_x86_source_sp_matches(voi
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     : "=a"(result), "+r"(target)
     :
@@ -5768,7 +5768,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_x86_direct_sum6(void) {
     ".long 0xd28000e6\n" // movz x6,#7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     : "=a"(result), "+r"(target)
     :
@@ -5795,7 +5795,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_x86_direct_sum6(void) {
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     : "=a"(result), "+r"(target)
     :
@@ -5816,7 +5816,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_x86_direct_fp64(
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     : "+r"(target)
     :
@@ -5838,7 +5838,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_x86_direct_fp64(
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     : "+r"(target)
     :
@@ -5860,7 +5860,7 @@ nativecheck_signature_imm_pcall_aarch64_x86_direct_fp64_raw_consume(
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0x1e602800\n" // return: fadd d0,d0,d0
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "+r"(target)
@@ -5884,7 +5884,7 @@ nativecheck_signature_imm_pcall_riscv_x86_direct_fp64_raw_consume(
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x02a50553\n" // return: fadd.d fa0,fa0,fa0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+r"(target)
@@ -5905,7 +5905,7 @@ nativecheck_signature_imm_pcall_aarch64_x86_direct_vec128(void) {
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     : "+r"(target)
     :
@@ -5926,7 +5926,7 @@ nativecheck_signature_imm_pcall_riscv_x86_direct_vec128(void) {
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     : "+r"(target)
     :
@@ -5950,7 +5950,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_riscv_sum6(void) {
     ".long 0xd28000c5\n" // movz x5,#6
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -5985,7 +5985,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_aarch64_sum6(void) {
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -6017,7 +6017,7 @@ static uint64_t nativecheck_nested_signature_imm_pcall_aarch64_riscv_aarch64(
     ".long 0xd2800041\n" // movz x1,#2
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0x91001c00\n" // return: add x0,x0,#7
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     "jmp 4f\n"
@@ -6058,7 +6058,7 @@ static uint64_t nativecheck_nested_signature_imm_pcall_riscv_aarch64_riscv(
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x00750513\n" // return: addi a0,a0,7
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     "jmp 4f\n"
@@ -6067,7 +6067,7 @@ static uint64_t nativecheck_nested_signature_imm_pcall_riscv_aarch64_riscv(
     ".long 0xaa0603f0\n" // mov x16,x6, RISC-V target from x6/P6
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0x91001400\n" // return: add x0,x0,#5
     ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
     ".p2align 2\n"
@@ -6094,7 +6094,7 @@ static uint64_t nativecheck_signature_imm_pcall_aarch64_riscv_fp64(
     ".long 0xaa0703f0\n" // mov x16,x7, RISC-V target from R10/P7
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032c7f\n" // generic signature pcall, immediate slot 3
+    ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -6121,7 +6121,7 @@ static uint64_t nativecheck_signature_imm_pcall_riscv_aarch64_fp64(
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2600700b\n" // generic signature pcall, immediate slot 3
+    ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -6201,7 +6201,7 @@ nativecheck_signature_imm_pcall_aarch64_riscv_vec128(void) {
     ".long 0xaa0703f0\n" // mov x16,x7, RISC-V target from R10/P7
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0x10000052\n" // adr x18,return
-    ".long 0xd5032cbf\n" // generic signature pcall, immediate slot 5
+    ".long 0xd5032abf\n" // generic signature pcall, immediate slot 5
     ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"
@@ -6230,7 +6230,7 @@ nativecheck_signature_imm_pcall_riscv_aarch64_vec128(void) {
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x00000397\n" // auipc t2,0
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
-    ".long 0x2a00700b\n" // generic signature pcall, immediate slot 5
+    ".long 0x4a00700b\n" // generic signature pcall, immediate slot 5
     ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
     "jmp 2f\n"
     ".p2align 2\n"

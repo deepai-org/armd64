@@ -13,9 +13,9 @@
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
 #define POLYBENCH_AARCH64_PCALL_SIG_IMM(slot) \
-  (0xd5032c1fU | (((uint32_t) (slot) & 0x7U) << 5))
+  POLY_AARCH64_CTRL_CALL_SIG_IMM(slot)
 #define POLYBENCH_RISCV_PCALL_SIG_IMM(slot) \
-  (0x2000700bU | (((uint32_t) (slot) & 0x7U) << 25))
+  POLY_RISCV_CTRL_CALL_SIG_IMM(slot)
 
 enum {
   POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
@@ -566,7 +566,7 @@ static uint32_t riscv_addi(uint32_t rd, uint32_t rs1, int32_t imm) {
 
 static void emit_aarch64_pcall_sig(uint8_t *code, size_t *offset,
     uint32_t signature_slot) {
-  if (signature_slot < 8) {
+  if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(code, offset, POLYBENCH_AARCH64_PCALL_SIG_IMM(signature_slot));
     return;
   }
@@ -579,7 +579,8 @@ static void emit_aarch64_direct_x86_pcall_sig(uint8_t *code, size_t *offset,
   emit_aarch64_movabs(code, offset, 16, target);
   emit_u32(code, offset, 0xd2800011U); // movz x17,#0 (x86 frontend)
   const uint64_t return_pc = (uint64_t) (uintptr_t)
-    (code + *offset + 16 + (signature_slot < 8 ? 4 : 8));
+    (code + *offset + 16 +
+      (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 4 : 8));
   emit_aarch64_movabs(code, offset, 18, return_pc);
   emit_aarch64_pcall_sig(code, offset, signature_slot);
 }
@@ -592,7 +593,7 @@ static void emit_aarch64_direct_x86_pcall(uint8_t *code, size_t *offset,
 
 static void emit_riscv_pcall_sig(uint8_t *code, size_t *offset,
     uint32_t signature_slot) {
-  if (signature_slot < 8) {
+  if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(code, offset, POLYBENCH_RISCV_PCALL_SIG_IMM(signature_slot));
     return;
   }
@@ -1693,7 +1694,8 @@ static int run_cross_call_fp64_signature_aarch64_to_riscv(
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
-  const size_t pcall_size = polybench_fp64_signature_slot < 8 ? 4 : 8;
+  const size_t pcall_size =
+    polybench_fp64_signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 4 : 8;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 16 + 4 + 16 + pcall_size;
   const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
@@ -1821,7 +1823,8 @@ static int run_cross_call_fp32_signature_aarch64_to_riscv(
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
-  const size_t pcall_size = polybench_fp32_signature_slot < 8 ? 4 : 8;
+  const size_t pcall_size =
+    polybench_fp32_signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 4 : 8;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 16 + 4 + 16 + pcall_size;
   const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
@@ -1948,7 +1951,8 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
   emit_bytes(code, &offset, raw_aarch64, sizeof(raw_aarch64));
 
   const size_t aarch64_body_offset = offset;
-  const size_t pcall_size = polybench_fp64_signature_slot < 8 ? 4 : 8;
+  const size_t pcall_size =
+    polybench_fp64_signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 4 : 8;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 4 + 8 * 8 + 8 * 4 + 16 + 4 + 16 + pcall_size;
   const size_t riscv_target_offset = aarch64_return_offset + 4 + 4 + 1;

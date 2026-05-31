@@ -4252,14 +4252,14 @@ static uint32_t cross_signature_slot_for_bridge(int bridge_kind,
 }
 
 static uint32_t foreign_pcall_sig_slot_insn_count(uint32_t signature_slot) {
-  return signature_slot < 8 ? 1U : 2U;
+  return signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT ? 1U : 2U;
 }
 
 static void emit_aarch64_pcall_sig_slot(uint8_t *stubs,
     size_t *stub_offset, uint32_t signature_slot) {
-  if (signature_slot < 8) {
+  if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(stubs, stub_offset,
-      0xd5032c1fU | ((signature_slot & 0x7U) << 5)); // PCALL_SIG_IMM
+      0xd5032a1fU | (signature_slot << 5)); // PCALL_SIG_IMM
     return;
   }
 
@@ -4270,9 +4270,9 @@ static void emit_aarch64_pcall_sig_slot(uint8_t *stubs,
 
 static void emit_riscv_pcall_sig_slot(uint8_t *stubs, size_t *stub_offset,
     uint32_t signature_slot) {
-  if (signature_slot < 8) {
+  if (signature_slot < POLY_ABI_SIGNATURE_SLOT_COUNT) {
     emit_u32(stubs, stub_offset,
-      0x2000700bU | ((signature_slot & 0x7U) << 25)); // PCALL_SIG_IMM
+      0x4000700bU | (signature_slot << 25)); // PCALL_SIG_IMM
     return;
   }
 
