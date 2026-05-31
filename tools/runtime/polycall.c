@@ -4397,7 +4397,8 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       const uint32_t selected_signature_slot =
         cross_signature_slot_for_bridge(bridge_kind, signature_slot,
           vec128_signature_slot, fp64_signature_slot);
-      const int generic_signature_slot = selected_signature_slot >= 8;
+      const int generic_signature_slot =
+        selected_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT;
       const uint64_t return_addr = start_addr +
         (generic_signature_slot ? 76 : 72);
       for (uint32_t n = 0; n < 8; n++)
@@ -4419,7 +4420,7 @@ static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
       cross_signature_slot_for_bridge(bridge_kind, signature_slot,
         vec128_signature_slot, fp64_signature_slot);
     const int generic_signature_slot = uses_signature_slot &&
-      selected_signature_slot >= 8;
+      selected_signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT;
     const uint64_t return_addr = start_addr +
       (uses_signature_slot ? 56 : 52) + (is_compact_bridge ? 8 : 0) +
       (generic_signature_slot ? 4 : 0);
