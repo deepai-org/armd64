@@ -861,6 +861,11 @@ static int load_payload(const char *path, struct payload *payload) {
     fprintf(stderr, "POLYAPP_FAIL: incomplete payload %s\n", path);
     return -1;
   }
+  if (payload->arch == POLY_ARCH_X86) {
+    fprintf(stderr,
+      "POLYAPP_FAIL: x86 is only supported as final_arch in %s\n", path);
+    return -1;
+  }
   if (payload->final_arch < 0) {
     payload->final_arch = payload->arch;
     payload->final_arch_name = payload->arch_name;
@@ -962,7 +967,7 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     offset += sizeof(raw_switch);
     emit_u32(code, &offset, aarch64_adr(30, (int64_t) (payload->insn_count + 2) * 4));
     emit_u32(code, &offset, 0xd2800008U);
-  } else {
+  } else if (payload->arch == POLY_ARCH_RISCV) {
     const uint8_t raw_switch[] = { 0x0f, 0x3a, 0xfc, 0x02 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
     offset += sizeof(raw_switch);
@@ -970,6 +975,11 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     emit_u32(code, &offset, riscv_auipc(1, escape_offset));
     emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));
     emit_u32(code, &offset, 0x00000893U);
+  } else {
+    fprintf(stderr, "POLYAPP_FAIL: unsupported entry arch in %s\n",
+      payload->path);
+    munmap(code, code_size);
+    return -1;
   }
   for (size_t n = 0; n < payload->insn_count; n++) {
     emit_u32(code, &offset, payload->insns[n]);
