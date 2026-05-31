@@ -8280,6 +8280,16 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process relocations" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/aarch64-process-cross-x86-tls-real.elf \
+      cross-x86-tls >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 tls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real.elf \
+      cross-x86-tls-default >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 default tls" >/dev/ttyS0
+      exit 1
+    }
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
       alpha beta >/dev/ttyS0 2>&1 || {
@@ -8509,6 +8519,16 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-process-reloc-real.elf \
       reloc >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process relocations" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-x86-tls-real.elf \
+      cross-x86-tls >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross x86 tls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-x86-tls-default-real.elf \
+      cross-x86-tls-default >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross x86 default tls" >/dev/ttyS0
       exit 1
     }
     for foreign in \
@@ -10301,6 +10321,22 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_ROOT_PENTER: arch=riscv generic=1 process=1 .*riscv-process-argv-envp-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf .*process=1" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf .*process=1" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf .*process=1" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf .*process=1" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
