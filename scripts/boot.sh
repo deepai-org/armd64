@@ -8307,6 +8307,20 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process preload" >/dev/ttyS0
       exit 1
     }
+    POLY_LD_PRELOAD='\$ORIGIN/\$PLATFORM/libpolyprocesspreload-aarch64.so' \
+      /usr/lib/polyapps/aarch64-process-preload-real.elf \
+      preload-origin-platform >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process preload origin platform" >/dev/ttyS0
+      exit 1
+    }
+    echo "POLYBINFMT_DIRECT_PRELOAD: arch=aarch64 variant=origin-platform" >/dev/ttyS0
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-aarch64.so:/usr/lib/polyapps/libpolyprocesspreloadsecond-aarch64.so \
+      /usr/lib/polyapps/aarch64-process-preload-real.elf \
+      preload-first-wins >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process preload first wins" >/dev/ttyS0
+      exit 1
+    }
+    echo "POLYBINFMT_DIRECT_PRELOAD: arch=aarch64 variant=first-wins" >/dev/ttyS0
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreloadsecond-aarch64.so:/usr/lib/polyapps/libpolyprocesspreload-aarch64.so \
       /usr/lib/polyapps/aarch64-process-preload-second-real.elf \
       preload-second-wins >/dev/ttyS0 2>&1 || {
@@ -8731,6 +8745,20 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: riscv direct process preload" >/dev/ttyS0
       exit 1
     }
+    POLY_LD_PRELOAD='\$ORIGIN/\$PLATFORM/libpolyprocesspreload-riscv.so' \
+      /usr/lib/polyapps/riscv-process-preload-real.elf \
+      preload-origin-platform >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process preload origin platform" >/dev/ttyS0
+      exit 1
+    }
+    echo "POLYBINFMT_DIRECT_PRELOAD: arch=riscv variant=origin-platform" >/dev/ttyS0
+    POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreload-riscv.so:/usr/lib/polyapps/libpolyprocesspreloadsecond-riscv.so \
+      /usr/lib/polyapps/riscv-process-preload-real.elf \
+      preload-first-wins >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process preload first wins" >/dev/ttyS0
+      exit 1
+    }
+    echo "POLYBINFMT_DIRECT_PRELOAD: arch=riscv variant=first-wins" >/dev/ttyS0
     POLY_LD_PRELOAD=/usr/lib/polyapps/libpolyprocesspreloadsecond-riscv.so:/usr/lib/polyapps/libpolyprocesspreload-riscv.so \
       /usr/lib/polyapps/riscv-process-preload-second-real.elf \
       preload-second-wins >/dev/ttyS0 2>&1 || {
@@ -10688,6 +10716,8 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-rpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preload-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preload-second-real\\.elf .*process=1"
+          "POLYBINFMT_DIRECT_PRELOAD: arch=aarch64 variant=origin-platform"
+          "POLYBINFMT_DIRECT_PRELOAD: arch=aarch64 variant=first-wins"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf .*process=1"
@@ -10726,6 +10756,8 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-rpath-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preload-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preload-second-real\\.elf .*process=1"
+          "POLYBINFMT_DIRECT_PRELOAD: arch=riscv variant=origin-platform"
+          "POLYBINFMT_DIRECT_PRELOAD: arch=riscv variant=first-wins"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf .*process=1"
