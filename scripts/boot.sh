@@ -8403,6 +8403,61 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process soname once" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/aarch64-process-init-real.elf \
+      init-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process init array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-preinit-real.elf \
+      preinit-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process preinit array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-init-needed-real.elf \
+      init-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process dependency init array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-dt-init-real.elf \
+      dt-init >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process dt init" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-dt-init-needed-real.elf \
+      dt-init-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process dependency dt init" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-fini-real.elf \
+      fini-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process fini array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-fini-exit-group-real.elf \
+      fini-exit-group >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process fini exit group" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-fini-order-real.elf \
+      fini-order >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process fini array order" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-dt-fini-real.elf \
+      dt-fini >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process dt fini" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-fini-needed-real.elf \
+      fini-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process dependency fini array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-dt-fini-needed-real.elf \
+      dt-fini-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process dependency dt fini" >/dev/ttyS0
+      exit 1
+    }
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-argv-envp-real.elf=42 \
       alpha beta >/dev/ttyS0 2>&1 || {
@@ -8755,6 +8810,61 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real.elf \
       soname-once >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process soname once" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-init-real.elf \
+      init-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process init array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-preinit-real.elf \
+      preinit-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process preinit array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-init-needed-real.elf \
+      init-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process dependency init array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-dt-init-real.elf \
+      dt-init >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process dt init" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-dt-init-needed-real.elf \
+      dt-init-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process dependency dt init" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-fini-real.elf \
+      fini-array >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process fini array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-fini-exit-group-real.elf \
+      fini-exit-group >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process fini exit group" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-fini-order-real.elf \
+      fini-order >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process fini array order" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-dt-fini-real.elf \
+      dt-fini >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process dt fini" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-fini-needed-real.elf \
+      fini-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process dependency fini array" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-dt-fini-needed-real.elf \
+      dt-fini-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process dependency dt fini" >/dev/ttyS0
       exit 1
     }
     for foreign in \
@@ -10575,6 +10685,17 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-weak-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-versioned-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/sonameonce/aarch64/aarch64-process-soname-once-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-init-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-preinit-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-init-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-dt-init-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-dt-init-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-fini-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-fini-exit-group-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-fini-order-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-dt-fini-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-fini-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-dt-fini-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-envpath-real\\.elf .*process=1"
@@ -10599,6 +10720,17 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-weak-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-versioned-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/sonameonce/riscv/riscv-process-soname-once-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-init-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-preinit-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-init-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-dt-init-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-dt-init-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-fini-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-fini-exit-group-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-fini-order-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-dt-fini-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-fini-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-dt-fini-needed-real\\.elf .*process=1"
         )
         for pattern in "${polybinfmt_process_patterns[@]}"; do
           if ! grep -Eq "$pattern" "$SERIAL_LOG"; then
