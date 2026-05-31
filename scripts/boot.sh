@@ -10880,6 +10880,18 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=0" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=0 syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if [[ "$(grep -c "SYSCALL_OK" "$SERIAL_LOG" || true)" -lt 2 ]]; then
           sleep 1
           continue
