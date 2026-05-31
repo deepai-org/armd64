@@ -41,6 +41,8 @@ static struct poly_xsave_state signal_snapshot __attribute__((aligned(64)));
 static uint8_t signal_state_key_anchor;
 static uint32_t polysignal_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
+static uint32_t polysignal_fp64_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
 
 static uint64_t double_to_bits(double value) {
   union {
@@ -166,15 +168,20 @@ static int install_polysignal_state_key(void) {
   return 0;
 }
 
-static int setup_polysignal_native_signature_slot(void) {
+static int setup_polysignal_signature_slots(void) {
   const struct poly_cpuid_regs expected_x86_controls =
     poly_cpuid_expected_escape_leaf5();
+  const struct poly_cpuid_regs expected_fp64_signature =
+    poly_cpuid_expected_escape_leaf22();
   const struct poly_cpuid_regs x86_controls =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
+  const struct poly_cpuid_regs fp64_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
+  const uint32_t fp64_slot = fp64_signature.edx;
   if (x86_controls.eax != expected_x86_controls.eax ||
       x86_controls.ebx != expected_x86_controls.ebx ||
       x86_controls.ecx != expected_x86_controls.ecx ||
@@ -194,14 +201,30 @@ static int setup_polysignal_native_signature_slot(void) {
       signature.eax, signature.ebx, signature.ecx, signature.edx);
     return -1;
   }
-  if (poly_abi_signature_set(native_slot,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0) {
+  if (fp64_signature.eax != expected_fp64_signature.eax ||
+      fp64_signature.ebx != expected_fp64_signature.ebx ||
+      fp64_signature.ecx != expected_fp64_signature.ecx ||
+      fp64_signature.edx != expected_fp64_signature.edx ||
+      fp64_slot >= signature.ebx) {
     fprintf(stderr,
-      "POLYSIGNAL_FAIL: native signature slot setup failed slot=%u\n",
-      native_slot);
+      "POLYSIGNAL_FAIL: FP64 signature manifest mismatch fp64=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      fp64_signature.eax, fp64_signature.ebx, fp64_signature.ecx,
+      fp64_signature.edx, expected_fp64_signature.eax,
+      expected_fp64_signature.ebx, expected_fp64_signature.ecx,
+      expected_fp64_signature.edx);
+    return -1;
+  }
+  if (poly_abi_signature_set(native_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_abi_signature_set(fp64_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: signature slot setup failed native=%u fp64=%u\n",
+      native_slot, fp64_slot);
     return -1;
   }
   polysignal_native_signature_slot = native_slot;
+  polysignal_fp64_signature_slot = fp64_slot;
   return 0;
 }
 
@@ -507,7 +530,7 @@ static uint64_t pcall_sig_slot_aarch64_fp_signal(uint64_t left_bits,
     "popq %%rbx\n"
     :
     : "i"(POLY_FRONTEND_AARCH64), "S"(loops),
-      "r"((uint64_t) polysignal_native_signature_slot)
+      "r"((uint64_t) polysignal_fp64_signature_slot)
     : "rax", "rcx", "rdx", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
@@ -537,7 +560,7 @@ static uint64_t pcall_sig_slot_riscv_fp_signal(uint64_t left_bits,
     "popq %%rbx\n"
     :
     : "i"(POLY_FRONTEND_RISCV), "S"(loops),
-      "r"((uint64_t) polysignal_native_signature_slot)
+      "r"((uint64_t) polysignal_fp64_signature_slot)
     : "rax", "rcx", "rdx", "rdi", "r8", "r9", "r10", "r11",
       "xmm0", "xmm1", "memory");
   return read_xmm0_u64();
@@ -759,7 +782,7 @@ int main(void) {
     return 1;
   if (install_polysignal_state_key() < 0)
     return 1;
-  if (setup_polysignal_native_signature_slot() < 0)
+  if (setup_polysignal_signature_slots() < 0)
     return 1;
 
   void *altstack_mem = mmap(NULL, POLYSIGNAL_ALT_STACK_SIZE,
