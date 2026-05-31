@@ -4112,7 +4112,8 @@ static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
 static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
     uint32_t vec128_slot, uint32_t compact_u32_f32_slot,
     uint32_t compact_f32_u32_slot, uint32_t fp64_slot) {
-  if (call_kind == POLY_CALL_FP64 ||
+  if (call_kind == POLY_CALL_FP32 ||
+      call_kind == POLY_CALL_FP64 ||
       call_kind == POLY_CALL_SIGREGS_FP64)
     return fp64_slot;
   if (call_kind == POLY_CALL_VEC128_U32)
@@ -9528,7 +9529,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     call_kind == POLY_CALL_MIXED_STACK_ARGS ||
     call_kind == POLY_CALL_FINI_RESULT ||
     call_kind == POLY_CALL_DEP_FINI_RESULT;
-  const int use_sig_imm_pcall = call_kind == POLY_CALL_FP64 ||
+  const int use_sig_imm_pcall = call_kind == POLY_CALL_FP32 ||
+    call_kind == POLY_CALL_FP64 ||
     call_kind == POLY_CALL_SIGREGS_U64 ||
     call_kind == POLY_CALL_SIGREGS_FP64 ||
     call_kind == POLY_CALL_VEC128_U32 ||
@@ -9702,7 +9704,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
     uint32_t signature_slot = import_contract.signature_slot_x86_sysv_regs;
-    if (call_kind == POLY_CALL_FP64 ||
+    // The FP64 signature kind maps the native FP argument register window; the
+    // register mapping is shared by FP32 and FP64 scalar calls.
+    if (call_kind == POLY_CALL_FP32 ||
+        call_kind == POLY_CALL_FP64 ||
         call_kind == POLY_CALL_SIGREGS_FP64)
       signature_slot = import_contract.signature_slot_native_regs_fp64;
     else if (call_kind == POLY_CALL_VEC128_U32)
