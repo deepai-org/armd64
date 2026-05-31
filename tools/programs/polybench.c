@@ -3601,6 +3601,93 @@ static int run_nested_cross_call(uint64_t *result,
   return 0;
 }
 
+static int run_nested_reverse_cross_call(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 512;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: nested reverse cross call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_riscv[] = { 0x0f, 0x3a, 0xfc, 0x02 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+
+  emit_u32(code, &offset, 0x00a00513U); // addi a0,zero,10
+  const size_t outer_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t outer_ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  const size_t outer_return_pc = offset;
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
+  const size_t outer_ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
+  const size_t riscv_outer_return_offset = offset;
+  emit_u32(code, &offset, 0x00050513U); // addi a0,a0,0
+  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  const size_t aarch64_return_offset =
+    aarch64_target_offset + 4 + 16 + 4 + 16 + 4;
+  const size_t riscv_inner_target_offset = aarch64_return_offset + 4 + 4;
+
+  emit_u32(code, &offset, 0x91002c00U); // add x0,x0,#11
+  emit_aarch64_movabs(code, &offset, 16,
+    (uint64_t) (uintptr_t) (code + riscv_inner_target_offset));
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_aarch64_movabs(code, &offset, 18,
+    (uint64_t) (uintptr_t) (code + aarch64_return_offset));
+  emit_u32(code, &offset,
+    POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
+  emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while (offset < riscv_inner_target_offset)
+    code[offset++] = 0x90;
+  emit_u32(code, &offset, 0x01450513U); // addi a0,a0,20
+  emit_u32(code, &offset, 0x00008067U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t outer_target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t outer_return_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) (code + riscv_outer_return_offset));
+
+  store_u32(code, outer_ld_target_offset, riscv_ld(5, 5,
+    (int32_t) outer_target_data_offset - (int32_t) outer_target_pc));
+  store_u32(code, outer_ld_return_offset, riscv_ld(7, 7,
+    (int32_t) outer_return_data_offset - (int32_t) outer_return_pc));
+
+  poly_foreign_insn_count_status();
+  uint64_t insns_before = read_rax();
+  poly_switch_count_status();
+  uint64_t switches_before = read_rax();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  poly_foreign_insn_count_status();
+  *insn_delta = read_rax() - insns_before;
+  poly_switch_count_status();
+  *switch_delta = read_rax() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int check_loop(const char *name, int arch) {
   uint64_t result = 0;
   uint64_t delta = 0;
@@ -4304,6 +4391,11 @@ static int check_cross_calls(void) {
     return -1;
   if (check_cross_call_direction("nested-aarch64-riscv-aarch64",
         run_nested_cross_call,
+        POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA,
+        POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_cross_call_direction("nested-riscv-aarch64-riscv",
+        run_nested_reverse_cross_call,
         POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
     return -1;
