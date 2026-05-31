@@ -4747,6 +4747,10 @@ static int x86_direct_import_uses_single_result_signature(
     import_id == POLY_IMPORT_FUNC_RISCV_TLS_GET_ADDR;
 }
 
+static int x86_direct_import_uses_sret_signature(uint64_t import_id) {
+  return import_id == POLY_IMPORT_FUNC_X86_SRET_U64;
+}
+
 static int x86_direct_import_needs_riscv_fp128_return_thunk(int caller_arch,
     uint64_t import_id) {
   if (caller_arch != POLY_ARCH_RISCV)
@@ -5178,6 +5182,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
       contract->signature_slot_native_regs_fp64 :
     x86_direct_import_uses_fp32_register_signature(import_id) ?
       contract->signature_slot_native_regs_fp32 :
+    x86_direct_import_uses_sret_signature(import_id) ?
+      contract->signature_slot_sret_x86_sysv_regs :
     x86_direct_import_uses_single_result_signature(import_id) ?
       contract->signature_slot_x86_sysv_regs :
       contract->signature_slot_native_regs;
@@ -5192,7 +5198,8 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     else if (signature_slot == contract->signature_slot_x86_sysv_regs ||
         signature_slot == contract->signature_slot_native_regs ||
         signature_slot == contract->signature_slot_native_regs_fp64 ||
-        signature_slot == contract->signature_slot_native_regs_fp32)
+        signature_slot == contract->signature_slot_native_regs_fp32 ||
+        signature_slot == contract->signature_slot_sret_x86_sysv_regs)
       stats->x86_direct_sigreg_stubs++;
   }
 
@@ -5200,9 +5207,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     if (stub_limit - start < 192)
       return -1;
     uint32_t aarch64_sret_arg_shift_insns = 0;
-    if (import_id == POLY_IMPORT_FUNC_X86_SRET_U64)
-      aarch64_sret_arg_shift_insns = 4;
-    else if (import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK)
+    if (import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK)
       aarch64_sret_arg_shift_insns = 7;
     else if (import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10)
       aarch64_sret_arg_shift_insns = 10;
