@@ -6075,6 +6075,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-rel.elf" --dyn-rel-relative64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-relr.elf" --dyn-relr64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-relr-bitmap.elf" --dyn-relr-bitmap64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xf9400000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-relr.elf" --dyn-relr64 42 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd2800ba8 0xd4000001
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-irelative.elf" --dyn-irelative64 0x7b --export-at poly_entry 12 0xd0000000 0x91002000 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-dynsym.elf" --dyn-symbol64 0x7b --export-at poly_entry 4 0xd65f03c0 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-dyntab.elf" --dyn-symbol64 0x7b 0xd0000000 0x91000000 0xf9400000 0xf9400000 0xd65f03c0
@@ -6393,6 +6394,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-rel.elf" --dyn-rel-relative64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-relr.elf" --dyn-relr64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-relr-bitmap.elf" --dyn-relr-bitmap64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00053503 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-relr.elf" --dyn-relr64 42 0x00002517 0x00053503 0x00053503 0x05d00893 0x00000073
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-irelative.elf" --dyn-irelative64 0x7b --export-at poly_entry 12 0x00002517 0x00850513 0x00008067 0x00002517 0xff453503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-dynsym.elf" --dyn-symbol64 0x7b --export-at poly_entry 4 0x00008067 0x00002517 0xffc53503 0x00053503 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-dyntab.elf" --dyn-symbol64 0x7b 0x00002517 0x00053503 0x00053503 0x00008067
@@ -7563,6 +7565,8 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-reloc-real.elf=42 \
       reloc >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-relr.elf=42 >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-libc-main-real.elf=42 \
       libc-main >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -7825,6 +7829,8 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-reloc-real.elf=42 \
       reloc >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-relr.elf=42 >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-libc-main-real.elf=42 \
       libc-main >/dev/ttyS0 2>&1
@@ -8665,6 +8671,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       exit 1
     }
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-relr.elf=42 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 process relr relocations" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 process needed" >/dev/ttyS0
@@ -8892,6 +8903,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-process-reloc-real.elf \
       reloc >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process relocations" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-relr.elf >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process relr relocations" >/dev/ttyS0
       exit 1
     }
     /usr/lib/polyapps/aarch64-process-needed-real.elf \
@@ -9140,6 +9155,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       exit 1
     }
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-relr.elf=42 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv process relr relocations" >/dev/ttyS0
+      exit 1
+    }
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-needed-real.elf=42 \
       needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv process needed" >/dev/ttyS0
@@ -9355,6 +9375,10 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-process-reloc-real.elf \
       reloc >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process relocations" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-relr.elf >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process relr relocations" >/dev/ttyS0
       exit 1
     }
     /usr/lib/polyapps/riscv-process-needed-real.elf \
@@ -12026,6 +12050,7 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-default-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-trad-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-tls-trad-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-relr\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-copy-reloc-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-root-export-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-needed-root-ifunc-real\\.elf .*process=1"
@@ -12069,6 +12094,7 @@ EOF
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-needed-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-default-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-tls-default-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-relr\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-copy-reloc-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-root-export-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-needed-root-ifunc-real\\.elf .*process=1"
