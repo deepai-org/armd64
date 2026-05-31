@@ -4271,6 +4271,8 @@ static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
   if (call_kind == POLY_CALL_FP64 ||
       call_kind == POLY_CALL_SIGREGS_FP64)
     return fp64_slot;
+  if (call_kind_is_aarch64_hfa_f64_return(call_kind))
+    return fp64_slot;
   if (call_kind == POLY_CALL_VEC128_U32)
     return vec128_slot;
   if (call_kind == POLY_CALL_COMPACT_U32_F32)
@@ -9771,7 +9773,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       POLY_X86_HFA3_F32_ARG_SHUFFLE_SEQUENCE_SIZE) +
     POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
   const size_t hfa_f64_return_pcall_sequence_size =
-    3U + POLY_X86_CONTROL_OPCODE_SIZE;
+    3U + POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
   const size_t hfa_f64_return_post_sequence_size =
     use_hfa_f64_return_thunk ?
       (size_t) aarch64_hfa_f64_return_count(call_kind) * 5U : 0U;
@@ -9981,12 +9983,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   }
   else if (use_hfa_f64_return_thunk) {
     emit_x86_preserve_sret_ptr(code, &offset);
-    const uint8_t pcall[] = {
-      0x0f, 0x3a, 0xfc,
-      pcall_opcode_for_call_kind(POLY_ARCH_AARCH64, call_kind)
-    };
-    memcpy(code + offset, pcall, sizeof(pcall));
-    offset += sizeof(pcall);
+    emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
+      import_contract.signature_slot_native_regs_fp64);
   }
   else if (program->arch == POLY_ARCH_AARCH64) {
     uint8_t pcall_op = 0x10;
