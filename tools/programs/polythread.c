@@ -12,7 +12,7 @@
 #define POLY_OP_ENTER_RV64 \
   "movl $2, %%r15d\n" \
   ".byte 0x0f,0x3a,0xfc,0x03\n"
-#define POLY_OP_TRAP_RETURN ".byte 0x0f,0x3a,0xfc,0x62\n"
+#define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
 #define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"

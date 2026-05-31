@@ -364,6 +364,7 @@ enum {
   POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_PCALL_SIG_MODE = 0x2d,
   POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 0x30,
+  POLY_X86_CTRL_TRAP_RETURN = 0x62,
   POLY_AARCH64_CTRL_SUBOP_CALL_SIG_IMM_BASE = 0x50,
   POLY_RISCV_CTRL_SUBOP_CALL_SIG_IMM_BASE = 32,
   POLY_ABI_SIGNATURE_SLOT_COUNT = 12,
@@ -1388,7 +1389,7 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
   if (x86_controls.eax != POLY_X86_CTRL_PENTER_MODE ||
       x86_controls.ebx != POLY_X86_CTRL_PSWITCH_MODE ||
       x86_controls.ecx != POLY_X86_CTRL_PCALL_SIG_MODE ||
-      x86_controls.edx != 0) {
+      x86_controls.edx != POLY_X86_CTRL_TRAP_RETURN) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU x86 control manifest mismatch leaf5=(0x%x,0x%x,0x%x,0x%x)\n",
       x86_controls.eax, x86_controls.ebx, x86_controls.ecx,
