@@ -7546,6 +7546,8 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-irelative.elf#poly_entry=123 \
     /usr/lib/polyapps/riscv-pcall-jumprel.elf=123 \
     /usr/lib/polyapps/riscv-pcall-rel-jumprel.elf=123 \
+    /usr/lib/polyapps/aarch64-brk.elf=0x4c000105 \
+    /usr/lib/polyapps/riscv-ebreak.elf=0x4c000205 \
     /usr/lib/polyapps/riscv-compressed-ebreak.elf=0x4c000205 >/dev/ttyS0 2>&1
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-argv-envp-real.elf=42 \
@@ -11597,6 +11599,10 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* .*break_a64=[1-9][0-9]* .*break_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
