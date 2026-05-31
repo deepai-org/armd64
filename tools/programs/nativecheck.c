@@ -4927,6 +4927,18 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       (unsigned long long) poly_abi_signature_get(4));
     return 1;
   }
+  if (poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_COMPACT_U32_F32) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32 ||
+      poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_COMPACT_F32_U32) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: real XRSTOR init compact ABI signature mismatch u32f32=%llu f32u32=%llu\n",
+      (unsigned long long) poly_abi_signature_get(
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_COMPACT_U32_F32),
+      (unsigned long long) poly_abi_signature_get(
+        POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_COMPACT_F32_U32));
+    return 1;
+  }
   if (poly_landing_policy_get() != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XRSTOR init landing policy not cleared got=0x%llx\n",
