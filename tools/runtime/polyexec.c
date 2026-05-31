@@ -4026,7 +4026,7 @@ static void emit_x86_set_fs_from_global(uint8_t *code, size_t *offset,
 }
 
 static int emit_process_x86_tls_call_wrapper(uint64_t target,
-    uint64_t *wrapper_addr) {
+    int bridge_kind, uint64_t *wrapper_addr) {
   if (ensure_process_cross_stub_arena() < 0 ||
       align_up_size(process_cross_stubs.offset, 8,
         &process_cross_stubs.offset) < 0)
@@ -4038,6 +4038,8 @@ static int emit_process_x86_tls_call_wrapper(uint64_t target,
   size_t offset = process_cross_stubs.offset;
   *wrapper_addr = (uint64_t) (uintptr_t) (code + offset);
 
+  code[offset++] = 0x41; // push r11: direct foreign->x86 PCALL exposes the source SP here.
+  code[offset++] = 0x53;
   code[offset++] = 0x57; // push rdi
   code[offset++] = 0x56; // push rsi
   code[offset++] = 0x52; // push rdx
@@ -4071,10 +4073,49 @@ static int emit_process_x86_tls_call_wrapper(uint64_t target,
   code[offset++] = 0x5a; // pop rdx
   code[offset++] = 0x5e; // pop rsi
   code[offset++] = 0x5f; // pop rdi
+  code[offset++] = 0x41; // pop r11
+  code[offset++] = 0x5b;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9) {
+    code[offset++] = 0x48; // sub rsp,24: stack args 6..8, aligned for call.
+    code[offset++] = 0x83;
+    code[offset++] = 0xec;
+    code[offset++] = 0x18;
+    code[offset++] = 0x4d; // mov r10,[r11]
+    code[offset++] = 0x8b;
+    code[offset++] = 0x13;
+    code[offset++] = 0x4c; // mov [rsp],r10
+    code[offset++] = 0x89;
+    code[offset++] = 0x14;
+    code[offset++] = 0x24;
+    code[offset++] = 0x4d; // mov r10,[r11+8]
+    code[offset++] = 0x8b;
+    code[offset++] = 0x53;
+    code[offset++] = 0x08;
+    code[offset++] = 0x4c; // mov [rsp+8],r10
+    code[offset++] = 0x89;
+    code[offset++] = 0x54;
+    code[offset++] = 0x24;
+    code[offset++] = 0x08;
+    code[offset++] = 0x4d; // mov r10,[r11+16]
+    code[offset++] = 0x8b;
+    code[offset++] = 0x53;
+    code[offset++] = 0x10;
+    code[offset++] = 0x4c; // mov [rsp+16],r10
+    code[offset++] = 0x89;
+    code[offset++] = 0x54;
+    code[offset++] = 0x24;
+    code[offset++] = 0x10;
+  }
   emit_x86_movabs_r11(code, &offset, target);
   code[offset++] = 0x41; // call r11
   code[offset++] = 0xff;
   code[offset++] = 0xd3;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9) {
+    code[offset++] = 0x48; // add rsp,24
+    code[offset++] = 0x83;
+    code[offset++] = 0xc4;
+    code[offset++] = 0x18;
+  }
   code[offset++] = 0x50; // push rax
   code[offset++] = 0x52; // push rdx
   emit_x86_movabs_rax(code, &offset,
@@ -4112,7 +4153,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
         (caller_arch == POLY_ARCH_X86 &&
           (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV))))
     return -1;
-  if (callee_arch == POLY_ARCH_X86 && bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT)
+  if (callee_arch == POLY_ARCH_X86 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
+      bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9)
     return -1;
   if (caller_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
@@ -4123,6 +4166,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     return -1;
   if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
       caller_arch != POLY_ARCH_X86 &&
+      callee_arch != POLY_ARCH_X86 &&
       !((caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) ||
         (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)))
     return -1;
@@ -4133,7 +4177,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
 
   uint64_t pcall_target = target;
   if (caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86) {
-    if (emit_process_x86_tls_call_wrapper(target, &pcall_target) < 0 ||
+    if (emit_process_x86_tls_call_wrapper(target, bridge_kind,
+          &pcall_target) < 0 ||
         align_up_size(process_cross_stubs.offset, 8,
           &process_cross_stubs.offset) < 0)
       return -1;
@@ -4145,6 +4190,11 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   const uint64_t state_key =
     (uint64_t) (uintptr_t) &poly_state_key_anchor;
   const int is_compact_bridge = process_bridge_is_compact(bridge_kind);
+  const int is_stack9_x86_callee =
+    bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
+    callee_arch == POLY_ARCH_X86;
+  if (is_stack9_x86_callee)
+    signature_slot = process_native_signature_slot;
   const uint32_t callee_frontend = callee_arch == POLY_ARCH_AARCH64 ?
     POLY_ARCH_AARCH64 :
     callee_arch == POLY_ARCH_RISCV ? POLY_ARCH_RISCV : POLY_ARCH_X86;
@@ -4252,19 +4302,31 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   }
 
   if (caller_arch == POLY_ARCH_AARCH64) {
-    if (process_cross_stubs.size - start < 128)
+    if (process_cross_stubs.size - start < 160)
       return -1;
     size_t offset = start;
-    const uint64_t return_addr = start_addr + 84 +
-      (is_compact_bridge ? 8 : 0);
-    emit_u32(code, &offset, 0xd10083ffU); // sub sp, sp, #32
-    emit_u32(code, &offset, 0xf94013f2U); // ldr x18, [sp, #32]
-    emit_u32(code, &offset, 0xf90003f2U); // str x18, [sp]
-    emit_u32(code, &offset, 0xf90007feU); // str x30, [sp, #8]
-    emit_u32(code, &offset, 0xf9000be0U); // str x0, [sp, #16]
+    const uint64_t return_addr = start_addr +
+      (is_stack9_x86_callee ? 92 : 84 + (is_compact_bridge ? 8 : 0));
+    if (is_stack9_x86_callee) {
+      emit_u32(code, &offset, 0xd100c3ffU); // sub sp, sp, #48
+      emit_u32(code, &offset, 0xf9401bf2U); // ldr x18, [sp, #48]
+      emit_u32(code, &offset, 0xf90003e6U); // str x6, [sp]
+      emit_u32(code, &offset, 0xf90007e7U); // str x7, [sp, #8]
+      emit_u32(code, &offset, 0xf9000bf2U); // str x18, [sp, #16]
+      emit_u32(code, &offset, 0xf9000ffeU); // str x30, [sp, #24]
+      emit_u32(code, &offset, 0xf90013e0U); // str x0, [sp, #32]
+    }
+    else {
+      emit_u32(code, &offset, 0xd10083ffU); // sub sp, sp, #32
+      emit_u32(code, &offset, 0xf94013f2U); // ldr x18, [sp, #32]
+      emit_u32(code, &offset, 0xf90003f2U); // str x18, [sp]
+      emit_u32(code, &offset, 0xf90007feU); // str x30, [sp, #8]
+      emit_u32(code, &offset, 0xf9000be0U); // str x0, [sp, #16]
+    }
     emit_aarch64_movabs(code, &offset, 0, state_key);
     emit_u32(code, &offset, POLY_AARCH64_CTRL_STATE_KEY_SET);
-    emit_u32(code, &offset, 0xf9400be0U); // ldr x0, [sp, #16]
+    emit_u32(code, &offset,
+      is_stack9_x86_callee ? 0xf94013e0U : 0xf9400be0U); // ldr x0,saved
     if (is_compact_bridge)
       emit_process_aarch64_compact_pre_pcall(code, &offset, bridge_kind);
     emit_aarch64_movabs(code, &offset, 16, pcall_target);
@@ -4274,8 +4336,10 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_u32(code, &offset, aarch64_pcall_sig_imm(signature_slot));
     if (is_compact_bridge)
       emit_process_aarch64_compact_post_pcall(code, &offset, bridge_kind);
-    emit_u32(code, &offset, 0xf94007feU); // ldr x30, [sp, #8]
-    emit_u32(code, &offset, 0x910083ffU); // add sp, sp, #32
+    emit_u32(code, &offset,
+      is_stack9_x86_callee ? 0xf9400ffeU : 0xf94007feU); // ldr x30,saved
+    emit_u32(code, &offset,
+      is_stack9_x86_callee ? 0x9100c3ffU : 0x910083ffU); // add sp,sp
     emit_u32(code, &offset, 0xd65f03c0U); // ret
     process_cross_stubs.offset = offset;
     note_process_cross_isa_call_stub(caller_arch, callee_arch);
@@ -4283,7 +4347,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     return 0;
   }
 
-  if (process_cross_stubs.size - start < 128)
+  if (process_cross_stubs.size - start < 160)
     return -1;
   size_t offset = start;
   const size_t auipc_target_pc = offset;
@@ -4295,25 +4359,39 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u32(code, &offset, 0x00000397U); // auipc x7,0
   const size_t ld_return_offset = offset;
   emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, 0xfe010113U); // addi sp,sp,-32
-  emit_u32(code, &offset, riscv_ld(29, 2, 32)); // ld t4,32(sp)
-  emit_u32(code, &offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
-  emit_u32(code, &offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
-  emit_u32(code, &offset, riscv_sd(10, 2, 16)); // sd a0,16(sp)
+  if (is_stack9_x86_callee) {
+    emit_u32(code, &offset, riscv_addi(2, 2, -48)); // addi sp,sp,-48
+    emit_u32(code, &offset, riscv_sd(16, 2, 0)); // sd a6,0(sp)
+    emit_u32(code, &offset, riscv_sd(17, 2, 8)); // sd a7,8(sp)
+    emit_u32(code, &offset, riscv_ld(29, 2, 48)); // ld t4,48(sp)
+    emit_u32(code, &offset, riscv_sd(29, 2, 16)); // sd t4,16(sp)
+    emit_u32(code, &offset, riscv_sd(1, 2, 24)); // sd ra,24(sp)
+    emit_u32(code, &offset, riscv_sd(10, 2, 32)); // sd a0,32(sp)
+  }
+  else {
+    emit_u32(code, &offset, 0xfe010113U); // addi sp,sp,-32
+    emit_u32(code, &offset, riscv_ld(29, 2, 32)); // ld t4,32(sp)
+    emit_u32(code, &offset, riscv_sd(29, 2, 0)); // sd t4,0(sp)
+    emit_u32(code, &offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
+    emit_u32(code, &offset, riscv_sd(10, 2, 16)); // sd a0,16(sp)
+  }
   const size_t auipc_state_key_pc = offset;
   emit_u32(code, &offset, 0x00000517U); // auipc a0,0
   const size_t ld_state_key_offset = offset;
   emit_u32(code, &offset, 0);
   emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
-  emit_u32(code, &offset, riscv_ld(10, 2, 16)); // ld a0,16(sp)
+  emit_u32(code, &offset,
+    riscv_ld(10, 2, is_stack9_x86_callee ? 32 : 16)); // ld a0,saved
   if (is_compact_bridge)
     emit_process_riscv_compact_pre_pcall(code, &offset, bridge_kind);
   emit_u32(code, &offset, riscv_pcall_sig_imm(signature_slot));
   const size_t return_pc = offset;
   if (is_compact_bridge)
     emit_process_riscv_compact_post_pcall(code, &offset, bridge_kind);
-  emit_u32(code, &offset, 0x00813083U); // ld ra,8(sp)
-  emit_u32(code, &offset, 0x02010113U); // addi sp,sp,32
+  emit_u32(code, &offset,
+    riscv_ld(1, 2, is_stack9_x86_callee ? 24 : 8)); // ld ra,saved
+  emit_u32(code, &offset,
+    riscv_addi(2, 2, is_stack9_x86_callee ? 48 : 32)); // addi sp,sp
   emit_u32(code, &offset, 0x00008067U); // ret
   if (align_up_size(offset, 8, &offset) < 0 ||
       process_cross_stubs.size - offset < 24)
