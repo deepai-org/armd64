@@ -124,6 +124,21 @@ uint64_t poly_process_needed_ifunc_add(uint64_t, uint64_t)
 
 #elif defined(POLY_PROCESS_NEEDED_FP64_DEP)
 
+#if defined(__x86_64__)
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_fp64 fp64\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+#endif
+
 __attribute__((visibility("default")))
 double poly_process_needed_fp64(double left, double right) {
   return left + right + 4.0;

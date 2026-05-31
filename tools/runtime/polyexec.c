@@ -305,7 +305,8 @@ enum poly_process_bridge_kind {
   POLY_PROCESS_BRIDGE_VEC128_U32 = 1,
   POLY_PROCESS_BRIDGE_COMPACT_U32_F32 = 2,
   POLY_PROCESS_BRIDGE_COMPACT_F32_U32 = 3,
-  POLY_PROCESS_BRIDGE_U64_STACK9 = 4
+  POLY_PROCESS_BRIDGE_U64_STACK9 = 4,
+  POLY_PROCESS_BRIDGE_FP64 = 5
 };
 
 struct poly_process_bridge_spec {
@@ -390,6 +391,7 @@ struct poly_request {
 };
 
 static uint32_t process_native_signature_slot = 3;
+static uint32_t process_fp64_signature_slot = 4;
 static uint32_t process_vec128_signature_slot = 5;
 static uint32_t process_compact_u32_f32_signature_slot = 6;
 static uint32_t process_compact_f32_u32_signature_slot = 7;
@@ -612,6 +614,13 @@ static int read_poly_base_contract(int require_trap_vector) {
     return -1;
   }
   process_native_signature_slot = native_slot;
+  if (poly_abi_signature_set(process_fp64_signature_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly native fp64 signature slot setup failed slot=%u\n",
+      process_fp64_signature_slot);
+    return -1;
+  }
   if (poly_abi_signature_set(vec128_slot,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32) != 0) {
     fprintf(stderr,
@@ -800,6 +809,8 @@ static int process_bridge_kind_from_name(const char *name) {
     return POLY_PROCESS_BRIDGE_COMPACT_F32_U32;
   if (strcmp(name, "u64_stack9") == 0)
     return POLY_PROCESS_BRIDGE_U64_STACK9;
+  if (strcmp(name, "fp64") == 0)
+    return POLY_PROCESS_BRIDGE_FP64;
   return -1;
 }
 
@@ -910,6 +921,8 @@ static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
     return process_compact_f32_u32_signature_slot;
   if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9)
     return POLY_ABI_SIGNATURE_SLOT_EXCHANGE;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_FP64)
+    return process_fp64_signature_slot;
   return process_native_signature_slot;
 }
 
@@ -4155,7 +4168,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     return -1;
   if (callee_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
-      bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9)
+      bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FP64)
     return -1;
   if (caller_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
@@ -4169,6 +4183,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       callee_arch != POLY_ARCH_X86 &&
       !((caller_arch == POLY_ARCH_AARCH64 && callee_arch == POLY_ARCH_RISCV) ||
         (caller_arch == POLY_ARCH_RISCV && callee_arch == POLY_ARCH_AARCH64)))
+    return -1;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_FP64 &&
+      !(caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86))
     return -1;
   if (ensure_process_cross_stub_arena() < 0 ||
       align_up_size(process_cross_stubs.offset, 8,

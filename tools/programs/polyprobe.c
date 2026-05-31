@@ -631,7 +631,7 @@ static inline void aarch64_abi_signature_invalid_kind_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd28000a0\n" // movz x0,#5
-    ".long 0xd2800121\n" // movz x1,#9 (invalid kind)
+    ".long 0xd2800141\n" // movz x1,#10 (invalid kind)
     ".long 0xd5032f9f\n" // aarch64 ABI signature set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
@@ -663,7 +663,7 @@ static inline void riscv_abi_signature_invalid_kind_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00600513\n" // addi a0,zero,6
-    ".long 0x00900593\n" // addi a1,zero,9 (invalid kind)
+    ".long 0x00a00593\n" // addi a1,zero,10 (invalid kind)
     ".long 0x1800700b\n" // riscv ABI signature set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
@@ -2398,7 +2398,8 @@ int main(void) {
         POLY_ABI_SIGNATURE_KIND_EXCHANGE) != POLY_ERR_INVAL ||
       poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_COUNT) !=
         POLY_ERR_INVAL ||
-      poly_abi_signature_set(3, 9) != POLY_ERR_INVAL ||
+      poly_abi_signature_set(3,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64 + 1) != POLY_ERR_INVAL ||
       poly_abi_signature_get(3) !=
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 ABI signature invalid control mismatch\n");
