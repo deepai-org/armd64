@@ -3014,13 +3014,22 @@ static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
   }
 
   size_t offset = 0;
-  const size_t r10_imm_offset = emit_x86_movabs_r10(code, &offset, 0);
-  const size_t r11_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  code[offset++] = 0x53; // push rbx
+  code[offset++] = 0x41;
+  code[offset++] = 0x57; // push r15
+  emit_x86_movabs_r15(code, &offset, POLY_FRONTEND_AARCH64);
+  const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
+  const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
   const uint8_t pcall[] = {
-    0x0f, 0x3a, 0xfc, 0x21
+    0x0f, 0x3a, 0xfc,
+    (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32)
   };
   emit_bytes(code, &offset, pcall, sizeof(pcall));
   const size_t pcall_return_offset = offset;
+  code[offset++] = 0x41;
+  code[offset++] = 0x5f; // pop r15
+  code[offset++] = 0x5b; // pop rbx
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3044,9 +3053,9 @@ static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
   emit_riscv_vec128_u32_pair_add(code, &offset, 10, 11, 10, 11, 12, 13);
   emit_u32(code, &offset, 0x00008067U); // ret
 
-  store_u64(code, r10_imm_offset,
+  store_u64(code, target_imm_offset,
     (uint64_t) (uintptr_t) (code + aarch64_body_offset));
-  store_u64(code, r11_imm_offset,
+  store_u64(code, return_imm_offset,
     (uint64_t) (uintptr_t) (code + pcall_return_offset));
 
   poly_foreign_insn_count_status();
@@ -3076,13 +3085,22 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
   }
 
   size_t offset = 0;
-  const size_t r10_imm_offset = emit_x86_movabs_r10(code, &offset, 0);
-  const size_t r11_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  code[offset++] = 0x53; // push rbx
+  code[offset++] = 0x41;
+  code[offset++] = 0x57; // push r15
+  emit_x86_movabs_r15(code, &offset, POLY_FRONTEND_RISCV);
+  const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
+  const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
   const uint8_t pcall[] = {
-    0x0f, 0x3a, 0xfc, 0x22
+    0x0f, 0x3a, 0xfc,
+    (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32)
   };
   emit_bytes(code, &offset, pcall, sizeof(pcall));
   const size_t pcall_return_offset = offset;
+  code[offset++] = 0x41;
+  code[offset++] = 0x5f; // pop r15
+  code[offset++] = 0x5b; // pop rbx
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3116,9 +3134,9 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
   const size_t return_data_offset = offset;
   emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
 
-  store_u64(code, r10_imm_offset,
+  store_u64(code, target_imm_offset,
     (uint64_t) (uintptr_t) (code + riscv_body_offset));
-  store_u64(code, r11_imm_offset,
+  store_u64(code, return_imm_offset,
     (uint64_t) (uintptr_t) (code + pcall_return_offset));
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int32_t) target_data_offset - (int32_t) auipc_target_pc));
