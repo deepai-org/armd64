@@ -396,6 +396,38 @@ static uint64_t nativecheck_generic_enter_riscv_add(void) {
   return result;
 }
 
+static uint64_t nativecheck_generic_enter_aarch64_preserve_x20(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd28009b4\n" // movz x20,#77
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    POLY_OP_ENTER_A64
+    ".long 0xaa1403e0\n" // mov x0,x20
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
+static uint64_t nativecheck_generic_enter_riscv_preserve_s4(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x05800a13\n" // addi s4,zero,88
+    ".long 0x0000700b\n" // riscv x86 escape.
+    POLY_OP_ENTER_RV64
+    ".long 0x000a0513\n" // addi a0,s4,0
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    :
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
 static uint64_t nativecheck_generic_switch_aarch64_add(void) {
   uint64_t result;
   asm volatile(
@@ -2994,6 +3026,22 @@ static int run_poly_generic_enter_probe(void) {
   if (result != 42) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly generic riscv enter result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  result = nativecheck_generic_enter_aarch64_preserve_x20();
+  if (result != 77) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic aarch64 enter x20 preservation result=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+
+  result = nativecheck_generic_enter_riscv_preserve_s4();
+  if (result != 88) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly generic riscv enter s4 preservation result=%llu\n",
       (unsigned long long) result);
     return 1;
   }
