@@ -8280,6 +8280,16 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process relocations" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/aarch64-process-cross-needed-real.elf \
+      cross-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-x86-needed-real.elf \
+      cross-x86-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 needed" >/dev/ttyS0
+      exit 1
+    }
     /usr/lib/polyapps/aarch64-process-cross-x86-tls-real.elf \
       cross-x86-tls >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 tls" >/dev/ttyS0
@@ -8288,6 +8298,26 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real.elf \
       cross-x86-tls-default >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 default tls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-needed-ifunc-real.elf \
+      cross-ifunc-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross ifunc needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-fp64-real.elf \
+      cross-fp64-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross fp64" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-vec128-real.elf \
+      cross-vec128-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross vec128" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-compact-real.elf \
+      cross-compact-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross compact" >/dev/ttyS0
       exit 1
     }
     POLY_PROCESS_ENV=present /usr/bin/polyexec --process \
@@ -8521,6 +8551,16 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: riscv direct process relocations" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/riscv-process-cross-needed-real.elf \
+      cross-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-x86-needed-real.elf \
+      cross-x86-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross x86 needed" >/dev/ttyS0
+      exit 1
+    }
     /usr/lib/polyapps/riscv-process-cross-x86-tls-real.elf \
       cross-x86-tls >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process cross x86 tls" >/dev/ttyS0
@@ -8529,6 +8569,26 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-process-cross-x86-tls-default-real.elf \
       cross-x86-tls-default >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process cross x86 default tls" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-needed-ifunc-real.elf \
+      cross-ifunc-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross ifunc needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-fp64-real.elf \
+      cross-fp64-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross fp64" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-vec128-real.elf \
+      cross-vec128-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross vec128" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-compact-real.elf \
+      cross-compact-needed >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross compact" >/dev/ttyS0
       exit 1
     }
     for foreign in \
@@ -10324,22 +10384,30 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf .*process=1" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf .*process=1" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf .*process=1" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf .*process=1" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
+        polybinfmt_process_patterns=(
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-needed-ifunc-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-fp64-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-vec128-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-compact-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-needed-ifunc-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-fp64-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-vec128-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-compact-real\\.elf .*process=1"
+        )
+        for pattern in "${polybinfmt_process_patterns[@]}"; do
+          if ! grep -Eq "$pattern" "$SERIAL_LOG"; then
+            sleep 1
+            continue 2
+          fi
+        done
       fi
       if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
         if [[ "$EXPECT_POLY_CPUID" == "1" ]]; then
