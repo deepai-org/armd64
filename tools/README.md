@@ -45,7 +45,7 @@ Prefer real boot tests:
 - `make boot-poly-apps-arch-traps`: raw frontend apps, syscalls, traps, and
   generated ELF payloads.
 - `make boot-poly-focused-validation`: process cross-ISA plus real-XSAVE
-  call/thread/signal coverage.
+  call/thread/signal and benchmark trap-delta coverage.
 - `make boot-poly-binfmt-arch-traps`: native x86 checks plus binfmt dispatch.
 - `make boot-poly-full-real-xsave-arch-traps`: broad gate with the guest XCR0
   module loaded and real XSAVE/XRSTOR state required.
