@@ -180,6 +180,29 @@ static int expect_monitor_packet_pc(const char *label,
   return 0;
 }
 
+static int nativecheck_is_canonical48(uint64_t value) {
+  return ((int64_t) (value << 16) >> 16) == (int64_t) value;
+}
+
+static int expect_monitor_packet_import_pc(const char *label,
+    const struct nativecheck_monitor_packet *packet, uint32_t import_id) {
+  const uint64_t trap_pc = POLY_IMPORT_CALL_BASE +
+    (uint64_t) import_id * POLY_IMPORT_CALL_STRIDE;
+  const uint64_t resume_pc = packet->trap.resume_pc;
+
+  if (packet->trap.trap_pc != trap_pc || resume_pc == 0 ||
+      resume_pc == trap_pc || !nativecheck_is_canonical48(resume_pc)) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly monitor packet %s import pc mismatch trap=0x%llx/0x%llx resume=0x%llx\n",
+      label,
+      (unsigned long long) packet->trap.trap_pc,
+      (unsigned long long) trap_pc,
+      (unsigned long long) resume_pc);
+    return 1;
+  }
+  return 0;
+}
+
 static inline uint64_t read_rax(void) {
   uint64_t value;
   asm volatile("" : "=a"(value));
@@ -4550,6 +4573,9 @@ static int run_poly_trap_vector_probe(void) {
   if (expect_monitor_packet("aarch64 import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 77, 88, 99) != 0)
     return 1;
+  if (expect_monitor_packet_import_pc("aarch64 import", &monitor_packet,
+      POLY_IMPORT_FUNC_STRLEN) != 0)
+    return 1;
 
   nativecheck_install_descriptor_poison();
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -4583,6 +4609,9 @@ static int run_poly_trap_vector_probe(void) {
   if (expect_monitor_packet("aarch64 descriptor-backed import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 77, 88, 99) != 0)
     return 1;
+  if (expect_monitor_packet_import_pc("aarch64 descriptor-backed import",
+      &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
+    return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
@@ -4605,6 +4634,9 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_monitor_packet("riscv import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
+    return 1;
+  if (expect_monitor_packet_import_pc("riscv import", &monitor_packet,
+      POLY_IMPORT_FUNC_STRLEN) != 0)
     return 1;
 
   nativecheck_install_descriptor_poison();
@@ -4637,6 +4669,9 @@ static int run_poly_trap_vector_probe(void) {
   if (expect_monitor_packet("riscv descriptor-backed import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
     return 1;
+  if (expect_monitor_packet_import_pc("riscv descriptor-backed import",
+      &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
+    return 1;
 
   puts("NATIVE_POLY_DESCRIPTOR_IMPORT_TRAPS_OK");
 
@@ -4661,6 +4696,9 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_monitor_packet("riscv compressed import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
+    return 1;
+  if (expect_monitor_packet_import_pc("riscv compressed import",
+      &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
