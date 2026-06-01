@@ -100,6 +100,11 @@ the monitor owns syscall translation, lazy binding, helper calls, and debugger
 policy. The kernel still owns hard page faults, signals, scheduling,
 interrupts, and real syscalls issued by the monitor.
 
+Trap-vector and monitor-packet addresses are architectural control addresses.
+Non-canonical values are rejected by the control instruction or XSAVE import
+before mutating state, so a bad monitor setup cannot fail later during an
+unrelated frontend trap.
+
 ## Priority
 
 1. Keep `PSWITCH` and `PCALL` fixed-latency with no descriptor parsing.
