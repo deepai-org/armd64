@@ -5661,9 +5661,14 @@ static int run_poly_state_key_probe(void) {
   return 0;
 }
 
+static int nativecheck_poly_state_control_equal(
+    const struct poly_xsave_state *after,
+    const struct poly_xsave_state *before, const char *label);
+
 static int run_poly_invalid_import_no_mutation_probe(void) {
   struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
   struct poly_xsave_state before __attribute__((aligned(64)));
+  struct poly_xsave_state after __attribute__((aligned(64)));
   struct poly_xsave_state bad __attribute__((aligned(64)));
   struct sigaction action;
   struct sigaction old_action;
@@ -5671,6 +5676,7 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   memset(&before, 0, sizeof(before));
+  memset(&after, 0, sizeof(after));
   memset(&bad, 0, sizeof(bad));
   if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
       poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_CALL) != 0) {
@@ -5714,6 +5720,10 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly invalid import sigaction restore failed\n");
     return 1;
   }
+
+  poly_state_export(&after);
+  if (!nativecheck_poly_state_control_equal(&after, &before, "xsave-import"))
+    return 1;
 
   poly_trap_vector_get();
   if (read_rax() != before.header.trap_vector_pc) {
@@ -5789,9 +5799,11 @@ static int nativecheck_poly_state_control_equal(
       memcmp(&after->cross_return, &before->cross_return,
         sizeof(after->cross_return)) != 0 ||
       memcmp(&after->landing_policy, &before->landing_policy,
-        sizeof(after->landing_policy)) != 0) {
+        sizeof(after->landing_policy)) != 0 ||
+      memcmp(&after->state_key, &before->state_key,
+        sizeof(after->state_key)) != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly invalid pcall mutated XSAVE state case=%s mode=%u/%u import=%llu/%llu cross=%llu/%llu slot5=%u/%u landing=0x%llx/0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly rejected control mutated XSAVE state case=%s mode=%u/%u import=%llu/%llu cross=%llu/%llu slot5=%u/%u landing=0x%llx/0x%llx statekey=0x%llx/0x%llx\n",
       label, after->header.current_mode, before->header.current_mode,
       (unsigned long long) after->import_return.top,
       (unsigned long long) before->import_return.top,
@@ -5800,7 +5812,9 @@ static int nativecheck_poly_state_control_equal(
       after->abi_signature.slots[5].kind,
       before->abi_signature.slots[5].kind,
       (unsigned long long) after->landing_policy.flags,
-      (unsigned long long) before->landing_policy.flags);
+      (unsigned long long) before->landing_policy.flags,
+      (unsigned long long) after->state_key.explicit_key,
+      (unsigned long long) before->state_key.explicit_key);
     return 0;
   }
   return 1;
