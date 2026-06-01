@@ -3749,7 +3749,7 @@ static void emit_x86_state_key_set(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x0f;
   code[(*offset)++] = 0x3a;
   code[(*offset)++] = 0xfc;
-  code[(*offset)++] = 0x65;
+  code[(*offset)++] = POLY_X86_CTRL_STATE_KEY_SET;
 }
 
 static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,

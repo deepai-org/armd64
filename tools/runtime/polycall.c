@@ -2556,7 +2556,7 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
 }
 
 static uint8_t poly_x86_pcall_sig_imm(uint32_t signature_slot) {
-  return (uint8_t) (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + signature_slot);
+  return (uint8_t) POLY_X86_CTRL_PCALL_SIG_IMM(signature_slot);
 }
 
 static uint32_t poly_aarch64_pcall_sig_imm(uint32_t signature_slot) {
@@ -2656,7 +2656,7 @@ static void emit_x86_state_key_set(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x0f;
   code[(*offset)++] = 0x3a;
   code[(*offset)++] = 0xfc;
-  code[(*offset)++] = 0x65;
+  code[(*offset)++] = POLY_X86_CTRL_STATE_KEY_SET;
 }
 
 static void emit_movabs_r10(uint8_t *code, size_t *offset, uint64_t value) {
