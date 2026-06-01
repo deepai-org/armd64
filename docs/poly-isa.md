@@ -9,8 +9,7 @@ code and cross-ISA dynamic libraries, not a new compiler-only ABI.
 ```sh
 make image
 make boot-poly-full-real-xsave-arch-traps
-make boot-poly-exec-cross-arch-traps
-make boot-poly-call-real-xsave-arch-traps
+make boot-poly-focused-validation
 make boot-poly-binfmt-arch-traps
 rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
