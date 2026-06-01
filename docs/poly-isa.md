@@ -1,4 +1,12 @@
-# Poly ISA
+# Poly ISA Quick Reference
+
+Poly extends an x86_64 userspace process with direct AArch64 and RISC-V64
+frontends. The goal is compatibility with existing native ABI code and shared
+libraries, not a new compiler-only ABI and not one trap per foreign instruction.
+
+Design rationale lives in `docs/poly-isa-design-directions.md`.
+
+## Run
 
 ```sh
 make image
@@ -6,22 +14,19 @@ make boot-poly-exec-cross-arch-traps
 make boot-poly-full-real-xsave-arch-traps
 ```
 
-Poly lets existing x86_64, AArch64, and RISC-V64 userspace code run in one
-x86_64 virtual address space. The goal is precompiled-code compatibility, not a
-new compiler-only ABI and not one trap per foreign instruction.
-
-## Execution Model
+## Difference From x86_64
 
 - x86_64 stays the system ISA: boot, privilege, paging, faults, interrupts,
   VM control, atomics, and TSO ordering.
-- AArch64 and RISC-V64 are user-mode frontends in the same process address
-  space, page tables, and stack memory.
-- AArch64 fetch is direct aligned 32-bit fetch. RISC-V fetch supports 16-bit RVC
-  and 32-bit instructions.
+- AArch64 and RISC-V64 are user-mode frontends sharing the same process address
+  space, page tables, permissions, and stack memory.
+- AArch64 fetches aligned 32-bit instructions directly. RISC-V fetches 16-bit
+  RVC and 32-bit instructions directly.
 - ISA transitions use decoded Poly control instructions, not `#UD` envelopes.
 - Foreign register state is explicit per-thread XSAVE-style state.
-- The runtime handles ABI shims, stack arguments, aggregates, variadics, lazy
-  binding, syscall translation, and policy.
+- Hardware handles frontend switches, register-only ABI signatures, precise
+  traps, and XSAVE state. Runtime software handles stack arguments, aggregates,
+  variadics, lazy binding, syscall policy, and other ABI reshaping.
 
 ## Controls
 
@@ -35,8 +40,7 @@ new compiler-only ABI and not one trap per foreign instruction.
 
 ## Temporary Encodings
 
-Current Bochs/test encodings. These are placeholders, not vendor opcode
-allocations.
+Current Bochs/test encodings are placeholders, not vendor allocations.
 
 | ID | Frontend | Fetch | Test encoding |
 | --- | --- | --- | --- |
@@ -45,5 +49,3 @@ allocations.
 | `2` | RISC-V64 | 16-bit RVC plus 32-bit | `0x0000700b | (subop << 25)` |
 
 Constants live in `tools/include/polycpuid.h`.
-
-Hardware and ABI rationale lives in `docs/poly-isa-design-directions.md`.

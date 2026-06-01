@@ -66,6 +66,7 @@ static pthread_barrier_t start_barrier;
 static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
 static uint64_t explicit_state_key_counter __attribute__((aligned(8)));
 static uint64_t real_xsave_context_counter __attribute__((aligned(8)));
+static uint64_t real_xsave_no_key_counter __attribute__((aligned(8)));
 struct polythread_monitor_packet {
   struct poly_trap_packet trap;
   uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
@@ -1311,6 +1312,67 @@ static int run_real_xsave_context_probe(uintptr_t worker_id, uint64_t base) {
   return 0;
 }
 
+static int run_real_xsave_no_key_probe(uintptr_t worker_id, uint64_t base) {
+  const uint64_t aarch64_seed = base + 0x127000ULL;
+  const uint64_t riscv_seed = base + 0x128000ULL;
+  const uint64_t aarch64_fp =
+    double_to_bits((double) worker_id + 89.5);
+  const uint64_t riscv_fp =
+    double_to_bits((double) worker_id + 97.5);
+
+  if (!polythread_poly_xsave_enabled())
+    return 0;
+
+  if (polythread_clear_state_key(worker_id) != 0)
+    return -1;
+  if (pcall_aarch64_hidden_set(aarch64_seed) != aarch64_seed ||
+      pcall_riscv_hidden_set(riscv_seed) != riscv_seed ||
+      pcall_aarch64_hidden_fp_set(aarch64_fp) != aarch64_fp ||
+      pcall_riscv_hidden_fp_set(riscv_fp) != riscv_fp) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu real XSAVE no-key setup failed\n",
+      (unsigned long) worker_id);
+    return -1;
+  }
+
+  if (wait_for_workers(worker_id, "real-xsave-no-key-set") != 0)
+    return -1;
+  for (unsigned n = 0; n < POLYTHREAD_YIELDS * 4; n++)
+    sched_yield();
+
+  uint64_t got_aarch64 = pcall_aarch64_hidden_get(37);
+  uint64_t got_riscv = pcall_riscv_hidden_get(41);
+  uint64_t got_aarch64_fp =
+    pcall_aarch64_hidden_fp_get(double_to_bits(37.0));
+  uint64_t got_riscv_fp =
+    pcall_riscv_hidden_fp_get(double_to_bits(41.0));
+  if (got_aarch64 != aarch64_seed + 37 ||
+      got_riscv != riscv_seed + 41 ||
+      got_aarch64_fp != double_to_bits((double) worker_id + 126.5) ||
+      got_riscv_fp != double_to_bits((double) worker_id + 138.5)) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu real XSAVE no-key isolation failed "
+      "a64=0x%llx/0x%llx rv=0x%llx/0x%llx "
+      "a64fp=0x%llx/0x%llx rvfp=0x%llx/0x%llx\n",
+      (unsigned long) worker_id,
+      (unsigned long long) got_aarch64,
+      (unsigned long long) (aarch64_seed + 37),
+      (unsigned long long) got_riscv,
+      (unsigned long long) (riscv_seed + 41),
+      (unsigned long long) got_aarch64_fp,
+      (unsigned long long) double_to_bits((double) worker_id + 126.5),
+      (unsigned long long) got_riscv_fp,
+      (unsigned long long) double_to_bits((double) worker_id + 138.5));
+    return -1;
+  }
+
+  if (wait_for_workers(worker_id, "real-xsave-no-key-checked") != 0)
+    return -1;
+
+  __atomic_add_fetch(&real_xsave_no_key_counter, 1, __ATOMIC_SEQ_CST);
+  return 0;
+}
+
 static int check_exported_thread_banks(uintptr_t worker_id,
     uint64_t expected_aarch64_gpr, uint64_t expected_riscv_gpr,
     uint64_t expected_aarch64_fp, uint64_t expected_riscv_fp) {
@@ -1404,6 +1466,10 @@ static void *worker_main(void *arg) {
   if (run_real_xsave_context_probe(worker_id, base) != 0)
     return (void *) 1;
   if (wait_for_workers(worker_id, "real-xsave-context") != 0)
+    return (void *) 1;
+  if (run_real_xsave_no_key_probe(worker_id, base) != 0)
+    return (void *) 1;
+  if (wait_for_workers(worker_id, "real-xsave-no-key") != 0)
     return (void *) 1;
 
   if (setup_polythread_native_signature_slot() != 0) {
@@ -2136,6 +2202,8 @@ int main(void) {
   printf("POLYTHREAD_STATE_KEY_OK workers=%u\n", POLYTHREAD_THREADS);
   uint64_t real_xsave_context_count =
     __atomic_load_n(&real_xsave_context_counter, __ATOMIC_SEQ_CST);
+  uint64_t real_xsave_no_key_count =
+    __atomic_load_n(&real_xsave_no_key_counter, __ATOMIC_SEQ_CST);
   if (polythread_poly_xsave_enabled()) {
     if (real_xsave_context_count != POLYTHREAD_THREADS) {
       fprintf(stderr,
@@ -2146,6 +2214,16 @@ int main(void) {
       return 1;
     }
     printf("POLYTHREAD_REAL_XSAVE_CONTEXT_OK workers=%u\n",
+      POLYTHREAD_THREADS);
+    if (real_xsave_no_key_count != POLYTHREAD_THREADS) {
+      fprintf(stderr,
+        "POLYTHREAD_FAIL: real XSAVE no-key workers got=%llu expected=%u\n",
+        (unsigned long long) real_xsave_no_key_count,
+        POLYTHREAD_THREADS);
+      pthread_barrier_destroy(&start_barrier);
+      return 1;
+    }
+    printf("POLYTHREAD_REAL_XSAVE_NO_KEY_OK workers=%u\n",
       POLYTHREAD_THREADS);
   }
   else {

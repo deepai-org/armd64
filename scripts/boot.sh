@@ -12250,6 +12250,10 @@ EOF
             sleep 1
             continue
           fi
+          if ! grep -q "POLYTHREAD_REAL_XSAVE_NO_KEY_OK" "$SERIAL_LOG"; then
+            sleep 1
+            continue
+          fi
         fi
         if ! grep -q "POLYTHREAD_MIXED_ATOMIC_OK" "$SERIAL_LOG"; then
           sleep 1
