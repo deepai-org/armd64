@@ -12248,6 +12248,14 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=aarch64 exchange_u64=0 call_kind=27 .*special_sig=0 .*sret_thunk=0 .*fp64_stack_thunk=0 .*hfa_f64_arg_thunk=1 .*hfa_f64_ret_thunk=0 .*hfa_f32_ret_thunk=0 .*aarch64-pcall-hfa-arg-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=aarch64 exchange_u64=0 call_kind=28 .*special_sig=0 .*sret_thunk=0 .*fp64_stack_thunk=0 .*hfa_f64_arg_thunk=1 .*hfa_f64_ret_thunk=0 .*hfa_f32_ret_thunk=0 .*aarch64-pcall-hfa-arg-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=aarch64 exchange_u64=0 call_kind=29 .*special_sig=1 .*sret_thunk=0 .*fp64_stack_thunk=0 .*hfa_f64_arg_thunk=0 .*hfa_f64_ret_thunk=0 .*hfa_f32_ret_thunk=0 .*aarch64-pcall-hfa-arg-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue

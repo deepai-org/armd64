@@ -9835,7 +9835,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     import_contract.signature_slot_x86_sysv_regs_fp128_ret;
   const int use_sret_pcall = call_kind == POLY_CALL_SRET_U64;
   const int use_fp64_stack_pcall = call_kind == POLY_CALL_FP64_STACK;
-  const int use_hfa_f64_arg_sig_pcall = program->arch == POLY_ARCH_AARCH64 &&
+  const int use_hfa_f64_arg_stack_thunk = program->arch == POLY_ARCH_AARCH64 &&
     (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG ||
      call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG);
   const int use_hfa_f64_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
@@ -9851,7 +9851,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     program->arch == POLY_ARCH_AARCH64 ?
       POLY_X86_PCALL_SRET_AARCH64_SEQUENCE_SIZE :
       POLY_X86_PCALL_SRET_RISCV_SEQUENCE_SIZE;
-  const size_t hfa_f64_arg_pcall_sequence_size =
+  const size_t hfa_f64_arg_stack_thunk_sequence_size =
     (call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG ?
       POLY_X86_HFA4_F64_ARG_LOAD_SEQUENCE_SIZE :
       POLY_X86_HFA3_F64_ARG_LOAD_SEQUENCE_SIZE) +
@@ -9873,7 +9873,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       (use_special_sig_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
         (use_sret_pcall ? sret_pcall_sequence_size :
           (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
-            (use_hfa_f64_arg_sig_pcall ? hfa_f64_arg_pcall_sequence_size :
+            (use_hfa_f64_arg_stack_thunk ? hfa_f64_arg_stack_thunk_sequence_size :
               (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
                 (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
                   POLY_X86_CONTROL_OPCODE_SIZE)))))));
@@ -10080,7 +10080,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_x86_pcall_sret_thunk(code, &offset, program->arch,
       import_contract.signature_slot_sret_x86_sysv_regs);
   }
-  else if (use_hfa_f64_arg_sig_pcall) {
+  else if (use_hfa_f64_arg_stack_thunk) {
     emit_x86_load_hfa_f64_arg_from_stack(code, &offset,
       call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG ? 4U : 3U);
     emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
@@ -11238,7 +11238,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     program->arch_name, use_exchange_u64_pcall ? 1U : 0U, call_kind,
     use_sig_imm_pcall ? 1U : 0U, use_special_sig_pcall ? 1U : 0U,
     use_sret_pcall ? 1U : 0U, use_fp64_stack_pcall ? 1U : 0U,
-    use_hfa_f64_arg_sig_pcall ? 1U : 0U,
+    use_hfa_f64_arg_stack_thunk ? 1U : 0U,
     use_hfa_f64_return_thunk ? 1U : 0U,
     use_hfa_f32_return_thunk ? 1U : 0U, program->path);
   if (poly_state_key_get() != stub_state_key) {
