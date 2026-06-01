@@ -10,6 +10,8 @@ For commands and prototype encodings, see `docs/poly-isa.md`.
   atomics, VM control, and global TSO memory ordering stay x86-owned.
 - AArch64 and RISC-V64 are peer user-mode frontends fetching real native
   instructions from the same address space.
+- Frontends keep native fetch rules: x86_64 remains variable length, AArch64 is
+  4-byte aligned, and RISC-V supports 16/32-bit instruction fetch for RVC.
 - Hardware must not implement Linux, libc, libgcc, libatomic, dynamic-linker
   policy, stack repacking, or user-memory call descriptors.
 - Poly state is explicit XSAVE-style architectural state, not hidden emulator
