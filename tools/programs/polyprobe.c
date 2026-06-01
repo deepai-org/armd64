@@ -3615,6 +3615,32 @@ int main(void) {
       "POLY_PROBE_FAIL: riscv invalid monitor-packet control mismatch\n");
     return 1;
   }
+  memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
+  poly_state_export(&polyprobe_state);
+  if (polyprobe_state.header.trap_vector_pc != riscv_vector ||
+      polyprobe_state.header.trap_vector_mode != POLY_MODE_RAW_AARCH64 ||
+      polyprobe_state.header.monitor_packet_addr != riscv_packet) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: control-plane XSAVE export mismatch vector=0x%llx mode=%u packet=0x%llx\n",
+      (unsigned long long) polyprobe_state.header.trap_vector_pc,
+      polyprobe_state.header.trap_vector_mode,
+      (unsigned long long) polyprobe_state.header.monitor_packet_addr);
+    return 1;
+  }
+  polyprobe_state.header.trap_vector_pc = x86_vector;
+  polyprobe_state.header.trap_vector_mode = POLY_MODE_X86;
+  polyprobe_state.header.monitor_packet_addr = x86_packet;
+  poly_state_import(&polyprobe_state);
+  if (poly_trap_vector_get() != x86_vector ||
+      poly_trap_vector_mode_get() != POLY_MODE_X86 ||
+      poly_monitor_packet_get() != x86_packet) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: control-plane XSAVE import mismatch vector=0x%llx mode=%llu packet=0x%llx\n",
+      (unsigned long long) poly_trap_vector_get(),
+      (unsigned long long) poly_trap_vector_mode_get(),
+      (unsigned long long) poly_monitor_packet_get());
+    return 1;
+  }
   poly_monitor_packet_set_value(0);
   install_polyprobe_trap_vector();
 
