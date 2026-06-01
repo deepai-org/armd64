@@ -384,15 +384,20 @@ static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
     code[(*offset)++] = (uint8_t) ((value >> (n * 8)) & 0xff);
 }
 
+static void emit_x86_poly_control(uint8_t *code, size_t *offset,
+    uint8_t subop) {
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_0;
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_1;
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_2;
+  code[(*offset)++] = subop;
+}
+
 static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
     uint32_t frontend) {
   code[(*offset)++] = 0x41; // mov r15d,frontend
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, frontend);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = POLY_X86_CTRL_PENTER_MODE;
+  emit_x86_poly_control(code, offset, POLY_X86_CTRL_PENTER_MODE);
 }
 
 static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes,
