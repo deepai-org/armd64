@@ -17,6 +17,8 @@ rg -a 'BOOT_OK|NATIVE_CHECK_OK|NATIVE_POLY_REAL_XSAVE_OK|POLY_PROBE_OK|POLYAPP_O
 ```
 
 Use `BOOT_TIMEOUT_SECONDS=900 make <target>` for long focused gates.
+Use `make boot-poly-focused-validation` to run the current focused cross-ISA
+process and real-XSAVE call/thread/signal gates sequentially.
 
 Other useful targets:
 
@@ -42,6 +44,8 @@ Other useful targets:
 - `make boot-poly-bench-arch-traps`: switch and raw-instruction-count
   benchmarks.
 - `make boot-poly-binfmt-arch-traps`: loader/binfmt smoke tests.
+- `make boot-poly-focused-validation`: sequential focused validation for
+  cross-ISA shared libraries plus real-XSAVE calls/threads/signals.
 - `make boot-poly-full-arch-traps`: broad regression run, including focused
   process cross-call and syscall gates.
 - `make boot-poly-full-real-xsave-arch-traps`: broad regression run with the

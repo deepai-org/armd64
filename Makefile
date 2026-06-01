@@ -1,9 +1,10 @@
 IMAGE ?= armd64-bochs
 POLY_XCR0_MODULE ?= out/poly_xcr0.ko
 BOOT_TIMEOUT_SECONDS ?= 300
+BOOT_FOCUSED_TIMEOUT_SECONDS ?= 900
 BOOT_DOCKER_ENV = -e BOOT_TIMEOUT_SECONDS=$(BOOT_TIMEOUT_SECONDS)
 
-.PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract boot boot-poly boot-poly-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
+.PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract boot boot-poly boot-poly-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -194,6 +195,10 @@ boot-poly-binfmt-arch-traps:
 		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
 		./scripts/boot.sh
+
+boot-poly-focused-validation:
+	$(MAKE) BOOT_TIMEOUT_SECONDS=$(BOOT_FOCUSED_TIMEOUT_SECONDS) boot-poly-exec-cross-arch-traps
+	$(MAKE) BOOT_TIMEOUT_SECONDS=$(BOOT_FOCUSED_TIMEOUT_SECONDS) boot-poly-call-real-xsave-arch-traps
 
 boot-poly-full-arch-traps:
 	docker run --rm \
