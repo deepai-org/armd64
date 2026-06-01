@@ -236,6 +236,7 @@ POLYCALL_AARCH64_AES_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch6
 POLYCALL_AARCH64_PMULL_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_pmull_real.c"
 POLYCALL_AARCH64_SHA_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_sha_real.c"
 POLYCALL_AARCH64_SHA1_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_sha1_real.c"
+POLYCALL_AARCH64_SHA512_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_sha512_real.c"
 POLYCALL_RISCV_ZBS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_riscv_zbs_real.c"
 POLYCALL_RISCV_ZBA_ZBB_ZICOND_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_riscv_zba_zbb_zicond_real.c"
 POLYCALL_RISCV_ZBA_ZBB_WORD_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_riscv_zba_zbb_word_real.c"
@@ -3124,6 +3125,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_AARCH64_SHA1_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sha1-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=armv8.2-a+sha3 \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_AARCH64_SHA512_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sha512-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT_ROTATE_REAL_SRC" \
@@ -8392,6 +8398,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-pmull-real.so#poly_entry=42 \
     /usr/lib/polyapps/aarch64-pcall-sha-real.so#poly_entry=42 \
     /usr/lib/polyapps/aarch64-pcall-sha1-real.so#poly_entry=42 \
+    /usr/lib/polyapps/aarch64-pcall-sha512-real.so#poly_entry=42 \
     /usr/lib/polyapps/aarch64-pcall-int-rotate-real.so#poly_entry=0xbc1e4a9e37a5682e \
     /usr/lib/polyapps/aarch64-pcall-int-ccmp-real.so#poly_entry=5 \
     /usr/lib/polyapps/aarch64-pcall-postindex-mem.so#poly_entry=68 \
