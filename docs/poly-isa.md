@@ -1,24 +1,26 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 CPU so existing native objects can run in one address space. It is not a new portable compiler ABI; see `docs/poly-isa-design-directions.md` for rationale.
+Poly lets existing x86_64, AArch64, and RISC-V64 code run in one x86_64 process.
+It is not a new compiler ABI. Full rationale: `docs/poly-isa-design-directions.md`.
 
-## Model
+## Scope
 
-- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- x86_64 remains the system ISA: boot, paging, privilege, interrupts, kernel syscalls, atomics, VM control, and TSO memory ordering.
-- Foreign frontends fetch native instructions from `RIP`: AArch64 as aligned 32-bit words, RISC-V64 as 16/32-bit instructions with RVC.
-- Cross-ISA calls target native ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
-- Poly state is per-thread XSAVE-style state.
+- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- x86_64 owns boot, privilege, paging, interrupts, kernel entry, atomics, VM
+  control, and global TSO memory ordering.
+- Foreign frontends are user-mode only and fetch native instructions from `RIP`.
+- ABI target: ordinary SysV x86_64, AAPCS64, and RISC-V psABI objects.
+- Poly state is explicit per-thread XSAVE-style state.
 
-## Controls
+## Prototype Controls
 
-Decoded controls, not `#UD` trap envelopes:
+Decoded controls, not `#UD` envelopes:
 
-```text
-x86_64    0f 3a fc <subop>
-AArch64   0xd503201f | ((subop & 0x7f) << 5)
-RISC-V64  0x0000700b | ((subop & 0x7f) << 25)
-```
+| Frontend | Temporary encoding |
+| --- | --- |
+| x86_64 | `0f 3a fc <subop>` |
+| AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
+| RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
 | Subop | Operation |
 | --- | --- |
@@ -32,7 +34,11 @@ RISC-V64  0x0000700b | ((subop & 0x7f) << 25)
 
 ## Boundary
 
-- Hardware: frontend switching, register-only ABI signatures, transition stack, return cookies, landing validation, precise trap packets.
-- Native returns (`ret`, `ret x30`, RISC-V `ret`) cross back through the return cookie installed by `PCALL`.
-- Runtime: stack arguments, aggregates, variadics, incompatible vectors, lazy binding, syscalls, imports, and helper libraries.
-- Never in hardware: user-memory call descriptors, stack repacking, syscall translation, libc/libgcc/libatomic policy, or OS policy.
+- Hardware: fixed-latency frontend switches, register-only ABI signatures,
+  landing validation, return cookies, transition-stack recovery, trap packets.
+- Returns: x86_64 `ret`, AArch64 `ret x30`, and RISC-V `ret` cross through the
+  `PCALL` return cookie.
+- Runtime: stack arguments, aggregates, variadics, vectors, lazy binding,
+  imports, helper libraries, and syscall translation.
+- Not hardware: user-memory call descriptors, stack repacking, libc/libgcc/
+  libatomic policy, syscall policy, or OS policy.
