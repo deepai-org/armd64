@@ -62,6 +62,10 @@ case "$path" in
   */aarch64-process-preload-second-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-needed-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-x86-fp64-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-x86-fp32-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-x86-sret-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-x86-vec128-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-tls-default-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-compact-real.elf) expected=42; process_mode=1 ;;
@@ -329,6 +333,10 @@ case "$path" in
   */riscv-process-preload-second-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-needed-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-x86-fp64-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-x86-fp32-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-x86-sret-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-x86-vec128-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-tls-default-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-compact-real.elf) expected=42; process_mode=1 ;;

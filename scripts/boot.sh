@@ -9445,6 +9445,26 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 needed" >/dev/ttyS0
       exit 1
     }
+    /usr/lib/polyapps/aarch64-process-cross-x86-fp64-real.elf \
+      cross-x86-fp64 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 fp64" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-x86-fp32-real.elf \
+      cross-x86-fp32 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 fp32" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-x86-sret-real.elf \
+      cross-x86-sret >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 sret" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/aarch64-process-cross-x86-vec128-real.elf \
+      cross-x86-vec128 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 vec128" >/dev/ttyS0
+      exit 1
+    }
     /usr/lib/polyapps/aarch64-process-cross-x86-compact-real.elf \
       cross-x86-compact >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: aarch64 direct process cross x86 compact" >/dev/ttyS0
@@ -9925,6 +9945,26 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/riscv-process-cross-x86-needed-real.elf \
       cross-x86-needed >/dev/ttyS0 2>&1 || {
       echo "POLYBINFMT_FAIL: riscv direct process cross x86 needed" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-x86-fp64-real.elf \
+      cross-x86-fp64 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross x86 fp64" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-x86-fp32-real.elf \
+      cross-x86-fp32 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross x86 fp32" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-x86-sret-real.elf \
+      cross-x86-sret >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross x86 sret" >/dev/ttyS0
+      exit 1
+    }
+    /usr/lib/polyapps/riscv-process-cross-x86-vec128-real.elf \
+      cross-x86-vec128 >/dev/ttyS0 2>&1 || {
+      echo "POLYBINFMT_FAIL: riscv direct process cross x86 vec128" >/dev/ttyS0
       exit 1
     }
     /usr/lib/polyapps/riscv-process-cross-x86-compact-real.elf \
@@ -12745,6 +12785,10 @@ EOF
           "POLYBINFMT_DIRECT_PRELOAD: arch=aarch64 variant=origin-platform"
           "POLYBINFMT_DIRECT_PRELOAD: arch=aarch64 variant=first-wins"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-fp64-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-fp32-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-vec128-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/aarch64-process-cross-x86-compact-real\\.elf .*process=1"
@@ -12793,6 +12837,10 @@ EOF
           "POLYBINFMT_DIRECT_PRELOAD: arch=riscv variant=origin-platform"
           "POLYBINFMT_DIRECT_PRELOAD: arch=riscv variant=first-wins"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-needed-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-fp64-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-fp32-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf .*process=1"
+          "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-vec128-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf .*process=1"
           "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-process-cross-x86-compact-real\\.elf .*process=1"
@@ -12841,6 +12889,10 @@ EOF
           "POLYEXEC_CROSS_STUBS: .*a64_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*a64_to_rv=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-compact-real\\.elf.*sig_slots=[1-9][0-9]*.*stack_bridges=0.*compact_shuffles=[1-9][0-9]*.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-needed-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-fp64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-fp32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-tls-default-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-compact-real\\.elf.*sig_slots=[1-9][0-9]*.*stack_bridges=0.*compact_shuffles=[1-9][0-9]*.*x86_wrappers=0"
@@ -12851,6 +12903,10 @@ EOF
           "POLYEXEC_CROSS_STUBS: .*rv_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*rv_to_a64=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-compact-real\\.elf.*sig_slots=[1-9][0-9]*.*stack_bridges=0.*compact_shuffles=[1-9][0-9]*.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-needed-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-fp64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-fp32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-tls-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-tls-default-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-compact-real\\.elf.*sig_slots=[1-9][0-9]*.*stack_bridges=0.*compact_shuffles=[1-9][0-9]*.*x86_wrappers=0"
