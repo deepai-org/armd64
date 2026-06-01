@@ -1826,7 +1826,7 @@ static void child_expect_aarch64_invalid_generic_signature_slot_signal(void) {
     ".long 0xd2800010\n" // movz x16,#0
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0xd2800012\n" // movz x18,#0
-    ".long 0xd2800193\n" // movz x19,#12 (invalid signature slot)
+    ".long 0xd28001b3\n" // movz x19,#13 (invalid signature slot)
     ".long 0xd5032f5f\n" // aarch64 generic signature pcall
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -1874,7 +1874,7 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
     ".long 0x00000293\n" // addi x5,zero,0
     ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
     ".long 0x00000393\n" // addi x7,zero,0
-    ".long 0x00c00e13\n" // addi x28,zero,12 (invalid signature slot)
+    ".long 0x00d00e13\n" // addi x28,zero,13 (invalid signature slot)
     ".long 0x1400700b\n" // riscv generic signature pcall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
