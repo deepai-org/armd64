@@ -24,6 +24,10 @@ Other useful targets:
 - `make boot-poly`: shorter raw execution, neutral-switch, process-loader, and
   syscall/trap regression run.
 - `make boot-poly-arch-traps`: raw foreign trap/syscall tests.
+- `make boot-poly-real-xsave-arch-traps`: raw trap/syscall tests with the guest
+  Poly XCR0 module loaded.
+- `make boot-poly-probe-arch-traps`: low-level Poly ISA and CPUID probes.
+- `make boot-poly-apps-arch-traps`: hand-authored raw frontend app payloads.
 - `make boot-poly-neutral-arch-traps`: direct AArch64<->RISC-V generic switch
   and call tests.
 - `make boot-poly-exec-cross-arch-traps`: focused real ELF/shared-library
@@ -34,6 +38,9 @@ Other useful targets:
 - `make boot-poly-call-real-xsave-arch-traps`: focused cross-ISA call, thread,
   and signal run with the guest Poly XCR0 module loaded, so real
   XSAVE/XRSTOR-backed context switching is required.
+- `make boot-poly-thread-arch-traps`: focused thread/signal state tests.
+- `make boot-poly-bench-arch-traps`: switch and raw-instruction-count
+  benchmarks.
 - `make boot-poly-binfmt-arch-traps`: loader/binfmt smoke tests.
 - `make boot-poly-full-arch-traps`: broad regression run, including focused
   process cross-call and syscall gates.
