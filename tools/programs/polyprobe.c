@@ -673,6 +673,26 @@ static inline void raw_riscv_state_seed_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void raw_aarch64_status_seed_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2a01801\n" // movz x1,#0xc0,lsl #16
+    ".long 0xd51b4401\n" // msr fpcr,x1
+    ".long 0xd2800242\n" // movz x2,#0x12
+    ".long 0xd51b4422\n" // msr fpsr,x2
+    ".long 0xd5032e1f\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_status_seed_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x07500293\n" // addi t0,zero,0x75
+    ".long 0x00329073\n" // csrw fcsr,t0
+    ".long 0x0000700b\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 static inline uint64_t penter_aarch64_tls_probe(uint64_t tls_base) {
   uint64_t result = 0;
   asm volatile(
@@ -731,6 +751,24 @@ static inline void raw_riscv_state_fp_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0xe2090553\n" // fmv.x.d a0,f18
+    ".long 0x0000700b\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_aarch64_status_sum_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd53b4400\n" // mrs x0,fpcr
+    ".long 0xd53b4421\n" // mrs x1,fpsr
+    ".long 0x8b010000\n" // add x0,x0,x1
+    ".long 0xd5032e1f\n"
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_status_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00302573\n" // csrr a0,fcsr
     ".long 0x0000700b\n"
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
@@ -2932,8 +2970,13 @@ int main(void) {
   memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
   const uint64_t seeded_aarch64_tls = 0x123456789abc0001ULL;
   const uint64_t seeded_riscv_tls = 0x223456789abc0002ULL;
+  const uint64_t seeded_aarch64_fpcr = 0x00c00000ULL;
+  const uint64_t seeded_aarch64_fpsr = 0x12ULL;
+  const uint64_t seeded_riscv_fcsr = 0x75ULL;
   raw_aarch64_state_seed_probe();
   raw_riscv_state_seed_probe();
+  raw_aarch64_status_seed_probe();
+  raw_riscv_status_seed_probe();
   if (penter_aarch64_tls_probe(seeded_aarch64_tls) !=
         seeded_aarch64_tls ||
       penter_riscv_tls_probe(seeded_riscv_tls) != seeded_riscv_tls) {
@@ -2973,6 +3016,16 @@ int main(void) {
       (unsigned long long) polyprobe_state.riscv_fp[18].lo);
     return 1;
   }
+  if (polyprobe_state.aarch64_status.fpcr != seeded_aarch64_fpcr ||
+      polyprobe_state.aarch64_status.fpsr != seeded_aarch64_fpsr ||
+      polyprobe_state.riscv_status.fcsr != seeded_riscv_fcsr) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: poly state export status mismatch fpcr=0x%llx fpsr=0x%llx fcsr=0x%llx\n",
+      (unsigned long long) polyprobe_state.aarch64_status.fpcr,
+      (unsigned long long) polyprobe_state.aarch64_status.fpsr,
+      (unsigned long long) polyprobe_state.riscv_status.fcsr);
+    return 1;
+  }
   if (polyprobe_state.frontend_tls.flags != 1 ||
       polyprobe_state.frontend_tls.active_mode != POLY_MODE_X86 ||
       polyprobe_state.frontend_tls.aarch64_tls_base != seeded_aarch64_tls ||
@@ -2989,6 +3042,12 @@ int main(void) {
   polyprobe_state.aarch64_fp[8].lo = 0x3579;
   polyprobe_state.riscv_gpr[19] = 0x432;
   polyprobe_state.riscv_fp[18].lo = 0x543;
+  const uint64_t imported_aarch64_fpcr = 0x00400000ULL;
+  const uint64_t imported_aarch64_fpsr = 0x8ULL;
+  const uint64_t imported_riscv_fcsr = 0x43ULL;
+  polyprobe_state.aarch64_status.fpcr = imported_aarch64_fpcr;
+  polyprobe_state.aarch64_status.fpsr = imported_aarch64_fpsr;
+  polyprobe_state.riscv_status.fcsr = imported_riscv_fcsr;
   const uint64_t imported_aarch64_tls = 0x323456789abc0003ULL;
   const uint64_t imported_riscv_tls = 0x423456789abc0004ULL;
   polyprobe_state.frontend_tls.aarch64_tls_base = imported_aarch64_tls;
@@ -3003,6 +3062,16 @@ int main(void) {
       "POLY_PROBE_FAIL: poly state import frontend TLS mismatch aarch64=0x%llx riscv=0x%llx\n",
       (unsigned long long) polyprobe_state.frontend_tls.aarch64_tls_base,
       (unsigned long long) polyprobe_state.frontend_tls.riscv_tls_base);
+    return 1;
+  }
+  if (polyprobe_state.aarch64_status.fpcr != imported_aarch64_fpcr ||
+      polyprobe_state.aarch64_status.fpsr != imported_aarch64_fpsr ||
+      polyprobe_state.riscv_status.fcsr != imported_riscv_fcsr) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: poly state import status export mismatch fpcr=0x%llx fpsr=0x%llx fcsr=0x%llx\n",
+      (unsigned long long) polyprobe_state.aarch64_status.fpcr,
+      (unsigned long long) polyprobe_state.aarch64_status.fpsr,
+      (unsigned long long) polyprobe_state.riscv_status.fcsr);
     return 1;
   }
   raw_aarch64_state_gpr_probe();
@@ -3027,6 +3096,22 @@ int main(void) {
   if (read_rax() != 0x543) {
     fprintf(stderr, "POLY_PROBE_FAIL: poly state import riscv fp mismatch got=0x%llx\n",
       (unsigned long long) read_rax());
+    return 1;
+  }
+  raw_aarch64_status_sum_probe();
+  if (read_rax() != imported_aarch64_fpcr + imported_aarch64_fpsr) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: poly state import aarch64 status mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) (imported_aarch64_fpcr + imported_aarch64_fpsr));
+    return 1;
+  }
+  raw_riscv_status_probe();
+  if (read_rax() != imported_riscv_fcsr) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: poly state import riscv status mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) read_rax(),
+      (unsigned long long) imported_riscv_fcsr);
     return 1;
   }
 
