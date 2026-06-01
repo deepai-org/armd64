@@ -287,6 +287,10 @@ static inline void write_xmm1_u64(uint64_t value) {
   asm volatile("movq %0, %%xmm1" :: "r"(value) : "xmm1", "memory");
 }
 
+static inline void write_xmm2_u64(uint64_t value) {
+  asm volatile("movq %0, %%xmm2" :: "r"(value) : "xmm2", "memory");
+}
+
 struct polyprobe_u128 {
   uint64_t lo;
   uint64_t hi;
@@ -1564,6 +1568,63 @@ static inline void pcall_signature_imm_mode_x86_sysv_args_probe(void) {
     : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
 }
 
+static inline void aarch64_hfa32_sentinel_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x52824680\n" // movz w0,#0x1234
+    ".long 0x1e270003\n" // fmov s3,w0
+    ".long 0x528acf00\n" // movz w0,#0x5678
+    ".long 0x1e270004\n" // fmov s4,w0
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void pcall_signature_aarch64_hfa3_s3_probe(uint64_t slot) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r12\n"
+    "pushq %%r15\n"
+    "movq %0, %%r12\n"
+    "movl $1, %%r15d\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_MODE
+    "1:\n"
+    ".long 0x1e204060\n" // fmov s0,s3
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%r12\n"
+    "popq %%rbx\n"
+    :
+    : "r"(slot)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "memory");
+}
+
+static inline void pcall_signature_aarch64_hfa4_s4_probe(uint64_t slot) {
+  asm volatile(
+    "pushq %%rbx\n"
+    "pushq %%r12\n"
+    "pushq %%r15\n"
+    "movq %0, %%r12\n"
+    "movl $1, %%r15d\n"
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    POLY_OP_PCALL_SIG_MODE
+    "1:\n"
+    ".long 0x1e204080\n" // fmov s0,s4
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    "popq %%r15\n"
+    "popq %%r12\n"
+    "popq %%rbx\n"
+    :
+    : "r"(slot)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "memory");
+}
+
 static inline void aarch64_signature_imm_call_x86_probe(void) {
   asm volatile(
     "leaq 1f(%%rip), %%rax\n"
@@ -2807,6 +2868,43 @@ int main(void) {
     fprintf(stderr,
       "POLY_PROBE_FAIL: discovered native ABI signature slot setup mismatch slot=%u\n",
       polyprobe_native_signature_slot);
+    return 1;
+  }
+  if (poly_abi_signature_set(7,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_ARG) != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: AArch64 HFA3 FP32 signature slot setup failed\n");
+    return 1;
+  }
+  aarch64_hfa32_sentinel_probe();
+  write_xmm0_u64(0xaaaabbbbccccddddULL);
+  write_xmm1_u64(0x1111222233334444ULL);
+  write_xmm2_u64(0x0000000099aabbccULL);
+  pcall_signature_aarch64_hfa3_s3_probe(7);
+  if ((uint32_t) read_xmm0_u64() != 0x1234U) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: AArch64 HFA3 FP32 signature clobbered s3 got=0x%x\n",
+      (uint32_t) read_xmm0_u64());
+    return 1;
+  }
+  if (poly_abi_signature_set(7,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_ARG) != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: AArch64 HFA4 FP32 signature slot setup failed\n");
+    return 1;
+  }
+  aarch64_hfa32_sentinel_probe();
+  write_xmm0_u64(0xaaaabbbbccccddddULL);
+  write_xmm1_u64(0x1111222233334444ULL);
+  write_xmm2_u64(0x0000000099aabbccULL);
+  pcall_signature_aarch64_hfa4_s4_probe(7);
+  if ((uint32_t) read_xmm0_u64() != 0x5678U) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: AArch64 HFA4 FP32 signature clobbered s4 got=0x%x\n",
+      (uint32_t) read_xmm0_u64());
+    return 1;
+  }
+  if (poly_abi_signature_set(7,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: ABI signature slot restore failed\n");
     return 1;
   }
 
