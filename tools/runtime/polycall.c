@@ -4163,25 +4163,23 @@ static int call_kind_for_bridge_result(int root_arch, int call_kind,
   return call_kind;
 }
 
-static uint8_t pcall_opcode_for_call_kind(int arch, int call_kind) {
-  if (call_kind == POLY_CALL_FP64_STACK ||
-      call_kind == POLY_CALL_SRET_U64 ||
-      call_kind == POLY_CALL_VEC128_U32 ||
-      call_kind == POLY_CALL_FPAIR64 ||
-      call_kind == POLY_CALL_FPAIR64_ARG ||
-      call_kind == POLY_CALL_MIXED_ARGS ||
-      call_kind == POLY_CALL_FPAIR32 ||
-      call_kind == POLY_CALL_FPAIR32_ARG ||
-      call_kind == POLY_CALL_HETERO_U64_F64 ||
-      call_kind == POLY_CALL_HETERO_U32_F64 ||
-      call_kind == POLY_CALL_HETERO_F64_U64 ||
-      call_kind == POLY_CALL_HETERO_F64_U32 ||
-      call_kind == POLY_CALL_HETERO_U64_F32 ||
-      call_kind == POLY_CALL_HETERO_F32_U64 ||
-      call_kind == POLY_CALL_COMPACT_U32_F32 ||
-      call_kind == POLY_CALL_COMPACT_F32_U32)
-    return 0xff; // Invalid subop: these call kinds require signature PCALL.
-  return arch == POLY_ARCH_AARCH64 ? 0x10 : 0x11;
+static int call_kind_requires_direct_signature_pcall(int call_kind) {
+  return call_kind == POLY_CALL_FP64_STACK ||
+    call_kind == POLY_CALL_SRET_U64 ||
+    call_kind == POLY_CALL_VEC128_U32 ||
+    call_kind == POLY_CALL_FPAIR64 ||
+    call_kind == POLY_CALL_FPAIR64_ARG ||
+    call_kind == POLY_CALL_MIXED_ARGS ||
+    call_kind == POLY_CALL_FPAIR32 ||
+    call_kind == POLY_CALL_FPAIR32_ARG ||
+    call_kind == POLY_CALL_HETERO_U64_F64 ||
+    call_kind == POLY_CALL_HETERO_U32_F64 ||
+    call_kind == POLY_CALL_HETERO_F64_U64 ||
+    call_kind == POLY_CALL_HETERO_F64_U32 ||
+    call_kind == POLY_CALL_HETERO_U64_F32 ||
+    call_kind == POLY_CALL_HETERO_F32_U64 ||
+    call_kind == POLY_CALL_COMPACT_U32_F32 ||
+    call_kind == POLY_CALL_COMPACT_F32_U32;
 }
 
 static uint32_t x86_signature_kind_for_special_call_kind(int arch,
@@ -4493,7 +4491,7 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
       signature_slot);
   }
   else {
-    if (pcall_opcode_for_call_kind(arch, call_kind) == 0xff)
+    if (call_kind_requires_direct_signature_pcall(call_kind))
       return -1;
     emit_x86_pcall_sig_imm(stubs, stub_offset, (uint32_t) arch,
       x86_sysv_signature_slot);
@@ -9989,7 +9987,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     emit_movabs_r12(code, &offset, import_x86_table);
   }
   emit_x86_state_key_set(code, &offset, stub_state_key);
-  const size_t pcall_opcode_offset = offset;
   if (use_exchange_u64_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
@@ -10986,13 +10983,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
     else {
       const int patch_pcall_op = result_call_kind != POLY_CALL_U64;
-      const uint8_t saved_pcall_op = patch_pcall_op ?
-        code[pcall_opcode_offset + 3] : 0;
-      const uint8_t patch_pcall_opcode = patch_pcall_op ?
-        pcall_opcode_for_call_kind(program->arch, result_call_kind) : 0;
-      if (patch_pcall_opcode == 0xff) {
+      if (patch_pcall_op) {
         fprintf(stderr,
-          "POLYCALL_FAIL: fini result requires signature PCALL path: %s\n",
+          "POLYCALL_FAIL: fini result requires direct signature PCALL path: %s\n",
           program->path);
         unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
         if (tls)
@@ -11002,12 +10995,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         munmap(code, code_size);
         return -1;
       }
-      if (patch_pcall_op)
-        code[pcall_opcode_offset + 3] = patch_pcall_opcode;
       *result = call_poly_stub(code, target_imm_offset, fini_result_target,
         result_call_kind);
-      if (patch_pcall_op)
-        code[pcall_opcode_offset + 3] = saved_pcall_op;
     }
   }
   for (size_t fini_depth = 0; fini_depth <= max_dep_depth; fini_depth++) {
@@ -11191,20 +11180,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
     else {
       const int patch_pcall_op = result_call_kind != POLY_CALL_U64;
-      const uint8_t saved_pcall_op = patch_pcall_op ?
-        code[pcall_opcode_offset + 3] : 0;
-      const uint8_t patch_pcall_opcode = patch_pcall_op ?
-        pcall_opcode_for_call_kind(program->arch, result_call_kind) : 0;
-      if (patch_pcall_opcode == 0xff) {
+      if (patch_pcall_op) {
         fprintf(stderr,
-          "POLYCALL_FAIL: dependency fini result requires signature PCALL path: %s\n",
+          "POLYCALL_FAIL: dependency fini result requires direct signature PCALL path: %s\n",
           program->deps[dep_index].path);
         call_status = -1;
-      }
-      int pcall_patched = 0;
-      if (call_status == 0 && patch_pcall_op) {
-        code[pcall_opcode_offset + 3] = patch_pcall_opcode;
-        pcall_patched = 1;
       }
       if (call_status == 0)
         call_status = call_target_from_root_arch(code,
@@ -11215,8 +11195,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
           program->deps[dep_index].arch, fini_result_target, result_call_kind,
           bridge_kind,
           program->deps[dep_index].path, "dependency fini result", result);
-      if (pcall_patched)
-        code[pcall_opcode_offset + 3] = saved_pcall_op;
     }
     if (call_status < 0) {
       unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
