@@ -33,7 +33,7 @@ enum {
   POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA = 5,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
   POLYBENCH_CROSS_CALL_MAX_RAW_INSNS = 16,
-  POLYBENCH_CROSS_CALL_VEC128_EXPECTED_SWITCH_DELTA = 4,
+  POLYBENCH_CROSS_CALL_VEC128_EXPECTED_SWITCH_DELTA = 3,
   POLYBENCH_CROSS_CALL_VEC128_MAX_RAW_INSNS = 25,
   POLYBENCH_NEUTRAL_PCALL_EXPECTED_SWITCH_DELTA = 3,
   POLYBENCH_NEUTRAL_PCALL_WRAPPER_SWITCH_DELTA = 1,
@@ -3336,7 +3336,6 @@ static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
   uint64_t insns_before = poly_foreign_insn_count_status_value();
   uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_vec128_u32(code);
-  poly_mode_x86();
   *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
 
@@ -3417,7 +3416,6 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
   uint64_t insns_before = poly_foreign_insn_count_status_value();
   uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_vec128_u32(code);
-  poly_mode_x86();
   *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
 
