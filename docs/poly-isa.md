@@ -17,8 +17,9 @@ rg -a 'POLY.*OK|NATIVE.*OK|FAIL|Kernel panic|Oops' out/serial.log
 - x86_64 remains the system ISA for boot, paging, privilege, interrupts,
   syscalls, atomics, and TSO memory ordering.
 - Frontends are `0=x86_64`, `1=AArch64`, and `2=RISC-V64`.
-- AArch64 and RISC-V64 are ring-3 frontends that fetch native 32-bit
-  instructions from x86 virtual memory.
+- AArch64 and RISC-V64 are ring-3 frontends fetched from x86 virtual memory:
+  AArch64 uses fixed 4-byte instructions, and RISC-V uses 16/32-bit fetch for
+  RVC-capable code.
 - Mode switches are decoded control instructions, not `#UD` trap envelopes.
 - Foreign register state is per-thread XSAVE-style architectural state.
 - Register-only cross-ISA calls use programmable ABI signature slots.
