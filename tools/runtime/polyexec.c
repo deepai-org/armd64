@@ -317,7 +317,8 @@ enum poly_process_bridge_kind {
   POLY_PROCESS_BRIDGE_FPAIR32_RET = 11,
   POLY_PROCESS_BRIDGE_FPAIR64_RET = 12,
   POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_ARG = 13,
-  POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_ARG = 14
+  POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_ARG = 14,
+  POLY_PROCESS_BRIDGE_SRET_X86_SYSV = 15
 };
 
 struct poly_process_bridge_spec {
@@ -413,6 +414,8 @@ static uint32_t process_fp64_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
 static uint32_t process_fp32_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32;
+static uint32_t process_sret_signature_slot =
+  POLY_ABI_SIGNATURE_SLOT_SRET_X86_SYSV_REGS;
 static uint32_t process_vec128_signature_slot = 5;
 static uint32_t process_compact_u32_f32_signature_slot = 6;
 static uint32_t process_compact_f32_u32_signature_slot = 7;
@@ -627,6 +630,10 @@ static int read_poly_base_contract(int require_trap_vector) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 23);
   const struct poly_cpuid_regs expected_signature_fp32 =
     poly_cpuid_expected_escape_leaf23();
+  const struct poly_cpuid_regs signature_sret =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 24);
+  const struct poly_cpuid_regs expected_signature_sret =
+    poly_cpuid_expected_escape_leaf24();
   const struct poly_cpuid_regs signature_hfa32 =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 26);
   const struct poly_cpuid_regs expected_signature_hfa32 =
@@ -643,6 +650,7 @@ static int read_poly_base_contract(int require_trap_vector) {
   const uint32_t compact_f32_u32_kind = signature_compact.edx;
   const uint32_t fp64_slot = signature_fp64.edx;
   const uint32_t fp32_slot = signature_fp32.edx;
+  const uint32_t sret_slot = signature_sret.eax;
   if (signature.eax != expected_signature.eax ||
       signature.ebx != expected_signature.ebx ||
       signature.ecx != expected_signature.ecx ||
@@ -663,6 +671,10 @@ static int read_poly_base_contract(int require_trap_vector) {
       signature_fp32.ebx != expected_signature_fp32.ebx ||
       signature_fp32.ecx != expected_signature_fp32.ecx ||
       signature_fp32.edx != expected_signature_fp32.edx ||
+      signature_sret.eax != expected_signature_sret.eax ||
+      signature_sret.ebx != expected_signature_sret.ebx ||
+      signature_sret.ecx != expected_signature_sret.ecx ||
+      signature_sret.edx != expected_signature_sret.edx ||
       signature_hfa32.eax != expected_signature_hfa32.eax ||
       signature_hfa32.ebx != expected_signature_hfa32.ebx ||
       signature_hfa32.ecx != expected_signature_hfa32.ecx ||
@@ -682,19 +694,21 @@ static int read_poly_base_contract(int require_trap_vector) {
       compact_f32_u32_kind !=
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 ||
       fp64_slot >= signature.ebx ||
-      fp32_slot >= signature.ebx) {
+      fp32_slot >= signature.ebx ||
+      sret_slot >= signature.ebx) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) hfa32=(%u,%u,%u,%u) hfa32arg=(%u,%u,%u,%u)\n",
+      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) sret=(%u,%u,%u,%u) hfa32=(%u,%u,%u,%u) hfa32arg=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
       signature_compact.ecx, signature_compact.edx, signature_fp64.eax,
       signature_fp64.ebx, signature_fp64.ecx, signature_fp64.edx,
       signature_fp32.eax, signature_fp32.ebx, signature_fp32.ecx,
-      signature_fp32.edx, signature_hfa32.eax, signature_hfa32.ebx,
-      signature_hfa32.ecx, signature_hfa32.edx, signature_hfa32_arg.eax,
-      signature_hfa32_arg.ebx, signature_hfa32_arg.ecx,
-      signature_hfa32_arg.edx);
+      signature_fp32.edx, signature_sret.eax, signature_sret.ebx,
+      signature_sret.ecx, signature_sret.edx, signature_hfa32.eax,
+      signature_hfa32.ebx, signature_hfa32.ecx, signature_hfa32.edx,
+      signature_hfa32_arg.eax, signature_hfa32_arg.ebx,
+      signature_hfa32_arg.ecx, signature_hfa32_arg.edx);
     return -1;
   }
   if (poly_abi_signature_set(native_slot,
@@ -707,6 +721,7 @@ static int read_poly_base_contract(int require_trap_vector) {
   process_native_signature_slot = native_slot;
   process_fp64_signature_slot = fp64_slot;
   process_fp32_signature_slot = fp32_slot;
+  process_sret_signature_slot = sret_slot;
   if (poly_abi_signature_set(process_fp64_signature_slot,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
     fprintf(stderr,
@@ -719,6 +734,13 @@ static int read_poly_base_contract(int require_trap_vector) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly native fp32 signature slot setup failed slot=%u\n",
       process_fp32_signature_slot);
+    return -1;
+  }
+  if (poly_abi_signature_set(process_sret_signature_slot,
+        POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly sret signature slot setup failed slot=%u\n",
+      process_sret_signature_slot);
     return -1;
   }
   if (poly_abi_signature_set(vec128_slot,
@@ -929,6 +951,8 @@ static int process_bridge_kind_from_name(const char *name) {
     return POLY_PROCESS_BRIDGE_FPAIR32_RET;
   if (strcmp(name, "fpair64_ret") == 0)
     return POLY_PROCESS_BRIDGE_FPAIR64_RET;
+  if (strcmp(name, "sret_x86_sysv") == 0)
+    return POLY_PROCESS_BRIDGE_SRET_X86_SYSV;
   return -1;
 }
 
@@ -1043,6 +1067,8 @@ static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
     return process_fp64_signature_slot;
   if (bridge_kind == POLY_PROCESS_BRIDGE_FP32)
     return process_fp32_signature_slot;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_SRET_X86_SYSV)
+    return process_sret_signature_slot;
   if (bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET ||
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET ||
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_ARG ||
@@ -4333,10 +4359,15 @@ static int process_bridge_is_fpair(int bridge_kind) {
     bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET;
 }
 
+static int process_bridge_is_sret(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_SRET_X86_SYSV;
+}
+
 static int process_bridge_is_x86_source_signature(int bridge_kind) {
   return process_bridge_is_aarch64_hfa32_ret(bridge_kind) ||
     process_bridge_is_aarch64_hfa32_arg(bridge_kind) ||
-    process_bridge_is_fpair(bridge_kind);
+    process_bridge_is_fpair(bridge_kind) ||
+    process_bridge_is_sret(bridge_kind);
 }
 
 static uint32_t process_bridge_signature_kind(int bridge_kind) {
@@ -4356,6 +4387,8 @@ static uint32_t process_bridge_signature_kind(int bridge_kind) {
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR32_RET;
   if (bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET)
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR64_RET;
+  if (bridge_kind == POLY_PROCESS_BRIDGE_SRET_X86_SYSV)
+    return POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS;
   return UINT32_MAX;
 }
 
@@ -4581,6 +4614,10 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       !(caller_arch == POLY_ARCH_X86 &&
         (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV)))
     return -1;
+  if (process_bridge_is_sret(bridge_kind) &&
+      !(caller_arch == POLY_ARCH_X86 &&
+        (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV)))
+    return -1;
   if (callee_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
       bridge_kind != POLY_PROCESS_BRIDGE_VEC128_U32 &&
@@ -4605,7 +4642,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_FPAIR32_ARG &&
       bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_ARG &&
       bridge_kind != POLY_PROCESS_BRIDGE_FPAIR32_RET &&
-      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_RET)
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_RET &&
+      bridge_kind != POLY_PROCESS_BRIDGE_SRET_X86_SYSV)
     return -1;
   if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 &&
       caller_arch != POLY_ARCH_X86 &&

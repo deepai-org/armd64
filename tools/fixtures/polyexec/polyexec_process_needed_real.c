@@ -35,6 +35,13 @@ struct poly_fpair64 {
   double hi;
 };
 
+struct poly_sret_u64 {
+  uint64_t a;
+  uint64_t b;
+  uint64_t c;
+  uint64_t d;
+};
+
 union poly_float_bits {
   float f;
   uint32_t u;
@@ -316,6 +323,32 @@ struct poly_fpair64 poly_process_needed_fpair64_ret(double a, double b,
   struct poly_fpair64 out;
   out.lo = a + b;
   out.hi = b + c + 1.0;
+  return out;
+}
+
+#elif defined(POLY_PROCESS_NEEDED_SRET_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_sret sret_x86_sysv\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+struct poly_sret_u64 poly_process_needed_sret(uint64_t a, uint64_t b,
+    uint64_t c) {
+  struct poly_sret_u64 out;
+  out.a = a + 10;
+  out.b = b + 20;
+  out.c = c + 30;
+  out.d = a * 100 + b * 10 + c;
   return out;
 }
 
@@ -614,6 +647,9 @@ extern double poly_process_needed_fpair64_arg(struct poly_fpair64, double);
 extern struct poly_fpair32 poly_process_needed_fpair32_ret(float, float, float);
 extern struct poly_fpair64 poly_process_needed_fpair64_ret(double, double,
     double);
+#elif defined(POLY_PROCESS_NEEDED_SRET_MAIN)
+extern struct poly_sret_u64 poly_process_needed_sret(uint64_t, uint64_t,
+    uint64_t);
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
 extern poly_u32x4 poly_process_needed_vec128(poly_u32x4, poly_u32x4);
 #elif defined(POLY_PROCESS_NEEDED_COMPACT_MAIN)
@@ -942,6 +978,13 @@ uint64_t poly_process_main(void) {
       f64_hi.u != 0x4019000000000000ULL)
     return 57;
   static const char marker[] = "POLY_PROCESS_CROSS_FPAIR_RET_NEEDED_OK\n";
+#elif defined(POLY_PROCESS_NEEDED_SRET_MAIN)
+  const struct poly_sret_u64 result =
+    poly_process_needed_sret(1, 2, 3);
+  if (result.a != 11 || result.b != 22 || result.c != 33 ||
+      result.d != 123)
+    return 59;
+  static const char marker[] = "POLY_PROCESS_CROSS_SRET_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_VEC128_MAIN)
   union {
     poly_u32x4 v;
