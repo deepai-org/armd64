@@ -1,6 +1,7 @@
 # Poly ISA
 
-Poly adds user-mode AArch64 and RISC-V64 execution to an x86_64 system for precompiled-code interop.
+Poly is an x86_64 CPU extension for running existing precompiled x86_64,
+AArch64, and RISC-V64 code in one user virtual address space.
 
 ## Run
 
@@ -10,14 +11,28 @@ make boot-poly-exec-cross-arch-traps
 make boot-poly-full-real-xsave-arch-traps
 ```
 
-## Differences From x86_64
+## ISA Contract
 
-- Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- Fetch: x86_64 is variable-width; AArch64 is 32-bit aligned; RISC-V64 is 16-bit aligned with RVC.
-- System model: x86_64 owns privilege, paging, interrupts, faults, atomics, VM, and TSO.
-- State: all frontends share one x86_64 virtual address space; non-x86 registers are XSAVE-style per-thread state.
-- Controls: `PENTER`, `PSWITCH`, `PCALL`, `PTRAPRET`, and `PLANDING` are decoded opcodes, not `#UD` envelopes.
-- Traps: foreign traps produce OS-neutral packets for a user-mode monitor.
-- Calls: register-only calls use ABI signature slots; stack args, aggregates, variadics, lazy binding, libcalls, and syscall policy stay in software thunks.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  faults, atomics, VM control, and the global TSO memory model.
+- AArch64 and RISC-V64 are user-mode frontends that fetch real native
+  instructions from the same address space.
+- Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+- Fetch width is frontend-specific: x86_64 is variable-width, AArch64 is
+  32-bit aligned, and RISC-V64 supports 16-bit RVC plus 32-bit instructions.
+- Non-x86 architectural state is explicit XSAVE-style per-thread state, not
+  hidden emulator state.
+- Cross-frontend controls are decoded instructions: `PENTER`, `PSWITCH`,
+  `PCALL`, `PTRAPRET`, and `PLANDING`. They are not `#UD` envelopes.
+- Fast calls use fixed register alias signature slots. Complex ABI cases use
+  loader/runtime thunks.
+- Foreign traps produce OS-neutral packets for a user-mode Poly monitor.
+
+## What Hardware Does Not Do
+
+- No Linux, libc, libgcc, libatomic, or dynamic-linker policy in hardware.
+- No user-memory call descriptor parsing in control instructions.
+- No stack repacking, aggregate marshalling, or variadic argument handling in
+  hardware.
 
 Detailed rationale: [poly-isa-design-directions.md](poly-isa-design-directions.md).
