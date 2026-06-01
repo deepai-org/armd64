@@ -13084,6 +13084,7 @@ EOF
           "POLYBENCH_CROSS_CALL_SAVED_FP_RESULT: direction=compressed-riscv-calls-aarch64-saved-fp .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_PAIR_RESULT: direction=aarch64-calls-riscv-pair .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_PAIR_RESULT: direction=riscv-calls-aarch64-pair .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_PAIR_RESULT: direction=compressed-riscv-calls-aarch64-pair .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_COMPACT_RESULT: direction=aarch64-calls-riscv-compact-u32-f32 .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_COMPACT_RESULT: direction=aarch64-calls-riscv-compact-f32-u32 .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_COMPACT_RESULT: direction=riscv-calls-aarch64-compact-u32-f32 .*switch_delta=5"
