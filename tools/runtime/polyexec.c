@@ -209,6 +209,11 @@ extern char **environ;
 #define POLY_RISCV_HWPROBE_KEY_ZICBOM_BLOCK_SIZE 12
 #define POLY_RISCV_HWPROBE_KEY_VENDOR_EXT_SIFIVE_0 13
 
+#define POLY_IMPORT_FUNC_STRLEN 8
+#define POLY_IMPORT_FUNC_MEMCPY 9
+#define POLY_IMPORT_FUNC_MEMSET 10
+#define POLY_IMPORT_FUNC_MEMCMP 11
+
 #define POLY_AARCH64_HWCAP_FP (1ULL << 0)
 #define POLY_AARCH64_HWCAP_ASIMD (1ULL << 1)
 #define POLY_AARCH64_HWCAP_ATOMICS (1ULL << 8)
@@ -2605,6 +2610,27 @@ static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
   return 0;
 }
 
+static uint64_t poly_handle_foreign_import(uint64_t number,
+    const uint64_t args[8]) {
+  switch (number) {
+    case POLY_IMPORT_FUNC_STRLEN:
+      return strlen((const char *) (uintptr_t) args[0]);
+    case POLY_IMPORT_FUNC_MEMCPY:
+      return (uint64_t) (uintptr_t)
+        memcpy((void *) (uintptr_t) args[0],
+          (const void *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_MEMSET:
+      return (uint64_t) (uintptr_t)
+        memset((void *) (uintptr_t) args[0], (int) args[1],
+          (size_t) args[2]);
+    case POLY_IMPORT_FUNC_MEMCMP:
+      return (uint64_t) memcmp((const void *) (uintptr_t) args[0],
+        (const void *) (uintptr_t) args[1], (size_t) args[2]);
+    default:
+      return (uint64_t) -ENOSYS;
+  }
+}
+
 static void report_poly_monitor_packets(void);
 
 __attribute__((noinline, used))
@@ -2664,6 +2690,8 @@ uint64_t poly_trap_vector_dispatch(void) {
   if (packet.reason == POLY_TRAP_BREAK) {
     return 0x4c000000ULL | (packet.mode << 8) | packet.number;
   }
+  if (packet.reason == POLY_TRAP_IMPORT)
+    return poly_handle_foreign_import(packet.number, packet.args);
 
   return (uint64_t) -ENOSYS;
 }

@@ -53,6 +53,7 @@ POLYEXEC_PROCESS_SYSCALL_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_pr
 POLYEXEC_PROCESS_RELOC_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_reloc_real.c"
 POLYEXEC_PROCESS_NEEDED_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_needed_real.c"
 POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_libc_main_real.c"
+POLYEXEC_PROCESS_IMPORT_TRAP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_import_trap_real.c"
 POLYEXEC_PROCESS_VERSIONED_DEP_REAL_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_versioned_dep_real.map"
 POLYCALL_STATE_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_state.c"
 POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_import_real.c"
@@ -579,6 +580,11 @@ build_poly_elf_payloads() {
   aarch64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
     "$POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-libc-main-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_IMPORT_TRAP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-import-trap-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_DEP \
     -Wl,-soname,libpolyprocessneeded-aarch64.so \
@@ -3592,6 +3598,11 @@ build_poly_elf_payloads() {
     -march=rv64gc -mabi=lp64d \
     "$POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-libc-main-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_IMPORT_TRAP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-import-trap-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_NEEDED_DEP \
@@ -7157,6 +7168,12 @@ if [ "$RUN_POLY_EXEC_SYSCALL" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-syscall-real.elf=42 \
       probe >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-import-trap-real.elf=13 \
+      import-trap >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-import-trap-real.elf=13 \
+      import-trap >/dev/ttyS0 2>&1
     echo "POLY_EXEC_SYSCALL_OK" >/dev/ttyS0
 fi
 
@@ -11320,7 +11337,19 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=13 process=1 path=/usr/lib/polyapps/aarch64-process-import-trap-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=13 process=1 path=/usr/lib/polyapps/riscv-process-import-trap-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if [[ "$(grep -Ec "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 1 ]]; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* .*import=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
