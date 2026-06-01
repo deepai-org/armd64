@@ -1,11 +1,9 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly is an x86_64 CPU extension prototype that adds AArch64 and RISC-V64
-user-mode frontends. The target is compatibility with existing precompiled
-native code from all three ISAs in one process and one virtual address space.
-
-This file is the short operator/spec reference. Longer design rationale lives
-in `docs/poly-isa-design-directions.md`.
+Poly is an x86_64 extension prototype for running precompiled x86_64,
+AArch64, and RISC-V64 code in one process and one virtual address space.
+This file is intentionally short. Design rationale lives in
+`docs/poly-isa-design-directions.md`.
 
 ## Run
 
@@ -17,23 +15,24 @@ make boot-poly-call-real-xsave-arch-traps
 rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Difference From x86_64
+## How It Differs From x86_64
 
-- x86_64 remains the system ISA for boot, privilege, paging, faults,
-  interrupts, atomics, and TSO memory ordering.
-- AArch64 and RISC-V64 are user-mode instruction frontends over the same x86_64
-  address space.
-- Foreign instructions are fetched directly, not wrapped in per-instruction
-  `#UD` envelopes.
-- Non-x86 register state is per-thread XSAVE-style architectural state.
-- Syscalls, libcalls, lazy binding, stack repacking, and loader policy stay in
-  software runtimes, not in hardware.
+- x86_64 is still the system ISA: boot, privilege, paging, interrupts,
+  exceptions, atomics, and TSO ordering stay x86_64-defined.
+- AArch64 and RISC-V64 are user-mode frontends sharing the x86_64 address
+  space.
+- Foreign modes use direct instruction fetch, not one `#UD` envelope per
+  instruction.
+- Extra foreign registers are per-thread XSAVE-style architectural state.
+- Hardware switches frontends and aliases register arguments; software handles
+  syscalls, libcalls, loader policy, lazy binding, and stack/aggregate ABI
+  repacking.
 
 ## Controls
 
 Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 
-| Control | Purpose |
+| Control | Meaning |
 | --- | --- |
 | `PENTER frontend` | Enter another frontend. |
 | `PSWITCH frontend, target` | Cross-ISA tail branch. |
@@ -48,8 +47,3 @@ Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 - Stack arguments, variadics, aggregate repacking, vector mismatches, and lazy
   binding use runtime/loader thunks.
 - Cross-ISA calls return through ordinary native returns.
-
-## References
-
-- Prototype constants and encodings: `tools/include/polycpuid.h`
-- Full design direction: `docs/poly-isa-design-directions.md`
