@@ -862,6 +862,36 @@ static inline uint64_t aarch64_foreign_control_plane_probe(uint64_t vector,
   return rax;
 }
 
+static inline uint64_t aarch64_foreign_trap_vector_invalid_probe(
+    uint64_t value) {
+  uint64_t rax = 0;
+  uint64_t rdx = value;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0103e0\n" // mov x0,x1 (candidate vector)
+    ".long 0xd5032d1f\n" // aarch64 trap vector set
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(rax), "+d"(rdx)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+  return rax;
+}
+
+static inline uint64_t aarch64_foreign_monitor_packet_invalid_probe(
+    uint64_t value) {
+  uint64_t rax = 0;
+  uint64_t rdx = value;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0103e0\n" // mov x0,x1 (candidate packet)
+    ".long 0xd5032d9f\n" // aarch64 monitor packet set
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(rax), "+d"(rdx)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+  return rax;
+}
+
 static inline uint64_t riscv_foreign_control_plane_probe(uint64_t vector,
     uint64_t packet) {
   uint64_t rax = vector;
@@ -874,6 +904,36 @@ static inline uint64_t riscv_foreign_control_plane_probe(uint64_t vector,
     ".long 0x00058513\n" // mv a0,a1 (packet)
     ".long 0x3800700b\n" // riscv monitor packet set
     ".long 0x3200700b\n" // riscv trap vector get
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(rax), "+d"(rdx)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+  return rax;
+}
+
+static inline uint64_t riscv_foreign_trap_vector_invalid_probe(
+    uint64_t value) {
+  uint64_t rax = 0;
+  uint64_t rdx = value;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00058513\n" // mv a0,a1 (candidate vector)
+    ".long 0x3000700b\n" // riscv trap vector set
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(rax), "+d"(rdx)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+  return rax;
+}
+
+static inline uint64_t riscv_foreign_monitor_packet_invalid_probe(
+    uint64_t value) {
+  uint64_t rax = 0;
+  uint64_t rdx = value;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00058513\n" // mv a0,a1 (candidate packet)
+    ".long 0x3800700b\n" // riscv monitor packet set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(rax), "+d"(rdx)
     :
@@ -3102,6 +3162,35 @@ int main(void) {
       poly_trap_vector_mode_get() != POLY_MODE_RAW_AARCH64 ||
       poly_monitor_packet_get() != riscv_packet) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv foreign control-plane mismatch\n");
+    return 1;
+  }
+  const uint64_t invalid_control_address = 0x0100000000000000ULL;
+  if (aarch64_foreign_trap_vector_invalid_probe(
+        invalid_control_address) != POLY_ERR_INVAL ||
+      poly_trap_vector_get() != riscv_vector) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: aarch64 invalid trap-vector control mismatch\n");
+    return 1;
+  }
+  if (aarch64_foreign_monitor_packet_invalid_probe(
+        invalid_control_address) != POLY_ERR_INVAL ||
+      poly_monitor_packet_get() != riscv_packet) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: aarch64 invalid monitor-packet control mismatch\n");
+    return 1;
+  }
+  if (riscv_foreign_trap_vector_invalid_probe(
+        invalid_control_address) != POLY_ERR_INVAL ||
+      poly_trap_vector_get() != riscv_vector) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: riscv invalid trap-vector control mismatch\n");
+    return 1;
+  }
+  if (riscv_foreign_monitor_packet_invalid_probe(
+        invalid_control_address) != POLY_ERR_INVAL ||
+      poly_monitor_packet_get() != riscv_packet) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: riscv invalid monitor-packet control mismatch\n");
     return 1;
   }
   poly_monitor_packet_set_value(0);
