@@ -1,4 +1,4 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
 ```sh
 make image
@@ -6,23 +6,22 @@ make boot-poly-exec-cross-arch-traps
 make boot-poly-full-real-xsave-arch-traps
 ```
 
-Poly runs existing precompiled x86_64, AArch64, and RISC-V64 userspace code in
-one x86_64 virtual address space. It is not a new compiler-only ABI and not a
-per-instruction trap scheme.
+Poly lets existing x86_64, AArch64, and RISC-V64 userspace code run in one
+x86_64 virtual address space. The goal is precompiled-code compatibility, not a
+new compiler-only ABI and not one trap per foreign instruction.
 
-## Difference From x86_64
+## Execution Model
 
 - x86_64 stays the system ISA: boot, privilege, paging, faults, interrupts,
-  VM control, atomics, and global TSO ordering.
-- AArch64 and RISC-V64 are user-mode frontends sharing the same address space,
-  page tables, stack memory, and OS process model.
-- Foreign code is fetched directly: AArch64 as aligned 32-bit instructions;
-  RISC-V as 16-bit/32-bit instructions so RVC stays valid.
-- Frontend changes use decoded Poly control instructions, not `#UD` envelopes.
+  VM control, atomics, and TSO ordering.
+- AArch64 and RISC-V64 are user-mode frontends in the same process address
+  space, page tables, and stack memory.
+- AArch64 fetch is direct aligned 32-bit fetch. RISC-V fetch supports 16-bit RVC
+  and 32-bit instructions.
+- ISA transitions use decoded Poly control instructions, not `#UD` envelopes.
 - Foreign register state is explicit per-thread XSAVE-style state.
-- Fast cross-ISA calls may use register-only ABI signature slots.
-- Stack arguments, aggregates, variadics, lazy binding, syscall translation, and
-  policy are loader/runtime work, not hardware descriptor parsing.
+- The runtime handles ABI shims, stack arguments, aggregates, variadics, lazy
+  binding, syscall translation, and policy.
 
 ## Controls
 
@@ -31,12 +30,13 @@ per-instruction trap scheme.
 | `PENTER frontend` | Enter a frontend from trusted runtime/system code. |
 | `PSWITCH frontend, target` | Branch to another frontend without return. |
 | `PCALL frontend, target, sig` | Call another frontend using ABI signature slot `sig`. |
-| `PTRAPRET` | Resume after a precise Poly trap. |
 | `PLANDING` | Validate indirect cross-frontend targets when enabled. |
+| `PTRAPRET` | Resume after a precise Poly trap. |
 
 ## Temporary Encodings
 
-Bochs/test encodings only. These are not vendor opcode allocations.
+Current Bochs/test encodings. These are placeholders, not vendor opcode
+allocations.
 
 | ID | Frontend | Fetch | Test encoding |
 | --- | --- | --- | --- |
@@ -44,6 +44,6 @@ Bochs/test encodings only. These are not vendor opcode allocations.
 | `1` | AArch64 | 32-bit aligned | `0xd503201f | (subop << 5)` |
 | `2` | RISC-V64 | 16-bit RVC plus 32-bit | `0x0000700b | (subop << 25)` |
 
-Constants: `tools/include/polycpuid.h`.
+Constants live in `tools/include/polycpuid.h`.
 
-Longer hardware/ABI rationale: `docs/poly-isa-design-directions.md`.
+Hardware and ABI rationale lives in `docs/poly-isa-design-directions.md`.
