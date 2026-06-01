@@ -1,9 +1,9 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly is an x86_64 CPU extension prototype that runs existing AArch64 and
-RISC-V64 user-mode code in the same virtual address space as x86_64 code.
+Poly is an x86_64 extension prototype for running existing AArch64 and RISC-V64
+user-mode code in the same virtual address space as x86_64 code.
 
-## Running
+## Run
 
 ```sh
 make image
@@ -12,31 +12,31 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps
 rg -a 'POLY.*OK|NATIVE.*OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Contract
+## ISA Contract
 
+- x86_64 remains the system ISA for boot, paging, privilege, interrupts,
+  syscalls, atomics, and TSO memory ordering.
 - Frontends are `0=x86_64`, `1=AArch64`, and `2=RISC-V64`.
-- x86_64 remains the system ISA: boot, paging, privilege, interrupts, syscalls,
-  atomics, and global TSO memory ordering are x86-owned.
 - AArch64 and RISC-V64 are ring-3 frontends that fetch native 32-bit
-  instructions from x86_64 virtual memory.
-- Frontend changes use decoded control opcodes, not `#UD` envelopes.
-- Foreign registers are per-thread XSAVE-style state.
-- Register-only cross-ISA calls use ABI signature slots.
-- Runtime thunks handle stack arguments, aggregates, variadics, lazy binding,
-  libc, and syscall policy.
+  instructions from x86 virtual memory.
+- Mode switches are decoded control instructions, not `#UD` trap envelopes.
+- Foreign register state is per-thread XSAVE-style architectural state.
+- Register-only cross-ISA calls use programmable ABI signature slots.
+- Stack arguments, aggregates, variadics, lazy binding, libc policy, and syscall
+  policy stay in software thunks/runtime code.
 - Recoverable foreign exits produce OS-neutral trap packets.
 
-## Controls
+## x86 Controls
 
-| Control | Encoding | Inputs |
+| Name | Encoding | Operands |
 | --- | --- | --- |
-| `PENTER` | `0f 3a fc 03` | frontend in `R15`, TLS/state key in `R13` |
-| `PSWITCH` | `0f 3a fc 04` | target in `RBX`, frontend in `R15` |
+| `PENTER` | `0f 3a fc 03` | `R15=frontend`, `R13=TLS/state key` |
+| `PSWITCH` | `0f 3a fc 04` | `RBX=target`, `R15=frontend` |
 | `PLANDING` | `0f 3a fc 05` | indirect-call landing marker |
-| `PCALL` | `0f 3a fc 2d` | target `RBX`, return `R11`, signature `R12` |
+| `PCALL` | `0f 3a fc 2d` | `RBX=target`, `R11=return`, `R12=signature` |
 | `PCALL_IMM` | `0f 3a fc 30..` | immediate signature slot |
-| `PTRAPRET` | `0f 3a fc 62` | resume from a trap packet |
+| `PTRAPRET` | `0f 3a fc 62` | resume from trap packet |
 
 AArch64 controls use reserved HINT encodings. RISC-V controls use custom-0
-encodings. Deeper hardware and ABI notes live in
+encodings. Hardware and ABI rationale belongs in
 `docs/poly-isa-design-directions.md`.
