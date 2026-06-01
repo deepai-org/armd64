@@ -4453,7 +4453,8 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int arch, int call_kind, uint64_t target,
     uint64_t tls, uint64_t heap, uint64_t import_x86_table,
     int needs_x86_import, uint64_t state_key, uint32_t exchange_signature_slot,
-    uint32_t native_regs_signature_slot, uint32_t vec128_signature_slot,
+    uint32_t x86_sysv_signature_slot, uint32_t native_regs_signature_slot,
+    uint32_t vec128_signature_slot,
     uint32_t compact_u32_f32_signature_slot,
     uint32_t compact_f32_u32_signature_slot,
     uint32_t fp64_signature_slot, uint32_t fp32_signature_slot,
@@ -4492,13 +4493,10 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
       signature_slot);
   }
   else {
-    const uint8_t pcall_opcode = pcall_opcode_for_call_kind(arch, call_kind);
-    if (pcall_opcode == 0xff)
+    if (pcall_opcode_for_call_kind(arch, call_kind) == 0xff)
       return -1;
-    stubs[(*stub_offset)++] = 0x0f;
-    stubs[(*stub_offset)++] = 0x3a;
-    stubs[(*stub_offset)++] = 0xfc;
-    stubs[(*stub_offset)++] = pcall_opcode;
+    emit_x86_pcall_sig_imm(stubs, stub_offset, (uint32_t) arch,
+      x86_sysv_signature_slot);
   }
   write_le64(stubs + return_imm_offset,
     (uint64_t) (uintptr_t) (stubs + *stub_offset));
@@ -10964,6 +10962,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
             (uint64_t) (uintptr_t) import_page, import_x86_table,
             needs_x86_import, stub_state_key,
             import_contract.signature_slot_exchange,
+            import_contract.signature_slot_x86_sysv_regs,
             import_contract.signature_slot_native_regs,
             cross_vec128_signature_slot,
             import_contract.signature_slot_native_regs_compact_u32_f32,
@@ -11171,6 +11170,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
               (uint64_t) (uintptr_t) import_page, import_x86_table,
               needs_x86_import, stub_state_key,
               import_contract.signature_slot_exchange,
+              import_contract.signature_slot_x86_sysv_regs,
               import_contract.signature_slot_native_regs,
               cross_vec128_signature_slot,
               import_contract.signature_slot_native_regs_compact_u32_f32,
