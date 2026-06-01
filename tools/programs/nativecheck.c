@@ -858,6 +858,34 @@ nativecheck_invalid_pcall_sig_imm_slot(void) {
       "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 }
 
+static __attribute__((noinline)) void
+nativecheck_invalid_aarch64_pcall_signature_slot(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xd2800012\n" // movz x18,#0
+    ".long 0xd28001b3\n" // movz x19,#13 (invalid signature slot)
+    ".long 0xd5032f5f\n" // aarch64 generic signature pcall
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_riscv_pcall_signature_slot(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi x5,zero,0
+    ".long 0x00100313\n" // addi x6,zero,1 (AArch64 frontend)
+    ".long 0x00000393\n" // addi x7,zero,0
+    ".long 0x00d00e13\n" // addi x28,zero,13 (invalid signature slot)
+    ".long 0x1400700b\n" // riscv generic signature pcall
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
 static int check_poly_abi_signature_slot_default(uint32_t slot, uint32_t kind,
     const char *name) {
   uint64_t actual = poly_abi_signature_get(slot);
@@ -5247,13 +5275,58 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
   return 0;
 }
 
-static int run_poly_invalid_pcall_no_mutation_probe(void) {
+typedef void (*nativecheck_invalid_pcall_fn)(void);
+
+static void nativecheck_invalid_pcall_no_mutation_cleanup(void) {
+  poly_monitor_packet_set_value(0);
+  poly_trap_vector_clear();
+  poly_landing_policy_set(0);
+  poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE);
+}
+
+static int nativecheck_poly_state_control_equal(
+    const struct poly_xsave_state *after,
+    const struct poly_xsave_state *before, const char *label) {
+  /* Trap packet and interrupted-raw transition fields are allowed to change:
+     the fault itself is precise architectural state. Frontend TLS may also be
+     touched by PENTER before the invalid instruction. The invariant here is no
+     pre-trap PCALL/ABI control mutation. */
+  if (after->header.current_mode != before->header.current_mode ||
+      after->header.flags != before->header.flags ||
+      after->header.trap_vector_pc != before->header.trap_vector_pc ||
+      after->header.trap_vector_mode != before->header.trap_vector_mode ||
+      after->header.monitor_packet_addr != before->header.monitor_packet_addr ||
+      memcmp(&after->import_return, &before->import_return,
+        sizeof(after->import_return)) != 0 ||
+      memcmp(&after->abi_signature, &before->abi_signature,
+        sizeof(after->abi_signature)) != 0 ||
+      memcmp(&after->cross_return, &before->cross_return,
+        sizeof(after->cross_return)) != 0 ||
+      memcmp(&after->landing_policy, &before->landing_policy,
+        sizeof(after->landing_policy)) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid pcall mutated XSAVE state case=%s mode=%u/%u import=%llu/%llu cross=%llu/%llu slot5=%u/%u landing=0x%llx/0x%llx\n",
+      label, after->header.current_mode, before->header.current_mode,
+      (unsigned long long) after->import_return.top,
+      (unsigned long long) before->import_return.top,
+      (unsigned long long) after->cross_return.top,
+      (unsigned long long) before->cross_return.top,
+      after->abi_signature.slots[5].kind,
+      before->abi_signature.slots[5].kind,
+      (unsigned long long) after->landing_policy.flags,
+      (unsigned long long) before->landing_policy.flags);
+    return 0;
+  }
+  return 1;
+}
+
+static int run_poly_invalid_pcall_no_mutation_case(const char *label,
+    nativecheck_invalid_pcall_fn probe) {
   struct nativecheck_monitor_packet monitor_packet;
   struct poly_xsave_state before __attribute__((aligned(64)));
   struct poly_xsave_state after __attribute__((aligned(64)));
   struct sigaction action;
   struct sigaction old_action;
-  const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   memset(&before, 0, sizeof(before));
@@ -5261,12 +5334,12 @@ static int run_poly_invalid_pcall_no_mutation_probe(void) {
 
   if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
       poly_landing_policy_set(POLY_LANDING_POLICY_REQUIRE_CALL) != 0) {
-    fputs("NATIVE_CHECK_FAIL: poly invalid pcall mutation setup failed\n",
-      stderr);
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid pcall mutation setup failed case=%s\n",
+      label);
     return 1;
   }
-  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
-  poly_trap_vector_set_value(trap_vector);
+  poly_trap_vector_clear();
   poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   poly_state_export(&before);
 
@@ -5274,69 +5347,53 @@ static int run_poly_invalid_pcall_no_mutation_probe(void) {
   action.sa_handler = nativecheck_sigill_handler;
   sigemptyset(&action.sa_mask);
   if (sigaction(SIGILL, &action, &old_action) != 0) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly invalid pcall sigaction failed\n");
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid pcall sigaction failed case=%s\n",
+      label);
+    nativecheck_invalid_pcall_no_mutation_cleanup();
     return 1;
   }
 
   nativecheck_expect_sigill = 1;
   if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
-    nativecheck_invalid_pcall_sig_imm_slot();
+    probe();
     nativecheck_expect_sigill = 0;
     sigaction(SIGILL, &old_action, 0);
-    fputs("NATIVE_CHECK_FAIL: poly invalid pcall returned without SIGILL\n",
-      stderr);
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly invalid pcall returned without SIGILL case=%s\n",
+      label);
+    nativecheck_invalid_pcall_no_mutation_cleanup();
     return 1;
   }
   nativecheck_expect_sigill = 0;
   if (sigaction(SIGILL, &old_action, 0) != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly invalid pcall sigaction restore failed\n");
+      "NATIVE_CHECK_FAIL: poly invalid pcall sigaction restore failed case=%s\n",
+      label);
+    nativecheck_invalid_pcall_no_mutation_cleanup();
     return 1;
   }
 
   poly_state_export(&after);
-  if (after.header.current_mode != before.header.current_mode ||
-      after.header.flags != before.header.flags ||
-      after.header.trap_vector_pc != before.header.trap_vector_pc ||
-      after.header.trap_vector_mode != before.header.trap_vector_mode ||
-      after.header.monitor_packet_addr != before.header.monitor_packet_addr ||
-      memcmp(&after.trap, &before.trap, sizeof(after.trap)) != 0 ||
-      memcmp(after.trap_args, before.trap_args,
-        sizeof(after.trap_args)) != 0 ||
-      memcmp(&after.transition, &before.transition,
-        sizeof(after.transition)) != 0 ||
-      memcmp(&after.import_return, &before.import_return,
-        sizeof(after.import_return)) != 0 ||
-      memcmp(&after.abi_signature, &before.abi_signature,
-        sizeof(after.abi_signature)) != 0 ||
-      memcmp(&after.cross_return, &before.cross_return,
-        sizeof(after.cross_return)) != 0 ||
-      memcmp(&after.frontend_tls, &before.frontend_tls,
-        sizeof(after.frontend_tls)) != 0 ||
-      memcmp(&after.landing_policy, &before.landing_policy,
-        sizeof(after.landing_policy)) != 0) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly invalid pcall mutated XSAVE state mode=%u/%u import=%llu/%llu cross=%llu/%llu slot5=%u/%u landing=0x%llx/0x%llx\n",
-      after.header.current_mode, before.header.current_mode,
-      (unsigned long long) after.import_return.top,
-      (unsigned long long) before.import_return.top,
-      (unsigned long long) after.cross_return.top,
-      (unsigned long long) before.cross_return.top,
-      after.abi_signature.slots[5].kind,
-      before.abi_signature.slots[5].kind,
-      (unsigned long long) after.landing_policy.flags,
-      (unsigned long long) before.landing_policy.flags);
-    poly_monitor_packet_set_value(0);
-    poly_trap_vector_clear();
-    poly_landing_policy_set(0);
-    poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE);
+  if (!nativecheck_poly_state_control_equal(&after, &before, label)) {
+    nativecheck_invalid_pcall_no_mutation_cleanup();
     return 1;
   }
 
-  poly_monitor_packet_set_value(0);
-  poly_trap_vector_clear();
-  poly_landing_policy_set(0);
-  poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE);
+  nativecheck_invalid_pcall_no_mutation_cleanup();
+  return 0;
+}
+
+static int run_poly_invalid_pcall_no_mutation_probe(void) {
+  if (run_poly_invalid_pcall_no_mutation_case("x86-invalid-imm-slot",
+        nativecheck_invalid_pcall_sig_imm_slot) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("aarch64-invalid-slot",
+        nativecheck_invalid_aarch64_pcall_signature_slot) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("riscv-invalid-slot",
+        nativecheck_invalid_riscv_pcall_signature_slot) != 0)
+    return 1;
   puts("NATIVE_POLY_INVALID_PCALL_NO_MUTATION_OK");
   return 0;
 }
