@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOCHS_SRC="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
-TOOLS_SRC="$ROOT_DIR/tools/runtime/polycall.c"
 HEADER_SRC="$ROOT_DIR/tools/include/polycpuid.h"
 
 extract_const() {
@@ -135,23 +134,14 @@ ensure_bochs_import_surface_is_generic() {
 }
 
 compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_FUNC_X86_SLOT0" \
-  "$TOOLS_SRC" "POLY_IMPORT_FUNC_X86_SLOT0"
+  "$HEADER_SRC" "POLY_IMPORT_FUNC_X86_SLOT0"
 compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_FUNC_X86_SLOT7" \
-  "$TOOLS_SRC" "POLY_IMPORT_FUNC_X86_SLOT7"
+  "$HEADER_SRC" "POLY_IMPORT_FUNC_X86_SLOT7"
 compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_CALL_COUNT" \
-  "$TOOLS_SRC" "POLY_IMPORT_FUNC_COUNT"
+  "$HEADER_SRC" "POLY_IMPORT_FUNC_COUNT"
 
-compare_const "$HEADER_SRC" "POLY_IMPORT_FUNC_X86_SLOT0" \
-  "$TOOLS_SRC" "POLY_IMPORT_FUNC_X86_SLOT0"
-compare_const "$HEADER_SRC" "POLY_IMPORT_FUNC_X86_SLOT7" \
-  "$TOOLS_SRC" "POLY_IMPORT_FUNC_X86_SLOT7"
-compare_const "$HEADER_SRC" "POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK" \
-  "$TOOLS_SRC" "POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK"
-compare_const "$HEADER_SRC" "POLY_IMPORT_FUNC_COUNT" \
-  "$TOOLS_SRC" "POLY_IMPORT_FUNC_COUNT"
-
-tools_count="$(extract_const "$TOOLS_SRC" "POLY_IMPORT_FUNC_COUNT")"
-validate_dense_runtime_ids "$TOOLS_SRC" "$tools_count"
+tools_count="$(extract_const "$HEADER_SRC" "POLY_IMPORT_FUNC_COUNT")"
+validate_dense_runtime_ids "$HEADER_SRC" "$tools_count"
 ensure_bochs_import_surface_is_generic
 
 echo "poly import trap selector contract OK: $tools_count selectors"
