@@ -8,9 +8,11 @@
 
 #define POLY_OP_ENTER_A64 \
   "movl $1, %%r15d\n" \
+  ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_ENTER_RV64 \
   "movl $2, %%r15d\n" \
+  ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
@@ -22,9 +24,11 @@
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
 #define POLY_OP_PCALL_SIG_IMM_NATIVE \
-  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SIG_IMM_FP64 \
-  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_FP64_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_FP64_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SYSV_A64 \
   "pushq %%rbx\n" \
   "pushq %%r15\n" \
@@ -37,7 +41,8 @@
   "popq %%r11\n" \
   "popq %%r15\n" \
   "popq %%rbx\n" \
-  "jmp *%%r11\n"
+  "jmp *%%r11\n" \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SYSV_RV64 \
   "pushq %%rbx\n" \
   "pushq %%r15\n" \
@@ -50,7 +55,8 @@
   "popq %%r11\n" \
   "popq %%r15\n" \
   "popq %%rbx\n" \
-  "jmp *%%r11\n"
+  "jmp *%%r11\n" \
+  ".balign 4, 0x90\n"
 #define POLY_AARCH64_PCALL_SIG_IMM_NATIVE ".long 0xd5032a7f\n"
 #define POLY_AARCH64_PCALL_SIG_IMM_FP64 ".long 0xd5032b1f\n"
 #define POLY_RISCV_PCALL_SIG_IMM_NATIVE ".long 0x4600700b\n"
@@ -1005,6 +1011,7 @@ static uint64_t direct_aarch64_x86_signature_fp64_mul(uint64_t left_bits,
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     :
@@ -1029,6 +1036,7 @@ static uint64_t direct_riscv_x86_signature_fp64_mul(uint64_t left_bits,
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     :

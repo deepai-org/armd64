@@ -15,9 +15,11 @@
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_PCALL_SIG_IMM_NATIVE \
-  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SIG_IMM_FP64 \
-  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_FP64_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_FP64_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SYSV_A64 \
   "pushq %%rbx\n" \
   "pushq %%r15\n" \
@@ -30,7 +32,8 @@
   "popq %%r11\n" \
   "popq %%r15\n" \
   "popq %%rbx\n" \
-  "jmp *%%r11\n"
+  "jmp *%%r11\n" \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SYSV_RV64 \
   "pushq %%rbx\n" \
   "pushq %%r15\n" \
@@ -43,7 +46,8 @@
   "popq %%r11\n" \
   "popq %%r15\n" \
   "popq %%rbx\n" \
-  "jmp *%%r11\n"
+  "jmp *%%r11\n" \
+  ".balign 4, 0x90\n"
 
 enum {
   POLYSIGNAL_LOOP_COUNT = 200000,
@@ -392,8 +396,30 @@ static void emit_x86_poly_control(uint8_t *code, size_t *offset,
   code[(*offset)++] = subop;
 }
 
+static size_t poly_frontend_entry_alignment(uint32_t frontend) {
+  return frontend == POLY_FRONTEND_AARCH64 || frontend == POLY_FRONTEND_RISCV ?
+    4U : 1U;
+}
+
+static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
+  const size_t base_size = 10U;
+  const size_t align = poly_frontend_entry_alignment(frontend);
+  const size_t target = offset + base_size;
+  const size_t pad = align > 1 ?
+    ((align - (target & (align - 1U))) & (align - 1U)) : 0;
+  return base_size + pad;
+}
+
+static void emit_x86_entry_alignment(uint8_t *code, size_t *offset,
+    uint32_t frontend) {
+  size_t pad = x86_penter_frontend_size_at(*offset, frontend) - 10U;
+  while (pad-- > 0)
+    code[(*offset)++] = 0x90;
+}
+
 static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
     uint32_t frontend) {
+  emit_x86_entry_alignment(code, offset, frontend);
   code[(*offset)++] = 0x41; // mov r15d,frontend
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, frontend);
@@ -729,7 +755,8 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
   emit_x86_penter_frontend(code, &offset, POLY_FRONTEND_AARCH64);
 
   const size_t aarch64_return_offset = offset + 16 + 16 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
+  const size_t riscv_target_offset = (aarch64_return_offset + 8 + 1 + 3U) &
+    ~(size_t) 3U;
 
   emit_aarch64_movabs(code, &offset, 0, seed);
   emit_aarch64_movabs(code, &offset, 1, loops);

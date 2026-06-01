@@ -13,9 +13,11 @@
   "movq %%r11, %%r15\n"
 #define POLY_OP_ENTER_A64 \
   "movl $1, %%r15d\n" \
+  ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_ENTER_RV64 \
   "movl $2, %%r15d\n" \
+  ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_ENTER_MODE POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_SWITCH_MODE POLY_X86_CTRL_PSWITCH_MODE_ASM
@@ -23,12 +25,16 @@
 #define POLY_OP_PCALL_A64 \
   "movq %%r10, %%rbx\n" \
   "movl $1, %%r15d\n" \
-  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_RV64 \
   "movq %%r10, %%rbx\n" \
   "movl $2, %%r15d\n" \
-  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM
-#define POLY_OP_PCALL_SIG_MODE POLY_X86_CTRL_PCALL_SIG_MODE_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM \
+  ".balign 4, 0x90\n"
+#define POLY_OP_PCALL_SIG_MODE \
+  POLY_X86_CTRL_PCALL_SIG_MODE_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SIG_A64 \
   "movl $1, %%r15d\n" \
   POLY_OP_PCALL_SIG_MODE
@@ -36,7 +42,8 @@
   "movl $2, %%r15d\n" \
   POLY_OP_PCALL_SIG_MODE
 #define POLY_OP_PCALL_SIG_IMM_SLOT3 \
-  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
 #define POLY_OP_TRAP_VECTOR_GET POLY_X86_CTRL_TRAP_VECTOR_GET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
@@ -796,6 +803,7 @@ static inline void generic_enter_aarch64_probe(void) {
   asm volatile(
     "pushq %%r15\n"
     "movq %0, %%r15\n"
+    ".balign 4, 0x90\n"
     POLY_OP_ENTER_MODE
     ".long 0xd28002a0\n" // movz x0,#21
     ".long 0xd5032e1f\n"
@@ -809,6 +817,7 @@ static inline void generic_enter_riscv_probe(void) {
   asm volatile(
     "pushq %%r15\n"
     "movq %0, %%r15\n"
+    ".balign 4, 0x90\n"
     POLY_OP_ENTER_MODE
     ".long 0x01500513\n" // addi a0,zero,21
     ".long 0x0000700b\n"
@@ -826,6 +835,7 @@ static inline void generic_switch_aarch64_probe(void) {
     "movq %0, %%r15\n"
     POLY_OP_SWITCH_MODE
     "jmp 3f\n"
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0xd2800420\n" // movz x0,#33
     ".long 0xd5032e1f\n"
@@ -849,6 +859,7 @@ static inline void generic_switch_riscv_probe(void) {
     "movq %0, %%r15\n"
     POLY_OP_SWITCH_MODE
     "jmp 3f\n"
+    ".balign 2, 0x90\n"
     "1:\n"
     ".long 0x02100513\n" // addi a0,zero,33
     ".long 0x0000700b\n"
@@ -1920,6 +1931,7 @@ static inline void aarch64_signature_imm_call_x86_probe(void) {
     "addq %%r8, %%rax\n"
     "addq %%r9, %%rax\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
@@ -1948,6 +1960,7 @@ static inline void riscv_signature_imm_call_x86_probe(void) {
     "addq %%r8, %%rax\n"
     "addq %%r9, %%rax\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
@@ -1966,6 +1979,7 @@ static inline void aarch64_landing_policy_call_x86_probe(void) {
     POLY_OP_LANDING
     "movq $61, %%rax\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
@@ -1984,6 +1998,7 @@ static inline void riscv_landing_policy_call_x86_probe(void) {
     POLY_OP_LANDING
     "movq $62, %%rax\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "memory");
@@ -2003,6 +2018,7 @@ static inline void aarch64_signature_imm_call_x86_stack_probe(void) {
     "1:\n"
     "movq (%%r11), %%rax\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     "addq $8, %%rsp\n"
@@ -2023,6 +2039,7 @@ static inline void riscv_signature_imm_call_x86_stack_probe(void) {
     "1:\n"
     "movq (%%r11), %%rax\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     "addq $8, %%rsp\n"
@@ -2041,6 +2058,7 @@ static inline void aarch64_signature_imm_call_x86_fp64_probe(void) {
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "xmm0", "memory");
@@ -2058,6 +2076,7 @@ static inline void riscv_signature_imm_call_x86_fp64_probe(void) {
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "xmm0", "memory");
@@ -2075,6 +2094,7 @@ static inline void aarch64_signature_imm_call_x86_vec128_probe(void) {
     "1:\n"
     "paddq %%xmm1, %%xmm0\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "xmm0", "memory");
@@ -2092,6 +2112,7 @@ static inline void riscv_signature_imm_call_x86_vec128_probe(void) {
     "1:\n"
     "paddq %%xmm1, %%xmm0\n"
     "retq\n"
+    ".balign 4, 0x90\n"
     "2:\n"
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "xmm0", "memory");

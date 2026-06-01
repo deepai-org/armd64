@@ -281,7 +281,7 @@ enum {
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
   POLY_ARCH_COUNT = 3,
   POLY_X86_CONTROL_OPCODE_SIZE = 4,
-  POLY_X86_PENTER_GENERIC_SIZE = 10,
+  POLY_X86_PENTER_BASE_SIZE = 10,
   POLY_X86_TRAMPOLINE_SIZE = 14,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
@@ -3723,8 +3723,28 @@ static void emit_x86_poly_control(uint8_t *code, size_t *offset,
   code[(*offset)++] = subop;
 }
 
+static size_t poly_frontend_entry_alignment(uint32_t frontend) {
+  return frontend == POLY_ARCH_AARCH64 || frontend == POLY_ARCH_RISCV ? 4U : 1U;
+}
+
+static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
+  const size_t align = poly_frontend_entry_alignment(frontend);
+  const size_t target = offset + POLY_X86_PENTER_BASE_SIZE;
+  const size_t pad = align > 1 ? ((align - (target & (align - 1U))) & (align - 1U)) : 0;
+  return POLY_X86_PENTER_BASE_SIZE + pad;
+}
+
+static void emit_x86_entry_alignment(uint8_t *code, size_t *offset,
+    uint32_t frontend) {
+  size_t pad = x86_penter_frontend_size_at(*offset, frontend) -
+    POLY_X86_PENTER_BASE_SIZE;
+  while (pad-- > 0)
+    code[(*offset)++] = 0x90;
+}
+
 static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
     uint32_t frontend) {
+  emit_x86_entry_alignment(code, offset, frontend);
   code[(*offset)++] = 0x41; // mov r15d,frontend
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, frontend);
@@ -4187,9 +4207,9 @@ static int emit_poly_trampoline(const struct poly_program *program,
 
 static size_t poly_trampoline_prefix_size(int arch) {
   if (arch == POLY_ARCH_AARCH64)
-    return POLY_X86_PENTER_GENERIC_SIZE + 4 + 20;
+    return x86_penter_frontend_size_at(0, POLY_ARCH_AARCH64) + 4 + 20;
   if (arch == POLY_ARCH_RISCV)
-    return POLY_X86_PENTER_GENERIC_SIZE + 8 + 12;
+    return x86_penter_frontend_size_at(0, POLY_ARCH_RISCV) + 8 + 12;
   if (arch == POLY_ARCH_X86)
     return POLY_X86_TRAMPOLINE_SIZE;
   return 0;
@@ -4322,9 +4342,12 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
   (void) return_pc;
   size_t offset = 0;
   if (program->arch == POLY_ARCH_AARCH64) {
-    if (code_size < 43)
+    const size_t penter_size = x86_penter_frontend_size_at(20,
+      POLY_ARCH_AARCH64);
+    const uint64_t resolver_return_pc =
+      (uint64_t) (uintptr_t) (code + 20 + penter_size + 8);
+    if (code_size < 20 + penter_size + 8 + 4 + 1)
       return -1;
-    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 38);
     code[offset++] = 0x48; // movabs rax,target_pc -> AArch64 x0
     code[offset++] = 0xb8;
     emit_u64(code, &offset, target_pc);
@@ -4340,9 +4363,12 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
   }
 
   if (program->arch == POLY_ARCH_RISCV) {
-    if (code_size < 43)
+    const size_t penter_size = x86_penter_frontend_size_at(20,
+      POLY_ARCH_RISCV);
+    const uint64_t resolver_return_pc =
+      (uint64_t) (uintptr_t) (code + 20 + penter_size + 8);
+    if (code_size < 20 + penter_size + 8 + 4 + 1)
       return -1;
-    const uint64_t resolver_return_pc = (uint64_t) (uintptr_t) (code + 38);
     code[offset++] = 0x48; // movabs rax,target_pc -> RISC-V a0
     code[offset++] = 0xb8;
     emit_u64(code, &offset, target_pc);

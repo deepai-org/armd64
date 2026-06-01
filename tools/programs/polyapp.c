@@ -603,8 +603,29 @@ static void emit_x86_poly_control(uint8_t *code, size_t *offset,
   code[(*offset)++] = subop;
 }
 
+static size_t poly_frontend_entry_alignment(uint32_t frontend) {
+  return frontend == POLY_FRONTEND_AARCH64 || frontend == POLY_FRONTEND_RISCV ?
+    4U : 1U;
+}
+
+static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
+  const size_t base_size = 10U;
+  const size_t align = poly_frontend_entry_alignment(frontend);
+  const size_t target = offset + base_size;
+  const size_t pad = align > 1 ? ((align - (target & (align - 1U))) & (align - 1U)) : 0;
+  return base_size + pad;
+}
+
+static void emit_x86_entry_alignment(uint8_t *code, size_t *offset,
+    uint32_t frontend) {
+  size_t pad = x86_penter_frontend_size_at(*offset, frontend) - 10U;
+  while (pad-- > 0)
+    code[(*offset)++] = 0x90;
+}
+
 static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
     uint32_t frontend) {
+  emit_x86_entry_alignment(code, offset, frontend);
   code[(*offset)++] = 0x41; // mov r15d,frontend
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, frontend);
@@ -1017,7 +1038,9 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     char scratch_result[SCRATCH_CHECK_SIZE + 1],
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
   const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 2 : 3;
-  const size_t penter_size = 10;
+  const size_t penter_size = x86_penter_frontend_size_at(3,
+    payload->arch == POLY_ARCH_AARCH64 ? POLY_FRONTEND_AARCH64 :
+    POLY_FRONTEND_RISCV);
   const size_t final_tail_size = 5;
   const size_t code_size = 3 + penter_size +
     (return_setup_insns + payload->insn_count) * 4 + final_tail_size;

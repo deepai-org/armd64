@@ -14,18 +14,26 @@
 
 #define POLY_OP_ENTER_A64 \
   "movl $1, %%r15d\n" \
+  ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_ENTER_RV64 \
   "movl $2, %%r15d\n" \
+  ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_ENTER_MODE POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_SWITCH_MODE POLY_X86_CTRL_PSWITCH_MODE_ASM
-#define POLY_OP_PCALL_SIG_MODE POLY_X86_CTRL_PCALL_SIG_MODE_ASM
-#define POLY_OP_PCALL_SIG_IMM_SLOT0 POLY_X86_CTRL_PCALL_SIG_IMM_SLOT0_ASM
+#define POLY_OP_PCALL_SIG_MODE \
+  POLY_X86_CTRL_PCALL_SIG_MODE_ASM \
+  ".balign 4, 0x90\n"
+#define POLY_OP_PCALL_SIG_IMM_SLOT0 \
+  POLY_X86_CTRL_PCALL_SIG_IMM_SLOT0_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SIG_IMM_SLOT3 \
-  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_PCALL_SIG_IMM_INVALID_SLOT \
-  POLY_X86_CTRL_PCALL_SIG_IMM_INVALID_SLOT_ASM
+  POLY_X86_CTRL_PCALL_SIG_IMM_INVALID_SLOT_ASM \
+  ".balign 4, 0x90\n"
 #define POLY_OP_REMOVED_PCALL_SIG_IMM_TRAILER \
   ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
@@ -463,6 +471,7 @@ static uint64_t nativecheck_generic_enter_aarch64_add(void) {
   uint64_t result;
   asm volatile(
     "movq %1, %%r15\n"
+    ".balign 4, 0x90\n"
     POLY_OP_ENTER_MODE
     ".long 0xd2800520\n" // movz x0,#41
     ".long 0x91000400\n" // add x0,x0,#1
@@ -478,6 +487,7 @@ static uint64_t nativecheck_generic_enter_riscv_add(void) {
   uint64_t result;
   asm volatile(
     "movq %1, %%r15\n"
+    ".balign 4, 0x90\n"
     POLY_OP_ENTER_MODE
     ".long 0x02900513\n" // addi a0,zero,41
     ".long 0x00150513\n" // addi a0,a0,1
@@ -600,6 +610,7 @@ static uint64_t nativecheck_generic_switch_aarch64_add(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "movq %1, %%r15\n"
     POLY_OP_SWITCH_MODE
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0x91001400\n" // add x0,x0,#5
     ".long 0xd5032e1f\n" // aarch64 x86 escape.
@@ -618,6 +629,7 @@ static uint64_t nativecheck_generic_switch_riscv_add(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "movq %1, %%r15\n"
     POLY_OP_SWITCH_MODE
+    ".balign 2, 0x90\n"
     "1:\n"
     ".long 0x00550513\n" // addi a0,a0,5
     ".long 0x0000700b\n" // riscv x86 escape.
@@ -1299,6 +1311,7 @@ static uint64_t nativecheck_x86_signature_pcall_aarch64_leaf(void) {
     "leaq 2f(%rip),%r11\n"
     "movq $1,%r15\n"
     POLY_OP_PCALL_SIG_IMM_SLOT3
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0xd2800540\n" // movz x0,#42
     ".long 0xd65f03c0\n" // ret x30
@@ -1313,6 +1326,7 @@ static uint64_t nativecheck_x86_signature_pcall_riscv_leaf(void) {
     "leaq 2f(%rip),%r11\n"
     "movq $2,%r15\n"
     POLY_OP_PCALL_SIG_IMM_SLOT3
+    ".balign 2, 0x90\n"
     "1:\n"
     ".long 0x02a00513\n" // addi a0,zero,42
     ".long 0x00008067\n" // ret
@@ -1642,6 +1656,38 @@ static void child_expect_invalid_generic_enter_frontend_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_unaligned_aarch64_switch_target_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "orq $1, %%rbx\n"
+    "movl $1, %%r15d\n"
+    POLY_OP_SWITCH_MODE
+    "1:\n"
+    ".long 0xd5032e1f\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_unaligned_riscv_switch_target_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "orq $1, %%rbx\n"
+    "movl $2, %%r15d\n"
+    POLY_OP_SWITCH_MODE
+    "1:\n"
+    ".long 0x0000700b\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_invalid_generic_switch_frontend_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -1716,6 +1762,7 @@ static void child_expect_invalid_generic_pcall_return_signal(void) {
     "movq %0, %%r11\n"
     "movq %1, %%r15\n"
     POLY_OP_PCALL_SIG_IMM_SLOT3
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0xd65f03c0\n" // ret x30; should not execute.
     :
@@ -1736,6 +1783,7 @@ static void child_expect_invalid_generic_pcall_slot_signal(void) {
     "movq %0, %%r12\n"
     "movq %1, %%r15\n"
     POLY_OP_PCALL_SIG_MODE
+    ".balign 4, 0x90\n"
     "1:\n"
     "retq\n"
     "2:\n"
@@ -1894,6 +1942,7 @@ static void child_expect_landing_policy_missing_pcall_signal(void) {
     "leaq 2f(%%rip), %%r11\n"
     "movq %0, %%r15\n"
     POLY_OP_PCALL_SIG_IMM_SLOT0
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0xd2800540\n" // movz x0,#42, intentionally no landing pad
     ".long 0xd65f03c0\n" // ret x30
@@ -1915,6 +1964,7 @@ static void child_expect_landing_policy_missing_switch_signal(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "movq %0, %%r15\n"
     POLY_OP_SWITCH_MODE
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape, no landing pad
     "2:\n"
@@ -3139,6 +3189,7 @@ static uint64_t nativecheck_landing_policy_pcall_aarch64(void) {
     "leaq 2f(%%rip), %%r11\n"
     "movq %1, %%r15\n"
     POLY_OP_PCALL_SIG_IMM_SLOT0
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0xd5032f7f\n" // aarch64 landing pad
     ".long 0xd2800540\n" // movz x0,#42
@@ -3158,6 +3209,7 @@ static uint64_t nativecheck_landing_policy_switch_aarch64(void) {
     "leaq 1f(%%rip), %%rbx\n"
     "movq %1, %%r15\n"
     POLY_OP_SWITCH_MODE
+    ".balign 4, 0x90\n"
     "1:\n"
     ".long 0xd5032f7f\n" // aarch64 landing pad
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
@@ -3264,6 +3316,12 @@ static int run_poly_no_vector_signal_probe(void) {
 static int run_poly_invalid_generic_control_signal_probe(void) {
   if (expect_child_signal("poly invalid generic enter frontend", SIGILL,
         child_expect_invalid_generic_enter_frontend_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly unaligned aarch64 switch target", SIGILL,
+        child_expect_unaligned_aarch64_switch_target_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly unaligned riscv switch target", SIGILL,
+        child_expect_unaligned_riscv_switch_target_signal) != 0)
     return 1;
   if (expect_child_signal("poly invalid generic switch frontend", SIGILL,
         child_expect_invalid_generic_switch_frontend_signal) != 0)
