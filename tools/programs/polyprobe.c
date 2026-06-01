@@ -73,6 +73,8 @@
 #define POLY_CROSS_RETURN_COOKIE_VALUE 0xffffffffffffd000ULL
 #define POLYPROBE_NEUTRAL_SWITCH_DELTA 3ULL
 #define POLYPROBE_NEUTRAL_CALL_DELTA 4ULL
+#define POLYPROBE_INVALID_AARCH64_BRANCH_TARGET 2ULL
+#define POLYPROBE_INVALID_RISCV_BRANCH_TARGET 0x0100000000000000ULL
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 static uint32_t polyprobe_native_signature_slot =
@@ -491,6 +493,14 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
       polyprobe_trap_args_equal(monitor_packet->args,
         polyprobe_riscv_import_trap_args))
     return 5555;
+  if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
+      mode == POLY_MODE_RAW_AARCH64 && number == 0xd61f0200ULL &&
+      monitor_packet->args[0] == POLYPROBE_INVALID_AARCH64_BRANCH_TARGET)
+    return 7777;
+  if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
+      mode == POLY_MODE_RAW_RISCV && number == 0x00050067ULL &&
+      monitor_packet->args[0] == POLYPROBE_INVALID_RISCV_BRANCH_TARGET)
+    return 7777;
   if (reason == POLY_TRAP_ILLEGAL && number == 0xffffffffULL &&
       selector == 4)
     return 6666;
@@ -2452,6 +2462,26 @@ static inline void raw_riscv_illegal_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
+static inline void raw_aarch64_invalid_branch_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800050\n" // movz x16,#2: canonical but not AArch64 aligned.
+    ".long 0xd61f0200\n" // br x16: invalid target must trap.
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape after trap resume.
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_invalid_branch_probe(void) {
+  uint64_t target = POLYPROBE_INVALID_RISCV_BRANCH_TARGET;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00050067\n" // jalr zero,0(a0): non-canonical target must trap.
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape after trap resume.
+    : "+a"(target)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+}
+
 int main(void) {
   stage("POLY_PROBE: start");
   install_polyprobe_trap_vector();
@@ -4104,6 +4134,42 @@ int main(void) {
   if (expect_monitor_packet_header("riscv illegal", &monitor_packet,
         POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4, 1) != 0)
     return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_aarch64_invalid_branch_probe();
+  if (read_rax() != 7777) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 invalid branch trap mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("aarch64 invalid branch", &monitor_packet,
+        POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xd61f0200ULL, 4, 1) != 0)
+    return 1;
+  if (monitor_packet.args[0] != POLYPROBE_INVALID_AARCH64_BRANCH_TARGET) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: monitor packet aarch64 invalid branch target mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) POLYPROBE_INVALID_AARCH64_BRANCH_TARGET);
+    return 1;
+  }
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_riscv_invalid_branch_probe();
+  if (read_rax() != 7777) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv invalid branch trap mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("riscv invalid branch", &monitor_packet,
+        POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0x00050067ULL, 4, 1) != 0)
+    return 1;
+  if (monitor_packet.args[0] != POLYPROBE_INVALID_RISCV_BRANCH_TARGET) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: monitor packet riscv invalid branch target mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) monitor_packet.args[0],
+      (unsigned long long) POLYPROBE_INVALID_RISCV_BRANCH_TARGET);
+    return 1;
+  }
   puts("POLY_PROBE_MONITOR_PACKETS_OK");
   poly_monitor_packet_set_value(0);
   polyprobe_current_monitor_packet = 0;
