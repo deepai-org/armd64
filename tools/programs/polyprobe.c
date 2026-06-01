@@ -378,6 +378,24 @@ static int polyprobe_monitor_packet_contract_valid(
       POLY_TRAP_PACKET_REQUIRED_FLAGS;
 }
 
+static inline void polyprobe_clobber_aarch64_trap_state(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2807d13\n" // movz x19,#1000
+    ".long 0xd280fa14\n" // movz x20,#2000
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void polyprobe_clobber_riscv_trap_state(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x06400913\n" // addi s2,zero,100
+    ".long 0x0c800993\n" // addi s3,zero,200
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 __attribute__((noinline, used))
 uint64_t polyprobe_trap_vector_dispatch(void) {
   const struct polyprobe_monitor_packet *monitor_packet =
@@ -393,6 +411,16 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
 
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -38;
+  if (reason == POLY_TRAP_BREAK && number == 2 &&
+      mode == POLY_MODE_RAW_AARCH64) {
+    polyprobe_clobber_aarch64_trap_state();
+    return 0;
+  }
+  if (reason == POLY_TRAP_BREAK && number == 2 &&
+      mode == POLY_MODE_RAW_RISCV) {
+    polyprobe_clobber_riscv_trap_state();
+    return 0;
+  }
   if (reason == POLY_TRAP_SYSCALL && number == 172 &&
       ((mode == POLY_MODE_RAW_AARCH64 &&
         polyprobe_trap_args_equal(monitor_packet->args,
@@ -2113,6 +2141,37 @@ static inline void raw_riscv_break_probe(uint64_t arg0) {
     : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
 }
 
+static inline uint64_t raw_aarch64_trap_restore_probe(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800233\n" // movz x19,#17
+    ".long 0xd2800454\n" // movz x20,#34
+    ".long 0xd4200040\n" // brk #2
+    ".long 0x8b140260\n" // add x0,x19,x20
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "=a"(result)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return result;
+}
+
+static inline uint64_t raw_riscv_trap_restore_probe(void) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x01100913\n" // addi s2,zero,17
+    ".long 0x02200993\n" // addi s3,zero,34
+    ".long 0x00200893\n" // addi a7,zero,2
+    ".long 0x00100073\n" // ebreak
+    ".long 0x01390533\n" // add a0,s2,s3
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "=a"(result)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return result;
+}
+
 static inline void raw_aarch64_import_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
@@ -3527,6 +3586,26 @@ int main(void) {
       (unsigned long long) break_arg);
     return 1;
   }
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  if (raw_aarch64_trap_restore_probe() != 51) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: aarch64 trap return state restore mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("aarch64 restore break", &monitor_packet,
+        POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 2, 2, 1) != 0)
+    return 1;
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  if (raw_riscv_trap_restore_probe() != 51) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: riscv trap return state restore mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("riscv restore break", &monitor_packet,
+        POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 2, 0, 1) != 0)
+    return 1;
 
   stage("POLY_STAGE: raw-syscall");
   memset(&monitor_packet, 0, sizeof(monitor_packet));
