@@ -1,21 +1,18 @@
 # Poly ISA
 
-Poly is an x86_64 extension for executing existing AArch64 and RISC-V64 user
-code in the same virtual address space. Detailed rationale lives in
-`docs/poly-isa-design-directions.md`.
+Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 CPU so existing native objects can run in one address space. It is not a new portable compiler ABI; see `docs/poly-isa-design-directions.md` for rationale.
 
-## What Changes From x86_64
+## Model
 
-- Adds three user-mode instruction frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
-- AArch64 fetch is native 32-bit aligned; RISC-V64 fetch is native 16/32-bit with RVC.
-- x86_64 remains the system ISA for boot, privilege, paging, interrupts, VM control, kernel syscalls, atomics, and the global TSO memory model.
-- Cross-ISA calls target native ABI code: SysV x86_64, AAPCS64, and RISC-V psABI.
-- Per-thread Poly state is XSAVE-style architectural state, not hidden emulator state.
+- Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- x86_64 remains the system ISA: boot, paging, privilege, interrupts, kernel syscalls, atomics, VM control, and TSO memory ordering.
+- Foreign frontends fetch native instructions from `RIP`: AArch64 as aligned 32-bit words, RISC-V64 as 16/32-bit instructions with RVC.
+- Cross-ISA calls target native ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
+- Poly state is per-thread XSAVE-style state.
 
-## Control Instructions
+## Controls
 
-Controls are decoded instructions, not `#UD` trap envelopes. Current Bochs
-prototype encodings:
+Decoded controls, not `#UD` trap envelopes:
 
 ```text
 x86_64    0f 3a fc <subop>
@@ -33,11 +30,9 @@ RISC-V64  0x0000700b | ((subop & 0x7f) << 25)
 | `0x62` | `PTRAPRET` |
 | `0x65..0x6e` | state/control setup |
 
-## Hardware Boundary
+## Boundary
 
-- Fast `PCALL` uses register-only ABI signature slots for fixed-latency register-name remaps.
-- Runtime thunks handle stack arguments, aggregates, variadics, vectors, lazy binding, syscalls, and helper libraries.
-- `PCALL` records caller frontend, PC, SP, and flags, applies the signature, installs a native return cookie, and branches.
-- Native `ret`/`ret x30`/RISC-V `ret` cross back through the cookie.
-- Hardware may switch frontends, remap registers, validate landings, maintain the transition stack, and emit precise trap records.
-- Hardware must not parse user-memory descriptors, repack stacks, implement libraries, translate syscalls, or encode OS policy.
+- Hardware: frontend switching, register-only ABI signatures, transition stack, return cookies, landing validation, precise trap packets.
+- Native returns (`ret`, `ret x30`, RISC-V `ret`) cross back through the return cookie installed by `PCALL`.
+- Runtime: stack arguments, aggregates, variadics, incompatible vectors, lazy binding, syscalls, imports, and helper libraries.
+- Never in hardware: user-memory call descriptors, stack repacking, syscall translation, libc/libgcc/libatomic policy, or OS policy.
