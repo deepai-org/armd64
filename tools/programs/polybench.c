@@ -117,6 +117,64 @@ static inline uint64_t poly_foreign_insn_count_status_value(void) {
       : "memory");
   return value;
 }
+static inline uint64_t poly_foreign_syscall_count_status_value(void) {
+  uint64_t value;
+  asm volatile(POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS_ASM
+      : "=a"(value)
+      :
+      : "memory");
+  return value;
+}
+static inline uint64_t poly_foreign_break_count_status_value(void) {
+  uint64_t value;
+  asm volatile(POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS_ASM
+      : "=a"(value)
+      :
+      : "memory");
+  return value;
+}
+static inline uint64_t poly_foreign_import_count_status_value(void) {
+  uint64_t value;
+  asm volatile(POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS_ASM
+      : "=a"(value)
+      :
+      : "memory");
+  return value;
+}
+
+struct polybench_trap_counts {
+  uint64_t syscalls;
+  uint64_t breaks;
+  uint64_t imports;
+};
+
+static struct polybench_trap_counts polybench_trap_counts_snapshot(void) {
+  struct polybench_trap_counts counts = {
+    poly_foreign_syscall_count_status_value(),
+    poly_foreign_break_count_status_value(),
+    poly_foreign_import_count_status_value()
+  };
+  return counts;
+}
+
+static int polybench_check_no_trap_delta(const char *name,
+    struct polybench_trap_counts before) {
+  struct polybench_trap_counts after = polybench_trap_counts_snapshot();
+  const uint64_t syscall_delta = after.syscalls - before.syscalls;
+  const uint64_t break_delta = after.breaks - before.breaks;
+  const uint64_t import_delta = after.imports - before.imports;
+  if (syscall_delta || break_delta || import_delta) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: %s fast path emitted traps syscall_delta=%llu break_delta=%llu import_delta=%llu\n",
+      name, (unsigned long long) syscall_delta,
+      (unsigned long long) break_delta,
+      (unsigned long long) import_delta);
+    return -1;
+  }
+  printf("POLYBENCH_FAST_TRAP_DELTA_OK: name=%s syscall_delta=0 break_delta=0 import_delta=0\n",
+    name);
+  return 0;
+}
 static uint64_t polybench_saved_r15;
 #define POLYBENCH_SAVE_R15() \
   asm volatile("movq %%r15, %0" : "=m"(polybench_saved_r15) :: "memory")
@@ -8701,6 +8759,8 @@ static int check_cross_call_direct_x86_memops_direction(const char *name,
 }
 
 static int check_cross_calls(void) {
+  const struct polybench_trap_counts fast_traps_before =
+    polybench_trap_counts_snapshot();
   if (check_cross_call_direction("aarch64-calls-riscv",
         run_cross_call_aarch64_to_riscv,
         POLYBENCH_CROSS_CALL_MAX_RAW_INSNS,
@@ -8990,6 +9050,9 @@ static int check_cross_calls(void) {
         "compressed-riscv-calls-aarch64-compact-f32-u32",
         run_cross_call_compact_f32_u32_compressed_riscv_to_aarch64,
         UINT64_C(0x0000000840100000)) < 0)
+    return -1;
+  if (polybench_check_no_trap_delta("fast cross-call block",
+        fast_traps_before) < 0)
     return -1;
   if (check_cross_call_syscall_direction("aarch64-calls-riscv-syscall",
         run_cross_call_syscall_aarch64_to_riscv) < 0)
