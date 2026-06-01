@@ -5112,6 +5112,77 @@ static int run_cross_call_saved_fp_riscv_to_aarch64(uint64_t *result_bits,
   return 0;
 }
 
+static int run_cross_call_saved_fp_compressed_riscv_to_aarch64(
+    uint64_t *result_bits, uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: compressed riscv-to-aarch64 saved-fp call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+
+  emit_u32(code, &offset, riscv_fsgnj_d(8, 10, 10)); // fmv.d fs0,fa0
+  emit_u32(code, &offset, riscv_fadd_d(10, 10, 10));
+  emit_u16(code, &offset, 0x0001U); // c.nop; following saved-fp PCALL path is halfword-aligned
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
+  const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, riscv_fadd_d(10, 10, 8));
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  emit_u32(code, &offset, 0x1e604008U); // fmov d8,d0
+  emit_u32(code, &offset, aarch64_fadd_d(0, 8, 0));
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
+
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  double (*entry)(double) = (double (*)(double)) code;
+  POLYBENCH_CALL_SAVE_R15(*result_bits, fp64_to_bits(entry(3.0)));
+  poly_mode_x86();
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 256;
@@ -7903,6 +7974,10 @@ static int check_cross_calls(void) {
     return -1;
   if (check_cross_call_saved_fp_direction("riscv-calls-aarch64-saved-fp",
         run_cross_call_saved_fp_riscv_to_aarch64) < 0)
+    return -1;
+  if (check_cross_call_saved_fp_direction(
+        "compressed-riscv-calls-aarch64-saved-fp",
+        run_cross_call_saved_fp_compressed_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_pair_direction("aarch64-calls-riscv-pair",
         run_cross_call_pair_aarch64_to_riscv) < 0)
