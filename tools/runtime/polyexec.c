@@ -3704,15 +3704,20 @@ static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes, size
   *offset += size;
 }
 
+static void emit_x86_poly_control(uint8_t *code, size_t *offset,
+    uint8_t subop) {
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_0;
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_1;
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_2;
+  code[(*offset)++] = subop;
+}
+
 static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
     uint32_t frontend) {
   code[(*offset)++] = 0x41; // mov r15d,frontend
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, frontend);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = POLY_X86_CTRL_PENTER_MODE;
+  emit_x86_poly_control(code, offset, POLY_X86_CTRL_PENTER_MODE);
 }
 
 static void emit_x86_movabs_rax(uint8_t *code, size_t *offset,
@@ -3746,19 +3751,14 @@ static void emit_x86_mov_r15d_imm(uint8_t *code, size_t *offset,
 static void emit_x86_state_key_set(uint8_t *code, size_t *offset,
     uint64_t state_key) {
   emit_x86_movabs_rax(code, offset, state_key);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = POLY_X86_CTRL_STATE_KEY_SET;
+  emit_x86_poly_control(code, offset, POLY_X86_CTRL_STATE_KEY_SET);
 }
 
 static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
     uint32_t frontend, uint32_t signature_slot) {
   emit_x86_mov_r15d_imm(code, offset, frontend);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = (uint8_t) POLY_X86_CTRL_PCALL_SIG_IMM(signature_slot);
+  emit_x86_poly_control(code, offset,
+    (uint8_t) POLY_X86_CTRL_PCALL_SIG_IMM(signature_slot));
 }
 
 static void emit_x86_preserve_sret_ptr_rax(uint8_t *code, size_t *offset) {
@@ -4486,10 +4486,7 @@ static void emit_x86_abi_signature_set(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x48; // movabs rdx,value
   code[(*offset)++] = 0xba;
   emit_u64(code, offset, value);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = 0x69;
+  emit_x86_poly_control(code, offset, POLY_X86_CTRL_ABI_SIGNATURE_SET);
   code[(*offset)++] = 0x5a; // pop rdx
   code[(*offset)++] = 0x58; // pop rax
 }

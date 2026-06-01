@@ -2650,13 +2650,18 @@ static void emit_movabs_rax(uint8_t *code, size_t *offset, uint64_t value) {
   emit_u64(code, offset, value);
 }
 
+static void emit_x86_poly_control(uint8_t *code, size_t *offset,
+    uint8_t subop) {
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_0;
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_1;
+  code[(*offset)++] = POLY_X86_CTRL_PREFIX_2;
+  code[(*offset)++] = subop;
+}
+
 static void emit_x86_state_key_set(uint8_t *code, size_t *offset,
     uint64_t state_key) {
   emit_movabs_rax(code, offset, state_key);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = POLY_X86_CTRL_STATE_KEY_SET;
+  emit_x86_poly_control(code, offset, POLY_X86_CTRL_STATE_KEY_SET);
 }
 
 static void emit_movabs_r10(uint8_t *code, size_t *offset, uint64_t value) {
@@ -3602,10 +3607,7 @@ static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x41; // mov r15d,frontend ID.
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, frontend_id);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = poly_x86_pcall_sig_imm(signature_slot);
+  emit_x86_poly_control(code, offset, poly_x86_pcall_sig_imm(signature_slot));
 }
 
 static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
@@ -3639,11 +3641,8 @@ static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
     code[(*offset)++] = 0x41; // mov r15d,AArch64 frontend.
     code[(*offset)++] = 0xbf;
     emit_u32(code, offset, POLY_ARCH_AARCH64);
-    code[(*offset)++] = 0x0f;
-    code[(*offset)++] = 0x3a;
-    code[(*offset)++] = 0xfc;
-    code[(*offset)++] = poly_x86_pcall_sig_imm(
-      signature_slot_native_regs);
+    emit_x86_poly_control(code, offset,
+      poly_x86_pcall_sig_imm(signature_slot_native_regs));
     return;
   }
 
@@ -3662,10 +3661,8 @@ static void emit_x86_pcall_fp64_stack_thunk(uint8_t *code, size_t *offset,
   code[(*offset)++] = 0x41; // mov r15d,RISC-V frontend.
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, POLY_ARCH_RISCV);
-  code[(*offset)++] = 0x0f;
-  code[(*offset)++] = 0x3a;
-  code[(*offset)++] = 0xfc;
-  code[(*offset)++] = poly_x86_pcall_sig_imm(signature_slot_exchange);
+  emit_x86_poly_control(code, offset,
+    poly_x86_pcall_sig_imm(signature_slot_exchange));
 }
 
 static void emit_x86_pcall_sret_thunk(uint8_t *code, size_t *offset,
@@ -9349,11 +9346,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     memcpy(code + offset, shuffle_prefix, sizeof(shuffle_prefix));
     offset += sizeof(shuffle_prefix);
     emit_u32(code, &offset, pcall_frontend);
-    code[offset++] = 0x0f;
-    code[offset++] = 0x3a;
-    code[offset++] = 0xfc;
-    code[offset++] = poly_x86_pcall_sig_imm(
-      import_contract.signature_slot_exchange);
+    emit_x86_poly_control(code, &offset,
+      poly_x86_pcall_sig_imm(import_contract.signature_slot_exchange));
   }
   else if (use_sig_imm_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
