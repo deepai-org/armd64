@@ -1220,6 +1220,97 @@ nativecheck_invalid_enter_riscv_alignment(void) {
       "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 }
 
+static __attribute__((noinline)) void
+nativecheck_missing_landing_x86_pcall(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "movq %0, %%r15\n"
+    POLY_OP_PCALL_SIG_IMM_SLOT0
+    ".balign 4, 0x90\n"
+    "1:\n"
+    ".long 0xd2800540\n" // movz x0,#42, intentionally no landing pad.
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_missing_landing_x86_switch(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "movq %0, %%r15\n"
+    POLY_OP_SWITCH_MODE
+    ".balign 4, 0x90\n"
+    "1:\n"
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape, no landing pad.
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_missing_landing_aarch64_riscv_pcall(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x10000090\n" // adr x16,target
+    ".long 0xd2800051\n" // movz x17,#2: RISC-V frontend.
+    ".long 0xd2800012\n" // movz x18,#0
+    ".long 0xd5032f3f\n" // aarch64 generic pcall
+    ".long 0x02d00513\n" // target: addi a0,zero,45, no landing pad.
+    ".long 0x00008067\n" // ret
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_missing_landing_riscv_aarch64_pcall(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000297\n" // auipc t0,0
+    ".long 0x01428293\n" // addi t0,t0,20
+    ".long 0x00100313\n" // addi t1,zero,1: AArch64 frontend.
+    ".long 0x00000393\n" // addi t2,zero,0
+    ".long 0x1200700b\n" // riscv generic pcall
+    ".long 0xd28005a0\n" // target: movz x0,#45, no landing pad.
+    ".long 0xd65f03c0\n" // ret x30
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_missing_landing_aarch64_riscv_switch(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x10000070\n" // adr x16,target
+    ".long 0xd2800051\n" // movz x17,#2: RISC-V frontend.
+    ".long 0xd5032f1f\n" // aarch64 generic switch
+    ".long 0x02d00513\n" // target: addi a0,zero,45, no landing pad.
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_missing_landing_riscv_aarch64_switch(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000297\n" // auipc t0,0
+    ".long 0x01028293\n" // addi t0,t0,16
+    ".long 0x00100313\n" // addi t1,zero,1: AArch64 frontend.
+    ".long 0x1000700b\n" // riscv generic switch
+    ".long 0xd28005a0\n" // target: movz x0,#45, no landing pad.
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
 static int check_poly_abi_signature_slot_default(uint32_t slot, uint32_t kind,
     const char *name) {
   uint64_t actual = poly_abi_signature_get(slot);
@@ -5938,6 +6029,99 @@ static int run_poly_invalid_enter_no_mutation_probe(void) {
   return 0;
 }
 
+static int run_poly_landing_rejection_no_mutation_case(const char *label,
+    nativecheck_invalid_pcall_fn probe, uint64_t policy) {
+  struct nativecheck_monitor_packet monitor_packet;
+  struct poly_xsave_state before __attribute__((aligned(64)));
+  struct poly_xsave_state after __attribute__((aligned(64)));
+  struct sigaction action;
+  struct sigaction old_action;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&before, 0, sizeof(before));
+  memset(&after, 0, sizeof(after));
+
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
+      poly_landing_policy_set(policy) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly landing rejection mutation setup failed case=%s\n",
+      label);
+    return 1;
+  }
+  poly_trap_vector_clear();
+  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  poly_state_export(&before);
+
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = nativecheck_sigill_handler;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(SIGILL, &action, &old_action) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly landing rejection sigaction failed case=%s\n",
+      label);
+    nativecheck_invalid_pcall_no_mutation_cleanup();
+    return 1;
+  }
+
+  nativecheck_expect_sigill = 1;
+  if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
+    probe();
+    nativecheck_expect_sigill = 0;
+    sigaction(SIGILL, &old_action, 0);
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly landing rejection returned without SIGILL case=%s\n",
+      label);
+    nativecheck_invalid_pcall_no_mutation_cleanup();
+    return 1;
+  }
+  nativecheck_expect_sigill = 0;
+  if (sigaction(SIGILL, &old_action, 0) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly landing rejection sigaction restore failed case=%s\n",
+      label);
+    nativecheck_invalid_pcall_no_mutation_cleanup();
+    return 1;
+  }
+
+  poly_state_export(&after);
+  if (!nativecheck_poly_state_control_equal(&after, &before, label)) {
+    nativecheck_invalid_pcall_no_mutation_cleanup();
+    return 1;
+  }
+
+  nativecheck_invalid_pcall_no_mutation_cleanup();
+  return 0;
+}
+
+static int run_poly_landing_rejection_no_mutation_probe(void) {
+  if (run_poly_landing_rejection_no_mutation_case("x86-aarch64-pcall",
+        nativecheck_missing_landing_x86_pcall,
+        POLY_LANDING_POLICY_REQUIRE_CALL) != 0)
+    return 1;
+  if (run_poly_landing_rejection_no_mutation_case("aarch64-riscv-pcall",
+        nativecheck_missing_landing_aarch64_riscv_pcall,
+        POLY_LANDING_POLICY_REQUIRE_CALL) != 0)
+    return 1;
+  if (run_poly_landing_rejection_no_mutation_case("riscv-aarch64-pcall",
+        nativecheck_missing_landing_riscv_aarch64_pcall,
+        POLY_LANDING_POLICY_REQUIRE_CALL) != 0)
+    return 1;
+  if (run_poly_landing_rejection_no_mutation_case("x86-aarch64-switch",
+        nativecheck_missing_landing_x86_switch,
+        POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0)
+    return 1;
+  if (run_poly_landing_rejection_no_mutation_case("aarch64-riscv-switch",
+        nativecheck_missing_landing_aarch64_riscv_switch,
+        POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0)
+    return 1;
+  if (run_poly_landing_rejection_no_mutation_case("riscv-aarch64-switch",
+        nativecheck_missing_landing_riscv_aarch64_switch,
+        POLY_LANDING_POLICY_REQUIRE_SWITCH) != 0)
+    return 1;
+  puts("NATIVE_POLY_LANDING_REJECTION_NO_MUTATION_OK");
+  return 0;
+}
+
 static int run_poly_cross_return_xsave_roundtrip_probe(void) {
   struct poly_xsave_state clean __attribute__((aligned(64)));
   struct poly_xsave_state cross __attribute__((aligned(64)));
@@ -9869,6 +10053,8 @@ int main(void) {
     if (run_poly_invalid_switch_no_mutation_probe() != 0)
       return 1;
     if (run_poly_invalid_enter_no_mutation_probe() != 0)
+      return 1;
+    if (run_poly_landing_rejection_no_mutation_probe() != 0)
       return 1;
     if (run_poly_landing_policy_probe() != 0)
       return 1;
