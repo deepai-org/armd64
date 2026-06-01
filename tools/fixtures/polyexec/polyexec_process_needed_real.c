@@ -352,6 +352,32 @@ struct poly_sret_u64 poly_process_needed_sret(uint64_t a, uint64_t b,
   return out;
 }
 
+#elif defined(POLY_PROCESS_NEEDED_NATIVE_SRET_DEP)
+
+__asm__(
+  ".section .note.polyabi,\"a\",%note\n"
+  ".balign 4\n"
+  ".long 8\n"
+  ".long 2f-1f\n"
+  ".long 1\n"
+  ".asciz \"POLYABI\"\n"
+  ".balign 4\n"
+  "1: .ascii \"poly_process_needed_sret native_sret\\n\"\n"
+  "2:\n"
+  ".balign 4\n"
+  ".previous\n");
+
+__attribute__((visibility("default")))
+struct poly_sret_u64 poly_process_needed_sret(uint64_t a, uint64_t b,
+    uint64_t c) {
+  struct poly_sret_u64 out;
+  out.a = a + 10;
+  out.b = b + 20;
+  out.c = c + 30;
+  out.d = a * 100 + b * 10 + c;
+  return out;
+}
+
 #elif defined(POLY_PROCESS_NEEDED_VEC128_DEP)
 
 __asm__(
