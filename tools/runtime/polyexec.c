@@ -2614,6 +2614,10 @@ static uint64_t poly_handle_foreign_import(uint64_t number,
       return (uint64_t) (uintptr_t)
         memcpy((void *) (uintptr_t) args[0],
           (const void *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_MEMMOVE:
+      return (uint64_t) (uintptr_t)
+        memmove((void *) (uintptr_t) args[0],
+          (const void *) (uintptr_t) args[1], (size_t) args[2]);
     case POLY_IMPORT_FUNC_MEMSET:
       return (uint64_t) (uintptr_t)
         memset((void *) (uintptr_t) args[0], (int) args[1],
@@ -2621,6 +2625,36 @@ static uint64_t poly_handle_foreign_import(uint64_t number,
     case POLY_IMPORT_FUNC_MEMCMP:
       return (uint64_t) memcmp((const void *) (uintptr_t) args[0],
         (const void *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_STRCMP:
+      return (uint64_t) strcmp((const char *) (uintptr_t) args[0],
+        (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_STRNCMP:
+      return (uint64_t) strncmp((const char *) (uintptr_t) args[0],
+        (const char *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_MEMCHR:
+      return (uint64_t) (uintptr_t)
+        memchr((const void *) (uintptr_t) args[0], (int) args[1],
+          (size_t) args[2]);
+    case POLY_IMPORT_FUNC_STRCHR:
+      return (uint64_t) (uintptr_t)
+        strchr((const char *) (uintptr_t) args[0], (int) args[1]);
+    case POLY_IMPORT_FUNC_STRRCHR:
+      return (uint64_t) (uintptr_t)
+        strrchr((const char *) (uintptr_t) args[0], (int) args[1]);
+    case POLY_IMPORT_FUNC_STRSTR:
+      return (uint64_t) (uintptr_t)
+        strstr((const char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_STRCPY:
+      return (uint64_t) (uintptr_t)
+        strcpy((char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_STRNCPY:
+      return (uint64_t) (uintptr_t)
+        strncpy((char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_STRNLEN:
+      return strnlen((const char *) (uintptr_t) args[0], (size_t) args[1]);
     default:
       return (uint64_t) -ENOSYS;
   }
