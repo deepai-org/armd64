@@ -1,47 +1,44 @@
-# Poly ISA
+# Poly ISA Reference
 
-Poly is a multi-frontend extension for running existing x86_64, AArch64, and
-RISC-V64 user code in one x86_64 system address space.
+Poly adds peer user-mode AArch64 and RISC-V64 frontends to an x86_64 system ISA.
+It targets existing SysV x86_64, AAPCS64, and RISC-V psABI objects. Design
+rationale lives in `docs/poly-isa-design-directions.md`.
 
-For rationale and hardware direction, see `docs/poly-isa-design-directions.md`.
+## Frontends
 
-## System Model
+`0` is x86_64 variable-length system fetch. `1` is AArch64 32-bit aligned user
+fetch. `2` is RISC-V64 16/32-bit user fetch.
 
-- `0`: x86_64, variable-length fetch, system ISA.
-- `1`: AArch64, 32-bit fixed fetch, user frontend.
-- `2`: RISC-V64, 16/32-bit fetch, user frontend.
+x86_64 owns privilege, paging, faults, interrupts, syscalls, atomics, and the
+global TSO memory model.
 
-x86_64 owns boot, privilege, paging, faults, interrupts, atomics, syscalls, and
-the global TSO memory model. Foreign frontends execute ordinary native user
-instructions and target ordinary SysV x86_64, AAPCS64, and RISC-V psABI code.
+## Control Encodings
 
-## Temporary Encodings
+Temporary decoded control instructions, not `#UD` envelopes:
 
 ```text
-x86_64:   0f 3a fc <subop>
-AArch64:  0xd503201f | ((subop & 0x7f) << 5)   // reserved HINT
-RISC-V64: 0x0000700b | ((subop & 0x7f) << 25)  // custom-0
+x86_64   0f 3a fc <subop>
+AArch64  0xd503201f | ((subop & 0x7f) << 5)   // reserved HINT
+RISC-V   0x0000700b | ((subop & 0x7f) << 25)  // custom-0
 ```
 
-These are decoded control instructions. They are not `#UD` envelopes.
+```text
+PENTER=0x03  PSWITCH=0x04  PLANDING=0x05  PCALL=0x2d
+PCALL_SLOT=0x30..0x3c      PTRAPRET=0x62  STATE=0x65..0x6e
+```
 
-Current x86 subops are `PENTER=0x03`, `PSWITCH=0x04`, `PLANDING=0x05`,
-`PCALL=0x2d`, compact slot `PCALL=0x30..0x3c`, `PTRAPRET=0x62`, and state
-controls `0x65..0x6e`.
+## Architectural Rules
 
-## Boundary Rules
-
-- Foreign architectural state is per-thread XSAVE-style state.
+- Foreign state is per-thread XSAVE-style architectural state.
 - `PENTER` enters a frontend from trusted runtime/system code.
-- `PSWITCH` branches to another frontend without return.
-- `PCALL` is register-only in hardware: it saves caller frontend/PC/SP/flags to
-  the hardware transition stack, installs a return cookie, applies an ABI
-  signature by register aliasing/renaming, and jumps.
-- Native returns to the cookie restore the caller frontend. Same-ISA returns
-  stay native.
-- ABI signatures never read descriptors or touch memory. Stack arguments,
-  variadics, aggregates, lazy binding, libc policy, and syscall translation stay
-  in software.
-- Recoverable foreign exits produce OS-neutral trap packets for a user monitor.
-  The kernel still owns scheduling, privilege transitions, hard faults, signals,
+- `PSWITCH` switches frontend and branches without creating a return edge.
+- `PCALL` saves caller mode/PC/SP/flags to the hardware transition stack,
+  installs a return cookie, applies a register-only ABI signature, and jumps.
+- Native returns to a return cookie restore the caller frontend; same-ISA
+  returns remain ordinary native returns.
+- ABI signatures may only rename/alias registers. Hardware does not parse user
+  descriptors, marshal stack arguments, translate aggregates, bind libcalls, or
+  implement OS syscall policy.
+- Recoverable foreign exits write OS-neutral trap packets for a Ring 3 monitor.
+  Kernels still own scheduling, privilege transitions, hard faults, signals,
   interrupts, and real syscalls issued by the monitor.
