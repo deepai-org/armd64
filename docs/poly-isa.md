@@ -1,7 +1,7 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
 Poly is an x86_64 extension prototype for running existing AArch64 and RISC-V64
-user-mode code in the same virtual address space as x86_64 code.
+user-mode code in the same virtual address space.
 
 ## Run
 
@@ -12,32 +12,27 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps
 rg -a 'POLY.*OK|NATIVE.*OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## ISA Contract
+## How It Differs From x86_64
 
 - x86_64 remains the system ISA for boot, paging, privilege, interrupts,
   syscalls, atomics, and TSO memory ordering.
-- Frontends are `0=x86_64`, `1=AArch64`, and `2=RISC-V64`.
-- AArch64 and RISC-V64 are ring-3 frontends fetched from x86 virtual memory:
-  AArch64 uses fixed 4-byte instructions, and RISC-V uses 16/32-bit fetch for
-  RVC-capable code.
-- Mode switches are decoded control instructions, not `#UD` trap envelopes.
+- AArch64 and RISC-V64 are ring-3 decode frontends fetched from x86 virtual
+  memory. AArch64 fetches fixed 4-byte instructions; RISC-V fetches 16/32-bit
+  RVC-capable instructions.
+- ISA switches are decoded control instructions, not `#UD` trap envelopes.
 - Foreign register state is per-thread XSAVE-style architectural state.
-- Register-only cross-ISA calls use programmable ABI signature slots.
+- Fast register-only cross-ISA calls use programmable ABI signature slots.
 - Stack arguments, aggregates, variadics, lazy binding, libc policy, and syscall
   policy stay in software thunks/runtime code.
-- Recoverable foreign exits produce OS-neutral trap packets.
+- Recoverable foreign exits write OS-neutral trap packets.
 
-## x86 Controls
+## Control Summary
 
-| Name | Encoding | Operands |
-| --- | --- | --- |
-| `PENTER` | `0f 3a fc 03` | `R15=frontend`, `R13=TLS/state key` |
-| `PSWITCH` | `0f 3a fc 04` | `RBX=target`, `R15=frontend` |
-| `PLANDING` | `0f 3a fc 05` | indirect-call landing marker |
-| `PCALL` | `0f 3a fc 2d` | `RBX=target`, `R11=return`, `R12=signature` |
-| `PCALL_IMM` | `0f 3a fc 30..` | immediate signature slot |
-| `PTRAPRET` | `0f 3a fc 62` | resume from trap packet |
+- Frontends: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
+- x86 controls use `0f 3a fc xx`: `PENTER`, `PSWITCH`, `PLANDING`, `PCALL`,
+  `PCALL_IMM`, and `PTRAPRET`.
+- AArch64 controls use reserved HINT encodings.
+- RISC-V controls use custom-0 encodings.
 
-AArch64 controls use reserved HINT encodings. RISC-V controls use custom-0
-encodings. Hardware and ABI rationale belongs in
+Detailed hardware and ABI rationale belongs in
 `docs/poly-isa-design-directions.md`.
