@@ -1,18 +1,18 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Small reference only. Use `README.md` for running it and
+Quick reference only. See `README.md` for how to run it and
 `docs/poly-isa-design-directions.md` for rationale.
 
 ## Contract
 
-- Run existing precompiled x86_64, AArch64, and RISC-V64 user code in one VA.
-- Keep x86_64 as the system ISA: boot, privilege, paging, faults, interrupts,
+- Run precompiled x86_64, AArch64, and RISC-V64 user code in one VA.
+- x86_64 remains the system ISA: boot, privilege, paging, faults, interrupts,
   syscalls, atomics, VM control, and TSO ordering.
-- Treat AArch64 and RISC-V64 as user-mode decode frontends.
-- Use native ABIs at boundaries: x86_64 SysV, AAPCS64, and RISC-V psABI.
-- Keep foreign state explicit, per-thread, and XSAVE-style.
-- Hardware switches frontends and aliases register lanes; software handles
-  stack args, aggregates, variadics, lazy binding, libc, and syscall policy.
+- AArch64 and RISC-V64 are user-mode decode frontends.
+- Boundaries use native ABIs: x86_64 SysV, AAPCS64, and RISC-V psABI.
+- Foreign state is explicit, per-thread, and XSAVE-style.
+- Hardware switches frontends and aliases register lanes. Software handles
+  stack arguments, aggregates, variadics, lazy binding, libc, and syscall policy.
 
 ## Control Encodings
 
