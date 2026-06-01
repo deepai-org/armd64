@@ -24,7 +24,8 @@ Primary targets:
 - `make boot-poly`: shorter Poly smoke/regression run.
 - `make boot-poly-focused-validation`: focused nativecheck architecture,
   neutral-switch, cross-ISA shared-library, syscall/import monitor,
-  real-XSAVE call/thread/signal, and benchmark trap-delta validation.
+  real-XSAVE call/thread/signal, binfmt dispatch, and benchmark trap-delta
+  validation.
 - `make boot-poly-full-real-xsave-arch-traps`: broad regression with the guest
   Poly XCR0 module loaded, requiring direct XSAVE/XRSTOR state handling.
 
