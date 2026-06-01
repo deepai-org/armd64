@@ -921,6 +921,58 @@ nativecheck_invalid_riscv_pcall_signature_slot(void) {
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 }
 
+static __attribute__((noinline)) void
+nativecheck_invalid_aarch64_pcall_x86_return_alignment(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0: target is unused after return rejection.
+    ".long 0xd2800011\n" // movz x17,#0: x86 frontend.
+    ".long 0xd2800052\n" // movz x18,#2: canonical but not AArch64 aligned.
+    ".long 0xd5032a7f\n" // aarch64 signature pcall, immediate slot 3
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_riscv_pcall_x86_return_alignment(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0: target is unused after return rejection.
+    ".long 0x00000313\n" // addi t1,zero,0: x86 frontend.
+    ".long 0x00100393\n" // addi t2,zero,1: not RISC-V halfword aligned.
+    ".long 0x4600700b\n" // riscv signature pcall, immediate slot 3
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_aarch64_pcall_cross_return_alignment(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0: target is unused after return rejection.
+    ".long 0xd2800051\n" // movz x17,#2: RISC-V frontend.
+    ".long 0xd2800052\n" // movz x18,#2: canonical but not AArch64 aligned.
+    ".long 0xd5032f3f\n" // aarch64 generic pcall
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_riscv_pcall_cross_return_alignment(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0: target is unused after return rejection.
+    ".long 0x00100313\n" // addi t1,zero,1: AArch64 frontend.
+    ".long 0x00100393\n" // addi t2,zero,1: not RISC-V halfword aligned.
+    ".long 0x1200700b\n" // riscv generic pcall
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
 static int check_poly_abi_signature_slot_default(uint32_t slot, uint32_t kind,
     const char *name) {
   uint64_t actual = poly_abi_signature_get(slot);
@@ -5489,6 +5541,18 @@ static int run_poly_invalid_pcall_no_mutation_probe(void) {
     return 1;
   if (run_poly_invalid_pcall_no_mutation_case("riscv-invalid-slot",
         nativecheck_invalid_riscv_pcall_signature_slot) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("aarch64-x86-bad-return-align",
+        nativecheck_invalid_aarch64_pcall_x86_return_alignment) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("riscv-x86-bad-return-align",
+        nativecheck_invalid_riscv_pcall_x86_return_alignment) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("aarch64-riscv-bad-return-align",
+        nativecheck_invalid_aarch64_pcall_cross_return_alignment) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("riscv-aarch64-bad-return-align",
+        nativecheck_invalid_riscv_pcall_cross_return_alignment) != 0)
     return 1;
   puts("NATIVE_POLY_INVALID_PCALL_NO_MUTATION_OK");
   return 0;
