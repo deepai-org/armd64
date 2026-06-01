@@ -1,8 +1,8 @@
 # Poly ISA
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to x86_64 in one virtual
-address space. The goal is existing native ABI compatibility, including
-cross-ISA dynamic libraries.
+Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system ISA in
+one virtual address space. The goal is compatibility with existing native ABI
+code and cross-ISA dynamic libraries, not a new compiler-only ABI.
 
 ## Running
 
@@ -15,20 +15,24 @@ make boot-poly-binfmt-arch-traps
 rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## ISA Model
+## Contract And x64 Differences
 
-- x86_64 remains the system ISA for boot, privilege, paging, exceptions,
-  interrupts, atomics, and TSO memory ordering.
-- AArch64/RISC-V64 are direct-fetch user frontends. They fetch native 32-bit
-  instructions from `RIP`; there is no per-instruction `#UD` envelope.
+- x86_64 remains the system ISA: boot, privilege, paging, exceptions,
+  interrupts, atomics, syscalls, and TSO memory ordering.
+- AArch64/RISC-V64 are user-mode direct-fetch frontends. They fetch native
+  32-bit instructions from `RIP`; there is no per-instruction `#UD` envelope.
+- New decoded controls switch frontends and perform cross-ISA calls; they are
+  not traps and are not encoded as `ud2`.
 - Native ABIs remain native: x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI.
 - Fast cross-ISA calls use register-only ABI signature slots. Stack arguments,
-  variadics, aggregate repacking, syscalls, libc policy, and lazy binding stay
-  in software.
+  variadics, aggregate repacking, lazy binding, syscall policy, and libc policy
+  stay in software/runtime code.
 - Extra foreign registers are per-thread XSAVE-style architectural state, not
   CR3-scoped hidden emulator state.
+- Foreign traps are reported through Poly trap packets; OS-specific behavior is
+  runtime policy, not ISA behavior.
 
-## Prototype Controls
+## Bochs Opcodes
 
 Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64. Bochs prototype controls
 use decoded `0f 3a fc <op>` instructions.
@@ -42,4 +46,4 @@ use decoded `0f 3a fc <op>` instructions.
 | `PCALL_IMM` | `30..` | `PCALL` with signature slot `op - 0x30` |
 | `PTRAPRET` | `62` | resume from a Poly trap packet |
 
-Design rationale: `docs/poly-isa-design-directions.md`.
+Full rationale: `docs/poly-isa-design-directions.md`.
