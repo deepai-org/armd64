@@ -16,6 +16,32 @@
 #define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
 #define POLY_OP_PCALL_SIG_IMM_NATIVE ".byte 0x0f,0x3a,0xfc,0x33\n"
 #define POLY_OP_PCALL_SIG_IMM_FP64 ".byte 0x0f,0x3a,0xfc,0x38\n"
+#define POLY_OP_PCALL_SYSV_A64 \
+  "pushq %%rbx\n" \
+  "pushq %%r15\n" \
+  "pushq %%r11\n" \
+  "movq %%r10, %%rbx\n" \
+  "movl $1, %%r15d\n" \
+  "leaq 9f(%%rip), %%r11\n" \
+  ".byte 0x0f,0x3a,0xfc,0x31\n" \
+  "9:\n" \
+  "popq %%r11\n" \
+  "popq %%r15\n" \
+  "popq %%rbx\n" \
+  "jmp *%%r11\n"
+#define POLY_OP_PCALL_SYSV_RV64 \
+  "pushq %%rbx\n" \
+  "pushq %%r15\n" \
+  "pushq %%r11\n" \
+  "movq %%r10, %%rbx\n" \
+  "movl $2, %%r15d\n" \
+  "leaq 9f(%%rip), %%r11\n" \
+  ".byte 0x0f,0x3a,0xfc,0x31\n" \
+  "9:\n" \
+  "popq %%r11\n" \
+  "popq %%r15\n" \
+  "popq %%rbx\n" \
+  "jmp *%%r11\n"
 
 enum {
   POLYSIGNAL_LOOP_COUNT = 200000,
@@ -386,7 +412,7 @@ static uint64_t pcall_aarch64_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x3a,0xfc,0x10\n"
+    POLY_OP_PCALL_SYSV_A64
     "1:\n"
     ".long 0xf1000421\n" // subs x1,x1,#1
     ".long 0x54ffffe1\n" // b.ne -4
@@ -404,7 +430,7 @@ static uint64_t pcall_aarch64_hidden_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x3a,0xfc,0x10\n"
+    POLY_OP_PCALL_SYSV_A64
     "1:\n"
     ".long 0x91000014\n" // add x20,x0,#0
     ".long 0xf1000421\n" // subs x1,x1,#1
@@ -423,7 +449,7 @@ static uint64_t pcall_riscv_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x3a,0xfc,0x11\n"
+    POLY_OP_PCALL_SYSV_RV64
     "1:\n"
     ".long 0xfff58593\n" // addi a1,a1,-1
     ".long 0xfe059ee3\n" // bnez a1,-4
@@ -487,7 +513,7 @@ static uint64_t pcall_riscv_hidden_signal(uint64_t seed, uint64_t loops) {
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x3a,0xfc,0x11\n"
+    POLY_OP_PCALL_SYSV_RV64
     "1:\n"
     ".long 0x00050a13\n" // addi s4,a0,0
     ".long 0xfff58593\n" // addi a1,a1,-1
@@ -508,7 +534,7 @@ static uint64_t pcall_aarch64_hidden_fp_signal(uint64_t left_bits,
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x3a,0xfc,0x10\n"
+    POLY_OP_PCALL_SYSV_A64
     "1:\n"
     ".long 0x1e604014\n" // fmov d20,d0
     ".long 0xf1000421\n" // subs x1,x1,#1
@@ -530,7 +556,7 @@ static uint64_t pcall_riscv_hidden_fp_signal(uint64_t left_bits,
   asm volatile(
     "leaq 1f(%%rip), %%r10\n"
     "leaq 2f(%%rip), %%r11\n"
-    ".byte 0x0f,0x3a,0xfc,0x11\n"
+    POLY_OP_PCALL_SYSV_RV64
     "1:\n"
     ".long 0x22a50a53\n" // fsgnj.d f20,fa0,fa0
     ".long 0xfff58593\n" // addi a1,a1,-1
