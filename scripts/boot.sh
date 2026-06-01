@@ -12167,11 +12167,11 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -q "POLYCALL_STATE_KEY: explicit=1" "$SERIAL_LOG"; then
+        if ! grep -q "POLYCALL_STATE_KEY: explicit=0" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -q "POLYCALL_STUB_STATE_KEY: explicit=1" "$SERIAL_LOG"; then
+        if ! grep -q "POLYCALL_STUB_STATE_KEY: explicit=0" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

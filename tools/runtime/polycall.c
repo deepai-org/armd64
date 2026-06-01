@@ -940,6 +940,7 @@ static uint8_t *poly_atexit_call_code;
 static size_t poly_atexit_target_imm_offset;
 static __thread uint8_t poly_state_key_anchor;
 static size_t poly_stub_state_key_verified_count;
+static int polycall_use_explicit_state_key;
 uint64_t poly_runtime_foreign_hwcap;
 uint64_t poly_runtime_foreign_hwcap2;
 uint64_t poly_runtime_foreign_arch;
@@ -1304,6 +1305,20 @@ static uint64_t poly_state_key_get(void) {
 }
 
 static int install_poly_thread_state_key(void) {
+  const char *force_explicit = getenv("POLYCALL_USE_EXPLICIT_STATE_KEY");
+  polycall_use_explicit_state_key =
+    force_explicit != NULL && strcmp(force_explicit, "1") == 0;
+  if (!polycall_use_explicit_state_key) {
+    if (poly_state_key_set(0) != 0 || poly_state_key_get() != 0) {
+      fprintf(stderr,
+        "POLYCALL_FAIL: Poly state-key clear failed got=0x%llx\n",
+        (unsigned long long) poly_state_key_get());
+      return -1;
+    }
+    puts("POLYCALL_STATE_KEY: explicit=0");
+    return 0;
+  }
+
   const uint64_t key = (uint64_t) (uintptr_t) &poly_state_key_anchor;
   if (key == 0 || poly_state_key_set(key) != 0 ||
       poly_state_key_get() != key) {
@@ -4473,7 +4488,8 @@ static int emit_x86_direct_pcall_stub(uint8_t *stubs, size_t stub_limit,
   emit_movabs_r14(stubs, stub_offset, heap);
   if (needs_x86_import)
     emit_movabs_r12(stubs, stub_offset, import_x86_table);
-  emit_x86_state_key_set(stubs, stub_offset, state_key);
+  if (state_key != 0)
+    emit_x86_state_key_set(stubs, stub_offset, state_key);
   const uint32_t signature_slot = x86_direct_signature_slot_for_call_kind(
     call_kind, vec128_signature_slot, compact_u32_f32_signature_slot,
     compact_f32_u32_signature_slot, fp64_signature_slot, fp32_signature_slot);
@@ -9857,7 +9873,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
   const size_t hfa_f32_return_post_sequence_size =
     use_hfa_f32_return_thunk ? 9U : 0U;
-  const size_t state_key_setup_size = POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE;
+  const size_t state_key_setup_size = polycall_use_explicit_state_key ?
+    POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE : 0;
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
@@ -9973,8 +9990,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   uint8_t *cross_stubs = code + cross_stub_base_offset;
   size_t cross_stub_offset = 0;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
-  const uint64_t stub_state_key =
-    (uint64_t) (uintptr_t) &poly_state_key_anchor;
+  const uint64_t stub_state_key = polycall_use_explicit_state_key ?
+    (uint64_t) (uintptr_t) &poly_state_key_anchor : 0;
   emit_save_callee_regs(code, &offset, callee_save_area);
   const size_t target_imm_offset = offset + 2;
   emit_movabs_r10(code, &offset, 0);
@@ -9986,7 +10003,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   if (needs_x86_import) {
     emit_movabs_r12(code, &offset, import_x86_table);
   }
-  emit_x86_state_key_set(code, &offset, stub_state_key);
+  if (stub_state_key != 0)
+    emit_x86_state_key_set(code, &offset, stub_state_key);
   if (use_exchange_u64_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
@@ -10161,7 +10179,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   emit_movabs_r14(code, &offset, 0);
   if (needs_x86_import)
     emit_movabs_r12(code, &offset, import_x86_table);
-  emit_x86_state_key_set(code, &offset, stub_state_key);
+  if (stub_state_key != 0)
+    emit_x86_state_key_set(code, &offset, stub_state_key);
   {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
@@ -11450,7 +11469,8 @@ int main(int argc, char **argv) {
     free_program(&program);
   }
 
-  printf("POLYCALL_STUB_STATE_KEY: explicit=1 verified=%zu\n",
+  printf("POLYCALL_STUB_STATE_KEY: explicit=%u verified=%zu\n",
+    polycall_use_explicit_state_key ? 1U : 0U,
     poly_stub_state_key_verified_count);
   puts("POLYCALL_OK");
   return 0;
