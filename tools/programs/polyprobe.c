@@ -152,6 +152,11 @@ static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
 }
 
+static inline uint64_t poly_trap_vector_set_status(uint64_t value) {
+  asm volatile(POLY_OP_TRAP_VECTOR_SET : "+a"(value) :: "memory");
+  return value;
+}
+
 static inline uint64_t poly_trap_vector_get(void) {
   uint64_t value;
   asm volatile(POLY_OP_TRAP_VECTOR_GET : "=a"(value) :: "memory");
@@ -170,6 +175,11 @@ static inline uint64_t poly_trap_vector_mode_get(void) {
 
 static inline void poly_monitor_packet_set_value(uint64_t value) {
   asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
+}
+
+static inline uint64_t poly_monitor_packet_set_status(uint64_t value) {
+  asm volatile(POLY_OP_MONITOR_PACKET_SET : "+a"(value) :: "memory");
+  return value;
 }
 
 static inline uint64_t poly_monitor_packet_get(void) {
@@ -3142,8 +3152,36 @@ int main(void) {
     return 1;
   }
 
-  uint64_t aarch64_vector =
+  const uint64_t invalid_control_address = 0x0100000000000000ULL;
+  uint64_t x86_vector =
     (uint64_t) (uintptr_t) polyprobe_trap_vector_handler;
+  uint64_t x86_packet = (uint64_t) (uintptr_t) &polyprobe_state;
+  if (poly_trap_vector_set_status(x86_vector) != x86_vector ||
+      poly_trap_vector_get() != x86_vector) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 trap-vector control mismatch\n");
+    return 1;
+  }
+  if (poly_trap_vector_set_status(invalid_control_address) !=
+        POLY_ERR_INVAL ||
+      poly_trap_vector_get() != x86_vector) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: x86 invalid trap-vector control mismatch\n");
+    return 1;
+  }
+  if (poly_monitor_packet_set_status(x86_packet) != x86_packet ||
+      poly_monitor_packet_get() != x86_packet) {
+    fprintf(stderr, "POLY_PROBE_FAIL: x86 monitor-packet control mismatch\n");
+    return 1;
+  }
+  if (poly_monitor_packet_set_status(invalid_control_address) !=
+        POLY_ERR_INVAL ||
+      poly_monitor_packet_get() != x86_packet) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: x86 invalid monitor-packet control mismatch\n");
+    return 1;
+  }
+
+  uint64_t aarch64_vector = x86_vector;
   uint64_t aarch64_packet = (uint64_t) (uintptr_t) &polyprobe_state;
   if (aarch64_foreign_control_plane_probe(aarch64_vector, aarch64_packet) !=
       aarch64_vector ||
@@ -3164,7 +3202,6 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv foreign control-plane mismatch\n");
     return 1;
   }
-  const uint64_t invalid_control_address = 0x0100000000000000ULL;
   if (aarch64_foreign_trap_vector_invalid_probe(
         invalid_control_address) != POLY_ERR_INVAL ||
       poly_trap_vector_get() != riscv_vector) {
