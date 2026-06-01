@@ -35,6 +35,10 @@ enum {
   POLYBENCH_CROSS_CALL_MAX_RAW_INSNS = 16,
   POLYBENCH_CROSS_CALL_VEC128_EXPECTED_SWITCH_DELTA = 4,
   POLYBENCH_CROSS_CALL_VEC128_MAX_RAW_INSNS = 25,
+  POLYBENCH_NEUTRAL_PCALL_EXPECTED_SWITCH_DELTA = 3,
+  POLYBENCH_NEUTRAL_PCALL_WRAPPER_SWITCH_DELTA = 1,
+  POLYBENCH_NEUTRAL_PCALL_EXPECTED_INNER_SWITCH_DELTA = 2,
+  POLYBENCH_NEUTRAL_PCALL_MAX_RAW_INSNS = 32,
   POLYBENCH_NESTED_CROSS_CALL_EXPECTED_SWITCH_DELTA = 7,
   POLYBENCH_NESTED_CROSS_CALL_MAX_SWITCH_DELTA = 7,
   POLYBENCH_NESTED_CROSS_CALL_MAX_RAW_INSNS = 26,
@@ -2113,6 +2117,150 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
   uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
   poly_mode_x86();
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_neutral_pcall_aarch64_to_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 320;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: neutral aarch64-to-riscv pcall mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x53; // push rbx
+  code[offset++] = 0x41;
+  code[offset++] = 0x57; // push r15
+  emit_x86_movabs_r15(code, &offset, POLY_FRONTEND_AARCH64);
+  const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
+  const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  const uint8_t pcall[] = {
+    0x0f, 0x3a, 0xfc,
+    (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(polybench_native_signature_slot)
+  };
+  emit_bytes(code, &offset, pcall, sizeof(pcall));
+  const size_t x86_return_offset = offset;
+  code[offset++] = 0x41;
+  code[offset++] = 0x5f; // pop r15
+  code[offset++] = 0x5b; // pop rbx
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_outer_offset = offset;
+  const size_t aarch64_after_offset =
+    aarch64_outer_offset + 4 + 16 + 4 + 16 + 4;
+  const size_t riscv_target_offset = aarch64_after_offset + 4;
+  emit_u32(code, &offset, 0xd28004a0U); // movz x0,#37
+  emit_aarch64_movabs(code, &offset, 16,
+    (uint64_t) (uintptr_t) (code + riscv_target_offset));
+  emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
+  emit_aarch64_movabs(code, &offset, 18,
+    (uint64_t) (uintptr_t) (code + aarch64_after_offset));
+  emit_aarch64_pcall_sig(code, &offset, polybench_native_signature_slot);
+  emit_u32(code, &offset, 0xd65f03c0U); // ret x30 to x86 wrapper
+
+  while (offset < riscv_target_offset)
+    code[offset++] = 0x90;
+  emit_u32(code, &offset, 0x00550513U); // addi a0,a0,5
+  emit_u32(code, &offset, 0x00008067U); // ret
+
+  store_u64(code, target_imm_offset,
+    (uint64_t) (uintptr_t) (code + aarch64_outer_offset));
+  store_u64(code, return_imm_offset,
+    (uint64_t) (uintptr_t) (code + x86_return_offset));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  *result = call_code_no_args(code);
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_neutral_pcall_riscv_to_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 320;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: neutral riscv-to-aarch64 pcall mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x53; // push rbx
+  code[offset++] = 0x41;
+  code[offset++] = 0x57; // push r15
+  emit_x86_movabs_r15(code, &offset, POLY_FRONTEND_RISCV);
+  const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
+  const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  const uint8_t pcall[] = {
+    0x0f, 0x3a, 0xfc,
+    (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(polybench_native_signature_slot)
+  };
+  emit_bytes(code, &offset, pcall, sizeof(pcall));
+  const size_t x86_return_offset = offset;
+  code[offset++] = 0x41;
+  code[offset++] = 0x5f; // pop r15
+  code[offset++] = 0x5b; // pop rbx
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t riscv_outer_offset = offset;
+  emit_u32(code, &offset, 0x02500513U); // addi a0,zero,37
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_pcall_sig(code, &offset, polybench_native_signature_slot);
+  const size_t riscv_after_offset = offset;
+  emit_u32(code, &offset, 0x00008067U); // ret to x86 wrapper
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  emit_u32(code, &offset, 0x91001400U); // add x0,x0,#5
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_after_offset));
+
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+  store_u64(code, target_imm_offset,
+    (uint64_t) (uintptr_t) (code + riscv_outer_offset));
+  store_u64(code, return_imm_offset,
+    (uint64_t) (uintptr_t) (code + x86_return_offset));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  *result = call_code_no_args(code);
   *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
 
@@ -5145,6 +5293,50 @@ static int check_cross_call_direction(const char *name,
   return 0;
 }
 
+static int check_neutral_pcall_direction(const char *name,
+    int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
+  uint64_t result = 0;
+  uint64_t insn_delta = 0;
+  uint64_t switch_delta = 0;
+  if (runner(&result, &insn_delta, &switch_delta) < 0)
+    return -1;
+
+  if (switch_delta < POLYBENCH_NEUTRAL_PCALL_WRAPPER_SWITCH_DELTA) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: neutral pcall %s switch delta underflow got %llu\n",
+      name, (unsigned long long) switch_delta);
+    return -1;
+  }
+  const uint64_t inner_switch_delta =
+    switch_delta - POLYBENCH_NEUTRAL_PCALL_WRAPPER_SWITCH_DELTA;
+  printf("POLYBENCH_NEUTRAL_PCALL_RESULT: direction=%s result=%llu raw_insn_delta=%llu switch_delta=%llu inner_switch_delta=%llu\n",
+    name, (unsigned long long) result, (unsigned long long) insn_delta,
+    (unsigned long long) switch_delta,
+    (unsigned long long) inner_switch_delta);
+
+  if (result != 42) {
+    fprintf(stderr, "POLYBENCH_FAIL: neutral pcall %s result expected 42 got %llu\n",
+      name, (unsigned long long) result);
+    return -1;
+  }
+  if (insn_delta < 8) {
+    fprintf(stderr, "POLYBENCH_FAIL: neutral pcall %s raw instruction delta expected at least 8 got %llu\n",
+      name, (unsigned long long) insn_delta);
+    return -1;
+  }
+  if (check_raw_insn_delta_max("neutral pcall", name, insn_delta,
+        POLYBENCH_NEUTRAL_PCALL_MAX_RAW_INSNS) < 0)
+    return -1;
+  if (check_switch_delta_exact("neutral pcall", name, switch_delta,
+        POLYBENCH_NEUTRAL_PCALL_EXPECTED_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_switch_delta_exact("neutral pcall inner", name,
+        inner_switch_delta,
+        POLYBENCH_NEUTRAL_PCALL_EXPECTED_INNER_SWITCH_DELTA) < 0)
+    return -1;
+  return 0;
+}
+
 static int check_direct_x86_pcall_direction(const char *name,
     int (*runner)(uint64_t *, uint64_t *, uint64_t *)) {
   uint64_t result = 0;
@@ -6053,6 +6245,12 @@ static int check_cross_calls(void) {
         POLYBENCH_CROSS_CALL_MAX_RAW_INSNS,
         POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA,
         POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA) < 0)
+    return -1;
+  if (check_neutral_pcall_direction("x86-wrapped-aarch64-calls-riscv",
+        run_neutral_pcall_aarch64_to_riscv) < 0)
+    return -1;
+  if (check_neutral_pcall_direction("x86-wrapped-riscv-calls-aarch64",
+        run_neutral_pcall_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_direction("nested-aarch64-riscv-aarch64",
         run_nested_cross_call,
