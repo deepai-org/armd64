@@ -13061,6 +13061,7 @@ EOF
           "POLYBENCH_CROSS_CALL_FP8_RESULT: direction=riscv-calls-aarch64-fp8 .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP64_SIGNATURE_RESULT: direction=aarch64-calls-riscv-fp64-signature .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP64_SIGNATURE_RESULT: direction=riscv-calls-aarch64-fp64-signature .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_FP64_SIGNATURE_RESULT: direction=compressed-riscv-calls-aarch64-fp64-signature .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP32_SIGNATURE_RESULT: direction=aarch64-calls-riscv-fp32-signature .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP32_SIGNATURE_RESULT: direction=riscv-calls-aarch64-fp32-signature .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_FP64_STACK_RESULT: direction=aarch64-calls-riscv-fp64-stack .*switch_delta=5"
