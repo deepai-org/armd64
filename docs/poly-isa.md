@@ -1,11 +1,10 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly lets existing x86_64, AArch64, and RISC-V64 user code share one virtual
-address space. It is not a new source ABI; x86_64 remains the system ISA.
+Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 machine so precompiled code from all three ISAs can share one virtual address space.
 
-Longer rationale: `docs/poly-isa-design-directions.md`.
+x86_64 remains the system ISA: boot, rings, paging, interrupts, faults, VM control, scheduling, and the kernel syscall ABI stay x86_64-owned. Design rationale: `docs/poly-isa-design-directions.md`.
 
-## Frontends
+## What Differs From x86_64
 
 | ID | ISA | Fetch |
 | --- | --- | --- |
@@ -13,12 +12,14 @@ Longer rationale: `docs/poly-isa-design-directions.md`.
 | `1` | AArch64 | 4-byte aligned |
 | `2` | RISC-V64 | 16/32-bit, including RVC |
 
-x86_64 owns boot, privilege, paging, interrupts, faults, VM control, and the
-global TSO memory model. AArch64 and RISC-V64 are user-mode peer frontends.
+- All frontends use the same x86_64 virtual memory and TSO memory model.
+- AArch64/RISC-V64 run only as user-mode frontends, not as alternate kernels.
+- Cross-ISA ABI compatibility uses register signatures plus runtime thunks when stack or aggregate layout differs.
+- Poly state is explicit per-thread XSAVE-style architectural state.
 
-## Poly Opcodes
+## Control Encodings
 
-Poly control operations are real decoded instructions, not `#UD` envelopes.
+Poly controls are decoded instructions, not `#UD` envelopes:
 
 ```text
 x86_64   0f 3a fc <subop>
@@ -36,21 +37,14 @@ RISC-V   0x0000700b | ((subop & 0x7f) << 25)
 | `0x62` | `PTRAPRET` | Return from a Poly trap/monitor packet |
 | `0x65..0x6e` | `STATE` | State key, ABI slots, monitor, landing policy |
 
-## Calls
+## Cross-ISA Calls
 
-`PCALL` records caller frontend, return PC, SP, and flags; applies a
-register-only ABI signature; installs a reserved native return cookie; and
-branches to the target frontend.
+`PCALL` records caller frontend, return PC, SP, and flags; applies a register-only ABI signature; installs a reserved native return cookie; and branches to the target frontend.
 
-Returns use ordinary native returns: x86_64 `ret`, AArch64 `ret x30`, and
-RISC-V64 `ret`. Returning to the reserved cookie restores the caller frontend.
+Returns use ordinary native returns: x86_64 `ret`, AArch64 `ret x30`, and RISC-V64 `ret`. Returning to the reserved cookie restores the caller frontend.
 
-## Hardware Boundary
+## Hardware Contract
 
-Hardware remaps registers and switches frontends. It does not parse user-memory
-call descriptors, repack stacks, translate variadics, implement libc/libgcc, or
-encode OS policy. Loader/runtime thunks handle those cases.
+Hardware may switch frontends, remap register arguments, validate landing pads, and produce precise trap records.
 
-Poly state is explicit per-thread XSAVE-style state. Recoverable foreign traps
-produce precise trap records; hard page faults, interrupts, scheduling, and real
-syscalls remain owned by the kernel.
+Hardware must not parse user-memory call descriptors, repack stacks, translate variadics, implement libc/libgcc, or encode OS policy. Loader/runtime thunks and user-mode monitors handle those cases; hard faults, interrupts, scheduling, and real syscalls remain kernel-owned.
