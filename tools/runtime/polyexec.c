@@ -321,7 +321,9 @@ enum poly_process_bridge_kind {
   POLY_PROCESS_BRIDGE_SRET_X86_SYSV = 15,
   POLY_PROCESS_BRIDGE_NATIVE_SRET = 16,
   POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_RET = 17,
-  POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET = 18
+  POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET = 18,
+  POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_ARG = 19,
+  POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_ARG = 20
 };
 
 struct poly_process_bridge_spec {
@@ -978,6 +980,10 @@ static int process_bridge_kind_from_name(const char *name) {
     return POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_RET;
   if (strcmp(name, "aarch64_hfa4_f64_ret") == 0)
     return POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET;
+  if (strcmp(name, "aarch64_hfa3_f64_arg") == 0)
+    return POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_ARG;
+  if (strcmp(name, "aarch64_hfa4_f64_arg") == 0)
+    return POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_ARG;
   if (strcmp(name, "aarch64_hfa3_f32_arg") == 0)
     return POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_ARG;
   if (strcmp(name, "aarch64_hfa4_f32_arg") == 0)
@@ -1116,9 +1122,14 @@ static uint32_t process_signature_slot_for_bridge_kind(int bridge_kind) {
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET ||
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_RET ||
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET ||
+      bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_ARG ||
+      bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_ARG ||
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_ARG ||
       bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_ARG)
-    return POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_FP128_RET;
+    return bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_ARG ||
+      bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_ARG ?
+      process_fp64_signature_slot :
+      POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_FP128_RET;
   if (bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_ARG ||
       bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG ||
       bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_RET ||
@@ -3778,6 +3789,23 @@ static void emit_x86_store_hfa64_return_to_sret(uint8_t *code, size_t *offset,
   }
 }
 
+static void emit_x86_load_hfa64_arg_from_stack(uint8_t *code, size_t *offset,
+    uint32_t count) {
+  const uint32_t scale_reg = count;
+  code[(*offset)++] = 0xf2; // movsd xmm<count>,xmm0: preserve scalar arg.
+  code[(*offset)++] = 0x0f;
+  code[(*offset)++] = 0x10;
+  code[(*offset)++] = (uint8_t) (0xc0U + (scale_reg << 3));
+  for (uint32_t n = 0; n < count; n++) {
+    code[(*offset)++] = 0xf2; // movsd xmmN,[rsp+disp8].
+    code[(*offset)++] = 0x0f;
+    code[(*offset)++] = 0x10;
+    code[(*offset)++] = (uint8_t) (0x44U + (n << 3));
+    code[(*offset)++] = 0x24;
+    code[(*offset)++] = (uint8_t) (32U + n * 8U);
+  }
+}
+
 static void emit_x86_exit_group_from_eax(uint8_t *code, size_t *offset) {
   code[(*offset)++] = 0x89; // mov edi,eax
   code[(*offset)++] = 0xc7;
@@ -4350,12 +4378,13 @@ static int ensure_process_cross_stub_arena(void) {
 }
 
 static int process_bridge_is_compact(int bridge_kind);
+static int process_bridge_is_stack_thunk(int bridge_kind);
 
 static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     int bridge_kind, uint32_t signature_slot, int emitted_x86_wrapper) {
   process_cross_state_key_stub_count++;
   process_cross_signature_slot_stub_count++;
-  if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9)
+  if (process_bridge_is_stack_thunk(bridge_kind))
     process_cross_stack_bridge_stub_count++;
   else if (process_bridge_is_compact(bridge_kind))
     process_cross_compact_shuffle_stub_count++;
@@ -4416,8 +4445,17 @@ static int process_bridge_is_aarch64_hfa64_ret(int bridge_kind) {
     bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET;
 }
 
+static int process_bridge_is_aarch64_hfa64_arg(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_ARG ||
+    bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_ARG;
+}
+
 static uint32_t process_bridge_aarch64_hfa64_ret_count(int bridge_kind) {
   return bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET ? 4U : 3U;
+}
+
+static uint32_t process_bridge_aarch64_hfa64_arg_count(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_ARG ? 4U : 3U;
 }
 
 static int process_bridge_is_aarch64_hfa32_arg(int bridge_kind) {
@@ -4446,6 +4484,11 @@ static int process_bridge_is_x86_source_signature(int bridge_kind) {
     process_bridge_is_aarch64_hfa32_arg(bridge_kind) ||
     process_bridge_is_fpair(bridge_kind) ||
     process_bridge_is_sret(bridge_kind);
+}
+
+static int process_bridge_is_stack_thunk(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 ||
+    process_bridge_is_aarch64_hfa64_arg(bridge_kind);
 }
 
 static uint32_t process_bridge_signature_kind(int bridge_kind) {
@@ -4691,6 +4734,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   if (process_bridge_is_aarch64_hfa64_ret(bridge_kind) &&
       !(caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_AARCH64))
     return -1;
+  if (process_bridge_is_aarch64_hfa64_arg(bridge_kind) &&
+      !(caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_AARCH64))
+    return -1;
   if (process_bridge_is_aarch64_hfa32_arg(bridge_kind) &&
       !(caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_AARCH64))
     return -1;
@@ -4732,6 +4778,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_RET &&
       bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_RET &&
       bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET &&
+      bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_ARG &&
+      bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_ARG &&
       bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_ARG &&
       bridge_kind != POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_ARG &&
       bridge_kind != POLY_PROCESS_BRIDGE_FPAIR32_ARG &&
@@ -4879,6 +4927,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       emit_x86_abi_signature_set(code, &offset, signature_slot,
         signature_kind);
     }
+    if (process_bridge_is_aarch64_hfa64_arg(bridge_kind))
+      emit_x86_load_hfa64_arg_from_stack(code, &offset,
+        process_bridge_aarch64_hfa64_arg_count(bridge_kind));
     if (process_bridge_is_aarch64_hfa64_ret(bridge_kind))
       emit_x86_preserve_sret_ptr_rax(code, &offset);
 
