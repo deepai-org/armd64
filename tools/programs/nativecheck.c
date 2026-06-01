@@ -3935,6 +3935,8 @@ static int run_poly_trap_vector_probe(void) {
       POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
     return 1;
 
+  puts("NATIVE_POLY_DESCRIPTOR_IMPORT_TRAPS_OK");
+
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     "xorq %%r12,%%r12\n"
