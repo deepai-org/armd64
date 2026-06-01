@@ -44,7 +44,7 @@ HINT and RISC-V custom-0 encodings.
 | `PSWITCH` | `04` | `R15=frontend`, `RBX=target`, `R13=TLS` |
 | `PLANDING` | `05` | indirect cross-frontend landing marker |
 | `PCALL` | `2d` | `R15=frontend`, `RBX=target`, `R11=return`, `R12=sig` |
-| `PCALL_IMM` | `30..` | `PCALL` with signature slot `op - 0x30` |
+| `PCALL_IMM` | `30..` | `R15=frontend`, `RBX=target`, `R11=return`, slot `op - 0x30` |
 | `PTRAPRET` | `62` | resume from a Poly trap packet |
 
 Full rationale: `docs/poly-isa-design-directions.md`.
