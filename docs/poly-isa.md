@@ -1,8 +1,8 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends in the same
-process and virtual address space. The target is compatibility with existing
-native ABI objects, not a new compiler-only ABI.
+Poly adds user-mode AArch64 and RISC-V64 frontends to x86_64 in one virtual
+address space. The target is existing native ABI objects, not a new
+compiler-only ABI.
 
 ## Run
 
@@ -12,7 +12,7 @@ make boot-poly-full-real-xsave-arch-traps
 rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused tests:
+Focused boots:
 
 ```sh
 make boot-poly-exec-cross-arch-traps
@@ -20,30 +20,30 @@ make boot-poly-call-real-xsave-arch-traps
 make boot-poly-binfmt-arch-traps
 ```
 
-## ISA Delta From x86_64
+## Delta From x86_64
 
 - x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  exceptions, atomics, and TSO memory ordering.
-- AArch64 and RISC-V64 are direct-fetch user frontends sharing x86_64 virtual
-  memory. They are not decoded through per-instruction `#UD` envelopes.
-- Poly adds decoded control instructions for entering, switching, calling,
-  landing-pad validation, and trap return.
-- Cross-ISA calls preserve native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI.
-- Fast register-only calls use ABI signature slots suitable for hardware
-  register renaming. Stack arguments, variadics, aggregate repacking, lazy
-  binding, syscall policy, and libc policy stay in software.
-- Extra foreign registers are explicit per-thread XSAVE-style architectural
-  state, not hidden CR3-scoped emulator state.
+  exceptions, atomics, and global TSO memory ordering.
+- Foreign frontends directly fetch native 32-bit instructions from `RIP`; no
+  per-instruction `#UD` envelopes.
+- Native ABIs stay native: x86_64 SysV, AArch64 AAPCS64, RISC-V psABI.
+- Fast `PCALL`s use register-only ABI signature slots; software handles stack
+  args, variadics, aggregate repacking, lazy binding, syscalls, and libc policy.
+- Extra foreign registers are per-thread XSAVE-style state, not hidden
+  CR3-scoped emulator state.
 
-## Controls
+## x86 Control Encoding
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
+Frontends: `0` x86_64, `1` AArch64, `2` RISC-V64. Prototype controls use
+`0f 3a fc <op>`; they are decoded controls, not fault-driven `UD2` envelopes.
 
-- `PENTER frontend`: enter another frontend.
-- `PSWITCH frontend, target`: cross-ISA tail branch.
-- `PCALL frontend, target, sig`: cross-ISA call using ABI signature slot `sig`.
-- `PLANDING`: validate an indirect cross-ISA landing target.
-- `PTRAPRET`: resume from a Poly trap packet.
+| Operation | Opcode | Inputs |
+| --- | --- | --- |
+| `PENTER` | `03` | `R15=frontend`, `R13=TLS` |
+| `PSWITCH` | `04` | `R15=frontend`, `RBX=target`, `R13=TLS` |
+| `PLANDING` | `05` | marks an indirect cross-frontend target |
+| `PCALL` | `2d` | `R15=frontend`, `RBX=target`, `R11=return`, `R12=sig` |
+| `PCALL_IMM` | `30..` | same as `PCALL`; signature slot is `op - 0x30` |
+| `PTRAPRET` | `62` | resume from a Poly trap packet |
 
-Design rationale: `docs/poly-isa-design-directions.md`.
+Longer rationale and hardware direction: `docs/poly-isa-design-directions.md`.
