@@ -1,8 +1,8 @@
 # Poly ISA
 
-Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends in the same
-process address space. The goal is compatibility with existing precompiled
-code, not a new compiler-only ABI.
+Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system ISA.
+The target is existing precompiled code and cross-ISA library linking, not a
+new compiler-only ABI.
 
 ## Run
 
@@ -11,37 +11,29 @@ make image
 make boot-poly-full-real-xsave-arch-traps
 ```
 
-Faster loader smoke test:
+Use `make boot-poly-exec-cross-arch-traps` for a faster loader smoke test.
 
-```sh
-make boot-poly-exec-cross-arch-traps
-```
+## Contract
 
-## How It Differs From x86_64
+- x86_64 remains the system ISA for boot, kernel entry, paging, interrupts,
+  faults, VM control, atomics, and global TSO ordering.
+- Foreign modes are raw 32-bit instruction frontends. They do not use
+  per-instruction `#UD` envelopes.
+- Cross-ISA calls preserve native ABI compatibility. Register-only calls may
+  use hardware ABI signature slots; stack/aggregate/variadic cases use runtime
+  thunks.
+- Non-aliased foreign registers are per-thread XSAVE-style architectural state,
+  never CR3-scoped hidden emulator state.
+- Foreign traps produce precise OS-neutral trap records that runtime or OS
+  policy can handle.
 
-- x86_64 is still the system ISA: boot, kernel entry, paging, interrupts,
-  faults, VM control, atomics, and global TSO ordering stay x86-owned.
-- AArch64 and RISC-V64 are user-mode frontend modes. They fetch and decode raw
-  32-bit native instructions directly; there are no per-instruction `#UD`
-  envelopes.
-- Cross-ISA calls target real native ABIs. Hardware can accelerate
-  register-only calls through ABI signature slots; stack arguments, aggregates,
-  variadics, lazy binding, and helper calls remain software/runtime work.
-- Extra foreign architectural state is per-thread XSAVE-style state, not hidden
-  emulator state and not CR3-only process state.
-- Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
-  precise OS-neutral trap records for runtime or OS policy.
+## ISA Operations
 
-## Operations
-
-- `PENTER frontend`: trusted entry into a frontend.
-- `PSWITCH frontend, target`: non-returning cross-frontend branch.
-- `PCALL frontend, target, sig`: cross-frontend call using ABI signature slot
-  `sig`.
-- `PLANDING`: optional indirect target validation.
+- `PENTER frontend`: enter a foreign frontend from trusted x86 code.
+- `PSWITCH frontend, target`: non-returning cross-ISA branch.
+- `PCALL frontend, target, sig`: cross-ISA call using ABI signature slot `sig`.
+- `PLANDING`: validate an indirect Poly landing target.
 - `PTRAPRET`: resume after a precise Poly trap.
 
-## More Detail
-
-Temporary Bochs encodings live in `tools/include/polycpuid.h`. Detailed design
-rationale lives in `docs/poly-isa-design-directions.md`.
+Temporary Bochs encodings are in `tools/include/polycpuid.h`. Design rationale
+is in `docs/poly-isa-design-directions.md`.
