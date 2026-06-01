@@ -33,10 +33,11 @@ rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
 - Foreign traps are reported through Poly trap packets; OS-specific behavior is
   runtime policy, not ISA behavior.
 
-## Bochs Opcodes
+## Bochs Control Opcodes
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64. Bochs prototype controls
-use decoded `0f 3a fc <op>` instructions.
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64. x86_64 controls use
+decoded `0f 3a fc <op>` instructions. Foreign controls use reserved AArch64
+HINT and RISC-V custom-0 encodings.
 
 | Op | Opcode | Inputs |
 | --- | --- | --- |
