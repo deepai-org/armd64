@@ -3761,6 +3761,23 @@ static void emit_x86_pcall_sig_imm(uint8_t *code, size_t *offset,
   code[(*offset)++] = (uint8_t) POLY_X86_CTRL_PCALL_SIG_IMM(signature_slot);
 }
 
+static void emit_x86_preserve_sret_ptr_rax(uint8_t *code, size_t *offset) {
+  code[(*offset)++] = 0x48; // mov rax,rdi: preserve hidden sret pointer.
+  code[(*offset)++] = 0x89;
+  code[(*offset)++] = 0xf8;
+}
+
+static void emit_x86_store_hfa64_return_to_sret(uint8_t *code, size_t *offset,
+    uint32_t count) {
+  for (uint32_t n = 0; n < count; n++) {
+    code[(*offset)++] = 0xf2; // movsd [rax+disp8],xmmN.
+    code[(*offset)++] = 0x0f;
+    code[(*offset)++] = 0x11;
+    code[(*offset)++] = (uint8_t) (0x40U + (n << 3));
+    code[(*offset)++] = (uint8_t) (n * 8U);
+  }
+}
+
 static void emit_x86_exit_group_from_eax(uint8_t *code, size_t *offset) {
   code[(*offset)++] = 0x89; // mov edi,eax
   code[(*offset)++] = 0xc7;
@@ -4399,6 +4416,10 @@ static int process_bridge_is_aarch64_hfa64_ret(int bridge_kind) {
     bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET;
 }
 
+static uint32_t process_bridge_aarch64_hfa64_ret_count(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F64_RET ? 4U : 3U;
+}
+
 static int process_bridge_is_aarch64_hfa32_arg(int bridge_kind) {
   return bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_ARG ||
     bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA4_F32_ARG;
@@ -4861,12 +4882,17 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       emit_x86_abi_signature_set(code, &offset, signature_slot,
         signature_kind);
     }
+    if (process_bridge_is_aarch64_hfa64_ret(bridge_kind))
+      emit_x86_preserve_sret_ptr_rax(code, &offset);
 
     emit_x86_movabs_rbx(code, &offset, target);
     const size_t return_imm_offset = offset + 2;
     emit_x86_movabs_r11(code, &offset, 0);
     emit_x86_pcall_sig_imm(code, &offset, callee_frontend, signature_slot);
     const uint64_t return_addr = (uint64_t) (uintptr_t) (code + offset);
+    if (process_bridge_is_aarch64_hfa64_ret(bridge_kind))
+      emit_x86_store_hfa64_return_to_sret(code, &offset,
+        process_bridge_aarch64_hfa64_ret_count(bridge_kind));
     code[offset++] = 0x48; // add rsp,8
     code[offset++] = 0x83;
     code[offset++] = 0xc4;

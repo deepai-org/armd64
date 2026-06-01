@@ -9901,8 +9901,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG ||
      call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG);
   const int use_hfa_f64_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
-    call_kind_is_aarch64_hfa_f64_return(call_kind) &&
-    !use_special_sig_pcall;
+    call_kind_is_aarch64_hfa_f64_return(call_kind);
   const int use_hfa_f32_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
     call_kind_is_aarch64_hfa_f32_return(call_kind) &&
     !use_special_sig_pcall;
@@ -9933,7 +9932,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t pcall_sequence_size = use_exchange_u64_pcall ?
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
-      (use_special_sig_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
+      (use_special_sig_pcall ?
+        (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
+          POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE) :
         (use_sret_stack_thunk ? sret_pcall_sequence_size :
           (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
             (use_sret_signature_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
@@ -10132,6 +10133,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       munmap(code, code_size);
       return -1;
     }
+    if (use_hfa_f64_return_thunk)
+      emit_x86_preserve_sret_ptr(code, &offset);
     emit_x86_pcall_sig_imm(code, &offset, pcall_frontend,
       special_signature_slot);
   }

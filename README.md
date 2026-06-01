@@ -88,9 +88,12 @@ Other useful targets:
 - Hidden structure-return pointers can use a dedicated register-only SRET
   signature slot when no stack reshaping is required. Structure-return cases
   that need stack argument staging or aggregate layout work still use thunks.
-- AArch64 HFA-of-float returns/arguments and HFA-of-double returns use precise
-  register-only signature features. HFA arguments that are stack-backed on the
-  source ABI still use thunks because they require memory-shaped ABI work.
+- AArch64 HFA-of-float returns/arguments use precise register-only signature
+  features. AArch64 HFA-of-double returns use precise signature features to
+  fetch the foreign FP result registers, then ordinary x86_64 SysV callers use
+  a small hidden-sret post-copy because those structs are memory-returned on
+  x86_64. HFA arguments that are stack-backed on the source ABI still use
+  thunks because they require memory-shaped ABI work.
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
   descriptor parsing. For foreign-to-x86 TLS, the direct call transition
