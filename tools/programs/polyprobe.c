@@ -3385,6 +3385,34 @@ int main(void) {
     poly_landing_policy_set(0);
     return 1;
   }
+  memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
+  poly_state_export(&polyprobe_state);
+  if (polyprobe_state.landing_policy.flags !=
+        POLY_LANDING_POLICY_REQUIRE_CALL ||
+      polyprobe_state.landing_policy.supported_flags !=
+        POLY_LANDING_POLICY_SUPPORTED) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: landing policy export mismatch flags=0x%llx supported=0x%llx\n",
+      (unsigned long long) polyprobe_state.landing_policy.flags,
+      (unsigned long long) polyprobe_state.landing_policy.supported_flags);
+    poly_landing_policy_set(0);
+    return 1;
+  }
+  if (poly_landing_policy_set(0) != 0 ||
+      poly_landing_policy_get() != 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: landing policy reset before import mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
+    return 1;
+  }
+  poly_state_import(&polyprobe_state);
+  if (poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: landing policy import mismatch got=0x%llx\n",
+      (unsigned long long) poly_landing_policy_get());
+    poly_landing_policy_set(0);
+    return 1;
+  }
   if (riscv_landing_policy_invalid_probe(
         POLY_LANDING_POLICY_SUPPORTED << 1) != POLY_ERR_INVAL ||
       poly_landing_policy_get() != POLY_LANDING_POLICY_REQUIRE_CALL) {
