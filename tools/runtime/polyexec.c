@@ -2607,9 +2607,15 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 440: *x86_number = SYS_process_madvise; return 1;
     case 441: *x86_number = SYS_epoll_pwait2; return 1;
     case 442: *x86_number = SYS_mount_setattr; return 1;
+#ifdef SYS_quotactl_fd
+    case 443: *x86_number = SYS_quotactl_fd; return 1;
+#endif
     case 444: *x86_number = SYS_landlock_create_ruleset; return 1;
     case 445: *x86_number = SYS_landlock_add_rule; return 1;
     case 446: *x86_number = SYS_landlock_restrict_self; return 1;
+#ifdef SYS_memfd_secret
+    case 447: *x86_number = SYS_memfd_secret; return 1;
+#endif
     case 448: *x86_number = SYS_process_mrelease; return 1;
     case 449: *x86_number = SYS_futex_waitv; return 1;
     case 450: *x86_number = SYS_set_mempolicy_home_node; return 1;
@@ -2630,6 +2636,21 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
 #endif
 #ifdef SYS_futex_requeue
     case 456: *x86_number = SYS_futex_requeue; return 1;
+#endif
+#ifdef SYS_statmount
+    case 457: *x86_number = SYS_statmount; return 1;
+#endif
+#ifdef SYS_listmount
+    case 458: *x86_number = SYS_listmount; return 1;
+#endif
+#ifdef SYS_lsm_get_self_attr
+    case 459: *x86_number = SYS_lsm_get_self_attr; return 1;
+#endif
+#ifdef SYS_lsm_set_self_attr
+    case 460: *x86_number = SYS_lsm_set_self_attr; return 1;
+#endif
+#ifdef SYS_lsm_list_modules
+    case 461: *x86_number = SYS_lsm_list_modules; return 1;
 #endif
     default: return 0;
   }
