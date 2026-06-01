@@ -1408,6 +1408,8 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
     read_cpuid(POLY_CPUID_BASE + 2, 25);
   const struct poly_cpuid_regs signature_hfa32_ret =
     read_cpuid(POLY_CPUID_BASE + 2, 26);
+  const struct poly_cpuid_regs signature_hfa32_arg =
+    read_cpuid(POLY_CPUID_BASE + 2, 27);
   const uint32_t slot_exchange = signature.ecx & 0xffU;
   const uint32_t slot_x86_sysv_regs = (signature.ecx >> 8) & 0xffU;
   const uint32_t slot_x86_sysv_regs_i128 = (signature.ecx >> 16) & 0xffU;
@@ -1487,9 +1489,17 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
       signature_hfa32_ret.ecx !=
         POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_RET ||
       signature_hfa32_ret.edx !=
-        POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_RET) {
+        POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_RET ||
+      signature_hfa32_arg.eax !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_ARG ||
+      signature_hfa32_arg.ebx !=
+        POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F32_ARG ||
+      signature_hfa32_arg.ecx !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_ARG ||
+      signature_hfa32_arg.edx !=
+        POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_ARG) {
     fprintf(stderr,
-      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) sret=(%u,%u,%u,%u) fp128ret=(%u,%u,%u,%u) hfa32ret=(%u,%u,%u,%u)\n",
+      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) sret=(%u,%u,%u,%u) fp128ret=(%u,%u,%u,%u) hfa32ret=(%u,%u,%u,%u) hfa32arg=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
@@ -1501,7 +1511,9 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
       signature_fp128_ret.ebx, signature_fp128_ret.ecx,
       signature_fp128_ret.edx, signature_hfa32_ret.eax,
       signature_hfa32_ret.ebx, signature_hfa32_ret.ecx,
-      signature_hfa32_ret.edx);
+      signature_hfa32_ret.edx, signature_hfa32_arg.eax,
+      signature_hfa32_arg.ebx, signature_hfa32_arg.ecx,
+      signature_hfa32_arg.edx);
     return -1;
   }
 
