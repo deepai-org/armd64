@@ -11234,10 +11234,13 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       cross_stub_stats.aarch64_to_riscv_bridge_stubs,
       cross_stub_stats.riscv_to_aarch64_bridge_stubs, program->path);
   }
-  if (use_exchange_u64_pcall) {
-    printf("POLYCALL_ROOT_PCALL: arch=%s exchange_u64=1 path=%s\n",
-      program->arch_name, program->path);
-  }
+  printf("POLYCALL_ROOT_PCALL: arch=%s exchange_u64=%u call_kind=%d sig_imm=%u special_sig=%u sret_thunk=%u fp64_stack_thunk=%u hfa_f64_arg_thunk=%u hfa_f64_ret_thunk=%u hfa_f32_ret_thunk=%u path=%s\n",
+    program->arch_name, use_exchange_u64_pcall ? 1U : 0U, call_kind,
+    use_sig_imm_pcall ? 1U : 0U, use_special_sig_pcall ? 1U : 0U,
+    use_sret_pcall ? 1U : 0U, use_fp64_stack_pcall ? 1U : 0U,
+    use_hfa_f64_arg_sig_pcall ? 1U : 0U,
+    use_hfa_f64_return_thunk ? 1U : 0U,
+    use_hfa_f32_return_thunk ? 1U : 0U, program->path);
   if (poly_state_key_get() != stub_state_key) {
     fprintf(stderr,
       "POLYCALL_FAIL: generated PCALL stub state-key mismatch key=0x%llx got=0x%llx path=%s\n",
