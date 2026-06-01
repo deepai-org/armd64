@@ -1,9 +1,9 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly is an x86_64 extension prototype for running existing AArch64 and RISC-V64
-user-mode code in the same virtual address space.
+Poly extends x86_64 so existing AArch64 and RISC-V64 user-mode code can run in
+the same virtual address space as x86 code.
 
-## Run
+## Run It
 
 ```sh
 make image
@@ -12,27 +12,27 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps
 rg -a 'POLY.*OK|NATIVE.*OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## How It Differs From x86_64
+## Architectural Contract
 
-- x86_64 remains the system ISA for boot, paging, privilege, interrupts,
-  syscalls, atomics, and TSO memory ordering.
-- AArch64 and RISC-V64 are ring-3 decode frontends fetched from x86 virtual
-  memory. AArch64 fetches fixed 4-byte instructions; RISC-V fetches 16/32-bit
-  RVC-capable instructions.
-- ISA switches are decoded control instructions, not `#UD` trap envelopes.
-- Foreign register state is per-thread XSAVE-style architectural state.
-- Fast register-only cross-ISA calls use programmable ABI signature slots.
+- x86_64 is still the system ISA: boot, paging, privilege, interrupts,
+  syscalls, atomics, and TSO ordering stay x86-defined.
+- AArch64 and RISC-V64 are ring-3 decode frontends over the same x86 virtual
+  address space.
+- ISA changes use decoded control instructions, not per-instruction `#UD`
+  envelopes.
+- Foreign state is per-thread XSAVE-style architectural state, not hidden
+  process-global emulator state.
+- Fast cross-ISA calls use ABI signature slots for register-only remapping.
 - Stack arguments, aggregates, variadics, lazy binding, libc policy, and syscall
-  policy stay in software thunks/runtime code.
-- Recoverable foreign exits write OS-neutral trap packets.
+  policy are software/runtime responsibilities.
+- Recoverable foreign exits produce OS-neutral trap packets.
 
-## Control Summary
+## Encodings
 
 - Frontends: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
-- x86 controls use `0f 3a fc xx`: `PENTER`, `PSWITCH`, `PLANDING`, `PCALL`,
+- x86 controls: `0f 3a fc xx` for `PENTER`, `PSWITCH`, `PLANDING`, `PCALL`,
   `PCALL_IMM`, and `PTRAPRET`.
-- AArch64 controls use reserved HINT encodings.
-- RISC-V controls use custom-0 encodings.
+- AArch64 controls: reserved `HINT` encodings.
+- RISC-V controls: `custom-0` encodings.
 
-Detailed hardware and ABI rationale belongs in
-`docs/poly-isa-design-directions.md`.
+Long-form design rationale: `docs/poly-isa-design-directions.md`.
