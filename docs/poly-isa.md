@@ -40,7 +40,7 @@ Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 | `PSWITCH` | `0f 3a fc 04` | `R15=frontend`, `RBX=target`, `R13=TLS` |
 | `PLANDING` | `0f 3a fc 05` | landing marker for indirect cross-ISA targets |
 | `PCALL` | `0f 3a fc 2d` | `R15=frontend`, `RBX=target`, `R11=return`, `R12=sig` |
-| `PCALL_IMM` | `0f 3a fc 30..` | same as `PCALL`; signature slot is `op - 0x30` |
+| `PCALL_IMM` | `0f 3a fc 30..` | `R15=frontend`, `RBX=target`, `R11=return`; `sig=op - 0x30` |
 | `PTRAPRET` | `0f 3a fc 62` | resume from a Poly trap packet |
 
 Foreign controls use reserved AArch64 HINT and RISC-V custom-0 encodings.
