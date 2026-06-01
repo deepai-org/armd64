@@ -197,6 +197,7 @@ boot-poly-binfmt-arch-traps:
 		./scripts/boot.sh
 
 boot-poly-focused-validation:
+	$(MAKE) BOOT_TIMEOUT_SECONDS=$(BOOT_FOCUSED_TIMEOUT_SECONDS) boot-poly-neutral-arch-traps
 	$(MAKE) BOOT_TIMEOUT_SECONDS=$(BOOT_FOCUSED_TIMEOUT_SECONDS) boot-poly-exec-cross-arch-traps
 	$(MAKE) BOOT_TIMEOUT_SECONDS=$(BOOT_FOCUSED_TIMEOUT_SECONDS) boot-poly-call-real-xsave-arch-traps
 	$(MAKE) BOOT_TIMEOUT_SECONDS=$(BOOT_FOCUSED_TIMEOUT_SECONDS) boot-poly-bench-arch-traps

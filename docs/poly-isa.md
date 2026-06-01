@@ -1,23 +1,21 @@
 # Poly ISA
 
-Poly is an x86_64 CPU extension that can fetch and execute existing AArch64 and
-RISC-V64 user code in the same virtual address space. See
-`docs/poly-isa-design-directions.md` for rationale.
+Poly is an x86_64 extension for executing existing AArch64 and RISC-V64 user
+code in the same virtual address space. Detailed rationale lives in
+`docs/poly-isa-design-directions.md`.
 
-## Frontends
+## What Changes From x86_64
 
-| ID | ISA | Fetch rule |
-| --- | --- | --- |
-| `0` | x86_64 | native variable-length x86 |
-| `1` | AArch64 | native 32-bit aligned |
-| `2` | RISC-V64 | native 16/32-bit, including RVC |
+- Adds three user-mode instruction frontends: `0` x86_64, `1` AArch64, `2` RISC-V64.
+- AArch64 fetch is native 32-bit aligned; RISC-V64 fetch is native 16/32-bit with RVC.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts, VM control, kernel syscalls, atomics, and the global TSO memory model.
+- Cross-ISA calls target native ABI code: SysV x86_64, AAPCS64, and RISC-V psABI.
+- Per-thread Poly state is XSAVE-style architectural state, not hidden emulator state.
 
-x86_64 remains the system ISA for boot, privilege, paging, interrupts, kernel
-syscalls, VM control, atomics, and the global TSO memory model.
+## Control Instructions
 
-## Control Encodings
-
-Decoded controls, not `#UD` traps. Current Bochs prototype encodings:
+Controls are decoded instructions, not `#UD` trap envelopes. Current Bochs
+prototype encodings:
 
 ```text
 x86_64    0f 3a fc <subop>
@@ -35,13 +33,11 @@ RISC-V64  0x0000700b | ((subop & 0x7f) << 25)
 | `0x62` | `PTRAPRET` |
 | `0x65..0x6e` | state/control setup |
 
-## Contract
+## Hardware Boundary
 
-- Target compatibility is native ABI code: x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI.
-- Fast calls use register-only ABI signature slots, implemented as fixed-latency register-name remaps.
-- Complex ABI cases use runtime thunks: stack args, aggregates, variadics, vectors, lazy binding, syscalls, and helper libraries.
-- `PCALL` records caller frontend, PC, SP, and flags; applies the selected signature; installs a native return cookie; and branches.
-- Native returns cross back through that cookie: x86_64 `ret`, AArch64 `ret x30`, and RISC-V64 `ret`.
-- Poly state is per-thread XSAVE-style architectural state, not hidden CR3-scoped emulator state.
+- Fast `PCALL` uses register-only ABI signature slots for fixed-latency register-name remaps.
+- Runtime thunks handle stack arguments, aggregates, variadics, vectors, lazy binding, syscalls, and helper libraries.
+- `PCALL` records caller frontend, PC, SP, and flags, applies the signature, installs a native return cookie, and branches.
+- Native `ret`/`ret x30`/RISC-V `ret` cross back through the cookie.
 - Hardware may switch frontends, remap registers, validate landings, maintain the transition stack, and emit precise trap records.
-- Hardware must not parse user-memory descriptors, repack stacks, implement libc/libgcc/libatomic, translate syscalls, or encode OS policy.
+- Hardware must not parse user-memory descriptors, repack stacks, implement libraries, translate syscalls, or encode OS policy.

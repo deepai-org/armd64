@@ -22,8 +22,9 @@ Primary targets:
 
 - `make boot`: plain x86_64 sanity boot.
 - `make boot-poly`: shorter Poly smoke/regression run.
-- `make boot-poly-focused-validation`: focused cross-ISA shared-library plus
-  real-XSAVE call/thread/signal and benchmark trap-delta validation.
+- `make boot-poly-focused-validation`: focused neutral-switch, cross-ISA
+  shared-library, real-XSAVE call/thread/signal, and benchmark trap-delta
+  validation.
 - `make boot-poly-full-real-xsave-arch-traps`: broad regression with the guest
   Poly XCR0 module loaded, requiring direct XSAVE/XRSTOR state handling.
 
