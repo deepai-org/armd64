@@ -4498,6 +4498,7 @@ static int process_bridge_is_x86_source_signature(int bridge_kind) {
 
 static int process_bridge_is_stack_thunk(int bridge_kind) {
   return bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9 ||
+    process_bridge_is_aarch64_hfa64_ret(bridge_kind) ||
     process_bridge_is_aarch64_hfa64_arg(bridge_kind);
 }
 

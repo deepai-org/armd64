@@ -12358,7 +12358,7 @@ EOF
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-riscv-fp64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-fp32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-hfa32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
-          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-hfa64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-hfa64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[0-9]+.*stack_bridges=[1-9][0-9]*.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-hfa32arg-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-hfa64arg-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[0-9]+.*stack_bridges=[1-9][0-9]*.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/x86_64-process-cross-aarch64-fpairarg-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
