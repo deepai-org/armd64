@@ -1,8 +1,9 @@
 # Poly ISA
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system ISA.
-The target is existing precompiled code and cross-ISA library linking, not a
-new compiler-only ABI.
+Poly is a CPU extension prototype that adds user-mode AArch64 and RISC-V64
+frontends to an x86_64 machine. The goal is to run existing precompiled native
+ABI code and link cross-ISA libraries in one virtual address space. It is not a
+new compiler-only ABI and not a per-instruction trap scheme.
 
 ## Run
 
@@ -11,29 +12,67 @@ make image
 make boot-poly-full-real-xsave-arch-traps
 ```
 
-Use `make boot-poly-exec-cross-arch-traps` for a faster loader smoke test.
+Faster focused runs:
 
-## Contract
+```sh
+make boot-poly-exec-cross-arch-traps
+make boot-poly-call-real-xsave-arch-traps
+rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
+```
 
-- x86_64 remains the system ISA for boot, kernel entry, paging, interrupts,
-  faults, VM control, atomics, and global TSO ordering.
-- Foreign modes are raw 32-bit instruction frontends. They do not use
-  per-instruction `#UD` envelopes.
-- Cross-ISA calls preserve native ABI compatibility. Register-only calls may
-  use hardware ABI signature slots; stack/aggregate/variadic cases use runtime
-  thunks.
-- Non-aliased foreign registers are per-thread XSAVE-style architectural state,
-  never CR3-scoped hidden emulator state.
-- Foreign traps produce precise OS-neutral trap records that runtime or OS
-  policy can handle.
+## Differences From x86_64
 
-## ISA Operations
+- x86_64 remains the system ISA for boot, privilege, paging, faults,
+  interrupts, atomics, VM control, and global TSO memory ordering.
+- AArch64 and RISC-V64 are peer user-mode frontends fetching real native
+  instructions from the same x86_64 virtual address space.
+- Foreign instructions are decoded directly; the fast path does not use
+  per-instruction `#UD`/`ud2` envelopes.
+- AArch64 fetch is 4-byte aligned. RISC-V fetch is 2-byte aligned for RVC.
+- Foreign memory accesses use the same virtual memory and permissions as x86_64.
+- Foreign syscalls, breakpoints, illegal instructions, and recoverable exits
+  produce precise trap packets for runtime or OS policy.
 
-- `PENTER frontend`: enter a foreign frontend from trusted x86 code.
-- `PSWITCH frontend, target`: non-returning cross-ISA branch.
-- `PCALL frontend, target, sig`: cross-ISA call using ABI signature slot `sig`.
-- `PLANDING`: validate an indirect Poly landing target.
-- `PTRAPRET`: resume after a precise Poly trap.
+## Control Operations
 
-Temporary Bochs encodings are in `tools/include/polycpuid.h`. Design rationale
-is in `docs/poly-isa-design-directions.md`.
+Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
+
+| Operation | Purpose |
+| --- | --- |
+| `PENTER frontend` | Enter a frontend from trusted runtime/system code. |
+| `PSWITCH frontend, target` | Branch to another frontend without return. |
+| `PCALL frontend, target, sig` | Call another frontend using ABI signature slot `sig`. |
+| `PLANDING` | Validate an indirect Poly target when landing policy is enabled. |
+| `PTRAPRET` | Resume after a precise Poly trap. |
+
+These are decoded control instructions. The Bochs prototype currently encodes
+x86 controls on a compact `0f 3a fc <subop>` page, AArch64 controls in a
+reserved HINT subspace, and RISC-V controls in a custom-0 opcode family.
+Temporary encodings live in `tools/include/polycpuid.h`.
+
+## ABI Boundary
+
+- Compatibility targets ordinary native ABIs: x86_64 SysV, AArch64 AAPCS64,
+  and RISC-V psABI.
+- Register-only cross-ISA calls can use ABI signature slots intended to map to
+  fixed-latency register-alias/RAT remaps in hardware.
+- Stack arguments, variadic calls, large aggregates, incompatible vector
+  layouts, lazy binding, and loader policy stay in software thunks.
+- Ordinary native returns are the goal: x86_64 `ret`, AArch64 `ret x30`, and
+  RISC-V `ret`/`jalr x0, ra, 0` return through Poly transition state when the
+  call crossed frontends.
+
+## Architectural State
+
+- Non-x86 foreign registers are explicit per-thread XSAVE-style architectural
+  state. They are not CR3-scoped hidden emulator state.
+- Poly state includes the active frontend, foreign GPR/FP state, ABI signature
+  slots, trap packet state, transition-stack state, frontend TLS state, and
+  landing policy.
+- The silicon-facing contract is OS-neutral: the CPU exposes state and precise
+  exits; runtimes and kernels choose policy.
+
+## More Detail
+
+- Design rationale and priorities: `docs/poly-isa-design-directions.md`
+- Shared constants and temporary encodings: `tools/include/polycpuid.h`
