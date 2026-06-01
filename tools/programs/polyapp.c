@@ -919,6 +919,22 @@ static int check_polyapp_arch_state_contract(void) {
   return 0;
 }
 
+static int check_polyapp_cpuid_leaf(const char *name, uint32_t subleaf,
+    struct poly_cpuid_regs expected) {
+  const struct poly_cpuid_regs actual =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, subleaf);
+  if (actual.eax == expected.eax &&
+      actual.ebx == expected.ebx &&
+      actual.ecx == expected.ecx &&
+      actual.edx == expected.edx)
+    return 0;
+  fprintf(stderr,
+    "POLYAPP_FAIL: %s mismatch subleaf=%u got=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+    name, subleaf, actual.eax, actual.ebx, actual.ecx, actual.edx,
+    expected.eax, expected.ebx, expected.ecx, expected.edx);
+  return -1;
+}
+
 static int read_polyapp_base_contract(void) {
   const struct poly_cpuid_regs base = poly_read_cpuid(POLY_CPUID_BASE, 0);
   if (base.eax < POLY_CPUID_MAX || !poly_cpuid_vendor_matches(&base)) {
@@ -962,6 +978,26 @@ static int read_polyapp_base_contract(void) {
       forbidden_abi_bridge);
     return -1;
   }
+
+  if (check_polyapp_cpuid_leaf("PCALL signature controls", 7,
+        poly_cpuid_expected_escape_leaf7()) < 0 ||
+      check_polyapp_cpuid_leaf("FP64 signature", 22,
+        poly_cpuid_expected_escape_leaf22()) < 0 ||
+      check_polyapp_cpuid_leaf("FP32 signature", 23,
+        poly_cpuid_expected_escape_leaf23()) < 0 ||
+      check_polyapp_cpuid_leaf("SRET signature", 24,
+        poly_cpuid_expected_escape_leaf24()) < 0 ||
+      check_polyapp_cpuid_leaf("FP128 return signature", 25,
+        poly_cpuid_expected_escape_leaf25()) < 0 ||
+      check_polyapp_cpuid_leaf("AArch64 HFA32 return signature", 26,
+        poly_cpuid_expected_escape_leaf26()) < 0 ||
+      check_polyapp_cpuid_leaf("AArch64 HFA32 argument signature", 27,
+        poly_cpuid_expected_escape_leaf27()) < 0 ||
+      check_polyapp_cpuid_leaf("native SRET signature", 28,
+        poly_cpuid_expected_escape_leaf28()) < 0 ||
+      check_polyapp_cpuid_leaf("AArch64 HFA64 return signature", 29,
+        poly_cpuid_expected_escape_leaf29()) < 0)
+    return -1;
 
   return 0;
 }
