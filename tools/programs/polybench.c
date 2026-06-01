@@ -4111,6 +4111,87 @@ static int run_cross_call_vec128_riscv_to_aarch64(uint64_t *result,
   return 0;
 }
 
+static int run_cross_call_vec128_compressed_riscv_to_aarch64(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr, "POLYBENCH_FAIL: compressed riscv-to-aarch64 vec128 call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x53; // push rbx
+  code[offset++] = 0x41;
+  code[offset++] = 0x57; // push r15
+  emit_x86_movabs_r15(code, &offset, POLY_FRONTEND_RISCV);
+  const size_t target_imm_offset = emit_x86_movabs_rbx(code, &offset, 0);
+  const size_t return_imm_offset = emit_x86_movabs_r11(code, &offset, 0);
+  const uint8_t pcall[] = {
+    0x0f, 0x3a, 0xfc,
+    (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32)
+  };
+  emit_bytes(code, &offset, pcall, sizeof(pcall));
+  const size_t pcall_return_offset = offset;
+  code[offset++] = 0x41;
+  code[offset++] = 0x5f; // pop r15
+  code[offset++] = 0x5b; // pop rbx
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t riscv_body_offset = offset;
+  emit_u16(code, &offset, 0x0001U); // c.nop; following vector PCALL path is halfword-aligned
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, 0x00100313U); // addi x6,zero,1 (AArch64 frontend)
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset,
+    POLYBENCH_RISCV_PCALL_SIG_IMM(
+      POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32));
+  const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, 0x00008067U); // ret to x86 PCALL return cookie
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  emit_u32(code, &offset, 0x4ea18400U); // add v0.4s,v0.4s,v1.4s
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
+
+  store_u64(code, target_imm_offset,
+    (uint64_t) (uintptr_t) (code + riscv_body_offset));
+  store_u64(code, return_imm_offset,
+    (uint64_t) (uintptr_t) (code + pcall_return_offset));
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  *result = call_code_vec128_u32(code);
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 256;
@@ -7342,6 +7423,10 @@ static int check_cross_calls(void) {
     return -1;
   if (check_cross_call_vec128_direction("riscv-calls-aarch64-vec128",
         run_cross_call_vec128_riscv_to_aarch64) < 0)
+    return -1;
+  if (check_cross_call_vec128_direction(
+        "compressed-riscv-calls-aarch64-vec128",
+        run_cross_call_vec128_compressed_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_mixed_direction("aarch64-calls-riscv-mixed",
         run_cross_call_mixed_aarch64_to_riscv) < 0)

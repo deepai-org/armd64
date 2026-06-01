@@ -13066,6 +13066,7 @@ EOF
           "POLYBENCH_CROSS_CALL_FP64_STACK_RESULT: direction=riscv-calls-aarch64-fp64-stack .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_VEC128_RESULT: direction=aarch64-calls-riscv-vec128 .*switch_delta=3"
           "POLYBENCH_CROSS_CALL_VEC128_RESULT: direction=riscv-calls-aarch64-vec128 .*switch_delta=3"
+          "POLYBENCH_CROSS_CALL_VEC128_RESULT: direction=compressed-riscv-calls-aarch64-vec128 .*switch_delta=3"
           "POLYBENCH_CROSS_CALL_MIXED_RESULT: direction=aarch64-calls-riscv-mixed .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_MIXED_RESULT: direction=riscv-calls-aarch64-mixed .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_STACK_RESULT: direction=aarch64-calls-riscv-stack .*switch_delta=5"
