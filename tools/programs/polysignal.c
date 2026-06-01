@@ -736,7 +736,7 @@ static uint64_t pcall_aarch64_to_riscv_hidden_signal(uint64_t seed,
   emit_u32(code, &offset,
     POLY_AARCH64_CTRL_CALL_SIG_IMM(polysignal_native_signature_slot));
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE);
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -793,7 +793,7 @@ static uint64_t pcall_riscv_to_aarch64_hidden_signal(uint64_t seed,
     POLY_RISCV_CTRL_CALL_SIG_IMM(polysignal_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE);
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)

@@ -1051,7 +1051,8 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     code[offset++] = 0xc0;
     code[offset++] = 0x05;
   } else {
-    const uint32_t escape = payload->final_arch == POLY_ARCH_AARCH64 ? 0xd5032e1fU : 0x0000700bU;
+    const uint32_t escape = payload->final_arch == POLY_ARCH_AARCH64 ?
+      POLY_AARCH64_CTRL_X86_ESCAPE : POLY_RISCV_CTRL_X86_ESCAPE;
     emit_u32(code, &offset, escape);
   }
   code[offset++] = 0xc3;

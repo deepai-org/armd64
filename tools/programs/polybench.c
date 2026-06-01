@@ -1235,7 +1235,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
     emit_u32(code, &offset, 0xd2800000U | ((uint32_t) LOOP_ITERS << 5)); // movz x0,#LOOP_ITERS
     emit_u32(code, &offset, 0xd1000400U); // sub x0,x0,#1
     emit_u32(code, &offset, 0xb5ffffe0U); // cbnz x0, previous instruction
-    emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+    emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   } else if (arch == POLY_ARCH_RISCV) {
     const uint8_t raw_switch[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
@@ -1243,7 +1243,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
     emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
     emit_u32(code, &offset, 0xfff50513U); // addi a0,a0,-1
     emit_u32(code, &offset, 0xfe051ee3U); // bne a0,zero, previous instruction
-    emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+    emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   } else {
     const uint8_t raw_switch[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
@@ -1251,7 +1251,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
     emit_u32(code, &offset, ((uint32_t) LOOP_ITERS << 20) | 0x00000513U); // addi a0,zero,LOOP_ITERS
     emit_u16(code, &offset, 0x157dU); // c.addi a0,-1
     emit_u16(code, &offset, 0xfd7dU); // c.bnez a0, previous instruction
-    emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+    emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   }
   code[offset++] = 0xc3;
 
@@ -1292,7 +1292,7 @@ static int run_direct_x86_pcall_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0xd28000c5U); // movz x5,#6
   emit_aarch64_direct_x86_pcall(code, &offset,
     (uint64_t) (uintptr_t) polybench_x86_sum6_direct);
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   uint64_t insns_before = poly_foreign_insn_count_status_value();
@@ -1334,7 +1334,7 @@ static int run_direct_x86_pcall_riscv(uint64_t *result,
   const size_t ld_target_offset = offset;
   emit_u32(code, &offset, 0);
   emit_riscv_direct_x86_pcall(code, &offset);
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 7U) != 0)
@@ -1394,7 +1394,7 @@ static int run_direct_x86_sret_aarch64(uint64_t *result,
   emit_u32(code, &offset, aarch64_orr_reg(0, 0, 2));
   emit_u32(code, &offset, aarch64_orr_reg(0, 0, 3));
   emit_u32(code, &offset, 0x910083ffU); // add sp,sp,#32
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   uint64_t insns_before = poly_foreign_insn_count_status_value();
@@ -1449,7 +1449,7 @@ static int run_direct_x86_sret_riscv(uint64_t *result,
   emit_u32(code, &offset, riscv_or(10, 10, 12));
   emit_u32(code, &offset, riscv_or(10, 10, 13));
   emit_u32(code, &offset, riscv_addi(2, 2, 32));
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 7U) != 0)
@@ -1493,7 +1493,7 @@ static int run_direct_x86_fp64_aarch64(uint64_t *result_bits,
     (uint64_t) (uintptr_t) polybench_x86_fp64_sum6_direct,
     polybench_fp64_signature_slot);
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 5));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   uint64_t insns_before = poly_foreign_insn_count_status_value();
@@ -1532,7 +1532,7 @@ static int run_direct_x86_fp64_riscv(uint64_t *result_bits,
   emit_riscv_direct_x86_pcall_sig(code, &offset,
     polybench_fp64_signature_slot);
   emit_u32(code, &offset, riscv_fadd_d(10, 10, 15));
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 7U) != 0)
@@ -1576,7 +1576,7 @@ static int run_direct_x86_fp32_aarch64(uint64_t *result_bits,
     (uint64_t) (uintptr_t) polybench_x86_fp32_sum6_direct,
     polybench_fp32_signature_slot);
   emit_u32(code, &offset, aarch64_fadd_s(0, 0, 5));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   uint64_t insns_before = poly_foreign_insn_count_status_value();
@@ -1615,7 +1615,7 @@ static int run_direct_x86_fp32_riscv(uint64_t *result_bits,
   emit_riscv_direct_x86_pcall_sig(code, &offset,
     polybench_fp32_signature_slot);
   emit_u32(code, &offset, riscv_fadd_s(10, 10, 15));
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 7U) != 0)
@@ -1868,7 +1868,7 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   emit_u32(code, &offset, 0xd5032f1fU); // generic poly switch
 
   emit_u32(code, &offset, 0x01b50513U); // addi a0,a0,27
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   uint64_t insns_before = poly_foreign_insn_count_status_value();
@@ -1906,7 +1906,7 @@ static int run_compressed_mixed_program(uint64_t *result,
   emit_u32(code, &offset, 0xd5032f1fU); // generic poly switch
 
   emit_u16(code, &offset, 0x056dU); // c.addi a0,27
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   uint64_t insns_before = poly_foreign_insn_count_status_value();
@@ -1946,7 +1946,7 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
   emit_u32(code, &offset, 0x1000700bU); // generic poly switch
   const size_t aarch64_target_offset = offset;
   emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
   store_u32(code, addi_target_offset, riscv_addi(5, 5,
     (int32_t) aarch64_target_offset - (int32_t) auipc_target_pc));
@@ -1987,7 +1987,7 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   emit_u32(code, &offset, 0x1000700bU); // generic poly switch
   const size_t aarch64_target_offset = offset;
   emit_u32(code, &offset, 0x91008c00U); // add x0,x0,#35
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
   store_u32(code, addi_target_offset, riscv_addi(5, 5,
     (int32_t) aarch64_target_offset - (int32_t) auipc_target_pc));
@@ -2036,7 +2036,7 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x91000400U); // add x0,x0,#1
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -2088,7 +2088,7 @@ static int run_cross_call_riscv_to_aarch64(uint64_t *result,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00150513U); // addi a0,a0,1
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2153,7 +2153,7 @@ static int run_cross_call_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -2206,7 +2206,7 @@ static int run_cross_call_fp_riscv_to_aarch64(uint64_t *result_bits,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2269,7 +2269,7 @@ static int run_cross_call_fp8_aarch64_to_riscv(uint64_t *result_bits,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -2324,7 +2324,7 @@ static int run_cross_call_fp8_riscv_to_aarch64(uint64_t *result_bits,
   emit_u32(code, &offset,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2392,7 +2392,7 @@ static int run_cross_call_fp64_signature_aarch64_to_riscv(
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_aarch64_pcall_sig(code, &offset, polybench_fp64_signature_slot);
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -2445,7 +2445,7 @@ static int run_cross_call_fp64_signature_riscv_to_aarch64(
   emit_u32(code, &offset, 0);
   emit_riscv_pcall_sig(code, &offset, polybench_fp64_signature_slot);
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2511,7 +2511,7 @@ static int run_cross_call_fp32_signature_aarch64_to_riscv(
   emit_aarch64_movabs(code, &offset, 18,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_aarch64_pcall_sig(code, &offset, polybench_fp32_signature_slot);
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -2564,7 +2564,7 @@ static int run_cross_call_fp32_signature_riscv_to_aarch64(
   emit_u32(code, &offset, 0);
   emit_riscv_pcall_sig(code, &offset, polybench_fp32_signature_slot);
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2637,7 +2637,7 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_aarch64_pcall_sig(code, &offset, polybench_fp64_signature_slot);
   emit_u32(code, &offset, 0x910103ffU); // add sp,sp,#64
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -2704,7 +2704,7 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
   emit_riscv_pcall_sig(code, &offset, polybench_fp64_signature_slot);
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_addi(2, 2, 64));
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -2788,7 +2788,7 @@ static int run_direct_x86_vec128_aarch64(uint64_t *result,
     (uint64_t) (uintptr_t) polybench_x86_vec128_u32_direct,
     POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32);
   emit_u32(code, &offset, 0x4ea18400U); // add v0.4s,v0.4s,v1.4s
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   uint64_t insns_before = poly_foreign_insn_count_status_value();
@@ -2846,7 +2846,7 @@ static int run_direct_x86_vec128_riscv(uint64_t *result,
   emit_u32(code, &offset, riscv_srli(7, 11, 32));
   emit_u32(code, &offset, riscv_slli(7, 7, 48));
   emit_u32(code, &offset, riscv_or(10, 10, 7));
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 7U) != 0)
@@ -3162,7 +3162,7 @@ static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -3217,7 +3217,7 @@ static int run_cross_call_mixed_riscv_to_aarch64(uint64_t *result_bits,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x02a50553U); // fadd.d fa0,fa0,fa0
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3288,7 +3288,7 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x910043ffU); // add sp,sp,#16
   emit_u32(code, &offset, 0x91003400U); // add x0,x0,#13
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -3345,7 +3345,7 @@ static int run_cross_call_stack_riscv_to_aarch64(uint64_t *result,
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x01010113U); // addi sp,sp,16
   emit_u32(code, &offset, 0x00d50513U); // addi a0,a0,13
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3412,7 +3412,7 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x8b130000U); // add x0,x0,x19
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -3465,7 +3465,7 @@ static int run_cross_call_saved_riscv_to_aarch64(uint64_t *result,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00850533U); // add a0,a0,s0
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3532,7 +3532,7 @@ static int run_cross_call_saved_fp_aarch64_to_riscv(uint64_t *result_bits,
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 8));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -3587,7 +3587,7 @@ static int run_cross_call_saved_fp_riscv_to_aarch64(uint64_t *result_bits,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, riscv_fadd_d(10, 10, 8));
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3652,7 +3652,7 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
   emit_u32(code, &offset, 0x8b010000U); // add x0,x0,x1
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -3704,7 +3704,7 @@ static int run_cross_call_pair_riscv_to_aarch64(uint64_t *result,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
   emit_u32(code, &offset, 0x00b50533U); // add a0,a0,a1
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3775,7 +3775,7 @@ static int run_cross_call_compact_u32_f32_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, aarch64_fmov_w_from_s(9, 0));
   emit_u32(code, &offset, aarch64_lsl_imm(9, 9, 32));
   emit_u32(code, &offset, aarch64_orr_reg(0, 0, 9));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -3834,7 +3834,7 @@ static int run_cross_call_compact_f32_u32_aarch64_to_riscv(uint64_t *result,
   emit_u32(code, &offset, aarch64_fmov_w_from_s(9, 0));
   emit_u32(code, &offset, aarch64_lsl_imm(0, 0, 32));
   emit_u32(code, &offset, aarch64_orr_reg(0, 0, 9));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -3896,7 +3896,7 @@ static int run_cross_call_compact_u32_f32_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0xe0050653U); // fmv.x.w a2,fa0
   emit_u32(code, &offset, 0x02061613U); // slli a2,a2,32
   emit_u32(code, &offset, 0x00c56533U); // or a0,a0,a2
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -3970,7 +3970,7 @@ static int run_cross_call_compact_f32_u32_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset, 0xe0050653U); // fmv.x.w a2,fa0
   emit_u32(code, &offset, 0x02051513U); // slli a0,a0,32
   emit_u32(code, &offset, 0x00c56533U); // or a0,a0,a2
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -4034,7 +4034,7 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -4092,7 +4092,7 @@ static int run_cross_call_syscall_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -4163,7 +4163,7 @@ static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -4214,7 +4214,7 @@ static int run_cross_call_break_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -4276,7 +4276,7 @@ static int run_cross_call_import_aarch64_to_riscv(uint64_t *result,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -4336,7 +4336,7 @@ static int run_cross_call_import_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -4407,7 +4407,7 @@ static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -4472,7 +4472,7 @@ static int run_cross_call_direct_x86_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -4538,7 +4538,7 @@ static int run_cross_call_direct_x86_memcmp_aarch64_to_riscv(uint64_t *result,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -4605,7 +4605,7 @@ static int run_cross_call_direct_x86_memcmp_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -4673,7 +4673,7 @@ static int run_cross_call_direct_x86_memops_aarch64_to_riscv(uint64_t *result,
     (uint64_t) (uintptr_t) (code + aarch64_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -4771,7 +4771,7 @@ static int run_cross_call_direct_x86_memops_riscv_to_aarch64(uint64_t *result,
   emit_u32(code, &offset,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_return_offset = offset;
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)
@@ -4858,7 +4858,7 @@ static int run_nested_cross_call(uint64_t *result,
     (uint64_t) (uintptr_t) (code + aarch64_outer_return_offset));
   emit_u32(code, &offset,
     POLYBENCH_AARCH64_PCALL_SIG_IMM(polybench_native_signature_slot));
-  emit_u32(code, &offset, 0xd5032e1fU); // aarch64 polyctrl x86 escape, x86 escape
+  emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE); // aarch64 polyctrl x86 escape, x86 escape
   code[offset++] = 0xc3;
 
   while (offset < riscv_target_offset)
@@ -4941,7 +4941,7 @@ static int run_nested_reverse_cross_call(uint64_t *result,
     POLYBENCH_RISCV_PCALL_SIG_IMM(polybench_native_signature_slot));
   const size_t riscv_outer_return_offset = offset;
   emit_u32(code, &offset, 0x00050513U); // addi a0,a0,0
-  emit_u32(code, &offset, 0x0000700bU); // riscv polyctrl x86 escape
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
   code[offset++] = 0xc3;
 
   while ((offset & 3U) != 0)

@@ -4306,7 +4306,7 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
     emit_x86_penter_frontend(code, &offset, POLY_ARCH_AARCH64);
     emit_u32(code, &offset, 0xaa0103feU); // mov x30,x1
     emit_u32(code, &offset, 0xd61f0000U); // br x0
-    emit_u32(code, &offset, 0xd5032e1fU); // AArch64 polyctrl escape
+    emit_u32(code, &offset, POLY_AARCH64_CTRL_X86_ESCAPE);
     code[offset++] = 0xc3;
     return 0;
   }
@@ -4324,7 +4324,7 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
     emit_x86_penter_frontend(code, &offset, POLY_ARCH_RISCV);
     emit_u32(code, &offset, riscv_addi(1, 11, 0)); // mv ra,a1
     emit_u32(code, &offset, riscv_jalr(0, 10, 0)); // jr a0
-    emit_u32(code, &offset, 0x0000700bU); // RISC-V polyctrl escape
+    emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE);
     code[offset++] = 0xc3;
     return 0;
   }
@@ -6912,7 +6912,7 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     (mapping + return_page_offset);
   const uint64_t entry_pc = (uint64_t) (uintptr_t) (mapping + load_base_offset + program->entry_offset);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
-    0xd5032e1fU : 0x0000700bU;
+    POLY_AARCH64_CTRL_X86_ESCAPE : POLY_RISCV_CTRL_X86_ESCAPE;
   size_t offset = load_base_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
   if (program->arch != POLY_ARCH_X86)
@@ -7085,7 +7085,7 @@ static int emit_and_run_process(struct poly_program *program,
   const uint64_t entry_pc = (uint64_t) (uintptr_t)
     (loaded_image + program->entry_offset);
   const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
-    0xd5032e1fU : 0x0000700bU;
+    POLY_AARCH64_CTRL_X86_ESCAPE : POLY_RISCV_CTRL_X86_ESCAPE;
   size_t offset = image_offset;
   emit_bytes(mapping, &offset, program->code_bytes, program->code_size);
   if (!fixed_main_image) {

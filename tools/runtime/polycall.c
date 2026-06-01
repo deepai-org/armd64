@@ -2555,26 +2555,16 @@ static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) ((value >> 24) & 0xff);
 }
 
-static uint32_t poly_aarch64_ctrl_encoding(uint32_t subop) {
-  return 0xd503201fU | ((subop & 0x7fU) << 5);
-}
-
-static uint32_t poly_riscv_ctrl_encoding(uint32_t subop) {
-  return 0x0000700bU | ((subop & 0x7fU) << 25);
-}
-
 static uint8_t poly_x86_pcall_sig_imm(uint32_t signature_slot) {
   return (uint8_t) (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + signature_slot);
 }
 
 static uint32_t poly_aarch64_pcall_sig_imm(uint32_t signature_slot) {
-  return poly_aarch64_ctrl_encoding(
-    POLY_AARCH64_CTRL_SUBOP_CALL_SIG_IMM_BASE + signature_slot);
+  return POLY_AARCH64_CTRL_CALL_SIG_IMM(signature_slot);
 }
 
 static uint32_t poly_riscv_pcall_sig_imm(uint32_t signature_slot) {
-  return poly_riscv_ctrl_encoding(
-    POLY_RISCV_CTRL_SUBOP_CALL_SIG_IMM_BASE + signature_slot);
+  return POLY_RISCV_CTRL_CALL_SIG_IMM(signature_slot);
 }
 
 static void store_u32(uint8_t *code, size_t offset, uint32_t value) {
