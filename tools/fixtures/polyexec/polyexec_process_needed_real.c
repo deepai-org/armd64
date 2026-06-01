@@ -1109,9 +1109,10 @@ uint64_t poly_process_main(void) {
   const union poly_double_bits f64_result = {
     .d = poly_process_needed_fpair64_arg(f64_pair, 6.0)
   };
-  if (f32_result.u != 0x421c0000U ||
-      f64_result.u != 0x4043800000000000ULL)
+  if (f32_result.u != 0x421c0000U)
     return 56;
+  if (f64_result.u != 0x4043800000000000ULL)
+    return 58;
   static const char marker[] = "POLY_PROCESS_CROSS_FPAIR_ARG_NEEDED_OK\n";
 #elif defined(POLY_PROCESS_NEEDED_FPAIR_RET_MAIN)
   const struct poly_fpair32 f32_pair =

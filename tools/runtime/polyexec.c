@@ -4491,6 +4491,13 @@ static int process_bridge_is_stack_thunk(int bridge_kind) {
     process_bridge_is_aarch64_hfa64_arg(bridge_kind);
 }
 
+static int process_bridge_needs_foreign_signature_set(int caller_arch,
+    int callee_arch, int bridge_kind) {
+  return caller_arch != POLY_ARCH_X86 &&
+    callee_arch == POLY_ARCH_X86 &&
+    process_bridge_is_fpair(bridge_kind);
+}
+
 static uint32_t process_bridge_signature_kind(int bridge_kind) {
   if (bridge_kind == POLY_PROCESS_BRIDGE_AARCH64_HFA3_F32_RET)
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_RET;
@@ -4532,6 +4539,25 @@ static void emit_x86_abi_signature_set(uint8_t *code, size_t *offset,
   emit_x86_poly_control(code, offset, POLY_X86_CTRL_ABI_SIGNATURE_SET);
   code[(*offset)++] = 0x5a; // pop rdx
   code[(*offset)++] = 0x58; // pop rax
+}
+
+static void emit_process_aarch64_abi_signature_set(uint8_t *code,
+    size_t *offset, uint32_t slot, uint32_t kind) {
+  emit_aarch64_movabs(code, offset, 0, slot);
+  emit_aarch64_movabs(code, offset, 1,
+    poly_abi_signature_control_value(kind));
+  emit_u32(code, offset, POLY_AARCH64_CTRL_ABI_SIGNATURE_SET);
+}
+
+static void emit_process_riscv_abi_signature_set(uint8_t *code,
+    size_t *offset, uint32_t slot, uint32_t kind) {
+  const uint32_t register_map = poly_abi_signature_register_map(kind);
+  emit_u32(code, offset, riscv_addi(10, 0, slot));
+  emit_u32(code, offset, riscv_addi(11, 0, register_map));
+  emit_u32(code, offset, riscv_slli(11, 11, 32));
+  emit_u32(code, offset, riscv_addi(28, 0, kind));
+  emit_u32(code, offset, riscv_or(11, 11, 28));
+  emit_u32(code, offset, POLY_RISCV_CTRL_ABI_SIGNATURE_SET);
 }
 
 static void emit_process_aarch64_compact_pre_pcall(uint8_t *code,
@@ -4741,8 +4767,10 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       !(caller_arch == POLY_ARCH_X86 && callee_arch == POLY_ARCH_AARCH64))
     return -1;
   if (process_bridge_is_fpair(bridge_kind) &&
-      !(caller_arch == POLY_ARCH_X86 &&
-        (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV)))
+      !((caller_arch == POLY_ARCH_X86 &&
+          (callee_arch == POLY_ARCH_AARCH64 ||
+           callee_arch == POLY_ARCH_RISCV)) ||
+        (caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86)))
     return -1;
   if (process_bridge_is_sret(bridge_kind) &&
       !((caller_arch == POLY_ARCH_X86 &&
@@ -4764,6 +4792,10 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9 &&
       bridge_kind != POLY_PROCESS_BRIDGE_FP64 &&
       bridge_kind != POLY_PROCESS_BRIDGE_FP32 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR32_ARG &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_ARG &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR32_RET &&
+      bridge_kind != POLY_PROCESS_BRIDGE_FPAIR64_RET &&
       bridge_kind != POLY_PROCESS_BRIDGE_SRET_X86_SYSV)
     return -1;
   if (caller_arch == POLY_ARCH_X86 &&
@@ -4987,6 +5019,15 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       emit_aarch64_movabs(code, &offset, 0, state_key);
       emit_u32(code, &offset, POLY_AARCH64_CTRL_STATE_KEY_SET);
     }
+    if (process_bridge_needs_foreign_signature_set(caller_arch, callee_arch,
+          bridge_kind)) {
+      const uint32_t signature_kind =
+        process_bridge_signature_kind(bridge_kind);
+      if (signature_kind == UINT32_MAX)
+        return -1;
+      emit_process_aarch64_abi_signature_set(code, &offset, signature_slot,
+        signature_kind);
+    }
     emit_u32(code, &offset,
       is_stack9_x86_callee ? 0xf94013e0U : 0xf9400be0U); // ldr x0,saved
     if (emit_compact_shuffle)
@@ -5049,6 +5090,15 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     ld_state_key_offset = offset;
     emit_u32(code, &offset, 0);
     emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
+  }
+  if (process_bridge_needs_foreign_signature_set(caller_arch, callee_arch,
+        bridge_kind)) {
+    const uint32_t signature_kind =
+      process_bridge_signature_kind(bridge_kind);
+    if (signature_kind == UINT32_MAX)
+      return -1;
+    emit_process_riscv_abi_signature_set(code, &offset, signature_slot,
+      signature_kind);
   }
   emit_u32(code, &offset,
     riscv_ld(10, 2, is_stack9_x86_callee ? 32 : 16)); // ld a0,saved
