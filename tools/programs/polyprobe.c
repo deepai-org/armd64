@@ -3299,9 +3299,39 @@ int main(void) {
     poly_state_key_set_status(0);
     return 1;
   }
+  memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
+  poly_state_export(&polyprobe_state);
+  if (polyprobe_state.state_key.flags != POLY_STATE_KEY_FLAG_EXPLICIT ||
+      polyprobe_state.state_key.explicit_key != aarch64_state_key ||
+      polyprobe_state.state_key.supported_flags !=
+        POLY_STATE_KEY_FLAG_EXPLICIT) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: state key export mismatch flags=0x%llx key=0x%llx supported=0x%llx expected=0x%llx\n",
+      (unsigned long long) polyprobe_state.state_key.flags,
+      (unsigned long long) polyprobe_state.state_key.explicit_key,
+      (unsigned long long) polyprobe_state.state_key.supported_flags,
+      (unsigned long long) aarch64_state_key);
+    poly_state_key_set_status(0);
+    return 1;
+  }
   if (poly_state_key_set_status(0) != 0 || poly_state_key_get() != 0) {
     fprintf(stderr,
       "POLY_PROBE_FAIL: state key reset after aarch64 mismatch got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return 1;
+  }
+  poly_state_import(&polyprobe_state);
+  if (poly_state_key_get() != aarch64_state_key) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: state key import mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) poly_state_key_get(),
+      (unsigned long long) aarch64_state_key);
+    poly_state_key_set_status(0);
+    return 1;
+  }
+  if (poly_state_key_set_status(0) != 0 || poly_state_key_get() != 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: state key reset after import mismatch got=0x%llx\n",
       (unsigned long long) poly_state_key_get());
     return 1;
   }
