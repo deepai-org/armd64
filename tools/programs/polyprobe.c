@@ -2367,6 +2367,55 @@ int main(void) {
       (unsigned long long) poly_abi_signature_get(poly_escapes.eax));
     return 1;
   }
+  expected_escapes = poly_cpuid_expected_escape_leaf26();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 26);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID AArch64 HFA32 return ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf27();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 27);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID AArch64 HFA32 argument ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf28();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 28);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID native SRET ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
+  if (poly_escapes.eax >= POLY_ABI_SIGNATURE_SLOT_COUNT ||
+      poly_abi_signature_get(poly_escapes.eax) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: default native SRET ABI signature slot mismatch slot=%u count=%u kind=%llu\n",
+      poly_escapes.eax, POLY_ABI_SIGNATURE_SLOT_COUNT,
+      (unsigned long long) poly_abi_signature_get(poly_escapes.eax));
+    return 1;
+  }
+  expected_escapes = poly_cpuid_expected_escape_leaf29();
+  poly_escapes = poly_read_cpuid(POLY_CPUID_BASE + 2, 29);
+  if (poly_escapes.eax != expected_escapes.eax ||
+      poly_escapes.ebx != expected_escapes.ebx ||
+      poly_escapes.ecx != expected_escapes.ecx ||
+      poly_escapes.edx != expected_escapes.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID AArch64 HFA64 return ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_escapes.eax, poly_escapes.ebx, poly_escapes.ecx, poly_escapes.edx);
+    return 1;
+  }
   struct poly_cpuid_contract_failure state_failure;
   if (!poly_cpuid_verify_arch_state_contract(&state_failure)) {
     fprintf(stderr,

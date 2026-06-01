@@ -649,6 +649,10 @@ static int read_poly_base_contract(int require_trap_vector) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 28);
   const struct poly_cpuid_regs expected_signature_native_sret =
     poly_cpuid_expected_escape_leaf28();
+  const struct poly_cpuid_regs signature_hfa64_ret =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 29);
+  const struct poly_cpuid_regs expected_signature_hfa64_ret =
+    poly_cpuid_expected_escape_leaf29();
   const uint32_t vec128_slot = signature_ext.ecx;
   const uint32_t vec128_kind = signature_ext.edx;
   const uint32_t compact_u32_f32_slot = signature_compact.eax;
@@ -695,6 +699,10 @@ static int read_poly_base_contract(int require_trap_vector) {
       signature_native_sret.ebx != expected_signature_native_sret.ebx ||
       signature_native_sret.ecx != expected_signature_native_sret.ecx ||
       signature_native_sret.edx != expected_signature_native_sret.edx ||
+      signature_hfa64_ret.eax != expected_signature_hfa64_ret.eax ||
+      signature_hfa64_ret.ebx != expected_signature_hfa64_ret.ebx ||
+      signature_hfa64_ret.ecx != expected_signature_hfa64_ret.ecx ||
+      signature_hfa64_ret.edx != expected_signature_hfa64_ret.edx ||
       native_slot >= signature.ebx ||
       native_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
       vec128_slot >= signature.ebx ||
@@ -710,7 +718,7 @@ static int read_poly_base_contract(int require_trap_vector) {
       sret_slot >= signature.ebx ||
       native_sret_slot >= signature.ebx) {
     fprintf(stderr,
-      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) sret=(%u,%u,%u,%u) hfa32=(%u,%u,%u,%u) hfa32arg=(%u,%u,%u,%u) nsret=(%u,%u,%u,%u)\n",
+      "POLYEXEC_FAIL: poly native signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) sret=(%u,%u,%u,%u) hfa32=(%u,%u,%u,%u) hfa32arg=(%u,%u,%u,%u) nsret=(%u,%u,%u,%u) hfa64ret=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
@@ -723,7 +731,9 @@ static int read_poly_base_contract(int require_trap_vector) {
       signature_hfa32_arg.eax, signature_hfa32_arg.ebx,
       signature_hfa32_arg.ecx, signature_hfa32_arg.edx,
       signature_native_sret.eax, signature_native_sret.ebx,
-      signature_native_sret.ecx, signature_native_sret.edx);
+      signature_native_sret.ecx, signature_native_sret.edx,
+      signature_hfa64_ret.eax, signature_hfa64_ret.ebx,
+      signature_hfa64_ret.ecx, signature_hfa64_ret.edx);
     return -1;
   }
   if (poly_abi_signature_set(native_slot,

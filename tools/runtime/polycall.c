@@ -357,6 +357,7 @@ static const uint32_t POLY_CPUID_REQUIRED_FEATURES =
   POLY_CPUID_FEATURE_TRAP_VECTOR |
   POLY_CPUID_FEATURE_STATE_KEY |
   POLY_CPUID_FEATURE_VEC128_BRIDGE |
+  POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
   POLY_CPUID_FEATURE_AARCH64_HFA32_RET |
   POLY_CPUID_FEATURE_FOREIGN_PCALL_SIG_IMM;
 
@@ -364,7 +365,6 @@ static const uint32_t POLY_CPUID_FORBIDDEN_FEATURES =
   POLY_CPUID_FEATURE_RESERVED_IMPORT_DESCRIPTORS |
   POLY_CPUID_FEATURE_FP64_STACK_ARGS |
   POLY_CPUID_FEATURE_NEUTRAL_FP64_STACK |
-  POLY_CPUID_FEATURE_AARCH64_HFA64_RET |
   POLY_CPUID_FEATURE_AARCH64_HFA_ARGS;
 
 #define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"
@@ -406,6 +406,8 @@ enum {
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_ARG = 24,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_ARG = 25,
   POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS = 26,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F64_RET = 27,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F64_RET = 28,
   POLY_ABI_REGISTER_MAP_EXCHANGE = 0,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE = 1,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_I128 = 2,
@@ -432,6 +434,8 @@ enum {
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F32_ARG = 23,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_ARG = 24,
   POLY_ABI_REGISTER_MAP_NATIVE_SRET = 25,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F64_RET = 26,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F64_RET = 27,
   POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT = 0,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT = 1,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT = 2,
@@ -736,6 +740,10 @@ static uint32_t poly_abi_signature_register_map(uint32_t kind) {
     return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_ARG;
   case POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS:
     return POLY_ABI_REGISTER_MAP_NATIVE_SRET;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F64_RET:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F64_RET;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F64_RET:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F64_RET;
   default:
     return UINT32_MAX;
   }
@@ -1419,6 +1427,8 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
     read_cpuid(POLY_CPUID_BASE + 2, 27);
   const struct poly_cpuid_regs signature_native_sret =
     read_cpuid(POLY_CPUID_BASE + 2, 28);
+  const struct poly_cpuid_regs signature_hfa64_ret =
+    read_cpuid(POLY_CPUID_BASE + 2, 29);
   const uint32_t slot_exchange = signature.ecx & 0xffU;
   const uint32_t slot_x86_sysv_regs = (signature.ecx >> 8) & 0xffU;
   const uint32_t slot_x86_sysv_regs_i128 = (signature.ecx >> 16) & 0xffU;
@@ -1511,9 +1521,17 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
       slot_native_sret_regs >= signature.ebx ||
       signature_native_sret.ebx != POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS ||
       signature_native_sret.ecx != POLY_ABI_REGISTER_MAP_NATIVE_SRET ||
-      signature_native_sret.edx != POLY_ABI_BRIDGE_GPR_ARG_COUNT) {
+      signature_native_sret.edx != POLY_ABI_BRIDGE_GPR_ARG_COUNT ||
+      signature_hfa64_ret.eax !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F64_RET ||
+      signature_hfa64_ret.ebx !=
+        POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F64_RET ||
+      signature_hfa64_ret.ecx !=
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F64_RET ||
+      signature_hfa64_ret.edx !=
+        POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F64_RET) {
     fprintf(stderr,
-      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) sret=(%u,%u,%u,%u) fp128ret=(%u,%u,%u,%u) hfa32ret=(%u,%u,%u,%u) hfa32arg=(%u,%u,%u,%u) nsret=(%u,%u,%u,%u)\n",
+      "POLYCALL_FAIL: CPU ABI signature manifest mismatch sig=(0x%x,%u,0x%x,0x%x) ext=(%u,%u,0x%x,0x%x) compact=(%u,%u,%u,%u) fp64=(%u,%u,%u,%u) fp32=(%u,%u,%u,%u) sret=(%u,%u,%u,%u) fp128ret=(%u,%u,%u,%u) hfa32ret=(%u,%u,%u,%u) hfa32arg=(%u,%u,%u,%u) nsret=(%u,%u,%u,%u) hfa64ret=(%u,%u,%u,%u)\n",
       signature.eax, signature.ebx, signature.ecx, signature.edx,
       signature_ext.eax, signature_ext.ebx, signature_ext.ecx,
       signature_ext.edx, signature_compact.eax, signature_compact.ebx,
@@ -1529,7 +1547,9 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
       signature_hfa32_arg.ebx, signature_hfa32_arg.ecx,
       signature_hfa32_arg.edx, signature_native_sret.eax,
       signature_native_sret.ebx, signature_native_sret.ecx,
-      signature_native_sret.edx);
+      signature_native_sret.edx, signature_hfa64_ret.eax,
+      signature_hfa64_ret.ebx, signature_hfa64_ret.ecx,
+      signature_hfa64_ret.edx);
     return -1;
   }
 
@@ -4254,6 +4274,12 @@ static uint32_t x86_signature_kind_for_special_call_kind(int arch,
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FPAIR64_ARG;
   if (call_kind == POLY_CALL_MIXED_ARGS)
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_MIXED_U64_FP64;
+  if (arch == POLY_ARCH_AARCH64 &&
+      call_kind == POLY_CALL_AARCH64_HFA3_F64)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F64_RET;
+  if (arch == POLY_ARCH_AARCH64 &&
+      call_kind == POLY_CALL_AARCH64_HFA4_F64)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F64_RET;
   if (arch == POLY_ARCH_AARCH64 &&
       call_kind == POLY_CALL_AARCH64_HFA3_F32)
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_RET;
@@ -9875,7 +9901,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG ||
      call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG);
   const int use_hfa_f64_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
-    call_kind_is_aarch64_hfa_f64_return(call_kind);
+    call_kind_is_aarch64_hfa_f64_return(call_kind) &&
+    !use_special_sig_pcall;
   const int use_hfa_f32_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
     call_kind_is_aarch64_hfa_f32_return(call_kind) &&
     !use_special_sig_pcall;

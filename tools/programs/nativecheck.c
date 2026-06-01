@@ -8346,6 +8346,18 @@ int main(void) {
       poly_cpuid_expected_escape_leaf26();
     struct poly_cpuid_regs hfa32_ret_signature_manifest =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 26);
+    struct poly_cpuid_regs expected_hfa32_arg_signature_manifest =
+      poly_cpuid_expected_escape_leaf27();
+    struct poly_cpuid_regs hfa32_arg_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 27);
+    struct poly_cpuid_regs expected_native_sret_signature_manifest =
+      poly_cpuid_expected_escape_leaf28();
+    struct poly_cpuid_regs native_sret_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 28);
+    struct poly_cpuid_regs expected_hfa64_ret_signature_manifest =
+      poly_cpuid_expected_escape_leaf29();
+    struct poly_cpuid_regs hfa64_ret_signature_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 29);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -8415,6 +8427,51 @@ int main(void) {
         hfa32_ret_signature_manifest.edx);
       return 1;
     }
+    if (hfa32_arg_signature_manifest.eax !=
+          expected_hfa32_arg_signature_manifest.eax ||
+        hfa32_arg_signature_manifest.ebx !=
+          expected_hfa32_arg_signature_manifest.ebx ||
+        hfa32_arg_signature_manifest.ecx !=
+          expected_hfa32_arg_signature_manifest.ecx ||
+        hfa32_arg_signature_manifest.edx !=
+          expected_hfa32_arg_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID AArch64 HFA32 argument ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        hfa32_arg_signature_manifest.eax,
+        hfa32_arg_signature_manifest.ebx,
+        hfa32_arg_signature_manifest.ecx,
+        hfa32_arg_signature_manifest.edx);
+      return 1;
+    }
+    if (native_sret_signature_manifest.eax !=
+          expected_native_sret_signature_manifest.eax ||
+        native_sret_signature_manifest.ebx !=
+          expected_native_sret_signature_manifest.ebx ||
+        native_sret_signature_manifest.ecx !=
+          expected_native_sret_signature_manifest.ecx ||
+        native_sret_signature_manifest.edx !=
+          expected_native_sret_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID native SRET ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        native_sret_signature_manifest.eax,
+        native_sret_signature_manifest.ebx,
+        native_sret_signature_manifest.ecx,
+        native_sret_signature_manifest.edx);
+      return 1;
+    }
+    if (hfa64_ret_signature_manifest.eax !=
+          expected_hfa64_ret_signature_manifest.eax ||
+        hfa64_ret_signature_manifest.ebx !=
+          expected_hfa64_ret_signature_manifest.ebx ||
+        hfa64_ret_signature_manifest.ecx !=
+          expected_hfa64_ret_signature_manifest.ecx ||
+        hfa64_ret_signature_manifest.edx !=
+          expected_hfa64_ret_signature_manifest.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID AArch64 HFA64 return ABI signature manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        hfa64_ret_signature_manifest.eax,
+        hfa64_ret_signature_manifest.ebx,
+        hfa64_ret_signature_manifest.ecx,
+        hfa64_ret_signature_manifest.edx);
+      return 1;
+    }
     if (check_poly_abi_signature_slot_default(
           pcall_imm_manifest.ecx & 0xffU,
           pcall_imm_manifest.edx & 0xffU, "exchange") != 0 ||
@@ -8452,7 +8509,11 @@ int main(void) {
         check_poly_abi_signature_slot_default(
           fp128_ret_signature_manifest.eax,
           fp128_ret_signature_manifest.ebx,
-          "x86-sysv-regs-fp128-ret") != 0)
+          "x86-sysv-regs-fp128-ret") != 0 ||
+        check_poly_abi_signature_slot_default(
+          native_sret_signature_manifest.eax,
+          native_sret_signature_manifest.ebx,
+          "native-sret-regs") != 0)
       return 1;
     struct poly_cpuid_regs expected_state = poly_cpuid_expected_state_leaf();
     struct poly_cpuid_regs state = poly_read_cpuid(POLY_CPUID_BASE + 3, 0);
