@@ -1529,6 +1529,71 @@ static int run_direct_x86_sret_riscv(uint64_t *result,
   return 0;
 }
 
+static int run_direct_x86_sret_compressed_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: compressed riscv direct x86 SRET mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u16(code, &offset, 0x0001U); // c.nop; following SRET PCALL path is halfword-aligned
+  emit_u32(code, &offset, riscv_addi(2, 2, -32));
+  emit_u32(code, &offset, riscv_addi(10, 2, 0)); // a0 = sret pointer
+  emit_u32(code, &offset, riscv_addi(11, 0, 1));
+  emit_u32(code, &offset, riscv_addi(12, 0, 2));
+  emit_u32(code, &offset, riscv_addi(13, 0, 3));
+  emit_u32(code, &offset, riscv_addi(14, 0, 4));
+  emit_u32(code, &offset, riscv_addi(15, 0, 5));
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_direct_x86_pcall_sig(code, &offset,
+    polybench_sret_signature_slot);
+  emit_u32(code, &offset, riscv_ld(10, 2, 0));
+  emit_u32(code, &offset, riscv_ld(11, 2, 8));
+  emit_u32(code, &offset, riscv_ld(12, 2, 16));
+  emit_u32(code, &offset, riscv_ld(13, 2, 24));
+  emit_u32(code, &offset, riscv_slli(10, 10, 48));
+  emit_u32(code, &offset, riscv_slli(11, 11, 32));
+  emit_u32(code, &offset, riscv_or(10, 10, 11));
+  emit_u32(code, &offset, riscv_slli(12, 12, 16));
+  emit_u32(code, &offset, riscv_or(10, 10, 12));
+  emit_u32(code, &offset, riscv_or(10, 10, 13));
+  emit_u32(code, &offset, riscv_addi(2, 2, 32));
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_sret4_direct);
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_direct_x86_fp64_aarch64(uint64_t *result_bits,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 256;
@@ -6993,6 +7058,10 @@ static int check_cross_calls(void) {
     return -1;
   if (check_direct_x86_sret_direction("riscv-calls-x86-direct-sret",
         run_direct_x86_sret_riscv) < 0)
+    return -1;
+  if (check_direct_x86_sret_direction(
+        "compressed-riscv-calls-x86-direct-sret",
+        run_direct_x86_sret_compressed_riscv) < 0)
     return -1;
   if (check_direct_x86_fp64_direction("aarch64-calls-x86-direct-fp64",
         run_direct_x86_fp64_aarch64) < 0)
