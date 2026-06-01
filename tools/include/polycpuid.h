@@ -155,6 +155,10 @@ enum {
   POLY_X86_CTRL_TRAP_RETURN = 0x62,
   POLY_X86_CTRL_LANDING_POLICY_SET = 0x6d,
   POLY_X86_CTRL_LANDING_POLICY_GET = 0x6e,
+  POLY_IMPORT_FUNC_STRLEN = 8,
+  POLY_IMPORT_FUNC_MEMCPY = 9,
+  POLY_IMPORT_FUNC_MEMSET = 10,
+  POLY_IMPORT_FUNC_MEMCMP = 11,
   POLY_IMPORT_FUNC_X86_SLOT0 = 106,
   POLY_IMPORT_FUNC_X86_SLOT1 = 107,
   POLY_IMPORT_FUNC_X86_SLOT2 = 108,
@@ -585,6 +589,7 @@ static inline uint64_t poly_abi_signature_control_value(uint64_t kind) {
 }
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
+static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10ULL;
 
 struct poly_cpuid_regs {
   uint32_t eax;
