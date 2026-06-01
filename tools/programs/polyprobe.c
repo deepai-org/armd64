@@ -75,6 +75,10 @@
 #define POLYPROBE_NEUTRAL_CALL_DELTA 4ULL
 #define POLYPROBE_INVALID_AARCH64_BRANCH_TARGET 2ULL
 #define POLYPROBE_INVALID_RISCV_BRANCH_TARGET 0x0100000000000000ULL
+#define POLYPROBE_AARCH64_PCALL_SLOT3_INSN 0xd5032a7fULL
+#define POLYPROBE_AARCH64_PCALL_GENERIC_INSN 0xd5032f3fULL
+#define POLYPROBE_RISCV_PCALL_SLOT3_INSN 0x4600700bULL
+#define POLYPROBE_RISCV_PCALL_GENERIC_INSN 0x1200700bULL
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 static uint32_t polyprobe_native_signature_slot =
@@ -501,6 +505,16 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
       mode == POLY_MODE_RAW_RISCV && number == 0x00050067ULL &&
       monitor_packet->args[0] == POLYPROBE_INVALID_RISCV_BRANCH_TARGET)
     return 7777;
+  if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
+      mode == POLY_MODE_RAW_AARCH64 &&
+      (number == POLYPROBE_AARCH64_PCALL_SLOT3_INSN ||
+       number == POLYPROBE_AARCH64_PCALL_GENERIC_INSN))
+    return 8888;
+  if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
+      mode == POLY_MODE_RAW_RISCV &&
+      (number == POLYPROBE_RISCV_PCALL_SLOT3_INSN ||
+       number == POLYPROBE_RISCV_PCALL_GENERIC_INSN))
+    return 8888;
   if (reason == POLY_TRAP_ILLEGAL && number == 0xffffffffULL &&
       selector == 4)
     return 6666;
@@ -2482,6 +2496,50 @@ static inline void raw_riscv_invalid_branch_probe(void) {
     : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
 }
 
+static inline void raw_aarch64_invalid_x86_call_return_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0: target is unused after return rejection.
+    ".long 0xd2800011\n" // movz x17,#0: x86 frontend.
+    ".long 0xd2800052\n" // movz x18,#2: canonical but not AArch64 aligned.
+    ".long 0xd5032a7f\n" // AArch64 PCALL_SIG_IMM slot 3 must trap.
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape after trap resume.
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_invalid_x86_call_return_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0: target is unused after return rejection.
+    ".long 0x00000313\n" // addi t1,zero,0: x86 frontend.
+    ".long 0x00100393\n" // addi t2,zero,1: not RISC-V halfword aligned.
+    ".long 0x4600700b\n" // RISC-V PCALL_SIG_IMM slot 3 must trap.
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape after trap resume.
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_aarch64_invalid_cross_call_return_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0: target is unused after return rejection.
+    ".long 0xd2800051\n" // movz x17,#2: RISC-V frontend.
+    ".long 0xd2800052\n" // movz x18,#2: canonical but not AArch64 aligned.
+    ".long 0xd5032f3f\n" // AArch64 generic PCALL must trap.
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape after trap resume.
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
+static inline void raw_riscv_invalid_cross_call_return_probe(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0: target is unused after return rejection.
+    ".long 0x00100313\n" // addi t1,zero,1: AArch64 frontend.
+    ".long 0x00100393\n" // addi t2,zero,1: not RISC-V halfword aligned.
+    ".long 0x1200700b\n" // RISC-V generic PCALL must trap.
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape after trap resume.
+    ::: POLY_ABI_GPR_CLOBBERS, "memory");
+}
+
 int main(void) {
   stage("POLY_PROBE: start");
   install_polyprobe_trap_vector();
@@ -4170,6 +4228,54 @@ int main(void) {
       (unsigned long long) POLYPROBE_INVALID_RISCV_BRANCH_TARGET);
     return 1;
   }
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_aarch64_invalid_x86_call_return_probe();
+  if (read_rax() != 8888) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 invalid x86 call return trap mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("aarch64 invalid x86 call return",
+        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
+        POLYPROBE_AARCH64_PCALL_SLOT3_INSN, 4, 1) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_riscv_invalid_x86_call_return_probe();
+  if (read_rax() != 8888) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv invalid x86 call return trap mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("riscv invalid x86 call return",
+        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
+        POLYPROBE_RISCV_PCALL_SLOT3_INSN, 4, 1) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_aarch64_invalid_cross_call_return_probe();
+  if (read_rax() != 8888) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 invalid cross call return trap mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("aarch64 invalid cross call return",
+        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
+        POLYPROBE_AARCH64_PCALL_GENERIC_INSN, 4, 1) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  raw_riscv_invalid_cross_call_return_probe();
+  if (read_rax() != 8888) {
+    fprintf(stderr, "POLY_PROBE_FAIL: raw riscv invalid cross call return trap mismatch got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (expect_monitor_packet_header("riscv invalid cross call return",
+        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
+        POLYPROBE_RISCV_PCALL_GENERIC_INSN, 4, 1) != 0)
+    return 1;
   puts("POLY_PROBE_MONITOR_PACKETS_OK");
   poly_monitor_packet_set_value(0);
   polyprobe_current_monitor_packet = 0;
