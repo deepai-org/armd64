@@ -797,6 +797,12 @@ build_poly_elf_payloads() {
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocesscrossstack9-x86_64.so"
   x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_NEEDED_SRET_DEP \
+    -Wl,-soname,libpolyprocesscrosssret-x86_64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/libpolyprocesscrosssret-x86_64.so"
+  x86_64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -fno-stack-protector -DPOLY_PROCESS_NEEDED_IFUNC_DEP \
     -Wl,-soname,libpolyprocessifuncneeded-aarch64.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -936,6 +942,12 @@ build_poly_elf_payloads() {
     -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
     -o "$TMP_DIR/poly-link/aarch64/libpolyprocesscrossfp64-x86_64.so"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_SRET_DEP \
+    -Wl,-soname,libpolyprocesscrosssret-x86_64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/aarch64/libpolyprocesscrosssret-x86_64.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_FP32_DEP \
     -Wl,-soname,libpolyprocesscrossfp32-aarch64.so \
@@ -1143,6 +1155,13 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/aarch64" \
     -Wl,--no-as-needed -l:libpolyprocesscrossfp32-x86_64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-cross-x86-fp32-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_SRET_MAIN \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/aarch64" \
+    -Wl,--no-as-needed -l:libpolyprocesscrosssret-x86_64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-cross-x86-sret-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -DPOLY_PROCESS_NEEDED_VEC128_MAIN \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -3739,6 +3758,13 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/poly-link/riscv/libpolyprocesscrossfp64-x86_64.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_NEEDED_SRET_DEP \
+    -Wl,-soname,libpolyprocesscrosssret-x86_64.so \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -o "$TMP_DIR/poly-link/riscv/libpolyprocesscrosssret-x86_64.so"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_NEEDED_FP32_DEP \
     -Wl,-soname,libpolyprocesscrossfp32-riscv.so \
     -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -3917,6 +3943,14 @@ build_poly_elf_payloads() {
     -L"$TMP_DIR/poly-link/riscv" \
     -Wl,--no-as-needed -l:libpolyprocesscrossfp32-x86_64.so \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-cross-x86-fp32-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -DPOLY_PROCESS_NEEDED_SRET_MAIN \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_NEEDED_REAL_SRC" \
+    -L"$TMP_DIR/poly-link/riscv" \
+    -Wl,--no-as-needed -l:libpolyprocesscrosssret-x86_64.so \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-cross-x86-sret-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -DPOLY_PROCESS_NEEDED_VEC128_MAIN \
@@ -7156,11 +7190,17 @@ if [ "$RUN_POLY_EXEC_CROSS" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-cross-x86-fp32-real.elf=42 \
       cross-aarch64-to-x86-fp32 >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-cross-x86-sret-real.elf=42 \
+      cross-aarch64-to-x86-sret >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-cross-x86-fp64-real.elf=42 \
       cross-riscv-to-x86-fp64 >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-cross-x86-fp32-real.elf=42 \
       cross-riscv-to-x86-fp32 >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-cross-x86-sret-real.elf=42 \
+      cross-riscv-to-x86-sret >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-cross-x86-vec128-real.elf=42 \
       cross-aarch64-to-x86-vec128 >/dev/ttyS0 2>&1
@@ -7928,6 +7968,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-cross-x86-fp32-real.elf=42 \
       cross-x86-fp32 >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-cross-x86-sret-real.elf=42 \
+      cross-x86-sret >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-cross-x86-vec128-real.elf=42 \
       cross-x86-vec128 >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
@@ -8216,6 +8259,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-cross-x86-fp32-real.elf=42 \
       cross-x86-fp32 >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-cross-x86-sret-real.elf=42 \
+      cross-x86-sret >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-cross-x86-vec128-real.elf=42 \
       cross-x86-vec128 >/dev/ttyS0 2>&1
@@ -11277,6 +11323,18 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-cross-x86-fp64-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -11298,6 +11356,18 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-fp32-real\\.elf.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
@@ -11498,6 +11568,14 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-fp32-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*a64_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
@@ -12072,6 +12150,14 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_CROSS_STUBS: .*rv_to_x86=[1-9][0-9]*.*path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-cross-x86-vec128-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -12113,6 +12199,8 @@ EOF
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-fp64-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-fp32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-fp32-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-sret-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
+          "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-sret-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/riscv-process-cross-x86-vec128-real\\.elf.*sig_slots=[1-9][0-9]*.*reg_sig=[1-9][0-9]*.*stack_bridges=0.*x86_wrappers=0"
           "POLYEXEC_CROSS_STUBS: .*path=/usr/lib/polyapps/aarch64-process-cross-x86-compact-real\\.elf.*sig_slots=[1-9][0-9]*.*stack_bridges=0.*compact_shuffles=[1-9][0-9]*.*x86_wrappers=0"

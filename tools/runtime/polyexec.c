@@ -4615,8 +4615,10 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
         (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV)))
     return -1;
   if (process_bridge_is_sret(bridge_kind) &&
-      !(caller_arch == POLY_ARCH_X86 &&
-        (callee_arch == POLY_ARCH_AARCH64 || callee_arch == POLY_ARCH_RISCV)))
+      !((caller_arch == POLY_ARCH_X86 &&
+          (callee_arch == POLY_ARCH_AARCH64 ||
+           callee_arch == POLY_ARCH_RISCV)) ||
+        (caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86)))
     return -1;
   if (callee_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
@@ -4625,7 +4627,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       bridge_kind != POLY_PROCESS_BRIDGE_COMPACT_F32_U32 &&
       bridge_kind != POLY_PROCESS_BRIDGE_U64_STACK9 &&
       bridge_kind != POLY_PROCESS_BRIDGE_FP64 &&
-      bridge_kind != POLY_PROCESS_BRIDGE_FP32)
+      bridge_kind != POLY_PROCESS_BRIDGE_FP32 &&
+      bridge_kind != POLY_PROCESS_BRIDGE_SRET_X86_SYSV)
     return -1;
   if (caller_arch == POLY_ARCH_X86 &&
       bridge_kind != POLY_PROCESS_BRIDGE_DEFAULT &&
