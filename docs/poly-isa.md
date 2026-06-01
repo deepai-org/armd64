@@ -1,9 +1,9 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly extends x86_64 so existing AArch64 and RISC-V64 user-mode code can run in
-the same virtual address space as x86 code.
+Poly lets existing AArch64 and RISC-V64 user-mode code run inside an x86_64
+process address space.
 
-## Run It
+## Run
 
 ```sh
 make image
@@ -12,27 +12,25 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps
 rg -a 'POLY.*OK|NATIVE.*OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Architectural Contract
+## Contract
 
-- x86_64 is still the system ISA: boot, paging, privilege, interrupts,
-  syscalls, atomics, and TSO ordering stay x86-defined.
-- AArch64 and RISC-V64 are ring-3 decode frontends over the same x86 virtual
-  address space.
-- ISA changes use decoded control instructions, not per-instruction `#UD`
-  envelopes.
-- Foreign state is per-thread XSAVE-style architectural state, not hidden
-  process-global emulator state.
-- Fast cross-ISA calls use ABI signature slots for register-only remapping.
-- Stack arguments, aggregates, variadics, lazy binding, libc policy, and syscall
-  policy are software/runtime responsibilities.
+- x86_64 stays responsible for boot, paging, privilege, interrupts, syscalls,
+  atomics, and memory ordering.
+- AArch64/RISC-V64 are ring-3 decode frontends over the same x86_64 address
+  space.
+- Mode switches are decoded controls, not per-instruction `#UD` envelopes.
+- Foreign registers are per-thread XSAVE-style state.
+- Fast calls use ABI signature slots for register-only remapping.
+- Stack args, aggregates, variadics, libc policy, syscall policy, and lazy
+  binding stay in software runtimes or loader thunks.
 - Recoverable foreign exits produce OS-neutral trap packets.
 
 ## Encodings
 
-- Frontends: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
+- Modes: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
 - x86 controls: `0f 3a fc xx` for `PENTER`, `PSWITCH`, `PLANDING`, `PCALL`,
-  `PCALL_IMM`, and `PTRAPRET`.
+  `PCALL_IMM`, `PTRAPRET`.
 - AArch64 controls: reserved `HINT` encodings.
 - RISC-V controls: `custom-0` encodings.
 
-Long-form design rationale: `docs/poly-isa-design-directions.md`.
+Design rationale: `docs/poly-isa-design-directions.md`.
