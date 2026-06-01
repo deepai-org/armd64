@@ -200,7 +200,11 @@ compare_polycall_const() {
   header_expr="$(header_const_expr "$header_name")"
   polycall_expr="$(polycall_const_expr "$polycall_name")"
   [[ -n "$header_expr" ]] || fail "missing header constant $header_name"
-  [[ -n "$polycall_expr" ]] || fail "missing polycall constant $polycall_name"
+  if [[ -z "$polycall_expr" ]]; then
+    assert_contains "\\b$polycall_name\\b" "$POLYCALL" \
+      "polycall must use header constant $polycall_name"
+    return
+  fi
 
   header_value="$(eval_expr "$header_expr")"
   polycall_value="$(eval_expr "$polycall_expr")"
@@ -241,9 +245,7 @@ compare_riscv_ctrl BX_POLY_RISCV_CTRL_TRAP_RETURN POLY_RISCV_CTRL_SUBOP_TRAP_RET
 compare_riscv_ctrl BX_POLY_RISCV_CTRL_SWITCH_MODE POLY_RISCV_CTRL_SUBOP_SWITCH_MODE
 compare_riscv_ctrl BX_POLY_RISCV_CTRL_CALL_MODE POLY_RISCV_CTRL_SUBOP_CALL_MODE
 compare_riscv_ctrl BX_POLY_RISCV_CTRL_CALL_SIG_MODE POLY_RISCV_CTRL_SUBOP_CALL_SIG_MODE
-compare_const BX_POLY_IMPORT_FUNC_X86_SLOT0 POLY_IMPORT_FUNC_X86_SLOT0
-compare_const BX_POLY_IMPORT_FUNC_X86_SLOT7 POLY_IMPORT_FUNC_X86_SLOT7
-compare_const BX_POLY_IMPORT_CALL_COUNT POLY_IMPORT_FUNC_COUNT
+compare_const BX_POLY_IMPORT_SELECTOR_COUNT POLY_IMPORT_SELECTOR_COUNT
 compare_const BX_POLY_CPUID_STATE_OVERLAP_GPRS POLY_CPUID_STATE_OVERLAP_GPRS
 compare_const BX_POLY_CPUID_STATE_USER_RETURN_RESTORE POLY_CPUID_STATE_USER_RETURN_RESTORE
 compare_const BX_POLY_CPUID_STATE_X86_TSO POLY_CPUID_STATE_X86_TSO

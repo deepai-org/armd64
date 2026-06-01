@@ -98,8 +98,8 @@ assert_not_contains "handle_poly_(opcode|ud)" "$BXERROR_FUNC" \
 assert_not_contains "handle_poly_(opcode|ud)" "$UNDEFINED_FUNC" \
   "UndefinedOpcode must not mask decoder regressions by accepting poly opcodes from #UD"
 
-SYSCALL_FUNC="$TMP_DIR/handle_poly_foreign_syscall.cc"
-extract_function "handle_poly_foreign_syscall" "$SYSCALL_FUNC"
+SYSCALL_FUNC="$TMP_DIR/handle_poly_syscall_trap.cc"
+extract_function "handle_poly_syscall_trap" "$SYSCALL_FUNC"
 assert_contains "bx_poly_record_syscall_trap" "$SYSCALL_FUNC" \
   "foreign syscalls must record an architectural trap packet"
 assert_contains "deliver_poly_architectural_trap" "$SYSCALL_FUNC" \
@@ -142,8 +142,11 @@ assert_contains 'expect_monitor_packet\("riscv import"' "$NATIVECHECK" \
   "nativecheck must verify RISC-V unresolved import trap source mode"
 assert_contains 'expect_monitor_packet\("riscv compressed import"' "$NATIVECHECK" \
   "nativecheck must exercise RISC-V unresolved import trap argument lanes 6 and 7"
-assert_contains "eight[[:space:]]+ABI arguments" "$README" \
-  "README must describe the POLYTRAP packet as carrying eight ABI arguments"
+assert_contains "POLY_TRAP_PACKET_ARG_COUNT[[:space:]]*=[[:space:]]*8" \
+  "$ROOT_DIR/tools/include/polycpuid.h" \
+  "trap packet ABI must carry eight ABI argument lanes"
+assert_contains "OS-neutral trap records" "$README" \
+  "README must describe OS-neutral trap records"
 assert_not_contains "six[[:space:]]+ABI arguments" "$README" \
   "README must not describe the old six-argument POLYTRAP packet"
 assert_contains "pcall-needed-tls-external-real" "$ROOT_DIR/scripts/boot.sh" \
