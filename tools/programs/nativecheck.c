@@ -1109,6 +1109,41 @@ nativecheck_invalid_riscv_switch_target_alignment(void) {
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 }
 
+static __attribute__((noinline)) void
+nativecheck_invalid_enter_frontend(void) {
+  asm volatile(
+    "movq $255, %%r15\n"
+    POLY_OP_ENTER_MODE
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_enter_aarch64_alignment(void) {
+  asm volatile(
+    "movq %0, %%r15\n"
+    ".balign 4, 0x90\n"
+    ".byte 0x90\n"
+    POLY_OP_ENTER_MODE
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_enter_riscv_alignment(void) {
+  asm volatile(
+    "movq %0, %%r15\n"
+    ".balign 4, 0x90\n"
+    ".byte 0x90\n"
+    POLY_OP_ENTER_MODE
+    :
+    : "i"(POLY_FRONTEND_RISCV)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
 static int check_poly_abi_signature_slot_default(uint32_t slot, uint32_t kind,
     const char *name) {
   uint64_t actual = poly_abi_signature_get(slot);
@@ -5795,6 +5830,20 @@ static int run_poly_invalid_switch_no_mutation_probe(void) {
   return 0;
 }
 
+static int run_poly_invalid_enter_no_mutation_probe(void) {
+  if (run_poly_invalid_switch_no_mutation_case("enter-invalid-frontend",
+        nativecheck_invalid_enter_frontend) != 0)
+    return 1;
+  if (run_poly_invalid_switch_no_mutation_case("enter-aarch64-bad-align",
+        nativecheck_invalid_enter_aarch64_alignment) != 0)
+    return 1;
+  if (run_poly_invalid_switch_no_mutation_case("enter-riscv-bad-align",
+        nativecheck_invalid_enter_riscv_alignment) != 0)
+    return 1;
+  puts("NATIVE_POLY_INVALID_ENTER_NO_MUTATION_OK");
+  return 0;
+}
+
 static int run_poly_cross_return_xsave_roundtrip_probe(void) {
   struct poly_xsave_state clean __attribute__((aligned(64)));
   struct poly_xsave_state cross __attribute__((aligned(64)));
@@ -9724,6 +9773,8 @@ int main(void) {
     if (run_poly_invalid_pcall_no_mutation_probe() != 0)
       return 1;
     if (run_poly_invalid_switch_no_mutation_probe() != 0)
+      return 1;
+    if (run_poly_invalid_enter_no_mutation_probe() != 0)
       return 1;
     if (run_poly_landing_policy_probe() != 0)
       return 1;
