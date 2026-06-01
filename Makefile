@@ -1,5 +1,7 @@
 IMAGE ?= armd64-bochs
 POLY_XCR0_MODULE ?= out/poly_xcr0.ko
+BOOT_TIMEOUT_SECONDS ?= 300
+BOOT_DOCKER_ENV = -e BOOT_TIMEOUT_SECONDS=$(BOOT_TIMEOUT_SECONDS)
 
 .PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract boot boot-poly boot-poly-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
 
@@ -24,6 +26,7 @@ boot:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e RUN_NATIVE_CHECK=1 \
 		-e EXPECT_POLY_CPUID=0 \
 		$(IMAGE) \
@@ -33,6 +36,7 @@ boot-poly:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
@@ -48,6 +52,7 @@ boot-poly-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
@@ -59,6 +64,7 @@ boot-poly-real-xsave-arch-traps: $(POLY_XCR0_MODULE)
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
@@ -71,6 +77,7 @@ boot-poly-probe-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_PROBE=1 \
 		-e EXPECT_POLY_CPUID=1 \
@@ -81,6 +88,7 @@ boot-poly-apps-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_APPS=1 \
 		-e RUN_POLY_EXEC=0 \
@@ -95,6 +103,7 @@ boot-poly-neutral-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_NEUTRAL=1 \
 		-e EXPECT_POLY_CPUID=1 \
@@ -105,6 +114,7 @@ boot-poly-exec-cross-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_EXEC_CROSS=1 \
 		-e EXPECT_POLY_CPUID=1 \
@@ -115,6 +125,7 @@ boot-poly-exec-syscall-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_EXEC_SYSCALL=1 \
 		-e EXPECT_POLY_CPUID=1 \
@@ -125,6 +136,7 @@ boot-poly-call-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_CALL=1 \
 		-e RUN_POLY_THREAD=1 \
@@ -137,6 +149,7 @@ boot-poly-call-real-xsave-arch-traps: $(POLY_XCR0_MODULE)
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_CALL=1 \
 		-e RUN_POLY_THREAD=1 \
@@ -150,6 +163,7 @@ boot-poly-thread-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_THREAD=1 \
 		-e RUN_POLY_SIGNAL=0 \
@@ -161,6 +175,7 @@ boot-poly-bench-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_POLY_BENCH=1 \
 		-e EXPECT_POLY_CPUID=1 \
@@ -171,6 +186,7 @@ boot-poly-binfmt-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_BINFMT=1 \
@@ -183,6 +199,7 @@ boot-poly-full-arch-traps:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
@@ -206,6 +223,7 @@ boot-poly-full-real-xsave-arch-traps: $(POLY_XCR0_MODULE)
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
@@ -230,6 +248,7 @@ boot-poly-full:
 	docker run --rm \
 		--platform=linux/arm64 \
 		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
 		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_PROBE=1 \
