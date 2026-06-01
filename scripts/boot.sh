@@ -7169,10 +7169,10 @@ if [ "$RUN_POLY_EXEC_SYSCALL" = "1" ]; then
       /usr/lib/polyapps/riscv-process-syscall-real.elf=42 \
       probe >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
-      /usr/lib/polyapps/aarch64-process-import-trap-real.elf=220 \
+      /usr/lib/polyapps/aarch64-process-import-trap-real.elf=238 \
       import-trap >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
-      /usr/lib/polyapps/riscv-process-import-trap-real.elf=220 \
+      /usr/lib/polyapps/riscv-process-import-trap-real.elf=238 \
       import-trap >/dev/ttyS0 2>&1
     echo "POLY_EXEC_SYSCALL_OK" >/dev/ttyS0
 fi
@@ -11337,11 +11337,11 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=220 process=1 path=/usr/lib/polyapps/aarch64-process-import-trap-real\\.elf" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=238 process=1 path=/usr/lib/polyapps/aarch64-process-import-trap-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=220 process=1 path=/usr/lib/polyapps/riscv-process-import-trap-real\\.elf" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=238 process=1 path=/usr/lib/polyapps/riscv-process-import-trap-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

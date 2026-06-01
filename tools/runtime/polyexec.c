@@ -1,9 +1,11 @@
 #include <errno.h>
 #include <elf.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -2655,6 +2657,68 @@ static uint64_t poly_handle_foreign_import(uint64_t number,
           (const char *) (uintptr_t) args[1], (size_t) args[2]);
     case POLY_IMPORT_FUNC_STRNLEN:
       return strnlen((const char *) (uintptr_t) args[0], (size_t) args[1]);
+    case POLY_IMPORT_FUNC_ATOI:
+      return (uint64_t) (int64_t) atoi((const char *) (uintptr_t) args[0]);
+    case POLY_IMPORT_FUNC_ATOL:
+      return (uint64_t) (int64_t) atol((const char *) (uintptr_t) args[0]);
+    case POLY_IMPORT_FUNC_ATOLL:
+      return (uint64_t) (int64_t) atoll((const char *) (uintptr_t) args[0]);
+    case POLY_IMPORT_FUNC_STRTOL:
+      return (uint64_t) (int64_t)
+        strtol((const char *) (uintptr_t) args[0],
+          (char **) (uintptr_t) args[1], (int) args[2]);
+    case POLY_IMPORT_FUNC_STRTOUL:
+      return (uint64_t)
+        strtoul((const char *) (uintptr_t) args[0],
+          (char **) (uintptr_t) args[1], (int) args[2]);
+    case POLY_IMPORT_FUNC_STRTOLL:
+      return (uint64_t) (int64_t)
+        strtoll((const char *) (uintptr_t) args[0],
+          (char **) (uintptr_t) args[1], (int) args[2]);
+    case POLY_IMPORT_FUNC_STRTOULL:
+      return (uint64_t)
+        strtoull((const char *) (uintptr_t) args[0],
+          (char **) (uintptr_t) args[1], (int) args[2]);
+    case POLY_IMPORT_FUNC_ISALNUM:
+      return (uint64_t) isalnum((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISALPHA:
+      return (uint64_t) isalpha((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISDIGIT:
+      return (uint64_t) isdigit((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISLOWER:
+      return (uint64_t) islower((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISSPACE:
+      return (uint64_t) isspace((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISUPPER:
+      return (uint64_t) isupper((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISXDIGIT:
+      return (uint64_t) isxdigit((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISBLANK:
+      return (uint64_t) isblank((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISCNTRL:
+      return (uint64_t) iscntrl((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISGRAPH:
+      return (uint64_t) isgraph((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISPRINT:
+      return (uint64_t) isprint((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ISPUNCT:
+      return (uint64_t) ispunct((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_TOLOWER:
+      return (uint64_t) tolower((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_TOUPPER:
+      return (uint64_t) toupper((unsigned char) args[0]);
+    case POLY_IMPORT_FUNC_ABS:
+      return (uint64_t) (int64_t) abs((int) args[0]);
+    case POLY_IMPORT_FUNC_LABS:
+      return (uint64_t) (int64_t) labs((long) args[0]);
+    case POLY_IMPORT_FUNC_LLABS:
+      return (uint64_t) (int64_t) llabs((long long) args[0]);
+    case POLY_IMPORT_FUNC_FFS:
+      return (uint64_t) ffs((int) args[0]);
+    case POLY_IMPORT_FUNC_FFSL:
+      return (uint64_t) ffsl((long) args[0]);
+    case POLY_IMPORT_FUNC_FFSLL:
+      return (uint64_t) ffsll((long long) args[0]);
     default:
       return (uint64_t) -ENOSYS;
   }
