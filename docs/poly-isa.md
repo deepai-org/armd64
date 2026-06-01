@@ -1,12 +1,10 @@
 # Poly ISA
 
-Poly is an x86_64 CPU extension for running existing precompiled x86_64,
-AArch64, and RISC-V64 userspace code in one address space.
-
-This file is the short reference. Design rationale lives in
+Quick reference for the x86_64 extension that lets one userspace address space
+execute existing x86_64, AArch64, and RISC-V64 code. Rationale:
 [poly-isa-design-directions.md](poly-isa-design-directions.md).
 
-## How To Run
+## Run
 
 ```sh
 make image
@@ -14,30 +12,28 @@ make boot-poly-exec-cross-arch-traps
 make boot-poly-full-real-xsave-arch-traps
 ```
 
-## What Differs From x86_64
+## Contract
 
-- x86_64 remains the system ISA for boot, privilege, paging, faults,
-  interrupts, atomics, VM control, and the global TSO memory model.
-- AArch64 and RISC-V64 are user-mode frontends over the same process memory.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  faults, atomics, VM control, and the global TSO memory model.
+- AArch64 and RISC-V64 are user-mode decode frontends over the same memory.
 - Fetch is frontend-specific: x86_64 variable-length, AArch64 32-bit aligned,
-  and RISC-V64 16-bit RVC plus 32-bit instructions.
-- Cross-frontend control uses decoded Poly instructions, not `#UD` envelopes.
+  and RISC-V64 16-bit RVC plus 32-bit.
+- Cross-frontend control uses real decoded Poly instructions, not `#UD`.
 - Non-x86 state is explicit per-thread XSAVE-style architectural state.
-- Fast calls may use hardware register-alias signature slots. Stack arguments,
-  aggregates, variadics, syscall translation, and loader policy stay in
-  software.
+- Fast calls may use hardware register-alias signature slots.
+- Stack arguments, aggregates, variadics, syscall translation, and loader
+  policy stay in software.
 
 ## Frontends
 
-| ID | Frontend | Fetch |
-| --- | --- | --- |
-| `0` | x86_64 | variable-length |
-| `1` | AArch64 | 32-bit aligned |
-| `2` | RISC-V64 | 16-bit aligned RVC plus 32-bit |
+- `0`: x86_64, variable-length fetch
+- `1`: AArch64, 32-bit aligned fetch
+- `2`: RISC-V64, 16-bit aligned RVC plus 32-bit fetch
 
 ## Prototype Control Encodings
 
-Prototype opcode pages for Bochs and tests. They are not vendor allocations.
+Bochs/test encodings only; not vendor allocations.
 
 | Frontend | Encoding |
 | --- | --- |
