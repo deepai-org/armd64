@@ -123,9 +123,12 @@ static uint64_t polybench_saved_r15;
 #define POLYBENCH_RESTORE_R15() \
   asm volatile("movq %0, %%r15" :: "m"(polybench_saved_r15) : "memory")
 #define POLYBENCH_CALL_SAVE_R15(lvalue, call_expr) do { \
+  __typeof__(lvalue) *polybench_call_lvalue_ = &(lvalue); \
+  __typeof__(lvalue) polybench_call_result_; \
   POLYBENCH_SAVE_R15(); \
-  (lvalue) = (call_expr); \
+  polybench_call_result_ = (call_expr); \
   POLYBENCH_RESTORE_R15(); \
+  *polybench_call_lvalue_ = polybench_call_result_; \
 } while (0)
 
 static int check_polybench_arch_state_contract(void) {
@@ -442,9 +445,44 @@ static void emit_u64(uint8_t *code, size_t *offset, uint64_t value) {
     code[(*offset)++] = (uint8_t) (value >> (n * 8));
 }
 
+static int is_x86_frontend_enter_bytes(const uint8_t *bytes, size_t size,
+    uint8_t *frontend) {
+  if (size != 8 ||
+      bytes[0] != 0x6a ||
+      bytes[2] != 0x41 ||
+      bytes[3] != 0x5f ||
+      bytes[4] != 0x0f ||
+      bytes[5] != 0x3a ||
+      bytes[6] != 0xfc ||
+      bytes[7] != POLY_X86_CTRL_PENTER_MODE)
+    return 0;
+  if (bytes[1] != POLY_FRONTEND_AARCH64 &&
+      bytes[1] != POLY_FRONTEND_RISCV)
+    return 0;
+  *frontend = bytes[1];
+  return 1;
+}
+
 static void emit_bytes(uint8_t *code, size_t *offset, const uint8_t *bytes, size_t size) {
+  uint8_t frontend = 0;
+  if (is_x86_frontend_enter_bytes(bytes, size, &frontend)) {
+    const size_t alignment = frontend == POLY_FRONTEND_AARCH64 ? 4U : 2U;
+    while (((*offset + size) & (alignment - 1U)) != 0)
+      code[(*offset)++] = 0x90;
+  }
   memcpy(code + *offset, bytes, size);
   *offset += size;
+}
+
+static size_t align_up_offset(size_t value, size_t alignment) {
+  return (value + alignment - 1U) & ~(alignment - 1U);
+}
+
+static void pad_to_frontend_target(uint8_t *code, size_t *offset,
+    uint32_t frontend) {
+  const size_t alignment = frontend == POLY_FRONTEND_AARCH64 ? 4U : 2U;
+  while ((*offset & (alignment - 1U)) != 0)
+    code[(*offset)++] = 0x90;
 }
 
 static void emit_aarch64_movabs(uint8_t *code, size_t *offset, uint32_t rd,
@@ -855,6 +893,7 @@ static void emit_x86_pcall_sig_imm_mode(uint8_t *code, size_t *offset,
     0x0f, 0x3a, 0xfc, (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(signature_slot)
   };
   emit_bytes(code, offset, pcall, sizeof(pcall));
+  pad_to_frontend_target(code, offset, frontend);
   const size_t target_offset = *offset;
 
   if (frontend == POLY_FRONTEND_AARCH64) {
@@ -896,6 +935,7 @@ static void emit_x86_pcall_sret_sig_imm_mode(uint8_t *code, size_t *offset,
     0x0f, 0x3a, 0xfc, (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(signature_slot)
   };
   emit_bytes(code, offset, pcall, sizeof(pcall));
+  pad_to_frontend_target(code, offset, frontend);
   const size_t target_offset = *offset;
 
   if (frontend == POLY_FRONTEND_AARCH64) {
@@ -943,6 +983,7 @@ static void emit_x86_pcall_sig_imm_mode_fp32(uint8_t *code, size_t *offset,
     0x0f, 0x3a, 0xfc, (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(signature_slot)
   };
   emit_bytes(code, offset, pcall, sizeof(pcall));
+  pad_to_frontend_target(code, offset, frontend);
   const size_t target_offset = *offset;
 
   if (frontend == POLY_FRONTEND_AARCH64) {
@@ -984,6 +1025,7 @@ static void emit_x86_pcall_sig_imm_mode_fp64(uint8_t *code, size_t *offset,
     0x0f, 0x3a, 0xfc, (uint8_t) POLYBENCH_X86_PCALL_SIG_IMM(signature_slot)
   };
   emit_bytes(code, offset, pcall, sizeof(pcall));
+  pad_to_frontend_target(code, offset, frontend);
   const size_t target_offset = *offset;
 
   if (frontend == POLY_FRONTEND_AARCH64) {
@@ -1161,14 +1203,27 @@ static uint64_t call_code_vec128_u32(const uint8_t *code) {
   union polybench_vec128_u32_bits arg0 = { .u = { 1, 2, 3, 4 } };
   union polybench_vec128_u32_bits arg1 = { .u = { 10, 20, 30, 40 } };
   union polybench_vec128_u32_bits result;
-  polybench_vec128_u32 (*entry)(polybench_vec128_u32,
-    polybench_vec128_u32) =
-    (polybench_vec128_u32 (*)(polybench_vec128_u32,
-      polybench_vec128_u32)) code;
-
-  POLYBENCH_SAVE_R15();
-  result.v = entry(arg0.v, arg1.v);
-  POLYBENCH_RESTORE_R15();
+  asm volatile(
+    "movdqu %1, %%xmm0\n"
+    "movdqu %2, %%xmm1\n"
+    "pushq %%rbx\n"
+    "pushq %%rbp\n"
+    "pushq %%r12\n"
+    "pushq %%r13\n"
+    "pushq %%r14\n"
+    "pushq %%r15\n"
+    "call *%3\n"
+    "popq %%r15\n"
+    "popq %%r14\n"
+    "popq %%r13\n"
+    "popq %%r12\n"
+    "popq %%rbp\n"
+    "popq %%rbx\n"
+    "movdqu %%xmm0, %0"
+    : "=m"(result.v)
+    : "m"(arg0.v), "m"(arg1.v), "r"(code)
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "xmm0", "xmm1", "memory");
   return ((uint64_t) (result.u[3] & 0xffffU) << 48) |
     ((uint64_t) (result.u[2] & 0xffffU) << 32) |
     ((uint64_t) (result.u[1] & 0xffffU) << 16) |
@@ -1233,7 +1288,7 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
   code[2] = 0x90;
   code[3] = 0x90;
 
-  size_t offset = arch == POLY_ARCH_RISCV_COMPRESSED ? 4 : 3;
+  size_t offset = 4;
   if (arch == POLY_ARCH_AARCH64) {
     const uint8_t raw_switch[] = { 0x6a, 0x01, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
     memcpy(code + offset, raw_switch, sizeof(raw_switch));
@@ -2067,7 +2122,7 @@ static int run_x86_pcall_fp64_signature_riscv(uint64_t *result_bits,
 }
 
 static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 3 + 8 + 5 * 4 + 2 * 4 + 1;
+  const size_t code_size = 3 + 8 + 5 * 4 + 2 * 4 + 1 + 4;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -2104,7 +2159,7 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
 
 static int run_compressed_mixed_program(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 2 + 8 + 5 * 4 + 2 + 4 + 1;
+  const size_t code_size = 2 + 8 + 5 * 4 + 2 + 4 + 1 + 4;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -2141,7 +2196,7 @@ static int run_compressed_mixed_program(uint64_t *result,
 
 static int run_compressed_reverse_mixed_program(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 2 + 8 + 2 + 4 * 4 + 2 * 4 + 1;
+  const size_t code_size = 2 + 8 + 2 + 4 * 4 + 2 * 4 + 1 + 4;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -2181,7 +2236,7 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
 }
 
 static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *switch_delta) {
-  const size_t code_size = 3 + 8 + 5 * 4 + 2 * 4 + 1;
+  const size_t code_size = 3 + 8 + 5 * 4 + 2 * 4 + 1 + 4;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
@@ -2242,7 +2297,8 @@ static int run_cross_call_aarch64_to_riscv(uint64_t *result,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 8 + 1, 2);
 
   emit_u32(code, &offset, 0xd2800280U); // movz x0,#20
   emit_aarch64_movabs(code, &offset, 16,
@@ -2440,7 +2496,8 @@ static int run_neutral_pcall_aarch64_to_riscv(uint64_t *result,
   const size_t aarch64_outer_offset = offset;
   const size_t aarch64_after_offset =
     aarch64_outer_offset + 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_after_offset + 4;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_after_offset + 4, 2);
   emit_u32(code, &offset, 0xd28004a0U); // movz x0,#37
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -2664,7 +2721,8 @@ static int run_neutral_pcall_fp64_aarch64_to_riscv(uint64_t *result_bits,
   const size_t aarch64_outer_offset = offset;
   const size_t aarch64_after_offset =
     aarch64_outer_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_after_offset + 4;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_after_offset + 4, 2);
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
@@ -2894,7 +2952,8 @@ static int run_neutral_pcall_fp32_aarch64_to_riscv(uint64_t *result_bits,
   const size_t aarch64_outer_offset = offset;
   const size_t aarch64_after_offset =
     aarch64_outer_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_after_offset + 4;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_after_offset + 4, 2);
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
   emit_u32(code, &offset, 0xd2800051U); // movz x17,#2 (RISC-V frontend)
@@ -3111,7 +3170,8 @@ static int run_cross_call_fp_aarch64_to_riscv(uint64_t *result_bits,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 8 + 1, 2);
 
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
   emit_aarch64_movabs(code, &offset, 16,
@@ -3298,7 +3358,8 @@ static int run_cross_call_fp8_aarch64_to_riscv(uint64_t *result_bits,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 8 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -3493,7 +3554,8 @@ static int run_cross_call_fp64_signature_aarch64_to_riscv(
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -3680,7 +3742,8 @@ static int run_cross_call_fp32_signature_aarch64_to_riscv(
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -3866,7 +3929,8 @@ static int run_cross_call_fp64_stack_aarch64_to_riscv(uint64_t *result_bits,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 4 + 8 * 8 + 8 * 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 4 + 1, 2);
 
   emit_u32(code, &offset, 0xd10103ffU); // sub sp,sp,#64
   for (uint32_t n = 0; n < 8; n++) {
@@ -4320,6 +4384,7 @@ static int run_x86_pcall_vec128_signature_aarch64(uint64_t *result,
       POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32)
   };
   emit_bytes(code, &offset, pcall, sizeof(pcall));
+  pad_to_frontend_target(code, &offset, POLY_FRONTEND_AARCH64);
   const size_t target_offset = offset;
   emit_u32(code, &offset, 0x4ea18400U); // add v0.4s,v0.4s,v1.4s
   emit_u32(code, &offset, 0xd65f03c0U); // ret x30
@@ -4368,6 +4433,7 @@ static int run_x86_pcall_vec128_signature_riscv(uint64_t *result,
       POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32)
   };
   emit_bytes(code, &offset, pcall, sizeof(pcall));
+  pad_to_frontend_target(code, &offset, POLY_FRONTEND_RISCV);
   const size_t target_offset = offset;
   emit_riscv_vec128_u32_pair_add(code, &offset, 10, 11, 10, 11, 12, 13);
   emit_u32(code, &offset, 0x00008067U); // ret
@@ -4426,7 +4492,8 @@ static int run_cross_call_vec128_aarch64_to_riscv(uint64_t *result,
     code[offset++] = 0x90;
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -4641,7 +4708,8 @@ static int run_cross_call_mixed_aarch64_to_riscv(uint64_t *result_bits,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 8 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 8 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 8 + 1, 2);
 
   emit_u32(code, &offset, 0xd28000e0U); // movz x0,#7
   emit_u32(code, &offset, 0x1e602800U); // fadd d0,d0,d0
@@ -4835,7 +4903,8 @@ static int run_cross_call_stack_aarch64_to_riscv(uint64_t *result,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 4 * 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 3 * 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 3 * 4 + 1, 2);
 
   emit_u32(code, &offset, 0xd10043ffU); // sub sp,sp,#16
   emit_u32(code, &offset, 0xd2800280U); // movz x0,#20
@@ -5035,7 +5104,8 @@ static int run_cross_call_saved_aarch64_to_riscv(uint64_t *result,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 2 * 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 2 * 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 2 * 4 + 1, 2);
 
   emit_u32(code, &offset, 0xd28000b3U); // movz x19,#5
   emit_u32(code, &offset, 0xd2800280U); // movz x0,#20
@@ -5224,7 +5294,8 @@ static int run_cross_call_saved_fp_aarch64_to_riscv(uint64_t *result_bits,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 2 * 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 2 * 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 2 * 4 + 1, 2);
 
   emit_u32(code, &offset, 0x1e604008U); // fmov d8,d0
   emit_u32(code, &offset, aarch64_fadd_d(0, 0, 0));
@@ -5417,7 +5488,8 @@ static int run_cross_call_pair_aarch64_to_riscv(uint64_t *result,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 2 * 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 2 * 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -5602,7 +5674,8 @@ static int run_cross_call_compact_u32_f32_aarch64_to_riscv(uint64_t *result,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 16 + 4 + 8 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 12 + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 12 + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 0, 0x4010000000000003ULL);
   emit_u32(code, &offset, 0xd28000a1U); // movz x1,#5
@@ -5661,7 +5734,8 @@ static int run_cross_call_compact_f32_u32_aarch64_to_riscv(uint64_t *result,
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_body_offset + 16 + 4 + 8 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 12 + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 12 + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 0, 0x0000000340100000ULL);
   emit_u32(code, &offset, 0xd28000a1U); // movz x1,#5
@@ -6023,7 +6097,8 @@ static int run_cross_call_syscall_aarch64_to_riscv(uint64_t *result,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -6227,7 +6302,8 @@ static int run_cross_call_break_aarch64_to_riscv(uint64_t *result,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -6406,7 +6482,8 @@ static int run_cross_call_import_aarch64_to_riscv(uint64_t *result,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -6612,7 +6689,8 @@ static int run_cross_call_direct_x86_aarch64_to_riscv(uint64_t *result,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -6813,7 +6891,8 @@ static int run_cross_call_direct_x86_memcmp_aarch64_to_riscv(uint64_t *result,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -7020,7 +7099,8 @@ static int run_cross_call_direct_x86_memops_aarch64_to_riscv(uint64_t *result,
 
   const size_t aarch64_body_offset = offset;
   const size_t aarch64_return_offset = aarch64_body_offset + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 1, 2);
 
   emit_aarch64_movabs(code, &offset, 16,
     (uint64_t) (uintptr_t) (code + riscv_target_offset));
@@ -7293,7 +7373,8 @@ static int run_nested_cross_call(uint64_t *result,
   const size_t aarch64_outer_offset = offset;
   const size_t aarch64_outer_return_offset =
     aarch64_outer_offset + 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_target_offset = aarch64_outer_return_offset + 4 + 1;
+  const size_t riscv_target_offset =
+    align_up_offset(aarch64_outer_return_offset + 4 + 1, 2);
 
   emit_u32(code, &offset, 0xd2800140U); // movz x0,#10
   emit_aarch64_movabs(code, &offset, 16,
@@ -7394,7 +7475,8 @@ static int run_nested_reverse_cross_call(uint64_t *result,
   const size_t aarch64_target_offset = offset;
   const size_t aarch64_return_offset =
     aarch64_target_offset + 4 + 16 + 4 + 16 + 4;
-  const size_t riscv_inner_target_offset = aarch64_return_offset + 4 + 4;
+  const size_t riscv_inner_target_offset =
+    align_up_offset(aarch64_return_offset + 4 + 4, 2);
 
   emit_u32(code, &offset, 0x91002c00U); // add x0,x0,#11
   emit_aarch64_movabs(code, &offset, 16,
