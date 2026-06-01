@@ -28,9 +28,13 @@
   "movq %%r10, %%rbx\n" \
   "movl $2, %%r15d\n" \
   ".byte 0x0f,0x3a,0xfc,0x31\n"
-#define POLY_OP_PCALL_SIG_A64 ".byte 0x0f,0x3a,0xfc,0x2b\n"
-#define POLY_OP_PCALL_SIG_RV64 ".byte 0x0f,0x3a,0xfc,0x2c\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
+#define POLY_OP_PCALL_SIG_A64 \
+  "movl $1, %%r15d\n" \
+  POLY_OP_PCALL_SIG_MODE
+#define POLY_OP_PCALL_SIG_RV64 \
+  "movl $2, %%r15d\n" \
+  POLY_OP_PCALL_SIG_MODE
 #define POLY_OP_PCALL_SIG_IMM_SLOT3 ".byte 0x0f,0x3a,0xfc,0x33\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
@@ -1295,7 +1299,8 @@ static inline void pcall_signature_aarch64_sysv_args_probe(void) {
     "popq %%rbx\n"
     :
     : "r"((uint64_t) polyprobe_native_signature_slot)
-    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r15", "memory");
 }
 
 static inline void pcall_signature_riscv_sysv_args_probe(void) {
@@ -1324,7 +1329,8 @@ static inline void pcall_signature_riscv_sysv_args_probe(void) {
     "popq %%rbx\n"
     :
     : "r"((uint64_t) polyprobe_native_signature_slot)
-    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    : "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r15", "memory");
 }
 
 static inline void pcall_signature_aarch64_exchange_probe(void) {
@@ -1355,7 +1361,8 @@ static inline void pcall_signature_aarch64_exchange_probe(void) {
     "2:\n"
     "popq %%r12\n"
     "popq %%rbx\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+        "r15", "memory");
 }
 
 static inline void pcall_signature_riscv_exchange_probe(void) {
@@ -1386,7 +1393,8 @@ static inline void pcall_signature_riscv_exchange_probe(void) {
     "2:\n"
     "popq %%r12\n"
     "popq %%rbx\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+        "r15", "memory");
 }
 
 static inline void pcall_signature_mode_aarch64_sysv_args_probe(void) {
