@@ -782,6 +782,9 @@ static inline uint64_t poly_abi_signature_control_value(uint64_t kind) {
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10ULL;
 enum {
+  /* Architectural trap selector window. Runtime helper IDs use the lower
+     POLY_IMPORT_FUNC_COUNT values but the CPU treats every selector here as
+     opaque policy owned by the user-mode monitor/runtime. */
   POLY_IMPORT_SELECTOR_COUNT = 256
 };
 
