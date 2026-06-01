@@ -64,6 +64,8 @@ case "$path" in
   */aarch64-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-fp64-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-fp32-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-x86-fpairarg-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-x86-fpairret-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-sret-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-vec128-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
@@ -72,6 +74,8 @@ case "$path" in
   */aarch64-process-cross-needed-ifunc-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-fp64-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-fp32-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-fpairarg-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-cross-fpairret-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-sret-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-vec128-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-cross-compact-real.elf) expected=42; process_mode=1 ;;
@@ -335,6 +339,8 @@ case "$path" in
   */riscv-process-cross-x86-needed-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-fp64-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-fp32-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-x86-fpairarg-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-x86-fpairret-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-sret-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-vec128-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-x86-tls-real.elf) expected=42; process_mode=1 ;;
@@ -343,6 +349,8 @@ case "$path" in
   */riscv-process-cross-needed-ifunc-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-fp64-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-fp32-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-fpairarg-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-cross-fpairret-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-sret-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-vec128-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-cross-compact-real.elf) expected=42; process_mode=1 ;;
