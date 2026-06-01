@@ -970,6 +970,77 @@ nativecheck_invalid_riscv_pcall_cross_return_alignment(void) {
     ".long 0x1200700b\n" // riscv generic pcall
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_x86_pcall_target(void) {
+  asm volatile(
+    "movq %0, %%rbx\n"
+    "leaq 1f(%%rip), %%r11\n"
+    "movq %1, %%r15\n"
+    POLY_OP_PCALL_SIG_IMM_SLOT3
+    "1:\n"
+    :
+    : "r"(NATIVECHECK_NONCANONICAL_ADDR),
+      "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_aarch64_pcall_x86_target(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xaa0003f0\n" // mov x16,x0: non-canonical x86 target from RAX.
+    ".long 0xd2800011\n" // movz x17,#0: x86 frontend.
+    ".long 0xd2800012\n" // movz x18,#0
+    ".long 0xd5032a7f\n" // aarch64 signature pcall, immediate slot 3
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    :
+    : "a"(NATIVECHECK_NONCANONICAL_ADDR)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_riscv_pcall_x86_target(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00050293\n" // addi t0,a0,0: non-canonical x86 target from RAX.
+    ".long 0x00000313\n" // addi t1,zero,0: x86 frontend.
+    ".long 0x00000393\n" // addi t2,zero,0
+    ".long 0x4600700b\n" // riscv signature pcall, immediate slot 3
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    :
+    : "a"(NATIVECHECK_NONCANONICAL_ADDR)
+    : "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_aarch64_pcall_cross_target_alignment(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800030\n" // movz x16,#1: not RISC-V halfword aligned.
+    ".long 0xd2800051\n" // movz x17,#2: RISC-V frontend.
+    ".long 0xd2800012\n" // movz x18,#0
+    ".long 0xd5032f3f\n" // aarch64 generic pcall
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_riscv_pcall_cross_target_alignment(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00200293\n" // addi t0,zero,2: not AArch64 4-byte aligned.
+    ".long 0x00100313\n" // addi t1,zero,1: AArch64 frontend.
+    ".long 0x00000393\n" // addi t2,zero,0
+    ".long 0x1200700b\n" // riscv generic pcall
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
 }
 
@@ -5553,6 +5624,21 @@ static int run_poly_invalid_pcall_no_mutation_probe(void) {
     return 1;
   if (run_poly_invalid_pcall_no_mutation_case("riscv-aarch64-bad-return-align",
         nativecheck_invalid_riscv_pcall_cross_return_alignment) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("x86-aarch64-bad-target",
+        nativecheck_invalid_x86_pcall_target) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("aarch64-x86-bad-target",
+        nativecheck_invalid_aarch64_pcall_x86_target) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("riscv-x86-bad-target",
+        nativecheck_invalid_riscv_pcall_x86_target) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("aarch64-riscv-bad-target-align",
+        nativecheck_invalid_aarch64_pcall_cross_target_alignment) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("riscv-aarch64-bad-target-align",
+        nativecheck_invalid_riscv_pcall_cross_target_alignment) != 0)
     return 1;
   puts("NATIVE_POLY_INVALID_PCALL_NO_MUTATION_OK");
   return 0;
