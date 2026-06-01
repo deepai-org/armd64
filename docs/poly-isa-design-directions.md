@@ -105,6 +105,10 @@ Non-canonical values are rejected by the control instruction or XSAVE import
 before mutating state, so a bad monitor setup cannot fail later during an
 unrelated frontend trap.
 
+Frontend transition targets and `PCALL` return addresses follow the same rule:
+non-canonical control-flow addresses are rejected before changing frontend,
+installing return cookies, or pushing hardware transition-stack state.
+
 ## Priority
 
 1. Keep `PSWITCH` and `PCALL` fixed-latency with no descriptor parsing.

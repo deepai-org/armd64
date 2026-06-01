@@ -1604,6 +1604,22 @@ static void child_expect_invalid_generic_switch_frontend_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_switch_target_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "movq %0, %%rbx\n"
+    "movq %1, %%r15\n"
+    POLY_OP_SWITCH_MODE
+    :
+    : "r"(NATIVECHECK_NONCANONICAL_ADDR),
+      "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_invalid_generic_pcall_frontend_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -1618,6 +1634,43 @@ static void child_expect_invalid_generic_pcall_frontend_signal(void) {
     "2:\n"
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_pcall_target_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "movq %0, %%rbx\n"
+    "leaq 1f(%%rip), %%r11\n"
+    "movq %1, %%r15\n"
+    POLY_OP_PCALL_SIG_IMM_SLOT3
+    "1:\n"
+    :
+    : "r"(NATIVECHECK_NONCANONICAL_ADDR),
+      "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_invalid_generic_pcall_return_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "movq %0, %%r11\n"
+    "movq %1, %%r15\n"
+    POLY_OP_PCALL_SIG_IMM_SLOT3
+    "1:\n"
+    ".long 0xd65f03c0\n" // ret x30; should not execute.
+    :
+    : "r"(NATIVECHECK_NONCANONICAL_ADDR),
+      "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
 }
 
@@ -2930,8 +2983,17 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
   if (expect_child_signal("poly invalid generic switch frontend", SIGILL,
         child_expect_invalid_generic_switch_frontend_signal) != 0)
     return 1;
+  if (expect_child_signal("poly invalid generic switch target", SIGILL,
+        child_expect_invalid_generic_switch_target_signal) != 0)
+    return 1;
   if (expect_child_signal("poly invalid generic pcall frontend", SIGILL,
         child_expect_invalid_generic_pcall_frontend_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly invalid generic pcall target", SIGILL,
+        child_expect_invalid_generic_pcall_target_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly invalid generic pcall return", SIGILL,
+        child_expect_invalid_generic_pcall_return_signal) != 0)
     return 1;
   if (expect_child_signal("poly invalid generic pcall slot", SIGILL,
         child_expect_invalid_generic_pcall_slot_signal) != 0)
