@@ -10865,7 +10865,7 @@ EOF
   local bochs_pid=$!
   local deadline=$((SECONDS + BOOT_TIMEOUT_SECONDS))
   local success=0
-  local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|NATIVE_CHECK_FAIL|POLY[A-Z_]*_FAIL'
+  local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|NATIVE_CHECK_FAIL|POLY[A-Z_]*_FAIL|POLYEXEC_MONITOR_PACKETS: .*illegal=[1-9][0-9]*|POLYEXEC_MONITOR_PACKETS: .*other=[1-9][0-9]*'
   while true; do
     if fatal_logs_present "$fatal_pattern"; then
       success=-1
