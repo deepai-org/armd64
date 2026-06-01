@@ -255,6 +255,7 @@ POLYCALL_HFA3_F32_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_hfa3_f32_
 POLYCALL_HFA4_F32_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_hfa4_f32_real.c"
 POLYCALL_HFA_ARG_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_hfa_arg_real.c"
 POLYCALL_VEC128_AARCH64_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_vec128_aarch64_real.c"
+POLYCALL_AARCH64_SIMD_PERMUTE_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_simd_permute_real.c"
 POLYCALL_HETERO_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_hetero_real.c"
 POLYCALL_HETERO_REV_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_hetero_rev_real.c"
 POLYCALL_HETERO32_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_hetero32_real.c"
@@ -3179,6 +3180,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_VEC128_AARCH64_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-vec128-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_AARCH64_SIMD_PERMUTE_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-simd-permute-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_MIXED_ARGS_REAL_SRC" \
@@ -8344,6 +8349,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fpairarg:/usr/lib/polyapps/aarch64-pcall-fpair-arg-real.so#poly_entry=0x4026800000000000 \
     fpair32arg:/usr/lib/polyapps/aarch64-pcall-fpair32-arg-real.so#poly_entry=0x41340000 \
     vec128u32:/usr/lib/polyapps/aarch64-pcall-vec128-real.so#poly_entry=0x002c00210016000b \
+    /usr/lib/polyapps/aarch64-pcall-simd-permute-real.so#poly_entry=42 \
     mixedargs:/usr/lib/polyapps/aarch64-pcall-mixed-args-real.so#poly_entry=0x40a9320000000000 \
     hetero:/usr/lib/polyapps/aarch64-pcall-hetero-real.so#poly_entry=0x0008401d00000000 \
     heterorev:/usr/lib/polyapps/aarch64-pcall-hetero-rev-real.so#poly_entry=0x0008401d00000000 \
