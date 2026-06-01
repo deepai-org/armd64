@@ -44,6 +44,8 @@ Prefer real boot tests:
 
 - `make boot-poly-apps-arch-traps`: raw frontend apps, syscalls, traps, and
   generated ELF payloads.
+- Make boot targets set `BOOT_DETAIL_ASSERTS=1` by default so detailed
+  serial-log evidence gates success.
 - `make boot-poly-focused-validation`: nativecheck architecture controls,
   arch-trap exec, probe/control-plane, raw app payloads, neutral switching,
   polyexec instruction matrix, process cross-ISA, syscall/import monitor,

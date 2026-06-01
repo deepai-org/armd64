@@ -17,6 +17,8 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
 Use `BOOT_TIMEOUT_SECONDS=900 make <target>` for long gates.
+Make targets enable detailed serial-log assertions by default; use
+`BOOT_DETAIL_ASSERTS=0 make <target>` only for ad-hoc marker smoke runs.
 
 Primary targets:
 
