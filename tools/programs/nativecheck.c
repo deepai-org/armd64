@@ -27,8 +27,6 @@
   ".byte 0x0f,0x3a,0xfc,0x3b\n"
 #define POLY_OP_REMOVED_PCALL_SIG_IMM_TRAILER \
   ".byte 0x0f,0x3a,0xfc,0x2e,0x00\n"
-#define POLY_OP_PCALL_FP64_STACK_AARCH64 ".byte 0x0f,0x3a,0xfc,0x1e\n"
-#define POLY_OP_PCALL_FP64_STACK_RISCV ".byte 0x0f,0x3a,0xfc,0x1f\n"
 #define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
 #define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
@@ -1643,37 +1641,71 @@ static void child_expect_riscv_aarch64_x86_signature_kind_signal(void) {
   _exit(99);
 }
 
-__attribute__((noreturn, noinline))
-static void child_expect_removed_aarch64_fp64_stack_pcall_signal(void) {
-  poly_trap_vector_set_value(0);
-  poly_trap_vector_mode_set_value(POLY_MODE_X86);
-  asm volatile(
-    "leaq 1f(%%rip), %%r10\n"
-    "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_FP64_STACK_AARCH64
-    "1:\n"
-    "retq\n"
-    "2:\n"
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
-  _exit(99);
-}
+#define DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(name, opcode) \
+  __attribute__((noreturn, noinline)) \
+  static void name(void) { \
+    poly_trap_vector_set_value(0); \
+    poly_trap_vector_mode_set_value(POLY_MODE_X86); \
+    asm volatile( \
+      "leaq 1f(%%rip), %%r10\n" \
+      "leaq 2f(%%rip), %%r11\n" \
+      ".byte 0x0f,0x3a,0xfc," #opcode "\n" \
+      "1:\n" \
+      "retq\n" \
+      "2:\n" \
+      ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", \
+          "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory"); \
+    _exit(99); \
+  }
 
-__attribute__((noreturn, noinline))
-static void child_expect_removed_riscv_fp64_stack_pcall_signal(void) {
-  poly_trap_vector_set_value(0);
-  poly_trap_vector_mode_set_value(POLY_MODE_X86);
-  asm volatile(
-    "leaq 1f(%%rip), %%r10\n"
-    "leaq 2f(%%rip), %%r11\n"
-    POLY_OP_PCALL_FP64_STACK_RISCV
-    "1:\n"
-    "retq\n"
-    "2:\n"
-    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
-        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
-  _exit(99);
-}
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x12_signal, 0x12)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x13_signal, 0x13)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x14_signal, 0x14)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x15_signal, 0x15)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x16_signal, 0x16)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x17_signal, 0x17)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x18_signal, 0x18)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x19_signal, 0x19)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x1a_signal, 0x1a)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x1b_signal, 0x1b)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x1c_signal, 0x1c)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x1d_signal, 0x1d)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x1e_signal, 0x1e)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x1f_signal, 0x1f)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x21_signal, 0x21)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x22_signal, 0x22)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x23_signal, 0x23)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x24_signal, 0x24)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x25_signal, 0x25)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x26_signal, 0x26)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x27_signal, 0x27)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x28_signal, 0x28)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x29_signal, 0x29)
+DEFINE_CHILD_EXPECT_REMOVED_X86_PCALL_OPCODE(
+  child_expect_removed_x86_pcall_opcode_0x2a_signal, 0x2a)
 
 __attribute__((noreturn, noinline))
 static void child_expect_landing_policy_missing_pcall_signal(void) {
@@ -2606,6 +2638,70 @@ static int expect_child_exit(const char *name, int expected_status,
   return 0;
 }
 
+struct nativecheck_child_signal_case {
+  const char *name;
+  void (*child_func)(void);
+};
+
+static int expect_removed_x86_shape_pcall_opcode_signals(void) {
+  static const struct nativecheck_child_signal_case cases[] = {
+    { "poly removed x86 sret pcall opcode 0x12",
+      child_expect_removed_x86_pcall_opcode_0x12_signal },
+    { "poly removed x86 sret pcall opcode 0x13",
+      child_expect_removed_x86_pcall_opcode_0x13_signal },
+    { "poly removed x86 shape pcall opcode 0x14",
+      child_expect_removed_x86_pcall_opcode_0x14_signal },
+    { "poly removed x86 shape pcall opcode 0x15",
+      child_expect_removed_x86_pcall_opcode_0x15_signal },
+    { "poly removed x86 shape pcall opcode 0x16",
+      child_expect_removed_x86_pcall_opcode_0x16_signal },
+    { "poly removed x86 shape pcall opcode 0x17",
+      child_expect_removed_x86_pcall_opcode_0x17_signal },
+    { "poly removed x86 shape pcall opcode 0x18",
+      child_expect_removed_x86_pcall_opcode_0x18_signal },
+    { "poly removed x86 shape pcall opcode 0x19",
+      child_expect_removed_x86_pcall_opcode_0x19_signal },
+    { "poly removed x86 shape pcall opcode 0x1a",
+      child_expect_removed_x86_pcall_opcode_0x1a_signal },
+    { "poly removed x86 shape pcall opcode 0x1b",
+      child_expect_removed_x86_pcall_opcode_0x1b_signal },
+    { "poly removed x86 shape pcall opcode 0x1c",
+      child_expect_removed_x86_pcall_opcode_0x1c_signal },
+    { "poly removed x86 shape pcall opcode 0x1d",
+      child_expect_removed_x86_pcall_opcode_0x1d_signal },
+    { "poly removed x86 fp64-stack pcall opcode 0x1e",
+      child_expect_removed_x86_pcall_opcode_0x1e_signal },
+    { "poly removed x86 fp64-stack pcall opcode 0x1f",
+      child_expect_removed_x86_pcall_opcode_0x1f_signal },
+    { "poly removed x86 vec128 pcall opcode 0x21",
+      child_expect_removed_x86_pcall_opcode_0x21_signal },
+    { "poly removed x86 vec128 pcall opcode 0x22",
+      child_expect_removed_x86_pcall_opcode_0x22_signal },
+    { "poly removed x86 hfa pcall opcode 0x23",
+      child_expect_removed_x86_pcall_opcode_0x23_signal },
+    { "poly removed x86 hfa pcall opcode 0x24",
+      child_expect_removed_x86_pcall_opcode_0x24_signal },
+    { "poly removed x86 hfa pcall opcode 0x25",
+      child_expect_removed_x86_pcall_opcode_0x25_signal },
+    { "poly removed x86 hfa pcall opcode 0x26",
+      child_expect_removed_x86_pcall_opcode_0x26_signal },
+    { "poly removed x86 hfa pcall opcode 0x27",
+      child_expect_removed_x86_pcall_opcode_0x27_signal },
+    { "poly removed x86 hfa pcall opcode 0x28",
+      child_expect_removed_x86_pcall_opcode_0x28_signal },
+    { "poly removed x86 hfa pcall opcode 0x29",
+      child_expect_removed_x86_pcall_opcode_0x29_signal },
+    { "poly removed x86 hfa pcall opcode 0x2a",
+      child_expect_removed_x86_pcall_opcode_0x2a_signal },
+  };
+
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    if (expect_child_signal(cases[i].name, SIGILL, cases[i].child_func) != 0)
+      return 1;
+  }
+  return 0;
+}
+
 __attribute__((noinline, noipa))
 static uint64_t nativecheck_landing_policy_pcall_aarch64(void) {
   uint64_t result;
@@ -2758,11 +2854,7 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
   if (expect_child_signal("poly riscv-aarch64 x86 signature kind", SIGILL,
         child_expect_riscv_aarch64_x86_signature_kind_signal) != 0)
     return 1;
-  if (expect_child_signal("poly removed aarch64 fp64-stack pcall", SIGILL,
-        child_expect_removed_aarch64_fp64_stack_pcall_signal) != 0)
-    return 1;
-  if (expect_child_signal("poly removed riscv fp64-stack pcall", SIGILL,
-        child_expect_removed_riscv_fp64_stack_pcall_signal) != 0)
+  if (expect_removed_x86_shape_pcall_opcode_signals() != 0)
     return 1;
   if (expect_child_signal("poly aarch64 invalid generic switch", SIGILL,
         child_expect_aarch64_invalid_generic_switch_signal) != 0)
