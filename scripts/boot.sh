@@ -12910,6 +12910,16 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=aarch64 .*a64_to_rv_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*aarch64-pcall-cross-fp64-real\\.so" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT: arch=aarch64 value=4622522805030748160 path=.*aarch64-pcall-cross-fp64-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=riscv .*rv_to_a64_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*riscv-pcall-cross-fp64-real\\.so" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT: arch=riscv value=4622522805030748160 path=.*riscv-pcall-cross-fp64-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=aarch64 .*a64_to_rv_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*aarch64-pcall-cross-fp32-real\\.so" "$SERIAL_LOG" ||
             ! grep -Eq "POLYCALL_RESULT: arch=aarch64 value=1093926912 path=.*aarch64-pcall-cross-fp32-real\\.so" "$SERIAL_LOG"; then
           sleep 1
@@ -12917,6 +12927,16 @@ EOF
         fi
         if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=riscv .*rv_to_a64_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*riscv-pcall-cross-fp32-real\\.so" "$SERIAL_LOG" ||
             ! grep -Eq "POLYCALL_RESULT: arch=riscv value=1093926912 path=.*riscv-pcall-cross-fp32-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=aarch64 .*a64_to_rv_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*aarch64-pcall-cross-vec128-real\\.so" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT: arch=aarch64 value=124976319898189935 path=.*aarch64-pcall-cross-vec128-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_CROSS_STUBS: arch=riscv .*rv_to_a64_sigregs=[1-9].*a64_to_rv_bridges=0.*rv_to_a64_bridges=0.*riscv-pcall-cross-vec128-real\\.so" "$SERIAL_LOG" ||
+            ! grep -Eq "POLYCALL_RESULT: arch=riscv value=124976319898189935 path=.*riscv-pcall-cross-vec128-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
