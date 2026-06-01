@@ -3556,6 +3556,90 @@ static int run_direct_x86_vec128_riscv(uint64_t *result,
   return 0;
 }
 
+static int run_direct_x86_vec128_compressed_riscv(uint64_t *result,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: compressed riscv direct x86 vec128 mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u16(code, &offset, 0x0001U); // c.nop; following vector PCALL path is halfword-aligned
+  const size_t auipc_data_pc = offset;
+  emit_u32(code, &offset, 0x00000e17U); // auipc x28,0
+  const size_t ld_arg0_lo_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t ld_arg0_hi_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t ld_arg1_lo_offset = offset;
+  emit_u32(code, &offset, 0);
+  const size_t ld_arg1_hi_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_vec128_u32_pair_add(code, &offset, 10, 11, 10, 11, 12, 13);
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_direct_x86_pcall_sig(code, &offset,
+    POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_VEC128_U32);
+  emit_riscv_vec128_u32_pair_add(code, &offset, 10, 11, 10, 11, 12, 13);
+  emit_u32(code, &offset, riscv_addi(14, 10, 0)); // keep lane0/lane1 pair
+  emit_u32(code, &offset, riscv_slli(10, 10, 48));
+  emit_u32(code, &offset, riscv_srli(10, 10, 48));
+  emit_u32(code, &offset, riscv_srli(5, 14, 32));
+  emit_u32(code, &offset, riscv_slli(5, 5, 16));
+  emit_u32(code, &offset, riscv_or(10, 10, 5));
+  emit_u32(code, &offset, riscv_slli(6, 11, 32));
+  emit_u32(code, &offset, riscv_or(10, 10, 6));
+  emit_u32(code, &offset, riscv_srli(7, 11, 32));
+  emit_u32(code, &offset, riscv_slli(7, 7, 48));
+  emit_u32(code, &offset, riscv_or(10, 10, 7));
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t arg0_lo_data_offset = offset;
+  emit_u64(code, &offset, UINT64_C(0x0000000200000001));
+  const size_t arg0_hi_data_offset = offset;
+  emit_u64(code, &offset, UINT64_C(0x0000000400000003));
+  const size_t arg1_lo_data_offset = offset;
+  emit_u64(code, &offset, UINT64_C(0x000000140000000a));
+  const size_t arg1_hi_data_offset = offset;
+  emit_u64(code, &offset, UINT64_C(0x000000280000001e));
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_vec128_u32_direct);
+  store_u32(code, ld_arg0_lo_offset, riscv_ld(10, 28,
+    (int32_t) arg0_lo_data_offset - (int32_t) auipc_data_pc));
+  store_u32(code, ld_arg0_hi_offset, riscv_ld(11, 28,
+    (int32_t) arg0_hi_data_offset - (int32_t) auipc_data_pc));
+  store_u32(code, ld_arg1_lo_offset, riscv_ld(12, 28,
+    (int32_t) arg1_lo_data_offset - (int32_t) auipc_data_pc));
+  store_u32(code, ld_arg1_hi_offset, riscv_ld(13, 28,
+    (int32_t) arg1_hi_data_offset - (int32_t) auipc_data_pc));
+  store_u32(code, ld_target_offset, riscv_ld(5, 28,
+    (int32_t) target_data_offset - (int32_t) auipc_data_pc));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  *result = call_code_no_args(code);
+  poly_mode_x86();
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_x86_pcall_vec128_signature_aarch64(uint64_t *result,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 128;
@@ -6935,6 +7019,10 @@ static int check_cross_calls(void) {
     return -1;
   if (check_direct_x86_vec128_direction("riscv-calls-x86-direct-vec128",
         run_direct_x86_vec128_riscv) < 0)
+    return -1;
+  if (check_direct_x86_vec128_direction(
+        "compressed-riscv-calls-x86-direct-vec128",
+        run_direct_x86_vec128_compressed_riscv) < 0)
     return -1;
   if (check_x86_pcall_signature_direction("x86-calls-aarch64-signature",
         run_x86_pcall_signature_aarch64) < 0)
