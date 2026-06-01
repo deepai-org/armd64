@@ -136,8 +136,6 @@ enum {
   POLY_X86_PCALL_SRET_RISCV_SEQUENCE_SIZE = 43,
   POLY_X86_HFA3_F64_ARG_LOAD_SEQUENCE_SIZE = 18,
   POLY_X86_HFA4_F64_ARG_LOAD_SEQUENCE_SIZE = 24,
-  POLY_X86_HFA3_F32_ARG_SHUFFLE_SEQUENCE_SIZE = 10,
-  POLY_X86_HFA4_F32_ARG_SHUFFLE_SEQUENCE_SIZE = 17,
   POLY_CALL_U64 = 0,
   POLY_CALL_FP64 = 1,
   POLY_CALL_FP32 = 2,
@@ -400,6 +398,8 @@ enum {
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_MIXED_U64_FP64 = 21,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_RET = 22,
   POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_RET = 23,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_ARG = 24,
+  POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_ARG = 25,
   POLY_ABI_REGISTER_MAP_EXCHANGE = 0,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE = 1,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_I128 = 2,
@@ -423,6 +423,8 @@ enum {
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_MIXED_U64_FP64 = 20,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F32_RET = 21,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_RET = 22,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F32_ARG = 23,
+  POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_ARG = 24,
   POLY_ABI_SIGNATURE_SLOT_EXCHANGE_DEFAULT = 0,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_DEFAULT = 1,
   POLY_ABI_SIGNATURE_SLOT_X86_SYSV_REGS_I128_DEFAULT = 2,
@@ -720,6 +722,10 @@ static uint32_t poly_abi_signature_register_map(uint32_t kind) {
     return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F32_RET;
   case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_RET:
     return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_RET;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_ARG:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F32_ARG;
+  case POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_ARG:
+    return POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F32_ARG;
   default:
     return UINT32_MAX;
   }
@@ -4215,6 +4221,12 @@ static uint32_t x86_signature_kind_for_special_call_kind(int arch,
   if (arch == POLY_ARCH_AARCH64 &&
       call_kind == POLY_CALL_AARCH64_HFA4_F32)
     return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_RET;
+  if (arch == POLY_ARCH_AARCH64 &&
+      call_kind == POLY_CALL_AARCH64_HFA3_F32_ARG)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA3_F32_ARG;
+  if (arch == POLY_ARCH_AARCH64 &&
+      call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG)
+    return POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F32_ARG;
   if (arch != POLY_ARCH_AARCH64 && arch != POLY_ARCH_RISCV)
     return UINT32_MAX;
   if (call_kind == POLY_CALL_HETERO_U64_F64 ||
@@ -4411,34 +4423,6 @@ static void emit_x86_pack_hfa_f32_return(uint8_t *code, size_t *offset) {
   code[(*offset)++] = 0x0f; // movaps xmm1,xmm2.
   code[(*offset)++] = 0x28;
   code[(*offset)++] = 0xca;
-}
-
-static void emit_x86_shuffle_hfa_f32_arg_regs(uint8_t *code, size_t *offset,
-    uint32_t count) {
-  if (count == 4) {
-    code[(*offset)++] = 0x0f; // movaps xmm2,xmm1.
-    code[(*offset)++] = 0x28;
-    code[(*offset)++] = 0xd1;
-    code[(*offset)++] = 0x0f; // movaps xmm3,xmm1.
-    code[(*offset)++] = 0x28;
-    code[(*offset)++] = 0xd9;
-    code[(*offset)++] = 0x0f; // shufps xmm3,xmm3,0x55.
-    code[(*offset)++] = 0xc6;
-    code[(*offset)++] = 0xdb;
-    code[(*offset)++] = 0x55;
-  }
-  else {
-    code[(*offset)++] = 0x0f; // movaps xmm2,xmm1.
-    code[(*offset)++] = 0x28;
-    code[(*offset)++] = 0xd1;
-  }
-  code[(*offset)++] = 0x0f; // movaps xmm1,xmm0.
-  code[(*offset)++] = 0x28;
-  code[(*offset)++] = 0xc8;
-  code[(*offset)++] = 0x0f; // shufps xmm1,xmm1,0x55.
-  code[(*offset)++] = 0xc6;
-  code[(*offset)++] = 0xc9;
-  code[(*offset)++] = 0x55;
 }
 
 static uint32_t x86_direct_signature_slot_for_call_kind(int call_kind,
@@ -9838,9 +9822,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const int use_hfa_f64_arg_sig_pcall = program->arch == POLY_ARCH_AARCH64 &&
     (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG ||
      call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG);
-  const int use_hfa_f32_arg_sig_pcall = program->arch == POLY_ARCH_AARCH64 &&
-    (call_kind == POLY_CALL_AARCH64_HFA3_F32_ARG ||
-     call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG);
   const int use_hfa_f64_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
     call_kind_is_aarch64_hfa_f64_return(call_kind);
   const int use_hfa_f32_return_thunk = program->arch == POLY_ARCH_AARCH64 &&
@@ -9858,11 +9839,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     (call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG ?
       POLY_X86_HFA4_F64_ARG_LOAD_SEQUENCE_SIZE :
       POLY_X86_HFA3_F64_ARG_LOAD_SEQUENCE_SIZE) +
-    POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
-  const size_t hfa_f32_arg_pcall_sequence_size =
-    (call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG ?
-      POLY_X86_HFA4_F32_ARG_SHUFFLE_SEQUENCE_SIZE :
-      POLY_X86_HFA3_F32_ARG_SHUFFLE_SEQUENCE_SIZE) +
     POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
   const size_t hfa_f64_return_pcall_sequence_size =
     3U + POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
@@ -9882,10 +9858,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         (use_sret_pcall ? sret_pcall_sequence_size :
           (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
             (use_hfa_f64_arg_sig_pcall ? hfa_f64_arg_pcall_sequence_size :
-              (use_hfa_f32_arg_sig_pcall ? hfa_f32_arg_pcall_sequence_size :
-                (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
-                  (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
-                    POLY_X86_CONTROL_OPCODE_SIZE))))))));
+              (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
+                (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
+                  POLY_X86_CONTROL_OPCODE_SIZE)))))));
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
     state_key_setup_size + pcall_sequence_size;
@@ -10094,12 +10069,6 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       call_kind == POLY_CALL_AARCH64_HFA4_F64_ARG ? 4U : 3U);
     emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
       import_contract.signature_slot_native_regs_fp64);
-  }
-  else if (use_hfa_f32_arg_sig_pcall) {
-    emit_x86_shuffle_hfa_f32_arg_regs(code, &offset,
-      call_kind == POLY_CALL_AARCH64_HFA4_F32_ARG ? 4U : 3U);
-    emit_x86_pcall_sig_imm(code, &offset, POLY_ARCH_AARCH64,
-      import_contract.signature_slot_native_regs_fp32);
   }
   else if (use_hfa_f64_return_thunk) {
     emit_x86_preserve_sret_ptr(code, &offset);
