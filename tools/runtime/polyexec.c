@@ -4470,6 +4470,16 @@ static int process_bridge_is_fpair(int bridge_kind) {
     bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET;
 }
 
+static int process_bridge_is_fpair32(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_ARG ||
+    bridge_kind == POLY_PROCESS_BRIDGE_FPAIR32_RET;
+}
+
+static int process_bridge_is_fpair64(int bridge_kind) {
+  return bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_ARG ||
+    bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET;
+}
+
 static int process_bridge_is_sret(int bridge_kind) {
   return bridge_kind == POLY_PROCESS_BRIDGE_SRET_X86_SYSV;
 }
@@ -4495,6 +4505,14 @@ static int process_bridge_needs_foreign_signature_set(int caller_arch,
     int callee_arch, int bridge_kind) {
   return caller_arch != POLY_ARCH_X86 &&
     callee_arch == POLY_ARCH_X86 &&
+    process_bridge_is_fpair(bridge_kind);
+}
+
+static int process_bridge_is_direct_foreign_fpair(int caller_arch,
+    int callee_arch, int bridge_kind) {
+  return caller_arch != POLY_ARCH_X86 &&
+    callee_arch != POLY_ARCH_X86 &&
+    caller_arch != callee_arch &&
     process_bridge_is_fpair(bridge_kind);
 }
 
@@ -4770,7 +4788,11 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       !((caller_arch == POLY_ARCH_X86 &&
           (callee_arch == POLY_ARCH_AARCH64 ||
            callee_arch == POLY_ARCH_RISCV)) ||
-        (caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86)))
+        (caller_arch != POLY_ARCH_X86 && callee_arch == POLY_ARCH_X86) ||
+        (caller_arch == POLY_ARCH_AARCH64 &&
+          callee_arch == POLY_ARCH_RISCV) ||
+        (caller_arch == POLY_ARCH_RISCV &&
+          callee_arch == POLY_ARCH_AARCH64)))
     return -1;
   if (process_bridge_is_sret(bridge_kind) &&
       !((caller_arch == POLY_ARCH_X86 &&
@@ -4868,6 +4890,15 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     callee_arch == POLY_ARCH_X86;
   if (is_stack9_x86_callee)
     signature_slot = process_native_signature_slot;
+  if (process_bridge_is_direct_foreign_fpair(caller_arch, callee_arch,
+        bridge_kind)) {
+    if (process_bridge_is_fpair32(bridge_kind))
+      signature_slot = process_fp32_signature_slot;
+    else if (process_bridge_is_fpair64(bridge_kind))
+      signature_slot = process_fp64_signature_slot;
+    else
+      return -1;
+  }
   if (signature_slot >= POLY_ABI_SIGNATURE_SLOT_COUNT)
     return -1;
   const uint32_t callee_frontend = callee_arch == POLY_ARCH_AARCH64 ?
