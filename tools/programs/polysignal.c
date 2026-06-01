@@ -62,6 +62,7 @@ static volatile sig_atomic_t signal_altstack_bad;
 static volatile sig_atomic_t signal_expected_snapshot;
 static volatile sig_atomic_t signal_expected_mode;
 static volatile uint64_t signal_expected_snapshot_value;
+static volatile uint64_t signal_expected_state_key_flags;
 static volatile uint64_t signal_expected_state_key;
 static uintptr_t signal_altstack_base;
 static uintptr_t signal_altstack_end;
@@ -224,7 +225,20 @@ static int install_polysignal_state_key(void) {
       (unsigned long long) key, (unsigned long long) poly_state_key_get());
     return -1;
   }
+  signal_expected_state_key_flags = POLY_STATE_KEY_FLAG_EXPLICIT;
   signal_expected_state_key = key;
+  return 0;
+}
+
+static int clear_polysignal_state_key(void) {
+  if (poly_state_key_set(0) != 0 || poly_state_key_get() != 0) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: explicit Poly state-key clear failed got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return -1;
+  }
+  signal_expected_state_key_flags = 0;
+  signal_expected_state_key = 0;
   return 0;
 }
 
@@ -375,7 +389,7 @@ static void handle_alarm(int signo) {
 
   signal_count++;
   poly_state_export(&signal_snapshot);
-  if (signal_snapshot.state_key.flags != POLY_STATE_KEY_FLAG_EXPLICIT ||
+  if (signal_snapshot.state_key.flags != signal_expected_state_key_flags ||
       signal_snapshot.state_key.explicit_key != signal_expected_state_key ||
       signal_snapshot.state_key.supported_flags !=
         POLY_STATE_KEY_FLAG_EXPLICIT)
@@ -826,6 +840,45 @@ static int check_arch_fp(const char *name, uint64_t seed,
   return 0;
 }
 
+static int run_real_xsave_no_key_signal_probe(void) {
+  if (!polysignal_poly_xsave_enabled())
+    return 0;
+
+  if (clear_polysignal_state_key() != 0)
+    return -1;
+
+  signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_AARCH64_X20;
+  signal_expected_snapshot_value = 0x61000000ULL;
+  if (check_arch("aarch64-no-key-hidden", 0x61000000ULL, 7,
+      pcall_aarch64_hidden_signal) != 0)
+    return -1;
+
+  signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_RISCV_X20;
+  signal_expected_snapshot_value = 0x62000000ULL;
+  if (check_arch("riscv-no-key-hidden", 0x62000000ULL, 7,
+      pcall_riscv_hidden_signal) != 0)
+    return -1;
+
+  signal_expected_mode = POLY_MODE_RAW_AARCH64;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_AARCH64_D20;
+  signal_expected_snapshot_value = double_to_bits((double) 0x63000000ULL);
+  if (check_arch_fp("aarch64-no-key-hidden-fp", 0x63000000ULL,
+      pcall_aarch64_hidden_fp_signal) != 0)
+    return -1;
+
+  signal_expected_mode = POLY_MODE_RAW_RISCV;
+  signal_expected_snapshot = POLYSIGNAL_SNAPSHOT_RISCV_F20;
+  signal_expected_snapshot_value = double_to_bits((double) 0x64000000ULL);
+  if (check_arch_fp("riscv-no-key-hidden-fp", 0x64000000ULL,
+      pcall_riscv_hidden_fp_signal) != 0)
+    return -1;
+
+  puts("POLYSIGNAL_REAL_XSAVE_NO_KEY_OK");
+  return install_polysignal_state_key();
+}
+
 int main(void) {
   struct sigaction sa;
   stack_t altstack;
@@ -930,6 +983,8 @@ int main(void) {
   signal_expected_snapshot_value = 0x58000000ULL;
   if (check_arch("riscv-to-aarch64-hidden", 0x58000000ULL, 9,
       pcall_riscv_to_aarch64_hidden_signal) != 0)
+    return 1;
+  if (run_real_xsave_no_key_signal_probe() != 0)
     return 1;
 
   if (signal_altstack_bad != 0) {

@@ -12270,6 +12270,10 @@ EOF
             sleep 1
             continue
           fi
+          if ! grep -q "POLYSIGNAL_REAL_XSAVE_NO_KEY_OK" "$SERIAL_LOG"; then
+            sleep 1
+            continue
+          fi
         fi
         if ! grep -q "POLYSIGNAL_STATE_KEY_OK" "$SERIAL_LOG"; then
           sleep 1
