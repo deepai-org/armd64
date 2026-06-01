@@ -1,37 +1,28 @@
 # Poly ISA Reference
 
-Poly is a prototype CPU extension for running existing x86_64, AArch64, and
-RISC-V64 user-mode code in one virtual address space. Rationale and open design
-notes live in `docs/poly-isa-design-directions.md`.
+Poly lets existing x86_64, AArch64, and RISC-V64 user-mode code run in one
+x86-owned virtual address space. This file is the short ISA contract; design
+rationale lives in `docs/poly-isa-design-directions.md`.
 
-## Contract
+## Architectural Model
 
-- x86_64 remains the system ISA: boot, privilege, paging, interrupts, atomics,
-  syscalls, and global TSO memory ordering are x86-owned.
-- AArch64 and RISC-V64 are ring-3 decode frontends over the same x86_64 virtual
-  address space.
-- Foreign code is fetched directly: AArch64 as fixed 32-bit instructions;
-  RISC-V64 as 16/32-bit instructions with RVC.
-- Mode changes use decoded control instructions, not one `#UD` envelope per
-  foreign instruction.
-- Foreign register state is explicit per-thread XSAVE-style architectural
-  state, not hidden CR3-scoped emulator state.
-- Compatibility targets real native ABIs: x86_64 SysV, AAPCS64, and RISC-V
-  psABI.
-
-## Controls
+- x86_64 owns boot, privilege, paging, interrupts, atomics, syscalls, and TSO.
+- AArch64 and RISC-V64 are ring-3 decode frontends over x86_64 memory.
+- Foreign code is fetched directly, not wrapped per instruction in `#UD`.
+- Foreign register state is per-thread XSAVE-style architectural state.
+- Compatibility targets native ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
 
 Frontend IDs: `0=x86_64`, `1=AArch64`, `2=RISC-V64`.
 
-Temporary prototype encodings:
+## Prototype Encodings
 
 ```text
 x86_64:   0f 3a fc <subop>
 AArch64:  0xd503201f | ((subop & 0x7f) << 5)   // reserved HINT
-RISC-V64: 0x0000700b | ((subop & 0x7f) << 25)   // custom-0
+RISC-V64: 0x0000700b | ((subop & 0x7f) << 25)  // custom-0
 ```
 
-Implemented x86_64 subops:
+Core subops:
 
 | Subop | Operation |
 | --- | --- |
@@ -43,31 +34,22 @@ Implemented x86_64 subops:
 | `0x62` | `PTRAPRET` |
 | `0x65..0x6e` | state key, ABI signature, monitor packet, landing policy |
 
-Foreign frontend subops mirror the same control surface: escape, switch/call,
-signature-slot call, landing validation, state key, trap vector, monitor packet,
-landing policy, and trap return.
+Foreign frontends expose the same control surface.
 
-## ABI Boundary
+## Calls, Returns, And Traps
 
-The fast hardware boundary is register-only. ABI signature slots remap integer,
-FP, and fixed 128-bit vector registers when the native ABI already carries the
-value in registers. Stack arguments, variadics, by-value aggregates, lazy
-binding, libc policy, and syscall policy stay in loader/runtime thunks.
+`PCALL` is a hardware mode-switching call. It records caller state in a hardware
+transition stack, installs a reserved return cookie, applies the selected
+register-only ABI signature, and jumps to the target frontend.
 
-Invalid signatures or non-canonical targets trap before frontend, PC, or
-transition-stack state changes.
+Ordinary native returns to the cookie restore the caller frontend and PC:
+x86_64 `ret`, AArch64 `ret x30`, and RISC-V64 `ret` / `jalr x0, ra, 0`.
 
-## Returns And Traps
-
-`PCALL` records caller state in a hardware transition stack and installs a
-reserved return cookie. Ordinary native returns to that cookie restore the caller
-frontend and saved PC:
-
-- x86_64: `ret`
-- AArch64: `ret x30`
-- RISC-V64: `ret` / `jalr x0, ra, 0`
+ABI signatures only remap registers. Stack arguments, variadics, by-value
+aggregates, lazy binding, libc policy, and syscall policy are handled by
+loader/runtime thunks.
 
 Foreign `svc`/`ecall`, breakpoints, illegal instructions, unresolved imports,
 and recoverable exits produce OS-neutral trap packets for a ring-3 Poly monitor.
-The kernel still owns privilege transitions, scheduling, signals, and hard
+The kernel still owns scheduling, privilege transitions, signals, and hard
 faults.
