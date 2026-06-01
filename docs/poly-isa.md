@@ -1,4 +1,4 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
 Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends in the same
 process address space. The goal is compatibility with existing precompiled
@@ -11,23 +11,24 @@ make image
 make boot-poly-full-real-xsave-arch-traps
 ```
 
-Fast loader smoke test:
+Faster loader smoke test:
 
 ```sh
 make boot-poly-exec-cross-arch-traps
 ```
 
-## Contract
+## How It Differs From x86_64
 
-- x86_64 remains the system ISA for boot, kernel entry, paging, interrupts,
-  faults, VM control, atomics, and global TSO ordering.
-- AArch64/RISC-V64 execute as direct native 32-bit fetch/decode frontends, not
-  per-instruction `#UD` envelopes.
-- Cross-ISA calls target real native ABIs. Register-only cases may use hardware
-  ABI signature slots; stack arguments, aggregates, variadics, lazy binding,
-  and helper calls stay in software thunks or the user runtime.
-- Poly architectural state is per-thread XSAVE-style state. It is not hidden
-  emulator state and is not keyed only by CR3.
+- x86_64 is still the system ISA: boot, kernel entry, paging, interrupts,
+  faults, VM control, atomics, and global TSO ordering stay x86-owned.
+- AArch64 and RISC-V64 are user-mode frontend modes. They fetch and decode raw
+  32-bit native instructions directly; there are no per-instruction `#UD`
+  envelopes.
+- Cross-ISA calls target real native ABIs. Hardware can accelerate
+  register-only calls through ABI signature slots; stack arguments, aggregates,
+  variadics, lazy binding, and helper calls remain software/runtime work.
+- Extra foreign architectural state is per-thread XSAVE-style state, not hidden
+  emulator state and not CR3-only process state.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
   precise OS-neutral trap records for runtime or OS policy.
 
@@ -39,6 +40,8 @@ make boot-poly-exec-cross-arch-traps
   `sig`.
 - `PLANDING`: optional indirect target validation.
 - `PTRAPRET`: resume after a precise Poly trap.
+
+## More Detail
 
 Temporary Bochs encodings live in `tools/include/polycpuid.h`. Detailed design
 rationale lives in `docs/poly-isa-design-directions.md`.
