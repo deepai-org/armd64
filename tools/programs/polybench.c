@@ -27,8 +27,8 @@ enum {
   LOOP_ITERS = 200,
   POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA = 3,
   POLYBENCH_LOOP_MAX_RAW_INSNS = 410,
-  POLYBENCH_MIXED_EXPECTED_SWITCH_DELTA = 4,
-  POLYBENCH_MIXED_MAX_SWITCH_DELTA = 4,
+  POLYBENCH_MIXED_EXPECTED_SWITCH_DELTA = 3,
+  POLYBENCH_MIXED_MAX_SWITCH_DELTA = 3,
   POLYBENCH_MIXED_MAX_RAW_INSNS = 8,
   POLYBENCH_CROSS_CALL_EXPECTED_SWITCH_DELTA = 5,
   POLYBENCH_CROSS_CALL_MAX_SWITCH_DELTA = 5,
@@ -1880,7 +1880,6 @@ static int run_mixed_program(uint64_t *result, uint64_t *insn_delta, uint64_t *s
   uint64_t insns_before = poly_foreign_insn_count_status_value();
   uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
-  poly_mode_x86();
   *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
 
@@ -1918,7 +1917,6 @@ static int run_compressed_mixed_program(uint64_t *result,
   uint64_t insns_before = poly_foreign_insn_count_status_value();
   uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
-  poly_mode_x86();
   *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
 
@@ -1960,7 +1958,6 @@ static int run_compressed_reverse_mixed_program(uint64_t *result,
   uint64_t insns_before = poly_foreign_insn_count_status_value();
   uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
-  poly_mode_x86();
   *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
 
@@ -2001,7 +1998,6 @@ static int run_reverse_mixed_program(uint64_t *result, uint64_t *insn_delta, uin
   uint64_t insns_before = poly_foreign_insn_count_status_value();
   uint64_t switches_before = poly_switch_count_status_value();
   *result = call_code_no_args(code);
-  poly_mode_x86();
   *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
 
