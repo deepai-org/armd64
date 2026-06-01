@@ -13020,6 +13020,7 @@ EOF
           "POLYBENCH_MIXED_RESULT: direction=riscv-compressed-to-aarch64 .*switch_delta=4"
           "POLYBENCH_CROSS_CALL_RESULT: direction=aarch64-calls-riscv .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_RESULT: direction=riscv-calls-aarch64 .*switch_delta=5"
+          "POLYBENCH_CROSS_CALL_RESULT: direction=compressed-riscv-calls-aarch64 .*switch_delta=5"
           "POLYBENCH_NEUTRAL_PCALL_RESULT: direction=x86-wrapped-aarch64-calls-riscv .*switch_delta=3.*inner_switch_delta=2"
           "POLYBENCH_NEUTRAL_PCALL_RESULT: direction=x86-wrapped-riscv-calls-aarch64 .*switch_delta=3.*inner_switch_delta=2"
           "POLYBENCH_NEUTRAL_PCALL_RESULT: direction=x86-wrapped-compressed-riscv-calls-aarch64 .*switch_delta=3.*inner_switch_delta=2"
