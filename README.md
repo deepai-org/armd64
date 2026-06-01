@@ -49,6 +49,10 @@ specific subsystem.
   architectural trap records.
 - Bochs is a functional ISA prototype. Few-cycle frontend switching is the
   hardware target, not something Bochs can prove cycle-accurately.
+- The hardware contract is the real XSAVE path. Bochs still keeps prototype
+  internal save banks for fallback/debug runs when the guest has not enabled
+  the Poly XCR0 component; use `boot-poly-full-real-xsave-arch-traps` for the
+  silicon-facing state path.
 
 ## ISA Differences From x86_64
 
@@ -67,7 +71,8 @@ specific subsystem.
   memory-shaped aggregates, variadics, lazy binding, libc policy, and syscall
   policy stay in software.
 - Foreign register state is explicit per-thread XSAVE-style architectural
-  state. Hidden CR3-scoped emulator state is not the hardware contract.
+  state. Bochs fallback banks are prototype machinery, not the architectural
+  context-switch contract.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
   OS-neutral trap records for a runtime or OS handler.
 - AArch64 and RISC-V64 can switch or call each other directly without bouncing
