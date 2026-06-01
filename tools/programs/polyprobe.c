@@ -79,6 +79,8 @@ struct polyprobe_monitor_packet {
 static const struct polyprobe_monitor_packet *polyprobe_current_monitor_packet;
 static const uint64_t polyprobe_aarch64_trap_args[POLY_TRAP_PACKET_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 99};
+static const uint64_t polyprobe_riscv_import_trap_args[POLY_TRAP_PACKET_ARG_COUNT] =
+  {177, 178, 179, 180, 181, 182, 183, 184};
 static const uint64_t polyprobe_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 172};
 
@@ -460,8 +462,14 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
   if (reason == POLY_TRAP_IMPORT && number == 8 &&
+      mode == POLY_MODE_RAW_AARCH64 &&
       polyprobe_trap_args_equal(monitor_packet->args,
         polyprobe_aarch64_trap_args))
+    return 5555;
+  if (reason == POLY_TRAP_IMPORT && number == 8 &&
+      mode == POLY_MODE_RAW_RISCV &&
+      polyprobe_trap_args_equal(monitor_packet->args,
+        polyprobe_riscv_import_trap_args))
     return 5555;
   if (reason == POLY_TRAP_ILLEGAL && number == 0xffffffffULL &&
       selector == 4)
@@ -2253,14 +2261,14 @@ static inline void raw_riscv_import_probe(void) {
     POLY_OP_ENTER_RV64
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
     ".long 0x08028293\n" // addi t0,t0,0x80 -> import id 8
-    ".long 0x04d00513\n" // addi a0,zero,77
-    ".long 0x04e00593\n" // addi a1,zero,78
-    ".long 0x04f00613\n" // addi a2,zero,79
-    ".long 0x05000693\n" // addi a3,zero,80
-    ".long 0x05100713\n" // addi a4,zero,81
-    ".long 0x05200793\n" // addi a5,zero,82
-    ".long 0x05800813\n" // addi a6,zero,88
-    ".long 0x06300893\n" // addi a7,zero,99
+    ".long 0x0b100513\n" // addi a0,zero,177
+    ".long 0x0b200593\n" // addi a1,zero,178
+    ".long 0x0b300613\n" // addi a2,zero,179
+    ".long 0x0b400693\n" // addi a3,zero,180
+    ".long 0x0b500713\n" // addi a4,zero,181
+    ".long 0x0b600793\n" // addi a5,zero,182
+    ".long 0x0b700813\n" // addi a6,zero,183
+    ".long 0x0b800893\n" // addi a7,zero,184
     ".long 0x000280e7\n" // jalr ra,0(t0), reserved import must trap
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: POLY_ABI_GPR_CLOBBERS, "r10", "r11", "r12", "r13", "r14",
@@ -3734,7 +3742,7 @@ int main(void) {
         POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 0) != 0)
     return 1;
   if (expect_monitor_packet_args("riscv import", &monitor_packet,
-        polyprobe_aarch64_trap_args) != 0)
+        polyprobe_riscv_import_trap_args) != 0)
     return 1;
 
   stage("POLY_STAGE: raw-illegal");
