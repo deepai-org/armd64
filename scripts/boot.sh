@@ -233,6 +233,7 @@ POLYCALL_INT_LOGIC_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_logi
 POLYCALL_INT_BITOPS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_bitops_real.c"
 POLYCALL_AARCH64_CRC_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_crc_real.c"
 POLYCALL_AARCH64_AES_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_aes_real.c"
+POLYCALL_AARCH64_PMULL_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_aarch64_pmull_real.c"
 POLYCALL_RISCV_ZBS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_riscv_zbs_real.c"
 POLYCALL_RISCV_ZBA_ZBB_ZICOND_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_riscv_zba_zbb_zicond_real.c"
 POLYCALL_RISCV_ZBA_ZBB_WORD_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_riscv_zba_zbb_word_real.c"
@@ -3106,6 +3107,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_AARCH64_AES_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-aes-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=armv8-a+crypto \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_AARCH64_PMULL_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-pmull-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT_ROTATE_REAL_SRC" \
@@ -8371,6 +8377,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-int-bitops-real.so#poly_entry=0xe5caa38822572301 \
     /usr/lib/polyapps/aarch64-pcall-crc-real.so#poly_entry=42 \
     /usr/lib/polyapps/aarch64-pcall-aes-real.so#poly_entry=42 \
+    /usr/lib/polyapps/aarch64-pcall-pmull-real.so#poly_entry=42 \
     /usr/lib/polyapps/aarch64-pcall-int-rotate-real.so#poly_entry=0xbc1e4a9e37a5682e \
     /usr/lib/polyapps/aarch64-pcall-int-ccmp-real.so#poly_entry=5 \
     /usr/lib/polyapps/aarch64-pcall-postindex-mem.so#poly_entry=68 \
