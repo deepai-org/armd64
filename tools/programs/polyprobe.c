@@ -42,6 +42,8 @@
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_GET POLY_X86_CTRL_TRAP_VECTOR_MODE_GET_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
+#define POLY_OP_STATE_KEY_SET POLY_X86_CTRL_STATE_KEY_SET_ASM
+#define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
@@ -192,6 +194,17 @@ static inline uint64_t poly_monitor_packet_set_status(uint64_t value) {
 static inline uint64_t poly_monitor_packet_get(void) {
   uint64_t value;
   asm volatile(POLY_OP_MONITOR_PACKET_GET : "=a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_state_key_set_status(uint64_t value) {
+  asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  return value;
+}
+
+static inline uint64_t poly_state_key_get(void) {
+  uint64_t value;
+  asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
   return value;
 }
 
@@ -915,6 +928,32 @@ static inline uint64_t riscv_landing_policy_invalid_probe(uint64_t policy) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x3c00700b\n" // riscv landing policy set
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
+}
+
+static inline uint64_t aarch64_state_key_control_probe(uint64_t key) {
+  uint64_t rax = key;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032ddf\n" // aarch64 state key set
+    ".long 0xd5032dff\n" // aarch64 state key get
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    : "+a"(rax)
+    :
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
+  return rax;
+}
+
+static inline uint64_t riscv_state_key_control_probe(uint64_t key) {
+  uint64_t rax = key;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x1c00700b\n" // riscv state key set
+    ".long 0x1e00700b\n" // riscv state key get
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(rax)
     :
@@ -3241,6 +3280,46 @@ int main(void) {
     return 1;
   }
   puts("POLY_PROBE_CROSS_RETURN_XSAVE_OK");
+
+  stage("POLY_STAGE: state-key-controls");
+  if (poly_state_key_set_status(0) != 0 || poly_state_key_get() != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: state key reset mismatch got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return 1;
+  }
+  uint64_t aarch64_state_key = (uint64_t) (uintptr_t) &polyprobe_state;
+  uint64_t riscv_state_key = aarch64_state_key + 0x80;
+  if (aarch64_state_key_control_probe(aarch64_state_key) !=
+        aarch64_state_key ||
+      poly_state_key_get() != aarch64_state_key) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: aarch64 state key control mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) poly_state_key_get(),
+      (unsigned long long) aarch64_state_key);
+    poly_state_key_set_status(0);
+    return 1;
+  }
+  if (poly_state_key_set_status(0) != 0 || poly_state_key_get() != 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: state key reset after aarch64 mismatch got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return 1;
+  }
+  if (riscv_state_key_control_probe(riscv_state_key) != riscv_state_key ||
+      poly_state_key_get() != riscv_state_key) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: riscv state key control mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) poly_state_key_get(),
+      (unsigned long long) riscv_state_key);
+    poly_state_key_set_status(0);
+    return 1;
+  }
+  if (poly_state_key_set_status(0) != 0 || poly_state_key_get() != 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: state key final reset mismatch got=0x%llx\n",
+      (unsigned long long) poly_state_key_get());
+    return 1;
+  }
 
   stage("POLY_STAGE: landing-policy");
   if (poly_landing_policy_set(0) != 0 ||
