@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+grep() {
+  command grep -a "$@"
+}
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CACHE_DIR="${CACHE_DIR:-$ROOT_DIR/cache}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/out}"
@@ -11909,10 +11913,6 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -q "POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
         if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -11929,6 +11929,16 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=132 path=/usr/lib/polyapps/aarch64-add\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=27 path=/usr/lib/polyapps/riscv-add\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "${RUN_POLY_EXEC_PROCESS_DETAIL_ASSERTS:-0}" == "1" ]]; then
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-cross-needed-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue

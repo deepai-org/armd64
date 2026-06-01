@@ -46,8 +46,9 @@ Prefer real boot tests:
   generated ELF payloads.
 - `make boot-poly-focused-validation`: nativecheck architecture controls,
   arch-trap exec, probe/control-plane, raw app payloads, neutral switching,
-  process cross-ISA, syscall/import monitor, real-XSAVE call/thread/signal,
-  binfmt dispatch, and benchmark trap-delta coverage.
+  polyexec instruction matrix, process cross-ISA, syscall/import monitor,
+  real-XSAVE call/thread/signal, binfmt dispatch, and benchmark trap-delta
+  coverage.
 - `make boot-poly-binfmt-arch-traps`: native x86 checks plus binfmt dispatch.
 - `make boot-poly-full-real-xsave-arch-traps`: broad gate with the guest XCR0
   module loaded and real XSAVE/XRSTOR state required.
