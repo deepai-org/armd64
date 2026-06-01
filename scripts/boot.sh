@@ -200,6 +200,7 @@ POLYCALL_COPY_MAIN_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_copy_mai
 POLYCALL_FUNCPTR_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_funcptr_real.c"
 POLYCALL_PAIR_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_pair_real.c"
 POLYCALL_SRET_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_sret_real.c"
+POLYCALL_SRET_REGS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_sret_regs_real.c"
 POLYCALL_CTOR_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_ctor_real.c"
 POLYCALL_FINI_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_fini_real.c"
 POLYCALL_DT_INIT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_dt_init_real.c"
@@ -2964,6 +2965,10 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sret-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_SRET_REGS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sret-regs-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_CTOR_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-ctor-real.so"
   aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -5682,6 +5687,11 @@ build_poly_elf_payloads() {
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_SRET_REGS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-sret-regs-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64g -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_CTOR_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-ctor-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
@@ -8397,6 +8407,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-funcptr-real.so#poly_entry=124 \
     pair:/usr/lib/polyapps/aarch64-pcall-pair-real.so#poly_entry=0x620000002d \
     sret:/usr/lib/polyapps/aarch64-pcall-sret-real.so#poly_entry=0x000a001a005102a6 \
+    sretregs:/usr/lib/polyapps/aarch64-pcall-sret-regs-real.so#poly_entry=0x000b00160021007b \
     /usr/lib/polyapps/aarch64-pcall-ctor-real.so#poly_entry=245 \
     fini:/usr/lib/polyapps/aarch64-pcall-fini-real.so#poly_entry=1145 \
     /usr/lib/polyapps/aarch64-pcall-dt-init-real.so#poly_entry=345 \
@@ -8663,6 +8674,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-funcptr-real.so#poly_entry=124 \
     pair:/usr/lib/polyapps/riscv-pcall-pair-real.so#poly_entry=0x620000002d \
     sret:/usr/lib/polyapps/riscv-pcall-sret-real.so#poly_entry=0x000a001a005102a6 \
+    sretregs:/usr/lib/polyapps/riscv-pcall-sret-regs-real.so#poly_entry=0x000b00160021007b \
     /usr/lib/polyapps/riscv-pcall-ctor-real.so#poly_entry=245 \
     fini:/usr/lib/polyapps/riscv-pcall-fini-real.so#poly_entry=0x4158000000000479 \
     /usr/lib/polyapps/riscv-pcall-dt-init-real.so#poly_entry=345 \
@@ -12245,6 +12257,14 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=riscv exchange_u64=1 .*riscv-pcall-sum9\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=aarch64 exchange_u64=0 call_kind=34 .*sret_sig=1 .*sret_thunk=0 .*aarch64-pcall-sret-regs-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYCALL_ROOT_PCALL: arch=riscv exchange_u64=0 call_kind=34 .*sret_sig=1 .*sret_thunk=0 .*riscv-pcall-sret-regs-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

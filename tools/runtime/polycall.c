@@ -170,6 +170,7 @@ enum {
   POLY_CALL_MIXED_STACK_ARGS = 31,
   POLY_CALL_SIGREGS_U64 = 32,
   POLY_CALL_SIGREGS_FP64 = 33,
+  POLY_CALL_SRET_U64_REGS = 34,
   MAX_PROGRAM_BYTES = 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 4096,
@@ -3098,6 +3099,10 @@ static int parse_request(const char *arg, struct poly_request *request) {
   else if (strncmp(arg, "sret:", 5) == 0) {
     request->call_kind = POLY_CALL_SRET_U64;
     arg += 5;
+  }
+  else if (strncmp(arg, "sretregs:", 9) == 0) {
+    request->call_kind = POLY_CALL_SRET_U64_REGS;
+    arg += 9;
   }
   else if (strncmp(arg, "sret10:", 7) == 0) {
     request->call_kind = POLY_CALL_U64;
@@ -9187,6 +9192,15 @@ static uint64_t call_poly_stub(uint8_t *code, size_t target_imm_offset,
       ((sret_result.c & 0xffffULL) << 16) |
       (sret_result.d & 0xffffULL);
   }
+  if (call_kind == POLY_CALL_SRET_U64_REGS) {
+    struct sret_u64 (*entry)(uint64_t, uint64_t, uint64_t) =
+      (struct sret_u64 (*)(uint64_t, uint64_t, uint64_t)) code;
+    struct sret_u64 sret_result = entry(1, 2, 3);
+    return ((sret_result.a & 0xffffULL) << 48) |
+      ((sret_result.b & 0xffffULL) << 32) |
+      ((sret_result.c & 0xffffULL) << 16) |
+      (sret_result.d & 0xffffULL);
+  }
   if (call_kind == POLY_CALL_FPAIR64) {
     union {
       double d;
@@ -9833,7 +9847,9 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const int use_special_sig_pcall = special_signature_kind != UINT32_MAX;
   const uint32_t special_signature_slot =
     import_contract.signature_slot_x86_sysv_regs_fp128_ret;
-  const int use_sret_pcall = call_kind == POLY_CALL_SRET_U64;
+  const int use_sret_stack_thunk = call_kind == POLY_CALL_SRET_U64;
+  const int use_sret_signature_pcall =
+    call_kind == POLY_CALL_SRET_U64_REGS;
   const int use_fp64_stack_pcall = call_kind == POLY_CALL_FP64_STACK;
   const int use_hfa_f64_arg_stack_thunk = program->arch == POLY_ARCH_AARCH64 &&
     (call_kind == POLY_CALL_AARCH64_HFA3_F64_ARG ||
@@ -9871,12 +9887,13 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE :
     (use_sig_imm_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
       (use_special_sig_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
-        (use_sret_pcall ? sret_pcall_sequence_size :
+        (use_sret_stack_thunk ? sret_pcall_sequence_size :
           (use_fp64_stack_pcall ? fp64_stack_pcall_sequence_size :
-            (use_hfa_f64_arg_stack_thunk ? hfa_f64_arg_stack_thunk_sequence_size :
-              (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
-                (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
-                  POLY_X86_CONTROL_OPCODE_SIZE)))))));
+            (use_sret_signature_pcall ? POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE :
+              (use_hfa_f64_arg_stack_thunk ? hfa_f64_arg_stack_thunk_sequence_size :
+                (use_hfa_f64_return_thunk ? hfa_f64_return_pcall_sequence_size :
+                  (use_hfa_f32_return_thunk ? hfa_f32_return_pcall_sequence_size :
+                    POLY_X86_CONTROL_OPCODE_SIZE))))))));
   const size_t pcall_return_offset = callee_save_size + 10 + 10 +
     tls_setup_size + heap_setup_size + import_setup_size +
     state_key_setup_size + pcall_sequence_size;
@@ -10076,8 +10093,14 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       import_contract.signature_slot_exchange,
       import_contract.signature_slot_native_regs);
   }
-  else if (use_sret_pcall) {
+  else if (use_sret_stack_thunk) {
     emit_x86_pcall_sret_thunk(code, &offset, program->arch,
+      import_contract.signature_slot_sret_x86_sysv_regs);
+  }
+  else if (use_sret_signature_pcall) {
+    const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
+      POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
+    emit_x86_pcall_sig_imm(code, &offset, pcall_frontend,
       import_contract.signature_slot_sret_x86_sysv_regs);
   }
   else if (use_hfa_f64_arg_stack_thunk) {
@@ -11234,10 +11257,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       cross_stub_stats.aarch64_to_riscv_bridge_stubs,
       cross_stub_stats.riscv_to_aarch64_bridge_stubs, program->path);
   }
-  printf("POLYCALL_ROOT_PCALL: arch=%s exchange_u64=%u call_kind=%d sig_imm=%u special_sig=%u sret_thunk=%u fp64_stack_thunk=%u hfa_f64_arg_thunk=%u hfa_f64_ret_thunk=%u hfa_f32_ret_thunk=%u path=%s\n",
+  printf("POLYCALL_ROOT_PCALL: arch=%s exchange_u64=%u call_kind=%d sig_imm=%u special_sig=%u sret_sig=%u sret_thunk=%u fp64_stack_thunk=%u hfa_f64_arg_thunk=%u hfa_f64_ret_thunk=%u hfa_f32_ret_thunk=%u path=%s\n",
     program->arch_name, use_exchange_u64_pcall ? 1U : 0U, call_kind,
     use_sig_imm_pcall ? 1U : 0U, use_special_sig_pcall ? 1U : 0U,
-    use_sret_pcall ? 1U : 0U, use_fp64_stack_pcall ? 1U : 0U,
+    use_sret_signature_pcall ? 1U : 0U,
+    use_sret_stack_thunk ? 1U : 0U, use_fp64_stack_pcall ? 1U : 0U,
     use_hfa_f64_arg_stack_thunk ? 1U : 0U,
     use_hfa_f64_return_thunk ? 1U : 0U,
     use_hfa_f32_return_thunk ? 1U : 0U, program->path);
