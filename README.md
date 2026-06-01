@@ -93,7 +93,10 @@ Other useful targets:
   the source ABI still use thunks because they require memory-shaped ABI work.
 - Direct x86 calls expose the source frontend stack pointer in volatile `R11`
   so user-space thunks can marshal overflow stack arguments without CPU
-  descriptor parsing.
+  descriptor parsing. For foreign-to-x86 TLS, the direct call transition
+  installs the process TLS base as x86 `FSBASE` only for the callee window and
+  restores the caller/runtime `FSBASE` on return, avoiding generated x86 TLS
+  wrappers on register-only calls.
 - The current Bochs runtime keeps direct `PCALL` stack handling and
   structure-return stack argument handling in software thunks.
 - Runtime-backed import calls are a Bochs compatibility path with a private

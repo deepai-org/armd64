@@ -3671,7 +3671,8 @@ static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
 
 __attribute__((noreturn))
 static void run_poly_process_entry(const uint8_t *code,
-    uint64_t initial_sp, uint64_t tls_base, uint64_t x86_fs_base, int arch) {
+    uint64_t initial_sp, uint64_t tls_base, uint64_t x86_fs_base,
+    uint64_t state_key, int use_trap_vector, int arch) {
   (void) arch;
   if (x86_fs_base != 0) {
     register long rax __asm__("rax") = SYS_arch_prctl;
@@ -3690,6 +3691,18 @@ static void run_poly_process_entry(const uint8_t *code,
           : "rcx", "r11", "memory");
       __builtin_unreachable();
     }
+  }
+  if (state_key != 0) {
+    uint64_t value = state_key;
+    asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
+  }
+  if (use_trap_vector) {
+    uint64_t value = (uint64_t) (uintptr_t) poly_monitor_packet;
+    asm volatile(POLY_OP_MONITOR_PACKET_SET : "+a"(value) :: "memory");
+    value = POLY_MODE_X86;
+    asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET : "+a"(value) :: "memory");
+    value = (uint64_t) (uintptr_t) poly_trap_vector_handler;
+    asm volatile(POLY_OP_TRAP_VECTOR_SET : "+a"(value) :: "memory");
   }
   asm volatile(
       "movq %0, %%r11\n"
@@ -6696,7 +6709,7 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
 
 static int emit_and_run_process(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
-    uint64_t *result) {
+    uint64_t *result, int use_trap_vector) {
   process_cross_report_path = program->path;
   process_cross_state_key_stub_count = 0;
   process_cross_aarch64_to_riscv_stub_count = 0;
@@ -6826,8 +6839,9 @@ static int emit_and_run_process(struct poly_program *program,
     munmap(mapping, mapping_size);
     return -1;
   }
-  process_runtime_needs_x86_tls_wrapper =
-    process_tls_size != 0 && process_tree_has_arch_tls(program, POLY_ARCH_X86);
+  // Direct foreign->x86 PCALL installs the process TLS base as x86 FSBASE only
+  // for the callee window, then restores the runtime FSBASE on return.
+  process_runtime_needs_x86_tls_wrapper = 0;
   if (map_process_dependencies(program, code, prefix_size, lifecycle_return_pc,
         tlsdesc_helpers, tls_get_addr_helpers, scratch) < 0) {
     unmap_process_dependencies(program);
@@ -6969,8 +6983,10 @@ static int emit_and_run_process(struct poly_program *program,
   process_runtime_host_fs_base = get_x86_fs_base();
   const uint64_t startup_x86_tls_base =
     program->arch == POLY_ARCH_X86 ? process_runtime_x86_tls_base : 0;
+  const uint64_t process_state_key =
+    (uint64_t) (uintptr_t) &poly_state_key_anchor;
   run_poly_process_entry(code, initial_sp, (uint64_t) (uintptr_t) process_tls,
-    startup_x86_tls_base, program->arch);
+    startup_x86_tls_base, process_state_key, use_trap_vector, program->arch);
 }
 
 static int program_exits_process(const char *path) {
@@ -7036,7 +7052,7 @@ static int emit_and_run_process_child(struct poly_program *program,
     if (use_trap_vector)
       install_poly_trap_vector();
     if (emit_and_run_process(program, request, extra_argc, extra_argv,
-          &child_result) < 0)
+          &child_result, use_trap_vector) < 0)
       _exit(125);
     report_poly_monitor_packets();
     fflush(NULL);

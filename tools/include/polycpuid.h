@@ -664,7 +664,9 @@ struct poly_import_return_frame {
   uint64_t import_id;
   uint64_t return_map;
   uint64_t alias[6];
-  uint64_t reserved[5];
+  uint64_t saved_x86_fsbase;
+  uint64_t target_x86_fsbase;
+  uint64_t reserved[3];
 };
 
 struct poly_import_return_state {
