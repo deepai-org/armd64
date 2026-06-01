@@ -598,9 +598,9 @@ static uint64_t poly_state_key_get(void) {
 }
 
 static int install_poly_thread_state_key(void) {
-  const char *force_explicit = getenv("POLYCALL_USE_EXPLICIT_STATE_KEY");
+  const char *use_explicit = getenv("POLYCALL_USE_EXPLICIT_STATE_KEY");
   polycall_use_explicit_state_key =
-    force_explicit != NULL && strcmp(force_explicit, "1") == 0;
+    use_explicit == NULL || strcmp(use_explicit, "0") != 0;
   if (!polycall_use_explicit_state_key) {
     if (poly_state_key_set(0) != 0 || poly_state_key_get() != 0) {
       fprintf(stderr,
