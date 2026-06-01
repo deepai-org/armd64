@@ -1,8 +1,8 @@
 # Poly ISA
 
-Poly extends x86_64 with user-mode AArch64 and RISC-V64 frontends in the same
-virtual address space. The goal is compatibility with existing native ABI
-objects and cross-ISA shared libraries, not a new source-level ABI.
+Poly adds user-mode AArch64 and RISC-V64 frontends to x86_64 in one virtual
+address space. The target is compatibility with existing compiled objects and
+cross-ISA shared libraries, not a new source ABI.
 
 ## Run
 
@@ -10,27 +10,27 @@ objects and cross-ISA shared libraries, not a new source-level ABI.
 make image
 make boot-poly-focused-validation
 make boot-poly-full-real-xsave-arch-traps
-rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
+rg -a 'POLY.*OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## How It Differs From x86_64
+## Architecture
 
 - x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  exceptions, syscalls, atomics, and TSO memory ordering.
-- AArch64 and RISC-V64 are alternate user-mode instruction frontends fetched
-  from the same `RIP` address space.
-- AArch64 fetches fixed 32-bit instructions. RISC-V fetches 16/32-bit
-  instructions, so RVC is valid.
-- Mode switches are explicit control instructions, not per-instruction `#UD`
+  exceptions, syscalls, atomics, and memory ordering.
+- AArch64 and RISC-V64 are user-mode decode frontends fetched from the same
+  `RIP` address space.
+- AArch64 uses fixed 32-bit fetch. RISC-V64 supports 16/32-bit fetch, including
+  RVC.
+- Mode switches use explicit control opcodes, not per-instruction `#UD`
   envelopes.
-- Cross-ISA calls preserve real platform ABIs: x86_64 SysV, AArch64 AAPCS64,
-  and RISC-V psABI.
-- Fast calls use register-only ABI signature slots. Stack arguments,
-  aggregates, variadics, lazy binding, libc policy, and syscall policy remain
-  software responsibilities.
-- Extra foreign register state is per-thread XSAVE-style architectural state,
-  not a hidden CR3-scoped emulator table.
-- Foreign traps write OS-neutral trap packets for user runtime or OS policy.
+- Cross-ISA calls preserve native ABIs: x86_64 SysV, AArch64 AAPCS64, and
+  RISC-V psABI.
+- Fast register-only calls may use ABI signature slots. Stack arguments,
+  aggregates, variadics, lazy binding, libc policy, and syscall policy stay in
+  software.
+- Foreign architectural state is per-thread XSAVE-style state. It is not a
+  hidden CR3-scoped emulator table.
+- Foreign traps produce OS-neutral trap packets for a runtime or OS handler.
 
 ## Control Encodings
 
@@ -46,4 +46,4 @@ Frontend IDs are `0` x86_64, `1` AArch64, and `2` RISC-V64.
 | `PTRAPRET` | `0f 3a fc 62` | resume from a Poly trap packet |
 
 Foreign controls use reserved AArch64 HINT and RISC-V custom-0 encodings.
-Detailed hardware direction lives in `docs/poly-isa-design-directions.md`.
+Hardware and ABI rationale lives in `docs/poly-isa-design-directions.md`.
