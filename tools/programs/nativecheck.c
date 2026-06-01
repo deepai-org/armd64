@@ -46,6 +46,7 @@
 #define NATIVECHECK_AARCH64_FPCR_RMODE_MASK (3ULL << 22)
 #define NATIVECHECK_AARCH64_FPSR_MASK 0x9fULL
 #define NATIVECHECK_RISCV_FCSR_MASK 0xffULL
+#define NATIVECHECK_NONCANONICAL_ADDR (1ULL << 56)
 
 #ifndef ARCH_GET_XCOMP_SUPP
 #define ARCH_GET_XCOMP_SUPP 0x1021
@@ -225,6 +226,15 @@ static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "r15", "memory");
 }
 
+static inline uint64_t poly_trap_vector_set_result(uint64_t value) {
+  uint64_t result = value;
+  asm volatile(POLY_OP_TRAP_VECTOR_SET
+    : "+a"(result)
+    :
+    : "r15", "memory");
+  return result;
+}
+
 static inline void poly_trap_vector_get(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_GET ::: "r15", "memory");
 }
@@ -250,6 +260,15 @@ static inline void poly_monitor_packet_set_value(uint64_t value) {
   asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "r15", "memory");
 }
 
+static inline uint64_t poly_monitor_packet_set_result(uint64_t value) {
+  uint64_t result = value;
+  asm volatile(POLY_OP_MONITOR_PACKET_SET
+    : "+a"(result)
+    :
+    : "r15", "memory");
+  return result;
+}
+
 static inline void poly_monitor_packet_get(void) {
   asm volatile(POLY_OP_MONITOR_PACKET_GET ::: "r15", "memory");
 }
@@ -260,6 +279,19 @@ static uint64_t poly_aarch64_trap_vector_set_get(uint64_t value) {
     POLY_OP_ENTER_A64
     ".long 0xd5032d1f\n" // aarch64 trap-vector set, x0=value.
     ".long 0xd5032d3f\n" // aarch64 trap-vector get, x0=result.
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
+static uint64_t poly_aarch64_trap_vector_set(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032d1f\n" // aarch64 trap-vector set, x0=value.
     ".long 0xd5032e1f\n" // aarch64 x86 escape.
     : "=a"(result)
     : "0"(value)
@@ -309,12 +341,38 @@ static uint64_t poly_aarch64_monitor_packet_set_get(uint64_t value) {
   return result;
 }
 
+static uint64_t poly_aarch64_monitor_packet_set(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd5032d9f\n" // aarch64 monitor-packet set, x0=value.
+    ".long 0xd5032e1f\n" // aarch64 x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
 static uint64_t poly_riscv_trap_vector_set_get(uint64_t value) {
   uint64_t result;
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x3000700b\n" // riscv trap-vector set, a0=value.
     ".long 0x3200700b\n" // riscv trap-vector get, a0=result.
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
+static uint64_t poly_riscv_trap_vector_set(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3000700b\n" // riscv trap-vector set, a0=value.
     ".long 0x0000700b\n" // riscv x86 escape.
     : "=a"(result)
     : "0"(value)
@@ -356,6 +414,19 @@ static uint64_t poly_riscv_monitor_packet_set_get(uint64_t value) {
     POLY_OP_ENTER_RV64
     ".long 0x3800700b\n" // riscv monitor-packet set, a0=value.
     ".long 0x3a00700b\n" // riscv monitor-packet get, a0=result.
+    ".long 0x0000700b\n" // riscv x86 escape.
+    : "=a"(result)
+    : "0"(value)
+    : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+      "r13", "r14", "r15", "memory");
+  return result;
+}
+
+static uint64_t poly_riscv_monitor_packet_set(uint64_t value) {
+  uint64_t result;
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x3800700b\n" // riscv monitor-packet set, a0=value.
     ".long 0x0000700b\n" // riscv x86 escape.
     : "=a"(result)
     : "0"(value)
@@ -2365,6 +2436,26 @@ static void child_expect_bad_trap_vector_mode_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_trap_vector_pc_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.trap_vector_pc = NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_monitor_packet_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.monitor_packet_addr = NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_trap_reason_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -3466,9 +3557,35 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) read_rax());
     return 1;
   }
+  if (poly_trap_vector_set_result(NATIVECHECK_NONCANONICAL_ADDR) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 trap vector accepted non-canonical address\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != (uint64_t) handler) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 invalid trap vector mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
   poly_monitor_packet_get();
   if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly monitor packet get mismatch got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_monitor_packet_set_result(NATIVECHECK_NONCANONICAL_ADDR) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 monitor packet accepted non-canonical address\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 invalid monitor packet mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
@@ -3496,11 +3613,37 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) read_rax());
     return 1;
   }
+  if (poly_aarch64_trap_vector_set(NATIVECHECK_NONCANONICAL_ADDR) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 trap vector accepted non-canonical address\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != (uint64_t) handler) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 invalid trap vector mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
   if (poly_aarch64_monitor_packet_set_get(
         (uint64_t) (uintptr_t) &monitor_packet) !=
       (uint64_t) (uintptr_t) &monitor_packet) {
     fputs("NATIVE_CHECK_FAIL: poly aarch64 monitor packet set/get mismatch\n",
       stderr);
+    return 1;
+  }
+  if (poly_aarch64_monitor_packet_set(NATIVECHECK_NONCANONICAL_ADDR) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 monitor packet accepted non-canonical address\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 invalid monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
     return 1;
   }
   if (poly_riscv_trap_vector_set_get((uint64_t) handler) !=
@@ -3527,11 +3670,37 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) read_rax());
     return 1;
   }
+  if (poly_riscv_trap_vector_set(NATIVECHECK_NONCANONICAL_ADDR) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv trap vector accepted non-canonical address\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != (uint64_t) handler) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv invalid trap vector mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
   if (poly_riscv_monitor_packet_set_get(
         (uint64_t) (uintptr_t) &monitor_packet) !=
       (uint64_t) (uintptr_t) &monitor_packet) {
     fputs("NATIVE_CHECK_FAIL: poly riscv monitor packet set/get mismatch\n",
       stderr);
+    return 1;
+  }
+  if (poly_riscv_monitor_packet_set(NATIVECHECK_NONCANONICAL_ADDR) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv monitor packet accepted non-canonical address\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv invalid monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
     return 1;
   }
   pid_t child = fork();
@@ -5073,6 +5242,12 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad trap-vector mode xstate", SIGILL,
         child_expect_bad_trap_vector_mode_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly bad trap-vector pc xstate", SIGILL,
+        child_expect_bad_trap_vector_pc_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad monitor packet xstate", SIGILL,
+        child_expect_bad_monitor_packet_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly bad trap reason xstate", SIGILL,
         child_expect_bad_trap_reason_xsave_signal) != 0)
     return 1;
@@ -5876,9 +6051,9 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.frontend_tls.active_mode = POLY_MODE_X86;
   complex.frontend_tls.aarch64_tls_base = 0x1111222233334444ULL;
   complex.frontend_tls.riscv_tls_base = 0x5555666677778888ULL;
-  complex.header.trap_vector_pc = 0x1234500012345000ULL;
+  complex.header.trap_vector_pc = 0x0000123450001000ULL;
   complex.header.trap_vector_mode = POLY_MODE_RAW_RISCV;
-  complex.header.monitor_packet_addr = 0x2345600023456000ULL;
+  complex.header.monitor_packet_addr = 0x0000234560002000ULL;
   complex.trap.reason = POLY_TRAP_SYSCALL;
   complex.trap.source_mode = POLY_MODE_RAW_AARCH64;
   complex.trap.number = 172;
