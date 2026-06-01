@@ -3853,6 +3853,89 @@ static int run_cross_call_fp64_stack_riscv_to_aarch64(uint64_t *result_bits,
   return 0;
 }
 
+static int run_cross_call_fp64_stack_compressed_riscv_to_aarch64(
+    uint64_t *result_bits, uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 512;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: compressed riscv-to-aarch64 FP64 stack call mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+
+  emit_u16(code, &offset, 0x0001U); // c.nop; following FP64 stack PCALL path is halfword-aligned
+  for (uint32_t n = 0; n < 8; n++)
+    emit_u32(code, &offset, riscv_ld(10 + n, 2, 8 + n * 8));
+  emit_u32(code, &offset, riscv_addi(2, 2, -64));
+  for (uint32_t n = 0; n < 8; n++)
+    emit_u32(code, &offset, riscv_sd(10 + n, 2, n * 8));
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_u32(code, &offset, riscv_addi(6, 0, 1)); // frontend AArch64
+  const size_t auipc_return_pc = offset;
+  emit_u32(code, &offset, 0x00000397U); // auipc x7,0
+  const size_t ld_return_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_pcall_sig(code, &offset, polybench_fp64_signature_slot);
+  const size_t riscv_return_offset = offset;
+  emit_u32(code, &offset, riscv_addi(2, 2, 64));
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 3U) != 0)
+    code[offset++] = 0x90;
+  const size_t aarch64_target_offset = offset;
+  for (uint32_t reg = 1; reg <= 7; reg++)
+    emit_u32(code, &offset, aarch64_fadd_d(0, 0, reg));
+  for (uint32_t n = 0; n < 8; n++) {
+    emit_u32(code, &offset, aarch64_ldr_d_sp(1, n * 8));
+    emit_u32(code, &offset, aarch64_fadd_d(0, 0, 1));
+  }
+  emit_u32(code, &offset, 0xd65f03c0U); // ret
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + aarch64_target_offset));
+  const size_t return_data_offset = offset;
+  emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + riscv_return_offset));
+
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+  store_u32(code, ld_return_offset, riscv_ld(7, 7,
+    (int32_t) return_data_offset - (int32_t) auipc_return_pc));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  double (*entry)(double, double, double, double, double, double, double,
+    double, double, double, double, double, double, double, double, double) =
+    (double (*)(double, double, double, double, double, double, double,
+      double, double, double, double, double, double, double, double,
+      double)) code;
+  POLYBENCH_CALL_SAVE_R15(*result_bits,
+    fp64_to_bits(entry(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+      9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0)));
+  poly_mode_x86();
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static void emit_riscv_vec128_u32_pair_add(uint8_t *code, size_t *offset,
     uint32_t rd_lo, uint32_t rd_hi, uint32_t left_lo, uint32_t left_hi,
     uint32_t right_lo, uint32_t right_hi) {
@@ -7635,6 +7718,10 @@ static int check_cross_calls(void) {
     return -1;
   if (check_cross_call_fp64_stack_direction("riscv-calls-aarch64-fp64-stack",
         run_cross_call_fp64_stack_riscv_to_aarch64) < 0)
+    return -1;
+  if (check_cross_call_fp64_stack_direction(
+        "compressed-riscv-calls-aarch64-fp64-stack",
+        run_cross_call_fp64_stack_compressed_riscv_to_aarch64) < 0)
     return -1;
   if (check_cross_call_vec128_direction("aarch64-calls-riscv-vec128",
         run_cross_call_vec128_aarch64_to_riscv) < 0)
