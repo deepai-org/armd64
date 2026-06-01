@@ -1680,7 +1680,7 @@ static inline void aarch64_hfa32_sentinel_probe(void) {
     ::: POLY_ABI_GPR_CLOBBERS, "memory");
 }
 
-static inline void pcall_signature_aarch64_hfa3_s3_probe(uint64_t slot) {
+static inline void pcall_signature_aarch64_hfa3_next_fp_probe(uint64_t slot) {
   asm volatile(
     "pushq %%rbx\n"
     "pushq %%r12\n"
@@ -1703,7 +1703,7 @@ static inline void pcall_signature_aarch64_hfa3_s3_probe(uint64_t slot) {
       "xmm0", "memory");
 }
 
-static inline void pcall_signature_aarch64_hfa4_s4_probe(uint64_t slot) {
+static inline void pcall_signature_aarch64_hfa4_next_fp_probe(uint64_t slot) {
   asm volatile(
     "pushq %%rbx\n"
     "pushq %%r12\n"
@@ -2980,10 +2980,10 @@ int main(void) {
   write_xmm0_u64(0xaaaabbbbccccddddULL);
   write_xmm1_u64(0x1111222233334444ULL);
   write_xmm2_u64(0x0000000099aabbccULL);
-  pcall_signature_aarch64_hfa3_s3_probe(7);
-  if ((uint32_t) read_xmm0_u64() != 0x1234U) {
+  pcall_signature_aarch64_hfa3_next_fp_probe(7);
+  if ((uint32_t) read_xmm0_u64() != 0x99aabbccU) {
     fprintf(stderr,
-      "POLY_PROBE_FAIL: AArch64 HFA3 FP32 signature clobbered s3 got=0x%x\n",
+      "POLY_PROBE_FAIL: AArch64 HFA3 FP32 signature did not map next FP arg got=0x%x\n",
       (uint32_t) read_xmm0_u64());
     return 1;
   }
@@ -2996,10 +2996,10 @@ int main(void) {
   write_xmm0_u64(0xaaaabbbbccccddddULL);
   write_xmm1_u64(0x1111222233334444ULL);
   write_xmm2_u64(0x0000000099aabbccULL);
-  pcall_signature_aarch64_hfa4_s4_probe(7);
-  if ((uint32_t) read_xmm0_u64() != 0x5678U) {
+  pcall_signature_aarch64_hfa4_next_fp_probe(7);
+  if ((uint32_t) read_xmm0_u64() != 0x99aabbccU) {
     fprintf(stderr,
-      "POLY_PROBE_FAIL: AArch64 HFA4 FP32 signature clobbered s4 got=0x%x\n",
+      "POLY_PROBE_FAIL: AArch64 HFA4 FP32 signature did not map next FP arg got=0x%x\n",
       (uint32_t) read_xmm0_u64());
     return 1;
   }
