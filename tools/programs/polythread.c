@@ -215,15 +215,20 @@ static int setup_polythread_native_signature_slot(void) {
     poly_cpuid_expected_escape_leaf5();
   const struct poly_cpuid_regs expected_fp64_signature =
     poly_cpuid_expected_escape_leaf22();
+  const struct poly_cpuid_regs expected_native_sret_signature =
+    poly_cpuid_expected_escape_leaf28();
   const struct poly_cpuid_regs x86_controls =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
   const struct poly_cpuid_regs fp64_signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
+  const struct poly_cpuid_regs native_sret_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 28);
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
   const uint32_t fp64_slot = fp64_signature.edx;
+  const uint32_t native_sret_slot = native_sret_signature.eax;
   if (x86_controls.eax != expected_x86_controls.eax ||
       x86_controls.ebx != expected_x86_controls.ebx ||
       x86_controls.ecx != expected_x86_controls.ecx ||
@@ -258,13 +263,41 @@ static int setup_polythread_native_signature_slot(void) {
       expected_fp64_signature.edx);
     return -1;
   }
+  if (native_sret_signature.eax != expected_native_sret_signature.eax ||
+      native_sret_signature.ebx != expected_native_sret_signature.ebx ||
+      native_sret_signature.ecx != expected_native_sret_signature.ecx ||
+      native_sret_signature.edx != expected_native_sret_signature.edx ||
+      native_sret_slot >= signature.ebx ||
+      native_sret_slot != POLY_ABI_SIGNATURE_SLOT_NATIVE_SRET_REGS) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: native SRET signature manifest mismatch nsret=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      native_sret_signature.eax, native_sret_signature.ebx,
+      native_sret_signature.ecx, native_sret_signature.edx,
+      expected_native_sret_signature.eax,
+      expected_native_sret_signature.ebx,
+      expected_native_sret_signature.ecx,
+      expected_native_sret_signature.edx);
+    return -1;
+  }
+  uint64_t default_native_sret_kind =
+    poly_abi_signature_get(native_sret_slot);
+  if (default_native_sret_kind != POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: native SRET signature default got=%llu expected=%u slot=%u\n",
+      (unsigned long long) default_native_sret_kind,
+      POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS,
+      native_sret_slot);
+    return -1;
+  }
   if (poly_abi_signature_set(native_slot,
         POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
       poly_abi_signature_set(fp64_slot,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0) {
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0 ||
+      poly_abi_signature_set(native_sret_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS) != 0) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: native signature slot setup failed native=%u fp64=%u\n",
-      native_slot, fp64_slot);
+      "POLYTHREAD_FAIL: native signature slot setup failed native=%u fp64=%u nsret=%u\n",
+      native_slot, fp64_slot, native_sret_slot);
     return -1;
   }
   return 0;
