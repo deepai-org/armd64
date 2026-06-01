@@ -13102,6 +13102,7 @@ EOF
           "POLYBENCH_CROSS_CALL_IMPORT_RESULT: direction=compressed-riscv-calls-aarch64-import .*switch_delta=5"
           "POLYBENCH_CROSS_CALL_STRING_RESULT: direction=aarch64-calls-riscv-direct-x86 .*switch_delta=7"
           "POLYBENCH_CROSS_CALL_STRING_RESULT: direction=riscv-calls-aarch64-direct-x86 .*switch_delta=7"
+          "POLYBENCH_CROSS_CALL_STRING_RESULT: direction=compressed-riscv-calls-aarch64-direct-x86 .*switch_delta=7"
           "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMCMP_RESULT: direction=aarch64-calls-riscv-direct-x86-memcmp .*switch_delta=7"
           "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMCMP_RESULT: direction=riscv-calls-aarch64-direct-x86-memcmp .*switch_delta=7"
           "POLYBENCH_CROSS_CALL_DIRECT_X86_MEMOPS_RESULT: direction=aarch64-calls-riscv-direct-x86-memops .*switch_delta=11"
