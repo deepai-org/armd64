@@ -15,12 +15,13 @@ make boot-poly-binfmt-arch-traps
 rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Contract And x64 Differences
+## Contract And x86_64 Differences
 
 - x86_64 remains the system ISA: boot, privilege, paging, exceptions,
   interrupts, atomics, syscalls, and TSO memory ordering.
-- AArch64/RISC-V64 are user-mode direct-fetch frontends. They fetch native
-  32-bit instructions from `RIP`; there is no per-instruction `#UD` envelope.
+- AArch64/RISC-V64 are user-mode direct-fetch frontends. AArch64 fetches
+  4-byte instructions; RISC-V fetches native 16/32-bit instructions from `RIP`.
+  There is no per-instruction `#UD` envelope.
 - New decoded controls switch frontends and perform cross-ISA calls; they are
   not traps and are not encoded as `ud2`.
 - Native ABIs remain native: x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI.
