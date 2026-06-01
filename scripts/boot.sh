@@ -6875,7 +6875,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-fp.elf" 0x4541717d 0xe02a050a 0x00202502 0x200ca008 0x6502a02e 0x00016141 0x00008082
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-sdsp.elf" 0xff010113 h:0x456d h:0xe02a 0x00000513 0x00013503 0x01010113 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-frame.elf" 0x01100513 0x01900593 h:0x717d h:0xe02a h:0xe42e 0x00000513 h:0x6602 h:0x66a2 h:0x9532 h:0x9536 h:0x6141 h:0x8082
-  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-hints.elf" 0x01b00513 h:0x0005 h:0x4005 h:0x8006 0x00008067
+  "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-compressed-hints.elf" 0x01b00513 h:0x0005 h:0x4005 h:0x8006 h:0x0006 h:0x900a h:0x900e h:0x9012 h:0x9016 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-int-move.elf" 0x80000537 0x02a50513 0xf0050553 0xe0050553 0xf20505d3 0xe2058553 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp-class.elf" 0xf0000553 0xe0051553 0xf20005d3 0xe20595d3 0x00b50533 0x00008067
   "$POLY_ELF_GEN_BIN" riscv "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fp32-to-int.elf" 0x41400537 0xf0050553 0xc0051553 0x00008067
