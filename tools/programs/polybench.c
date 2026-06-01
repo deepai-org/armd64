@@ -1612,6 +1612,55 @@ static int run_direct_x86_fp64_riscv(uint64_t *result_bits,
   return 0;
 }
 
+static int run_direct_x86_fp64_compressed_riscv(uint64_t *result_bits,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: compressed riscv direct x86 FP mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u16(code, &offset, 0x0001U); // c.nop; following FP PCALL path is halfword-aligned
+  emit_u32(code, &offset, riscv_fadd_d(10, 10, 11));
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_direct_x86_pcall_sig(code, &offset,
+    polybench_fp64_signature_slot);
+  emit_u32(code, &offset, riscv_fadd_d(10, 10, 15));
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_fp64_sum6_direct);
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  *result_bits = call_code_fp64_6(code);
+  poly_mode_x86();
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
 static int run_direct_x86_fp32_aarch64(uint64_t *result_bits,
     uint64_t *insn_delta, uint64_t *switch_delta) {
   const size_t code_size = 256;
@@ -1665,6 +1714,55 @@ static int run_direct_x86_fp32_riscv(uint64_t *result_bits,
   code[offset++] = 0x90;
   const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
   emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u32(code, &offset, riscv_fadd_s(10, 10, 11));
+  const size_t auipc_target_pc = offset;
+  emit_u32(code, &offset, 0x00000297U); // auipc x5,0
+  const size_t ld_target_offset = offset;
+  emit_u32(code, &offset, 0);
+  emit_riscv_direct_x86_pcall_sig(code, &offset,
+    polybench_fp32_signature_slot);
+  emit_u32(code, &offset, riscv_fadd_s(10, 10, 15));
+  emit_u32(code, &offset, POLY_RISCV_CTRL_X86_ESCAPE); // riscv polyctrl x86 escape
+  code[offset++] = 0xc3;
+
+  while ((offset & 7U) != 0)
+    code[offset++] = 0;
+  const size_t target_data_offset = offset;
+  emit_u64(code, &offset,
+    (uint64_t) (uintptr_t) polybench_x86_fp32_sum6_direct);
+  store_u32(code, ld_target_offset, riscv_ld(5, 5,
+    (int32_t) target_data_offset - (int32_t) auipc_target_pc));
+
+  uint64_t insns_before = poly_foreign_insn_count_status_value();
+  uint64_t switches_before = poly_switch_count_status_value();
+  *result_bits = call_code_fp32_6(code);
+  poly_mode_x86();
+  *insn_delta = poly_foreign_insn_count_status_value() - insns_before;
+  *switch_delta = poly_switch_count_status_value() - switches_before;
+
+  munmap(code, code_size);
+  return 0;
+}
+
+static int run_direct_x86_fp32_compressed_riscv(uint64_t *result_bits,
+    uint64_t *insn_delta, uint64_t *switch_delta) {
+  const size_t code_size = 256;
+  uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (code == MAP_FAILED) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: compressed riscv direct x86 FP32 mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  size_t offset = 0;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  code[offset++] = 0x90;
+  const uint8_t raw_riscv[] = { 0x6a, 0x02, 0x41, 0x5f, 0x0f, 0x3a, 0xfc, 0x03 };
+  emit_bytes(code, &offset, raw_riscv, sizeof(raw_riscv));
+  emit_u16(code, &offset, 0x0001U); // c.nop; following FP32 PCALL path is halfword-aligned
   emit_u32(code, &offset, riscv_fadd_s(10, 10, 11));
   const size_t auipc_target_pc = offset;
   emit_u32(code, &offset, 0x00000297U); // auipc x5,0
@@ -6818,11 +6916,19 @@ static int check_cross_calls(void) {
   if (check_direct_x86_fp64_direction("riscv-calls-x86-direct-fp64",
         run_direct_x86_fp64_riscv) < 0)
     return -1;
+  if (check_direct_x86_fp64_direction(
+        "compressed-riscv-calls-x86-direct-fp64",
+        run_direct_x86_fp64_compressed_riscv) < 0)
+    return -1;
   if (check_direct_x86_fp32_direction("aarch64-calls-x86-direct-fp32",
         run_direct_x86_fp32_aarch64) < 0)
     return -1;
   if (check_direct_x86_fp32_direction("riscv-calls-x86-direct-fp32",
         run_direct_x86_fp32_riscv) < 0)
+    return -1;
+  if (check_direct_x86_fp32_direction(
+        "compressed-riscv-calls-x86-direct-fp32",
+        run_direct_x86_fp32_compressed_riscv) < 0)
     return -1;
   if (check_direct_x86_vec128_direction("aarch64-calls-x86-direct-vec128",
         run_direct_x86_vec128_aarch64) < 0)
