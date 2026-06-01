@@ -396,6 +396,7 @@ static size_t process_cross_stack_bridge_stub_count;
 static size_t process_cross_compact_shuffle_stub_count;
 static size_t process_cross_x86_wrapper_stub_count;
 static int process_cross_state_key_stub_reported;
+static int polyexec_use_explicit_state_key;
 static const char *process_cross_report_path;
 
 struct poly_request {
@@ -483,6 +484,20 @@ static uint64_t poly_state_key_get(void) {
 }
 
 static int install_poly_thread_state_key(void) {
+  const char *force_explicit = getenv("POLYEXEC_USE_EXPLICIT_STATE_KEY");
+  polyexec_use_explicit_state_key =
+    force_explicit != NULL && strcmp(force_explicit, "1") == 0;
+  if (!polyexec_use_explicit_state_key) {
+    if (poly_state_key_set(0) != 0 || poly_state_key_get() != 0) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: Poly state-key clear failed got=0x%llx\n",
+        (unsigned long long) poly_state_key_get());
+      return -1;
+    }
+    puts("POLYEXEC_STATE_KEY: explicit=0");
+    return 0;
+  }
+
   const uint64_t key = (uint64_t) (uintptr_t) &poly_state_key_anchor;
   if (key == 0 || poly_state_key_set(key) != 0 ||
       poly_state_key_get() != key) {
@@ -4154,7 +4169,8 @@ static void note_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     process_cross_x86_to_riscv_stub_count++;
 
   if (!process_cross_state_key_stub_reported) {
-    printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=1\n");
+    printf("POLYEXEC_CROSS_STUB_STATE_KEY: explicit=%u\n",
+      polyexec_use_explicit_state_key ? 1U : 0U);
     process_cross_state_key_stub_reported = 1;
   }
   printf("POLYEXEC_CROSS_STUBS: a64_to_rv=%zu rv_to_a64=%zu a64_to_x86=%zu rv_to_x86=%zu x86_to_a64=%zu x86_to_rv=%zu total=%zu path=%s sig_slots=%zu reg_sig=%zu stack_bridges=%zu compact_shuffles=%zu x86_wrappers=%zu\n",
@@ -4508,8 +4524,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   uint8_t *code = process_cross_stubs.mapping;
   const size_t start = process_cross_stubs.offset;
   const uint64_t start_addr = (uint64_t) (uintptr_t) (code + start);
-  const uint64_t state_key =
-    (uint64_t) (uintptr_t) &poly_state_key_anchor;
+  const uint64_t state_key = polyexec_use_explicit_state_key ?
+    (uint64_t) (uintptr_t) &poly_state_key_anchor : 0;
   const int is_compact_bridge = process_bridge_is_compact(bridge_kind);
   const int emit_compact_shuffle =
     is_compact_bridge && callee_arch != POLY_ARCH_X86;
@@ -4539,8 +4555,9 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     code[offset++] = 0x83;
     code[offset++] = 0xec;
     code[offset++] = 0x08;
-    code[offset++] = 0x50; // push rax: state-key programming must not clobber arg0.
-    emit_x86_state_key_set(code, &offset, state_key);
+    code[offset++] = 0x50; // push rax: preserve arg0 and the existing stack layout.
+    if (state_key != 0)
+      emit_x86_state_key_set(code, &offset, state_key);
     code[offset++] = 0x58; // pop rax
 
     if (bridge_kind == POLY_PROCESS_BRIDGE_U64_STACK9) {
@@ -4640,8 +4657,6 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     if (process_cross_stubs.size - start < 160)
       return -1;
     size_t offset = start;
-    const uint64_t return_addr = start_addr +
-      (is_stack9_x86_callee ? 92 : 84 + (emit_compact_shuffle ? 8 : 0));
     if (is_stack9_x86_callee) {
       emit_u32(code, &offset, 0xd100c3ffU); // sub sp, sp, #48
       emit_u32(code, &offset, 0xf9401bf2U); // ldr x18, [sp, #48]
@@ -4658,8 +4673,10 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
       emit_u32(code, &offset, 0xf90007feU); // str x30, [sp, #8]
       emit_u32(code, &offset, 0xf9000be0U); // str x0, [sp, #16]
     }
-    emit_aarch64_movabs(code, &offset, 0, state_key);
-    emit_u32(code, &offset, POLY_AARCH64_CTRL_STATE_KEY_SET);
+    if (state_key != 0) {
+      emit_aarch64_movabs(code, &offset, 0, state_key);
+      emit_u32(code, &offset, POLY_AARCH64_CTRL_STATE_KEY_SET);
+    }
     emit_u32(code, &offset,
       is_stack9_x86_callee ? 0xf94013e0U : 0xf9400be0U); // ldr x0,saved
     if (emit_compact_shuffle)
@@ -4667,6 +4684,8 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_aarch64_movabs(code, &offset, 16, pcall_target);
     emit_u32(code, &offset,
       0xd2800011U | ((callee_frontend & 0xffffU) << 5)); // movz x17,frontend
+    const uint64_t return_addr =
+      (uint64_t) (uintptr_t) (code + offset + 20);
     emit_aarch64_movabs(code, &offset, 18, return_addr);
     if (emit_aarch64_pcall_sig(code, &offset, signature_slot) < 0)
       return -1;
@@ -4712,11 +4731,15 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     emit_u32(code, &offset, riscv_sd(1, 2, 8)); // sd ra,8(sp)
     emit_u32(code, &offset, riscv_sd(10, 2, 16)); // sd a0,16(sp)
   }
-  const size_t auipc_state_key_pc = offset;
-  emit_u32(code, &offset, 0x00000517U); // auipc a0,0
-  const size_t ld_state_key_offset = offset;
-  emit_u32(code, &offset, 0);
-  emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
+  size_t auipc_state_key_pc = 0;
+  size_t ld_state_key_offset = 0;
+  if (state_key != 0) {
+    auipc_state_key_pc = offset;
+    emit_u32(code, &offset, 0x00000517U); // auipc a0,0
+    ld_state_key_offset = offset;
+    emit_u32(code, &offset, 0);
+    emit_u32(code, &offset, POLY_RISCV_CTRL_STATE_KEY_SET);
+  }
   emit_u32(code, &offset,
     riscv_ld(10, 2, is_stack9_x86_callee ? 32 : 16)); // ld a0,saved
   if (emit_compact_shuffle)
@@ -4738,15 +4761,20 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
   emit_u64(code, &offset, pcall_target);
   const size_t return_data_offset = offset;
   emit_u64(code, &offset, (uint64_t) (uintptr_t) (code + return_pc));
-  const size_t state_key_data_offset = offset;
-  emit_u64(code, &offset, state_key);
+  size_t state_key_data_offset = 0;
+  if (state_key != 0) {
+    state_key_data_offset = offset;
+    emit_u64(code, &offset, state_key);
+  }
   store_u32(code, ld_target_offset, riscv_ld(5, 5,
     (int16_t) ((int64_t) target_data_offset - (int64_t) auipc_target_pc)));
   store_u32(code, ld_return_offset, riscv_ld(7, 7,
     (int16_t) ((int64_t) return_data_offset - (int64_t) auipc_return_pc)));
-  store_u32(code, ld_state_key_offset, riscv_ld(10, 10,
-    (int16_t) ((int64_t) state_key_data_offset -
-      (int64_t) auipc_state_key_pc)));
+  if (state_key != 0) {
+    store_u32(code, ld_state_key_offset, riscv_ld(10, 10,
+      (int16_t) ((int64_t) state_key_data_offset -
+        (int64_t) auipc_state_key_pc)));
+  }
   process_cross_stubs.offset = offset;
   note_process_cross_isa_call_stub(caller_arch, callee_arch, bridge_kind,
     needs_x86_call_wrapper);
@@ -6983,8 +7011,8 @@ static int emit_and_run_process(struct poly_program *program,
   process_runtime_host_fs_base = get_x86_fs_base();
   const uint64_t startup_x86_tls_base =
     program->arch == POLY_ARCH_X86 ? process_runtime_x86_tls_base : 0;
-  const uint64_t process_state_key =
-    (uint64_t) (uintptr_t) &poly_state_key_anchor;
+  const uint64_t process_state_key = polyexec_use_explicit_state_key ?
+    (uint64_t) (uintptr_t) &poly_state_key_anchor : 0;
   run_poly_process_entry(code, initial_sp, (uint64_t) (uintptr_t) process_tls,
     startup_x86_tls_base, process_state_key, use_trap_vector, program->arch);
 }
