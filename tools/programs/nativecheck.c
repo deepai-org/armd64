@@ -8169,6 +8169,61 @@ static uint64_t nativecheck_signature_pcall_riscv_aarch64_fp64_slot8(
 }
 
 __attribute__((noinline, noipa))
+static uint32_t nativecheck_signature_pcall_aarch64_riscv_fp32_slot9(
+    uint32_t left_bits, uint32_t right_bits) {
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_A64
+    ".long 0xaa0703f0\n" // mov x16,x7, RISC-V target from R10/P7
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0x10000072\n" // adr x18,return
+    ".long 0xd2800133\n" // movz x19,#9 (native FP32 signature slot)
+    ".long 0xd5032f5f\n" // generic signature pcall
+    ".long 0xd5032e1f\n" // return: aarch64 polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x00b50553\n" // fadd.s fa0,fa0,fa1
+    ".long 0x08b50553\n" // fsub.s fa0,fa0,fa1
+    ".long 0x10b50553\n" // fmul.s fa0,fa0,fa1
+    ".long 0x00008067\n" // ret through hardware return cookie
+    "2:\n"
+    ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+        "r12", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
+  return (uint32_t) read_xmm0_u64();
+}
+
+__attribute__((noinline, noipa))
+static uint32_t nativecheck_signature_pcall_riscv_aarch64_fp32_slot9(
+    uint32_t left_bits, uint32_t right_bits) {
+  write_xmm0_u64(left_bits);
+  write_xmm1_u64(right_bits);
+  asm volatile(
+    "leaq 1f(%%rip), %%r10\n"
+    POLY_OP_ENTER_RV64
+    ".long 0x00088293\n" // addi t0,a7,0, AArch64 target from R10/P7
+    ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
+    ".long 0x00000397\n" // auipc t2,0
+    ".long 0x01038393\n" // addi t2,t2,16 -> return
+    ".long 0x00900e13\n" // addi t3,zero,9 (native FP32 signature slot)
+    ".long 0x1400700b\n" // generic signature pcall
+    ".long 0x0000700b\n" // return: riscv polyctrl x86 escape
+    "jmp 2f\n"
+    ".p2align 2\n"
+    "1:\n"
+    ".long 0x1e212800\n" // fadd s0,s0,s1
+    ".long 0x1e213800\n" // fsub s0,s0,s1
+    ".long 0x1e210800\n" // fmul s0,s0,s1
+    ".long 0xd65f03c0\n" // ret x30 through hardware return cookie
+    "2:\n"
+    ::: "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+        "r12", "r13", "r14", "xmm0", "xmm1", "r15", "memory");
+  return (uint32_t) read_xmm0_u64();
+}
+
+__attribute__((noinline, noipa))
 static struct nativecheck_u128
 nativecheck_signature_imm_pcall_aarch64_riscv_vec128(void) {
   write_xmm0_xmm1_u128(1, 2, 3, 4);
@@ -8751,6 +8806,9 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   const uint64_t fp_left_bits = 0x3ff8000000000000ULL;
   const uint64_t fp_right_bits = 0x4002000000000000ULL;
   const uint64_t fp_expected_bits = 0x400b000000000000ULL;
+  const uint32_t fp32_left_bits = 0x40400000U;
+  const uint32_t fp32_right_bits = 0x40000000U;
+  const uint32_t fp32_expected_bits = 0x40c00000U;
   uint64_t result;
   struct nativecheck_u128 vec_result;
 
@@ -9045,6 +9103,31 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv generic signature aarch64 fp64 slot8 result=0x%llx\n",
       (unsigned long long) result);
+    return 1;
+  }
+
+  if (poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP32,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly foreign native FP32 signature slot set failed\n",
+      stderr);
+    return 1;
+  }
+
+  result = nativecheck_signature_pcall_aarch64_riscv_fp32_slot9(
+    fp32_left_bits, fp32_right_bits);
+  if ((uint32_t) result != fp32_expected_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 generic signature riscv fp32 slot9 result=0x%x\n",
+      (unsigned) (uint32_t) result);
+    return 1;
+  }
+
+  result = nativecheck_signature_pcall_riscv_aarch64_fp32_slot9(
+    fp32_left_bits, fp32_right_bits);
+  if ((uint32_t) result != fp32_expected_bits) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv generic signature aarch64 fp32 slot9 result=0x%x\n",
+      (unsigned) (uint32_t) result);
     return 1;
   }
 
