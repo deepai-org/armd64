@@ -1546,6 +1546,7 @@ static unsigned nativecheck_descriptor_target_calls;
 static uint64_t nativecheck_expected_source_sp __attribute__((used));
 enum {
   NATIVECHECK_IMPORT_FUNC_STRLEN = 8,
+  NATIVECHECK_IMPORT_UNKNOWN_SELECTOR = POLY_IMPORT_FUNC_COUNT + 6,
   NATIVECHECK_IMPORT_DESCRIPTOR_BYTES = 32,
   NATIVECHECK_IMPORT_DESCRIPTOR_QWORDS =
     NATIVECHECK_IMPORT_DESCRIPTOR_BYTES / sizeof(uint64_t),
@@ -2912,7 +2913,7 @@ static void child_expect_bad_import_return_id_xsave_signal(void) {
   bad.import_return.top = 1;
   bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
   bad.import_return.frames[0].source_mode = POLY_MODE_RAW_AARCH64;
-  bad.import_return.frames[0].import_id = POLY_IMPORT_FUNC_COUNT;
+  bad.import_return.frames[0].import_id = POLY_IMPORT_SELECTOR_COUNT;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -4074,7 +4075,10 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "32:\n"
     "cmpq $8, %rcx\n"
+    "je 33f\n"
+    "cmpq $240, %rcx\n"
     "jne 9f\n"
+    "33:\n"
     "cmpq $0, %rsi\n"
     "jne 9f\n"
     "cmpq $77, %rdi\n"
@@ -4361,6 +4365,12 @@ static int run_poly_trap_vector_probe(void) {
   void *handler = (void *) poly_trap_vector_handler;
   uint64_t expected_pid = (uint64_t) getpid();
   struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
+  if (NATIVECHECK_IMPORT_UNKNOWN_SELECTOR >= POLY_IMPORT_SELECTOR_COUNT) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly unknown import selector outside selector window selector=%u count=%u\n",
+      NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, POLY_IMPORT_SELECTOR_COUNT);
+    return 1;
+  }
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) handler);
@@ -5147,6 +5157,62 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   if (expect_monitor_packet_import_pc("riscv compressed import",
       &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_A64
+    ".long 0xd29de010\n" // movz x16,#0xef00, opaque selector 240
+    ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
+    ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
+    ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
+    ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd2800b06\n" // movz x6,#88
+    ".long 0xd2800c67\n" // movz x7,#99
+    ".long 0xd63f0200\n" // blr x16, opaque import selector
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 5555) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 opaque import trap result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet("aarch64 opaque import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64,
+      NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, 0, 77, 88, 99) != 0)
+    return 1;
+  if (expect_monitor_packet_import_pc("aarch64 opaque import",
+      &monitor_packet, NATIVECHECK_IMPORT_UNKNOWN_SELECTOR) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  asm volatile(
+    "xorq %%r12,%%r12\n"
+    POLY_OP_ENTER_RV64
+    ".long 0xfffff2b7\n" // lui t0,0xfffff -> 0xfffffffffffff000
+    ".long 0xf0028293\n" // addi t0,t0,-256 -> selector 240
+    ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x05800813\n" // addi a6,zero,88
+    ".long 0x06300893\n" // addi a7,zero,99
+    ".long 0x000280e7\n" // jalr ra,0(t0), opaque import selector
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 5555) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv opaque import trap result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet("riscv opaque import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV,
+      NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, 0, 77, 88, 99) != 0)
+    return 1;
+  if (expect_monitor_packet_import_pc("riscv opaque import",
+      &monitor_packet, NATIVECHECK_IMPORT_UNKNOWN_SELECTOR) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));

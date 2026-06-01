@@ -781,6 +781,9 @@ static inline uint64_t poly_abi_signature_control_value(uint64_t kind) {
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;
 static const uint64_t POLY_IMPORT_CALL_STRIDE = 0x10ULL;
+enum {
+  POLY_IMPORT_SELECTOR_COUNT = 256
+};
 
 struct poly_cpuid_regs {
   uint32_t eax;
