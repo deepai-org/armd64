@@ -231,6 +231,7 @@ POLYCALL_INT_CARRY_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_carr
 POLYCALL_INT_VARSHIFT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_varshift_real.c"
 POLYCALL_INT_LOGIC_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_logic_real.c"
 POLYCALL_INT_BITOPS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_bitops_real.c"
+POLYCALL_RISCV_ZBS_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_riscv_zbs_real.c"
 POLYCALL_INT_ROTATE_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_rotate_real.c"
 POLYCALL_INT_CCMP_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_int_ccmp_real.c"
 POLYCALL_POSTINDEX_MEM_AARCH64_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_postindex_mem_aarch64.c"
@@ -5760,6 +5761,11 @@ build_poly_elf_payloads() {
     "$POLYCALL_INT_BITOPS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-int-bitops-real.so"
   riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64gc_zbs -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYCALL_RISCV_ZBS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-pcall-zbs-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
     -march=rv64g -mabi=lp64d \
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYCALL_INT_ROTATE_REAL_SRC" \
@@ -8551,6 +8557,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/riscv-pcall-int-varshift-real.so#poly_entry=0xe5d48b633e422ba5 \
     /usr/lib/polyapps/riscv-pcall-int-logic-real.so#poly_entry=0x21d9737d81792d5e \
     /usr/lib/polyapps/riscv-pcall-int-bitops-real.so#poly_entry=0xe5caa38822572301 \
+    /usr/lib/polyapps/riscv-pcall-zbs-real.so#poly_entry=42 \
     /usr/lib/polyapps/riscv-pcall-int-rotate-real.so#poly_entry=0xbc1e4a9e37a5682e \
     /usr/lib/polyapps/riscv-pcall-int-ccmp-real.so#poly_entry=5 \
     /usr/lib/polyapps/riscv-pcall-atomic.so#poly_entry=8590005819 \
