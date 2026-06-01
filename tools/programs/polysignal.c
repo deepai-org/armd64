@@ -247,12 +247,28 @@ static int setup_polysignal_signature_slots(void) {
     poly_cpuid_expected_escape_leaf5();
   const struct poly_cpuid_regs expected_fp64_signature =
     poly_cpuid_expected_escape_leaf22();
+  const struct poly_cpuid_regs expected_hfa32_ret_signature =
+    poly_cpuid_expected_escape_leaf26();
+  const struct poly_cpuid_regs expected_hfa32_arg_signature =
+    poly_cpuid_expected_escape_leaf27();
+  const struct poly_cpuid_regs expected_native_sret_signature =
+    poly_cpuid_expected_escape_leaf28();
+  const struct poly_cpuid_regs expected_hfa64_ret_signature =
+    poly_cpuid_expected_escape_leaf29();
   const struct poly_cpuid_regs x86_controls =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
   const struct poly_cpuid_regs fp64_signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 22);
+  const struct poly_cpuid_regs hfa32_ret_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 26);
+  const struct poly_cpuid_regs hfa32_arg_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 27);
+  const struct poly_cpuid_regs native_sret_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 28);
+  const struct poly_cpuid_regs hfa64_ret_signature =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 29);
   const uint32_t native_slot = (signature.ecx >> 24) & 0xffU;
   const uint32_t native_kind = (signature.edx >> 24) & 0xffU;
   const uint32_t fp64_slot = fp64_signature.edx;
@@ -288,6 +304,56 @@ static int setup_polysignal_signature_slots(void) {
       fp64_signature.edx, expected_fp64_signature.eax,
       expected_fp64_signature.ebx, expected_fp64_signature.ecx,
       expected_fp64_signature.edx);
+    return -1;
+  }
+  if (hfa32_ret_signature.eax != expected_hfa32_ret_signature.eax ||
+      hfa32_ret_signature.ebx != expected_hfa32_ret_signature.ebx ||
+      hfa32_ret_signature.ecx != expected_hfa32_ret_signature.ecx ||
+      hfa32_ret_signature.edx != expected_hfa32_ret_signature.edx) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: AArch64 HFA32 return signature manifest mismatch hfa32ret=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      hfa32_ret_signature.eax, hfa32_ret_signature.ebx,
+      hfa32_ret_signature.ecx, hfa32_ret_signature.edx,
+      expected_hfa32_ret_signature.eax, expected_hfa32_ret_signature.ebx,
+      expected_hfa32_ret_signature.ecx, expected_hfa32_ret_signature.edx);
+    return -1;
+  }
+  if (hfa32_arg_signature.eax != expected_hfa32_arg_signature.eax ||
+      hfa32_arg_signature.ebx != expected_hfa32_arg_signature.ebx ||
+      hfa32_arg_signature.ecx != expected_hfa32_arg_signature.ecx ||
+      hfa32_arg_signature.edx != expected_hfa32_arg_signature.edx) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: AArch64 HFA32 argument signature manifest mismatch hfa32arg=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      hfa32_arg_signature.eax, hfa32_arg_signature.ebx,
+      hfa32_arg_signature.ecx, hfa32_arg_signature.edx,
+      expected_hfa32_arg_signature.eax, expected_hfa32_arg_signature.ebx,
+      expected_hfa32_arg_signature.ecx, expected_hfa32_arg_signature.edx);
+    return -1;
+  }
+  if (native_sret_signature.eax != expected_native_sret_signature.eax ||
+      native_sret_signature.ebx != expected_native_sret_signature.ebx ||
+      native_sret_signature.ecx != expected_native_sret_signature.ecx ||
+      native_sret_signature.edx != expected_native_sret_signature.edx ||
+      native_sret_signature.eax >= signature.ebx ||
+      native_sret_signature.eax != POLY_ABI_SIGNATURE_SLOT_NATIVE_SRET_REGS) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: native SRET signature manifest mismatch nsret=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      native_sret_signature.eax, native_sret_signature.ebx,
+      native_sret_signature.ecx, native_sret_signature.edx,
+      expected_native_sret_signature.eax, expected_native_sret_signature.ebx,
+      expected_native_sret_signature.ecx, expected_native_sret_signature.edx);
+    return -1;
+  }
+  if (hfa64_ret_signature.eax != expected_hfa64_ret_signature.eax ||
+      hfa64_ret_signature.ebx != expected_hfa64_ret_signature.ebx ||
+      hfa64_ret_signature.ecx != expected_hfa64_ret_signature.ecx ||
+      hfa64_ret_signature.edx != expected_hfa64_ret_signature.edx) {
+    fprintf(stderr,
+      "POLYSIGNAL_FAIL: AArch64 HFA64 return signature manifest mismatch hfa64ret=(0x%x,0x%x,0x%x,0x%x) expected=(0x%x,0x%x,0x%x,0x%x)\n",
+      hfa64_ret_signature.eax, hfa64_ret_signature.ebx,
+      hfa64_ret_signature.ecx, hfa64_ret_signature.edx,
+      expected_hfa64_ret_signature.eax, expected_hfa64_ret_signature.ebx,
+      expected_hfa64_ret_signature.ecx, expected_hfa64_ret_signature.edx);
     return -1;
   }
   if (poly_abi_signature_set(native_slot,
