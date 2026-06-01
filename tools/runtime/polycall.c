@@ -262,8 +262,8 @@ static const uint32_t POLY_ABI_BRIDGE_FORBIDDEN_FLAGS =
   POLY_ABI_BRIDGE_FLAG_RESERVED_DESCRIPTOR_IMPORTS |
   POLY_ABI_BRIDGE_FLAG_RESERVED_USER_DESCRIPTORS;
 
-#define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"
-#define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
+#define POLY_OP_STATE_KEY_SET POLY_X86_CTRL_STATE_KEY_SET_ASM
+#define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
 
 enum {
   POLY_IMPORT_PAGE_VALUE_OFFSET = 0,
@@ -845,7 +845,7 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
 static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   uint64_t rax = slot;
   uint64_t rdx = poly_abi_signature_control_value(kind);
-  asm volatile(".byte 0x0f,0x3a,0xfc,0x69\n"
+  asm volatile(POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
       : "+a"(rax), "+d"(rdx)
       :
       : "memory");

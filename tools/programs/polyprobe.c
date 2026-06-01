@@ -9,46 +9,47 @@
 #define POLY_OP_EXIT \
   "movq %%r15, %%r11\n" \
   "xorl %%r15d, %%r15d\n" \
-  ".byte 0x0f,0x3a,0xfc,0x03\n" \
+  POLY_X86_CTRL_PENTER_MODE_ASM \
   "movq %%r11, %%r15\n"
 #define POLY_OP_ENTER_A64 \
   "movl $1, %%r15d\n" \
-  ".byte 0x0f,0x3a,0xfc,0x03\n"
+  POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_ENTER_RV64 \
   "movl $2, %%r15d\n" \
-  ".byte 0x0f,0x3a,0xfc,0x03\n"
-#define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
-#define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
-#define POLY_OP_LANDING ".byte 0x0f,0x3a,0xfc,0x05\n"
+  POLY_X86_CTRL_PENTER_MODE_ASM
+#define POLY_OP_ENTER_MODE POLY_X86_CTRL_PENTER_MODE_ASM
+#define POLY_OP_SWITCH_MODE POLY_X86_CTRL_PSWITCH_MODE_ASM
+#define POLY_OP_LANDING POLY_X86_CTRL_LANDING_ASM
 #define POLY_OP_PCALL_A64 \
   "movq %%r10, %%rbx\n" \
   "movl $1, %%r15d\n" \
-  ".byte 0x0f,0x3a,0xfc,0x31\n"
+  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM
 #define POLY_OP_PCALL_RV64 \
   "movq %%r10, %%rbx\n" \
   "movl $2, %%r15d\n" \
-  ".byte 0x0f,0x3a,0xfc,0x31\n"
-#define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
+  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM
+#define POLY_OP_PCALL_SIG_MODE POLY_X86_CTRL_PCALL_SIG_MODE_ASM
 #define POLY_OP_PCALL_SIG_A64 \
   "movl $1, %%r15d\n" \
   POLY_OP_PCALL_SIG_MODE
 #define POLY_OP_PCALL_SIG_RV64 \
   "movl $2, %%r15d\n" \
   POLY_OP_PCALL_SIG_MODE
-#define POLY_OP_PCALL_SIG_IMM_SLOT3 ".byte 0x0f,0x3a,0xfc,0x33\n"
-#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
-#define POLY_OP_TRAP_VECTOR_GET ".byte 0x0f,0x3a,0xfc,0x61\n"
-#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
-#define POLY_OP_TRAP_VECTOR_MODE_GET ".byte 0x0f,0x3a,0xfc,0x64\n"
+#define POLY_OP_PCALL_SIG_IMM_SLOT3 \
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM
+#define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
+#define POLY_OP_TRAP_VECTOR_GET POLY_X86_CTRL_TRAP_VECTOR_GET_ASM
+#define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
+#define POLY_OP_TRAP_VECTOR_MODE_GET POLY_X86_CTRL_TRAP_VECTOR_MODE_GET_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
-#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
-#define POLY_OP_STATE_IMPORT ".byte 0x0f,0x3a,0xfc,0x68\n"
-#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
-#define POLY_OP_ABI_SIGNATURE_GET ".byte 0x0f,0x3a,0xfc,0x6a\n"
-#define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
-#define POLY_OP_MONITOR_PACKET_GET ".byte 0x0f,0x3a,0xfc,0x6c\n"
-#define POLY_OP_LANDING_POLICY_SET ".byte 0x0f,0x3a,0xfc,0x6d\n"
-#define POLY_OP_LANDING_POLICY_GET ".byte 0x0f,0x3a,0xfc,0x6e\n"
+#define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
+#define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
+#define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
+#define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
+#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
+#define POLY_OP_MONITOR_PACKET_GET POLY_X86_CTRL_MONITOR_PACKET_GET_ASM
+#define POLY_OP_LANDING_POLICY_SET POLY_X86_CTRL_LANDING_POLICY_SET_ASM
+#define POLY_OP_LANDING_POLICY_GET POLY_X86_CTRL_LANDING_POLICY_GET_ASM
 #define POLY_ABI_GPR_CLOBBERS \
   "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r15"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX \
@@ -134,10 +135,18 @@ static int expect_monitor_packet_args(const char *label,
 static inline void poly_mode_x86(void) {
   asm volatile(POLY_OP_EXIT ::: "r11", "memory");
 }
-static inline void poly_switch_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x40" ::: "memory"); }
-static inline void poly_foreign_insn_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x42" ::: "memory"); }
-static inline void poly_foreign_syscall_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x43" ::: "memory"); }
-static inline void poly_foreign_break_count_status(void) { asm volatile(".byte 0x0f,0x3a,0xfc,0x44" ::: "memory"); }
+static inline void poly_switch_count_status(void) {
+  asm volatile(POLY_X86_CTRL_SWITCH_COUNT_STATUS_ASM ::: "memory");
+}
+static inline void poly_foreign_insn_count_status(void) {
+  asm volatile(POLY_X86_CTRL_FOREIGN_INSN_COUNT_STATUS_ASM ::: "memory");
+}
+static inline void poly_foreign_syscall_count_status(void) {
+  asm volatile(POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS_ASM ::: "memory");
+}
+static inline void poly_foreign_break_count_status(void) {
+  asm volatile(POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS_ASM ::: "memory");
+}
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");

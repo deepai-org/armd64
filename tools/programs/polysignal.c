@@ -10,12 +10,14 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_STATE_KEY_SET ".byte 0x0f,0x3a,0xfc,0x65\n"
-#define POLY_OP_STATE_KEY_GET ".byte 0x0f,0x3a,0xfc,0x66\n"
-#define POLY_OP_STATE_EXPORT ".byte 0x0f,0x3a,0xfc,0x67\n"
-#define POLY_OP_ABI_SIGNATURE_SET ".byte 0x0f,0x3a,0xfc,0x69\n"
-#define POLY_OP_PCALL_SIG_IMM_NATIVE ".byte 0x0f,0x3a,0xfc,0x33\n"
-#define POLY_OP_PCALL_SIG_IMM_FP64 ".byte 0x0f,0x3a,0xfc,0x38\n"
+#define POLY_OP_STATE_KEY_SET POLY_X86_CTRL_STATE_KEY_SET_ASM
+#define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
+#define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
+#define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
+#define POLY_OP_PCALL_SIG_IMM_NATIVE \
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM
+#define POLY_OP_PCALL_SIG_IMM_FP64 \
+  POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_FP64_ASM
 #define POLY_OP_PCALL_SYSV_A64 \
   "pushq %%rbx\n" \
   "pushq %%r15\n" \
@@ -23,7 +25,7 @@
   "movq %%r10, %%rbx\n" \
   "movl $1, %%r15d\n" \
   "leaq 9f(%%rip), %%r11\n" \
-  ".byte 0x0f,0x3a,0xfc,0x31\n" \
+  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM \
   "9:\n" \
   "popq %%r11\n" \
   "popq %%r15\n" \
@@ -36,7 +38,7 @@
   "movq %%r10, %%rbx\n" \
   "movl $2, %%r15d\n" \
   "leaq 9f(%%rip), %%r11\n" \
-  ".byte 0x0f,0x3a,0xfc,0x31\n" \
+  POLY_X86_CTRL_PCALL_SIG_IMM_X86_SYSV_REGS_ASM \
   "9:\n" \
   "popq %%r11\n" \
   "popq %%r15\n" \

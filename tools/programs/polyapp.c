@@ -10,10 +10,10 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_TRAP_VECTOR_SET ".byte 0x0f,0x3a,0xfc,0x60\n"
-#define POLY_OP_TRAP_VECTOR_MODE_SET ".byte 0x0f,0x3a,0xfc,0x63\n"
+#define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
+#define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
-#define POLY_OP_MONITOR_PACKET_SET ".byte 0x0f,0x3a,0xfc,0x6b\n"
+#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
 
 enum {
   POLY_ARCH_X86 = POLY_FRONTEND_X86,
@@ -73,14 +73,17 @@ static inline void poly_mode_x86(void) {
   asm volatile(
     "movq %%r15, %%r11\n"
     "xorl %%r15d, %%r15d\n"
-    ".byte 0x0f,0x3a,0xfc,0x03\n"
+    POLY_X86_CTRL_PENTER_MODE_ASM
     "movq %%r11, %%r15\n"
     ::: "r11", "memory");
 }
 
 static inline uint64_t poly_switch_count(void) {
   uint64_t value;
-  asm volatile(".byte 0x0f,0x3a,0xfc,0x40" : "=a"(value) :: "memory");
+  asm volatile(POLY_X86_CTRL_SWITCH_COUNT_STATUS_ASM
+      : "=a"(value)
+      :
+      : "memory");
   return value;
 }
 
