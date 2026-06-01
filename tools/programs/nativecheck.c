@@ -1883,7 +1883,7 @@ static void child_expect_riscv_invalid_generic_signature_slot_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
-static void child_expect_legacy_aarch64_mode_envelope_signal(void) {
+static void child_expect_forbidden_aarch64_mode_envelope_signal(void) {
   asm volatile(
     ".byte 0x65,0x0f,0x0b,0x41,0x41,0x52,0x36,0x34\n"
     ::: "r15", "memory");
@@ -1891,7 +1891,7 @@ static void child_expect_legacy_aarch64_mode_envelope_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
-static void child_expect_legacy_riscv_mode_envelope_signal(void) {
+static void child_expect_forbidden_riscv_mode_envelope_signal(void) {
   asm volatile(
     ".byte 0x66,0x0f,0x0b,0x52,0x49,0x53,0x43,0x56\n"
     ::: "r15", "memory");
@@ -1899,7 +1899,7 @@ static void child_expect_legacy_riscv_mode_envelope_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
-static void child_expect_legacy_aarch64_instruction_envelope_signal(void) {
+static void child_expect_forbidden_aarch64_instruction_envelope_signal(void) {
   asm volatile(
     ".byte 0x67,0x0f,0x0b\n"
     ".long 0xd65f03c0\n"
@@ -1909,7 +1909,7 @@ static void child_expect_legacy_aarch64_instruction_envelope_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
-static void child_expect_legacy_riscv_instruction_envelope_signal(void) {
+static void child_expect_forbidden_riscv_instruction_envelope_signal(void) {
   asm volatile(
     ".byte 0x26,0x0f,0x0b\n"
     ".long 0x00008067\n"
@@ -2879,18 +2879,18 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
   return 0;
 }
 
-static int run_poly_legacy_envelope_rejection_probe(void) {
-  if (expect_child_signal("poly legacy aarch64 mode envelope", SIGILL,
-        child_expect_legacy_aarch64_mode_envelope_signal) != 0)
+static int run_poly_forbidden_envelope_rejection_probe(void) {
+  if (expect_child_signal("poly forbidden aarch64 mode envelope", SIGILL,
+        child_expect_forbidden_aarch64_mode_envelope_signal) != 0)
     return 1;
-  if (expect_child_signal("poly legacy riscv mode envelope", SIGILL,
-        child_expect_legacy_riscv_mode_envelope_signal) != 0)
+  if (expect_child_signal("poly forbidden riscv mode envelope", SIGILL,
+        child_expect_forbidden_riscv_mode_envelope_signal) != 0)
     return 1;
-  if (expect_child_signal("poly legacy aarch64 instruction envelope", SIGILL,
-        child_expect_legacy_aarch64_instruction_envelope_signal) != 0)
+  if (expect_child_signal("poly forbidden aarch64 instruction envelope", SIGILL,
+        child_expect_forbidden_aarch64_instruction_envelope_signal) != 0)
     return 1;
-  if (expect_child_signal("poly legacy riscv instruction envelope", SIGILL,
-        child_expect_legacy_riscv_instruction_envelope_signal) != 0)
+  if (expect_child_signal("poly forbidden riscv instruction envelope", SIGILL,
+        child_expect_forbidden_riscv_instruction_envelope_signal) != 0)
     return 1;
   if (expect_child_signal("poly removed x86 penter x86 alias", SIGILL,
         child_expect_removed_x86_penter_x86_alias_signal) != 0)
@@ -8758,7 +8758,7 @@ int main(void) {
       return 1;
     if (run_poly_invalid_generic_control_signal_probe() != 0)
       return 1;
-    if (run_poly_legacy_envelope_rejection_probe() != 0)
+    if (run_poly_forbidden_envelope_rejection_probe() != 0)
       return 1;
     if (run_poly_invalid_pcall_no_mutation_probe() != 0)
       return 1;
