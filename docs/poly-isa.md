@@ -1,50 +1,43 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds user-mode AArch64 and RISC-V64 frontends to an x86_64 system ISA in
-one virtual address space. The goal is compatibility with existing native ABI
-code and cross-ISA dynamic libraries, not a new compiler-only ABI.
+Poly is an x86_64 system ISA extension that lets user-mode AArch64 and
+RISC-V64 code execute in the same virtual address space. It is aimed at
+existing native ABI objects and cross-ISA shared libraries.
 
-## Running
+## Run
 
 ```sh
 make image
-make boot-poly-full-real-xsave-arch-traps
 make boot-poly-focused-validation
-make boot-poly-binfmt-arch-traps
+make boot-poly-full-real-xsave-arch-traps
 rg -a 'POLY.*OK|POLYCALL_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-## Contract And x86_64 Differences
+## What Changes From x86_64
 
-- x86_64 remains the system ISA: boot, privilege, paging, exceptions,
-  interrupts, atomics, syscalls, and TSO memory ordering.
-- AArch64/RISC-V64 are user-mode direct-fetch frontends. AArch64 fetches
-  4-byte instructions; RISC-V fetches native 16/32-bit instructions from `RIP`.
-  There is no per-instruction `#UD` envelope.
-- New decoded controls switch frontends and perform cross-ISA calls; they are
-  not traps and are not encoded as `ud2`.
-- Native ABIs remain native: x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI.
-- Fast cross-ISA calls use register-only ABI signature slots. Stack arguments,
-  variadics, aggregate repacking, lazy binding, syscall policy, and libc policy
-  stay in software/runtime code.
-- Extra foreign registers are per-thread XSAVE-style architectural state, not
-  CR3-scoped hidden emulator state.
-- Foreign traps are reported through Poly trap packets; OS-specific behavior is
-  runtime policy, not ISA behavior.
+- x86_64 still owns boot, privilege, paging, interrupts, exceptions, syscalls,
+  atomics, and TSO ordering.
+- AArch64 and RISC-V64 are user-mode frontends fetched directly from `RIP`;
+  there is no per-instruction `#UD` envelope.
+- AArch64 fetch is fixed 4-byte. RISC-V fetch is 16/32-bit so RVC is legal.
+- Cross-ISA calls target real ABIs: x86_64 SysV, AArch64 AAPCS64, RISC-V psABI.
+- Fast calls use register-only ABI signature slots. Stack/variadic/aggregate
+  reshaping, lazy binding, libc policy, and syscall policy stay in software.
+- Extra foreign state is per-thread XSAVE-style architectural state.
+- Foreign traps produce OS-neutral trap packets for the runtime or OS policy.
 
-## Bochs Control Opcodes
+## Control Encodings
 
-Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64. x86_64 controls use
-decoded `0f 3a fc <op>` instructions. Foreign controls use reserved AArch64
-HINT and RISC-V custom-0 encodings.
+Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64.
 
-| Op | Opcode | Inputs |
+| Control | x86 encoding | Inputs |
 | --- | --- | --- |
-| `PENTER` | `03` | `R15=frontend`, `R13=TLS` |
-| `PSWITCH` | `04` | `R15=frontend`, `RBX=target`, `R13=TLS` |
-| `PLANDING` | `05` | indirect cross-frontend landing marker |
-| `PCALL` | `2d` | `R15=frontend`, `RBX=target`, `R11=return`, `R12=sig` |
-| `PCALL_IMM` | `30..` | `R15=frontend`, `RBX=target`, `R11=return`, slot `op - 0x30` |
-| `PTRAPRET` | `62` | resume from a Poly trap packet |
+| `PENTER` | `0f 3a fc 03` | `R15=frontend`, `R13=TLS` |
+| `PSWITCH` | `0f 3a fc 04` | `R15=frontend`, `RBX=target`, `R13=TLS` |
+| `PLANDING` | `0f 3a fc 05` | landing marker for indirect cross-ISA targets |
+| `PCALL` | `0f 3a fc 2d` | `R15=frontend`, `RBX=target`, `R11=return`, `R12=sig` |
+| `PCALL_IMM` | `0f 3a fc 30..` | same as `PCALL`; signature slot is `op - 0x30` |
+| `PTRAPRET` | `0f 3a fc 62` | resume from a Poly trap packet |
 
-Full rationale: `docs/poly-isa-design-directions.md`.
+Foreign controls use reserved AArch64 HINT and RISC-V custom-0 encodings. See
+`docs/poly-isa-design-directions.md` for rationale and hardware direction.
