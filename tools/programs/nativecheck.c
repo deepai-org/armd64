@@ -1947,6 +1947,42 @@ static void child_expect_removed_x86_riscv_pcall_alias_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_removed_x86_aarch64_signature_pcall_alias_signal(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "xorl %%r12d, %%r12d\n"
+    ".byte 0x0f,0x3a,0xfc,0x2b\n"
+    "1:\n"
+    ".long 0xd5032e1f\n" // If accepted, escape AArch64 and fail.
+    "jmp 2f\n"
+    "2:\n"
+    :
+    :
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_removed_x86_riscv_signature_pcall_alias_signal(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "xorl %%r12d, %%r12d\n"
+    ".byte 0x0f,0x3a,0xfc,0x2c\n"
+    "1:\n"
+    ".long 0x0000700b\n" // If accepted, escape RISC-V and fail.
+    "jmp 2f\n"
+    "2:\n"
+    :
+    :
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_removed_x86_pcall_sig_imm_trailer_signal(void) {
   asm volatile(
     "leaq 1f(%%rip), %%rbx\n"
@@ -2778,6 +2814,12 @@ static int run_poly_legacy_envelope_rejection_probe(void) {
     return 1;
   if (expect_child_signal("poly removed x86 riscv pcall alias", SIGILL,
         child_expect_removed_x86_riscv_pcall_alias_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly removed x86 aarch64 signature pcall alias",
+        SIGILL, child_expect_removed_x86_aarch64_signature_pcall_alias_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly removed x86 riscv signature pcall alias",
+        SIGILL, child_expect_removed_x86_riscv_signature_pcall_alias_signal) != 0)
     return 1;
   if (expect_child_signal("poly removed x86 pcall signature trailer", SIGILL,
         child_expect_removed_x86_pcall_sig_imm_trailer_signal) != 0)
