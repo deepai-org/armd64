@@ -20,8 +20,14 @@
 #define POLY_OP_ENTER_MODE ".byte 0x0f,0x3a,0xfc,0x03\n"
 #define POLY_OP_SWITCH_MODE ".byte 0x0f,0x3a,0xfc,0x04\n"
 #define POLY_OP_LANDING ".byte 0x0f,0x3a,0xfc,0x05\n"
-#define POLY_OP_PCALL_A64 ".byte 0x0f,0x3a,0xfc,0x10\n"
-#define POLY_OP_PCALL_RV64 ".byte 0x0f,0x3a,0xfc,0x11\n"
+#define POLY_OP_PCALL_A64 \
+  "movq %%r10, %%rbx\n" \
+  "movl $1, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x31\n"
+#define POLY_OP_PCALL_RV64 \
+  "movq %%r10, %%rbx\n" \
+  "movl $2, %%r15d\n" \
+  ".byte 0x0f,0x3a,0xfc,0x31\n"
 #define POLY_OP_PCALL_SIG_A64 ".byte 0x0f,0x3a,0xfc,0x2b\n"
 #define POLY_OP_PCALL_SIG_RV64 ".byte 0x0f,0x3a,0xfc,0x2c\n"
 #define POLY_OP_PCALL_SIG_MODE ".byte 0x0f,0x3a,0xfc,0x2d\n"
@@ -1190,7 +1196,8 @@ static inline void pcall_aarch64_sysv_args_probe(void) {
     ".long 0x8b050000\n" // add x0,x0,x5
     ".long 0xd65f03c0\n" // ret x30
     "2:\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r15", "memory");
 }
 
 static inline void pcall_riscv_sysv_args_probe(void) {
@@ -1212,7 +1219,8 @@ static inline void pcall_riscv_sysv_args_probe(void) {
     ".long 0x00f50533\n" // add a0,a0,a5
     ".long 0x00008067\n" // ret
     "2:\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r15", "memory");
 }
 
 static inline void poly_opcode_pcall_aarch64_sysv_args_probe(void) {
@@ -1234,7 +1242,8 @@ static inline void poly_opcode_pcall_aarch64_sysv_args_probe(void) {
     ".long 0x8b050000\n" // add x0,x0,x5
     ".long 0xd65f03c0\n" // ret x30
     "2:\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r15", "memory");
 }
 
 static inline void poly_opcode_pcall_riscv_sysv_args_probe(void) {
@@ -1256,7 +1265,8 @@ static inline void poly_opcode_pcall_riscv_sysv_args_probe(void) {
     ".long 0x00f50533\n" // add a0,a0,a5
     ".long 0x00008067\n" // ret
     "2:\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r15", "memory");
 }
 
 static inline void pcall_signature_aarch64_sysv_args_probe(void) {
@@ -1764,7 +1774,8 @@ static inline void pcall_fp64_aarch64_probe(void) {
     ".long 0x1e610800\n"
     ".long 0xd65f03c0\n"
     "2:\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "xmm0", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r15", "xmm0", "memory");
 }
 
 static inline void pcall_fp64_riscv_probe(void) {
@@ -1778,7 +1789,8 @@ static inline void pcall_fp64_riscv_probe(void) {
     ".long 0x12b50553\n"
     ".long 0x00008067\n"
     "2:\n"
-    ::: "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "xmm0", "memory");
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+        "r11", "r15", "xmm0", "memory");
 }
 
 static inline void pcall_signature_fp64_aarch64_probe(void) {
