@@ -1045,6 +1045,47 @@ nativecheck_invalid_riscv_pcall_cross_target_alignment(void) {
 }
 
 static __attribute__((noinline)) void
+nativecheck_invalid_x86_pcall_frontend(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "xorq %%r12, %%r12\n"
+    "movq $255, %%r15\n"
+    POLY_OP_PCALL_SIG_MODE
+    "1:\n"
+    "retq\n"
+    "2:\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_aarch64_pcall_frontend(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xd2801ff1\n" // movz x17,#255
+    ".long 0xd2800012\n" // movz x18,#0
+    ".long 0xd5032f3f\n" // aarch64 generic pcall frontend=x17 target=x16
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_riscv_pcall_frontend(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0
+    ".long 0x0ff00313\n" // addi t1,zero,255
+    ".long 0x00000393\n" // addi t2,zero,0
+    ".long 0x1200700b\n" // riscv generic pcall frontend=t1 target=t0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
 nativecheck_invalid_x86_switch_target(void) {
   asm volatile(
     "movq %0, %%rbx\n"
@@ -1103,6 +1144,41 @@ nativecheck_invalid_riscv_switch_target_alignment(void) {
     POLY_OP_ENTER_RV64
     ".long 0x00200293\n" // addi t0,zero,2: not AArch64 4-byte aligned.
     ".long 0x00100313\n" // addi t1,zero,1: AArch64 frontend.
+    ".long 0x1000700b\n" // riscv generic switch frontend=t1 target=t0
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_x86_switch_frontend(void) {
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "movq $255, %%r15\n"
+    POLY_OP_SWITCH_MODE
+    "1:\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_aarch64_switch_frontend(void) {
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800010\n" // movz x16,#0
+    ".long 0xd2801ff1\n" // movz x17,#255
+    ".long 0xd5032f1f\n" // aarch64 generic switch frontend=x17 target=x16
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+}
+
+static __attribute__((noinline)) void
+nativecheck_invalid_riscv_switch_frontend(void) {
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000293\n" // addi t0,zero,0
+    ".long 0x0ff00313\n" // addi t1,zero,255
     ".long 0x1000700b\n" // riscv generic switch frontend=t1 target=t0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -5725,6 +5801,15 @@ static int run_poly_invalid_pcall_no_mutation_probe(void) {
   if (run_poly_invalid_pcall_no_mutation_case("riscv-aarch64-bad-return-align",
         nativecheck_invalid_riscv_pcall_cross_return_alignment) != 0)
     return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("x86-bad-frontend",
+        nativecheck_invalid_x86_pcall_frontend) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("aarch64-bad-frontend",
+        nativecheck_invalid_aarch64_pcall_frontend) != 0)
+    return 1;
+  if (run_poly_invalid_pcall_no_mutation_case("riscv-bad-frontend",
+        nativecheck_invalid_riscv_pcall_frontend) != 0)
+    return 1;
   if (run_poly_invalid_pcall_no_mutation_case("x86-aarch64-bad-target",
         nativecheck_invalid_x86_pcall_target) != 0)
     return 1;
@@ -5809,6 +5894,15 @@ static int run_poly_invalid_switch_no_mutation_case(const char *label,
 }
 
 static int run_poly_invalid_switch_no_mutation_probe(void) {
+  if (run_poly_invalid_switch_no_mutation_case("x86-bad-frontend",
+        nativecheck_invalid_x86_switch_frontend) != 0)
+    return 1;
+  if (run_poly_invalid_switch_no_mutation_case("aarch64-bad-frontend",
+        nativecheck_invalid_aarch64_switch_frontend) != 0)
+    return 1;
+  if (run_poly_invalid_switch_no_mutation_case("riscv-bad-frontend",
+        nativecheck_invalid_riscv_switch_frontend) != 0)
+    return 1;
   if (run_poly_invalid_switch_no_mutation_case("x86-aarch64-bad-target",
         nativecheck_invalid_x86_switch_target) != 0)
     return 1;
