@@ -1,42 +1,42 @@
 # Poly ISA
 
-Poly lets existing x86_64, AArch64, and RISC-V64 user-mode code share one
-x86_64 virtual address space. It targets real ABI compatibility: x86_64 SysV,
-AArch64 AAPCS64, and RISC-V psABI.
+Poly lets existing x86_64, AArch64, and RISC-V64 user-mode code execute in one
+x86_64 virtual address space. The target is real ABI compatibility with SysV
+x86_64, AAPCS64, and the RISC-V psABI, not a new compiler-only ABI.
 
-## Contract
+## Architectural Contract
 
-- x86_64 remains the system ISA for boot, privilege, paging, faults,
-  interrupts, syscalls, VM control, atomics, and global TSO ordering.
-- AArch64 and RISC-V64 are user-mode decode frontends.
-- AArch64 fetches aligned 32-bit instructions.
-- RISC-V64 fetches 16/32-bit instructions, including RVC.
-- Mode changes use decoded control instructions, not `#UD` envelopes.
-- Foreign architectural state is per-thread XSAVE-style state.
-- Recoverable foreign traps produce OS-neutral trap packets.
+- x86_64 is the system ISA: boot, privilege, paging, faults, interrupts,
+  syscalls, VM control, atomics, and global TSO ordering.
+- AArch64 and RISC-V64 are user-mode decode frontends over the same address
+  space and memory subsystem. AArch64 fetches aligned 32-bit instructions;
+  RISC-V64 fetches 16/32-bit instructions, including RVC.
+- Mode changes are decoded control instructions, not `#UD` exception envelopes.
+- Foreign architectural state is per-thread XSAVE-style state; recoverable
+  foreign traps produce OS-neutral trap packets.
 
-## Interop
+## Hardware Boundary
 
-- Fast calls use register-only ABI signature slots where possible.
-- Stack arguments, aggregates, variadics, lazy binding, libc policy, syscall
-  policy, and other memory-shaped ABI work stay in software thunks or monitors.
-- The ISA supplies fast frontend switching and register-state mechanics; it does
-  not parse user-memory call descriptors or rewrite stack layouts in hardware.
+- Hardware supplies fast frontend switching, per-thread state, trap packets, and
+  optional register-only ABI signature slots.
+- Hardware does not parse user-memory call descriptors, rewrite stack layouts,
+  marshal structs, implement libcalls, or translate OS syscall policy.
+- Software thunks/monitors handle memory-shaped ABI work: stack arguments,
+  aggregates, variadics, lazy binding, libc policy, and syscall policy.
 
-## Controls
+## Temporary Encodings
 
-Prototype Bochs encodings stand in for dedicated silicon opcodes:
+These Bochs prototype encodings stand in for future dedicated silicon opcodes:
 
 - x86_64: `0f 3a fc <subop>`
 - AArch64: `0xd503201f | ((subop & 0x7f) << 5)`
 - RISC-V64: `0x0000700b | ((subop & 0x7f) << 25)`
 
-Core subops: `PENTER` `0x03`, `PSWITCH` `0x04`, `PLANDING` `0x05`,
-`PCALL` `0x2d`, `PCALL_SLOT` `0x30..0x3c`, `PTRAPRET` `0x62`.
-Setup/query subops live in `0x65..0x6e`.
+Core subops are `PENTER` `0x03`, `PSWITCH` `0x04`, `PLANDING` `0x05`,
+`PCALL` `0x2d`, `PCALL_SLOT` `0x30..0x3c`, and `PTRAPRET` `0x62`.
+Setup/query subops use `0x65..0x6e`. Control-flow targets must be canonical
+and frontend-aligned. Monitor packet addresses must be canonical and
+qword-aligned.
 
-Control-flow targets must be canonical and aligned for the target frontend.
-Monitor packet addresses must be canonical and qword-aligned.
-
-See `README.md` for run commands and `docs/poly-isa-design-directions.md` for
-the longer hardware/ABI rationale.
+Run commands are in `README.md`. Longer hardware and ABI rationale lives in
+`docs/poly-isa-design-directions.md`.
