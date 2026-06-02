@@ -6,3 +6,5 @@ syscall_expected=2
 break_id=0
 break_expected=0x4c000200
 break_number_expected=2
+break_arg1_expected=82
+break_arg2_expected=4
