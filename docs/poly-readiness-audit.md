@@ -26,7 +26,7 @@ RISC-V64 code.
 | Native-ABI fast path | ABI signature slots and register maps in `tools/include/polycpuid.h`; `PCALL` implementation in Bochs; cross-ISA runtime stubs in `tools/runtime/polyexec.c`. |
 | Complex ABI software path | Stack, aggregate, variadic, import, and syscall policy handled by loader/runtime thunks in `tools/runtime/polyexec.c`, not by hardware descriptors. |
 | Native return semantics | Return-cookie transition stacks in Bochs and XSAVE state; native `ret`/`ret x30`/RISC-V `ret` coverage in `tools/programs/nativecheck.c`. |
-| x86 TSO memory-order policy | `tools/include/polycpuid.h` advertises `POLY_MEMORY_MODEL_X86_TSO`; `rtl/poly_memory_order.sv` gates memory-op retirement so foreign frontends do not expose weak reordering and foreign barriers/fences retire as no-ops. |
+| x86 TSO memory-order policy | `tools/include/polycpuid.h` advertises `POLY_MEMORY_MODEL_X86_TSO`; `rtl/poly_memory_order.sv` gates memory-op retirement so foreign frontends do not expose weak reordering and foreign barriers/fences retire as no-ops; `rtl/test_poly_memory_order_litmus.py` checks TSO message-passing and store-buffering outcomes. |
 | Broad integration validation | `make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps` passed on 2026-06-02. |
 
 ## Not Yet Silicon-Complete
@@ -46,8 +46,7 @@ RISC-V64 code.
 
 ## Next Engineering Gates
 
-1. Add litmus-style and formal memory-model checks around
-   `rtl/poly_memory_order.sv`; the current RTL gate is directed-test coverage,
-   not a proof.
+1. Add formal memory-model checks around `rtl/poly_memory_order.sv`; the
+   current RTL gate has directed and litmus-style tests, not a proof.
 2. Decide the production x86 opcode allocation or define the vendor CPUID
    discovery contract that lets software consume non-Bochs encodings.

@@ -64,6 +64,8 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_memory_order.py`: memory-order policy checks against the CPUID
   TSO contract.
+- `test_poly_memory_order_litmus.py`: litmus-style checks for x86 TSO message
+  passing, store buffering, and coherence behavior.
 - `test_poly_raw_fetch_plan.py`: raw foreign-fetch geometry checks against
   `tools/include/polycpuid.h`.
 - `test_poly_raw_fetch_request.py`: raw instruction-fetch request checks
@@ -90,6 +92,7 @@ python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
 python3 rtl/test_poly_cpuid_rom.py
 python3 rtl/test_poly_memory_order.py
+python3 rtl/test_poly_memory_order_litmus.py
 python3 rtl/test_poly_raw_fetch_request.py
 python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
@@ -112,6 +115,7 @@ POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
 POLY_RTL_CPUID_ROM_OK
 POLY_RTL_MEMORY_ORDER_OK
+POLY_RTL_MEMORY_ORDER_LITMUS_OK
 POLY_RTL_RAW_FETCH_REQUEST_OK
 POLY_RTL_RAW_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_PLAN_OK
