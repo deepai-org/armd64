@@ -23,7 +23,7 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 - Software handles stack arguments, aggregates, variadics, lazy binding,
   syscalls, libcalls, and debugger policy.
 
-## Temporary Encodings
+## Prototype Opcode Allocations
 
 | Frontend | Encoding |
 | --- | --- |
@@ -33,3 +33,6 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 
 Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
 `PLANDING`, and `PTRAPRET`.
+
+Silicon/FPGA implementations should keep the same fixed-latency subop contract
+but allocate a dedicated decoded control-op family for the x86_64 frontend.
