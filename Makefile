@@ -97,6 +97,8 @@ check-poly-rtl:
 check-poly-rtl-formal:
 	yosys -q -p 'read_verilog -formal -sv -D FORMAL rtl/poly_memory_order.sv rtl/poly_memory_order_formal.sv; prep -top poly_memory_order_formal -flatten; sat -seq 2 -prove-asserts -set-init-zero'
 	@echo POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
+	yosys -q -p 'read_verilog -formal -sv -D FORMAL rtl/poly_transition_stack.sv rtl/poly_return_cookie_recover.sv rtl/poly_transition_stack_return_formal.sv; prep -top poly_transition_stack_return_formal -flatten; async2sync; dffunmap; sat -seq 4 -prove-asserts -tempinduct -set-init-zero'
+	@echo POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 
 check-poly-rtl-sim:
 	tmp_dir=$$(mktemp -d); \

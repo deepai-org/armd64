@@ -36,8 +36,8 @@ module poly_transition_stack #(
     output logic [3:0]  depth_o
 );
   localparam int DEPTH_BITS = 4;
-  localparam int INDEX_BITS = 3;
-  localparam logic [DEPTH_BITS-1:0] DEPTH_VALUE = 4'd8;
+  localparam int INDEX_BITS = DEPTH <= 2 ? 1 : $clog2(DEPTH);
+  localparam logic [DEPTH_BITS-1:0] DEPTH_VALUE = DEPTH_BITS'(DEPTH);
 
   logic [1:0]  frontend_q [DEPTH];
   logic [63:0] pc_q       [DEPTH];

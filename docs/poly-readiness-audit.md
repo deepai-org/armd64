@@ -26,7 +26,7 @@ RISC-V64 code.
 | Hardware-shaped interrupt boundary | `rtl/poly_interrupt_boundary.sv` validates CPL3 raw interrupt entry and matching user-return restore; `rtl/poly_frontend_core.sv` stores the interrupted raw frontend/PC state and blocks same-cycle instruction retirement during interrupt entry or restore. |
 | Hardware-shaped trap delivery | `rtl/poly_trap_packet_encode.sv` emits the 16-qword monitor packet and rejects disabled, non-canonical, unaligned, and boundary-crossing packet addresses before delivery. |
 | Trap packet memory faults | `rtl/poly_trap_packet_stage.sv` emits the packet write request, waits for memory completion, and reports monitor-packet write/page faults without delivering the trap; `rtl/poly_frontend_core.sv` blocks same-cycle retirement while the packet write waits or delivers and maps packet errors to execute faults. |
-| Hardware-shaped native return recovery | `rtl/poly_return_cookie_recover.sv` detects ordinary native returns to the Poly return cookie and requests transition-stack recovery. |
+| Hardware-shaped native return recovery | `rtl/poly_return_cookie_recover.sv` detects ordinary native returns to the Poly return cookie and requests transition-stack recovery; `rtl/poly_transition_stack_return_formal.sv` proves return-cookie resumes are sourced from the current transition-stack top and are blocked on empty, invalid, or non-cookie cases. |
 | Fast-path cycle budget | `rtl/poly_transition_cycle_budget.sv` models fixed-cycle `PSWITCH`, register-only `PCALL`, native return-cookie recovery, and trap-packet fixed work plus memory-response latency; `rtl/poly_frontend_core.sv` drives that budget model from committed transition, return-cookie, and trap-packet events. |
 | OS-neutral syscall/libcall boundary | Trap-packet contract in `docs/poly-isa-design-directions.md`; Bochs `handle_poly_syscall_trap`; userspace monitor policy in `tools/runtime/polyexec.c`. |
 | Explicit per-thread state | XSAVE-style state layout in `tools/include/polycpuid.h`; silicon-facing layout/check program in `tools/programs/polylayout.c`; guest XCR0 module in `tools/kernel/poly_xcr0.c`; real-XSAVE gates passed. |
@@ -50,14 +50,15 @@ RISC-V64 code.
   architectural implementation of every AArch64/RISC-V extension.
 - OS integration is modeled through an XSAVE-style component and a guest test
   module; no upstream Linux/Windows/macOS kernel support exists.
-- Hardware transition-stack depth, exception ordering, and return-cookie
-  behavior are specified and tested functionally, but not yet formally
-  verified.
+- Hardware transition-stack depth, same-cycle push/pop conflicts, underflow,
+  overflow, and return-cookie recovery behavior now have directed tests and a
+  Yosys temporal-induction proof over a reduced-depth instance; full-depth
+  timing/area closure remains unproven.
 
 ## Next Engineering Gates
 
-1. Add formal coverage for the transition stack and return-cookie ordering, so
-   nested `PCALL`, stack-full, same-cycle pop, and native-return recovery
-   hazards are proven instead of only covered by directed tests.
-2. Convert the vendor/prototype x86 opcode family into a production allocation
+1. Convert the vendor/prototype x86 opcode family into a production allocation
    or keep it as a CPUID-discovered vendor extension for FPGA bring-up.
+2. Integrate the stateful Poly frontend with real x86/AArch64/RISC-V decode
+   frontends in an FPGA-oriented top-level design, then run timing and resource
+   analysis.

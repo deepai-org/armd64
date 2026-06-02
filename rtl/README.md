@@ -46,6 +46,8 @@ silicon prototype.
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
   `PCALL` and native return-cookie recovery.
+- `poly_transition_stack_return_formal.sv`: formal harness proving
+  transition-stack depth/error behavior and return-cookie resume ordering.
 - `poly_transition_cycle_budget.sv`: cycle-budget model for fixed-latency
   `PSWITCH`, register-only `PCALL`, return-cookie recovery, and trap delivery.
 - `poly_abi_signature_slots.sv`: cached register-only ABI signature slots for
@@ -217,6 +219,7 @@ POLY_RTL_TRANSITION_CYCLE_BUDGET_OK
 POLY_RTL_TRAP_PACKET_ENCODE_OK
 POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
+POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK
