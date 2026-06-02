@@ -32,6 +32,8 @@ silicon prototype.
   transition-stack recovery for ordinary native returns to the Poly cookie.
 - `poly_trap_packet_encode.sv`: OS-neutral trap-packet encoder for recoverable
   foreign exits and monitor-packet address validation.
+- `poly_trap_packet_stage.sv`: trap-packet write/delivery stage that waits for
+  memory completion and reports monitor-packet page/write faults.
 - `test_poly_ctrl_decode.py`: static and behavioral consistency test against
   `tools/include/polycpuid.h`.
 - `test_poly_frontend_handoff.py`: transition fault-ordering checks against
@@ -56,6 +58,8 @@ silicon prototype.
   against `tools/include/polycpuid.h` and Bochs cookie constants.
 - `test_poly_trap_packet_encode.py`: trap-packet layout and monitor-address
   validation checks against `tools/include/polycpuid.h`.
+- `test_poly_trap_packet_stage.py`: trap-packet delivery ordering checks for
+  write completion and monitor-packet memory faults.
 
 ## Run
 
@@ -72,6 +76,7 @@ python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
 python3 rtl/test_poly_return_cookie_recover.py
 python3 rtl/test_poly_trap_packet_encode.py
+python3 rtl/test_poly_trap_packet_stage.py
 ```
 
 Expected output:
@@ -89,4 +94,5 @@ POLY_RTL_RAW_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_PLAN_OK
 POLY_RTL_RETURN_COOKIE_RECOVER_OK
 POLY_RTL_TRAP_PACKET_ENCODE_OK
+POLY_RTL_TRAP_PACKET_STAGE_OK
 ```
