@@ -61,6 +61,8 @@
   (POLY_STATE_XSAVE_TRAP_PACKET_BYTES + POLY_STATE_XSAVE_TRAP_ARGS_BYTES)
 #define NATIVECHECK_MONITOR_PACKET_CROSS_CANONICAL_ADDR \
   ((1ULL << 47) - (NATIVECHECK_MONITOR_PACKET_BYTES / 2))
+#define NATIVECHECK_XSAVE_CROSS_CANONICAL_ADDR \
+  ((1ULL << 47) - (POLY_STATE_XSAVE_BYTES_ARCH / 2))
 
 #ifndef ARCH_GET_XCOMP_SUPP
 #define ARCH_GET_XCOMP_SUPP 0x1021
@@ -689,6 +691,51 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
 
 static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "r15", "memory");
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_export_noncanonical_signal(void) {
+  asm volatile(POLY_OP_STATE_EXPORT :: "a"(NATIVECHECK_NONCANONICAL_ADDR) :
+    "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_export_alignment_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  asm volatile(POLY_OP_STATE_EXPORT :: "a"(((uintptr_t) &bad) + 1) :
+    "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_export_range_signal(void) {
+  asm volatile(POLY_OP_STATE_EXPORT ::
+    "a"(NATIVECHECK_XSAVE_CROSS_CANONICAL_ADDR) : "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_import_noncanonical_signal(void) {
+  asm volatile(POLY_OP_STATE_IMPORT :: "a"(NATIVECHECK_NONCANONICAL_ADDR) :
+    "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_import_alignment_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  poly_state_export(&bad);
+  asm volatile(POLY_OP_STATE_IMPORT :: "a"(((uintptr_t) &bad) + 1) :
+    "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_state_import_range_signal(void) {
+  asm volatile(POLY_OP_STATE_IMPORT ::
+    "a"(NATIVECHECK_XSAVE_CROSS_CANONICAL_ADDR) : "r15", "memory");
+  _exit(99);
 }
 
 static struct poly_xsave_state
@@ -7333,6 +7380,24 @@ static int run_poly_state_save_restore_probe(void) {
   struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
   const uint64_t trap_vector = (uint64_t) poly_trap_vector_handler;
 
+  if (expect_child_signal("poly bad state export noncanonical", SIGILL,
+        child_expect_bad_state_export_noncanonical_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad state export alignment", SIGILL,
+        child_expect_bad_state_export_alignment_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad state export range", SIGILL,
+        child_expect_bad_state_export_range_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad state import noncanonical", SIGILL,
+        child_expect_bad_state_import_noncanonical_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad state import alignment", SIGILL,
+        child_expect_bad_state_import_alignment_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad state import range", SIGILL,
+        child_expect_bad_state_import_range_signal) != 0)
+    return 1;
   if (expect_child_signal("poly malformed import-return xstate", SIGILL,
         child_expect_malformed_import_return_xsave_signal) != 0)
     return 1;
