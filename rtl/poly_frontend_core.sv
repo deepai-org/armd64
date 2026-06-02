@@ -41,12 +41,19 @@ module poly_frontend_core (
     input  logic        return_recover_valid_i,
     input  logic [63:0] return_target_pc_i,
 
+    input  logic        interrupt_feature_enabled_i,
+    input  logic        cpl3_i,
+    input  logic        interrupt_i,
+    input  logic        user_return_i,
+    input  logic [63:0] user_return_pc_i,
+
     output logic        raw_mem_req_valid_o,
     output logic [63:0] raw_mem_req_addr_o,
     output logic [2:0]  raw_mem_req_bytes_o,
 
     output logic        wait_fetch_o,
     output logic        wait_execute_o,
+    output logic        wait_retire_o,
     output logic        retire_o,
     output logic        commit_transition_o,
     output logic        commit_push_transition_o,
@@ -90,6 +97,23 @@ module poly_frontend_core (
     output logic        memory_invalid_frontend_o,
     output logic        memory_invalid_op_o,
     output logic        memory_fault_o,
+
+    output logic        interrupt_enter_x86_o,
+    output logic        interrupt_save_interrupted_o,
+    output logic [1:0]  interrupt_saved_frontend_o,
+    output logic [63:0] interrupt_saved_pc_o,
+    output logic        interrupt_restore_raw_o,
+    output logic        interrupt_clear_interrupted_o,
+    output logic [1:0]  interrupt_next_frontend_o,
+    output logic [63:0] interrupt_next_pc_o,
+    output logic        interrupted_valid_o,
+    output logic [1:0]  interrupted_frontend_o,
+    output logic [63:0] interrupted_pc_o,
+    output logic        interrupt_error_o,
+    output logic        interrupt_invalid_current_frontend_o,
+    output logic        interrupt_invalid_current_pc_o,
+    output logic        interrupt_invalid_interrupted_frontend_o,
+    output logic        interrupt_invalid_interrupted_pc_o,
 
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
@@ -138,6 +162,10 @@ module poly_frontend_core (
   logic memory_barrier_noop_raw;
   logic memory_aarch64_barrier_noop_raw;
   logic memory_riscv_fence_noop_raw;
+  logic interrupted_valid_q;
+  logic [1:0] interrupted_frontend_q;
+  logic [63:0] interrupted_pc_q;
+  logic block_retire;
 
   assign stack_pop_request = transition_pop_i || (return_pop_raw && !transition_pop_i);
   assign stack_unavailable = stack_full || stack_pop_request;
@@ -160,7 +188,7 @@ module poly_frontend_core (
   assign return_recover_invalid_frontend_o = return_invalid_frontend_raw;
   assign return_recover_missing_transition_o = return_missing_transition_raw;
   assign execute_ready = !memory_order_valid_i || memory_retire_allowed_raw;
-  assign execute_fault = execute_fault_i || memory_fault_o;
+  assign execute_fault = execute_fault_i || memory_fault_o || interrupt_error_o;
   assign memory_retire_allowed_o = memory_retire_allowed_raw;
   assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;
   assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;
@@ -168,6 +196,10 @@ module poly_frontend_core (
     retire_o && memory_aarch64_barrier_noop_raw;
   assign memory_riscv_fence_noop_o =
     retire_o && memory_riscv_fence_noop_raw;
+  assign block_retire = interrupt_enter_x86_o || interrupt_restore_raw_o;
+  assign interrupted_valid_o = interrupted_valid_q;
+  assign interrupted_frontend_o = interrupted_frontend_q;
+  assign interrupted_pc_o = interrupted_pc_q;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),
@@ -182,6 +214,7 @@ module poly_frontend_core (
     .raw_mem_resp_word_i(raw_mem_resp_word_i),
     .older_fault_i(older_fault_i),
     .execute_ready_i(execute_ready),
+    .block_retire_i(block_retire),
     .execute_fault_i(execute_fault),
     .target_frontend_i(target_frontend_i),
     .target_pc_i(target_pc_i),
@@ -192,6 +225,7 @@ module poly_frontend_core (
     .raw_mem_req_bytes_o(raw_mem_req_bytes_o),
     .wait_fetch_o(wait_fetch_o),
     .wait_execute_o(wait_execute_o),
+    .wait_retire_o(wait_retire_o),
     .retire_o(retire_o),
     .commit_transition_o(commit_transition_o),
     .commit_push_transition_o(commit_push_transition),
@@ -240,6 +274,33 @@ module poly_frontend_core (
     .invalid_frontend_o(memory_invalid_frontend_o),
     .invalid_op_o(memory_invalid_op_o),
     .fault_o(memory_fault_o)
+  );
+
+  poly_interrupt_boundary interrupt_boundary (
+    .valid_i(valid_i),
+    .feature_enabled_i(interrupt_feature_enabled_i),
+    .cpl3_i(cpl3_i),
+    .interrupt_i(interrupt_i),
+    .user_return_i(user_return_i),
+    .current_frontend_i(frontend_i),
+    .current_pc_i(pc_i),
+    .interrupted_valid_i(interrupted_valid_q),
+    .interrupted_frontend_i(interrupted_frontend_q),
+    .interrupted_pc_i(interrupted_pc_q),
+    .user_return_pc_i(user_return_pc_i),
+    .enter_x86_interrupt_o(interrupt_enter_x86_o),
+    .save_interrupted_o(interrupt_save_interrupted_o),
+    .saved_frontend_o(interrupt_saved_frontend_o),
+    .saved_pc_o(interrupt_saved_pc_o),
+    .restore_raw_o(interrupt_restore_raw_o),
+    .clear_interrupted_o(interrupt_clear_interrupted_o),
+    .next_frontend_o(interrupt_next_frontend_o),
+    .next_pc_o(interrupt_next_pc_o),
+    .error_o(interrupt_error_o),
+    .invalid_current_frontend_o(interrupt_invalid_current_frontend_o),
+    .invalid_current_pc_o(interrupt_invalid_current_pc_o),
+    .invalid_interrupted_frontend_o(interrupt_invalid_interrupted_frontend_o),
+    .invalid_interrupted_pc_o(interrupt_invalid_interrupted_pc_o)
   );
 
   poly_transition_stack transition_stack (
@@ -291,4 +352,22 @@ module poly_frontend_core (
   );
 
   assign transition_stack_full_o = stack_full;
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      interrupted_valid_q <= 1'b0;
+      interrupted_frontend_q <= 2'd0;
+      interrupted_pc_q <= 64'd0;
+    end
+    else if (interrupt_save_interrupted_o) begin
+      interrupted_valid_q <= 1'b1;
+      interrupted_frontend_q <= interrupt_saved_frontend_o;
+      interrupted_pc_q <= interrupt_saved_pc_o;
+    end
+    else if (interrupt_clear_interrupted_o) begin
+      interrupted_valid_q <= 1'b0;
+      interrupted_frontend_q <= 2'd0;
+      interrupted_pc_q <= 64'd0;
+    end
+  end
 endmodule

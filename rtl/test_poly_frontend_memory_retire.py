@@ -155,6 +155,7 @@ def retire_step(
     fetch_fault: bool,
     older_fault: bool,
     execute_ready: bool,
+    block_retire: bool,
     execute_fault: bool,
     frontend: int,
     pc: int,
@@ -166,14 +167,21 @@ def retire_step(
     stack_full: bool,
     c: dict[str, int],
 ) -> dict[str, int | bool]:
-    wait = valid and not fetch_valid and not older_fault and not fetch_fault and not execute_fault
+    wait = (
+        valid and not fetch_valid and not older_fault and not fetch_fault and
+        not execute_fault and not block_retire
+    )
     wait_execute = (
         valid and fetch_valid and not execute_ready and not older_fault and
-        not fetch_fault and not execute_fault
+        not fetch_fault and not execute_fault and not block_retire
+    )
+    wait_retire = (
+        valid and block_retire and not older_fault and not fetch_fault and
+        not execute_fault
     )
     step_valid = (
-        valid and fetch_valid and execute_ready and not older_fault and
-        not fetch_fault and not execute_fault
+        valid and fetch_valid and execute_ready and not block_retire and
+        not older_fault and not fetch_fault and not execute_fault
     )
     if not step_valid:
         older = valid and older_fault
@@ -183,6 +191,7 @@ def retire_step(
         return {
             "wait": wait, "retire": False, "transition": False, "push": False,
             "wait_execute": wait_execute,
+            "wait_retire": wait_retire,
             "commit_frontend": frontend, "commit_pc": pc, "slot": 0,
             "fault": fault, "fault_pc": pc if fault else 0,
             "fetch_fault": fetch, "execute_fault": execute,
@@ -257,6 +266,7 @@ def retire_step(
     return {
         "wait": False, "retire": retire, "transition": retire and transition,
         "wait_execute": False,
+        "wait_retire": False,
         "push": retire and poly and call,
         "commit_frontend": effective_target if transition and retire else frontend,
         "commit_pc": target_pc if transition and retire else fallthrough,
@@ -281,6 +291,7 @@ def pipeline(
     raw_word: int,
     older_fault: bool,
     execute_ready: bool,
+    block_retire: bool,
     execute_fault: bool,
     target_frontend: int,
     target_pc: int,
@@ -300,7 +311,8 @@ def pipeline(
     fetch_fault = pipeline_invalid or (x86 and x86_fault) or (raw and raw_fault)
     fetch_word = raw_insn if raw else x86_word
     retired = retire_step(
-        valid, fetch_valid, fetch_fault, older_fault, execute_ready, execute_fault, frontend,
+        valid, fetch_valid, fetch_fault, older_fault, execute_ready,
+        block_retire, execute_fault, frontend,
         pc, fetch_word, x86_fallthrough, target_frontend, target_pc,
         signature_valid, stack_full, c
     )
@@ -322,12 +334,14 @@ def main() -> int:
     assert "poly_raw_fetch_stage raw_fetch_stage" in text
     assert "poly_frontend_retire frontend_retire" in text
     assert ".execute_ready_i(execute_ready_i)" in text
+    assert ".block_retire_i(block_retire_i)" in text
     assert ".wait_execute_o(wait_execute_o)" in text
+    assert ".wait_retire_o(wait_retire_o)" in text
 
     x86_switch = pipeline(
         True, c["POLY_FRONTEND_X86"], 0x1000, True, False,
         x86_ctrl_word(c["POLY_X86_CTRL_PSWITCH_MODE"]), 0x1004,
-        False, False, 0, False, True, False,
+        False, False, 0, False, True, False, False,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
     assert not x86_switch["raw_req"]
@@ -337,7 +351,7 @@ def main() -> int:
 
     raw_wait = pipeline(
         True, c["POLY_FRONTEND_AARCH64"], 0x4000, False, False, 0, 0,
-        False, False, 0, False, True, False,
+        False, False, 0, False, True, False, False,
         c["POLY_FRONTEND_X86"], 0x1000, True, False, c
     )
     assert raw_wait["raw_req"] and raw_wait["raw_wait"]
@@ -345,7 +359,7 @@ def main() -> int:
 
     raw_non_control = pipeline(
         True, c["POLY_FRONTEND_AARCH64"], 0x4000, False, False, 0, 0,
-        True, False, 0x52800000, False, True, False,
+        True, False, 0x52800000, False, True, False, False,
         c["POLY_FRONTEND_X86"], 0x1000, True, False, c
     )
     assert raw_non_control["raw_req"] and raw_non_control["retire"]
@@ -356,7 +370,8 @@ def main() -> int:
     raw_switch = pipeline(
         True, c["POLY_FRONTEND_AARCH64"], 0x4000, False, False, 0, 0,
         True, False, aarch64_ctrl_word(c["POLY_AARCH64_CTRL_SUBOP_SWITCH_MODE"]),
-        False, True, False, c["POLY_FRONTEND_RISCV"], 0x8000, True, False, c
+        False, True, False, False,
+        c["POLY_FRONTEND_RISCV"], 0x8000, True, False, c
     )
     assert raw_switch["retire"] and raw_switch["transition"]
     assert raw_switch["commit_frontend"] == c["POLY_FRONTEND_RISCV"]
@@ -364,7 +379,7 @@ def main() -> int:
 
     raw_mem_fault = pipeline(
         True, c["POLY_FRONTEND_RISCV"], 0x8000, False, False, 0, 0,
-        True, True, 0, False, True, False,
+        True, True, 0, False, True, False, False,
         c["POLY_FRONTEND_X86"], 0x1000, True, False, c
     )
     assert raw_mem_fault["raw_req"] and raw_mem_fault["raw_mem_fault"]
@@ -373,7 +388,7 @@ def main() -> int:
 
     x86_fetch_fault = pipeline(
         True, c["POLY_FRONTEND_X86"], 0x1000, False, True, 0, 0x1004,
-        False, False, 0, False, True, False,
+        False, False, 0, False, True, False, False,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
     assert x86_fetch_fault["fault"] and x86_fetch_fault["fetch_fault"]
@@ -382,7 +397,7 @@ def main() -> int:
     bad_target = pipeline(
         True, c["POLY_FRONTEND_X86"], 0x1000, True, False,
         x86_ctrl_word(c["POLY_X86_CTRL_PSWITCH_MODE"]), 0x1004,
-        False, False, 0, False, True, False,
+        False, False, 0, False, True, False, False,
         3, 0x4000, True, False, c
     )
     assert bad_target["fault"] and bad_target["control_fault"]
@@ -390,7 +405,7 @@ def main() -> int:
 
     bad_frontend = pipeline(
         True, 3, 0x1000, True, False, 0, 0x1004,
-        False, False, 0, False, True, False,
+        False, False, 0, False, True, False, False,
         c["POLY_FRONTEND_X86"], 0x2000, True, False, c
     )
     assert bad_frontend["fault"] and bad_frontend["fetch_fault"]

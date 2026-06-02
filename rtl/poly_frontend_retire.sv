@@ -8,6 +8,7 @@ module poly_frontend_retire (
     input  logic        valid_i,
     input  logic        fetch_valid_i,
     input  logic        execute_ready_i,
+    input  logic        block_retire_i,
     input  logic        older_fault_i,
     input  logic        fetch_fault_i,
     input  logic        execute_fault_i,
@@ -24,6 +25,7 @@ module poly_frontend_retire (
 
     output logic        wait_fetch_o,
     output logic        wait_execute_o,
+    output logic        wait_retire_o,
     output logic        retire_o,
     output logic        commit_transition_o,
     output logic        commit_push_transition_o,
@@ -59,13 +61,16 @@ module poly_frontend_retire (
   always_comb begin
     wait_fetch_o =
       valid_i && !fetch_valid_i && !older_fault_i && !fetch_fault_i &&
-      !execute_fault_i;
+      !execute_fault_i && !block_retire_i;
     wait_execute_o =
       valid_i && fetch_valid_i && !execute_ready_i && !older_fault_i &&
-      !fetch_fault_i && !execute_fault_i;
-    step_valid =
-      valid_i && fetch_valid_i && execute_ready_i && !older_fault_i && !fetch_fault_i &&
+      !fetch_fault_i && !execute_fault_i && !block_retire_i;
+    wait_retire_o =
+      valid_i && block_retire_i && !older_fault_i && !fetch_fault_i &&
       !execute_fault_i;
+    step_valid =
+      valid_i && fetch_valid_i && execute_ready_i && !block_retire_i &&
+      !older_fault_i && !fetch_fault_i && !execute_fault_i;
   end
 
   poly_frontend_step frontend_step (

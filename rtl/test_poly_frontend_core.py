@@ -96,6 +96,13 @@ class TransitionStack:
         return self.frames.pop()
 
 
+class InterruptState:
+    def __init__(self):
+        self.valid = False
+        self.frontend = 0
+        self.pc = 0
+
+
 def core_step(
     stack: TransitionStack,
     *,
@@ -123,7 +130,54 @@ def core_step(
     older_store_pending: bool = False,
     store_buffer_full: bool = False,
     older_fault: bool = False,
+    interrupt_state: InterruptState | None = None,
+    interrupt_enabled: bool = False,
+    cpl3: bool = True,
+    interrupt: bool = False,
+    user_return: bool = False,
+    user_return_pc: int = 0,
 ) -> dict[str, int | bool | tuple[int, int, int, int] | None]:
+    interrupt_state = interrupt_state or InterruptState()
+    current_raw = frontend in {
+        c["POLY_FRONTEND_AARCH64"], c["POLY_FRONTEND_RISCV"]
+    }
+    interrupted_raw = interrupt_state.frontend in {
+        c["POLY_FRONTEND_AARCH64"], c["POLY_FRONTEND_RISCV"]
+    }
+    interrupt_candidate = (
+        valid and interrupt_enabled and cpl3 and interrupt and current_raw
+    )
+    return_candidate = (
+        valid and interrupt_enabled and cpl3 and user_return and
+        interrupt_state.valid
+    )
+    interrupt_invalid_current = (
+        valid and interrupt and frontend not in {
+            c["POLY_FRONTEND_X86"],
+            c["POLY_FRONTEND_AARCH64"],
+            c["POLY_FRONTEND_RISCV"],
+        }
+    )
+    interrupt_invalid_pc = (
+        interrupt_candidate and (not canonical(pc) or not aligned(frontend, pc, c))
+    )
+    interrupt_invalid_saved_frontend = return_candidate and not interrupted_raw
+    interrupt_invalid_saved_pc = (
+        return_candidate and
+        (not canonical(interrupt_state.pc) or
+         not aligned(interrupt_state.frontend, interrupt_state.pc, c))
+    )
+    interrupt_error = (
+        interrupt_invalid_current or interrupt_invalid_pc or
+        interrupt_invalid_saved_frontend or interrupt_invalid_saved_pc
+    )
+    interrupt_enter = interrupt_candidate and not interrupt_error
+    interrupt_restore = (
+        return_candidate and not interrupt_error and
+        user_return_pc == interrupt_state.pc
+    )
+    interrupt_block = interrupt_enter or interrupt_restore
+
     return_hit = return_valid and return_target == cookie
     return_missing = return_hit and not stack.frames
     return_blocked = return_hit and pop
@@ -160,19 +214,27 @@ def core_step(
         not memory_wait_atomic
     )
     execute_ready = not memory_order_valid or memory_retire_allowed
-    execute_fault = memory_fault
+    execute_fault = memory_fault or interrupt_error
     control_fault = bool(
         is_pcall and execute_ready and
         (target_error or not signature_valid or stack_unavailable)
     )
     retire = bool(
         valid and fetch_valid and execute_ready and not execute_fault and
-        not older_fault and not control_fault
+        not older_fault and not interrupt_block and not control_fault
     )
     commit_push = bool(is_pcall and retire)
     popped = stack.pop() if (pop or return_pop) else None
     if commit_push:
         stack.push((frontend, return_pc, sp, flags))
+    if interrupt_enter:
+        interrupt_state.valid = True
+        interrupt_state.frontend = frontend
+        interrupt_state.pc = pc
+    elif interrupt_restore:
+        interrupt_state.valid = False
+        interrupt_state.frontend = 0
+        interrupt_state.pc = 0
     return {
         "retire": retire,
         "transition": bool(is_pcall and retire),
@@ -181,6 +243,7 @@ def core_step(
         "execute_ready": execute_ready,
         "wait_execute": bool(valid and fetch_valid and not execute_ready and not execute_fault),
         "execute_fault": execute_fault,
+        "wait_retire": bool(valid and interrupt_block and not older_fault and not execute_fault),
         "memory_retire_allowed": memory_retire_allowed,
         "memory_enqueue_store": retire and memory_retire_allowed and memory_store,
         "memory_wait_store": memory_wait_store,
@@ -193,6 +256,12 @@ def core_step(
         "return_error": return_missing or return_blocked,
         "return_missing": return_missing,
         "return_blocked": return_blocked,
+        "interrupt_enter": interrupt_enter,
+        "interrupt_restore": interrupt_restore,
+        "interrupt_error": interrupt_error,
+        "interrupt_state_valid": interrupt_state.valid,
+        "interrupt_state_frontend": interrupt_state.frontend,
+        "interrupt_state_pc": interrupt_state.pc,
         "depth": len(stack.frames),
     }
 
@@ -216,11 +285,20 @@ def require_structural_wiring() -> None:
         ".transition_empty_i(!peek_valid)",
         "poly_memory_order memory_order",
         "assign execute_ready = !memory_order_valid_i || memory_retire_allowed_raw;",
-        "assign execute_fault = execute_fault_i || memory_fault_o;",
+        "assign execute_fault = execute_fault_i || memory_fault_o || interrupt_error_o;",
         "assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;",
         "assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;",
         ".execute_ready_i(execute_ready)",
+        ".block_retire_i(block_retire)",
         ".wait_execute_o(wait_execute_o)",
+        ".wait_retire_o(wait_retire_o)",
+        "poly_interrupt_boundary interrupt_boundary",
+        "interrupted_valid_q",
+        "assign block_retire = interrupt_enter_x86_o || interrupt_restore_raw_o;",
+        ".interrupted_valid_i(interrupted_valid_q)",
+        ".enter_x86_interrupt_o(interrupt_enter_x86_o)",
+        "interrupted_valid_q <= 1'b1;",
+        "interrupted_valid_q <= 1'b0;",
     ]:
         if needle not in text:
             raise AssertionError(f"missing core wiring: {needle}")
@@ -480,6 +558,119 @@ def main() -> int:
     )
     assert memory_fault["memory_fault"] and memory_fault["execute_fault"]
     assert not memory_fault["retire"] and not memory_fault["wait_execute"]
+
+    interrupt_state = InterruptState()
+    raw_interrupt = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_AARCH64"],
+        pc=0x4000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x52800000,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        interrupt_state=interrupt_state,
+        interrupt_enabled=True,
+        interrupt=True,
+        c=c,
+    )
+    assert raw_interrupt["interrupt_enter"]
+    assert raw_interrupt["interrupt_state_valid"]
+    assert raw_interrupt["interrupt_state_frontend"] == c["POLY_FRONTEND_AARCH64"]
+    assert raw_interrupt["interrupt_state_pc"] == 0x4000
+    assert not raw_interrupt["retire"]
+    assert raw_interrupt["wait_retire"] and not raw_interrupt["execute_fault"]
+
+    user_restore = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_X86"],
+        pc=0x4000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        interrupt_state=interrupt_state,
+        interrupt_enabled=True,
+        user_return=True,
+        user_return_pc=0x4000,
+        c=c,
+    )
+    assert user_restore["interrupt_restore"]
+    assert not user_restore["interrupt_state_valid"]
+    assert not user_restore["retire"]
+    assert user_restore["wait_retire"] and not user_restore["execute_fault"]
+
+    interrupt_state = InterruptState()
+    interrupt_state.valid = True
+    interrupt_state.frontend = c["POLY_FRONTEND_RISCV"]
+    interrupt_state.pc = 0x8000
+    mismatch_restore = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_X86"],
+        pc=0x4000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        interrupt_state=interrupt_state,
+        interrupt_enabled=True,
+        user_return=True,
+        user_return_pc=0x8002,
+        c=c,
+    )
+    assert not mismatch_restore["interrupt_restore"]
+    assert mismatch_restore["interrupt_state_valid"]
+    assert mismatch_restore["retire"]
+
+    bad_interrupt = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_AARCH64"],
+        pc=0x4002,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x52800000,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        interrupt_enabled=True,
+        interrupt=True,
+        c=c,
+    )
+    assert bad_interrupt["interrupt_error"] and bad_interrupt["execute_fault"]
+    assert not bad_interrupt["wait_retire"] and not bad_interrupt["retire"]
 
     print("POLY_RTL_FRONTEND_CORE_OK")
     return 0

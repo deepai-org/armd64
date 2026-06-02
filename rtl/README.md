@@ -15,13 +15,13 @@ silicon prototype.
   control decode, and handoff validation for an already-fetched instruction
   word.
 - `poly_frontend_retire.sv`: retirement gate that blocks frontend, PC, and
-  transition-stack mutations behind fetch/execute stalls or older, fetch,
-  execution, and control faults.
+  transition-stack mutations behind fetch/execute/async-boundary stalls or
+  older, fetch, execution, and control faults.
 - `poly_frontend_memory_retire.sv`: fetch-to-retire prototype that connects
   raw foreign instruction memory responses to frontend retirement commits.
 - `poly_frontend_core.sv`: frontend core wrapper that connects fetch-to-retire
-  commits, TSO memory-order backpressure, and native return-cookie recovery to
-  the hardware transition stack.
+  commits, TSO memory-order backpressure, raw interrupt save/restore, and
+  native return-cookie recovery to the hardware transition stack.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -60,8 +60,9 @@ silicon prototype.
 - `test_poly_frontend_memory_retire.py`: fetch-to-retire integration checks for
   x86 external fetch and raw AArch64/RISC-V memory fetch.
 - `test_poly_frontend_core.py`: frontend/transition-stack integration checks
-  for PCALL push, stack-full blocking, TSO memory-order backpressure,
-  return-cookie recovery, and return-pop conflict avoidance.
+  for PCALL push, stack-full blocking, TSO memory-order backpressure, raw
+  interrupt save/restore, return-cookie recovery, and return-pop conflict
+  avoidance.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
