@@ -25,6 +25,13 @@ module poly_frontend_core (
 
     input  logic        older_fault_i,
     input  logic        execute_fault_i,
+    input  logic        memory_order_valid_i,
+    input  logic        memory_load_i,
+    input  logic        memory_store_i,
+    input  logic        memory_atomic_i,
+    input  logic        memory_barrier_i,
+    input  logic        older_store_pending_i,
+    input  logic        store_buffer_full_i,
     input  logic [1:0]  target_frontend_i,
     input  logic [63:0] target_pc_i,
     input  logic        signature_slot_valid_i,
@@ -39,6 +46,7 @@ module poly_frontend_core (
     output logic [2:0]  raw_mem_req_bytes_o,
 
     output logic        wait_fetch_o,
+    output logic        wait_execute_o,
     output logic        retire_o,
     output logic        commit_transition_o,
     output logic        commit_push_transition_o,
@@ -70,6 +78,18 @@ module poly_frontend_core (
     output logic        return_recover_invalid_frontend_o,
     output logic        return_recover_missing_transition_o,
     output logic        return_recover_blocked_o,
+
+    output logic        memory_retire_allowed_o,
+    output logic        memory_enqueue_store_o,
+    output logic        memory_wait_store_buffer_o,
+    output logic        memory_wait_atomic_order_o,
+    output logic        memory_barrier_noop_o,
+    output logic        memory_aarch64_barrier_noop_o,
+    output logic        memory_riscv_fence_noop_o,
+    output logic        memory_weak_reorder_allowed_o,
+    output logic        memory_invalid_frontend_o,
+    output logic        memory_invalid_op_o,
+    output logic        memory_fault_o,
 
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
@@ -111,6 +131,13 @@ module poly_frontend_core (
   logic return_error_raw;
   logic return_invalid_frontend_raw;
   logic return_missing_transition_raw;
+  logic execute_ready;
+  logic execute_fault;
+  logic memory_retire_allowed_raw;
+  logic memory_enqueue_store_raw;
+  logic memory_barrier_noop_raw;
+  logic memory_aarch64_barrier_noop_raw;
+  logic memory_riscv_fence_noop_raw;
 
   assign stack_pop_request = transition_pop_i || (return_pop_raw && !transition_pop_i);
   assign stack_unavailable = stack_full || stack_pop_request;
@@ -132,6 +159,15 @@ module poly_frontend_core (
     return_error_raw || return_recover_blocked_o;
   assign return_recover_invalid_frontend_o = return_invalid_frontend_raw;
   assign return_recover_missing_transition_o = return_missing_transition_raw;
+  assign execute_ready = !memory_order_valid_i || memory_retire_allowed_raw;
+  assign execute_fault = execute_fault_i || memory_fault_o;
+  assign memory_retire_allowed_o = memory_retire_allowed_raw;
+  assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;
+  assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;
+  assign memory_aarch64_barrier_noop_o =
+    retire_o && memory_aarch64_barrier_noop_raw;
+  assign memory_riscv_fence_noop_o =
+    retire_o && memory_riscv_fence_noop_raw;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),
@@ -145,7 +181,8 @@ module poly_frontend_core (
     .raw_mem_resp_fault_i(raw_mem_resp_fault_i),
     .raw_mem_resp_word_i(raw_mem_resp_word_i),
     .older_fault_i(older_fault_i),
-    .execute_fault_i(execute_fault_i),
+    .execute_ready_i(execute_ready),
+    .execute_fault_i(execute_fault),
     .target_frontend_i(target_frontend_i),
     .target_pc_i(target_pc_i),
     .signature_slot_valid_i(signature_slot_valid_i),
@@ -154,6 +191,7 @@ module poly_frontend_core (
     .raw_mem_req_addr_o(raw_mem_req_addr_o),
     .raw_mem_req_bytes_o(raw_mem_req_bytes_o),
     .wait_fetch_o(wait_fetch_o),
+    .wait_execute_o(wait_execute_o),
     .retire_o(retire_o),
     .commit_transition_o(commit_transition_o),
     .commit_push_transition_o(commit_push_transition),
@@ -180,6 +218,28 @@ module poly_frontend_core (
     .target_align_fault_o(target_align_fault_o),
     .invalid_signature_slot_o(invalid_signature_slot_o),
     .transition_stack_full_o()
+  );
+
+  poly_memory_order memory_order (
+    .valid_i(memory_order_valid_i),
+    .frontend_i(frontend_i),
+    .load_i(memory_load_i),
+    .store_i(memory_store_i),
+    .atomic_i(memory_atomic_i),
+    .barrier_i(memory_barrier_i),
+    .older_store_pending_i(older_store_pending_i),
+    .store_buffer_full_i(store_buffer_full_i),
+    .retire_allowed_o(memory_retire_allowed_raw),
+    .enqueue_store_o(memory_enqueue_store_raw),
+    .wait_store_buffer_o(memory_wait_store_buffer_o),
+    .wait_atomic_order_o(memory_wait_atomic_order_o),
+    .barrier_noop_o(memory_barrier_noop_raw),
+    .aarch64_barrier_noop_o(memory_aarch64_barrier_noop_raw),
+    .riscv_fence_noop_o(memory_riscv_fence_noop_raw),
+    .weak_reorder_allowed_o(memory_weak_reorder_allowed_o),
+    .invalid_frontend_o(memory_invalid_frontend_o),
+    .invalid_op_o(memory_invalid_op_o),
+    .fault_o(memory_fault_o)
   );
 
   poly_transition_stack transition_stack (

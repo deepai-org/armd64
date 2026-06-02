@@ -181,6 +181,7 @@ def step_error_and_transition(
 def retire(
     valid: bool,
     fetch_valid: bool,
+    execute_ready: bool,
     older_fault: bool,
     fetch_fault: bool,
     execute_fault: bool,
@@ -194,13 +195,17 @@ def retire(
     stack_full: bool,
     c: dict[str, int],
 ) -> dict[str, int | bool]:
-    wait = (
+    wait_fetch = (
         valid and not fetch_valid and not older_fault and not fetch_fault and
         not execute_fault
     )
+    wait_execute = (
+        valid and fetch_valid and not execute_ready and not older_fault and
+        not fetch_fault and not execute_fault
+    )
     step_valid = (
-        valid and fetch_valid and not older_fault and not fetch_fault and
-        not execute_fault
+        valid and fetch_valid and execute_ready and not older_fault and
+        not fetch_fault and not execute_fault
     )
     step = step_error_and_transition(
         frontend, pc, word, x86_fallthrough, target_frontend, target_pc,
@@ -224,7 +229,8 @@ def retire(
     fault = older or fetch or execute or control
     can_retire = step_valid and not step["error"]
     return {
-        "wait": wait,
+        "wait": wait_fetch,
+        "wait_execute": wait_execute,
         "retire": can_retire,
         "commit_transition": can_retire and step["transition"],
         "commit_push": can_retire and step["push"],
@@ -248,12 +254,14 @@ def main() -> int:
     c = parse_c_enum_constants(HEADER)
     text = RTL.read_text()
     assert "poly_frontend_step frontend_step" in text
+    assert "execute_ready_i" in text
+    assert "wait_execute_o" in text
     assert "commit_transition_o = retire_o && step_transition" in text
     assert "commit_push_transition_o = retire_o && step_push_transition" in text
 
     pcall_word = x86_ctrl_word(c["POLY_X86_CTRL_PCALL_SIG_IMM_BASE"] + 2)
     good = retire(
-        True, True, False, False, False,
+        True, True, True, False, False, False,
         c["POLY_FRONTEND_X86"], 0x1000, pcall_word, 0x1004,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
@@ -262,15 +270,24 @@ def main() -> int:
     assert good["commit_pc"] == 0x4000 and good["slot"] == 2
 
     waiting = retire(
-        True, False, False, False, False,
+        True, False, True, False, False, False,
         c["POLY_FRONTEND_X86"], 0x1000, pcall_word, 0x1004,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
     assert waiting["wait"] and not waiting["retire"] and not waiting["fault"]
     assert not waiting["commit_transition"] and not waiting["commit_push"]
 
+    execute_wait = retire(
+        True, True, False, False, False, False,
+        c["POLY_FRONTEND_X86"], 0x1000, pcall_word, 0x1004,
+        c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
+    )
+    assert execute_wait["wait_execute"]
+    assert not execute_wait["wait"] and not execute_wait["retire"]
+    assert not execute_wait["fault"] and not execute_wait["commit_push"]
+
     older = retire(
-        True, True, True, False, False,
+        True, True, True, True, False, False,
         c["POLY_FRONTEND_X86"], 0x1000, pcall_word, 0x1004,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
@@ -278,7 +295,7 @@ def main() -> int:
     assert not older["retire"] and not older["commit_transition"]
 
     fetch_fault = retire(
-        True, True, False, True, False,
+        True, True, True, False, True, False,
         c["POLY_FRONTEND_X86"], 0x1000, pcall_word, 0x1004,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
@@ -286,7 +303,7 @@ def main() -> int:
     assert not fetch_fault["retire"] and not fetch_fault["commit_push"]
 
     execute_fault = retire(
-        True, True, False, False, True,
+        True, True, True, False, False, True,
         c["POLY_FRONTEND_X86"], 0x1000, pcall_word, 0x1004,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
@@ -294,7 +311,7 @@ def main() -> int:
     assert not execute_fault["retire"] and not execute_fault["commit_transition"]
 
     invalid_sig = retire(
-        True, True, False, False, False,
+        True, True, True, False, False, False,
         c["POLY_FRONTEND_X86"], 0x1000, pcall_word, 0x1004,
         c["POLY_FRONTEND_AARCH64"], 0x4000, False, False, c
     )
@@ -303,7 +320,7 @@ def main() -> int:
     assert not invalid_sig["retire"] and not invalid_sig["commit_push"]
 
     raw_align = retire(
-        True, True, False, False, False,
+        True, True, True, False, False, False,
         c["POLY_FRONTEND_AARCH64"], 0x4002,
         aarch64_ctrl_word(c["POLY_AARCH64_CTRL_SUBOP_SWITCH_MODE"]), 0,
         c["POLY_FRONTEND_X86"], 0x1000, True, False, c

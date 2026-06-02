@@ -19,6 +19,7 @@ module poly_frontend_memory_retire (
     input  logic [31:0] raw_mem_resp_word_i,
 
     input  logic        older_fault_i,
+    input  logic        execute_ready_i,
     input  logic        execute_fault_i,
     input  logic [1:0]  target_frontend_i,
     input  logic [63:0] target_pc_i,
@@ -30,6 +31,7 @@ module poly_frontend_memory_retire (
     output logic [2:0]  raw_mem_req_bytes_o,
 
     output logic        wait_fetch_o,
+    output logic        wait_execute_o,
     output logic        retire_o,
     output logic        commit_transition_o,
     output logic        commit_push_transition_o,
@@ -124,6 +126,7 @@ module poly_frontend_memory_retire (
   poly_frontend_retire frontend_retire (
     .valid_i(valid_i),
     .fetch_valid_i(retire_fetch_valid),
+    .execute_ready_i(execute_ready_i),
     .older_fault_i(older_fault_i),
     .fetch_fault_i(retire_fetch_fault),
     .execute_fault_i(execute_fault_i),
@@ -136,6 +139,7 @@ module poly_frontend_memory_retire (
     .signature_slot_valid_i(signature_slot_valid_i),
     .transition_stack_full_i(transition_stack_full_i),
     .wait_fetch_o(wait_fetch_o),
+    .wait_execute_o(wait_execute_o),
     .retire_o(retire_o),
     .commit_transition_o(commit_transition_o),
     .commit_push_transition_o(commit_push_transition_o),

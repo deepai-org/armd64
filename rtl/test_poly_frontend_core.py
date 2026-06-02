@@ -115,6 +115,14 @@ def core_step(
     return_target: int,
     cookie: int,
     c: dict[str, int],
+    memory_order_valid: bool = False,
+    memory_load: bool = False,
+    memory_store: bool = False,
+    memory_atomic: bool = False,
+    memory_barrier: bool = False,
+    older_store_pending: bool = False,
+    store_buffer_full: bool = False,
+    older_fault: bool = False,
 ) -> dict[str, int | bool | tuple[int, int, int, int] | None]:
     return_hit = return_valid and return_target == cookie
     return_missing = return_hit and not stack.frames
@@ -137,10 +145,30 @@ def core_step(
         not canonical(target_pc) or
         not aligned(target_frontend, target_pc, c)
     )
-    control_fault = bool(
-        is_pcall and (target_error or not signature_valid or stack_unavailable)
+    memory_op_present = memory_load or memory_store or memory_atomic or memory_barrier
+    memory_fault = memory_order_valid and not memory_op_present
+    memory_wait_store = (
+        memory_order_valid and not memory_fault and store_buffer_full and
+        (memory_store or memory_atomic)
     )
-    retire = bool(valid and fetch_valid and not control_fault)
+    memory_wait_atomic = (
+        memory_order_valid and not memory_fault and memory_atomic and
+        older_store_pending
+    )
+    memory_retire_allowed = (
+        memory_order_valid and not memory_fault and not memory_wait_store and
+        not memory_wait_atomic
+    )
+    execute_ready = not memory_order_valid or memory_retire_allowed
+    execute_fault = memory_fault
+    control_fault = bool(
+        is_pcall and execute_ready and
+        (target_error or not signature_valid or stack_unavailable)
+    )
+    retire = bool(
+        valid and fetch_valid and execute_ready and not execute_fault and
+        not older_fault and not control_fault
+    )
     commit_push = bool(is_pcall and retire)
     popped = stack.pop() if (pop or return_pop) else None
     if commit_push:
@@ -150,6 +178,14 @@ def core_step(
         "transition": bool(is_pcall and retire),
         "push": commit_push,
         "fault": control_fault,
+        "execute_ready": execute_ready,
+        "wait_execute": bool(valid and fetch_valid and not execute_ready and not execute_fault),
+        "execute_fault": execute_fault,
+        "memory_retire_allowed": memory_retire_allowed,
+        "memory_enqueue_store": retire and memory_retire_allowed and memory_store,
+        "memory_wait_store": memory_wait_store,
+        "memory_wait_atomic": memory_wait_atomic,
+        "memory_fault": memory_fault,
         "stack_unavailable": stack_unavailable,
         "popped": popped,
         "return_hit": return_hit,
@@ -178,6 +214,13 @@ def require_structural_wiring() -> None:
         "assign stack_pop_request = transition_pop_i || (return_pop_raw && !transition_pop_i);",
         ".peek_frontend_o(peek_frontend)",
         ".transition_empty_i(!peek_valid)",
+        "poly_memory_order memory_order",
+        "assign execute_ready = !memory_order_valid_i || memory_retire_allowed_raw;",
+        "assign execute_fault = execute_fault_i || memory_fault_o;",
+        "assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;",
+        "assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;",
+        ".execute_ready_i(execute_ready)",
+        ".wait_execute_o(wait_execute_o)",
     ]:
         if needle not in text:
             raise AssertionError(f"missing core wiring: {needle}")
@@ -339,6 +382,104 @@ def main() -> int:
     assert blocked["return_hit"] and blocked["return_blocked"]
     assert blocked["return_error"] and not blocked["return_resume"]
     assert blocked["popped"] == (c["POLY_FRONTEND_X86"], 0x5000, 0x9000, 0x81)
+
+    memory_wait = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_RISCV"],
+        pc=0x8000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x00000033,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        memory_order_valid=True,
+        memory_store=True,
+        store_buffer_full=True,
+        c=c,
+    )
+    assert memory_wait["memory_wait_store"] and memory_wait["wait_execute"]
+    assert not memory_wait["retire"] and not memory_wait["fault"]
+    assert not memory_wait["memory_enqueue_store"]
+
+    memory_store = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_RISCV"],
+        pc=0x8000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x00000033,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        memory_order_valid=True,
+        memory_store=True,
+        c=c,
+    )
+    assert memory_store["retire"] and memory_store["memory_enqueue_store"]
+
+    older_memory_store = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_RISCV"],
+        pc=0x8000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x00000033,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        memory_order_valid=True,
+        memory_store=True,
+        older_fault=True,
+        c=c,
+    )
+    assert older_memory_store["memory_retire_allowed"]
+    assert not older_memory_store["retire"]
+    assert not older_memory_store["memory_enqueue_store"]
+
+    memory_fault = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_AARCH64"],
+        pc=0x4000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x52800000,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        memory_order_valid=True,
+        c=c,
+    )
+    assert memory_fault["memory_fault"] and memory_fault["execute_fault"]
+    assert not memory_fault["retire"] and not memory_fault["wait_execute"]
 
     print("POLY_RTL_FRONTEND_CORE_OK")
     return 0

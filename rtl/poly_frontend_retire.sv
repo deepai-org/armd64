@@ -1,11 +1,13 @@
 // Poly frontend retirement gate.
 //
 // Decode/handoff planning is speculative until retirement. This block prevents
-// frontend, PC, and transition-stack mutations when an older exception, fetch
-// fault, execution fault, or Poly control validation fault is present.
+// frontend, PC, and transition-stack mutations until fetch and execute are
+// ready, and when an older exception, fetch fault, execution fault, or Poly
+// control validation fault is present.
 module poly_frontend_retire (
     input  logic        valid_i,
     input  logic        fetch_valid_i,
+    input  logic        execute_ready_i,
     input  logic        older_fault_i,
     input  logic        fetch_fault_i,
     input  logic        execute_fault_i,
@@ -21,6 +23,7 @@ module poly_frontend_retire (
     input  logic        transition_stack_full_i,
 
     output logic        wait_fetch_o,
+    output logic        wait_execute_o,
     output logic        retire_o,
     output logic        commit_transition_o,
     output logic        commit_push_transition_o,
@@ -57,8 +60,11 @@ module poly_frontend_retire (
     wait_fetch_o =
       valid_i && !fetch_valid_i && !older_fault_i && !fetch_fault_i &&
       !execute_fault_i;
+    wait_execute_o =
+      valid_i && fetch_valid_i && !execute_ready_i && !older_fault_i &&
+      !fetch_fault_i && !execute_fault_i;
     step_valid =
-      valid_i && fetch_valid_i && !older_fault_i && !fetch_fault_i &&
+      valid_i && fetch_valid_i && execute_ready_i && !older_fault_i && !fetch_fault_i &&
       !execute_fault_i;
   end
 
