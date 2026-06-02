@@ -8,6 +8,11 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 HEADER = ROOT / "tools/include/polycpuid.h"
 RTL = ROOT / "rtl/poly_frontend_state.sv"
+REDIRECT_NONE = 0
+REDIRECT_INIT = 1
+REDIRECT_COMMIT = 2
+REDIRECT_INTERRUPT = 3
+REDIRECT_RETURN = 4
 
 
 def parse_c_enum_constants(path: Path) -> dict[str, int]:
@@ -61,17 +66,27 @@ class FrontendState:
         fault: bool = False,
         stall: bool = False,
     ) -> dict[str, int | bool]:
+        old_frontend = self.frontend
+        old_pc = self.pc
         requests = [
             value is not None for value in (commit, interrupt_restore, return_resume)
         ]
         conflict = init is None and sum(requests) > 1
-        selected = (
-            init if init is not None else
-            return_resume if return_resume is not None else
-            interrupt_restore if interrupt_restore is not None else
-            commit if commit is not None else
-            (self.frontend, self.pc)
-        )
+        if init is not None:
+            selected = init
+            reason = REDIRECT_INIT
+        elif return_resume is not None:
+            selected = return_resume
+            reason = REDIRECT_RETURN
+        elif interrupt_restore is not None:
+            selected = interrupt_restore
+            reason = REDIRECT_INTERRUPT
+        elif commit is not None:
+            selected = commit
+            reason = REDIRECT_COMMIT
+        else:
+            selected = (self.frontend, self.pc)
+            reason = REDIRECT_NONE
         request_valid = init is not None or any(requests)
         frontend, pc = selected
         valid_frontend = frontend in {
@@ -91,6 +106,10 @@ class FrontendState:
         return {
             "frontend": self.frontend,
             "pc": self.pc,
+            "redirect_valid": update,
+            "redirect_frontend": frontend if update else old_frontend,
+            "redirect_pc": pc if update else old_pc,
+            "redirect_reason": reason if update else REDIRECT_NONE,
             "update": update,
             "hold": not update,
             "conflict": conflict,
@@ -110,6 +129,15 @@ def require_structural_wiring() -> None:
         "return_resume_i",
         "canonical64",
         "frontend_aligned",
+        "redirect_valid_o",
+        "redirect_frontend_o",
+        "redirect_pc_o",
+        "redirect_reason_o",
+        "POLY_REDIRECT_INIT",
+        "POLY_REDIRECT_COMMIT",
+        "POLY_REDIRECT_INTERRUPT",
+        "POLY_REDIRECT_RETURN",
+        "redirect_valid_o = update_o",
         "update_o =",
         "fault_i",
         "stall_i",
@@ -125,36 +153,56 @@ def main() -> int:
     state = FrontendState(c)
     assert state.step(init=(c["POLY_FRONTEND_X86"], 0x1000)) == {
         "frontend": c["POLY_FRONTEND_X86"], "pc": 0x1000,
+        "redirect_valid": True,
+        "redirect_frontend": c["POLY_FRONTEND_X86"],
+        "redirect_pc": 0x1000,
+        "redirect_reason": REDIRECT_INIT,
         "update": True, "hold": False, "conflict": False,
         "invalid_frontend": False, "invalid_pc": False, "error": False,
     }
 
     switch = state.step(commit=(c["POLY_FRONTEND_AARCH64"], 0x4000))
     assert switch["update"]
+    assert switch["redirect_valid"]
+    assert switch["redirect_frontend"] == c["POLY_FRONTEND_AARCH64"]
+    assert switch["redirect_pc"] == 0x4000
+    assert switch["redirect_reason"] == REDIRECT_COMMIT
     assert switch["frontend"] == c["POLY_FRONTEND_AARCH64"]
     assert switch["pc"] == 0x4000
 
     bad_align = state.step(commit=(c["POLY_FRONTEND_AARCH64"], 0x4002))
     assert bad_align["error"] and bad_align["invalid_pc"]
     assert not bad_align["update"]
+    assert not bad_align["redirect_valid"]
+    assert bad_align["redirect_reason"] == REDIRECT_NONE
     assert state.frontend == c["POLY_FRONTEND_AARCH64"] and state.pc == 0x4000
 
     stalled = state.step(commit=(c["POLY_FRONTEND_RISCV"], 0x8000), stall=True)
     assert stalled["hold"] and not stalled["update"]
+    assert not stalled["redirect_valid"]
     assert state.frontend == c["POLY_FRONTEND_AARCH64"] and state.pc == 0x4000
 
     faulted = state.step(commit=(c["POLY_FRONTEND_RISCV"], 0x8000), fault=True)
     assert faulted["hold"] and not faulted["update"]
+    assert not faulted["redirect_valid"]
     assert state.frontend == c["POLY_FRONTEND_AARCH64"] and state.pc == 0x4000
 
     restored_interrupt = state.step(
         interrupt_restore=(c["POLY_FRONTEND_RISCV"], 0x8000)
     )
     assert restored_interrupt["update"]
+    assert restored_interrupt["redirect_valid"]
+    assert restored_interrupt["redirect_reason"] == REDIRECT_INTERRUPT
+    assert restored_interrupt["redirect_frontend"] == c["POLY_FRONTEND_RISCV"]
+    assert restored_interrupt["redirect_pc"] == 0x8000
     assert state.frontend == c["POLY_FRONTEND_RISCV"] and state.pc == 0x8000
 
     return_resume = state.step(return_resume=(c["POLY_FRONTEND_X86"], 0x1200))
     assert return_resume["update"]
+    assert return_resume["redirect_valid"]
+    assert return_resume["redirect_reason"] == REDIRECT_RETURN
+    assert return_resume["redirect_frontend"] == c["POLY_FRONTEND_X86"]
+    assert return_resume["redirect_pc"] == 0x1200
     assert state.frontend == c["POLY_FRONTEND_X86"] and state.pc == 0x1200
 
     conflict = state.step(
@@ -163,15 +211,18 @@ def main() -> int:
     )
     assert conflict["error"] and conflict["conflict"]
     assert not conflict["update"]
+    assert not conflict["redirect_valid"]
     assert state.frontend == c["POLY_FRONTEND_X86"] and state.pc == 0x1200
 
     bad_frontend = state.step(commit=(3, 0x1000))
     assert bad_frontend["error"] and bad_frontend["invalid_frontend"]
     assert not bad_frontend["update"]
+    assert not bad_frontend["redirect_valid"]
 
     bad_canonical = state.step(commit=(c["POLY_FRONTEND_X86"], 0x0000800000000000))
     assert bad_canonical["error"] and bad_canonical["invalid_pc"]
     assert not bad_canonical["update"]
+    assert not bad_canonical["redirect_valid"]
 
     init_overrides_conflict = state.step(
         init=(c["POLY_FRONTEND_X86"], 0x2000),
@@ -179,6 +230,10 @@ def main() -> int:
         return_resume=(c["POLY_FRONTEND_RISCV"], 0x8000),
     )
     assert init_overrides_conflict["update"] and not init_overrides_conflict["conflict"]
+    assert init_overrides_conflict["redirect_valid"]
+    assert init_overrides_conflict["redirect_reason"] == REDIRECT_INIT
+    assert init_overrides_conflict["redirect_frontend"] == c["POLY_FRONTEND_X86"]
+    assert init_overrides_conflict["redirect_pc"] == 0x2000
     assert state.frontend == c["POLY_FRONTEND_X86"] and state.pc == 0x2000
 
     print("POLY_RTL_FRONTEND_STATE_OK")

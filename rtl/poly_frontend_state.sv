@@ -29,6 +29,10 @@ module poly_frontend_state (
 
     output logic [1:0]  current_frontend_o,
     output logic [63:0] current_pc_o,
+    output logic        redirect_valid_o,
+    output logic [1:0]  redirect_frontend_o,
+    output logic [63:0] redirect_pc_o,
+    output logic [2:0]  redirect_reason_o,
     output logic        update_o,
     output logic        hold_o,
     output logic        conflict_o,
@@ -39,11 +43,17 @@ module poly_frontend_state (
   localparam logic [1:0] POLY_FRONTEND_X86     = 2'd0;
   localparam logic [1:0] POLY_FRONTEND_AARCH64 = 2'd1;
   localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
+  localparam logic [2:0] POLY_REDIRECT_NONE      = 3'd0;
+  localparam logic [2:0] POLY_REDIRECT_INIT      = 3'd1;
+  localparam logic [2:0] POLY_REDIRECT_COMMIT    = 3'd2;
+  localparam logic [2:0] POLY_REDIRECT_INTERRUPT = 3'd3;
+  localparam logic [2:0] POLY_REDIRECT_RETURN    = 3'd4;
 
   logic [1:0] frontend_q;
   logic [63:0] pc_q;
   logic [1:0] selected_frontend;
   logic [63:0] selected_pc;
+  logic [2:0] selected_reason;
   logic request_valid;
   logic multiple_requests;
 
@@ -79,22 +89,27 @@ module poly_frontend_state (
     if (init_i) begin
       selected_frontend = init_frontend_i;
       selected_pc = init_pc_i;
+      selected_reason = POLY_REDIRECT_INIT;
     end
     else if (return_resume_i) begin
       selected_frontend = return_frontend_i;
       selected_pc = return_pc_i;
+      selected_reason = POLY_REDIRECT_RETURN;
     end
     else if (interrupt_restore_i) begin
       selected_frontend = interrupt_frontend_i;
       selected_pc = interrupt_pc_i;
+      selected_reason = POLY_REDIRECT_INTERRUPT;
     end
     else if (commit_i) begin
       selected_frontend = commit_frontend_i;
       selected_pc = commit_pc_i;
+      selected_reason = POLY_REDIRECT_COMMIT;
     end
     else begin
       selected_frontend = frontend_q;
       selected_pc = pc_q;
+      selected_reason = POLY_REDIRECT_NONE;
     end
 
     request_valid = init_i || commit_i || interrupt_restore_i || return_resume_i;
@@ -111,6 +126,10 @@ module poly_frontend_state (
     hold_o = !update_o;
     current_frontend_o = frontend_q;
     current_pc_o = pc_q;
+    redirect_valid_o = update_o;
+    redirect_frontend_o = update_o ? selected_frontend : frontend_q;
+    redirect_pc_o = update_o ? selected_pc : pc_q;
+    redirect_reason_o = update_o ? selected_reason : POLY_REDIRECT_NONE;
   end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin

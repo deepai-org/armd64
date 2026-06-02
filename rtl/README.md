@@ -36,11 +36,12 @@ silicon prototype.
   cycle-budget reporting for integrated transition events.
 - `poly_frontend_state.sv`: architectural frontend/PC state register that
   validates and applies committed transitions, raw interrupt restores, and
-  native return-cookie resumes.
+  native return-cookie resumes, and emits same-cycle redirect metadata for
+  frontend flush.
 - `poly_frontend_stateful_core.sv`: stateful wrapper that feeds
   `poly_frontend_core.sv` from architectural frontend/PC state and applies
   retired commits, raw interrupt entry/restore, and native return-cookie resume
-  updates back into that state.
+  updates back into that state while exposing redirect sidebands.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
