@@ -433,6 +433,14 @@ static int polythread_monitor_packet_contract_valid(
       POLY_TRAP_PACKET_REQUIRED_FLAGS;
 }
 
+static uint64_t polythread_trap_vector_result(uint64_t number,
+    const uint64_t args[POLY_TRAP_PACKET_ARG_COUNT]) {
+  uint64_t result = number;
+  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++)
+    result += args[n];
+  return result;
+}
+
 __attribute__((noinline, used))
 uint64_t polythread_trap_vector_dispatch(void) {
   const struct polythread_monitor_packet *packet =
@@ -444,7 +452,7 @@ uint64_t polythread_trap_vector_dispatch(void) {
   if (packet->trap.reason != POLY_TRAP_SYSCALL &&
       packet->trap.reason != POLY_TRAP_IMPORT)
     return (uint64_t) -1;
-  return packet->trap.number + packet->args[6] + packet->args[7];
+  return polythread_trap_vector_result(packet->trap.number, packet->args);
 }
 
 __attribute__((naked, noinline, used))
@@ -1885,14 +1893,14 @@ static void *worker_main(void *arg) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t aarch64_trap_result = trap_aarch64_syscall(aarch64_trap_number,
     aarch64_trap_arg6, aarch64_trap_arg7);
-  if (aarch64_trap_result !=
-      aarch64_trap_number + aarch64_trap_arg6 + aarch64_trap_arg7) {
+  uint64_t aarch64_trap_expected =
+    polythread_trap_vector_result(aarch64_trap_number, aarch64_trap_args);
+  if (aarch64_trap_result != aarch64_trap_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default aarch64 trap result got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) aarch64_trap_result,
-      (unsigned long long) (aarch64_trap_number + aarch64_trap_arg6 +
-        aarch64_trap_arg7));
+      (unsigned long long) aarch64_trap_expected);
     return (void *) 1;
   }
   if (wait_for_workers(worker_id, "default-aarch64-trap") != 0)
@@ -1914,14 +1922,14 @@ static void *worker_main(void *arg) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t riscv_trap_result =
     trap_riscv_syscall(riscv_trap_number, riscv_trap_arg6);
-  if (riscv_trap_result !=
-      riscv_trap_number + riscv_trap_arg6 + riscv_trap_number) {
+  uint64_t riscv_trap_expected =
+    polythread_trap_vector_result(riscv_trap_number, riscv_trap_args);
+  if (riscv_trap_result != riscv_trap_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default riscv trap result got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) riscv_trap_result,
-      (unsigned long long) (riscv_trap_number + riscv_trap_arg6 +
-        riscv_trap_number));
+      (unsigned long long) riscv_trap_expected);
     return (void *) 1;
   }
   if (wait_for_workers(worker_id, "default-riscv-trap") != 0)
@@ -1945,14 +1953,14 @@ static void *worker_main(void *arg) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t aarch64_import_result = trap_aarch64_import(
     aarch64_import_arg0, aarch64_import_arg6, aarch64_import_arg7);
-  if (aarch64_import_result !=
-      import_id + aarch64_import_arg6 + aarch64_import_arg7) {
+  uint64_t aarch64_import_expected =
+    polythread_trap_vector_result(import_id, aarch64_import_args);
+  if (aarch64_import_result != aarch64_import_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default aarch64 import result got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) aarch64_import_result,
-      (unsigned long long) (import_id + aarch64_import_arg6 +
-        aarch64_import_arg7));
+      (unsigned long long) aarch64_import_expected);
     return (void *) 1;
   }
   if (wait_for_workers(worker_id, "default-aarch64-import") != 0)
@@ -1975,14 +1983,14 @@ static void *worker_main(void *arg) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   uint64_t riscv_import_result = trap_riscv_import(riscv_import_arg0,
     riscv_import_arg6, riscv_import_arg7);
-  if (riscv_import_result !=
-      import_id + riscv_import_arg6 + riscv_import_arg7) {
+  uint64_t riscv_import_expected =
+    polythread_trap_vector_result(import_id, riscv_import_args);
+  if (riscv_import_result != riscv_import_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default riscv import result got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) riscv_import_result,
-      (unsigned long long) (import_id + riscv_import_arg6 +
-        riscv_import_arg7));
+      (unsigned long long) riscv_import_expected);
     return (void *) 1;
   }
   if (wait_for_workers(worker_id, "default-riscv-import") != 0)
