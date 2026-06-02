@@ -23,6 +23,8 @@ silicon prototype.
 - `poly_frontend_retire.sv`: retirement gate that blocks frontend, PC, and
   transition-stack mutations behind fetch/execute/async-boundary stalls or
   older, fetch, execution, and control faults.
+- `poly_frontend_predecoded_retire.sv`: retirement gate for predecoded Poly
+  control records from the fetch/decode pipeline.
 - `poly_frontend_fetch_issue.sv`: dual frontend fetch-request issuer for x86
   byte fetch versus raw AArch64/RISC-V instruction fetch.
 - `poly_frontend_memory_retire.sv`: fetch-to-retire prototype that feeds the
@@ -85,6 +87,8 @@ silicon prototype.
 - `test_poly_frontend_retire.py`: retirement-ordering checks that
   fetch/execute stalls block retirement and faults suppress Poly control commits
   and transition-stack pushes.
+- `test_poly_frontend_predecoded_retire.py`: predecoded retirement checks for
+  wait/fault ordering and handoff validation without re-running decode.
 - `test_poly_frontend_fetch_issue.py`: dual frontend fetch-request checks for
   x86 canonical-range validation and raw AArch64/RISC-V request validation.
 - `test_poly_frontend_memory_retire.py`: fetch-to-retire integration checks for
@@ -143,6 +147,7 @@ python3 rtl/test_poly_frontend_decode_dispatch.py
 python3 rtl/test_poly_frontend_fetch_decode_pipeline.py
 python3 rtl/test_poly_frontend_step.py
 python3 rtl/test_poly_frontend_retire.py
+python3 rtl/test_poly_frontend_predecoded_retire.py
 python3 rtl/test_poly_frontend_fetch_issue.py
 python3 rtl/test_poly_frontend_memory_retire.py
 python3 rtl/test_poly_frontend_core.py
@@ -175,6 +180,7 @@ POLY_RTL_FRONTEND_DECODE_DISPATCH_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_OK
 POLY_RTL_FRONTEND_STEP_OK
 POLY_RTL_FRONTEND_RETIRE_OK
+POLY_RTL_FRONTEND_PREDECODED_RETIRE_OK
 POLY_RTL_FRONTEND_FETCH_ISSUE_OK
 POLY_RTL_FRONTEND_MEMORY_RETIRE_OK
 POLY_RTL_FRONTEND_CORE_OK

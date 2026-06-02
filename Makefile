@@ -38,6 +38,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_frontend_fetch_decode_pipeline.py
 	python3 rtl/test_poly_frontend_step.py
 	python3 rtl/test_poly_frontend_retire.py
+	python3 rtl/test_poly_frontend_predecoded_retire.py
 	python3 rtl/test_poly_frontend_fetch_issue.py
 	python3 rtl/test_poly_frontend_memory_retire.py
 	python3 rtl/test_poly_frontend_core.py

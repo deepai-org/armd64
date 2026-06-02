@@ -363,12 +363,18 @@ def main() -> int:
     c = parse_c_enum_constants(HEADER)
     text = RTL.read_text()
     assert "poly_frontend_fetch_decode_pipeline fetch_decode_pipeline" in text
-    assert "poly_frontend_retire frontend_retire" in text
+    assert "poly_frontend_predecoded_retire frontend_predecoded_retire" in text
     assert ".x86_fetch_req_valid_o(x86_fetch_req_valid_o)" in text
     assert ".raw_mem_req_valid_o(raw_mem_req_valid_o)" in text
     assert ".fetch_valid_o(fetch_pipeline_valid)" in text
     assert ".fetch_fault_o(fetch_pipeline_fault)" in text
-    assert ".fetch_word_o(fetch_pipeline_word)" in text
+    assert ".decode_valid_o(decode_pipeline_valid)" in text
+    assert ".poly_ctrl_o(decode_pipeline_poly_ctrl)" in text
+    assert ".subop_o(decode_pipeline_subop)" in text
+    assert ".call_sig_imm_o(decode_pipeline_call_sig_imm)" in text
+    assert ".signature_slot_o(decode_pipeline_signature_slot)" in text
+    assert ".decode_valid_i(decode_pipeline_valid)" in text
+    assert ".poly_ctrl_i(decode_pipeline_poly_ctrl)" in text
     assert ".x86_fetch_wait_o(x86_fetch_wait_o)" in text
     assert ".raw_fetch_wait_o(raw_fetch_wait_o)" in text
     assert ".execute_ready_i(execute_ready_i)" in text

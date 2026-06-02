@@ -2,8 +2,8 @@
 //
 // This composes the fetch/decode pipeline boundary with the frontend
 // retirement gate. Fetch issue, frontend responses, and fetch faults are handled
-// before retirement; transition validation and architectural commits remain
-// precise in poly_frontend_retire.
+// before retirement; transition validation and architectural commits consume
+// the predecoded control record without re-running frontend decode.
 module poly_frontend_memory_retire (
     input  logic        valid_i,
     input  logic [1:0]  frontend_i,
@@ -74,12 +74,15 @@ module poly_frontend_memory_retire (
 );
   logic fetch_pipeline_valid;
   logic fetch_pipeline_fault;
-  logic [31:0] fetch_pipeline_word;
   logic [63:0] fetch_pipeline_fallthrough_pc;
+  logic decode_pipeline_valid;
+  logic decode_pipeline_poly_ctrl;
+  logic [6:0] decode_pipeline_subop;
+  logic decode_pipeline_call_sig_imm;
+  logic [6:0] decode_pipeline_signature_slot;
   logic fetch_pipeline_invalid_frontend;
   logic retire_fetch_valid;
   logic retire_fetch_fault;
-  logic [31:0] retire_fetch_word;
   logic retire_invalid_frontend;
   logic retire_fault;
 
@@ -103,13 +106,13 @@ module poly_frontend_memory_retire (
     .wait_fetch_o(),
     .fetch_valid_o(fetch_pipeline_valid),
     .fetch_fault_o(fetch_pipeline_fault),
-    .fetch_word_o(fetch_pipeline_word),
+    .fetch_word_o(),
     .fetch_fallthrough_pc_o(fetch_pipeline_fallthrough_pc),
-    .decode_valid_o(),
-    .poly_ctrl_o(),
-    .subop_o(),
-    .call_sig_imm_o(),
-    .signature_slot_o(),
+    .decode_valid_o(decode_pipeline_valid),
+    .poly_ctrl_o(decode_pipeline_poly_ctrl),
+    .subop_o(decode_pipeline_subop),
+    .call_sig_imm_o(decode_pipeline_call_sig_imm),
+    .signature_slot_o(decode_pipeline_signature_slot),
     .invalid_frontend_o(fetch_pipeline_invalid_frontend),
     .x86_fetch_wait_o(x86_fetch_wait_o),
     .x86_request_error_o(x86_request_error_o),
@@ -127,12 +130,12 @@ module poly_frontend_memory_retire (
   always_comb begin
     retire_fetch_valid = fetch_pipeline_valid;
     retire_fetch_fault = fetch_pipeline_fault;
-    retire_fetch_word = fetch_pipeline_word;
   end
 
-  poly_frontend_retire frontend_retire (
+  poly_frontend_predecoded_retire frontend_predecoded_retire (
     .valid_i(valid_i),
     .fetch_valid_i(retire_fetch_valid),
+    .decode_valid_i(decode_pipeline_valid),
     .execute_ready_i(execute_ready_i),
     .block_retire_i(block_retire_i),
     .older_fault_i(older_fault_i),
@@ -140,8 +143,11 @@ module poly_frontend_memory_retire (
     .execute_fault_i(execute_fault_i),
     .frontend_i(frontend_i),
     .pc_i(pc_i),
-    .fetch_word_i(retire_fetch_word),
-    .x86_fallthrough_pc_i(fetch_pipeline_fallthrough_pc),
+    .fallthrough_pc_i(fetch_pipeline_fallthrough_pc),
+    .poly_ctrl_i(decode_pipeline_poly_ctrl),
+    .subop_i(decode_pipeline_subop),
+    .call_sig_imm_i(decode_pipeline_call_sig_imm),
+    .signature_slot_i(decode_pipeline_signature_slot),
     .target_frontend_i(target_frontend_i),
     .target_pc_i(target_pc_i),
     .signature_slot_valid_i(signature_slot_valid_i),
