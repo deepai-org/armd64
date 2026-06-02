@@ -1,33 +1,27 @@
 # Poly ISA
 
-Poly is a hardware-style extension for running existing x86_64, AArch64, and
-RISC-V64 userspace code in one virtual address space. It targets real native
-ABI compatibility, not a new compiler-only ABI.
+Poly runs existing x86_64, AArch64, and RISC-V64 userspace code in one virtual
+address space. The goal is native ABI compatibility, not a new compiler-only
+ABI.
 
 For build/test commands, see `README.md`. For design rationale, see
 `docs/poly-isa-design-directions.md`.
 
-## Execution Model
+## Contract
 
-- x86_64 remains the system ISA: boot, privilege, paging, interrupts, faults,
-  VM control, atomics, syscalls, and global TSO memory ordering stay x86-owned.
-- AArch64 and RISC-V64 are user-mode peer frontends fetched from the same
-  address space; they may switch/call each other without x86 as a trampoline.
-- Frontend changes are decoded control instructions. The fast path has no
-  per-instruction `#UD` envelopes.
-- Fetch rules stay native: x86_64 is variable length, AArch64 is 32-bit fixed
-  width, and RISC-V64 supports 16/32-bit fetch including RVC.
-
-## Compatibility
-
-- Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
-  RISC-V psABI.
-- Hardware handles fixed-latency frontend switches, register exchange/ABI
-  signature slots, precise trap packets, and XSAVE-style state.
-- Software thunks handle stack arguments, aggregates, variadics, lazy binding,
-  libc/syscall policy, and other memory-shaped ABI work.
-- Foreign state is per-thread architectural state. Bochs fallback banks are
-  prototype/debug machinery only.
+- x86_64 owns boot, privilege, paging, interrupts, faults, VM control, syscalls,
+  atomics, and global TSO ordering.
+- AArch64 and RISC-V64 are user-mode peer frontends in the same address space.
+- Frontend switches/calls are decoded control instructions, not `#UD` traps.
+- Native fetch rules are preserved: variable-length x86_64, 32-bit AArch64,
+  and 16/32-bit RISC-V64 including RVC.
+- Cross-ISA calls target real ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
+- Per-thread foreign architectural state is saved/restored through XSAVE-style
+  state. Bochs fallback banks are prototype/debug machinery only.
+- Hardware may switch frontends, remap register-signature slots, deliver precise
+  trap packets, and restore trap state.
+- Software handles stack arguments, aggregates, variadics, lazy binding,
+  syscall/libc policy, and any ABI work that requires reading user memory.
 
 ## Prototype Controls
 
@@ -50,8 +44,5 @@ opcode allocations, not final architecture numbers.
 | `0x62` | `PTRAPRET` |
 | `0x65..0x6e` | setup/query |
 
-## Hardware Boundary
-
 Hardware must not parse user-memory call descriptors, repack stacks, emulate OS
-policy, or implement libc/libgcc/libatomic helpers. Anything that requires
-interpreting user memory remains runtime/loader software.
+policy, or implement libc/libgcc/libatomic helpers.
