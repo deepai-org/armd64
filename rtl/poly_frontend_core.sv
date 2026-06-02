@@ -281,6 +281,7 @@ module poly_frontend_core (
   logic raw_trap;
   logic raw_branch_target_valid;
   logic [63:0] raw_branch_target;
+  logic raw_unresolved_branch_wait;
   logic effective_memory_order_valid;
   logic effective_memory_load;
   logic effective_memory_store;
@@ -313,7 +314,8 @@ module poly_frontend_core (
   assign return_recover_invalid_frontend_o = return_invalid_frontend_raw;
   assign return_recover_missing_transition_o = return_missing_transition_raw;
   assign execute_ready =
-    !effective_memory_order_valid || memory_retire_allowed_raw;
+    (!effective_memory_order_valid || memory_retire_allowed_raw) &&
+    !raw_unresolved_branch_wait;
   assign execute_fault =
     execute_fault_i || memory_fault_o || interrupt_error_o || trap_fault_o;
   assign memory_retire_allowed_o = memory_retire_allowed_raw;
@@ -360,6 +362,8 @@ module poly_frontend_core (
   assign effective_memory_store = memory_store_i || raw_memory_store;
   assign effective_memory_atomic = memory_atomic_i || raw_memory_atomic;
   assign effective_memory_barrier = memory_barrier_i || raw_memory_barrier;
+  assign raw_unresolved_branch_wait =
+    raw_branch && !raw_branch_target_valid && !return_recover_pop_o;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),

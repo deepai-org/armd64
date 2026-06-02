@@ -468,6 +468,18 @@ module tb_poly_frontend_stateful_core;
     check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h400c,
       "raw direct branch updates architectural state");
 
+    valid_i = 1'b1;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'h54000040;
+    #1;
+    check(raw_mem_req_valid_o && wait_execute_o && !retire_o && state_hold_o,
+      "raw unresolved conditional branch waits for execute target");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h400c,
+      "raw unresolved conditional branch preserves architectural state");
+
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_X86;
     init_pc_i = 64'h1000;

@@ -190,6 +190,8 @@ def core_step(
     memory_store: bool = False,
     memory_atomic: bool = False,
     memory_barrier: bool = False,
+    raw_branch: bool = False,
+    raw_branch_target_valid: bool = False,
     older_store_pending: bool = False,
     store_buffer_full: bool = False,
     older_fault: bool = False,
@@ -339,7 +341,13 @@ def core_step(
         memory_order_valid and not memory_fault and not memory_wait_store and
         not memory_wait_atomic
     )
-    execute_ready = not memory_order_valid or memory_retire_allowed
+    raw_unresolved_branch_wait = (
+        raw_branch and not raw_branch_target_valid and not return_pop
+    )
+    execute_ready = (
+        (not memory_order_valid or memory_retire_allowed) and
+        not raw_unresolved_branch_wait
+    )
     execute_fault = memory_fault or interrupt_error or trap_fault
     control_fault = bool(
         is_pcall and execute_ready and
@@ -421,6 +429,7 @@ def core_step(
         "memory_wait_store": memory_wait_store,
         "memory_wait_atomic": memory_wait_atomic,
         "memory_fault": memory_fault,
+        "raw_unresolved_branch_wait": raw_unresolved_branch_wait,
         "stack_unavailable": stack_unavailable,
         "popped": popped,
         "return_hit": return_hit,
@@ -474,9 +483,12 @@ def require_structural_wiring() -> None:
         "assign effective_memory_store = memory_store_i || raw_memory_store;",
         "assign effective_memory_atomic = memory_atomic_i || raw_memory_atomic;",
         "assign effective_memory_barrier = memory_barrier_i || raw_memory_barrier;",
-        "!effective_memory_order_valid || memory_retire_allowed_raw;",
+        "(!effective_memory_order_valid || memory_retire_allowed_raw) &&",
+        "!raw_unresolved_branch_wait;",
         "assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;",
         "assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;",
+        "assign raw_unresolved_branch_wait =",
+        "raw_branch && !raw_branch_target_valid && !return_recover_pop_o;",
         "assign raw_branch_target_valid_o =",
         "retire_o && raw_branch_target_valid && !poly_ctrl_o;",
         "raw_branch_target_valid_o ? raw_branch_target : 64'd0;",
@@ -814,6 +826,30 @@ def main() -> int:
     )
     assert memory_fault["memory_fault"] and memory_fault["execute_fault"]
     assert not memory_fault["retire"] and not memory_fault["wait_execute"]
+
+    unresolved_raw_branch = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_AARCH64"],
+        pc=0x4000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x54000040,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        raw_branch=True,
+        raw_branch_target_valid=False,
+        c=c,
+    )
+    assert unresolved_raw_branch["raw_unresolved_branch_wait"]
+    assert unresolved_raw_branch["wait_execute"] and not unresolved_raw_branch["retire"]
 
     interrupt_state = InterruptState()
     raw_interrupt = core_step(
