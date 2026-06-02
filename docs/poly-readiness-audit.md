@@ -33,7 +33,7 @@ RISC-V64 code.
 | Native-ABI fast path | ABI signature slots and register maps in `tools/include/polycpuid.h`; `rtl/poly_abi_signature_slots.sv` caches register-only signature slots; `rtl/poly_frontend_core.sv` exposes committed PCALL signature kind/map/TLS metadata for RAT/register-alias application; `PCALL` implementation in Bochs; cross-ISA runtime stubs in `tools/runtime/polyexec.c`. |
 | Complex ABI software path | Stack, aggregate, variadic, import, and syscall policy handled by loader/runtime thunks in `tools/runtime/polyexec.c`, not by hardware descriptors. |
 | Native return semantics | Return-cookie transition stacks in Bochs and XSAVE state; native `ret`/`ret x30`/RISC-V `ret` coverage in `tools/programs/nativecheck.c`. |
-| x86 TSO memory-order policy | `tools/include/polycpuid.h` advertises `POLY_MEMORY_MODEL_X86_TSO`; `rtl/poly_memory_order.sv` gates memory-op retirement so foreign frontends do not expose weak reordering and foreign barriers/fences retire as no-ops; `rtl/poly_frontend_core.sv` feeds memory-order waits into precise execute-stage retirement backpressure; `rtl/test_poly_memory_order_litmus.py` checks TSO message-passing and store-buffering outcomes; `rtl/poly_memory_order_formal.sv` captures the intended formal assertions. |
+| x86 TSO memory-order policy | `tools/include/polycpuid.h` advertises `POLY_MEMORY_MODEL_X86_TSO`; `rtl/poly_memory_order.sv` gates memory-op retirement so foreign frontends do not expose weak reordering and foreign barriers/fences retire as no-ops; `rtl/poly_frontend_core.sv` feeds memory-order waits into precise execute-stage retirement backpressure; `rtl/test_poly_memory_order_litmus.py` checks TSO message-passing and store-buffering outcomes; `rtl/poly_memory_order_formal.sv` captures the intended formal assertions; `make check-poly-rtl-formal` discharges those assertions with Yosys `sat -prove-asserts`. |
 | Broad integration validation | `make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps` passed on 2026-06-02. |
 
 ## Not Yet Silicon-Complete
@@ -51,12 +51,13 @@ RISC-V64 code.
 - OS integration is modeled through an XSAVE-style component and a guest test
   module; no upstream Linux/Windows/macOS kernel support exists.
 - Hardware transition-stack depth, exception ordering, and return-cookie
-  behavior are specified and tested functionally, but not formally verified.
+  behavior are specified and tested functionally, but not yet formally
+  verified.
 
 ## Next Engineering Gates
 
-1. Discharge `rtl/poly_memory_order_formal.sv` with a formal backend. The
-   current repository has directed tests, litmus-style tests, and assertion
-   properties, but no installed formal tool has run the proof.
+1. Add formal coverage for the transition stack and return-cookie ordering, so
+   nested `PCALL`, stack-full, same-cycle pop, and native-return recovery
+   hazards are proven instead of only covered by directed tests.
 2. Convert the vendor/prototype x86 opcode family into a production allocation
    or keep it as a CPUID-discovered vendor extension for FPGA bring-up.

@@ -55,7 +55,7 @@ silicon prototype.
 - `poly_memory_order.sv`: x86 TSO memory-order retirement policy for all Poly
   frontends, including foreign barrier/fence no-op handling.
 - `poly_memory_order_formal.sv`: formal harness with assertions for the TSO
-  retirement policy. It requires an external formal backend to discharge.
+  retirement policy, discharged by the Yosys `check-poly-rtl-formal` target.
 - `poly_x86_fetch_stage.sv`: x86 frontend response stage that waits for the
   byte frontend and reports response faults before retirement.
 - `poly_raw_fetch_plan.sv`: raw AArch64/RISC-V fetch geometry for alignment,
@@ -179,6 +179,12 @@ integrated stateful frontend core:
 make check-poly-rtl-hdl
 ```
 
+Run the memory-order formal proof directly:
+
+```bash
+make check-poly-rtl-formal
+```
+
 Expected output:
 
 ```text
@@ -210,6 +216,7 @@ POLY_RTL_RETURN_COOKIE_RECOVER_OK
 POLY_RTL_TRANSITION_CYCLE_BUDGET_OK
 POLY_RTL_TRAP_PACKET_ENCODE_OK
 POLY_RTL_TRAP_PACKET_STAGE_OK
+POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK
