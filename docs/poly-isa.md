@@ -1,8 +1,8 @@
 # Poly ISA
 
-Poly is an x86_64 CPU-extension prototype that adds AArch64 and RISC-V64
-user-mode frontends. The target is existing native ABI code and shared
-libraries in one x86_64 virtual address space.
+Poly adds AArch64 and RISC-V64 user frontends to an x86_64 CPU. The goal is
+existing precompiled code and native-ABI shared libraries in one x86_64 virtual
+address space.
 
 ## Run
 
@@ -12,30 +12,28 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
 rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Useful focused gates: `boot-poly-apps-arch-traps`,
-`boot-poly-call-real-xsave-arch-traps`, `boot-poly-binfmt-arch-traps`.
+Focused gates: `boot-poly-apps-arch-traps`,
+`boot-poly-call-real-xsave-arch-traps`, and `boot-poly-binfmt-arch-traps`.
 
-## Contract
+## x86_64 Differences
 
-- x86_64 is the system ISA: boot, privilege, paging, interrupts, faults,
-  syscalls, atomics, and global TSO ordering stay x86-owned.
-- AArch64 and RISC-V64 are peer user frontends fetched from the same address
-  space. AArch64 fetches fixed 32-bit instructions; RISC-V64 fetches 16/32-bit
-  RVC instructions.
-- Mode changes use decoded Poly control instructions, not fast-path `#UD`
-  envelopes.
-- Cross-ISA calls target native ABIs: x86_64 SysV, AAPCS64, and RISC-V psABI.
-- Per-thread foreign state is architectural XSAVE-style state, not hidden
-  emulator state.
-- Hardware handles fixed-latency frontend switching, register signature
-  aliasing, transition returns, and OS-neutral trap records.
-- Runtime/loader code handles memory-shaped ABI work: stack arguments,
-  aggregates, variadics, syscalls, libcalls, imports, and lazy binding.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  faults, atomics, syscalls, VM control, and global TSO ordering.
+- AArch64 and RISC-V64 are peer user-mode fetch/decode frontends in the same
+  virtual address space.
+- Frontend changes are decoded Poly control instructions, not `#UD` envelopes.
+- `PCALL` supports native ABI register alias signatures for fast x86_64 SysV,
+  AAPCS64, and RISC-V psABI calls.
+- Complex ABI cases stay software-owned: stack args, aggregates, variadics,
+  lazy binding, syscalls, libcalls, and debugger policy.
+- Foreign state is per-thread XSAVE-style architectural state.
+- Recoverable foreign traps produce OS-neutral trap records for a Ring 3
+  runtime monitor or OS handler.
 
-## Prototype Encodings
+## Temporary Encodings
 
-These are Bochs encodings. Real silicon should allocate official opcode space
-but keep the same fixed-latency semantics.
+These Bochs encodings model silicon behavior. Real hardware should allocate
+official opcode space with the same fixed-latency semantics.
 
 | Frontend | Control encoding |
 | --- | --- |
@@ -46,4 +44,4 @@ but keep the same fixed-latency semantics.
 Control subops include `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls,
 `PLANDING`, `PTRAPRET`, and setup/query operations.
 
-Detailed hardware and ABI direction lives in `docs/poly-isa-design-directions.md`.
+Full hardware and ABI rationale: `docs/poly-isa-design-directions.md`.
