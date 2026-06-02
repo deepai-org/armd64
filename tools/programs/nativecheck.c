@@ -126,37 +126,6 @@ struct nativecheck_monitor_packet {
   uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
 };
 
-static int expect_monitor_packet(const char *label,
-    const struct nativecheck_monitor_packet *packet, uint32_t reason,
-    uint32_t source_mode, uint64_t number, uint64_t selector,
-    uint64_t arg0, uint64_t arg6, uint64_t arg7) {
-  if (packet->trap.reason != reason ||
-      packet->trap.source_mode != source_mode ||
-      packet->trap.number != number ||
-      packet->trap.selector != selector ||
-      packet->args[0] != arg0 ||
-      packet->args[6] != arg6 ||
-      packet->args[7] != arg7 ||
-      packet->trap.reserved[0] != 0 ||
-      packet->trap.reserved[1] != 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
-        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
-    fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu flags=0x%llx reserved0=0x%llx reserved1=0x%llx\n",
-      label, packet->trap.reason, packet->trap.source_mode,
-      (unsigned long long) packet->trap.number,
-      (unsigned long long) packet->trap.selector,
-      (unsigned long long) packet->args[0],
-      (unsigned long long) packet->args[6],
-      (unsigned long long) packet->args[7],
-      (unsigned long long) packet->trap.flags,
-      (unsigned long long) packet->trap.reserved[0],
-      (unsigned long long) packet->trap.reserved[1]);
-    return 1;
-  }
-  return 0;
-}
-
 static int expect_monitor_packet_args(const char *label,
     const struct nativecheck_monitor_packet *packet, uint32_t reason,
     uint32_t source_mode, uint64_t number, uint64_t selector,
@@ -5662,9 +5631,6 @@ static int run_poly_trap_vector_probe(void) {
       POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 5, 5,
       aarch64_break_args) != 0)
     return 1;
-  if (expect_monitor_packet("aarch64 break", &monitor_packet, POLY_TRAP_BREAK,
-      POLY_MODE_RAW_AARCH64, 5, 5, 11, 17, 18) != 0)
-    return 1;
   pid_t break_child = fork();
   if (break_child < 0) {
     fputs("NATIVE_CHECK_FAIL: poly break packet fork failed\n", stderr);
@@ -5731,9 +5697,6 @@ static int run_poly_trap_vector_probe(void) {
       POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0,
       riscv_break_args) != 0)
     return 1;
-  if (expect_monitor_packet("riscv break", &monitor_packet, POLY_TRAP_BREAK,
-      POLY_MODE_RAW_RISCV, 5, 0, 21, 27, 5) != 0)
-    return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
@@ -5756,8 +5719,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv compressed break", &monitor_packet,
-      POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0, 21, 27, 5) != 0)
+  if (expect_monitor_packet_args("riscv compressed break", &monitor_packet,
+      POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0,
+      riscv_break_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6009,8 +5973,17 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
+  const uint64_t zero_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {0};
   asm volatile(
     POLY_OP_ENTER_A64
+    ".long 0xd2800000\n" // movz x0,#0
+    ".long 0xd2800001\n" // movz x1,#0
+    ".long 0xd2800002\n" // movz x2,#0
+    ".long 0xd2800003\n" // movz x3,#0
+    ".long 0xd2800004\n" // movz x4,#0
+    ".long 0xd2800005\n" // movz x5,#0
+    ".long 0xd2800006\n" // movz x6,#0
+    ".long 0xd2800007\n" // movz x7,#0
     ".long 0xffffffff\n" // unallocated in the supported AArch64 subset
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -6021,14 +5994,22 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("aarch64 illegal", &monitor_packet,
-      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xffffffffULL, 4, 0, 0,
-      0) != 0)
+  if (expect_monitor_packet_args("aarch64 illegal", &monitor_packet,
+      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xffffffffULL, 4,
+      zero_trap_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
+    ".long 0x00000513\n" // addi a0,zero,0
+    ".long 0x00000593\n" // addi a1,zero,0
+    ".long 0x00000613\n" // addi a2,zero,0
+    ".long 0x00000693\n" // addi a3,zero,0
+    ".long 0x00000713\n" // addi a4,zero,0
+    ".long 0x00000793\n" // addi a5,zero,0
+    ".long 0x00000813\n" // addi a6,zero,0
+    ".long 0x00000893\n" // addi a7,zero,0
     ".long 0xffffffff\n" // unallocated in the supported RISC-V subset
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -6039,14 +6020,22 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv illegal", &monitor_packet,
-      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4, 0, 0, 0) !=
-      0)
+  if (expect_monitor_packet_args("riscv illegal", &monitor_packet,
+      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4,
+      zero_trap_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
+    ".long 0x00000513\n" // addi a0,zero,0
+    ".long 0x00000593\n" // addi a1,zero,0
+    ".long 0x00000613\n" // addi a2,zero,0
+    ".long 0x00000693\n" // addi a3,zero,0
+    ".long 0x00000713\n" // addi a4,zero,0
+    ".long 0x00000793\n" // addi a5,zero,0
+    ".long 0x00000813\n" // addi a6,zero,0
+    ".long 0x00000893\n" // addi a7,zero,0
     ".short 0x0000\n" // reserved 16-bit compressed encoding
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
@@ -6057,8 +6046,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv compressed illegal", &monitor_packet,
-      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0, 2, 0, 0, 0) != 0)
+  if (expect_monitor_packet_args("riscv compressed illegal", &monitor_packet,
+      POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0, 2,
+      zero_trap_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6084,9 +6074,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv-to-aarch64 syscall vector",
-      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0, 1,
-      7, 172) != 0)
+  const uint64_t riscv_syscall_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    1, 2, 3, 4, 5, 6, 7, 172
+  };
+  if (expect_monitor_packet_args("riscv-to-aarch64 syscall vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0,
+      riscv_syscall_vector_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6113,9 +6106,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("aarch64-to-riscv syscall vector",
-      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7, 1,
-      7, 8) != 0)
+  const uint64_t aarch64_syscall_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    1, 2, 3, 4, 5, 6, 7, 8
+  };
+  if (expect_monitor_packet_args("aarch64-to-riscv syscall vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7,
+      aarch64_syscall_vector_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6125,6 +6121,11 @@ static int run_poly_trap_vector_probe(void) {
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
     ".long 0x00000813\n" // addi a6,zero,0
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
@@ -6138,9 +6139,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv-to-aarch64 syscall header vector",
-      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0, 1,
-      0, 172) != 0)
+  const uint64_t riscv_header_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    1, 2, 3, 4, 5, 6, 0, 172
+  };
+  if (expect_monitor_packet_args("riscv-to-aarch64 syscall header vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0,
+      riscv_header_vector_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6150,6 +6154,11 @@ static int run_poly_trap_vector_probe(void) {
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
     ".long 0xd2800006\n" // movz x6,#0
     ".long 0xd2800007\n" // movz x7,#0
     ".long 0xd2801588\n" // movz x8,#172
@@ -6164,9 +6173,12 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("aarch64-to-riscv syscall header vector",
-      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7, 1,
-      0, 0) != 0)
+  const uint64_t aarch64_header_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    1, 2, 3, 4, 5, 6, 0, 0
+  };
+  if (expect_monitor_packet_args("aarch64-to-riscv syscall header vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7,
+      aarch64_header_vector_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6192,9 +6204,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv-to-aarch64 break vector",
-      &monitor_packet, POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0, 21, 27,
-      5) != 0)
+  if (expect_monitor_packet_args("riscv-to-aarch64 break vector",
+      &monitor_packet, POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0,
+      riscv_break_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6220,9 +6232,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("aarch64-to-riscv break vector",
-      &monitor_packet, POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 5, 5, 11, 17,
-      18) != 0)
+  if (expect_monitor_packet_args("aarch64-to-riscv break vector",
+      &monitor_packet, POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 5, 5,
+      aarch64_break_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
