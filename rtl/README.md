@@ -14,6 +14,8 @@ silicon prototype.
 - `poly_frontend_step.sv`: one-step planner that composes raw fetch geometry,
   control decode, and handoff validation for an already-fetched instruction
   word.
+- `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
+  restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
   `PCALL` and native return-cookie recovery.
 - `poly_abi_signature_slots.sv`: cached register-only ABI signature slots for
@@ -32,6 +34,8 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_frontend_step.py`: integration checks for raw fetch, control
   decode, and handoff composition.
+- `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
+  checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
   `tools/include/polycpuid.h`.
 - `test_poly_abi_signature_slots.py`: signature-slot checks against
@@ -51,6 +55,7 @@ silicon prototype.
 python3 rtl/test_poly_ctrl_decode.py
 python3 rtl/test_poly_frontend_handoff.py
 python3 rtl/test_poly_frontend_step.py
+python3 rtl/test_poly_interrupt_boundary.py
 python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
 python3 rtl/test_poly_cpuid_rom.py
@@ -65,6 +70,7 @@ Expected output:
 POLY_RTL_CTRL_DECODE_OK
 POLY_RTL_FRONTEND_HANDOFF_OK
 POLY_RTL_FRONTEND_STEP_OK
+POLY_RTL_INTERRUPT_BOUNDARY_OK
 POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
 POLY_RTL_CPUID_ROM_OK
