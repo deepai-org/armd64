@@ -14,6 +14,8 @@ silicon prototype.
 - `poly_frontend_step.sv`: one-step planner that composes raw fetch geometry,
   control decode, and handoff validation for an already-fetched instruction
   word.
+- `poly_frontend_retire.sv`: retirement gate that blocks frontend, PC, and
+  transition-stack mutations behind older, fetch, execution, or control faults.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -40,6 +42,8 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_frontend_step.py`: integration checks for raw fetch, control
   decode, and handoff composition.
+- `test_poly_frontend_retire.py`: retirement-ordering checks that faults
+  suppress Poly control commits and transition-stack pushes.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -67,6 +71,7 @@ silicon prototype.
 python3 rtl/test_poly_ctrl_decode.py
 python3 rtl/test_poly_frontend_handoff.py
 python3 rtl/test_poly_frontend_step.py
+python3 rtl/test_poly_frontend_retire.py
 python3 rtl/test_poly_interrupt_boundary.py
 python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
@@ -85,6 +90,7 @@ Expected output:
 POLY_RTL_CTRL_DECODE_OK
 POLY_RTL_FRONTEND_HANDOFF_OK
 POLY_RTL_FRONTEND_STEP_OK
+POLY_RTL_FRONTEND_RETIRE_OK
 POLY_RTL_INTERRUPT_BOUNDARY_OK
 POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
