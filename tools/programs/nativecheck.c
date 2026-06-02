@@ -5999,6 +5999,34 @@ static int run_poly_trap_vector_probe(void) {
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     POLY_OP_ENTER_RV64
+    ".long 0x00000513\n" // addi a0,zero,0
+    ".long 0x00000593\n" // addi a1,zero,0
+    ".long 0x00000613\n" // addi a2,zero,0
+    ".long 0x00000693\n" // addi a3,zero,0
+    ".long 0x00000713\n" // addi a4,zero,0
+    ".long 0x00000793\n" // addi a5,zero,0
+    ".long 0x00000813\n" // addi a6,zero,0
+    ".long 0x00100893\n" // addi a7,zero,1
+    ".long 0x02089893\n" // slli a7,a7,32
+    ".long 0x00100073\n" // ebreak
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 4665) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv wide ebreak illegal result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet_args("riscv wide break",
+      &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
+      0xffffffffULL, 4, zero_trap_args) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  asm volatile(
+    POLY_OP_ENTER_RV64
     ".long 0x01500513\n" // addi a0,zero,21
     ".long 0x01600593\n" // addi a1,zero,22
     ".long 0x01700613\n" // addi a2,zero,23
@@ -6020,6 +6048,34 @@ static int run_poly_trap_vector_probe(void) {
   if (expect_monitor_packet_args("riscv compressed break", &monitor_packet,
       POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 5, 0,
       riscv_break_args) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000513\n" // addi a0,zero,0
+    ".long 0x00000593\n" // addi a1,zero,0
+    ".long 0x00000613\n" // addi a2,zero,0
+    ".long 0x00000693\n" // addi a3,zero,0
+    ".long 0x00000713\n" // addi a4,zero,0
+    ".long 0x00000793\n" // addi a5,zero,0
+    ".long 0x00000813\n" // addi a6,zero,0
+    ".long 0x00100893\n" // addi a7,zero,1
+    ".long 0x02089893\n" // slli a7,a7,32
+    ".short 0x9002\n" // c.ebreak
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 4666) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv wide compressed ebreak illegal result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet_args("riscv wide compressed break",
+      &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0, 2,
+      zero_trap_args) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
