@@ -47,6 +47,26 @@ module poly_frontend_core (
     input  logic        user_return_i,
     input  logic [63:0] user_return_pc_i,
 
+    input  logic        trap_valid_i,
+    input  logic        trap_monitor_enabled_i,
+    input  logic [63:0] trap_monitor_packet_addr_i,
+    input  logic [31:0] trap_reason_i,
+    input  logic [31:0] trap_source_mode_i,
+    input  logic [63:0] trap_number_i,
+    input  logic [63:0] trap_selector_i,
+    input  logic [63:0] trap_pc_i,
+    input  logic [63:0] trap_resume_pc_i,
+    input  logic [63:0] trap_arg0_i,
+    input  logic [63:0] trap_arg1_i,
+    input  logic [63:0] trap_arg2_i,
+    input  logic [63:0] trap_arg3_i,
+    input  logic [63:0] trap_arg4_i,
+    input  logic [63:0] trap_arg5_i,
+    input  logic [63:0] trap_arg6_i,
+    input  logic [63:0] trap_arg7_i,
+    input  logic        trap_mem_write_resp_valid_i,
+    input  logic        trap_mem_write_fault_i,
+
     output logic        raw_mem_req_valid_o,
     output logic [63:0] raw_mem_req_addr_o,
     output logic [2:0]  raw_mem_req_bytes_o,
@@ -114,6 +134,37 @@ module poly_frontend_core (
     output logic        interrupt_invalid_current_pc_o,
     output logic        interrupt_invalid_interrupted_frontend_o,
     output logic        interrupt_invalid_interrupted_pc_o,
+
+    output logic        trap_mem_write_valid_o,
+    output logic [63:0] trap_mem_write_addr_o,
+    output logic [7:0]  trap_mem_write_bytes_o,
+    output logic [63:0] trap_mem_write_qword0_o,
+    output logic [63:0] trap_mem_write_qword1_o,
+    output logic [63:0] trap_mem_write_qword2_o,
+    output logic [63:0] trap_mem_write_qword3_o,
+    output logic [63:0] trap_mem_write_qword4_o,
+    output logic [63:0] trap_mem_write_qword5_o,
+    output logic [63:0] trap_mem_write_qword6_o,
+    output logic [63:0] trap_mem_write_qword7_o,
+    output logic [63:0] trap_mem_write_qword8_o,
+    output logic [63:0] trap_mem_write_qword9_o,
+    output logic [63:0] trap_mem_write_qword10_o,
+    output logic [63:0] trap_mem_write_qword11_o,
+    output logic [63:0] trap_mem_write_qword12_o,
+    output logic [63:0] trap_mem_write_qword13_o,
+    output logic [63:0] trap_mem_write_qword14_o,
+    output logic [63:0] trap_mem_write_qword15_o,
+    output logic        trap_wait_response_o,
+    output logic        trap_packet_delivered_o,
+    output logic        trap_fault_o,
+    output logic        trap_encode_error_o,
+    output logic        trap_packet_mem_fault_o,
+    output logic        trap_monitor_disabled_o,
+    output logic        trap_noncanonical_packet_o,
+    output logic        trap_packet_align_fault_o,
+    output logic        trap_packet_range_fault_o,
+    output logic        trap_invalid_reason_o,
+    output logic        trap_invalid_source_mode_o,
 
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
@@ -188,7 +239,8 @@ module poly_frontend_core (
   assign return_recover_invalid_frontend_o = return_invalid_frontend_raw;
   assign return_recover_missing_transition_o = return_missing_transition_raw;
   assign execute_ready = !memory_order_valid_i || memory_retire_allowed_raw;
-  assign execute_fault = execute_fault_i || memory_fault_o || interrupt_error_o;
+  assign execute_fault =
+    execute_fault_i || memory_fault_o || interrupt_error_o || trap_fault_o;
   assign memory_retire_allowed_o = memory_retire_allowed_raw;
   assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;
   assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;
@@ -196,7 +248,9 @@ module poly_frontend_core (
     retire_o && memory_aarch64_barrier_noop_raw;
   assign memory_riscv_fence_noop_o =
     retire_o && memory_riscv_fence_noop_raw;
-  assign block_retire = interrupt_enter_x86_o || interrupt_restore_raw_o;
+  assign block_retire =
+    interrupt_enter_x86_o || interrupt_restore_raw_o ||
+    trap_wait_response_o || trap_packet_delivered_o;
   assign interrupted_valid_o = interrupted_valid_q;
   assign interrupted_frontend_o = interrupted_frontend_q;
   assign interrupted_pc_o = interrupted_pc_q;
@@ -301,6 +355,58 @@ module poly_frontend_core (
     .invalid_current_pc_o(interrupt_invalid_current_pc_o),
     .invalid_interrupted_frontend_o(interrupt_invalid_interrupted_frontend_o),
     .invalid_interrupted_pc_o(interrupt_invalid_interrupted_pc_o)
+  );
+
+  poly_trap_packet_stage trap_packet_stage (
+    .valid_i(trap_valid_i),
+    .monitor_enabled_i(trap_monitor_enabled_i),
+    .monitor_packet_addr_i(trap_monitor_packet_addr_i),
+    .reason_i(trap_reason_i),
+    .source_mode_i(trap_source_mode_i),
+    .number_i(trap_number_i),
+    .selector_i(trap_selector_i),
+    .trap_pc_i(trap_pc_i),
+    .resume_pc_i(trap_resume_pc_i),
+    .arg0_i(trap_arg0_i),
+    .arg1_i(trap_arg1_i),
+    .arg2_i(trap_arg2_i),
+    .arg3_i(trap_arg3_i),
+    .arg4_i(trap_arg4_i),
+    .arg5_i(trap_arg5_i),
+    .arg6_i(trap_arg6_i),
+    .arg7_i(trap_arg7_i),
+    .mem_write_resp_valid_i(trap_mem_write_resp_valid_i),
+    .mem_write_fault_i(trap_mem_write_fault_i),
+    .mem_write_valid_o(trap_mem_write_valid_o),
+    .mem_write_addr_o(trap_mem_write_addr_o),
+    .mem_write_bytes_o(trap_mem_write_bytes_o),
+    .mem_write_qword0_o(trap_mem_write_qword0_o),
+    .mem_write_qword1_o(trap_mem_write_qword1_o),
+    .mem_write_qword2_o(trap_mem_write_qword2_o),
+    .mem_write_qword3_o(trap_mem_write_qword3_o),
+    .mem_write_qword4_o(trap_mem_write_qword4_o),
+    .mem_write_qword5_o(trap_mem_write_qword5_o),
+    .mem_write_qword6_o(trap_mem_write_qword6_o),
+    .mem_write_qword7_o(trap_mem_write_qword7_o),
+    .mem_write_qword8_o(trap_mem_write_qword8_o),
+    .mem_write_qword9_o(trap_mem_write_qword9_o),
+    .mem_write_qword10_o(trap_mem_write_qword10_o),
+    .mem_write_qword11_o(trap_mem_write_qword11_o),
+    .mem_write_qword12_o(trap_mem_write_qword12_o),
+    .mem_write_qword13_o(trap_mem_write_qword13_o),
+    .mem_write_qword14_o(trap_mem_write_qword14_o),
+    .mem_write_qword15_o(trap_mem_write_qword15_o),
+    .wait_response_o(trap_wait_response_o),
+    .packet_delivered_o(trap_packet_delivered_o),
+    .fault_o(trap_fault_o),
+    .encode_error_o(trap_encode_error_o),
+    .packet_mem_fault_o(trap_packet_mem_fault_o),
+    .monitor_disabled_o(trap_monitor_disabled_o),
+    .noncanonical_packet_o(trap_noncanonical_packet_o),
+    .packet_align_fault_o(trap_packet_align_fault_o),
+    .packet_range_fault_o(trap_packet_range_fault_o),
+    .invalid_reason_o(trap_invalid_reason_o),
+    .invalid_source_mode_o(trap_invalid_source_mode_o)
   );
 
   poly_transition_stack transition_stack (
