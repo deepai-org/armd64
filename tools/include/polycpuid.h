@@ -1093,7 +1093,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf9(void) {
   regs.eax = POLY_X86_CTRL_LANDING;
   regs.ebx = POLY_AARCH64_CTRL_LANDING;
   regs.ecx = POLY_RISCV_CTRL_LANDING;
-  regs.edx = 0;
+  regs.edx = POLY_X86_CTRL_IMPORT_RETURN;
   return regs;
 }
 
