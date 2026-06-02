@@ -4,7 +4,7 @@ BOOT_TIMEOUT_SECONDS ?= 300
 BOOT_FOCUSED_TIMEOUT_SECONDS ?= 900
 BOOT_DETAIL_ASSERTS ?= 1
 BOOT_DOCKER_ENV = -e BOOT_TIMEOUT_SECONDS=$(BOOT_TIMEOUT_SECONDS) -e BOOT_DETAIL_ASSERTS=$(BOOT_DETAIL_ASSERTS)
-POLY_RTL_TOP ?= poly_frontend_stateful_core
+POLY_RTL_TOP ?= poly_frontend_fpga_top
 POLY_RTL_VERILATOR_FLAGS = --lint-only --Wall \
 	-Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
 	--top-module $(POLY_RTL_TOP)
@@ -16,6 +16,7 @@ POLY_RTL_SV = \
 	rtl/poly_frontend_decode_dispatch.sv \
 	rtl/poly_frontend_fetch_decode_pipeline.sv \
 	rtl/poly_frontend_fetch_issue.sv \
+	rtl/poly_frontend_fpga_top.sv \
 	rtl/poly_frontend_handoff.sv \
 	rtl/poly_frontend_memory_retire.sv \
 	rtl/poly_frontend_predecoded_retire.sv \
@@ -75,6 +76,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_frontend_core.py
 	python3 rtl/test_poly_frontend_state.py
 	python3 rtl/test_poly_frontend_stateful_core.py
+	python3 rtl/test_poly_frontend_fpga_top.py
 	python3 rtl/test_poly_interrupt_boundary.py
 	python3 rtl/test_poly_transition_stack.py
 	python3 rtl/test_poly_abi_signature_slots.py

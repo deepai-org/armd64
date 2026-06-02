@@ -42,6 +42,8 @@ silicon prototype.
   `poly_frontend_core.sv` from architectural frontend/PC state and applies
   retired commits, raw interrupt entry/restore, and native return-cookie resume
   updates back into that state while exposing redirect sidebands.
+- `poly_frontend_fpga_top.sv`: FPGA-facing top that wraps the stateful core and
+  converts split x86/raw fetch ports into one tagged instruction-memory bus.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -107,6 +109,8 @@ silicon prototype.
 - `test_poly_frontend_stateful_core.py`: stateful core wiring checks for
   state-fed frontend/PC inputs and state updates from retire, interrupt, and
   return-cookie paths.
+- `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
+  tagged instruction-memory interface and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -156,6 +160,7 @@ python3 rtl/test_poly_frontend_memory_retire.py
 python3 rtl/test_poly_frontend_core.py
 python3 rtl/test_poly_frontend_state.py
 python3 rtl/test_poly_frontend_stateful_core.py
+python3 rtl/test_poly_frontend_fpga_top.py
 python3 rtl/test_poly_interrupt_boundary.py
 python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
@@ -203,6 +208,7 @@ POLY_RTL_FRONTEND_MEMORY_RETIRE_OK
 POLY_RTL_FRONTEND_CORE_OK
 POLY_RTL_FRONTEND_STATE_OK
 POLY_RTL_FRONTEND_STATEFUL_CORE_OK
+POLY_RTL_FRONTEND_FPGA_TOP_OK
 POLY_RTL_INTERRUPT_BOUNDARY_OK
 POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
