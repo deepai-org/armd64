@@ -8410,7 +8410,10 @@ static uint64_t nativecheck_direct_pcall_aarch64_import_sum6(uint64_t a0,
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+      "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
+      "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
+      "xmm14", "xmm15", "cc", "memory");
   return a0;
 }
 
@@ -8431,7 +8434,10 @@ static uint64_t nativecheck_direct_pcall_riscv_import_sum6(uint64_t a0,
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+      "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
+      "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
+      "xmm14", "xmm15", "cc", "memory");
   return a0;
 }
 
@@ -8452,7 +8458,10 @@ static uint64_t nativecheck_signature_imm_direct_pcall_aarch64_import_sum6(
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+      "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
+      "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
+      "xmm14", "xmm15", "cc", "memory");
   return a0;
 }
 
@@ -8474,7 +8483,10 @@ static uint64_t nativecheck_signature_imm_direct_pcall_riscv_import_sum6(
     : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
       "+r"(r8_arg), "+r"(target)
     :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15", "memory");
+    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+      "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
+      "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
+      "xmm14", "xmm15", "cc", "memory");
   return a0;
 }
 
