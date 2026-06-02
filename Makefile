@@ -120,6 +120,10 @@ check-poly-rtl-sim:
 		rtl/poly_frontend_step.sv rtl/poly_frontend_retire.sv \
 		rtl/tb_poly_frontend_retire.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_retire"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_predecoded_retire" \
+		rtl/poly_frontend_handoff.sv rtl/poly_frontend_predecoded_retire.sv \
+		rtl/tb_poly_frontend_predecoded_retire.sv; \
+	vvp "$$tmp_dir/tb_poly_frontend_predecoded_retire"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_state"; \
