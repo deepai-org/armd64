@@ -5175,10 +5175,22 @@ static int run_poly_trap_vector_probe(void) {
       stderr);
     return 1;
   }
+  if (poly_aarch64_trap_vector_mode_set(
+        (1ULL << 32) | POLY_MODE_X86) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 trap vector mode accepted wide mode\n",
+      stderr);
+    return 1;
+  }
+  if (poly_riscv_trap_vector_mode_set(
+        (1ULL << 32) | POLY_MODE_X86) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv trap vector mode accepted wide mode\n",
+      stderr);
+    return 1;
+  }
   poly_trap_vector_mode_get();
   if (read_rax() != POLY_MODE_X86) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly x86 invalid trap vector mode mutated state got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly invalid trap vector mode mutated state got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
@@ -10567,12 +10579,33 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
 
+  result = nativecheck_aarch64_abi_signature_set((1ULL << 32) | 5,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 ABI signature wide slot accepted result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
   result = nativecheck_aarch64_abi_signature_get(
     POLY_ABI_SIGNATURE_SLOT_COUNT);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly aarch64 ABI signature invalid get mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
+  result = nativecheck_aarch64_abi_signature_get((1ULL << 32) | 5);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 ABI signature wide get accepted result=%llu slot5=%llu\n",
       (unsigned long long) result,
       (unsigned long long) poly_abi_signature_get(5));
     return 1;
@@ -10610,12 +10643,33 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
 
+  result = nativecheck_riscv_abi_signature_set((1ULL << 32) | 5,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv ABI signature wide slot accepted result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
   result = nativecheck_riscv_abi_signature_get(
     POLY_ABI_SIGNATURE_SLOT_COUNT);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv ABI signature invalid get mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
+  result = nativecheck_riscv_abi_signature_get((1ULL << 32) | 5);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv ABI signature wide get accepted result=%llu slot5=%llu\n",
       (unsigned long long) result,
       (unsigned long long) poly_abi_signature_get(5));
     return 1;
