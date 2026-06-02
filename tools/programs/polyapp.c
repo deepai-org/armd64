@@ -36,13 +36,17 @@ struct payload {
   uint64_t syscall_expected;
   uint64_t syscall_number_expected;
   uint64_t syscall_selector_expected;
+  uint64_t syscall_arg_expected[POLY_TRAP_PACKET_ARG_COUNT];
   uint64_t break_expected;
   uint64_t break_number_expected;
+  uint64_t break_arg_expected[POLY_TRAP_PACKET_ARG_COUNT];
   char scratch_expected[SCRATCH_CHECK_SIZE + 1];
   char scratch_hex_expected[SCRATCH_CHECK_SIZE * 2 + 1];
   uint32_t *insns;
   size_t insn_count;
   size_t insn_capacity;
+  unsigned syscall_arg_mask;
+  unsigned break_arg_mask;
   unsigned break_id;
   int check_syscall;
   int check_syscall_number;
@@ -717,6 +721,26 @@ static int append_insn(struct payload *payload, uint32_t insn) {
   return 0;
 }
 
+static int parse_arg_expected_directive(const char *path, const char *line,
+    const char *prefix, uint64_t expected[POLY_TRAP_PACKET_ARG_COUNT],
+    unsigned *mask) {
+  const size_t prefix_len = strlen(prefix);
+  if (strncmp(line, prefix, prefix_len) != 0)
+    return 0;
+  if (line[prefix_len] < '0' || line[prefix_len] > '7' ||
+      strncmp(line + prefix_len + 1, "_expected=", 10) != 0)
+    return 0;
+
+  const unsigned arg = (unsigned) (line[prefix_len] - '0');
+  if (parse_u64(line + prefix_len + 11, &expected[arg]) < 0) {
+    fprintf(stderr, "POLYAPP_FAIL: bad %s%u expected value in %s\n",
+      prefix, arg, path);
+    return -1;
+  }
+  *mask |= 1U << arg;
+  return 1;
+}
+
 static int load_elf_instructions(struct payload *payload) {
   unsigned char *data = NULL;
   size_t size = 0;
@@ -851,6 +875,24 @@ static int load_payload(const char *path, struct payload *payload) {
         return -1;
       }
       payload->check_syscall_selector = 1;
+    } else if (strncmp(line, "syscall_arg", 11) == 0) {
+      int parsed_arg = parse_arg_expected_directive(path, line, "syscall_arg",
+        payload->syscall_arg_expected, &payload->syscall_arg_mask);
+      if (parsed_arg <= 0) {
+        fprintf(stderr, "POLYAPP_FAIL: unknown directive in %s: %s\n",
+          path, line);
+        fclose(file);
+        return -1;
+      }
+    } else if (strncmp(line, "break_arg", 9) == 0) {
+      int parsed_arg = parse_arg_expected_directive(path, line, "break_arg",
+        payload->break_arg_expected, &payload->break_arg_mask);
+      if (parsed_arg <= 0) {
+        fprintf(stderr, "POLYAPP_FAIL: unknown directive in %s: %s\n",
+          path, line);
+        fclose(file);
+        return -1;
+      }
     } else if (strncmp(line, "break_expected=", 15) == 0) {
       if (parse_u64(line + 15, &payload->break_expected) < 0) {
         fprintf(stderr, "POLYAPP_FAIL: bad break expected value in %s\n", path);
@@ -1206,12 +1248,44 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
+    for (unsigned arg = 0; arg < POLY_TRAP_PACKET_ARG_COUNT; arg++) {
+      if (!(payload.syscall_arg_mask & (1U << arg)))
+        continue;
+      const uint64_t got = polyapp_last_syscall_packet.args[arg];
+      const uint64_t expected = payload.syscall_arg_expected[arg];
+      printf("POLYAPP_SYSCALL_ARG: arch=%s arg=%u value=%llu path=%s\n",
+        payload.arch_name, arg, (unsigned long long) got, payload.path);
+      if (got != expected) {
+        fprintf(stderr,
+          "POLYAPP_FAIL: %s syscall arg%u expected %llu got %llu\n",
+          payload.path, arg, (unsigned long long) expected,
+          (unsigned long long) got);
+        free_payload(&payload);
+        return 1;
+      }
+    }
     if (payload.check_break) {
       printf("POLYAPP_BREAK: arch=%s id=%u value=%llu path=%s\n",
         payload.arch_name, payload.break_id, (unsigned long long) break_result, payload.path);
       if (break_result != payload.break_expected) {
         fprintf(stderr, "POLYAPP_FAIL: %s break expected %llu got %llu\n",
           payload.path, (unsigned long long) payload.break_expected, (unsigned long long) break_result);
+        free_payload(&payload);
+        return 1;
+      }
+    }
+    for (unsigned arg = 0; arg < POLY_TRAP_PACKET_ARG_COUNT; arg++) {
+      if (!(payload.break_arg_mask & (1U << arg)))
+        continue;
+      const uint64_t got = polyapp_last_break_packet.args[arg];
+      const uint64_t expected = payload.break_arg_expected[arg];
+      printf("POLYAPP_BREAK_ARG: arch=%s arg=%u value=%llu path=%s\n",
+        payload.arch_name, arg, (unsigned long long) got, payload.path);
+      if (got != expected) {
+        fprintf(stderr,
+          "POLYAPP_FAIL: %s break arg%u expected %llu got %llu\n",
+          payload.path, arg, (unsigned long long) expected,
+          (unsigned long long) got);
         free_payload(&payload);
         return 1;
       }
