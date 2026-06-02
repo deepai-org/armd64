@@ -92,6 +92,10 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] state_pc_o;
   logic state_update_o;
   logic state_hold_o;
+  logic state_conflict_o;
+  logic state_invalid_frontend_o;
+  logic state_invalid_pc_o;
+  logic state_error_o;
   logic redirect_valid_o;
   logic [1:0] redirect_frontend_o;
   logic [63:0] redirect_pc_o;
@@ -222,6 +226,10 @@ module tb_poly_frontend_fpga_top;
     .state_pc_o(state_pc_o),
     .state_update_o(state_update_o),
     .state_hold_o(state_hold_o),
+    .state_conflict_o(state_conflict_o),
+    .state_invalid_frontend_o(state_invalid_frontend_o),
+    .state_invalid_pc_o(state_invalid_pc_o),
+    .state_error_o(state_error_o),
     .redirect_valid_o(redirect_valid_o),
     .redirect_frontend_o(redirect_frontend_o),
     .redirect_pc_o(redirect_pc_o),
@@ -631,6 +639,35 @@ module tb_poly_frontend_fpga_top;
     #1;
     check(state_frontend_o == POLY_FRONTEND_RISCV &&
       state_pc_o == 64'h8400, "fpga top trap return updates state");
+
+    init_i = 1'b1;
+    init_frontend_i = POLY_FRONTEND_X86;
+    init_pc_i = 64'h1800;
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_X86 &&
+      state_pc_o == 64'h1800, "fpga top reinit to invalid trap-return case");
+
+    valid_i = 1'b1;
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_X86;
+    instr_resp_word_i = x86_ctrl(POLY_X86_CTRL_TRAP_RETURN);
+    instr_resp_fallthrough_pc_i = 64'h1804;
+    trap_return_restore_valid_i = 1'b1;
+    trap_return_restore_frontend_i = POLY_FRONTEND_RISCV;
+    trap_return_restore_pc_i = 64'h8401;
+    #1;
+    check(retire_o && trap_return_restore_o,
+      "fpga top invalid trap return reaches state boundary");
+    check(state_error_o && state_invalid_pc_o && !state_update_o &&
+      !redirect_valid_o && state_hold_o,
+      "fpga top exposes invalid trap-return restore target");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_X86 &&
+      state_pc_o == 64'h1800, "invalid trap return preserves state");
 
     $display("POLY_RTL_FRONTEND_FPGA_TOP_SIM_OK");
     $finish;
