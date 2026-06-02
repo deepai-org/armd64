@@ -5485,6 +5485,35 @@ static int run_poly_trap_vector_probe(void) {
       aarch64_syscall_trap_pc, aarch64_syscall_resume_pc) != 0)
     return 1;
 
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  const uint64_t zero_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {0};
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800000\n" // movz x0,#0
+    ".long 0xd2800001\n" // movz x1,#0
+    ".long 0xd2800002\n" // movz x2,#0
+    ".long 0xd2800003\n" // movz x3,#0
+    ".long 0xd2800004\n" // movz x4,#0
+    ".long 0xd2800005\n" // movz x5,#0
+    ".long 0xd2800006\n" // movz x6,#0
+    ".long 0xd2800007\n" // movz x7,#0
+    ".long 0xd2c00028\n" // movz x8,#1,lsl #32
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 4664) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 wide syscall illegal result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet_args("aarch64 wide syscall",
+      &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
+      0xffffffffULL, 4, zero_trap_args) != 0)
+    return 1;
+
   uint64_t saved_r13 = 0;
   uint64_t saved_r14 = 0;
   uint64_t saved_xmm8 = 0;
@@ -5600,6 +5629,34 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   if (expect_monitor_packet_pc("riscv syscall", &monitor_packet,
       riscv_syscall_trap_pc, riscv_syscall_resume_pc) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000513\n" // addi a0,zero,0
+    ".long 0x00000593\n" // addi a1,zero,0
+    ".long 0x00000613\n" // addi a2,zero,0
+    ".long 0x00000693\n" // addi a3,zero,0
+    ".long 0x00000713\n" // addi a4,zero,0
+    ".long 0x00000793\n" // addi a5,zero,0
+    ".long 0x00000813\n" // addi a6,zero,0
+    ".long 0x00100893\n" // addi a7,zero,1
+    ".long 0x02089893\n" // slli a7,a7,32
+    ".long 0x00000073\n" // ecall
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 4665) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv wide syscall illegal result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet_args("riscv wide syscall",
+      &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
+      0xffffffffULL, 4, zero_trap_args) != 0)
     return 1;
 
   saved_r13 = 0;
@@ -6214,7 +6271,6 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
-  const uint64_t zero_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {0};
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800000\n" // movz x0,#0
