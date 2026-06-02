@@ -42,6 +42,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_abi_signature_slots.py
 	python3 rtl/test_poly_cpuid_rom.py
 	python3 rtl/test_poly_memory_order.py
+	python3 rtl/test_poly_memory_order_formal.py
 	python3 rtl/test_poly_memory_order_litmus.py
 	python3 rtl/test_poly_raw_fetch_request.py
 	python3 rtl/test_poly_raw_fetch_stage.py

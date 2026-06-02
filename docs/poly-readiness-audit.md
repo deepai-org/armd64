@@ -27,7 +27,7 @@ RISC-V64 code.
 | Native-ABI fast path | ABI signature slots and register maps in `tools/include/polycpuid.h`; `PCALL` implementation in Bochs; cross-ISA runtime stubs in `tools/runtime/polyexec.c`. |
 | Complex ABI software path | Stack, aggregate, variadic, import, and syscall policy handled by loader/runtime thunks in `tools/runtime/polyexec.c`, not by hardware descriptors. |
 | Native return semantics | Return-cookie transition stacks in Bochs and XSAVE state; native `ret`/`ret x30`/RISC-V `ret` coverage in `tools/programs/nativecheck.c`. |
-| x86 TSO memory-order policy | `tools/include/polycpuid.h` advertises `POLY_MEMORY_MODEL_X86_TSO`; `rtl/poly_memory_order.sv` gates memory-op retirement so foreign frontends do not expose weak reordering and foreign barriers/fences retire as no-ops; `rtl/test_poly_memory_order_litmus.py` checks TSO message-passing and store-buffering outcomes. |
+| x86 TSO memory-order policy | `tools/include/polycpuid.h` advertises `POLY_MEMORY_MODEL_X86_TSO`; `rtl/poly_memory_order.sv` gates memory-op retirement so foreign frontends do not expose weak reordering and foreign barriers/fences retire as no-ops; `rtl/test_poly_memory_order_litmus.py` checks TSO message-passing and store-buffering outcomes; `rtl/poly_memory_order_formal.sv` captures the intended formal assertions. |
 | Broad integration validation | `make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps` passed on 2026-06-02. |
 
 ## Not Yet Silicon-Complete
@@ -47,7 +47,8 @@ RISC-V64 code.
 
 ## Next Engineering Gates
 
-1. Add formal memory-model checks around `rtl/poly_memory_order.sv`; the
-   current RTL gate has directed and litmus-style tests, not a proof.
+1. Discharge `rtl/poly_memory_order_formal.sv` with a formal backend. The
+   current repository has directed tests, litmus-style tests, and assertion
+   properties, but no installed formal tool has run the proof.
 2. Convert the vendor/prototype x86 opcode family into a production allocation
    or keep it as a CPUID-discovered vendor extension for FPGA bring-up.
