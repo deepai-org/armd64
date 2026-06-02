@@ -1075,10 +1075,10 @@ extern uint64_t poly_host_x86_snprintf_u64(uint8_t *dest, uint64_t size,
     uint64_t right);
 extern uint64_t poly_host_x86_snprintf_aarch64(uint8_t *dest, uint64_t size,
     const uint8_t *format, const uint8_t *text, uint64_t left,
-    double fp, uint64_t right);
+    double fp, uint64_t right, double fp2);
 extern uint64_t poly_host_x86_snprintf_riscv(uint8_t *dest, uint64_t size,
     const uint8_t *format, const uint8_t *text, uint64_t left,
-    uint64_t middle, uint64_t right);
+    uint64_t middle, uint64_t right, uint64_t tail);
 extern double poly_host_x86_strtod(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_strtof(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_fabsf(float value);
@@ -4526,6 +4526,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     stubs[(*stub_offset)++] = 0xec;
     stubs[(*stub_offset)++] = 0x18;
     emit_x86_mov_mrsp_disp8_r9(stubs, stub_offset, 0); // helper arg 6.
+    emit_x86_mov_mrsp_disp8_r10(stubs, stub_offset, 8); // helper arg 7.
     stubs[(*stub_offset)++] = 0x49; // mov r10,rdi
     stubs[(*stub_offset)++] = 0x89;
     stubs[(*stub_offset)++] = 0xfa;

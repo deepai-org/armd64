@@ -1538,8 +1538,9 @@ uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_u64(uint8_t *dest,
     (const char *) format, (const char *) text, left, right);
 }
 
-static int poly_format_has_fp_conversion(const uint8_t *format)
+static unsigned poly_format_fp_conversion_count(const uint8_t *format)
 {
+  unsigned count = 0;
   const char *p = (const char *) format;
   while (*p) {
     if (*p++ != '%')
@@ -1561,19 +1562,27 @@ static int poly_format_has_fp_conversion(const uint8_t *format)
         *p == 'z' || *p == 't')
       p++;
     if (*p == 'a' || *p == 'A' || *p == 'e' || *p == 'E' ||
-        *p == 'f' || *p == 'F' || *p == 'g' || *p == 'G')
-      return 1;
+        *p == 'f' || *p == 'F' || *p == 'g' || *p == 'G') {
+      count++;
+      if (count == 2)
+        return count;
+    }
     if (*p)
       p++;
   }
-  return 0;
+  return count;
 }
 
 uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_aarch64(uint8_t *dest,
     uint64_t size, const uint8_t *format, const uint8_t *text,
-    uint64_t left, double fp, uint64_t right)
+    uint64_t left, double fp, uint64_t right, double fp2)
 {
-  if (poly_format_has_fp_conversion(format)) {
+  unsigned fp_count = poly_format_fp_conversion_count(format);
+  if (fp_count >= 2) {
+    return (uint64_t) snprintf((char *) dest, (size_t) size,
+      (const char *) format, (const char *) text, left, fp, right, fp2);
+  }
+  if (fp_count == 1) {
     return (uint64_t) snprintf((char *) dest, (size_t) size,
       (const char *) format, (const char *) text, left, fp, right);
   }
@@ -1583,13 +1592,24 @@ uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_aarch64(uint8_t *dest,
 
 uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_riscv(uint8_t *dest,
     uint64_t size, const uint8_t *format, const uint8_t *text,
-    uint64_t left, uint64_t middle, uint64_t right)
+    uint64_t left, uint64_t middle, uint64_t right, uint64_t tail)
 {
-  if (poly_format_has_fp_conversion(format)) {
+  unsigned fp_count = poly_format_fp_conversion_count(format);
+  union {
+    uint64_t u;
+    double d;
+  } fp;
+  fp.u = middle;
+  if (fp_count >= 2) {
     union {
       uint64_t u;
       double d;
-    } fp;
+    } fp2;
+    fp2.u = tail;
+    return (uint64_t) snprintf((char *) dest, (size_t) size,
+      (const char *) format, (const char *) text, left, fp.d, right, fp2.d);
+  }
+  if (fp_count == 1) {
     fp.u = middle;
     return (uint64_t) snprintf((char *) dest, (size_t) size,
       (const char *) format, (const char *) text, left, fp.d, right);
