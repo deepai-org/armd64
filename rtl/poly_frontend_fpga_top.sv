@@ -34,6 +34,7 @@ module poly_frontend_fpga_top (
     input  logic        raw_branch_resolved_i,
     input  logic        raw_branch_taken_i,
     input  logic [63:0] raw_branch_target_i,
+    input  logic [63:0] raw_data_mem_addr_i,
     input  logic        raw_memory_resolved_i,
     input  logic        raw_memory_fault_i,
     input  logic        memory_order_valid_i,
@@ -124,6 +125,19 @@ module poly_frontend_fpga_top (
     output logic [3:0]  raw_data_mem_access_bytes_o,
     output logic        raw_data_mem_wait_o,
     output logic        raw_data_mem_fault_o,
+    output logic        raw_data_mem_req_valid_o,
+    output logic [63:0] raw_data_mem_req_addr_o,
+    output logic [3:0]  raw_data_mem_req_bytes_o,
+    output logic        raw_data_mem_req_load_o,
+    output logic        raw_data_mem_req_store_o,
+    output logic        raw_data_mem_req_atomic_o,
+    output logic        raw_data_mem_req_error_o,
+    output logic        raw_data_mem_req_invalid_frontend_o,
+    output logic        raw_data_mem_req_invalid_op_o,
+    output logic        raw_data_mem_req_invalid_width_o,
+    output logic        raw_data_mem_req_noncanonical_o,
+    output logic        raw_data_mem_req_align_fault_o,
+    output logic        raw_data_mem_req_range_fault_o,
 
     output logic        trap_mem_write_valid_o,
     output logic [63:0] trap_mem_write_addr_o,
@@ -161,6 +175,11 @@ module poly_frontend_fpga_top (
   logic raw_mem_req_valid;
   logic [63:0] raw_mem_req_addr;
   logic [2:0] raw_mem_req_bytes;
+  logic raw_data_mem_valid;
+  logic raw_data_mem_load;
+  logic raw_data_mem_store;
+  logic raw_data_mem_atomic;
+  logic [3:0] raw_data_mem_access_bytes;
   logic x86_resp_valid;
   logic raw_resp_valid;
   logic raw_resp_frontend;
@@ -312,11 +331,11 @@ module poly_frontend_fpga_top (
     .memory_invalid_frontend_o(),
     .memory_invalid_op_o(),
     .memory_fault_o(),
-    .raw_data_mem_valid_o(raw_data_mem_valid_o),
-    .raw_data_mem_load_o(raw_data_mem_load_o),
-    .raw_data_mem_store_o(raw_data_mem_store_o),
-    .raw_data_mem_atomic_o(raw_data_mem_atomic_o),
-    .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o),
+    .raw_data_mem_valid_o(raw_data_mem_valid),
+    .raw_data_mem_load_o(raw_data_mem_load),
+    .raw_data_mem_store_o(raw_data_mem_store),
+    .raw_data_mem_atomic_o(raw_data_mem_atomic),
+    .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes),
     .raw_data_mem_wait_o(raw_data_mem_wait_o),
     .raw_data_mem_fault_o(raw_data_mem_fault_o),
     .interrupt_enter_x86_o(),
@@ -410,5 +429,34 @@ module poly_frontend_fpga_top (
     .noncanonical_target_o(),
     .target_align_fault_o(),
     .invalid_signature_slot_o()
+  );
+
+  assign raw_data_mem_valid_o = raw_data_mem_valid;
+  assign raw_data_mem_load_o = raw_data_mem_load;
+  assign raw_data_mem_store_o = raw_data_mem_store;
+  assign raw_data_mem_atomic_o = raw_data_mem_atomic;
+  assign raw_data_mem_access_bytes_o = raw_data_mem_access_bytes;
+
+  poly_raw_data_mem_request raw_data_mem_request (
+    .valid_i(raw_data_mem_valid),
+    .frontend_i(state_frontend_o),
+    .addr_i(raw_data_mem_addr_i),
+    .load_i(raw_data_mem_load),
+    .store_i(raw_data_mem_store),
+    .atomic_i(raw_data_mem_atomic),
+    .access_bytes_i(raw_data_mem_access_bytes),
+    .request_valid_o(raw_data_mem_req_valid_o),
+    .request_addr_o(raw_data_mem_req_addr_o),
+    .request_bytes_o(raw_data_mem_req_bytes_o),
+    .request_load_o(raw_data_mem_req_load_o),
+    .request_store_o(raw_data_mem_req_store_o),
+    .request_atomic_o(raw_data_mem_req_atomic_o),
+    .error_o(raw_data_mem_req_error_o),
+    .invalid_frontend_o(raw_data_mem_req_invalid_frontend_o),
+    .invalid_op_o(raw_data_mem_req_invalid_op_o),
+    .invalid_width_o(raw_data_mem_req_invalid_width_o),
+    .noncanonical_addr_o(raw_data_mem_req_noncanonical_o),
+    .align_fault_o(raw_data_mem_req_align_fault_o),
+    .range_fault_o(raw_data_mem_req_range_fault_o)
   );
 endmodule
