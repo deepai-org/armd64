@@ -17,8 +17,11 @@ silicon prototype.
 - `poly_frontend_retire.sv`: retirement gate that blocks frontend, PC, and
   transition-stack mutations behind fetch/execute/async-boundary stalls or
   older, fetch, execution, and control faults.
+- `poly_frontend_fetch_issue.sv`: dual frontend fetch-request issuer for x86
+  byte fetch versus raw AArch64/RISC-V instruction fetch.
 - `poly_frontend_memory_retire.sv`: fetch-to-retire prototype that connects
-  raw foreign instruction memory responses to frontend retirement commits.
+  explicit x86 fetch requests and raw foreign instruction memory responses to
+  frontend retirement commits.
 - `poly_frontend_core.sv`: frontend core wrapper that connects fetch-to-retire
   commits, TSO memory-order backpressure, raw interrupt save/restore,
   trap-packet delivery, ABI signature lookup, CPUID discovery, and native
@@ -66,6 +69,8 @@ silicon prototype.
 - `test_poly_frontend_retire.py`: retirement-ordering checks that
   fetch/execute stalls block retirement and faults suppress Poly control commits
   and transition-stack pushes.
+- `test_poly_frontend_fetch_issue.py`: dual frontend fetch-request checks for
+  x86 canonical-range validation and raw AArch64/RISC-V request validation.
 - `test_poly_frontend_memory_retire.py`: fetch-to-retire integration checks for
   x86 external fetch and raw AArch64/RISC-V memory fetch.
 - `test_poly_frontend_core.py`: frontend/transition-stack integration checks
@@ -115,6 +120,7 @@ python3 rtl/test_poly_ctrl_decode.py
 python3 rtl/test_poly_frontend_handoff.py
 python3 rtl/test_poly_frontend_step.py
 python3 rtl/test_poly_frontend_retire.py
+python3 rtl/test_poly_frontend_fetch_issue.py
 python3 rtl/test_poly_frontend_memory_retire.py
 python3 rtl/test_poly_frontend_core.py
 python3 rtl/test_poly_frontend_state.py
@@ -142,6 +148,7 @@ POLY_RTL_CTRL_DECODE_OK
 POLY_RTL_FRONTEND_HANDOFF_OK
 POLY_RTL_FRONTEND_STEP_OK
 POLY_RTL_FRONTEND_RETIRE_OK
+POLY_RTL_FRONTEND_FETCH_ISSUE_OK
 POLY_RTL_FRONTEND_MEMORY_RETIRE_OK
 POLY_RTL_FRONTEND_CORE_OK
 POLY_RTL_FRONTEND_STATE_OK

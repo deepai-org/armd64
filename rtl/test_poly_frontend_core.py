@@ -450,6 +450,9 @@ def require_structural_wiring() -> None:
     text = RTL.read_text()
     for needle in [
         "poly_frontend_memory_retire frontend_memory_retire",
+        ".x86_fetch_req_valid_o(x86_fetch_req_valid_o)",
+        ".x86_fetch_req_addr_o(x86_fetch_req_addr_o)",
+        ".x86_fetch_req_bytes_o(x86_fetch_req_bytes_o)",
         "poly_transition_stack transition_stack",
         "transition_return_pc_i",
         "assign stack_unavailable = stack_full || stack_pop_request;",
@@ -471,6 +474,9 @@ def require_structural_wiring() -> None:
         ".block_retire_i(block_retire)",
         ".wait_execute_o(wait_execute_o)",
         ".wait_retire_o(wait_retire_o)",
+        ".x86_request_error_o(x86_request_error_o)",
+        ".x86_noncanonical_pc_o(x86_noncanonical_pc_o)",
+        ".x86_range_fault_o(x86_range_fault_o)",
         "poly_interrupt_boundary interrupt_boundary",
         "poly_trap_packet_stage trap_packet_stage",
         "interrupted_valid_q",

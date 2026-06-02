@@ -137,6 +137,21 @@ def raw_request(valid: bool, frontend: int, pc: int, c: dict[str, int]) -> dict[
     }
 
 
+def x86_request(valid: bool, frontend: int, pc: int, c: dict[str, int]) -> dict[str, bool | int]:
+    x86 = frontend == c["POLY_FRONTEND_X86"]
+    last = (pc + 15) & 0xFFFFFFFFFFFFFFFF
+    noncanonical = valid and x86 and (not canonical(pc) or not canonical(last))
+    range_fault = valid and x86 and last < pc
+    error = noncanonical or range_fault
+    return {
+        "valid": valid and x86 and not error,
+        "noncanonical": noncanonical,
+        "range": range_fault,
+        "error": error,
+        "bytes": 16 if x86 else 0,
+    }
+
+
 def raw_plan(frontend: int, pc: int, word: int, c: dict[str, int]) -> dict[str, int | bool]:
     if frontend == c["POLY_FRONTEND_AARCH64"]:
         return {"insn": word & 0xFFFFFFFF, "next_pc": pc + 4, "bytes": 4}
@@ -302,13 +317,18 @@ def pipeline(
     x86 = frontend == c["POLY_FRONTEND_X86"]
     raw = frontend in {c["POLY_FRONTEND_AARCH64"], c["POLY_FRONTEND_RISCV"]}
     frontend_valid = x86 or raw
+    x86_req = x86_request(valid, frontend, pc, c)
     req = raw_request(valid and raw, frontend, pc, c)
     raw_fault = req["error"] or (req["valid"] and raw_resp_valid and raw_resp_fault)
     raw_valid = req["valid"] and raw_resp_valid and not raw_resp_fault
     raw_insn = raw_plan(frontend, pc, raw_word, c)["insn"] if raw_valid else 0
     fetch_valid = (x86 and x86_valid and not x86_fault) or (raw and raw_valid)
     pipeline_invalid = valid and not frontend_valid
-    fetch_fault = pipeline_invalid or (x86 and x86_fault) or (raw and raw_fault)
+    fetch_fault = (
+        pipeline_invalid or
+        (x86 and (x86_fault or x86_req["error"])) or
+        (raw and raw_fault)
+    )
     fetch_word = raw_insn if raw else x86_word
     retired = retire_step(
         valid, fetch_valid, fetch_fault, older_fault, execute_ready,
@@ -318,6 +338,12 @@ def pipeline(
     )
     return {
         **retired,
+        "x86_req": x86_req["valid"],
+        "x86_addr": pc,
+        "x86_bytes": x86_req["bytes"],
+        "x86_request_error": x86_req["error"],
+        "x86_noncanonical": x86_req["noncanonical"],
+        "x86_range": x86_req["range"],
         "raw_req": req["valid"],
         "raw_addr": pc,
         "raw_bytes": req["bytes"],
@@ -331,8 +357,12 @@ def pipeline(
 def main() -> int:
     c = parse_c_enum_constants(HEADER)
     text = RTL.read_text()
-    assert "poly_raw_fetch_stage raw_fetch_stage" in text
+    assert "poly_frontend_fetch_issue fetch_issue" in text
+    assert "poly_raw_fetch_plan raw_fetch_plan" in text
     assert "poly_frontend_retire frontend_retire" in text
+    assert ".x86_fetch_req_valid_o(x86_fetch_req_valid_o)" in text
+    assert ".raw_fetch_req_valid_o(raw_mem_req_valid_o)" in text
+    assert "x86_request_error_o = x86_noncanonical_pc_o || x86_range_fault_o;" in text
     assert ".execute_ready_i(execute_ready_i)" in text
     assert ".block_retire_i(block_retire_i)" in text
     assert ".wait_execute_o(wait_execute_o)" in text
@@ -344,6 +374,7 @@ def main() -> int:
         False, False, 0, False, True, False, False,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
+    assert x86_switch["x86_req"] and x86_switch["x86_bytes"] == 16
     assert not x86_switch["raw_req"]
     assert x86_switch["retire"] and x86_switch["transition"]
     assert x86_switch["commit_frontend"] == c["POLY_FRONTEND_AARCH64"]
@@ -355,6 +386,7 @@ def main() -> int:
         c["POLY_FRONTEND_X86"], 0x1000, True, False, c
     )
     assert raw_wait["raw_req"] and raw_wait["raw_wait"]
+    assert not raw_wait["x86_req"]
     assert raw_wait["wait"] and not raw_wait["retire"] and not raw_wait["fault"]
 
     raw_non_control = pipeline(
@@ -393,6 +425,16 @@ def main() -> int:
     )
     assert x86_fetch_fault["fault"] and x86_fetch_fault["fetch_fault"]
     assert not x86_fetch_fault["retire"] and not x86_fetch_fault["raw_req"]
+
+    x86_bad_pc = pipeline(
+        True, c["POLY_FRONTEND_X86"], 0x0000800000000000,
+        True, False, 0, 0x1004,
+        False, False, 0, False, True, False, False,
+        c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
+    )
+    assert x86_bad_pc["x86_request_error"] and x86_bad_pc["x86_noncanonical"]
+    assert x86_bad_pc["fault"] and x86_bad_pc["fetch_fault"]
+    assert not x86_bad_pc["x86_req"] and not x86_bad_pc["retire"]
 
     bad_target = pipeline(
         True, c["POLY_FRONTEND_X86"], 0x1000, True, False,
