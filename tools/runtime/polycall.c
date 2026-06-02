@@ -170,7 +170,7 @@ enum {
   POLY_CALL_SIGREGS_U64 = 32,
   POLY_CALL_SIGREGS_FP64 = 33,
   POLY_CALL_SRET_U64_REGS = 34,
-  MAX_PROGRAM_BYTES = 1024 * 1024,
+  MAX_PROGRAM_BYTES = 16 * 1024 * 1024,
   MAX_DYNAMIC_RELOCS = 4096,
   MAX_TLS_BYTES = 64 * 1024,
   MAX_TOTAL_TLS_BYTES = 64 * 1024,
@@ -3233,7 +3233,9 @@ static int load_bridge_specs_from_sections(const char *path,
   const Elf64_Shdr *sections = (const Elf64_Shdr *) (data + ehdr->e_shoff);
   for (uint16_t n = 0; n < ehdr->e_shnum; n++) {
     const Elf64_Shdr *section = &sections[n];
-    if (section->sh_offset > size || section->sh_size > size - section->sh_offset)
+    if (section->sh_type != SHT_NOBITS &&
+        (section->sh_offset > size ||
+         section->sh_size > size - section->sh_offset))
       return -1;
 
     const char *name = NULL;
@@ -8010,10 +8012,24 @@ static int load_elf_program(const char *path, const char *symbol_name,
     const size_t dynamic_count = (size_t) (dynamic_size / sizeof(Elf64_Dyn));
     (void) load_dynsym_from_dynamic(program, dynamic, dynamic_count,
       &program->root_dynsym);
-    if (load_preload_dependencies(program) < 0 ||
-        load_needed_dependencies(program, dynamic, dynamic_count) < 0 ||
-        load_dynamic_relocs(program, data, size, ehdr, dynamic,
+    int dynamic_load_failed = 0;
+    if (load_preload_dependencies(program) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: preload dependency processing failed: %s\n",
+        path);
+      dynamic_load_failed = 1;
+    }
+    else if (load_needed_dependencies(program, dynamic, dynamic_count) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: DT_NEEDED processing failed: %s\n",
+        path);
+      dynamic_load_failed = 1;
+    }
+    else if (load_dynamic_relocs(program, data, size, ehdr, dynamic,
           dynamic_count) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: dynamic relocation processing failed: %s\n",
+        path);
+      dynamic_load_failed = 1;
+    }
+    if (dynamic_load_failed) {
       free(program->relocs);
       program->relocs = NULL;
       program->reloc_count = 0;
@@ -10621,13 +10637,17 @@ int main(int argc, char **argv) {
 
   for (int n = 1; n < argc; n++) {
     struct poly_request request;
-    if (parse_request(argv[n], &request) < 0)
+    if (parse_request(argv[n], &request) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: request parse failed: %s\n", argv[n]);
       return 1;
+    }
 
     struct poly_program program;
     const char *symbol_name = request.symbol[0] ? request.symbol : NULL;
-    if (load_elf_program(request.path, symbol_name, &program) < 0)
+    if (load_elf_program(request.path, symbol_name, &program) < 0) {
+      fprintf(stderr, "POLYCALL_FAIL: request load failed: %s\n", argv[n]);
       return 1;
+    }
     poly_runtime_set_foreign_auxv(program.arch, program.path);
 
     size_t dep_init_count = 0;
