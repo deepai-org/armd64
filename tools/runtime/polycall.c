@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "../include/polycpuid.h"
+#include "../include/polyruntime_imports.h"
 
 #ifndef MAP_FIXED_NOREPLACE
 #define MAP_FIXED_NOREPLACE 0x100000

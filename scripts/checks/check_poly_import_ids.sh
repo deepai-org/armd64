@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOCHS_SRC="$ROOT_DIR/bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
-HEADER_SRC="$ROOT_DIR/tools/include/polycpuid.h"
+ARCH_HEADER_SRC="$ROOT_DIR/tools/include/polycpuid.h"
+RUNTIME_HEADER_SRC="$ROOT_DIR/tools/include/polyruntime_imports.h"
 
 extract_const() {
   local src="$1"
@@ -20,6 +21,7 @@ extract_const() {
       value = line
       sub(/.*=[ \t]*/, "", value)
       sub(/[;,].*/, "", value)
+      gsub(/BX_CONST64/, "", value)
       gsub(/[()UuLl]/, "", value)
       gsub(/^[ \t]+|[ \t]+$/, "", value)
       print value
@@ -120,12 +122,9 @@ ensure_bochs_import_surface_is_generic() {
       name = line
       sub(/.*BX_POLY_IMPORT_FUNC_/, "BX_POLY_IMPORT_FUNC_", name)
       sub(/[ \t]*=.*/, "", name)
-      if (name != "BX_POLY_IMPORT_FUNC_X86_SLOT0" &&
-          name != "BX_POLY_IMPORT_FUNC_X86_SLOT7") {
-        printf("Bochs must not expose software import selector %s\n",
-          name) > "/dev/stderr"
-        fail = 1
-      }
+      printf("Bochs must not expose software import selector %s\n",
+        name) > "/dev/stderr"
+      fail = 1
     }
     END {
       exit fail
@@ -133,15 +132,21 @@ ensure_bochs_import_surface_is_generic() {
   ' "$BOCHS_SRC"
 }
 
-compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_FUNC_X86_SLOT0" \
-  "$HEADER_SRC" "POLY_IMPORT_FUNC_X86_SLOT0"
-compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_FUNC_X86_SLOT7" \
-  "$HEADER_SRC" "POLY_IMPORT_FUNC_X86_SLOT7"
-compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_CALL_COUNT" \
-  "$HEADER_SRC" "POLY_IMPORT_FUNC_COUNT"
+compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_CALL_BASE" \
+  "$ARCH_HEADER_SRC" "POLY_IMPORT_CALL_BASE"
+compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_CALL_STRIDE" \
+  "$ARCH_HEADER_SRC" "POLY_IMPORT_CALL_STRIDE"
+compare_const "$BOCHS_SRC" "BX_POLY_IMPORT_SELECTOR_COUNT" \
+  "$ARCH_HEADER_SRC" "POLY_IMPORT_SELECTOR_COUNT"
 
-tools_count="$(extract_const "$HEADER_SRC" "POLY_IMPORT_FUNC_COUNT")"
-validate_dense_runtime_ids "$HEADER_SRC" "$tools_count"
+tools_count="$(extract_const "$RUNTIME_HEADER_SRC" "POLY_IMPORT_FUNC_COUNT")"
+selector_count="$(extract_const "$ARCH_HEADER_SRC" "POLY_IMPORT_SELECTOR_COUNT")"
+if (( tools_count > selector_count )); then
+  echo "runtime import selector count exceeds architectural trap window: runtime=$tools_count window=$selector_count" >&2
+  exit 1
+fi
+
+validate_dense_runtime_ids "$RUNTIME_HEADER_SRC" "$tools_count"
 ensure_bochs_import_surface_is_generic
 
 echo "poly import trap selector contract OK: $tools_count selectors"

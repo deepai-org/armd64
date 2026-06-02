@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "../include/polycpuid.h"
+#include "../include/polyruntime_imports.h"
 
 #define POLY_OP_ENTER_A64 \
   "movl $1, %%r15d\n" \

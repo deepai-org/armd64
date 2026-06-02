@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "../../include/polycpuid.h"
+#include "../../include/polyruntime_imports.h"
 
 static char poly_import_text[] = "polyglot-libc";
 static char poly_import_source[] = "trap-packets";

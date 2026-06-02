@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include "../include/polycpuid.h"
+#include "../include/polyruntime_imports.h"
 
 extern char **environ;
 
