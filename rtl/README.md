@@ -26,6 +26,8 @@ silicon prototype.
   instruction width, instruction bits, and next-PC calculation.
 - `poly_raw_fetch_request.sv`: raw AArch64/RISC-V instruction-memory request
   geometry with canonical-range and alignment validation.
+- `poly_raw_fetch_stage.sv`: raw fetch request/response stage that blocks
+  instruction retirement on request errors or memory faults.
 - `poly_return_cookie_recover.sv`: native return-cookie detector that requests
   transition-stack recovery for ordinary native returns to the Poly cookie.
 - `poly_trap_packet_encode.sv`: OS-neutral trap-packet encoder for recoverable
@@ -48,6 +50,8 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_raw_fetch_request.py`: raw instruction-fetch request checks
   against `tools/include/polycpuid.h`.
+- `test_poly_raw_fetch_stage.py`: raw instruction-fetch request/response
+  integration checks.
 - `test_poly_return_cookie_recover.py`: native return-cookie recovery checks
   against `tools/include/polycpuid.h` and Bochs cookie constants.
 - `test_poly_trap_packet_encode.py`: trap-packet layout and monitor-address
@@ -64,6 +68,7 @@ python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
 python3 rtl/test_poly_cpuid_rom.py
 python3 rtl/test_poly_raw_fetch_request.py
+python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
 python3 rtl/test_poly_return_cookie_recover.py
 python3 rtl/test_poly_trap_packet_encode.py
@@ -80,6 +85,7 @@ POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
 POLY_RTL_CPUID_ROM_OK
 POLY_RTL_RAW_FETCH_REQUEST_OK
+POLY_RTL_RAW_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_PLAN_OK
 POLY_RTL_RETURN_COOKIE_RECOVER_OK
 POLY_RTL_TRAP_PACKET_ENCODE_OK
