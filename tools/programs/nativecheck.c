@@ -13,14 +13,20 @@
 #include "../include/polycpuid.h"
 #include "../include/polyruntime_imports.h"
 
-#define POLY_OP_ENTER_A64 \
+#define POLY_OP_ENTER_A64_WITH_TLS \
   "movl $1, %%r15d\n" \
   ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
-#define POLY_OP_ENTER_RV64 \
+#define POLY_OP_ENTER_RV64_WITH_TLS \
   "movl $2, %%r15d\n" \
   ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
+#define POLY_OP_ENTER_A64 \
+  "xorq %%r13, %%r13\n" \
+  POLY_OP_ENTER_A64_WITH_TLS
+#define POLY_OP_ENTER_RV64 \
+  "xorq %%r13, %%r13\n" \
+  POLY_OP_ENTER_RV64_WITH_TLS
 #define POLY_OP_ENTER_MODE POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_SWITCH_MODE POLY_X86_CTRL_PSWITCH_MODE_ASM
 #define POLY_OP_PCALL_SIG_MODE \
@@ -807,7 +813,7 @@ nativecheck_aarch64_read_tls(uint64_t tls_base) {
   uint64_t result;
   asm volatile(
     "movq %1, %%r13\n"
-    POLY_OP_ENTER_A64
+    POLY_OP_ENTER_A64_WITH_TLS
     ".long 0xd53bd040\n" // mrs x0,tpidr_el0
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "=a"(result)
@@ -822,7 +828,7 @@ nativecheck_riscv_read_tls(uint64_t tls_base) {
   uint64_t result;
   asm volatile(
     "movq %1, %%r13\n"
-    POLY_OP_ENTER_RV64
+    POLY_OP_ENTER_RV64_WITH_TLS
     ".long 0x00020513\n" // addi a0,tp,0
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "=a"(result)
@@ -837,7 +843,7 @@ nativecheck_aarch64_switch_riscv_read_tls(uint64_t tls_base) {
   uint64_t result;
   asm volatile(
     "movq %1, %%r13\n"
-    POLY_OP_ENTER_A64
+    POLY_OP_ENTER_A64_WITH_TLS
     ".long 0x10000070\n" // adr x16,target
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0xd5032f1f\n" // generic switch frontend=x17 target=x16
@@ -855,7 +861,7 @@ nativecheck_riscv_switch_aarch64_read_tls(uint64_t tls_base) {
   uint64_t result;
   asm volatile(
     "movq %1, %%r13\n"
-    POLY_OP_ENTER_RV64
+    POLY_OP_ENTER_RV64_WITH_TLS
     ".long 0x00000297\n" // auipc t0,0
     ".long 0x01028293\n" // addi t0,t0,16
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
@@ -5663,7 +5669,7 @@ static int run_poly_trap_vector_probe(void) {
     "movq $0x13371337, %%r13\n"
     "movq $0x14471447, %%r14\n"
     "movq %[expected_xmm8], %%xmm8\n"
-    POLY_OP_ENTER_A64
+    POLY_OP_ENTER_A64_WITH_TLS
     ".long 0xd28003e0\n" // movz x0,#31
     ".long 0xd2800401\n" // movz x1,#32
     ".long 0xd2800422\n" // movz x2,#33
@@ -5807,7 +5813,7 @@ static int run_poly_trap_vector_probe(void) {
     "movq $0x23372337, %%r13\n"
     "movq $0x24472447, %%r14\n"
     "movq %[expected_xmm8], %%xmm8\n"
-    POLY_OP_ENTER_RV64
+    POLY_OP_ENTER_RV64_WITH_TLS
     ".long 0x01f00513\n" // addi a0,zero,31
     ".long 0x02000593\n" // addi a1,zero,32
     ".long 0x02100613\n" // addi a2,zero,33
@@ -11507,6 +11513,10 @@ int main(void) {
       poly_cpuid_expected_escape_leaf31();
     struct poly_cpuid_regs x86_status_manifest2 =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 31);
+    struct poly_cpuid_regs expected_x86_opcode_manifest =
+      poly_cpuid_expected_escape_leaf32();
+    struct poly_cpuid_regs x86_opcode_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 32);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -11633,6 +11643,13 @@ int main(void) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 status manifest2 mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         x86_status_manifest2.eax, x86_status_manifest2.ebx,
         x86_status_manifest2.ecx, x86_status_manifest2.edx);
+      return 1;
+    }
+    if (!poly_cpuid_regs_match(&x86_opcode_manifest,
+          &expected_x86_opcode_manifest)) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 opcode manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        x86_opcode_manifest.eax, x86_opcode_manifest.ebx,
+        x86_opcode_manifest.ecx, x86_opcode_manifest.edx);
       return 1;
     }
     if (check_poly_abi_signature_slot_default(

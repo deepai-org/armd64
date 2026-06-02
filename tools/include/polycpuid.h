@@ -189,6 +189,9 @@ enum {
   POLY_X86_CTRL_PREFIX_0 = 0x0f,
   POLY_X86_CTRL_PREFIX_1 = 0x3a,
   POLY_X86_CTRL_PREFIX_2 = 0xfc,
+  POLY_X86_CTRL_PREFIX_BYTES = 3,
+  POLY_X86_CTRL_TOTAL_BYTES = 4,
+  POLY_X86_CTRL_SUBOP_OFFSET = 3,
   POLY_X86_CTRL_PENTER_MODE = 0x03,
   POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_LANDING = 0x05,
@@ -1304,6 +1307,17 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf31(void) {
   regs.ebx = POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS;
   regs.ecx = 0;
   regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf32(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_X86_CTRL_PREFIX_0 |
+    (POLY_X86_CTRL_PREFIX_1 << 8) |
+    (POLY_X86_CTRL_PREFIX_2 << 16);
+  regs.ebx = POLY_X86_CTRL_PREFIX_BYTES;
+  regs.ecx = POLY_X86_CTRL_TOTAL_BYTES;
+  regs.edx = POLY_X86_CTRL_SUBOP_OFFSET;
   return regs;
 }
 

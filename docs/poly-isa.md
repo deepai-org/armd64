@@ -40,3 +40,5 @@ Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
 
 Silicon/FPGA implementations should keep the same fixed-latency subop contract
 but allocate a dedicated decoded control-op family for the x86_64 frontend.
+Prototype x86_64 control-op geometry is exposed through Poly CPUID so runtimes
+do not need to infer it from documentation.
