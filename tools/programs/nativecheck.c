@@ -2164,6 +2164,36 @@ static void child_expect_invalid_generic_enter_frontend_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_unaligned_aarch64_enter_target_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "movl $1, %%r15d\n"
+    ".balign 4, 0x90\n"
+    ".byte 0x90\n"
+    POLY_OP_ENTER_MODE
+    ".long 0xd5032e1f\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_unaligned_riscv_enter_target_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "movl $2, %%r15d\n"
+    ".balign 4, 0x90\n"
+    ".byte 0x90\n"
+    POLY_OP_ENTER_MODE
+    ".long 0x0000700b\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_unaligned_aarch64_switch_target_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -4056,6 +4086,12 @@ static int run_poly_no_vector_signal_probe(void) {
 static int run_poly_invalid_generic_control_signal_probe(void) {
   if (expect_child_signal("poly invalid generic enter frontend", SIGILL,
         child_expect_invalid_generic_enter_frontend_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly unaligned aarch64 enter target", SIGILL,
+        child_expect_unaligned_aarch64_enter_target_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly unaligned riscv enter target", SIGILL,
+        child_expect_unaligned_riscv_enter_target_signal) != 0)
     return 1;
   if (expect_child_signal("poly unaligned aarch64 switch target", SIGILL,
         child_expect_unaligned_aarch64_switch_target_signal) != 0)
