@@ -103,6 +103,14 @@ check-poly-rtl-sim:
 		rtl/poly_raw_fetch_plan.sv rtl/poly_raw_fetch_request.sv \
 		rtl/poly_raw_fetch_response_stage.sv rtl/tb_poly_raw_fetch_path.sv; \
 	vvp "$$tmp_dir/tb_poly_raw_fetch_path"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_fetch_decode_pipeline" \
+		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_fetch_request.sv rtl/poly_raw_fetch_response_stage.sv \
+		rtl/poly_frontend_fetch_issue.sv rtl/poly_x86_fetch_stage.sv \
+		rtl/poly_frontend_decode_dispatch.sv \
+		rtl/poly_frontend_fetch_decode_pipeline.sv \
+		rtl/tb_poly_frontend_fetch_decode_pipeline.sv; \
+	vvp "$$tmp_dir/tb_poly_frontend_fetch_decode_pipeline"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_state"; \
