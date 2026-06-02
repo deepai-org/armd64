@@ -3463,6 +3463,28 @@ static void child_expect_bad_trap_vector_pc_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_aarch64_trap_vector_alignment_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.trap_vector_mode = POLY_MODE_RAW_AARCH64;
+  bad.header.trap_vector_pc = 0x0000000000457002ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_riscv_trap_vector_alignment_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.trap_vector_mode = POLY_MODE_RAW_RISCV;
+  bad.header.trap_vector_pc = 0x0000000000457001ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_monitor_packet_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -4680,6 +4702,13 @@ static int run_poly_generic_switch_x86_probe(void) {
 
 static int run_poly_trap_vector_probe(void) {
   void *handler = (void *) poly_trap_vector_handler;
+  const uint64_t handler_addr = (uint64_t) (uintptr_t) handler;
+  const uint64_t aarch64_vector =
+    (uint64_t) (uintptr_t) poly_aarch64_trap_vector_raw;
+  const uint64_t riscv_vector =
+    (uint64_t) (uintptr_t) poly_riscv_trap_vector_raw;
+  const uint64_t aarch64_unaligned_vector = aarch64_vector + 2;
+  const uint64_t riscv_unaligned_vector = riscv_vector | 1ULL;
   uint64_t expected_pid = (uint64_t) getpid();
   struct nativecheck_monitor_packet monitor_packet __attribute__((aligned(64)));
   if (NATIVECHECK_IMPORT_UNKNOWN_SELECTOR >= POLY_IMPORT_SELECTOR_COUNT) {
@@ -4693,7 +4722,7 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_set_value((uint64_t) handler);
   poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
   poly_trap_vector_get();
-  if (read_rax() != (uint64_t) handler) {
+  if (read_rax() != handler_addr) {
     fputs("NATIVE_CHECK_FAIL: poly trap vector get mismatch\n", stderr);
     return 1;
   }
@@ -4722,12 +4751,80 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   poly_trap_vector_get();
-  if (read_rax() != (uint64_t) handler) {
+  if (read_rax() != handler_addr) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly x86 invalid trap vector mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
+  poly_trap_vector_set_value(aarch64_unaligned_vector);
+  if (poly_trap_vector_mode_set_result(POLY_MODE_RAW_AARCH64) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 trap vector mode accepted unaligned aarch64 vector\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 unaligned aarch64 vector mutated mode got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != aarch64_unaligned_vector) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 unaligned aarch64 vector mutated pc got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_set_value(aarch64_vector);
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
+  if (poly_trap_vector_set_result(aarch64_unaligned_vector) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 trap vector accepted unaligned aarch64 target\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != aarch64_vector) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 invalid aarch64 vector target mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(riscv_unaligned_vector);
+  if (poly_trap_vector_mode_set_result(POLY_MODE_RAW_RISCV) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 trap vector mode accepted unaligned riscv vector\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 unaligned riscv vector mutated mode got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_set_value(riscv_vector);
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  if (poly_trap_vector_set_result(riscv_unaligned_vector) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 trap vector accepted unaligned riscv target\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != riscv_vector) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 invalid riscv vector target mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(handler_addr);
   poly_monitor_packet_get();
   if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly monitor packet get mismatch got=0x%llx\n",
@@ -4778,12 +4875,44 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   poly_trap_vector_get();
-  if (read_rax() != (uint64_t) handler) {
+  if (read_rax() != handler_addr) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly aarch64 invalid trap vector mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(aarch64_unaligned_vector);
+  if (poly_aarch64_trap_vector_mode_set(POLY_MODE_RAW_AARCH64) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 trap-vector mode accepted unaligned vector\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 unaligned vector mutated mode got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_set_value(aarch64_vector);
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
+  if (poly_aarch64_trap_vector_set(aarch64_unaligned_vector) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 trap-vector accepted unaligned target\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != aarch64_vector) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 invalid aligned target mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(handler_addr);
   if (poly_aarch64_monitor_packet_set_get(
         (uint64_t) (uintptr_t) &monitor_packet) !=
       (uint64_t) (uintptr_t) &monitor_packet) {
@@ -4835,12 +4964,44 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   poly_trap_vector_get();
-  if (read_rax() != (uint64_t) handler) {
+  if (read_rax() != handler_addr) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv invalid trap vector mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(riscv_unaligned_vector);
+  if (poly_riscv_trap_vector_mode_set(POLY_MODE_RAW_RISCV) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv trap-vector mode accepted unaligned vector\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_mode_get();
+  if (read_rax() != POLY_MODE_X86) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv unaligned vector mutated mode got=%llu\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_set_value(riscv_vector);
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  if (poly_riscv_trap_vector_set(riscv_unaligned_vector) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv trap-vector accepted unaligned target\n",
+      stderr);
+    return 1;
+  }
+  poly_trap_vector_get();
+  if (read_rax() != riscv_vector) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv invalid aligned target mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(handler_addr);
   if (poly_riscv_monitor_packet_set_get(
         (uint64_t) (uintptr_t) &monitor_packet) !=
       (uint64_t) (uintptr_t) &monitor_packet) {
@@ -6779,6 +6940,12 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad trap-vector pc xstate", SIGILL,
         child_expect_bad_trap_vector_pc_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad aarch64 trap-vector alignment xstate",
+        SIGILL, child_expect_bad_aarch64_trap_vector_alignment_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad riscv trap-vector alignment xstate",
+        SIGILL, child_expect_bad_riscv_trap_vector_alignment_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad monitor packet xstate", SIGILL,
         child_expect_bad_monitor_packet_xsave_signal) != 0)
