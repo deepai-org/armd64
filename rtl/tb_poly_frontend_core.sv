@@ -7,6 +7,7 @@ module tb_poly_frontend_core;
 
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_MODE = 7'h2d;
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 7'h30;
+  localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
   localparam logic [31:0] POLY_CPUID_BASE = 32'h40000000;
   localparam logic [31:0] POLY_CPUID_MAX = 32'h40000009;
   localparam logic [31:0] POLY_TRAP_IMPORT = 32'd3;
@@ -75,6 +76,9 @@ module tb_poly_frontend_core;
   logic [63:0] trap_arg7_i;
   logic trap_mem_write_resp_valid_i;
   logic trap_mem_write_fault_i;
+  logic trap_return_restore_valid_i;
+  logic [1:0] trap_return_restore_frontend_i;
+  logic [63:0] trap_return_restore_pc_i;
   logic abi_signature_set_i;
   logic [3:0] abi_signature_set_slot_i;
   logic [7:0] abi_signature_set_kind_i;
@@ -155,6 +159,10 @@ module tb_poly_frontend_core;
   logic trap_vector_apply_o;
   logic [1:0] trap_vector_frontend_o;
   logic [63:0] trap_vector_pc_o;
+  logic trap_return_decode_o;
+  logic trap_return_restore_o;
+  logic [1:0] trap_return_restore_frontend_o;
+  logic [63:0] trap_return_restore_pc_o;
 
   poly_frontend_core dut (
     .clk_i(clk_i),
@@ -219,6 +227,9 @@ module tb_poly_frontend_core;
     .trap_arg7_i(trap_arg7_i),
     .trap_mem_write_resp_valid_i(trap_mem_write_resp_valid_i),
     .trap_mem_write_fault_i(trap_mem_write_fault_i),
+    .trap_return_restore_valid_i(trap_return_restore_valid_i),
+    .trap_return_restore_frontend_i(trap_return_restore_frontend_i),
+    .trap_return_restore_pc_i(trap_return_restore_pc_i),
     .abi_signature_set_i(abi_signature_set_i),
     .abi_signature_set_slot_i(abi_signature_set_slot_i),
     .abi_signature_set_kind_i(abi_signature_set_kind_i),
@@ -338,6 +349,10 @@ module tb_poly_frontend_core;
     .trap_vector_apply_o(trap_vector_apply_o),
     .trap_vector_frontend_o(trap_vector_frontend_o),
     .trap_vector_pc_o(trap_vector_pc_o),
+    .trap_return_decode_o(trap_return_decode_o),
+    .trap_return_restore_o(trap_return_restore_o),
+    .trap_return_restore_frontend_o(trap_return_restore_frontend_o),
+    .trap_return_restore_pc_o(trap_return_restore_pc_o),
     .abi_signature_set_ok_o(),
     .abi_signature_set_error_o(),
     .abi_signature_apply_o(abi_signature_apply_o),
@@ -455,6 +470,9 @@ module tb_poly_frontend_core;
       trap_arg7_i = 64'd0;
       trap_mem_write_resp_valid_i = 1'b0;
       trap_mem_write_fault_i = 1'b0;
+      trap_return_restore_valid_i = 1'b0;
+      trap_return_restore_frontend_i = POLY_FRONTEND_X86;
+      trap_return_restore_pc_i = 64'd0;
       abi_signature_set_i = 1'b0;
       abi_signature_set_slot_i = 4'd0;
       abi_signature_set_kind_i = 8'd0;
@@ -500,6 +518,32 @@ module tb_poly_frontend_core;
     check(cpuid_ebx_o == 32'h796c6f50 && cpuid_ecx_o == 32'h21555043 &&
       cpuid_edx_o == 32'h746f6c67, "core cpuid vendor");
     cpuid_valid_i = 1'b0;
+
+    valid_i = 1'b1;
+    frontend_i = POLY_FRONTEND_X86;
+    pc_i = 64'h1800;
+    x86_fetch_valid_i = 1'b1;
+    x86_fetch_word_i = x86_ctrl(POLY_X86_CTRL_TRAP_RETURN);
+    x86_fallthrough_pc_i = 64'h1804;
+    trap_return_restore_valid_i = 1'b0;
+    #1;
+    check(wait_execute_o && trap_return_decode_o && !trap_return_restore_o,
+      "core trap return waits for restore target");
+    check(!retire_o && !fault_o, "core trap return restore wait blocks retire");
+
+    trap_return_restore_valid_i = 1'b1;
+    trap_return_restore_frontend_i = POLY_FRONTEND_AARCH64;
+    trap_return_restore_pc_i = 64'h7000;
+    #1;
+    check(retire_o && trap_return_decode_o && trap_return_restore_o && !fault_o,
+      "core trap return retires with restore target");
+    check(trap_return_restore_frontend_o == POLY_FRONTEND_AARCH64 &&
+      trap_return_restore_pc_o == 64'h7000,
+      "core trap return restore sideband carries target");
+    check(!commit_transition_o && !commit_push_transition_o,
+      "core trap return does not use transition stack");
+
+    clear_inputs();
 
     valid_i = 1'b1;
     frontend_i = POLY_FRONTEND_X86;

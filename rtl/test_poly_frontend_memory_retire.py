@@ -181,6 +181,7 @@ def retire_step(
     signature_valid: bool,
     stack_full: bool,
     c: dict[str, int],
+    trap_return_restore_valid: bool = False,
 ) -> dict[str, int | bool]:
     wait = (
         valid and not fetch_valid and not older_fault and not fetch_fault and
@@ -262,6 +263,21 @@ def retire_step(
         trap_return = subop == c["POLY_RISCV_CTRL_SUBOP_TRAP_RETURN"]
         landing = subop == c["POLY_RISCV_CTRL_SUBOP_LANDING"]
 
+    if trap_return and not trap_return_restore_valid:
+        return {
+            "wait": False, "retire": False, "transition": False,
+            "wait_execute": True,
+            "wait_retire": False,
+            "push": False,
+            "commit_frontend": frontend, "commit_pc": pc, "slot": 0,
+            "fault": False, "fault_pc": 0,
+            "fetch_fault": False, "execute_fault": False,
+            "control_fault": False, "poly": False,
+            "invalid_frontend": False,
+            "trap_return_decode": True,
+            "trap_return_retire": False,
+        }
+
     recognized = switch or call or trap_return or landing
     target_checked = switch or call or landing
     invalid_frontend = poly and target_checked and effective_target not in {
@@ -290,6 +306,8 @@ def retire_step(
         "fetch_fault": False, "execute_fault": False,
         "control_fault": control_fault, "poly": poly,
         "invalid_frontend": invalid_frontend,
+        "trap_return_decode": trap_return,
+        "trap_return_retire": retire and poly and trap_return,
     }
 
 
@@ -313,6 +331,7 @@ def pipeline(
     signature_valid: bool,
     stack_full: bool,
     c: dict[str, int],
+    trap_return_restore_valid: bool = False,
 ) -> dict[str, int | bool]:
     x86 = frontend == c["POLY_FRONTEND_X86"]
     raw = frontend in {c["POLY_FRONTEND_AARCH64"], c["POLY_FRONTEND_RISCV"]}
@@ -337,7 +356,8 @@ def pipeline(
         valid, fetch_valid, fetch_fault, older_fault, execute_ready,
         block_retire, execute_fault, frontend,
         pc, fetch_word, x86_fallthrough, target_frontend, target_pc,
-        signature_valid, stack_full, c
+        signature_valid, stack_full, c,
+        trap_return_restore_valid=trap_return_restore_valid
     )
     return {
         **retired,
@@ -382,6 +402,9 @@ def main() -> int:
     assert ".raw_fetch_wait_o(raw_fetch_wait_o)" in text
     assert ".execute_ready_i(execute_ready_i)" in text
     assert ".block_retire_i(block_retire_i)" in text
+    assert ".trap_return_restore_valid_i(trap_return_restore_valid_i)" in text
+    assert ".trap_return_decode_o(trap_return_decode_o)" in text
+    assert ".trap_return_retire_o(trap_return_retire_o)" in text
     assert ".wait_execute_o(wait_execute_o)" in text
     assert ".wait_retire_o(wait_retire_o)" in text
 
@@ -434,6 +457,26 @@ def main() -> int:
     assert raw_switch["retire"] and raw_switch["transition"]
     assert raw_switch["commit_frontend"] == c["POLY_FRONTEND_RISCV"]
     assert raw_switch["commit_pc"] == 0x8000
+
+    x86_trap_wait = pipeline(
+        True, c["POLY_FRONTEND_X86"], 0x1800, True, False,
+        x86_ctrl_word(c["POLY_X86_CTRL_TRAP_RETURN"]), 0x1804,
+        False, False, 0, False, True, False, False,
+        c["POLY_FRONTEND_AARCH64"], 0x7000, True, False, c,
+        trap_return_restore_valid=False
+    )
+    assert x86_trap_wait["trap_return_decode"]
+    assert x86_trap_wait["wait_execute"] and not x86_trap_wait["retire"]
+
+    x86_trap_ready = pipeline(
+        True, c["POLY_FRONTEND_X86"], 0x1800, True, False,
+        x86_ctrl_word(c["POLY_X86_CTRL_TRAP_RETURN"]), 0x1804,
+        False, False, 0, False, True, False, False,
+        c["POLY_FRONTEND_AARCH64"], 0x7000, True, False, c,
+        trap_return_restore_valid=True
+    )
+    assert x86_trap_ready["retire"] and x86_trap_ready["trap_return_retire"]
+    assert x86_trap_ready["trap_return_decode"] and not x86_trap_ready["transition"]
 
     raw_mem_fault = pipeline(
         True, c["POLY_FRONTEND_RISCV"], 0x8000, False, False, 0, 0,

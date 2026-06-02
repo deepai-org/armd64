@@ -26,6 +26,7 @@ module poly_frontend_memory_retire (
     input  logic [63:0] target_pc_i,
     input  logic        signature_slot_valid_i,
     input  logic        transition_stack_full_i,
+    input  logic        trap_return_restore_valid_i,
 
     output logic        x86_fetch_req_valid_o,
     output logic [63:0] x86_fetch_req_addr_o,
@@ -44,6 +45,8 @@ module poly_frontend_memory_retire (
     output logic [1:0]  commit_frontend_o,
     output logic [63:0] commit_pc_o,
     output logic [6:0]  commit_signature_slot_o,
+    output logic        trap_return_decode_o,
+    output logic        trap_return_retire_o,
 
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
@@ -211,6 +214,7 @@ module poly_frontend_memory_retire (
     .target_pc_i(target_pc_i),
     .signature_slot_valid_i(signature_slot_valid_i),
     .transition_stack_full_i(transition_stack_full_i),
+    .trap_return_restore_valid_i(trap_return_restore_valid_i),
     .wait_fetch_o(wait_fetch_o),
     .wait_execute_o(wait_execute_o),
     .wait_retire_o(wait_retire_o),
@@ -220,6 +224,8 @@ module poly_frontend_memory_retire (
     .commit_frontend_o(commit_frontend_o),
     .commit_pc_o(commit_pc_o),
     .commit_signature_slot_o(commit_signature_slot_o),
+    .trap_return_decode_o(trap_return_decode_o),
+    .trap_return_retire_o(trap_return_retire_o),
     .fault_o(retire_fault),
     .fault_pc_o(fault_pc_o),
     .older_fault_o(older_fault_o),

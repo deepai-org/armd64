@@ -74,6 +74,9 @@ module poly_frontend_core (
     input  logic [63:0] trap_arg7_i,
     input  logic        trap_mem_write_resp_valid_i,
     input  logic        trap_mem_write_fault_i,
+    input  logic        trap_return_restore_valid_i,
+    input  logic [1:0]  trap_return_restore_frontend_i,
+    input  logic [63:0] trap_return_restore_pc_i,
 
     input  logic        abi_signature_set_i,
     input  logic [3:0]  abi_signature_set_slot_i,
@@ -204,6 +207,10 @@ module poly_frontend_core (
     output logic        trap_vector_apply_o,
     output logic [1:0]  trap_vector_frontend_o,
     output logic [63:0] trap_vector_pc_o,
+    output logic        trap_return_decode_o,
+    output logic        trap_return_restore_o,
+    output logic [1:0]  trap_return_restore_frontend_o,
+    output logic [63:0] trap_return_restore_pc_o,
 
     output logic        abi_signature_set_ok_o,
     output logic        abi_signature_set_error_o,
@@ -313,6 +320,7 @@ module poly_frontend_core (
   logic raw_resolved_branch_target_invalid;
   logic raw_commit_branch_target_valid;
   logic [63:0] raw_commit_branch_target;
+  logic trap_return_retire;
   logic raw_memory_access;
   logic raw_memory_execute_wait;
   logic raw_memory_execute_fault;
@@ -457,6 +465,12 @@ module poly_frontend_core (
   assign trap_vector_frontend_o =
     trap_vector_apply_o ? trap_vector_frontend_i : frontend_i;
   assign trap_vector_pc_o = trap_vector_apply_o ? trap_vector_pc_i : pc_i;
+  assign trap_return_restore_o =
+    trap_return_retire && trap_return_restore_valid_i;
+  assign trap_return_restore_frontend_o =
+    trap_return_restore_o ? trap_return_restore_frontend_i : frontend_i;
+  assign trap_return_restore_pc_o =
+    trap_return_restore_o ? trap_return_restore_pc_i : pc_i;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),
@@ -477,6 +491,7 @@ module poly_frontend_core (
     .target_pc_i(target_pc_i),
     .signature_slot_valid_i(signature_slot_valid_i),
     .transition_stack_full_i(stack_unavailable),
+    .trap_return_restore_valid_i(trap_return_restore_valid_i),
     .x86_fetch_req_valid_o(x86_fetch_req_valid_o),
     .x86_fetch_req_addr_o(x86_fetch_req_addr_o),
     .x86_fetch_req_bytes_o(x86_fetch_req_bytes_o),
@@ -492,6 +507,8 @@ module poly_frontend_core (
     .commit_frontend_o(commit_frontend_o),
     .commit_pc_o(commit_pc_o),
     .commit_signature_slot_o(commit_signature_slot_o),
+    .trap_return_decode_o(trap_return_decode_o),
+    .trap_return_retire_o(trap_return_retire),
     .fault_o(fault_o),
     .fault_pc_o(fault_pc_o),
     .older_fault_o(older_fault_o),

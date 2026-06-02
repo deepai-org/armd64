@@ -6,6 +6,7 @@ module tb_poly_frontend_predecoded_retire;
   localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
 
   localparam logic [6:0] POLY_X86_CTRL_PSWITCH_MODE = 7'h04;
+  localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 7'h30;
   localparam logic [6:0] POLY_RISCV_CTRL_SUBOP_X86_ESCAPE = 7'd0;
 
@@ -28,6 +29,7 @@ module tb_poly_frontend_predecoded_retire;
   logic [63:0] target_pc;
   logic signature_slot_valid;
   logic transition_stack_full;
+  logic trap_return_restore_valid;
 
   logic wait_fetch;
   logic wait_execute;
@@ -38,6 +40,8 @@ module tb_poly_frontend_predecoded_retire;
   logic [1:0] commit_frontend;
   logic [63:0] commit_pc;
   logic [6:0] commit_signature_slot;
+  logic trap_return_decode;
+  logic trap_return_retire;
   logic fault;
   logic [63:0] fault_pc;
   logic older_fault;
@@ -74,6 +78,7 @@ module tb_poly_frontend_predecoded_retire;
     .target_pc_i(target_pc),
     .signature_slot_valid_i(signature_slot_valid),
     .transition_stack_full_i(transition_stack_full),
+    .trap_return_restore_valid_i(trap_return_restore_valid),
     .wait_fetch_o(wait_fetch),
     .wait_execute_o(wait_execute),
     .wait_retire_o(wait_retire),
@@ -83,6 +88,8 @@ module tb_poly_frontend_predecoded_retire;
     .commit_frontend_o(commit_frontend),
     .commit_pc_o(commit_pc),
     .commit_signature_slot_o(commit_signature_slot),
+    .trap_return_decode_o(trap_return_decode),
+    .trap_return_retire_o(trap_return_retire),
     .fault_o(fault),
     .fault_pc_o(fault_pc),
     .older_fault_o(older_fault),
@@ -121,6 +128,7 @@ module tb_poly_frontend_predecoded_retire;
       target_pc = 64'd0;
       signature_slot_valid = 1'b0;
       transition_stack_full = 1'b0;
+      trap_return_restore_valid = 1'b0;
     end
   endtask
 
@@ -186,6 +194,24 @@ module tb_poly_frontend_predecoded_retire;
     check(commit_frontend == POLY_FRONTEND_AARCH64 && commit_pc == 64'h4000,
       "switch target commits");
     check(poly_ctrl && subop == POLY_X86_CTRL_PSWITCH_MODE, "switch metadata");
+
+    clear_inputs();
+    setup_ready();
+    poly_ctrl_i = 1'b1;
+    subop_i = POLY_X86_CTRL_TRAP_RETURN;
+    trap_return_restore_valid = 1'b0;
+    #1;
+    check(wait_execute && trap_return_decode && !trap_return_retire,
+      "trap return waits for restore target");
+    check(!retire && !fault && !commit_transition,
+      "trap return restore wait blocks retire");
+
+    trap_return_restore_valid = 1'b1;
+    #1;
+    check(retire && trap_return_decode && trap_return_retire && !fault,
+      "trap return retires with restore target");
+    check(!commit_transition && !commit_push_transition,
+      "trap return does not use transition commit");
 
     clear_inputs();
     setup_x86_pcall_sig();

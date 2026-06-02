@@ -6,6 +6,7 @@ module tb_poly_frontend_memory_retire;
   localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
 
   localparam logic [6:0] POLY_X86_CTRL_PSWITCH_MODE = 7'h04;
+  localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
   localparam logic [6:0] POLY_AARCH64_CTRL_SUBOP_SWITCH_MODE = 7'h78;
 
   logic valid_i;
@@ -26,6 +27,7 @@ module tb_poly_frontend_memory_retire;
   logic [63:0] target_pc;
   logic signature_slot_valid;
   logic transition_stack_full;
+  logic trap_return_restore_valid;
 
   logic x86_fetch_req_valid;
   logic [63:0] x86_fetch_req_addr;
@@ -42,6 +44,8 @@ module tb_poly_frontend_memory_retire;
   logic [1:0] commit_frontend;
   logic [63:0] commit_pc;
   logic [6:0] commit_signature_slot;
+  logic trap_return_decode;
+  logic trap_return_retire;
   logic fault;
   logic [63:0] fault_pc;
   logic older_fault;
@@ -87,6 +91,7 @@ module tb_poly_frontend_memory_retire;
     .target_pc_i(target_pc),
     .signature_slot_valid_i(signature_slot_valid),
     .transition_stack_full_i(transition_stack_full),
+    .trap_return_restore_valid_i(trap_return_restore_valid),
     .x86_fetch_req_valid_o(x86_fetch_req_valid),
     .x86_fetch_req_addr_o(x86_fetch_req_addr),
     .x86_fetch_req_bytes_o(x86_fetch_req_bytes),
@@ -102,6 +107,8 @@ module tb_poly_frontend_memory_retire;
     .commit_frontend_o(commit_frontend),
     .commit_pc_o(commit_pc),
     .commit_signature_slot_o(commit_signature_slot),
+    .trap_return_decode_o(trap_return_decode),
+    .trap_return_retire_o(trap_return_retire),
     .fault_o(fault),
     .fault_pc_o(fault_pc),
     .older_fault_o(older_fault),
@@ -174,6 +181,7 @@ module tb_poly_frontend_memory_retire;
       target_pc = 64'd0;
       signature_slot_valid = 1'b0;
       transition_stack_full = 1'b0;
+      trap_return_restore_valid = 1'b0;
     end
   endtask
 
@@ -218,6 +226,23 @@ module tb_poly_frontend_memory_retire;
     check(commit_frontend == POLY_FRONTEND_AARCH64 && commit_pc == 64'h4000,
       "x86 switch target commits");
     check(poly_ctrl && subop == POLY_X86_CTRL_PSWITCH_MODE, "x86 switch metadata");
+
+    clear_inputs();
+    setup_x86_switch();
+    x86_fetch_word = x86_ctrl(POLY_X86_CTRL_TRAP_RETURN);
+    trap_return_restore_valid = 1'b0;
+    #1;
+    check(wait_execute && trap_return_decode && !trap_return_retire,
+      "x86 trap return waits for restore target");
+    check(!retire && !fault && !commit_transition,
+      "x86 trap return restore wait blocks retire");
+
+    trap_return_restore_valid = 1'b1;
+    #1;
+    check(retire && trap_return_decode && trap_return_retire && !fault,
+      "x86 trap return retires with restore target");
+    check(!commit_transition && !commit_push_transition,
+      "x86 trap return does not push transition");
 
     clear_inputs();
     setup_x86_switch();

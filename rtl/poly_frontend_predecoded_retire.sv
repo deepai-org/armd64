@@ -26,6 +26,7 @@ module poly_frontend_predecoded_retire (
     input  logic [63:0] target_pc_i,
     input  logic        signature_slot_valid_i,
     input  logic        transition_stack_full_i,
+    input  logic        trap_return_restore_valid_i,
 
     output logic        wait_fetch_o,
     output logic        wait_execute_o,
@@ -36,6 +37,8 @@ module poly_frontend_predecoded_retire (
     output logic [1:0]  commit_frontend_o,
     output logic [63:0] commit_pc_o,
     output logic [6:0]  commit_signature_slot_o,
+    output logic        trap_return_decode_o,
+    output logic        trap_return_retire_o,
 
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
@@ -54,27 +57,59 @@ module poly_frontend_predecoded_retire (
     output logic        invalid_signature_slot_o,
     output logic        transition_stack_full_o
 );
+  localparam logic [1:0] POLY_FRONTEND_X86     = 2'd0;
+  localparam logic [1:0] POLY_FRONTEND_AARCH64 = 2'd1;
+  localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
+
+  localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
+  localparam logic [6:0] POLY_AARCH64_CTRL_SUBOP_TRAP_RETURN = 7'h76;
+  localparam logic [6:0] POLY_RISCV_CTRL_SUBOP_TRAP_RETURN = 7'd6;
+
   logic step_valid;
   logic step_transition;
+  logic step_trap_return;
   logic step_push_transition;
   logic [1:0] step_next_frontend;
   logic [63:0] step_next_pc;
   logic [6:0] step_signature_slot;
   logic step_error;
 
+  function automatic logic is_trap_return(
+      input logic [1:0] frontend,
+      input logic [6:0] subop
+  );
+    begin
+      unique case (frontend)
+        POLY_FRONTEND_X86:
+          is_trap_return = subop == POLY_X86_CTRL_TRAP_RETURN;
+        POLY_FRONTEND_AARCH64:
+          is_trap_return = subop == POLY_AARCH64_CTRL_SUBOP_TRAP_RETURN;
+        POLY_FRONTEND_RISCV:
+          is_trap_return = subop == POLY_RISCV_CTRL_SUBOP_TRAP_RETURN;
+        default:
+          is_trap_return = 1'b0;
+      endcase
+    end
+  endfunction
+
   always_comb begin
+    trap_return_decode_o =
+      valid_i && fetch_valid_i && decode_valid_i && poly_ctrl_i &&
+      is_trap_return(frontend_i, subop_i);
     wait_fetch_o =
       valid_i && !fetch_valid_i && !older_fault_i && !fetch_fault_i &&
       !execute_fault_i && !block_retire_i;
     wait_execute_o =
-      valid_i && fetch_valid_i && decode_valid_i && !execute_ready_i &&
-      !older_fault_i && !fetch_fault_i && !execute_fault_i &&
-      !block_retire_i;
+      valid_i && fetch_valid_i && decode_valid_i &&
+      (!execute_ready_i ||
+        (trap_return_decode_o && !trap_return_restore_valid_i)) &&
+      !older_fault_i && !fetch_fault_i && !execute_fault_i && !block_retire_i;
     wait_retire_o =
       valid_i && block_retire_i && !older_fault_i && !fetch_fault_i &&
       !execute_fault_i;
     step_valid =
       valid_i && fetch_valid_i && decode_valid_i && execute_ready_i &&
+      (!trap_return_decode_o || trap_return_restore_valid_i) &&
       !block_retire_i && !older_fault_i && !fetch_fault_i &&
       !execute_fault_i;
     raw_align_fault_o = 1'b0;
@@ -97,7 +132,7 @@ module poly_frontend_predecoded_retire (
     .transition_o(step_transition),
     .call_o(),
     .switch_o(),
-    .trap_return_o(),
+    .trap_return_o(step_trap_return),
     .landing_o(),
     .push_transition_o(step_push_transition),
     .next_frontend_o(step_next_frontend),
@@ -124,6 +159,7 @@ module poly_frontend_predecoded_retire (
 
     retire_o = step_valid && !step_error;
     commit_transition_o = retire_o && step_transition;
+    trap_return_retire_o = retire_o && step_trap_return;
     commit_push_transition_o = retire_o && step_push_transition;
     commit_frontend_o = retire_o ? step_next_frontend : frontend_i;
     commit_pc_o = retire_o ? step_next_pc : pc_i;

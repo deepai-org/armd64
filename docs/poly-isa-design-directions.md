@@ -123,6 +123,13 @@ Frontend transition targets and `PCALL` return addresses follow the same rule:
 non-canonical control-flow addresses are rejected before changing frontend,
 installing return cookies, or pushing hardware transition-stack state.
 
+`PTRAPRET` is a restore operation, not a fallthrough commit. Hardware decodes it
+as a precise control operation and stalls retirement until valid monitor-provided
+restore frontend/PC state is available. Once available, the restore target is
+applied through the same validated frontend/PC state boundary used by commits,
+interrupt returns, trap vectors, and return-cookie recovery; the normal
+fallthrough PC is not committed for that instruction.
+
 ## Priority
 
 1. Keep `PSWITCH` and `PCALL` fixed-latency with no descriptor parsing.

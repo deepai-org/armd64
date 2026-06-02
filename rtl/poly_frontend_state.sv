@@ -28,6 +28,10 @@ module poly_frontend_state (
     input  logic [1:0]  trap_frontend_i,
     input  logic [63:0] trap_pc_i,
 
+    input  logic        trap_return_i,
+    input  logic [1:0]  trap_return_frontend_i,
+    input  logic [63:0] trap_return_pc_i,
+
     input  logic        fault_i,
     input  logic        stall_i,
 
@@ -53,6 +57,7 @@ module poly_frontend_state (
   localparam logic [2:0] POLY_REDIRECT_INTERRUPT = 3'd3;
   localparam logic [2:0] POLY_REDIRECT_RETURN    = 3'd4;
   localparam logic [2:0] POLY_REDIRECT_TRAP      = 3'd5;
+  localparam logic [2:0] POLY_REDIRECT_TRAP_RETURN = 3'd6;
 
   logic [1:0] frontend_q;
   logic [63:0] pc_q;
@@ -98,9 +103,13 @@ module poly_frontend_state (
       (commit_i && interrupt_restore_i) ||
       (commit_i && return_resume_i) ||
       (commit_i && trap_vector_i) ||
+      (commit_i && trap_return_i) ||
       (interrupt_restore_i && return_resume_i) ||
       (interrupt_restore_i && trap_vector_i) ||
-      (return_resume_i && trap_vector_i);
+      (interrupt_restore_i && trap_return_i) ||
+      (return_resume_i && trap_vector_i) ||
+      (return_resume_i && trap_return_i) ||
+      (trap_vector_i && trap_return_i);
     conflict_o = !init_i && multiple_requests;
 
     if (init_i) begin
@@ -123,6 +132,11 @@ module poly_frontend_state (
       selected_pc = trap_pc_i;
       selected_reason = POLY_REDIRECT_TRAP;
     end
+    else if (trap_return_i) begin
+      selected_frontend = trap_return_frontend_i;
+      selected_pc = trap_return_pc_i;
+      selected_reason = POLY_REDIRECT_TRAP_RETURN;
+    end
     else if (commit_i) begin
       selected_frontend = commit_frontend_i;
       selected_pc = commit_pc_i;
@@ -136,7 +150,7 @@ module poly_frontend_state (
 
     request_valid =
       init_i || commit_i || interrupt_restore_i || return_resume_i ||
-      trap_vector_i;
+      trap_vector_i || trap_return_i;
     invalid_frontend_o =
       request_valid && !conflict_o && !frontend_valid(selected_frontend);
     invalid_pc_o =

@@ -69,6 +69,13 @@ class StatefulCoreModel:
         self.pc = pc
         return True
 
+    def trap_return(self, frontend: int, pc: int, fault: bool = False) -> bool:
+        if fault:
+            return False
+        self.frontend = frontend
+        self.pc = pc
+        return True
+
 
 def require_structural_wiring() -> None:
     text = RTL.read_text()
@@ -104,6 +111,13 @@ def require_structural_wiring() -> None:
         "output logic        trap_vector_apply_o",
         "output logic [1:0]  trap_vector_frontend_o",
         "output logic [63:0] trap_vector_pc_o",
+        "input  logic        trap_return_restore_valid_i",
+        "input  logic [1:0]  trap_return_restore_frontend_i",
+        "input  logic [63:0] trap_return_restore_pc_i",
+        "output logic        trap_return_decode_o",
+        "output logic        trap_return_restore_o",
+        "output logic [1:0]  trap_return_restore_frontend_o",
+        "output logic [63:0] trap_return_restore_pc_o",
         "output logic        abi_signature_apply_o",
         "output logic        abi_signature_valid_o",
         "output logic [7:0]  abi_signature_kind_o",
@@ -122,6 +136,13 @@ def require_structural_wiring() -> None:
         ".trap_vector_apply_o(trap_vector_apply_o)",
         ".trap_vector_frontend_o(trap_vector_frontend_o)",
         ".trap_vector_pc_o(trap_vector_pc_o)",
+        ".trap_return_restore_valid_i(trap_return_restore_valid_i)",
+        ".trap_return_restore_frontend_i(trap_return_restore_frontend_i)",
+        ".trap_return_restore_pc_i(trap_return_restore_pc_i)",
+        ".trap_return_decode_o(trap_return_decode_o)",
+        ".trap_return_restore_o(trap_return_restore_o)",
+        ".trap_return_restore_frontend_o(trap_return_restore_frontend_o)",
+        ".trap_return_restore_pc_o(trap_return_restore_pc_o)",
         ".raw_branch_valid_o(raw_branch_valid_o)",
         ".raw_branch_unresolved_o(raw_branch_unresolved_o)",
         ".raw_branch_static_target_valid_o(raw_branch_static_target_valid_o)",
@@ -142,7 +163,7 @@ def require_structural_wiring() -> None:
         "raw_branch_target_valid ? raw_branch_target : commit_pc_o;",
         ".raw_branch_target_valid_o(raw_branch_target_valid)",
         ".raw_branch_target_o(raw_branch_target)",
-        ".commit_i(retire_o)",
+        ".commit_i(retire_o && !trap_return_restore_o)",
         ".commit_frontend_i(state_commit_frontend)",
         ".commit_pc_i(state_commit_pc)",
         ".interrupt_restore_i(state_interrupt_update)",
@@ -154,6 +175,9 @@ def require_structural_wiring() -> None:
         ".trap_vector_i(trap_vector_apply_o)",
         ".trap_frontend_i(trap_vector_frontend_o)",
         ".trap_pc_i(trap_vector_pc_o)",
+        ".trap_return_i(trap_return_restore_o)",
+        ".trap_return_frontend_i(trap_return_restore_frontend_o)",
+        ".trap_return_pc_i(trap_return_restore_pc_o)",
         ".redirect_valid_o(redirect_valid_o)",
         ".redirect_frontend_o(redirect_frontend_o)",
         ".redirect_pc_o(redirect_pc_o)",
@@ -198,6 +222,9 @@ def main() -> int:
 
     assert model.trap_vector(c["POLY_FRONTEND_AARCH64"], 0x7000)
     assert (model.frontend, model.pc) == (c["POLY_FRONTEND_AARCH64"], 0x7000)
+
+    assert model.trap_return(c["POLY_FRONTEND_X86"], 0x1800)
+    assert (model.frontend, model.pc) == (c["POLY_FRONTEND_X86"], 0x1800)
 
     print("POLY_RTL_FRONTEND_STATEFUL_CORE_OK")
     return 0

@@ -217,6 +217,9 @@ def core_step(
     trap_source_mode: int = 1,
     trap_mem_write_resp_valid: bool = False,
     trap_mem_write_fault: bool = False,
+    trap_return_restore_valid: bool = False,
+    trap_return_restore_frontend: int = 0,
+    trap_return_restore_pc: int = 0,
     cycle_memory_response_cycles: int = 0,
 ) -> dict[str, int | bool | tuple[int, int, int, int] | None]:
     interrupt_state = interrupt_state or InterruptState()
@@ -330,6 +333,10 @@ def core_step(
         valid and fetch_valid and frontend == c["POLY_FRONTEND_X86"] and
         (x86_subop == c["POLY_X86_CTRL_PCALL_SIG_MODE"] or x86_call_sig_imm)
     )
+    is_trap_return = (
+        valid and fetch_valid and frontend == c["POLY_FRONTEND_X86"] and
+        x86_ctrl and x86_subop == c["POLY_X86_CTRL_TRAP_RETURN"]
+    )
     target_error = (
         target_frontend not in {
             c["POLY_FRONTEND_X86"],
@@ -370,10 +377,12 @@ def core_step(
         raw_memory_access and not raw_memory_resolved and not raw_memory_fault
     )
     raw_memory_execute_fault = raw_memory_access and raw_memory_fault
+    trap_return_wait = is_trap_return and not trap_return_restore_valid
     execute_ready = (
         (not memory_order_valid or memory_retire_allowed) and
         not raw_unresolved_branch_wait and
-        not raw_memory_execute_wait
+        not raw_memory_execute_wait and
+        not trap_return_wait
     )
     execute_fault = (
         memory_fault or interrupt_error or trap_fault or
@@ -388,6 +397,7 @@ def core_step(
         not older_fault and not block_retire and not control_fault
     )
     commit_push = bool(is_pcall and retire)
+    trap_return_restore = bool(is_trap_return and retire and trap_return_restore_valid)
     popped = stack.pop() if (pop or return_pop) else None
     if commit_push:
         stack.push((frontend, return_pc, sp, flags))
@@ -435,6 +445,14 @@ def core_step(
         "retire": retire,
         "transition": bool(is_pcall and retire),
         "push": commit_push,
+        "trap_return_decode": is_trap_return,
+        "trap_return_restore": trap_return_restore,
+        "trap_return_restore_frontend": (
+            trap_return_restore_frontend if trap_return_restore else frontend
+        ),
+        "trap_return_restore_pc": (
+            trap_return_restore_pc if trap_return_restore else pc
+        ),
         "slot": pcall_slot if commit_push else 0,
         "abi_apply": commit_push,
         "abi_valid": abi_signature_valid,
@@ -571,6 +589,18 @@ def require_structural_wiring() -> None:
         ".raw_branch_target_o(raw_branch_target)",
         ".execute_ready_i(execute_ready)",
         ".block_retire_i(block_retire)",
+        "input  logic        trap_return_restore_valid_i",
+        "input  logic [1:0]  trap_return_restore_frontend_i",
+        "input  logic [63:0] trap_return_restore_pc_i",
+        "output logic        trap_return_decode_o",
+        "output logic        trap_return_restore_o",
+        "output logic [1:0]  trap_return_restore_frontend_o",
+        "output logic [63:0] trap_return_restore_pc_o",
+        ".trap_return_restore_valid_i(trap_return_restore_valid_i)",
+        ".trap_return_decode_o(trap_return_decode_o)",
+        ".trap_return_retire_o(trap_return_retire)",
+        "assign trap_return_restore_o =",
+        "trap_return_retire && trap_return_restore_valid_i;",
         ".wait_execute_o(wait_execute_o)",
         ".wait_retire_o(wait_retire_o)",
         ".x86_fetch_wait_o(x86_fetch_wait_o)",
@@ -631,6 +661,56 @@ def main() -> int:
     assert core_cpuid(False, c["POLY_CPUID_BASE"], c) == (False, 0, 0, 0, 0)
 
     pcall = x86_ctrl_word(c["POLY_X86_CTRL_PCALL_SIG_MODE"])
+    trap_wait = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_X86"],
+        pc=0x1800,
+        sp=0,
+        return_pc=0,
+        flags=0,
+        word=x86_ctrl_word(c["POLY_X86_CTRL_TRAP_RETURN"]),
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_AARCH64"],
+        target_pc=0x7000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        trap_return_restore_valid=False,
+        c=c,
+    )
+    assert trap_wait["trap_return_decode"] and trap_wait["wait_execute"]
+    assert not trap_wait["retire"] and not trap_wait["trap_return_restore"]
+
+    trap_ready = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_X86"],
+        pc=0x1800,
+        sp=0,
+        return_pc=0,
+        flags=0,
+        word=x86_ctrl_word(c["POLY_X86_CTRL_TRAP_RETURN"]),
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_AARCH64"],
+        target_pc=0x7000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        trap_return_restore_valid=True,
+        trap_return_restore_frontend=c["POLY_FRONTEND_AARCH64"],
+        trap_return_restore_pc=0x7000,
+        c=c,
+    )
+    assert trap_ready["retire"] and trap_ready["trap_return_restore"]
+    assert not trap_ready["transition"] and not trap_ready["push"]
+    assert trap_ready["trap_return_restore_frontend"] == c["POLY_FRONTEND_AARCH64"]
+    assert trap_ready["trap_return_restore_pc"] == 0x7000
+
     stack = TransitionStack(depth)
     first = core_step(
         stack,

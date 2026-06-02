@@ -6,6 +6,7 @@ module tb_poly_frontend_fpga_top;
   localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
 
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_MODE = 7'h2d;
+  localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
   localparam logic [31:0] POLY_TRAP_BREAK = 32'd2;
   localparam logic [31:0] POLY_MODE_RAW_RISCV = 32'd2;
 
@@ -76,6 +77,9 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] trap_arg7_i;
   logic trap_mem_write_resp_valid_i;
   logic trap_mem_write_fault_i;
+  logic trap_return_restore_valid_i;
+  logic [1:0] trap_return_restore_frontend_i;
+  logic [63:0] trap_return_restore_pc_i;
   logic abi_signature_set_i;
   logic [3:0] abi_signature_set_slot_i;
   logic [7:0] abi_signature_set_kind_i;
@@ -130,6 +134,10 @@ module tb_poly_frontend_fpga_top;
   logic trap_vector_apply_o;
   logic [1:0] trap_vector_frontend_o;
   logic [63:0] trap_vector_pc_o;
+  logic trap_return_decode_o;
+  logic trap_return_restore_o;
+  logic [1:0] trap_return_restore_frontend_o;
+  logic [63:0] trap_return_restore_pc_o;
 
   poly_frontend_fpga_top dut (
     .clk_i(clk_i),
@@ -199,6 +207,9 @@ module tb_poly_frontend_fpga_top;
     .trap_arg7_i(trap_arg7_i),
     .trap_mem_write_resp_valid_i(trap_mem_write_resp_valid_i),
     .trap_mem_write_fault_i(trap_mem_write_fault_i),
+    .trap_return_restore_valid_i(trap_return_restore_valid_i),
+    .trap_return_restore_frontend_i(trap_return_restore_frontend_i),
+    .trap_return_restore_pc_i(trap_return_restore_pc_i),
     .abi_signature_set_i(abi_signature_set_i),
     .abi_signature_set_slot_i(abi_signature_set_slot_i),
     .abi_signature_set_kind_i(abi_signature_set_kind_i),
@@ -272,6 +283,10 @@ module tb_poly_frontend_fpga_top;
     .trap_vector_apply_o(trap_vector_apply_o),
     .trap_vector_frontend_o(trap_vector_frontend_o),
     .trap_vector_pc_o(trap_vector_pc_o),
+    .trap_return_decode_o(trap_return_decode_o),
+    .trap_return_restore_o(trap_return_restore_o),
+    .trap_return_restore_frontend_o(trap_return_restore_frontend_o),
+    .trap_return_restore_pc_o(trap_return_restore_pc_o),
     .abi_signature_set_ok_o(abi_signature_set_ok_o),
     .abi_signature_set_error_o(abi_signature_set_error_o),
     .abi_signature_apply_o(abi_signature_apply_o),
@@ -365,6 +380,9 @@ module tb_poly_frontend_fpga_top;
       trap_arg7_i = 64'd0;
       trap_mem_write_resp_valid_i = 1'b0;
       trap_mem_write_fault_i = 1'b0;
+      trap_return_restore_valid_i = 1'b0;
+      trap_return_restore_frontend_i = POLY_FRONTEND_X86;
+      trap_return_restore_pc_i = 64'd0;
       abi_signature_set_i = 1'b0;
       abi_signature_set_slot_i = 4'd0;
       abi_signature_set_kind_i = 8'd0;
@@ -574,6 +592,45 @@ module tb_poly_frontend_fpga_top;
     #1;
     check(state_frontend_o == POLY_FRONTEND_RISCV &&
       state_pc_o == 64'h8000, "fpga top trap vector updates state");
+
+    init_i = 1'b1;
+    init_frontend_i = POLY_FRONTEND_X86;
+    init_pc_i = 64'h1800;
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_X86 &&
+      state_pc_o == 64'h1800, "fpga top reinit to trap-return monitor");
+
+    valid_i = 1'b1;
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_X86;
+    instr_resp_word_i = x86_ctrl(POLY_X86_CTRL_TRAP_RETURN);
+    instr_resp_fallthrough_pc_i = 64'h1804;
+    trap_return_restore_valid_i = 1'b0;
+    #1;
+    check(wait_execute_o && trap_return_decode_o && !trap_return_restore_o,
+      "fpga top trap return waits for restore target");
+    check(!retire_o && !state_update_o && state_hold_o,
+      "fpga top trap return wait preserves state");
+
+    trap_return_restore_valid_i = 1'b1;
+    trap_return_restore_frontend_i = POLY_FRONTEND_RISCV;
+    trap_return_restore_pc_i = 64'h8400;
+    #1;
+    check(retire_o && trap_return_restore_o && !commit_push_transition_o,
+      "fpga top trap return retires as restore redirect");
+    check(trap_return_restore_frontend_o == POLY_FRONTEND_RISCV &&
+      trap_return_restore_pc_o == 64'h8400,
+      "fpga top trap return exposes restore target");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_RISCV &&
+      redirect_pc_o == 64'h8400 && redirect_reason_o == 3'd6,
+      "fpga top trap return redirects state");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_RISCV &&
+      state_pc_o == 64'h8400, "fpga top trap return updates state");
 
     $display("POLY_RTL_FRONTEND_FPGA_TOP_SIM_OK");
     $finish;

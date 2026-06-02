@@ -66,14 +66,27 @@ def retire(
     target_pc: int,
     signature_valid: bool,
     stack_full: bool,
+    trap_return_restore_valid: bool,
     c: dict[str, int],
 ) -> dict[str, int | bool]:
+    trap_return_decode = (
+        valid and fetch_valid and decode_valid and poly and (
+            (frontend == c["POLY_FRONTEND_X86"] and
+             subop == c["POLY_X86_CTRL_TRAP_RETURN"]) or
+            (frontend == c["POLY_FRONTEND_AARCH64"] and
+             subop == c["POLY_AARCH64_CTRL_SUBOP_TRAP_RETURN"]) or
+            (frontend == c["POLY_FRONTEND_RISCV"] and
+             subop == c["POLY_RISCV_CTRL_SUBOP_TRAP_RETURN"])
+        )
+    )
     wait_fetch = (
         valid and not fetch_valid and not older_fault and not fetch_fault and
         not execute_fault and not block_retire
     )
     wait_execute = (
-        valid and fetch_valid and decode_valid and not execute_ready and
+        valid and fetch_valid and decode_valid and
+        (not execute_ready or
+         (trap_return_decode and not trap_return_restore_valid)) and
         not older_fault and not fetch_fault and not execute_fault and
         not block_retire
     )
@@ -83,6 +96,7 @@ def retire(
     )
     step_valid = (
         valid and fetch_valid and decode_valid and execute_ready and
+        (not trap_return_decode or trap_return_restore_valid) and
         not block_retire and not older_fault and not fetch_fault and
         not execute_fault
     )
@@ -160,6 +174,8 @@ def retire(
         "control_fault": control_fault,
         "poly": step_valid and poly,
         "subop": subop if step_valid and poly else 0,
+        "trap_return_decode": trap_return_decode,
+        "trap_return_retire": retire_ok and poly and trap_return,
     }
 
 
@@ -172,6 +188,12 @@ def require_structural_wiring() -> None:
         ".subop_i(subop_i)",
         ".call_sig_imm_i(call_sig_imm_i)",
         ".signature_slot_i(signature_slot_i)",
+        "input  logic        trap_return_restore_valid_i",
+        "output logic        trap_return_decode_o",
+        "output logic        trap_return_retire_o",
+        "function automatic logic is_trap_return",
+        "trap_return_decode_o =",
+        "trap_return_decode_o && !trap_return_restore_valid_i",
         "poly_ctrl_o = step_valid && poly_ctrl_i",
         "raw_align_fault_o = 1'b0",
     ]:
@@ -189,7 +211,8 @@ def main() -> int:
         execute_fault=False, frontend=c["POLY_FRONTEND_X86"], pc=0x1000,
         fallthrough=0x1004, poly=False, subop=0, call_sig=False, slot=0,
         target_frontend=c["POLY_FRONTEND_AARCH64"], target_pc=0x4000,
-        signature_valid=True, stack_full=False, c=c
+        signature_valid=True, stack_full=False,
+        trap_return_restore_valid=False, c=c
     )
     assert non_poly["retire"] and not non_poly["transition"]
     assert non_poly["commit_pc"] == 0x1004
@@ -200,7 +223,8 @@ def main() -> int:
         execute_fault=False, frontend=c["POLY_FRONTEND_X86"], pc=0x1000,
         fallthrough=0x1004, poly=True, subop=c["POLY_X86_CTRL_PSWITCH_MODE"],
         call_sig=False, slot=0, target_frontend=c["POLY_FRONTEND_AARCH64"],
-        target_pc=0x4000, signature_valid=True, stack_full=False, c=c
+        target_pc=0x4000, signature_valid=True, stack_full=False,
+        trap_return_restore_valid=False, c=c
     )
     assert switch["retire"] and switch["transition"]
     assert switch["commit_frontend"] == c["POLY_FRONTEND_AARCH64"]
@@ -212,7 +236,8 @@ def main() -> int:
         fallthrough=0x1004, poly=True,
         subop=c["POLY_X86_CTRL_PCALL_SIG_IMM_BASE"] + 3,
         call_sig=True, slot=3, target_frontend=c["POLY_FRONTEND_AARCH64"],
-        target_pc=0x4000, signature_valid=False, stack_full=False, c=c
+        target_pc=0x4000, signature_valid=False, stack_full=False,
+        trap_return_restore_valid=False, c=c
     )
     assert bad_sig["fault"] and bad_sig["control_fault"]
     assert not bad_sig["retire"]
@@ -223,7 +248,8 @@ def main() -> int:
         execute_fault=False, frontend=c["POLY_FRONTEND_X86"], pc=0x1000,
         fallthrough=0x1004, poly=False, subop=0, call_sig=False, slot=0,
         target_frontend=c["POLY_FRONTEND_AARCH64"], target_pc=0x4000,
-        signature_valid=True, stack_full=False, c=c
+        signature_valid=True, stack_full=False,
+        trap_return_restore_valid=False, c=c
     )
     assert wait["wait_fetch"] and not wait["retire"] and not wait["fault"]
 
@@ -233,9 +259,34 @@ def main() -> int:
         execute_fault=False, frontend=c["POLY_FRONTEND_X86"], pc=0x1000,
         fallthrough=0x1004, poly=False, subop=0, call_sig=False, slot=0,
         target_frontend=c["POLY_FRONTEND_AARCH64"], target_pc=0x4000,
-        signature_valid=True, stack_full=False, c=c
+        signature_valid=True, stack_full=False,
+        trap_return_restore_valid=False, c=c
     )
     assert fetch_fault_case["fault"] and fetch_fault_case["fetch_fault"]
+
+    trap_wait = retire(
+        valid=True, fetch_valid=True, decode_valid=True, execute_ready=True,
+        block_retire=False, older_fault=False, fetch_fault=False,
+        execute_fault=False, frontend=c["POLY_FRONTEND_X86"], pc=0x1800,
+        fallthrough=0x1804, poly=True, subop=c["POLY_X86_CTRL_TRAP_RETURN"],
+        call_sig=False, slot=0, target_frontend=c["POLY_FRONTEND_AARCH64"],
+        target_pc=0x7000, signature_valid=True, stack_full=False,
+        trap_return_restore_valid=False, c=c
+    )
+    assert trap_wait["trap_return_decode"] and trap_wait["wait_execute"]
+    assert not trap_wait["retire"] and not trap_wait["trap_return_retire"]
+
+    trap_ready = retire(
+        valid=True, fetch_valid=True, decode_valid=True, execute_ready=True,
+        block_retire=False, older_fault=False, fetch_fault=False,
+        execute_fault=False, frontend=c["POLY_FRONTEND_X86"], pc=0x1800,
+        fallthrough=0x1804, poly=True, subop=c["POLY_X86_CTRL_TRAP_RETURN"],
+        call_sig=False, slot=0, target_frontend=c["POLY_FRONTEND_AARCH64"],
+        target_pc=0x7000, signature_valid=True, stack_full=False,
+        trap_return_restore_valid=True, c=c
+    )
+    assert trap_ready["retire"] and trap_ready["trap_return_retire"]
+    assert trap_ready["trap_return_decode"] and not trap_ready["transition"]
 
     print("POLY_RTL_FRONTEND_PREDECODED_RETIRE_OK")
     return 0
