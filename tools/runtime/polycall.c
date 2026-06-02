@@ -865,8 +865,19 @@ static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
+static uint64_t poly_abi_signature_set_flags(uint64_t slot, uint64_t kind,
+    uint32_t flags) {
+  uint64_t rax = slot;
+  uint64_t rdx = poly_abi_signature_control_value_with_flags(kind, flags);
+  asm volatile(POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
+      : "+a"(rax), "+d"(rdx)
+      :
+      : "memory");
+  return rax;
+}
+
 static int program_hot_abi_signature_slots(
-    const struct poly_import_contract *contract) {
+    const struct poly_import_contract *contract, uint32_t signature_flags) {
   if (contract->signature_slot_native_regs_i128 >=
         contract->signature_slot_count) {
     fprintf(stderr,
@@ -927,33 +938,39 @@ static int program_hot_abi_signature_slots(
     return -1;
   }
 
-  if (poly_abi_signature_set(contract->signature_slot_x86_sysv_regs,
-        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_x86_sysv_regs_i128,
-        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_native_regs,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_native_regs_i128,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_native_regs_vec128_u32,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32) != 0 ||
-      poly_abi_signature_set(
+  if (poly_abi_signature_set_flags(contract->signature_slot_exchange,
+        POLY_ABI_SIGNATURE_KIND_EXCHANGE, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_x86_sysv_regs,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_x86_sysv_regs_i128,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_native_regs,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_native_regs_i128,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(
+        contract->signature_slot_native_regs_vec128_u32,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(
         contract->signature_slot_native_regs_compact_u32_f32,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32) != 0 ||
-      poly_abi_signature_set(
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32,
+        signature_flags) != 0 ||
+      poly_abi_signature_set_flags(
         contract->signature_slot_native_regs_compact_f32_u32,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_native_regs_fp64,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_native_regs_fp32,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_sret_x86_sysv_regs,
-        POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS) != 0 ||
-      poly_abi_signature_set(contract->signature_slot_native_sret_regs,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS) != 0 ||
-      poly_abi_signature_set(
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32,
+        signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_native_regs_fp64,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_native_regs_fp32,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_sret_x86_sysv_regs,
+        POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(contract->signature_slot_native_sret_regs,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS, signature_flags) != 0 ||
+      poly_abi_signature_set_flags(
         contract->signature_slot_x86_sysv_regs_fp128_ret,
-        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET) != 0) {
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET,
+        signature_flags) != 0) {
     fprintf(stderr,
       "POLYCALL_FAIL: CPU ABI signature slot programming failed\n");
     return -1;
@@ -9210,7 +9227,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     return -1;
   if (read_poly_signature_contract(&import_contract) < 0)
     return -1;
-  if (program_hot_abi_signature_slots(&import_contract) < 0)
+  const uint32_t signature_flags =
+    (program->tls_total_size != 0 || program->needs_errno_location) ?
+      POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE : 0;
+  if (program_hot_abi_signature_slots(&import_contract, signature_flags) < 0)
     return -1;
   if (needs_x86_import && read_poly_import_contract(&import_contract) < 0)
     return -1;
@@ -9476,8 +9496,8 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   else if (use_special_sig_pcall) {
     const uint32_t pcall_frontend = program->arch == POLY_ARCH_AARCH64 ?
       POLY_ARCH_AARCH64 : POLY_ARCH_RISCV;
-    if (poly_abi_signature_set(special_signature_slot,
-          special_signature_kind) != 0) {
+    if (poly_abi_signature_set_flags(special_signature_slot,
+          special_signature_kind, signature_flags) != 0) {
       fprintf(stderr,
         "POLYCALL_FAIL: special ABI signature slot programming failed kind=%u slot=%u\n",
         special_signature_kind, special_signature_slot);

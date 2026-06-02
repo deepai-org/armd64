@@ -11,14 +11,20 @@
   "xorl %%r15d, %%r15d\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM \
   "movq %%r11, %%r15\n"
-#define POLY_OP_ENTER_A64 \
+#define POLY_OP_ENTER_A64_WITH_TLS \
   "movl $1, %%r15d\n" \
   ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
-#define POLY_OP_ENTER_RV64 \
+#define POLY_OP_ENTER_RV64_WITH_TLS \
   "movl $2, %%r15d\n" \
   ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
+#define POLY_OP_ENTER_A64 \
+  "xorq %%r13, %%r13\n" \
+  POLY_OP_ENTER_A64_WITH_TLS
+#define POLY_OP_ENTER_RV64 \
+  "xorq %%r13, %%r13\n" \
+  POLY_OP_ENTER_RV64_WITH_TLS
 #define POLY_OP_ENTER_MODE POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_SWITCH_MODE POLY_X86_CTRL_PSWITCH_MODE_ASM
 #define POLY_OP_LANDING POLY_X86_CTRL_LANDING_ASM
@@ -60,13 +66,13 @@
 #define POLY_OP_LANDING_POLICY_SET POLY_X86_CTRL_LANDING_POLICY_SET_ASM
 #define POLY_OP_LANDING_POLICY_GET POLY_X86_CTRL_LANDING_POLICY_GET_ASM
 #define POLY_ABI_GPR_CLOBBERS \
-  "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r15"
+  "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r13", "r15"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX \
-  "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r15"
+  "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r13", "r15"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI \
-  "rcx", "rdx", "rsi", "r8", "r9", "r15"
+  "rcx", "rdx", "rsi", "r8", "r9", "r13", "r15"
 #define POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX \
-  "rcx", "rsi", "rdi", "r8", "r9", "r15"
+  "rcx", "rsi", "rdi", "r8", "r9", "r13", "r15"
 #define POLY_ABI_FP_CLOBBERS \
   "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"
 #define POLY_ERR_INVAL ((uint64_t) -22)
@@ -76,8 +82,12 @@
 #define POLYPROBE_INVALID_AARCH64_BRANCH_TARGET 2ULL
 #define POLYPROBE_INVALID_RISCV_BRANCH_TARGET 0x0100000000000000ULL
 #define POLYPROBE_AARCH64_PCALL_SLOT3_INSN 0xd5032a7fULL
+#define POLYPROBE_AARCH64_PCALL_VEC128_SLOT_INSN 0xd5032abfULL
+#define POLYPROBE_AARCH64_PCALL_FP64_SLOT_INSN 0xd5032b1fULL
 #define POLYPROBE_AARCH64_PCALL_GENERIC_INSN 0xd5032f3fULL
 #define POLYPROBE_RISCV_PCALL_SLOT3_INSN 0x4600700bULL
+#define POLYPROBE_RISCV_PCALL_VEC128_SLOT_INSN 0x4a00700bULL
+#define POLYPROBE_RISCV_PCALL_FP64_SLOT_INSN 0x5000700bULL
 #define POLYPROBE_RISCV_PCALL_GENERIC_INSN 0x1200700bULL
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
@@ -740,7 +750,7 @@ static inline uint64_t penter_aarch64_tls_probe(uint64_t tls_base) {
   asm volatile(
     "pushq %%r13\n"
     "movq %1, %%r13\n"
-    POLY_OP_ENTER_A64
+    POLY_OP_ENTER_A64_WITH_TLS
     ".long 0xd53bd040\n" // mrs x0,tpidr_el0
     ".long 0xd5032e1f\n"
     "popq %%r13\n"
@@ -755,7 +765,7 @@ static inline uint64_t penter_riscv_tls_probe(uint64_t tls_base) {
   asm volatile(
     "pushq %%r13\n"
     "movq %1, %%r13\n"
-    POLY_OP_ENTER_RV64
+    POLY_OP_ENTER_RV64_WITH_TLS
     ".long 0x00020513\n" // mv a0,tp
     ".long 0x0000700b\n"
     "popq %%r13\n"
@@ -1096,31 +1106,27 @@ static inline uint64_t aarch64_foreign_control_plane_probe(uint64_t vector,
 
 static inline uint64_t aarch64_foreign_trap_vector_invalid_probe(
     uint64_t value) {
-  uint64_t rax = 0;
-  uint64_t rdx = value;
+  uint64_t rax = value;
   asm volatile(
     POLY_OP_ENTER_A64
-    ".long 0xaa0103e0\n" // mov x0,x1 (candidate vector)
     ".long 0xd5032d1f\n" // aarch64 trap vector set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(rax), "+d"(rdx)
+    : "+a"(rax)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
   return rax;
 }
 
 static inline uint64_t aarch64_foreign_monitor_packet_invalid_probe(
     uint64_t value) {
-  uint64_t rax = 0;
-  uint64_t rdx = value;
+  uint64_t rax = value;
   asm volatile(
     POLY_OP_ENTER_A64
-    ".long 0xaa0103e0\n" // mov x0,x1 (candidate packet)
     ".long 0xd5032d9f\n" // aarch64 monitor packet set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(rax), "+d"(rdx)
+    : "+a"(rax)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
   return rax;
 }
 
@@ -1158,31 +1164,27 @@ static inline uint64_t riscv_foreign_control_plane_probe(uint64_t vector,
 
 static inline uint64_t riscv_foreign_trap_vector_invalid_probe(
     uint64_t value) {
-  uint64_t rax = 0;
-  uint64_t rdx = value;
+  uint64_t rax = value;
   asm volatile(
     POLY_OP_ENTER_RV64
-    ".long 0x00058513\n" // mv a0,a1 (candidate vector)
     ".long 0x3000700b\n" // riscv trap vector set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(rax), "+d"(rdx)
+    : "+a"(rax)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
   return rax;
 }
 
 static inline uint64_t riscv_foreign_monitor_packet_invalid_probe(
     uint64_t value) {
-  uint64_t rax = 0;
-  uint64_t rdx = value;
+  uint64_t rax = value;
   asm volatile(
     POLY_OP_ENTER_RV64
-    ".long 0x00058513\n" // mv a0,a1 (candidate packet)
     ".long 0x3800700b\n" // riscv monitor packet set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(rax), "+d"(rdx)
+    : "+a"(rax)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
   return rax;
 }
 
@@ -2089,7 +2091,7 @@ static inline void aarch64_signature_imm_call_x86_fp64_probe(void) {
     ".long 0xaa0003f0\n" // mov x16,x0 (target)
     ".long 0xaa0103f2\n" // mov x18,x1 (return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xd5032a7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032b1f\n" // aarch64 PCALL_SIG_IMM FP64 slot
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
@@ -2107,7 +2109,7 @@ static inline void riscv_signature_imm_call_x86_fp64_probe(void) {
     ".long 0x00050293\n" // mv x5,a0 (target)
     ".long 0x00058393\n" // mv x7,a1 (return)
     ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
-    ".long 0x4600700b\n" // riscv PCALL_SIG_IMM slot 3
+    ".long 0x5000700b\n" // riscv PCALL_SIG_IMM FP64 slot
     "1:\n"
     "mulsd %%xmm1, %%xmm0\n"
     "retq\n"
@@ -2125,7 +2127,7 @@ static inline void aarch64_signature_imm_call_x86_vec128_probe(void) {
     ".long 0xaa0003f0\n" // mov x16,x0 (target)
     ".long 0xaa0103f2\n" // mov x18,x1 (return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
-    ".long 0xd5032a7f\n" // aarch64 PCALL_SIG_IMM slot 3
+    ".long 0xd5032abf\n" // aarch64 PCALL_SIG_IMM vec128 slot
     "1:\n"
     "paddq %%xmm1, %%xmm0\n"
     "retq\n"
@@ -2143,7 +2145,7 @@ static inline void riscv_signature_imm_call_x86_vec128_probe(void) {
     ".long 0x00050293\n" // mv x5,a0 (target)
     ".long 0x00058393\n" // mv x7,a1 (return)
     ".long 0x00000313\n" // addi x6,zero,0 (x86 frontend)
-    ".long 0x4600700b\n" // riscv PCALL_SIG_IMM slot 3
+    ".long 0x4a00700b\n" // riscv PCALL_SIG_IMM vec128 slot
     "1:\n"
     "paddq %%xmm1, %%xmm0\n"
     "retq\n"
@@ -3101,8 +3103,8 @@ int main(void) {
 
   stage("POLY_STAGE: state-export-import");
   memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
-  const uint64_t seeded_aarch64_tls = 0x123456789abc0001ULL;
-  const uint64_t seeded_riscv_tls = 0x223456789abc0002ULL;
+  const uint64_t seeded_aarch64_tls = 0x00007fff10001000ULL;
+  const uint64_t seeded_riscv_tls = 0x00007fff20002000ULL;
   const uint64_t seeded_aarch64_fpcr = 0x00c00000ULL;
   const uint64_t seeded_aarch64_fpsr = 0x12ULL;
   const uint64_t seeded_riscv_fcsr = 0x75ULL;
@@ -3181,8 +3183,8 @@ int main(void) {
   polyprobe_state.aarch64_status.fpcr = imported_aarch64_fpcr;
   polyprobe_state.aarch64_status.fpsr = imported_aarch64_fpsr;
   polyprobe_state.riscv_status.fcsr = imported_riscv_fcsr;
-  const uint64_t imported_aarch64_tls = 0x323456789abc0003ULL;
-  const uint64_t imported_riscv_tls = 0x423456789abc0004ULL;
+  const uint64_t imported_aarch64_tls = 0x00007fff30003000ULL;
+  const uint64_t imported_riscv_tls = 0x00007fff40004000ULL;
   polyprobe_state.frontend_tls.aarch64_tls_base = imported_aarch64_tls;
   polyprobe_state.frontend_tls.riscv_tls_base = imported_riscv_tls;
   poly_state_import(&polyprobe_state);
@@ -3833,11 +3835,16 @@ int main(void) {
       "POLY_PROBE_FAIL: aarch64 invalid trap-vector mode control mismatch\n");
     return 1;
   }
-  if (aarch64_foreign_monitor_packet_invalid_probe(
-        invalid_control_address) != POLY_ERR_INVAL ||
-      poly_monitor_packet_get() != riscv_packet) {
+  uint64_t aarch64_invalid_packet_status =
+    aarch64_foreign_monitor_packet_invalid_probe(invalid_control_address);
+  uint64_t aarch64_packet_after_invalid = poly_monitor_packet_get();
+  if (aarch64_invalid_packet_status != POLY_ERR_INVAL ||
+      aarch64_packet_after_invalid != riscv_packet) {
     fprintf(stderr,
-      "POLY_PROBE_FAIL: aarch64 invalid monitor-packet control mismatch\n");
+      "POLY_PROBE_FAIL: aarch64 invalid monitor-packet control mismatch status=0x%llx packet=0x%llx expected=0x%llx\n",
+      (unsigned long long) aarch64_invalid_packet_status,
+      (unsigned long long) aarch64_packet_after_invalid,
+      (unsigned long long) riscv_packet);
     return 1;
   }
   if (riscv_foreign_trap_vector_invalid_probe(

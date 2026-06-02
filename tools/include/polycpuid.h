@@ -195,6 +195,10 @@ enum {
   POLY_X86_CTRL_PENTER_FRONTEND_REG_BYTES = 6,
   POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES =
     POLY_X86_CTRL_PENTER_FRONTEND_REG_BYTES + POLY_X86_CTRL_TOTAL_BYTES,
+  POLY_X86_CTRL_PENTER_ZERO_TLS_BYTES = 3,
+  POLY_X86_CTRL_PENTER_FRONTEND_ZERO_TLS_TOTAL_BYTES =
+    POLY_X86_CTRL_PENTER_ZERO_TLS_BYTES +
+      POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES,
   POLY_X86_CTRL_PENTER_MODE = 0x03,
   POLY_X86_CTRL_PSWITCH_MODE = 0x04,
   POLY_X86_CTRL_LANDING = 0x05,
@@ -519,6 +523,7 @@ enum {
   POLY_ABI_REGISTER_MAP_NATIVE_SRET = 25,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F64_RET = 26,
   POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F64_RET = 27,
+  POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE = (uint32_t) 1U << 31,
   POLY_LANDING_POLICY_REQUIRE_SWITCH = (1ULL << 0),
   POLY_LANDING_POLICY_REQUIRE_CALL = (1ULL << 1),
   POLY_LANDING_POLICY_SUPPORTED = POLY_LANDING_POLICY_REQUIRE_SWITCH |
@@ -604,6 +609,16 @@ static inline uint64_t poly_abi_signature_control_value(uint64_t kind) {
   if (register_map == UINT32_MAX)
     return kind;
   return (uint32_t) kind | ((uint64_t) register_map << 32);
+}
+
+static inline uint64_t poly_abi_signature_control_value_with_flags(
+    uint64_t kind, uint32_t flags) {
+  if ((kind >> 32) != 0)
+    return kind | ((uint64_t) flags << 32);
+  uint32_t register_map = poly_abi_signature_register_map((uint32_t) kind);
+  if (register_map == UINT32_MAX)
+    return kind;
+  return (uint32_t) kind | ((uint64_t) (register_map | flags) << 32);
 }
 
 static const uint64_t POLY_IMPORT_CALL_BASE = 0xffffffffffffe000ULL;

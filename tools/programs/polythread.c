@@ -6,14 +6,20 @@
 
 #include "../include/polycpuid.h"
 
-#define POLY_OP_ENTER_A64 \
+#define POLY_OP_ENTER_A64_WITH_TLS \
   "movl $1, %%r15d\n" \
   ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
-#define POLY_OP_ENTER_RV64 \
+#define POLY_OP_ENTER_RV64_WITH_TLS \
   "movl $2, %%r15d\n" \
   ".balign 4, 0x90\n" \
   POLY_X86_CTRL_PENTER_MODE_ASM
+#define POLY_OP_ENTER_A64 \
+  "xorq %%r13, %%r13\n" \
+  POLY_OP_ENTER_A64_WITH_TLS
+#define POLY_OP_ENTER_RV64 \
+  "xorq %%r13, %%r13\n" \
+  POLY_OP_ENTER_RV64_WITH_TLS
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM

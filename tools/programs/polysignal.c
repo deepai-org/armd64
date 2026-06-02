@@ -410,7 +410,7 @@ static size_t poly_frontend_entry_alignment(uint32_t frontend) {
 }
 
 static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
-  const size_t base_size = POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES;
+  const size_t base_size = POLY_X86_CTRL_PENTER_FRONTEND_ZERO_TLS_TOTAL_BYTES;
   const size_t align = poly_frontend_entry_alignment(frontend);
   const size_t target = offset + base_size;
   const size_t pad = align > 1 ?
@@ -421,7 +421,7 @@ static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
 static void emit_x86_entry_alignment(uint8_t *code, size_t *offset,
     uint32_t frontend) {
   size_t pad = x86_penter_frontend_size_at(*offset, frontend) -
-    POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES;
+    POLY_X86_CTRL_PENTER_FRONTEND_ZERO_TLS_TOTAL_BYTES;
   while (pad-- > 0)
     code[(*offset)++] = 0x90;
 }
@@ -429,6 +429,9 @@ static void emit_x86_entry_alignment(uint8_t *code, size_t *offset,
 static void emit_x86_penter_frontend(uint8_t *code, size_t *offset,
     uint32_t frontend) {
   emit_x86_entry_alignment(code, offset, frontend);
+  code[(*offset)++] = 0x4d; // xor r13,r13: explicit zero frontend TLS.
+  code[(*offset)++] = 0x31;
+  code[(*offset)++] = 0xed;
   code[(*offset)++] = 0x41; // mov r15d,frontend
   code[(*offset)++] = 0xbf;
   emit_u32(code, offset, frontend);
