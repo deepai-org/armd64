@@ -1,4 +1,4 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
 Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU. The
 goal is compatibility with existing precompiled code across ISAs in one process
@@ -19,19 +19,21 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-call-real-xsave-arch-traps
 make BOOT_TIMEOUT_SECONDS=900 boot-poly-binfmt-arch-traps
 ```
 
-## Architectural Contract
+## Difference From x86_64
 
-- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
-  syscalls, atomics, and the effective memory model.
-- AArch64 and RISC-V64 are raw user frontends that fetch native 32-bit
-  instructions from `RIP`.
-- Mode switches are decoded control instructions, not `#UD` traps or per-
-  instruction envelopes.
+- x86_64 remains the system ISA: boot, privilege, paging, interrupts, syscalls,
+  atomics, and the effective memory model all stay x86_64-owned.
+- AArch64 and RISC-V64 are raw user-mode frontends. They fetch native 32-bit
+  instructions from the same architectural instruction pointer.
+- Mode changes are decoded control instructions. They are not `#UD` traps and
+  not per-instruction envelopes.
 - Cross-ISA interop targets real ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
-- Extra foreign registers are per-thread XSAVE-style architectural state.
-- Hardware may switch frontends and remap register names. It must not parse
-  user-memory descriptors, repack stacks, implement libc, or translate syscalls.
-- Recoverable foreign traps produce OS-neutral trap packets for runtime policy.
+- Extra foreign registers are per-thread XSAVE-style architectural state, not
+  hidden CR3-scoped emulator state.
+- Hardware may switch frontends and remap register names. It must not parse user
+  memory descriptors, repack stacks, implement libc, or translate syscalls.
+- Recoverable foreign traps produce OS-neutral trap packets. User/runtime policy
+  decides what to do with them.
 
 ## Temporary Bochs Encodings
 
