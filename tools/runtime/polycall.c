@@ -9536,9 +9536,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   emit_restore_callee_regs(code, &offset, callee_save_area);
   code[offset++] = 0xc3;
   if (needs_x86_import) {
-    const uint8_t import_return[] = { 0x0f, 0x3a, 0xfc, 0x20 };
-    memcpy(code + offset, import_return, sizeof(import_return));
-    offset += sizeof(import_return);
+    emit_x86_poly_control(code, &offset, POLY_X86_CTRL_IMPORT_RETURN);
     for (size_t n = 0; n < import_descriptor_count; n++) {
       emit_u64(code, &offset, 0);
       emit_u64(code, &offset, 0);
