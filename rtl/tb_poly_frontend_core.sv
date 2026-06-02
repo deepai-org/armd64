@@ -141,6 +141,12 @@ module tb_poly_frontend_core;
   logic [3:0] raw_data_mem_access_bytes_o;
   logic raw_data_mem_wait_o;
   logic raw_data_mem_fault_o;
+  logic raw_branch_valid_o;
+  logic raw_branch_unresolved_o;
+  logic raw_branch_static_target_valid_o;
+  logic [63:0] raw_branch_static_target_o;
+  logic raw_branch_wait_o;
+  logic raw_branch_resolved_fault_o;
 
   poly_frontend_core dut (
     .clk_i(clk_i),
@@ -266,6 +272,12 @@ module tb_poly_frontend_core;
     .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o),
     .raw_data_mem_wait_o(raw_data_mem_wait_o),
     .raw_data_mem_fault_o(raw_data_mem_fault_o),
+    .raw_branch_valid_o(raw_branch_valid_o),
+    .raw_branch_unresolved_o(raw_branch_unresolved_o),
+    .raw_branch_static_target_valid_o(raw_branch_static_target_valid_o),
+    .raw_branch_static_target_o(raw_branch_static_target_o),
+    .raw_branch_wait_o(raw_branch_wait_o),
+    .raw_branch_resolved_fault_o(raw_branch_resolved_fault_o),
     .interrupt_enter_x86_o(),
     .interrupt_save_interrupted_o(),
     .interrupt_saved_frontend_o(),
@@ -625,6 +637,10 @@ module tb_poly_frontend_core;
     raw_mem_resp_word_i = 32'h94000002;
     #1;
     check(retire_o && !fault_o, "decoded raw direct branch retires");
+    check(raw_branch_valid_o && !raw_branch_unresolved_o &&
+      raw_branch_static_target_valid_o && raw_branch_static_target_o == 64'h6008 &&
+      !raw_branch_wait_o,
+      "decoded raw direct branch exposes static execute sideband");
     check(raw_branch_target_valid_o && raw_branch_target_o == 64'h6008,
       "decoded raw direct branch exposes retired target");
 
@@ -637,12 +653,18 @@ module tb_poly_frontend_core;
     #1;
     check(wait_execute_o && !retire_o && !raw_branch_target_valid_o,
       "decoded raw unresolved branch waits for execute resolution");
+    check(raw_branch_valid_o && raw_branch_unresolved_o &&
+      !raw_branch_static_target_valid_o && raw_branch_wait_o,
+      "decoded raw unresolved branch exposes execute wait sideband");
 
     raw_branch_resolved_i = 1'b1;
     raw_branch_taken_i = 1'b0;
     #1;
     check(retire_o && !fault_o && !raw_branch_target_valid_o,
       "decoded raw resolved not-taken branch retires fallthrough");
+    check(raw_branch_valid_o && raw_branch_unresolved_o &&
+      !raw_branch_wait_o && !raw_branch_resolved_fault_o,
+      "decoded raw resolved not-taken branch clears wait sideband");
 
     raw_branch_taken_i = 1'b1;
     raw_branch_target_i = 64'h7000;
@@ -650,6 +672,9 @@ module tb_poly_frontend_core;
     check(retire_o && !fault_o && raw_branch_target_valid_o &&
       raw_branch_target_o == 64'h7000,
       "decoded raw resolved taken branch exposes execute target");
+    check(raw_branch_valid_o && raw_branch_unresolved_o &&
+      !raw_branch_wait_o && !raw_branch_resolved_fault_o,
+      "decoded raw resolved taken branch exposes clean sideband");
 
     $display("POLY_RTL_FRONTEND_CORE_SIM_OK");
     $finish;

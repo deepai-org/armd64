@@ -114,6 +114,12 @@ module tb_poly_frontend_stateful_core;
   logic raw_data_mem_load_o;
   logic [3:0] raw_data_mem_access_bytes_o;
   logic raw_data_mem_wait_o;
+  logic raw_branch_valid_o;
+  logic raw_branch_unresolved_o;
+  logic raw_branch_static_target_valid_o;
+  logic [63:0] raw_branch_static_target_o;
+  logic raw_branch_wait_o;
+  logic raw_branch_resolved_fault_o;
 
   poly_frontend_stateful_core dut (
     .clk_i(clk_i),
@@ -252,6 +258,12 @@ module tb_poly_frontend_stateful_core;
     .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o),
     .raw_data_mem_wait_o(raw_data_mem_wait_o),
     .raw_data_mem_fault_o(),
+    .raw_branch_valid_o(raw_branch_valid_o),
+    .raw_branch_unresolved_o(raw_branch_unresolved_o),
+    .raw_branch_static_target_valid_o(raw_branch_static_target_valid_o),
+    .raw_branch_static_target_o(raw_branch_static_target_o),
+    .raw_branch_wait_o(raw_branch_wait_o),
+    .raw_branch_resolved_fault_o(raw_branch_resolved_fault_o),
     .interrupt_enter_x86_o(),
     .interrupt_save_interrupted_o(),
     .interrupt_saved_frontend_o(),
@@ -484,6 +496,9 @@ module tb_poly_frontend_stateful_core;
     raw_mem_resp_word_i = 32'h94000002;
     #1;
     check(raw_mem_req_valid_o && retire_o && !fault_o, "raw direct branch retires");
+    check(raw_branch_valid_o && !raw_branch_unresolved_o &&
+      raw_branch_static_target_valid_o && raw_branch_static_target_o == 64'h400c,
+      "raw direct branch exposes stateful static branch sideband");
     check(commit_frontend_o == POLY_FRONTEND_AARCH64 && commit_pc_o == 64'h4008,
       "raw direct branch still reports fallthrough commit metadata");
     check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&
@@ -500,6 +515,9 @@ module tb_poly_frontend_stateful_core;
     #1;
     check(raw_mem_req_valid_o && wait_execute_o && !retire_o && state_hold_o,
       "raw unresolved conditional branch waits for execute target");
+    check(raw_branch_valid_o && raw_branch_unresolved_o &&
+      !raw_branch_static_target_valid_o && raw_branch_wait_o,
+      "raw unresolved conditional branch exposes stateful wait sideband");
     tick();
     clear_inputs();
     #1;
@@ -514,6 +532,9 @@ module tb_poly_frontend_stateful_core;
     #1;
     check(raw_mem_req_valid_o && retire_o && !fault_o,
       "raw resolved not-taken conditional branch retires");
+    check(raw_branch_valid_o && raw_branch_unresolved_o &&
+      !raw_branch_wait_o && !raw_branch_resolved_fault_o,
+      "raw resolved not-taken branch clears stateful wait sideband");
     check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&
       redirect_pc_o == 64'h4010,
       "raw resolved not-taken conditional branch redirects fallthrough");
@@ -532,6 +553,9 @@ module tb_poly_frontend_stateful_core;
     #1;
     check(raw_mem_req_valid_o && retire_o && !fault_o,
       "raw resolved taken conditional branch retires");
+    check(raw_branch_valid_o && raw_branch_unresolved_o &&
+      !raw_branch_wait_o && !raw_branch_resolved_fault_o,
+      "raw resolved taken branch exposes clean stateful sideband");
     check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&
       redirect_pc_o == 64'h5000,
       "raw resolved taken conditional branch redirects execute target");

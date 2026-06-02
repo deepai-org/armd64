@@ -31,10 +31,10 @@ silicon prototype.
   integrated fetch/decode pipeline into frontend retirement commits.
 - `poly_frontend_core.sv`: frontend core wrapper that connects fetch-to-retire
   commits, TSO memory-order backpressure, raw data-memory op metadata,
-  completion/fault gating, raw interrupt save/restore, trap-packet delivery,
-  ABI signature lookup, CPUID discovery, and native return-cookie recovery to
-  the hardware transition stack, with fast-path cycle-budget reporting for
-  integrated transition events.
+  completion/fault gating, raw branch execute sidebands, raw interrupt
+  save/restore, trap-packet delivery, ABI signature lookup, CPUID discovery,
+  and native return-cookie recovery to the hardware transition stack, with
+  fast-path cycle-budget reporting for integrated transition events.
 - `poly_frontend_state.sv`: architectural frontend/PC state register that
   validates and applies committed transitions, raw interrupt restores, and
   native return-cookie resumes, and emits same-cycle redirect metadata for
@@ -45,7 +45,7 @@ silicon prototype.
   raw branch targets, raw data-memory op metadata and completion/faults, raw
   interrupt entry/restore, and native return-cookie resume updates back into
   that state while stalling unresolved raw branches/data accesses and exposing
-  redirect sidebands.
+  redirect and raw branch execute sidebands.
 - `poly_frontend_fpga_top.sv`: FPGA-facing top that wraps the stateful core and
   converts split x86/raw fetch ports into one tagged instruction-memory bus
   while exposing raw data-memory op metadata and validated raw data-memory
@@ -116,21 +116,22 @@ silicon prototype.
   x86 external fetch and raw AArch64/RISC-V memory fetch.
 - `test_poly_frontend_core.py`: frontend/transition-stack integration checks
   for PCALL push, stack-full blocking, TSO memory-order backpressure, raw
-  data-memory metadata and completion/fault gating, raw interrupt save/restore,
-  trap-packet wait/deliver/fault handling, ABI signature lookup, CPUID
-  discovery, return-cookie recovery, transition cycle-budget reporting, and
-  return-pop conflict avoidance.
+  data-memory metadata and completion/fault gating, raw branch execute
+  sidebands, raw interrupt save/restore, trap-packet wait/deliver/fault
+  handling, ABI signature lookup, CPUID discovery, return-cookie recovery,
+  transition cycle-budget reporting, and return-pop conflict avoidance.
 - `test_poly_frontend_state.py`: architectural frontend/PC state checks for
   committed transitions, raw interrupt restores, native return-cookie resumes,
   stalls, faults, invalid targets, and update conflicts.
 - `test_poly_frontend_stateful_core.py`: stateful core wiring checks for
   state-fed frontend/PC inputs and state updates from retire, interrupt, and
   return-cookie paths, including the raw unconditional direct branch commit mux
-  and execute-resolved raw branch/data-memory metadata wiring.
+  and execute-resolved raw branch/data-memory metadata wiring plus raw branch
+  execute sideband pass-through.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
   tagged instruction-memory interface, raw branch/data execute inputs,
-  raw data-memory metadata/request/response outputs, and absence of OS/runtime
-  policy.
+  raw branch metadata outputs, raw data-memory metadata/request/response
+  outputs, and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -260,7 +261,7 @@ POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_SYNTH_OK
-POLY_RTL_FPGA_RESOURCES cells=6847 estimated_lcs=3168
+POLY_RTL_FPGA_RESOURCES cells=6914 estimated_lcs=3169
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK

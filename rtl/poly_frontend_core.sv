@@ -144,6 +144,12 @@ module poly_frontend_core (
     output logic [3:0]  raw_data_mem_access_bytes_o,
     output logic        raw_data_mem_wait_o,
     output logic        raw_data_mem_fault_o,
+    output logic        raw_branch_valid_o,
+    output logic        raw_branch_unresolved_o,
+    output logic        raw_branch_static_target_valid_o,
+    output logic [63:0] raw_branch_static_target_o,
+    output logic        raw_branch_wait_o,
+    output logic        raw_branch_resolved_fault_o,
 
     output logic        interrupt_enter_x86_o,
     output logic        interrupt_save_interrupted_o,
@@ -419,6 +425,13 @@ module poly_frontend_core (
     raw_branch_target_valid || raw_resolved_branch_target_valid;
   assign raw_commit_branch_target =
     raw_branch_target_valid ? raw_branch_target : raw_branch_target_i;
+  assign raw_branch_valid_o = raw_branch;
+  assign raw_branch_unresolved_o = raw_unresolved_branch;
+  assign raw_branch_static_target_valid_o = raw_branch && raw_branch_target_valid;
+  assign raw_branch_static_target_o =
+    raw_branch_static_target_valid_o ? raw_branch_target : 64'd0;
+  assign raw_branch_wait_o = raw_unresolved_branch_wait;
+  assign raw_branch_resolved_fault_o = raw_resolved_branch_target_invalid;
   assign raw_memory_access =
     raw_memory_order_valid &&
     (raw_memory_load || raw_memory_store || raw_memory_atomic);

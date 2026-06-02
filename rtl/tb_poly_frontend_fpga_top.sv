@@ -109,6 +109,12 @@ module tb_poly_frontend_fpga_top;
   logic raw_data_mem_resp_wait_o;
   logic raw_data_mem_resp_resolved_o;
   logic raw_data_mem_resp_fault_o;
+  logic raw_branch_valid_o;
+  logic raw_branch_unresolved_o;
+  logic raw_branch_static_target_valid_o;
+  logic [63:0] raw_branch_static_target_o;
+  logic raw_branch_wait_o;
+  logic raw_branch_resolved_fault_o;
 
   poly_frontend_fpga_top dut (
     .clk_i(clk_i),
@@ -233,6 +239,12 @@ module tb_poly_frontend_fpga_top;
     .raw_data_mem_resp_fault_o(raw_data_mem_resp_fault_o),
     .raw_data_mem_resp_request_fault_o(),
     .raw_data_mem_resp_memory_fault_o(),
+    .raw_branch_valid_o(raw_branch_valid_o),
+    .raw_branch_unresolved_o(raw_branch_unresolved_o),
+    .raw_branch_static_target_valid_o(raw_branch_static_target_valid_o),
+    .raw_branch_static_target_o(raw_branch_static_target_o),
+    .raw_branch_wait_o(raw_branch_wait_o),
+    .raw_branch_resolved_fault_o(raw_branch_resolved_fault_o),
     .trap_mem_write_valid_o(),
     .trap_mem_write_addr_o(),
     .trap_mem_write_bytes_o(),
@@ -419,6 +431,39 @@ module tb_poly_frontend_fpga_top;
     clear_inputs();
     #1;
     check(state_pc_o == 64'h4008, "resolved raw load updates state");
+
+    valid_i = 1'b1;
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_AARCH64;
+    instr_resp_word_i = 32'h94000002;
+    #1;
+    check(retire_o && !fault_o && raw_branch_valid_o &&
+      raw_branch_static_target_valid_o && raw_branch_static_target_o == 64'h4010,
+      "fpga top raw direct branch exposes static target sideband");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_pc_o == 64'h4010, "fpga top raw direct branch updates state");
+
+    valid_i = 1'b1;
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_AARCH64;
+    instr_resp_word_i = 32'h54000040;
+    #1;
+    check(wait_execute_o && !retire_o && raw_branch_valid_o &&
+      raw_branch_unresolved_o && raw_branch_wait_o,
+      "fpga top raw unresolved branch exposes wait sideband");
+    raw_branch_resolved_i = 1'b1;
+    raw_branch_taken_i = 1'b1;
+    raw_branch_target_i = 64'h5000;
+    #1;
+    check(retire_o && !fault_o && raw_branch_unresolved_o &&
+      !raw_branch_wait_o && !raw_branch_resolved_fault_o,
+      "fpga top raw resolved branch clears wait sideband");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_pc_o == 64'h5000, "fpga top raw resolved branch updates state");
 
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_X86;
