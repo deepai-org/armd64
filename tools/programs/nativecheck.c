@@ -2694,6 +2694,22 @@ static void child_expect_aarch64_invalid_generic_switch_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_aarch64_wide_generic_switch_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0x10000090\n" // adr x16,target
+    ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
+    ".long 0xf2c00031\n" // movk x17,#1,lsl #32
+    ".long 0xd5032f1f\n" // aarch64 generic switch frontend=x17 target=x16
+    ".long 0x0000700b\n" // target: riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_aarch64_invalid_generic_switch_target_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -2851,6 +2867,24 @@ static void child_expect_riscv_invalid_generic_switch_signal(void) {
     ".long 0x0ff00313\n" // addi x6,zero,255
     ".long 0x1000700b\n" // riscv generic switch frontend=x6 target=x5
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_riscv_wide_generic_switch_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00000297\n" // auipc x5,0
+    ".long 0x01828293\n" // addi x5,x5,24
+    ".long 0x00100313\n" // addi x6,zero,1
+    ".long 0x02031313\n" // slli x6,x6,32
+    ".long 0x00130313\n" // addi x6,x6,1 (wide AArch64 frontend)
+    ".long 0x1000700b\n" // riscv generic switch frontend=x6 target=x5
+    ".long 0xd5032e1f\n" // target: aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   _exit(99);
@@ -4419,6 +4453,9 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
   if (expect_child_signal("poly aarch64 invalid generic switch", SIGILL,
         child_expect_aarch64_invalid_generic_switch_signal) != 0)
     return 1;
+  if (expect_child_signal("poly aarch64 wide generic switch", SIGILL,
+        child_expect_aarch64_wide_generic_switch_signal) != 0)
+    return 1;
   if (expect_child_signal("poly aarch64 invalid generic switch target", SIGILL,
         child_expect_aarch64_invalid_generic_switch_target_signal) != 0)
     return 1;
@@ -4445,6 +4482,9 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly riscv invalid generic switch", SIGILL,
         child_expect_riscv_invalid_generic_switch_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly riscv wide generic switch", SIGILL,
+        child_expect_riscv_wide_generic_switch_signal) != 0)
     return 1;
   if (expect_child_signal("poly riscv invalid generic switch target", SIGILL,
         child_expect_riscv_invalid_generic_switch_target_signal) != 0)
