@@ -81,6 +81,26 @@ typedef uint8_t poly_native_xsave_area_t[POLY_NATIVE_XSAVE_AREA_BYTES];
 static uint8_t nativecheck_real_xsave_area[POLY_NATIVE_XSAVE_AREA_BYTES]
   __attribute__((aligned(64)));
 
+static void nativecheck_write_all(int fd, const char *buf, size_t len) {
+  while (len > 0) {
+    ssize_t written = write(fd, buf, len);
+    if (written <= 0)
+      return;
+    buf += (size_t) written;
+    len -= (size_t) written;
+  }
+}
+
+static void nativecheck_detail_marker(const char *marker) {
+  size_t len = strlen(marker);
+  fflush(stdout);
+  nativecheck_write_all(STDOUT_FILENO, marker, len);
+  nativecheck_write_all(STDOUT_FILENO, "\n", 1);
+  nativecheck_write_all(STDOUT_FILENO, marker, len);
+  nativecheck_write_all(STDOUT_FILENO, "\n", 1);
+  fflush(stdout);
+}
+
 static int nativecheck_require_real_xsave(void) {
   const char *value = getenv("REQUIRE_POLY_REAL_XSAVE");
   return value != NULL && strcmp(value, "0") != 0 && value[0] != '\0';
@@ -5811,7 +5831,7 @@ static int run_poly_trap_vector_probe(void) {
       &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
     return 1;
 
-  puts("NATIVE_POLY_DESCRIPTOR_IMPORT_TRAPS_OK");
+  nativecheck_detail_marker("NATIVE_POLY_DESCRIPTOR_IMPORT_TRAPS_OK");
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
