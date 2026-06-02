@@ -6401,7 +6401,7 @@ static int run_poly_state_key_probe(void) {
   result = read_rax();
   if (result != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly explicit state-key B inherited A bank got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly explicit state-key B inherited A state got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
@@ -6428,7 +6428,7 @@ static int run_poly_state_key_probe(void) {
   result = read_rax();
   if (result != 11) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly explicit state-key A bank mismatch got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly explicit state-key A state mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
@@ -6467,7 +6467,7 @@ static int run_poly_state_key_probe(void) {
   result = read_rax();
   if (result != 22) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly explicit state-key B bank mismatch got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly explicit state-key B state mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
@@ -6488,7 +6488,7 @@ static int run_poly_state_key_probe(void) {
   result = read_rax();
   if (result != 11) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state-key XSAVE import bank mismatch got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly state-key XSAVE import state mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
@@ -6525,7 +6525,7 @@ static int run_poly_state_key_probe(void) {
   result = read_rax();
   if (result != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly riscv-selected state-key inherited aarch64 bank got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly riscv-selected state-key inherited aarch64 state got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
@@ -6546,7 +6546,7 @@ static int run_poly_state_key_probe(void) {
   result = read_rax();
   if (result != 33) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly aarch64-selected state-key bank mismatch got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly aarch64-selected state-key state mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
@@ -7864,7 +7864,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->riscv_gpr[21] != 111 ||
       saved->riscv_fp[21].lo != five_bits) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XSAVE register bank mismatch a64x21=%llu a64v21=0x%llx rvx21=%llu rvf21=0x%llx\n",
+      "NATIVE_CHECK_FAIL: real XSAVE register state mismatch a64x21=%llu a64v21=0x%llx rvx21=%llu rvf21=0x%llx\n",
       (unsigned long long) saved->aarch64_gpr[21],
       (unsigned long long) saved->aarch64_fp[21].lo,
       (unsigned long long) saved->riscv_gpr[21],
@@ -10260,7 +10260,7 @@ static int run_poly_state_register_bank_probe(void) {
       snapshot.riscv_fp[20].lo != five_bits ||
       snapshot.riscv_status.fcsr != riscv_fcsr_rtz_flags) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state export register bank mismatch a64x20=%llu a64v20=0x%llx fpcr=0x%llx fpsr=0x%llx rvx20=%llu rvf20=0x%llx rvfcsr=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly state export register state mismatch a64x20=%llu a64v20=0x%llx fpcr=0x%llx fpsr=0x%llx rvx20=%llu rvf20=0x%llx rvfcsr=0x%llx\n",
       (unsigned long long) snapshot.aarch64_gpr[20],
       (unsigned long long) snapshot.aarch64_fp[20].lo,
       (unsigned long long) snapshot.aarch64_status.fpcr,
@@ -10569,7 +10569,7 @@ int main(void) {
     uint32_t expected_features = poly_cpuid_expected_feature_mask();
     uint32_t forbidden_feature_bits = poly_cpuid_forbidden_feature_mask();
     if ((features.ecx & forbidden_feature_bits) != 0) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: prototype CPUID feature bits advertised ecx=0x%x forbidden=0x%x\n",
+      fprintf(stderr, "NATIVE_CHECK_FAIL: forbidden Poly CPUID feature bits advertised ecx=0x%x forbidden=0x%x\n",
         features.ecx, forbidden_feature_bits);
       return 1;
     }
@@ -11017,7 +11017,7 @@ int main(void) {
     const uint32_t forbidden_state_bits =
       (1U << 1) | (1U << 2) | (1U << 3) | (1U << 4);
     if ((state.eax & forbidden_state_bits) != 0) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: emulator-private CPUID state bits advertised eax=0x%x forbidden=0x%x\n",
+      fprintf(stderr, "NATIVE_CHECK_FAIL: non-architectural CPUID state bits advertised eax=0x%x forbidden=0x%x\n",
         state.eax, forbidden_state_bits);
       return 1;
     }
