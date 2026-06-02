@@ -126,7 +126,7 @@ enum {
   POLY_RISCV_HWCAP_ISA_F = 1ULL << ('F' - 'A'),
   POLY_RISCV_HWCAP_ISA_I = 1ULL << ('I' - 'A'),
   POLY_RISCV_HWCAP_ISA_M = 1ULL << ('M' - 'A'),
-  POLY_X86_CONTROL_OPCODE_SIZE = 4,
+  POLY_X86_CONTROL_OPCODE_SIZE = POLY_X86_CTRL_TOTAL_BYTES,
   POLY_X86_STATE_KEY_SET_SEQUENCE_SIZE = 14,
   POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE = 13,
   POLY_X86_PCALL_EXCHANGE_U64_SEQUENCE_SIZE = 87,
@@ -677,6 +677,10 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
 static int read_poly_signature_contract(struct poly_import_contract *contract) {
   const struct poly_cpuid_regs x86_controls =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
+  const struct poly_cpuid_regs x86_geometry =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 32);
+  const struct poly_cpuid_regs expected_x86_geometry =
+    poly_cpuid_expected_escape_leaf32();
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
   const struct poly_cpuid_regs signature_ext =
@@ -729,6 +733,13 @@ static int read_poly_signature_contract(struct poly_import_contract *contract) {
       "POLYCALL_FAIL: CPU x86 control manifest mismatch leaf5=(0x%x,0x%x,0x%x,0x%x)\n",
       x86_controls.eax, x86_controls.ebx, x86_controls.ecx,
       x86_controls.edx);
+    return -1;
+  }
+  if (!poly_cpuid_regs_match(&x86_geometry, &expected_x86_geometry)) {
+    fprintf(stderr,
+      "POLYCALL_FAIL: CPU x86 opcode geometry mismatch leaf32=(0x%x,0x%x,0x%x,0x%x)\n",
+      x86_geometry.eax, x86_geometry.ebx, x86_geometry.ecx,
+      x86_geometry.edx);
     return -1;
   }
 

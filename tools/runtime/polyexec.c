@@ -281,8 +281,8 @@ enum {
   POLY_ARCH_AARCH64 = POLY_FRONTEND_AARCH64,
   POLY_ARCH_RISCV = POLY_FRONTEND_RISCV,
   POLY_ARCH_COUNT = 3,
-  POLY_X86_CONTROL_OPCODE_SIZE = 4,
-  POLY_X86_PENTER_BASE_SIZE = 10,
+  POLY_X86_CONTROL_OPCODE_SIZE = POLY_X86_CTRL_TOTAL_BYTES,
+  POLY_X86_PENTER_BASE_SIZE = POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES,
   POLY_X86_TRAMPOLINE_SIZE = 14,
   MAX_PROGRAM_BYTES = 16 * 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
@@ -605,14 +605,22 @@ static int read_poly_base_contract(int require_trap_vector) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs expected_x86_controls =
     poly_cpuid_expected_escape_leaf5();
-  if (x86_controls.eax != expected_x86_controls.eax ||
-      x86_controls.ebx != expected_x86_controls.ebx ||
-      x86_controls.ecx != expected_x86_controls.ecx ||
-      x86_controls.edx != expected_x86_controls.edx) {
+  if (!poly_cpuid_regs_match(&x86_controls, &expected_x86_controls)) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly x86 control manifest mismatch x86=(0x%x,0x%x,0x%x,0x%x)\n",
       x86_controls.eax, x86_controls.ebx, x86_controls.ecx,
       x86_controls.edx);
+    return -1;
+  }
+  const struct poly_cpuid_regs x86_geometry =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 32);
+  const struct poly_cpuid_regs expected_x86_geometry =
+    poly_cpuid_expected_escape_leaf32();
+  if (!poly_cpuid_regs_match(&x86_geometry, &expected_x86_geometry)) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly x86 opcode geometry mismatch x86=(0x%x,0x%x,0x%x,0x%x)\n",
+      x86_geometry.eax, x86_geometry.ebx, x86_geometry.ecx,
+      x86_geometry.edx);
     return -1;
   }
 

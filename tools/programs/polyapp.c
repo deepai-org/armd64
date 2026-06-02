@@ -608,7 +608,7 @@ static size_t poly_frontend_entry_alignment(uint32_t frontend) {
 }
 
 static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
-  const size_t base_size = 10U;
+  const size_t base_size = POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES;
   const size_t align = poly_frontend_entry_alignment(frontend);
   const size_t target = offset + base_size;
   const size_t pad = align > 1 ? ((align - (target & (align - 1U))) & (align - 1U)) : 0;
@@ -617,7 +617,8 @@ static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
 
 static void emit_x86_entry_alignment(uint8_t *code, size_t *offset,
     uint32_t frontend) {
-  size_t pad = x86_penter_frontend_size_at(*offset, frontend) - 10U;
+  size_t pad = x86_penter_frontend_size_at(*offset, frontend) -
+    POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES;
   while (pad-- > 0)
     code[(*offset)++] = 0x90;
 }
@@ -1074,8 +1075,12 @@ static int read_polyapp_base_contract(void) {
     return -1;
   }
 
-  if (check_polyapp_cpuid_leaf("PCALL signature controls", 7,
+  if (check_polyapp_cpuid_leaf("x86 control manifest", 5,
+        poly_cpuid_expected_escape_leaf5()) < 0 ||
+      check_polyapp_cpuid_leaf("PCALL signature controls", 7,
         poly_cpuid_expected_escape_leaf7()) < 0 ||
+      check_polyapp_cpuid_leaf("x86 opcode geometry", 32,
+        poly_cpuid_expected_escape_leaf32()) < 0 ||
       check_polyapp_cpuid_leaf("FP64 signature", 22,
         poly_cpuid_expected_escape_leaf22()) < 0 ||
       check_polyapp_cpuid_leaf("FP32 signature", 23,
