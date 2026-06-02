@@ -3499,6 +3499,46 @@ static void child_expect_bad_header_flags_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_header_foreign_pc_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.foreign_pc = NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_header_foreign_tls_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.foreign_tls_base = NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_aarch64_tls_base_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.frontend_tls.aarch64_tls_base = NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_riscv_tls_base_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.frontend_tls.riscv_tls_base = NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_trap_vector_mode_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -7343,6 +7383,18 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad header flags xstate", SIGILL,
         child_expect_bad_header_flags_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad header foreign pc xstate", SIGILL,
+        child_expect_bad_header_foreign_pc_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad header foreign tls xstate", SIGILL,
+        child_expect_bad_header_foreign_tls_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad AArch64 TLS base xstate", SIGILL,
+        child_expect_bad_aarch64_tls_base_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad RISC-V TLS base xstate", SIGILL,
+        child_expect_bad_riscv_tls_base_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad trap-vector mode xstate", SIGILL,
         child_expect_bad_trap_vector_mode_xsave_signal) != 0)
