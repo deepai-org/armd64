@@ -28,6 +28,9 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] instr_resp_fallthrough_pc_i;
   logic older_fault_i;
   logic execute_fault_i;
+  logic raw_branch_resolved_i;
+  logic raw_branch_taken_i;
+  logic [63:0] raw_branch_target_i;
   logic memory_order_valid_i;
   logic memory_load_i;
   logic memory_store_i;
@@ -113,6 +116,9 @@ module tb_poly_frontend_fpga_top;
     .instr_resp_fallthrough_pc_i(instr_resp_fallthrough_pc_i),
     .older_fault_i(older_fault_i),
     .execute_fault_i(execute_fault_i),
+    .raw_branch_resolved_i(raw_branch_resolved_i),
+    .raw_branch_taken_i(raw_branch_taken_i),
+    .raw_branch_target_i(raw_branch_target_i),
     .memory_order_valid_i(memory_order_valid_i),
     .memory_load_i(memory_load_i),
     .memory_store_i(memory_store_i),
@@ -229,6 +235,9 @@ module tb_poly_frontend_fpga_top;
       instr_resp_fallthrough_pc_i = 64'd0;
       older_fault_i = 1'b0;
       execute_fault_i = 1'b0;
+      raw_branch_resolved_i = 1'b0;
+      raw_branch_taken_i = 1'b0;
+      raw_branch_target_i = 64'd0;
       memory_order_valid_i = 1'b0;
       memory_load_i = 1'b0;
       memory_store_i = 1'b0;

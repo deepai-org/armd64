@@ -28,6 +28,9 @@ module tb_poly_frontend_core;
   logic [31:0] raw_mem_resp_word_i;
   logic older_fault_i;
   logic execute_fault_i;
+  logic raw_branch_resolved_i;
+  logic raw_branch_taken_i;
+  logic [63:0] raw_branch_target_i;
   logic memory_order_valid_i;
   logic memory_load_i;
   logic memory_store_i;
@@ -148,6 +151,9 @@ module tb_poly_frontend_core;
     .raw_mem_resp_word_i(raw_mem_resp_word_i),
     .older_fault_i(older_fault_i),
     .execute_fault_i(execute_fault_i),
+    .raw_branch_resolved_i(raw_branch_resolved_i),
+    .raw_branch_taken_i(raw_branch_taken_i),
+    .raw_branch_target_i(raw_branch_target_i),
     .memory_order_valid_i(memory_order_valid_i),
     .memory_load_i(memory_load_i),
     .memory_store_i(memory_store_i),
@@ -360,6 +366,9 @@ module tb_poly_frontend_core;
       raw_mem_resp_word_i = 32'd0;
       older_fault_i = 1'b0;
       execute_fault_i = 1'b0;
+      raw_branch_resolved_i = 1'b0;
+      raw_branch_taken_i = 1'b0;
+      raw_branch_target_i = 64'd0;
       memory_order_valid_i = 1'b0;
       memory_load_i = 1'b0;
       memory_store_i = 1'b0;
@@ -568,6 +577,29 @@ module tb_poly_frontend_core;
     check(retire_o && !fault_o, "decoded raw direct branch retires");
     check(raw_branch_target_valid_o && raw_branch_target_o == 64'h6008,
       "decoded raw direct branch exposes retired target");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend_i = POLY_FRONTEND_AARCH64;
+    pc_i = 64'h6010;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'h54000040;
+    #1;
+    check(wait_execute_o && !retire_o && !raw_branch_target_valid_o,
+      "decoded raw unresolved branch waits for execute resolution");
+
+    raw_branch_resolved_i = 1'b1;
+    raw_branch_taken_i = 1'b0;
+    #1;
+    check(retire_o && !fault_o && !raw_branch_target_valid_o,
+      "decoded raw resolved not-taken branch retires fallthrough");
+
+    raw_branch_taken_i = 1'b1;
+    raw_branch_target_i = 64'h7000;
+    #1;
+    check(retire_o && !fault_o && raw_branch_target_valid_o &&
+      raw_branch_target_o == 64'h7000,
+      "decoded raw resolved taken branch exposes execute target");
 
     $display("POLY_RTL_FRONTEND_CORE_SIM_OK");
     $finish;

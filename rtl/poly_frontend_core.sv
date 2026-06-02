@@ -25,6 +25,9 @@ module poly_frontend_core (
 
     input  logic        older_fault_i,
     input  logic        execute_fault_i,
+    input  logic        raw_branch_resolved_i,
+    input  logic        raw_branch_taken_i,
+    input  logic [63:0] raw_branch_target_i,
     input  logic        memory_order_valid_i,
     input  logic        memory_load_i,
     input  logic        memory_store_i,
@@ -281,7 +284,12 @@ module poly_frontend_core (
   logic raw_trap;
   logic raw_branch_target_valid;
   logic [63:0] raw_branch_target;
+  logic raw_unresolved_branch;
   logic raw_unresolved_branch_wait;
+  logic raw_resolved_branch_target_valid;
+  logic raw_resolved_branch_target_invalid;
+  logic raw_commit_branch_target_valid;
+  logic [63:0] raw_commit_branch_target;
   logic effective_memory_order_valid;
   logic effective_memory_load;
   logic effective_memory_store;
@@ -292,6 +300,25 @@ module poly_frontend_core (
   localparam logic [2:0] POLY_CYCLE_OP_PCALL_REG = 3'd2;
   localparam logic [2:0] POLY_CYCLE_OP_RETURN_COOKIE = 3'd3;
   localparam logic [2:0] POLY_CYCLE_OP_TRAP_PACKET = 3'd4;
+
+  function automatic logic canonical64(input logic [63:0] addr);
+    begin
+      canonical64 = addr[63:48] == {16{addr[47]}};
+    end
+  endfunction
+
+  function automatic logic aligned_raw_target(
+      input logic [1:0] frontend,
+      input logic [63:0] addr
+  );
+    begin
+      unique case (frontend)
+        2'd1: aligned_raw_target = addr[1:0] == 2'b00;
+        2'd2: aligned_raw_target = addr[0] == 1'b0;
+        default: aligned_raw_target = 1'b1;
+      endcase
+    end
+  endfunction
 
   assign stack_pop_request = transition_pop_i || (return_pop_raw && !transition_pop_i);
   assign stack_unavailable = stack_full || stack_pop_request;
@@ -317,7 +344,8 @@ module poly_frontend_core (
     (!effective_memory_order_valid || memory_retire_allowed_raw) &&
     !raw_unresolved_branch_wait;
   assign execute_fault =
-    execute_fault_i || memory_fault_o || interrupt_error_o || trap_fault_o;
+    execute_fault_i || memory_fault_o || interrupt_error_o || trap_fault_o ||
+    raw_resolved_branch_target_invalid;
   assign memory_retire_allowed_o = memory_retire_allowed_raw;
   assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;
   assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;
@@ -326,9 +354,9 @@ module poly_frontend_core (
   assign memory_riscv_fence_noop_o =
     retire_o && memory_riscv_fence_noop_raw;
   assign raw_branch_target_valid_o =
-    retire_o && raw_branch_target_valid && !poly_ctrl_o;
+    retire_o && raw_commit_branch_target_valid && !poly_ctrl_o;
   assign raw_branch_target_o =
-    raw_branch_target_valid_o ? raw_branch_target : 64'd0;
+    raw_branch_target_valid_o ? raw_commit_branch_target : 64'd0;
   assign block_retire =
     interrupt_enter_x86_o || interrupt_restore_raw_o ||
     trap_wait_response_o || trap_packet_delivered_o;
@@ -362,8 +390,20 @@ module poly_frontend_core (
   assign effective_memory_store = memory_store_i || raw_memory_store;
   assign effective_memory_atomic = memory_atomic_i || raw_memory_atomic;
   assign effective_memory_barrier = memory_barrier_i || raw_memory_barrier;
-  assign raw_unresolved_branch_wait =
+  assign raw_unresolved_branch =
     raw_branch && !raw_branch_target_valid && !return_recover_pop_o;
+  assign raw_unresolved_branch_wait =
+    raw_unresolved_branch && !raw_branch_resolved_i;
+  assign raw_resolved_branch_target_valid =
+    raw_unresolved_branch && raw_branch_resolved_i && raw_branch_taken_i;
+  assign raw_resolved_branch_target_invalid =
+    raw_resolved_branch_target_valid &&
+    (!canonical64(raw_branch_target_i) ||
+     !aligned_raw_target(frontend_i, raw_branch_target_i));
+  assign raw_commit_branch_target_valid =
+    raw_branch_target_valid || raw_resolved_branch_target_valid;
+  assign raw_commit_branch_target =
+    raw_branch_target_valid ? raw_branch_target : raw_branch_target_i;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),

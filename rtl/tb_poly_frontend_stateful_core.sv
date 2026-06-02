@@ -26,6 +26,9 @@ module tb_poly_frontend_stateful_core;
   logic [31:0] raw_mem_resp_word_i;
   logic older_fault_i;
   logic execute_fault_i;
+  logic raw_branch_resolved_i;
+  logic raw_branch_taken_i;
+  logic [63:0] raw_branch_target_i;
   logic memory_order_valid_i;
   logic memory_load_i;
   logic memory_store_i;
@@ -125,6 +128,9 @@ module tb_poly_frontend_stateful_core;
     .raw_mem_resp_word_i(raw_mem_resp_word_i),
     .older_fault_i(older_fault_i),
     .execute_fault_i(execute_fault_i),
+    .raw_branch_resolved_i(raw_branch_resolved_i),
+    .raw_branch_taken_i(raw_branch_taken_i),
+    .raw_branch_target_i(raw_branch_target_i),
     .memory_order_valid_i(memory_order_valid_i),
     .memory_load_i(memory_load_i),
     .memory_store_i(memory_store_i),
@@ -348,6 +354,9 @@ module tb_poly_frontend_stateful_core;
       raw_mem_resp_word_i = 32'd0;
       older_fault_i = 1'b0;
       execute_fault_i = 1'b0;
+      raw_branch_resolved_i = 1'b0;
+      raw_branch_taken_i = 1'b0;
+      raw_branch_target_i = 64'd0;
       memory_order_valid_i = 1'b0;
       memory_load_i = 1'b0;
       memory_store_i = 1'b0;
@@ -479,6 +488,41 @@ module tb_poly_frontend_stateful_core;
     #1;
     check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h400c,
       "raw unresolved conditional branch preserves architectural state");
+
+    valid_i = 1'b1;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'h54000040;
+    raw_branch_resolved_i = 1'b1;
+    raw_branch_taken_i = 1'b0;
+    #1;
+    check(raw_mem_req_valid_o && retire_o && !fault_o,
+      "raw resolved not-taken conditional branch retires");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&
+      redirect_pc_o == 64'h4010,
+      "raw resolved not-taken conditional branch redirects fallthrough");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h4010,
+      "raw resolved not-taken conditional branch updates architectural state");
+
+    valid_i = 1'b1;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'h54000040;
+    raw_branch_resolved_i = 1'b1;
+    raw_branch_taken_i = 1'b1;
+    raw_branch_target_i = 64'h5000;
+    #1;
+    check(raw_mem_req_valid_o && retire_o && !fault_o,
+      "raw resolved taken conditional branch retires");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&
+      redirect_pc_o == 64'h5000,
+      "raw resolved taken conditional branch redirects execute target");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h5000,
+      "raw resolved taken conditional branch updates architectural state");
 
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_X86;
