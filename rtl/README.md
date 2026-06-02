@@ -40,9 +40,9 @@ silicon prototype.
   frontend flush.
 - `poly_frontend_stateful_core.sv`: stateful wrapper that feeds
   `poly_frontend_core.sv` from architectural frontend/PC state and applies
-  retired commits, raw direct branch targets, raw interrupt entry/restore, and
-  native return-cookie resume updates back into that state while exposing
-  redirect sidebands.
+  retired commits, raw unconditional direct branch targets, raw interrupt
+  entry/restore, and native return-cookie resume updates back into that state
+  while exposing redirect sidebands.
 - `poly_frontend_fpga_top.sv`: FPGA-facing top that wraps the stateful core and
   converts split x86/raw fetch ports into one tagged instruction-memory bus.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
@@ -63,8 +63,8 @@ silicon prototype.
   retirement policy, discharged by the Yosys `check-poly-rtl-formal` target.
 - `poly_raw_insn_decode.sv`: raw AArch64/RISC-V instruction-class decoder that
   emits memory-order, branch/call/return, and trap sidebands for hardware
-  policy, plus direct branch/call target sidebands, without high-level
-  emulation.
+  policy, plus unconditional direct branch/call target sidebands, without
+  high-level emulation.
 - `poly_x86_fetch_stage.sv`: x86 frontend response stage that waits for the
   byte frontend and reports response faults before retirement.
 - `poly_raw_fetch_plan.sv`: raw AArch64/RISC-V fetch geometry for alignment,
@@ -113,7 +113,7 @@ silicon prototype.
   stalls, faults, invalid targets, and update conflicts.
 - `test_poly_frontend_stateful_core.py`: stateful core wiring checks for
   state-fed frontend/PC inputs and state updates from retire, interrupt, and
-  return-cookie paths, including the raw direct branch commit mux.
+  return-cookie paths, including the raw unconditional direct branch commit mux.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
   tagged instruction-memory interface and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
@@ -134,7 +134,8 @@ silicon prototype.
   passing, store buffering, and coherence behavior.
 - `test_poly_raw_insn_decode.py`: raw AArch64/RISC-V instruction-class checks
   for loads, stores, atomics, barriers/fences, calls, returns, traps, and
-  direct branch/call target arithmetic.
+  unconditional direct branch/call target arithmetic and unresolved conditional
+  branch suppression.
 - `test_poly_x86_fetch_stage.py`: x86 fetch response-stage checks for wait,
   instruction-valid, fallthrough, and response-fault behavior.
 - `test_poly_raw_fetch_plan.py`: raw foreign-fetch geometry checks against
@@ -238,7 +239,7 @@ POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_SYNTH_OK
-POLY_RTL_FPGA_RESOURCES cells=6865 estimated_lcs=3246
+POLY_RTL_FPGA_RESOURCES cells=6632 estimated_lcs=3179
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK

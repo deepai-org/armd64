@@ -66,25 +66,18 @@ def decode(valid: bool, frontend: int, insn: int, pc: int = 0x1000) -> dict[str,
     )
     rv_return = rv32 and insn == 0x00008067
     rv_trap = (rv32 and opcode == 0x73) or (not rv32 and rv16 == 0x9002)
-    rv32_direct = rv32 and opcode in {0x63, 0x6F}
+    rv32_direct = rv32 and opcode == 0x6F
     rv16_direct = (
         not rv32 and rv16_quad == 0b01 and
-        rv16_funct3 in {0b001, 0b101, 0b110, 0b111}
+        rv16_funct3 in {0b001, 0b101}
     )
 
     a64_b_target = pc + (sext(insn & 0x03FF_FFFF, 26) << 2)
-    a64_cond_target = pc + (sext((insn >> 5) & 0x7_FFFF, 19) << 2)
     rv_jal_imm = (
         ((insn >> 31) & 0x1) << 20 |
         ((insn >> 12) & 0xFF) << 12 |
         ((insn >> 20) & 0x1) << 11 |
         ((insn >> 21) & 0x3FF) << 1
-    )
-    rv_branch_imm = (
-        ((insn >> 31) & 0x1) << 12 |
-        ((insn >> 7) & 0x1) << 11 |
-        ((insn >> 25) & 0x3F) << 5 |
-        ((insn >> 8) & 0xF) << 1
     )
     rv16_j_imm = (
         ((rv16 >> 12) & 0x1) << 11 |
@@ -96,13 +89,6 @@ def decode(valid: bool, frontend: int, insn: int, pc: int = 0x1000) -> dict[str,
         ((rv16 >> 3) & 0x7) << 1 |
         ((rv16 >> 2) & 0x1) << 5
     )
-    rv16_branch_imm = (
-        ((rv16 >> 12) & 0x1) << 8 |
-        ((rv16 >> 5) & 0x3) << 6 |
-        ((rv16 >> 2) & 0x1) << 5 |
-        ((rv16 >> 10) & 0x3) << 3 |
-        ((rv16 >> 3) & 0x3) << 1
-    )
 
     load = (a64 and a64_load_store and not a64_atomic and bool((insn >> 22) & 1)) or (rv and rv_load)
     store = (a64 and a64_load_store and not a64_atomic and not bool((insn >> 22) & 1)) or (rv and rv_store)
@@ -110,21 +96,15 @@ def decode(valid: bool, frontend: int, insn: int, pc: int = 0x1000) -> dict[str,
     barrier = (a64 and a64_barrier) or (rv and rv_barrier)
     raw = a64 or rv
     target_valid = (
-        (a64 and (a64_b or a64_bl or a64_cond_b)) or
+        (a64 and (a64_b or a64_bl)) or
         (rv and (rv32_direct or rv16_direct))
     )
     target = 0
     if target_valid:
         if a64 and (a64_b or a64_bl):
             target = a64_b_target
-        elif a64 and a64_cond_b:
-            target = a64_cond_target
         elif rv and rv32 and opcode == 0x6F:
             target = pc + sext(rv_jal_imm, 21)
-        elif rv and rv32 and opcode == 0x63:
-            target = pc + sext(rv_branch_imm, 13)
-        elif rv and rv16_funct3 in {0b110, 0b111}:
-            target = pc + sext(rv16_branch_imm, 9)
         else:
             target = pc + sext(rv16_j_imm, 12)
 
@@ -153,6 +133,8 @@ def require_structural_wiring() -> None:
         "rv_opcode = insn_i[6:0]",
         "branch_target_valid_o =",
         "branch_target_o = pc_i +",
+        "rv32_uncond_direct =",
+        "rv16_uncond_direct =",
         "memory_order_valid_o =",
         "call_o =",
         "return_o =",
@@ -182,6 +164,7 @@ def main() -> int:
     assert_class(POLY_FRONTEND_AARCH64, 0xD5033FBF, memory_order=True, barrier=True)
     assert_class(POLY_FRONTEND_AARCH64, 0x94000002, pc=0x6000, branch=True, call=True, target_valid=True, target=0x6008)
     assert_class(POLY_FRONTEND_AARCH64, 0x17FFFFFE, pc=0x6000, branch=True, target_valid=True, target=0x5FF8)
+    assert_class(POLY_FRONTEND_AARCH64, 0x54000040, pc=0x6000, branch=True, target_valid=False, target=0)
     assert_class(POLY_FRONTEND_AARCH64, 0xD65F03C0, branch=True, call=False, target_valid=False, **{"return": True})
     assert_class(POLY_FRONTEND_AARCH64, 0xD4200000, trap=True)
 
@@ -190,7 +173,7 @@ def main() -> int:
     assert_class(POLY_FRONTEND_RISCV, 0x08B5302F, memory_order=True, atomic=True)
     assert_class(POLY_FRONTEND_RISCV, 0x0000000F, memory_order=True, barrier=True)
     assert_class(POLY_FRONTEND_RISCV, 0x008000EF, pc=0xA000, branch=True, call=True, target_valid=True, target=0xA008)
-    assert_class(POLY_FRONTEND_RISCV, 0xFE000CE3, pc=0xA000, branch=True, target_valid=True, target=0x9FF8)
+    assert_class(POLY_FRONTEND_RISCV, 0xFE000CE3, pc=0xA000, branch=True, target_valid=False, target=0)
     assert_class(POLY_FRONTEND_RISCV, 0x00008067, branch=True, target_valid=False, **{"return": True})
     assert_class(POLY_FRONTEND_RISCV, 0x00000073, trap=True)
     assert_class(POLY_FRONTEND_RISCV, 0x0000E002, memory_order=True, store=True)
