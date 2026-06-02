@@ -7530,8 +7530,17 @@ static int run_poly_state_save_restore_probe(void) {
   poly_landing_policy_set(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(trap_vector);
+  const uint64_t aarch64_syscall_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    10, 11, 12, 13, 14, 15, 27, 5
+  };
   asm volatile(
     POLY_OP_ENTER_A64
+    ".long 0xd2800140\n" // movz x0,#10
+    ".long 0xd2800161\n" // movz x1,#11
+    ".long 0xd2800182\n" // movz x2,#12
+    ".long 0xd28001a3\n" // movz x3,#13
+    ".long 0xd28001c4\n" // movz x4,#14
+    ".long 0xd28001e5\n" // movz x5,#15
     ".long 0xd2800366\n" // movz x6,#27
     ".long 0xd28000a7\n" // movz x7,#5
     ".long 0xd2801588\n" // movz x8,#172
@@ -7545,21 +7554,31 @@ static int run_poly_state_save_restore_probe(void) {
       trap_snapshot.trap.source_mode != POLY_MODE_RAW_AARCH64 ||
       trap_snapshot.trap.number != 172 ||
       trap_snapshot.trap.selector != 7 ||
-      trap_snapshot.trap_args[6] != 27 ||
-      trap_snapshot.trap_args[7] != 5) {
+      memcmp(trap_snapshot.trap_args, aarch64_syscall_trap_args,
+        sizeof(aarch64_syscall_trap_args)) != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state export aarch64 syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu\n",
+      "NATIVE_CHECK_FAIL: poly state export aarch64 syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu\n",
       trap_snapshot.trap.reason,
       trap_snapshot.trap.source_mode,
       (unsigned long long) trap_snapshot.trap.number,
       (unsigned long long) trap_snapshot.trap.selector,
+      (unsigned long long) trap_snapshot.trap_args[0],
       (unsigned long long) trap_snapshot.trap_args[6],
       (unsigned long long) trap_snapshot.trap_args[7]);
     return 1;
   }
 
+  const uint64_t riscv_syscall_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    20, 21, 22, 23, 24, 25, 27, 172
+  };
   asm volatile(
     POLY_OP_ENTER_RV64
+    ".long 0x01400513\n" // addi a0,zero,20
+    ".long 0x01500593\n" // addi a1,zero,21
+    ".long 0x01600613\n" // addi a2,zero,22
+    ".long 0x01700693\n" // addi a3,zero,23
+    ".long 0x01800713\n" // addi a4,zero,24
+    ".long 0x01900793\n" // addi a5,zero,25
     ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x0ac00893\n" // addi a7,zero,172
     ".long 0x00000073\n" // ecall
@@ -7572,14 +7591,15 @@ static int run_poly_state_save_restore_probe(void) {
       trap_snapshot.trap.source_mode != POLY_MODE_RAW_RISCV ||
       trap_snapshot.trap.number != 172 ||
       trap_snapshot.trap.selector != 0 ||
-      trap_snapshot.trap_args[6] != 27 ||
-      trap_snapshot.trap_args[7] != 172) {
+      memcmp(trap_snapshot.trap_args, riscv_syscall_trap_args,
+        sizeof(riscv_syscall_trap_args)) != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state export riscv syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg6=%llu arg7=%llu\n",
+      "NATIVE_CHECK_FAIL: poly state export riscv syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu\n",
       trap_snapshot.trap.reason,
       trap_snapshot.trap.source_mode,
       (unsigned long long) trap_snapshot.trap.number,
       (unsigned long long) trap_snapshot.trap.selector,
+      (unsigned long long) trap_snapshot.trap_args[0],
       (unsigned long long) trap_snapshot.trap_args[6],
       (unsigned long long) trap_snapshot.trap_args[7]);
     return 1;
@@ -7657,14 +7677,15 @@ static int run_poly_state_save_restore_probe(void) {
       import_trap_snapshot.trap.number != 172 ||
       import_trap_snapshot.trap.source_mode != POLY_MODE_RAW_RISCV ||
       import_trap_snapshot.trap.selector != 0 ||
-      import_trap_snapshot.trap_args[6] != 27 ||
-      import_trap_snapshot.trap_args[7] != 172) {
+      memcmp(import_trap_snapshot.trap_args, riscv_syscall_trap_args,
+        sizeof(riscv_syscall_trap_args)) != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state import syscall trap mismatch reason=%u number=%llu mode=%u selector=%llu arg6=%llu arg7=%llu\n",
+      "NATIVE_CHECK_FAIL: poly state import syscall trap mismatch reason=%u number=%llu mode=%u selector=%llu arg0=%llu arg6=%llu arg7=%llu\n",
       import_trap_snapshot.trap.reason,
       (unsigned long long) import_trap_snapshot.trap.number,
       import_trap_snapshot.trap.source_mode,
       (unsigned long long) import_trap_snapshot.trap.selector,
+      (unsigned long long) import_trap_snapshot.trap_args[0],
       (unsigned long long) import_trap_snapshot.trap_args[6],
       (unsigned long long) import_trap_snapshot.trap_args[7]);
     return 1;
