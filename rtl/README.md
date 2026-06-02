@@ -24,6 +24,8 @@ silicon prototype.
   hardware register aliasing.
 - `poly_cpuid_rom.sv`: Poly vendor CPUID discovery ROM for feature bits, XSAVE
   geometry, trap packets, transitions, and ABI signatures.
+- `poly_memory_order.sv`: x86 TSO memory-order retirement policy for all Poly
+  frontends, including foreign barrier/fence no-op handling.
 - `poly_raw_fetch_plan.sv`: raw AArch64/RISC-V fetch geometry for alignment,
   instruction width, instruction bits, and next-PC calculation.
 - `poly_raw_fetch_request.sv`: raw AArch64/RISC-V instruction-memory request
@@ -52,6 +54,8 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_cpuid_rom.py`: CPUID ROM checks against
   `tools/include/polycpuid.h`.
+- `test_poly_memory_order.py`: memory-order policy checks against the CPUID
+  TSO contract.
 - `test_poly_raw_fetch_plan.py`: raw foreign-fetch geometry checks against
   `tools/include/polycpuid.h`.
 - `test_poly_raw_fetch_request.py`: raw instruction-fetch request checks
@@ -76,6 +80,7 @@ python3 rtl/test_poly_interrupt_boundary.py
 python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
 python3 rtl/test_poly_cpuid_rom.py
+python3 rtl/test_poly_memory_order.py
 python3 rtl/test_poly_raw_fetch_request.py
 python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
@@ -95,6 +100,7 @@ POLY_RTL_INTERRUPT_BOUNDARY_OK
 POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
 POLY_RTL_CPUID_ROM_OK
+POLY_RTL_MEMORY_ORDER_OK
 POLY_RTL_RAW_FETCH_REQUEST_OK
 POLY_RTL_RAW_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_PLAN_OK
