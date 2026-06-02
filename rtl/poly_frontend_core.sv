@@ -75,6 +75,7 @@ module poly_frontend_core (
     input  logic        cpuid_valid_i,
     input  logic [31:0] cpuid_leaf_i,
     input  logic [31:0] cpuid_subleaf_i,
+    input  logic [7:0]  cycle_memory_response_cycles_i,
 
     output logic        raw_mem_req_valid_o,
     output logic [63:0] raw_mem_req_addr_o,
@@ -189,6 +190,16 @@ module poly_frontend_core (
     output logic [31:0] cpuid_ecx_o,
     output logic [31:0] cpuid_edx_o,
 
+    output logic        cycle_budget_valid_o,
+    output logic [7:0]  cycle_fixed_o,
+    output logic [7:0]  cycle_variable_o,
+    output logic [8:0]  cycle_total_o,
+    output logic        cycle_few_cycle_fast_path_o,
+    output logic        cycle_waits_for_memory_o,
+    output logic        cycle_unsupported_o,
+    output logic        cycle_invalid_op_o,
+    output logic        cycle_blocked_o,
+
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
     output logic        older_fault_o,
@@ -244,6 +255,14 @@ module poly_frontend_core (
   logic [1:0] interrupted_frontend_q;
   logic [63:0] interrupted_pc_q;
   logic block_retire;
+  logic cycle_valid;
+  logic [2:0] cycle_op;
+  logic cycle_transition_stack_ready;
+
+  localparam logic [2:0] POLY_CYCLE_OP_PSWITCH = 3'd1;
+  localparam logic [2:0] POLY_CYCLE_OP_PCALL_REG = 3'd2;
+  localparam logic [2:0] POLY_CYCLE_OP_RETURN_COOKIE = 3'd3;
+  localparam logic [2:0] POLY_CYCLE_OP_TRAP_PACKET = 3'd4;
 
   assign stack_pop_request = transition_pop_i || (return_pop_raw && !transition_pop_i);
   assign stack_unavailable = stack_full || stack_pop_request;
@@ -289,6 +308,19 @@ module poly_frontend_core (
   assign interrupted_valid_o = interrupted_valid_q;
   assign interrupted_frontend_o = interrupted_frontend_q;
   assign interrupted_pc_o = interrupted_pc_q;
+  assign cycle_valid =
+    commit_transition_o || return_recover_pop_o ||
+    (trap_mem_write_valid_o && !trap_fault_o);
+  assign cycle_op =
+    (trap_mem_write_valid_o && !trap_fault_o) ? POLY_CYCLE_OP_TRAP_PACKET :
+    return_recover_pop_o ? POLY_CYCLE_OP_RETURN_COOKIE :
+    commit_push_transition_o ? POLY_CYCLE_OP_PCALL_REG :
+    commit_transition_o ? POLY_CYCLE_OP_PSWITCH :
+    3'd0;
+  assign cycle_transition_stack_ready =
+    cycle_op == POLY_CYCLE_OP_PCALL_REG ? !transition_stack_full_o :
+    cycle_op == POLY_CYCLE_OP_RETURN_COOKIE ? return_recover_pop_o :
+    1'b1;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),
@@ -469,6 +501,25 @@ module poly_frontend_core (
     .ebx_o(cpuid_ebx_o),
     .ecx_o(cpuid_ecx_o),
     .edx_o(cpuid_edx_o)
+  );
+
+  poly_transition_cycle_budget transition_cycle_budget (
+    .valid_i(cycle_valid),
+    .op_i(cycle_op),
+    .register_only_signature_i(abi_signature_valid_o),
+    .signature_slot_valid_i(abi_signature_valid_o),
+    .transition_stack_ready_i(cycle_transition_stack_ready),
+    .monitor_packet_ready_i(trap_mem_write_valid_o),
+    .memory_response_cycles_i(cycle_memory_response_cycles_i),
+    .budget_valid_o(cycle_budget_valid_o),
+    .fixed_cycles_o(cycle_fixed_o),
+    .variable_cycles_o(cycle_variable_o),
+    .total_cycles_o(cycle_total_o),
+    .few_cycle_fast_path_o(cycle_few_cycle_fast_path_o),
+    .waits_for_memory_o(cycle_waits_for_memory_o),
+    .unsupported_o(cycle_unsupported_o),
+    .invalid_op_o(cycle_invalid_op_o),
+    .blocked_o(cycle_blocked_o)
   );
 
   poly_transition_stack transition_stack (

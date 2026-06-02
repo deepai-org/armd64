@@ -22,7 +22,8 @@ silicon prototype.
 - `poly_frontend_core.sv`: frontend core wrapper that connects fetch-to-retire
   commits, TSO memory-order backpressure, raw interrupt save/restore,
   trap-packet delivery, ABI signature lookup, CPUID discovery, and native
-  return-cookie recovery to the hardware transition stack.
+  return-cookie recovery to the hardware transition stack, with fast-path
+  cycle-budget reporting for integrated transition events.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -63,8 +64,8 @@ silicon prototype.
 - `test_poly_frontend_core.py`: frontend/transition-stack integration checks
   for PCALL push, stack-full blocking, TSO memory-order backpressure, raw
   interrupt save/restore, trap-packet wait/deliver/fault handling, ABI
-  signature lookup, CPUID discovery, return-cookie recovery, and return-pop
-  conflict avoidance.
+  signature lookup, CPUID discovery, return-cookie recovery, transition
+  cycle-budget reporting, and return-pop conflict avoidance.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against

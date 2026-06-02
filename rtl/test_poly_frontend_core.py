@@ -206,6 +206,7 @@ def core_step(
     trap_source_mode: int = 1,
     trap_mem_write_resp_valid: bool = False,
     trap_mem_write_fault: bool = False,
+    cycle_memory_response_cycles: int = 0,
 ) -> dict[str, int | bool | tuple[int, int, int, int] | None]:
     interrupt_state = interrupt_state or InterruptState()
     current_raw = frontend in {
@@ -353,6 +354,37 @@ def core_step(
     if commit_push:
         stack.push((frontend, return_pc, sp, flags))
     abi_valid, abi_kind, abi_map, abi_tls = abi_slot(pcall_slot, c)
+    abi_signature_valid = commit_push and abi_valid
+    cycle_op = 0
+    if trap_packet_valid and not trap_fault:
+        cycle_op = 4
+    elif return_pop:
+        cycle_op = 3
+    elif commit_push:
+        cycle_op = 2
+    elif is_pcall and retire:
+        cycle_op = 1
+    cycle_supported = cycle_op in {1, 2, 3, 4}
+    cycle_requires_signature = cycle_op == 2
+    cycle_requires_stack = cycle_op in {2, 3}
+    cycle_requires_packet = cycle_op == 4
+    cycle_stack_ready = (
+        (cycle_op == 2 and not stack_unavailable) or
+        (cycle_op == 3 and return_pop) or
+        cycle_op not in {2, 3}
+    )
+    cycle_packet_ready = not cycle_requires_packet or trap_packet_valid
+    cycle_unsupported = cycle_requires_signature and not abi_signature_valid
+    cycle_blocked = (
+        cycle_supported and not cycle_unsupported and (
+            (cycle_requires_signature and not abi_signature_valid) or
+            (cycle_requires_stack and not cycle_stack_ready) or
+            (cycle_requires_packet and not cycle_packet_ready)
+        )
+    )
+    cycle_fixed = {1: 3, 2: 4, 3: 3, 4: 2}.get(cycle_op, 0)
+    cycle_variable = cycle_memory_response_cycles if cycle_op == 4 else 0
+    cycle_valid = cycle_supported and not cycle_unsupported and not cycle_blocked
     if interrupt_enter:
         interrupt_state.valid = True
         interrupt_state.frontend = frontend
@@ -367,10 +399,18 @@ def core_step(
         "push": commit_push,
         "slot": pcall_slot if commit_push else 0,
         "abi_apply": commit_push,
-        "abi_valid": commit_push and abi_valid,
-        "abi_kind": abi_kind if commit_push and abi_valid else 0,
-        "abi_map": abi_map if commit_push and abi_valid else 0,
-        "abi_tls": commit_push and abi_valid and abi_tls,
+        "abi_valid": abi_signature_valid,
+        "abi_kind": abi_kind if abi_signature_valid else 0,
+        "abi_map": abi_map if abi_signature_valid else 0,
+        "abi_tls": abi_signature_valid and abi_tls,
+        "cycle_valid": cycle_valid,
+        "cycle_fixed": cycle_fixed,
+        "cycle_variable": cycle_variable,
+        "cycle_total": cycle_fixed + cycle_variable,
+        "cycle_few": cycle_valid and cycle_op != 4 and cycle_fixed <= 4,
+        "cycle_waits_memory": cycle_op == 4 and cycle_supported,
+        "cycle_unsupported": cycle_unsupported,
+        "cycle_blocked": cycle_blocked,
         "fault": control_fault,
         "execute_ready": execute_ready,
         "wait_execute": bool(valid and fetch_valid and not execute_ready and not execute_fault),
@@ -449,6 +489,10 @@ def require_structural_wiring() -> None:
         ".valid_i(cpuid_valid_i)",
         ".leaf_i(cpuid_leaf_i)",
         ".hit_o(cpuid_hit_o)",
+        "poly_transition_cycle_budget transition_cycle_budget",
+        ".valid_i(cycle_valid)",
+        ".op_i(cycle_op)",
+        ".budget_valid_o(cycle_budget_valid_o)",
         "interrupted_valid_q <= 1'b1;",
         "interrupted_valid_q <= 1'b0;",
     ]:
@@ -496,6 +540,8 @@ def main() -> int:
     assert first["slot"] == 0
     assert first["abi_kind"] == c["POLY_ABI_SIGNATURE_KIND_EXCHANGE"]
     assert first["abi_map"] == c["POLY_ABI_REGISTER_MAP_EXCHANGE"]
+    assert first["cycle_valid"] and first["cycle_fixed"] == 4
+    assert first["cycle_total"] == 4 and first["cycle_few"]
     assert stack.frames[-1] == (
         c["POLY_FRONTEND_X86"], 0x1004, 0x8000, 0x55
     )
@@ -524,6 +570,7 @@ def main() -> int:
     assert immediate_slot_call["abi_apply"] and immediate_slot_call["abi_valid"]
     assert immediate_slot_call["abi_kind"] == c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64"]
     assert immediate_slot_call["abi_map"] == c["POLY_ABI_REGISTER_MAP_NATIVE_FP64"]
+    assert immediate_slot_call["cycle_valid"] and immediate_slot_call["cycle_few"]
 
     popped = core_step(
         stack,
@@ -622,6 +669,8 @@ def main() -> int:
         c["POLY_FRONTEND_AARCH64"], 0x4400, 0x8800, 0x80
     )
     assert recovered["depth"] == 0
+    assert recovered["cycle_valid"] and recovered["cycle_fixed"] == 3
+    assert recovered["cycle_few"]
 
     blocked_stack = TransitionStack(depth)
     blocked_stack.push((c["POLY_FRONTEND_X86"], 0x5000, 0x9000, 0x81))
@@ -880,11 +929,15 @@ def main() -> int:
         trap_reason=c["POLY_TRAP_SYSCALL"],
         trap_source_mode=c["POLY_MODE_RAW_AARCH64"],
         trap_mem_write_resp_valid=False,
+        cycle_memory_response_cycles=7,
         c=c,
     )
     assert trap_wait["trap_mem_write_valid"] and trap_wait["trap_wait"]
     assert trap_wait["wait_retire"] and not trap_wait["retire"]
     assert not trap_wait["trap_fault"] and not trap_wait["execute_fault"]
+    assert trap_wait["cycle_valid"] and trap_wait["cycle_waits_memory"]
+    assert trap_wait["cycle_fixed"] == 2 and trap_wait["cycle_variable"] == 7
+    assert trap_wait["cycle_total"] == 9 and not trap_wait["cycle_few"]
 
     trap_delivered = core_step(
         TransitionStack(depth),
@@ -908,11 +961,14 @@ def main() -> int:
         trap_source_mode=c["POLY_MODE_RAW_RISCV"],
         trap_mem_write_resp_valid=True,
         trap_mem_write_fault=False,
+        cycle_memory_response_cycles=1,
         c=c,
     )
     assert trap_delivered["trap_delivered"] and trap_delivered["wait_retire"]
     assert trap_delivered["trap_required_flags"] == 0x7F
     assert not trap_delivered["retire"] and not trap_delivered["execute_fault"]
+    assert trap_delivered["cycle_valid"] and trap_delivered["cycle_total"] == 3
+    assert trap_delivered["cycle_waits_memory"] and not trap_delivered["cycle_few"]
 
     trap_packet_fault = core_step(
         TransitionStack(depth),
@@ -942,6 +998,7 @@ def main() -> int:
     assert trap_packet_fault["trap_packet_mem_fault"]
     assert trap_packet_fault["execute_fault"]
     assert not trap_packet_fault["wait_retire"] and not trap_packet_fault["retire"]
+    assert not trap_packet_fault["cycle_valid"]
 
     trap_encode_fault = core_step(
         TransitionStack(depth),
