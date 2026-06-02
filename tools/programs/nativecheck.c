@@ -3495,6 +3495,16 @@ static void child_expect_bad_monitor_packet_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_monitor_packet_alignment_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.monitor_packet_addr = 0x0000000000457001ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_trap_reason_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -4718,9 +4728,12 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   memset(&monitor_packet, 0, sizeof(monitor_packet));
+  const uint64_t monitor_packet_addr =
+    (uint64_t) (uintptr_t) &monitor_packet;
+  const uint64_t monitor_packet_unaligned = monitor_packet_addr + 1;
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) handler);
-  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  poly_monitor_packet_set_value(monitor_packet_addr);
   poly_trap_vector_get();
   if (read_rax() != handler_addr) {
     fputs("NATIVE_CHECK_FAIL: poly trap vector get mismatch\n", stderr);
@@ -4826,7 +4839,7 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(handler_addr);
   poly_monitor_packet_get();
-  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+  if (read_rax() != monitor_packet_addr) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly monitor packet get mismatch got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
@@ -4838,9 +4851,22 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   poly_monitor_packet_get();
-  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+  if (read_rax() != monitor_packet_addr) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly x86 invalid monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_monitor_packet_set_result(monitor_packet_unaligned) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 monitor packet accepted unaligned address\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != monitor_packet_addr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 unaligned monitor packet mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
@@ -4914,8 +4940,7 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(handler_addr);
   if (poly_aarch64_monitor_packet_set_get(
-        (uint64_t) (uintptr_t) &monitor_packet) !=
-      (uint64_t) (uintptr_t) &monitor_packet) {
+        monitor_packet_addr) != monitor_packet_addr) {
     fputs("NATIVE_CHECK_FAIL: poly aarch64 monitor packet set/get mismatch\n",
       stderr);
     return 1;
@@ -4927,9 +4952,22 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   poly_monitor_packet_get();
-  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+  if (read_rax() != monitor_packet_addr) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly aarch64 invalid monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_aarch64_monitor_packet_set(monitor_packet_unaligned) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 monitor packet accepted unaligned address\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != monitor_packet_addr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 unaligned monitor packet mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
@@ -5003,8 +5041,7 @@ static int run_poly_trap_vector_probe(void) {
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(handler_addr);
   if (poly_riscv_monitor_packet_set_get(
-        (uint64_t) (uintptr_t) &monitor_packet) !=
-      (uint64_t) (uintptr_t) &monitor_packet) {
+        monitor_packet_addr) != monitor_packet_addr) {
     fputs("NATIVE_CHECK_FAIL: poly riscv monitor packet set/get mismatch\n",
       stderr);
     return 1;
@@ -5016,9 +5053,22 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
   poly_monitor_packet_get();
-  if (read_rax() != (uint64_t) (uintptr_t) &monitor_packet) {
+  if (read_rax() != monitor_packet_addr) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv invalid monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_riscv_monitor_packet_set(monitor_packet_unaligned) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv monitor packet accepted unaligned address\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != monitor_packet_addr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv unaligned monitor packet mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
@@ -6949,6 +6999,9 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad monitor packet xstate", SIGILL,
         child_expect_bad_monitor_packet_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad monitor packet alignment xstate", SIGILL,
+        child_expect_bad_monitor_packet_alignment_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad trap reason xstate", SIGILL,
         child_expect_bad_trap_reason_xsave_signal) != 0)

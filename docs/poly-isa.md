@@ -22,6 +22,8 @@ For build/test commands, see `README.md`. For design rationale, see
   trap packets, and restore trap state.
 - Software handles stack arguments, aggregates, variadics, lazy binding,
   syscall/libc policy, and any ABI work that requires reading user memory.
+- Trap vectors must be valid frontend targets. Monitor packet addresses must be
+  canonical and qword-aligned.
 
 ## Prototype Controls
 

@@ -75,6 +75,8 @@ specific subsystem.
   context-switch contract.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
   OS-neutral trap records for a runtime or OS handler.
+- Trap vectors are frontend-aligned control targets; monitor packet addresses
+  are canonical and qword-aligned.
 - AArch64 and RISC-V64 can switch or call each other directly without bouncing
   through x86_64.
 
