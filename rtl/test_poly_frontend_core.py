@@ -84,6 +84,23 @@ def trap_flags(c: dict[str, int]) -> int:
     )
 
 
+def vendor_regs() -> tuple[int, int, int]:
+    vendor = b"PolyglotCPU!"
+    ebx = int.from_bytes(vendor[0:4], "little")
+    edx = int.from_bytes(vendor[4:8], "little")
+    ecx = int.from_bytes(vendor[8:12], "little")
+    return ebx, ecx, edx
+
+
+def core_cpuid(valid: bool, leaf: int, c: dict[str, int]) -> tuple[bool, int, int, int, int]:
+    if not valid:
+        return (False, 0, 0, 0, 0)
+    if leaf == c["POLY_CPUID_BASE"]:
+        ebx, ecx, edx = vendor_regs()
+        return (True, c["POLY_CPUID_MAX"], ebx, ecx, edx)
+    return (False, 0, 0, 0, 0)
+
+
 def abi_slot(slot: int, c: dict[str, int]) -> tuple[bool, int, int, bool]:
     slots = [
         (c["POLY_ABI_SIGNATURE_KIND_EXCHANGE"], c["POLY_ABI_REGISTER_MAP_EXCHANGE"]),
@@ -428,6 +445,10 @@ def require_structural_wiring() -> None:
         ".select_slot_i(commit_signature_slot_o[3:0])",
         "assign abi_signature_apply_o = commit_push_transition_o;",
         "assign abi_signature_valid_o = commit_push_transition_o && abi_select_valid;",
+        "poly_cpuid_rom cpuid_rom",
+        ".valid_i(cpuid_valid_i)",
+        ".leaf_i(cpuid_leaf_i)",
+        ".hit_o(cpuid_hit_o)",
         "interrupted_valid_q <= 1'b1;",
         "interrupted_valid_q <= 1'b0;",
     ]:
@@ -441,6 +462,12 @@ def main() -> int:
     cookie = parse_bochs_return_cookie(BOCHS)
     assert depth == c["POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH"]
     require_structural_wiring()
+
+    assert core_cpuid(True, c["POLY_CPUID_BASE"], c) == (
+        True, c["POLY_CPUID_MAX"], *vendor_regs()
+    )
+    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 2, c) == (False, 0, 0, 0, 0)
+    assert core_cpuid(False, c["POLY_CPUID_BASE"], c) == (False, 0, 0, 0, 0)
 
     pcall = x86_ctrl_word(c["POLY_X86_CTRL_PCALL_SIG_MODE"])
     stack = TransitionStack(depth)

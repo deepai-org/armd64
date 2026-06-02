@@ -72,6 +72,10 @@ module poly_frontend_core (
     input  logic [7:0]  abi_signature_set_kind_i,
     input  logic [31:0] abi_signature_set_map_i,
 
+    input  logic        cpuid_valid_i,
+    input  logic [31:0] cpuid_leaf_i,
+    input  logic [31:0] cpuid_subleaf_i,
+
     output logic        raw_mem_req_valid_o,
     output logic [63:0] raw_mem_req_addr_o,
     output logic [2:0]  raw_mem_req_bytes_o,
@@ -178,6 +182,12 @@ module poly_frontend_core (
     output logic [7:0]  abi_signature_kind_o,
     output logic [6:0]  abi_signature_map_o,
     output logic        abi_signature_tls_base_o,
+
+    output logic        cpuid_hit_o,
+    output logic [31:0] cpuid_eax_o,
+    output logic [31:0] cpuid_ebx_o,
+    output logic [31:0] cpuid_ecx_o,
+    output logic [31:0] cpuid_edx_o,
 
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
@@ -448,6 +458,17 @@ module poly_frontend_core (
     .select_kind_o(abi_select_kind),
     .select_map_o(abi_select_map),
     .select_tls_base_o(abi_select_tls_base)
+  );
+
+  poly_cpuid_rom cpuid_rom (
+    .valid_i(cpuid_valid_i),
+    .leaf_i(cpuid_leaf_i),
+    .subleaf_i(cpuid_subleaf_i),
+    .hit_o(cpuid_hit_o),
+    .eax_o(cpuid_eax_o),
+    .ebx_o(cpuid_ebx_o),
+    .ecx_o(cpuid_ecx_o),
+    .edx_o(cpuid_edx_o)
   );
 
   poly_transition_stack transition_stack (
