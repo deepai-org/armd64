@@ -10,6 +10,7 @@ module tb_poly_frontend_fpga_top;
   localparam logic [31:0] POLY_TRAP_BREAK = 32'd2;
   localparam logic [31:0] POLY_MODE_RAW_AARCH64 = 32'd1;
   localparam logic [31:0] POLY_MODE_RAW_RISCV = 32'd2;
+  localparam logic [63:0] POLY_RETURN_COOKIE = 64'hfffffffffffff000;
 
   logic clk_i;
   logic rst_ni;
@@ -107,7 +108,29 @@ module tb_poly_frontend_fpga_top;
   logic commit_push_transition_o;
   logic [1:0] commit_frontend_o;
   logic [63:0] commit_pc_o;
+  logic transition_stack_empty_o;
+  logic transition_stack_full_o;
+  logic transition_pop_valid_o;
+  logic [1:0] transition_pop_frontend_o;
+  logic [63:0] transition_pop_pc_o;
+  logic [63:0] transition_pop_sp_o;
+  logic [31:0] transition_pop_flags_o;
+  logic transition_stack_overflow_o;
+  logic transition_stack_underflow_o;
+  logic transition_stack_conflict_o;
   logic [3:0] transition_stack_depth_o;
+  logic transition_stack_unavailable_o;
+  logic return_cookie_hit_o;
+  logic return_recover_pop_o;
+  logic return_resume_o;
+  logic [1:0] return_resume_frontend_o;
+  logic [63:0] return_resume_pc_o;
+  logic [63:0] return_resume_sp_o;
+  logic [31:0] return_resume_flags_o;
+  logic return_recover_error_o;
+  logic return_recover_invalid_frontend_o;
+  logic return_recover_missing_transition_o;
+  logic return_recover_blocked_o;
   logic fault_o;
   logic poly_ctrl_o;
   logic [6:0] subop_o;
@@ -282,14 +305,29 @@ module tb_poly_frontend_fpga_top;
     .commit_frontend_o(commit_frontend_o),
     .commit_pc_o(commit_pc_o),
     .commit_signature_slot_o(),
-    .transition_stack_empty_o(),
-    .transition_stack_full_o(),
+    .transition_stack_empty_o(transition_stack_empty_o),
+    .transition_stack_full_o(transition_stack_full_o),
+    .transition_pop_valid_o(transition_pop_valid_o),
+    .transition_pop_frontend_o(transition_pop_frontend_o),
+    .transition_pop_pc_o(transition_pop_pc_o),
+    .transition_pop_sp_o(transition_pop_sp_o),
+    .transition_pop_flags_o(transition_pop_flags_o),
+    .transition_stack_overflow_o(transition_stack_overflow_o),
+    .transition_stack_underflow_o(transition_stack_underflow_o),
+    .transition_stack_conflict_o(transition_stack_conflict_o),
     .transition_stack_depth_o(transition_stack_depth_o),
-    .return_cookie_hit_o(),
-    .return_recover_pop_o(),
-    .return_resume_o(),
-    .return_resume_frontend_o(),
-    .return_resume_pc_o(),
+    .transition_stack_unavailable_o(transition_stack_unavailable_o),
+    .return_cookie_hit_o(return_cookie_hit_o),
+    .return_recover_pop_o(return_recover_pop_o),
+    .return_resume_o(return_resume_o),
+    .return_resume_frontend_o(return_resume_frontend_o),
+    .return_resume_pc_o(return_resume_pc_o),
+    .return_resume_sp_o(return_resume_sp_o),
+    .return_resume_flags_o(return_resume_flags_o),
+    .return_recover_error_o(return_recover_error_o),
+    .return_recover_invalid_frontend_o(return_recover_invalid_frontend_o),
+    .return_recover_missing_transition_o(return_recover_missing_transition_o),
+    .return_recover_blocked_o(return_recover_blocked_o),
     .raw_data_mem_valid_o(raw_data_mem_valid_o),
     .raw_data_mem_load_o(raw_data_mem_load_o),
     .raw_data_mem_store_o(),
@@ -615,6 +653,7 @@ module tb_poly_frontend_fpga_top;
     valid_i = 1'b1;
     sp_i = 64'h8000;
     transition_return_pc_i = 64'h1004;
+    transition_flags_i = 32'h1234;
     target_frontend_i = POLY_FRONTEND_AARCH64;
     target_pc_i = 64'h5000;
     signature_slot_valid_i = 1'b1;
@@ -652,7 +691,53 @@ module tb_poly_frontend_fpga_top;
     #1;
     check(state_frontend_o == POLY_FRONTEND_AARCH64 &&
       state_pc_o == 64'h5000, "x86 pcall updates state");
-    check(transition_stack_depth_o == 4'd1, "x86 pcall pushes transition");
+    check(!transition_stack_empty_o && !transition_stack_full_o &&
+      transition_stack_depth_o == 4'd1, "x86 pcall pushes transition");
+
+    return_recover_valid_i = 1'b1;
+    return_target_pc_i = POLY_RETURN_COOKIE;
+    #1;
+    check(return_cookie_hit_o && return_recover_pop_o && return_resume_o &&
+      transition_stack_unavailable_o,
+      "fpga top exposes return-cookie recovery control sidebands");
+    check(return_resume_frontend_o == POLY_FRONTEND_X86 &&
+      return_resume_pc_o == 64'h1004 &&
+      return_resume_sp_o == 64'h8000 &&
+      return_resume_flags_o == 32'h1234,
+      "fpga top exposes return-cookie resume frame");
+    check(!return_recover_error_o && !return_recover_invalid_frontend_o &&
+      !return_recover_missing_transition_o && !return_recover_blocked_o,
+      "fpga top exposes clean return-cookie diagnostics");
+    check(cycle_budget_valid_o && cycle_fixed_o == 8'd3 &&
+      cycle_variable_o == 8'd0 && cycle_total_o == 9'd3 &&
+      cycle_few_cycle_fast_path_o && !cycle_waits_for_memory_o &&
+      !cycle_unsupported_o && !cycle_invalid_op_o && !cycle_blocked_o,
+      "fpga top exposes return-cookie few-cycle budget");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_X86 &&
+      redirect_pc_o == 64'h1004, "fpga top return-cookie redirects state");
+    tick();
+    clear_inputs();
+    #1;
+    check(transition_pop_valid_o &&
+      transition_pop_frontend_o == POLY_FRONTEND_X86 &&
+      transition_pop_pc_o == 64'h1004 &&
+      transition_pop_sp_o == 64'h8000 &&
+      transition_pop_flags_o == 32'h1234,
+      "fpga top exposes transition pop frame");
+    check(state_frontend_o == POLY_FRONTEND_X86 &&
+      state_pc_o == 64'h1004, "fpga top return-cookie updates state");
+    check(transition_stack_empty_o && transition_stack_depth_o == 4'd0,
+      "fpga top return-cookie drains transition");
+
+    return_recover_valid_i = 1'b1;
+    return_target_pc_i = POLY_RETURN_COOKIE;
+    #1;
+    check(return_cookie_hit_o && return_recover_error_o &&
+      return_recover_missing_transition_o && !return_recover_pop_o &&
+      !return_resume_o && !return_recover_blocked_o,
+      "fpga top exposes empty-stack return-cookie diagnostics");
+    clear_inputs();
+    #1;
 
     valid_i = 1'b1;
     trap_valid_i = 1'b1;
