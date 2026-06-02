@@ -114,6 +114,12 @@ check-poly-rtl-sim:
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_cpuid_rom" \
 		rtl/poly_cpuid_rom.sv rtl/tb_poly_cpuid_rom.sv; \
 	vvp "$$tmp_dir/tb_poly_cpuid_rom"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_retire" \
+		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_frontend_decode_dispatch.sv rtl/poly_frontend_handoff.sv \
+		rtl/poly_frontend_step.sv rtl/poly_frontend_retire.sv \
+		rtl/tb_poly_frontend_retire.sv; \
+	vvp "$$tmp_dir/tb_poly_frontend_retire"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_state"; \
