@@ -12,11 +12,15 @@ silicon prototype.
   `PCALL` and native return-cookie recovery.
 - `poly_abi_signature_slots.sv`: cached register-only ABI signature slots for
   hardware register aliasing.
+- `poly_cpuid_rom.sv`: Poly vendor CPUID discovery ROM for feature bits, XSAVE
+  geometry, trap packets, transitions, and ABI signatures.
 - `test_poly_ctrl_decode.py`: static and behavioral consistency test against
   `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
   `tools/include/polycpuid.h`.
 - `test_poly_abi_signature_slots.py`: signature-slot checks against
+  `tools/include/polycpuid.h`.
+- `test_poly_cpuid_rom.py`: CPUID ROM checks against
   `tools/include/polycpuid.h`.
 
 ## Run
@@ -25,6 +29,7 @@ silicon prototype.
 python3 rtl/test_poly_ctrl_decode.py
 python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
+python3 rtl/test_poly_cpuid_rom.py
 ```
 
 Expected output:
@@ -33,4 +38,5 @@ Expected output:
 POLY_RTL_CTRL_DECODE_OK
 POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
+POLY_RTL_CPUID_ROM_OK
 ```
