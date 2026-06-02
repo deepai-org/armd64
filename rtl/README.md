@@ -174,8 +174,9 @@ python3 rtl/test_poly_trap_packet_encode.py
 python3 rtl/test_poly_trap_packet_stage.py
 ```
 
-Run HDL frontend lint, Yosys process/check, and generic synthesis for the
-integrated stateful frontend core:
+Run HDL frontend lint, Yosys process/check, generic synthesis, and an
+out-of-context Xilinx 7-series synthesis smoke for the integrated stateful
+frontend core:
 
 ```bash
 make check-poly-rtl-hdl
@@ -220,6 +221,7 @@ POLY_RTL_TRAP_PACKET_ENCODE_OK
 POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
+POLY_RTL_FPGA_SYNTH_OK
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK
