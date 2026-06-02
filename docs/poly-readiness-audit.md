@@ -21,7 +21,7 @@ RISC-V64 code.
 | Hardware-shaped native return recovery | `rtl/poly_return_cookie_recover.sv` detects ordinary native returns to the Poly return cookie and requests transition-stack recovery. |
 | Fast-path cycle budget | `rtl/poly_transition_cycle_budget.sv` models fixed-cycle `PSWITCH`, register-only `PCALL`, native return-cookie recovery, and trap-packet fixed work plus memory-response latency. |
 | OS-neutral syscall/libcall boundary | Trap-packet contract in `docs/poly-isa-design-directions.md`; Bochs `handle_poly_syscall_trap`; userspace monitor policy in `tools/runtime/polyexec.c`. |
-| Explicit per-thread state | XSAVE-style state layout in `tools/include/polycpuid.h`; guest XCR0 module in `tools/kernel/poly_xcr0.c`; real-XSAVE gates passed. |
+| Explicit per-thread state | XSAVE-style state layout in `tools/include/polycpuid.h`; silicon-facing layout/check program in `tools/programs/polylayout.c`; guest XCR0 module in `tools/kernel/poly_xcr0.c`; real-XSAVE gates passed. |
 | Native-ABI fast path | ABI signature slots and register maps in `tools/include/polycpuid.h`; `PCALL` implementation in Bochs; cross-ISA runtime stubs in `tools/runtime/polyexec.c`. |
 | Complex ABI software path | Stack, aggregate, variadic, import, and syscall policy handled by loader/runtime thunks in `tools/runtime/polyexec.c`, not by hardware descriptors. |
 | Native return semantics | Return-cookie transition stacks in Bochs and XSAVE state; native `ret`/`ret x30`/RISC-V `ret` coverage in `tools/programs/nativecheck.c`. |
@@ -47,10 +47,8 @@ RISC-V64 code.
 
 1. Extend the one-step RTL planner into a frontend/memory prototype that
    performs real instruction fetch and end-to-end instruction retirement.
-2. Generate a silicon-facing state-layout table from `tools/include/polycpuid.h`
-   and validate it against Bochs CPUID leaves.
-3. Add litmus-style and formal memory-model checks around
+2. Add litmus-style and formal memory-model checks around
    `rtl/poly_memory_order.sv`; the current RTL gate is directed-test coverage,
    not a proof.
-4. Decide the production x86 opcode allocation or define the vendor CPUID
+3. Decide the production x86 opcode allocation or define the vendor CPUID
    discovery contract that lets software consume non-Bochs encodings.

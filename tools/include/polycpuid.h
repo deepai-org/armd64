@@ -966,10 +966,19 @@ POLY_STATIC_ASSERT(sizeof(struct poly_xsave_state) ==
 static inline struct poly_cpuid_regs poly_read_cpuid(uint32_t leaf,
     uint32_t subleaf) {
   struct poly_cpuid_regs regs;
+#if defined(__i386__) || defined(__x86_64__)
   asm volatile("cpuid"
     : "=a"(regs.eax), "=b"(regs.ebx), "=c"(regs.ecx), "=d"(regs.edx)
     : "a"(leaf), "c"(subleaf)
     : "memory");
+#else
+  (void) leaf;
+  (void) subleaf;
+  regs.eax = 0;
+  regs.ebx = 0;
+  regs.ecx = 0;
+  regs.edx = 0;
+#endif
   return regs;
 }
 
