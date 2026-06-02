@@ -114,6 +114,8 @@ module tb_poly_frontend_core;
   logic [63:0] fault_pc_o;
   logic poly_ctrl_o;
   logic [6:0] subop_o;
+  logic raw_branch_target_valid_o;
+  logic [63:0] raw_branch_target_o;
   logic return_cookie_hit_o;
   logic return_recover_pop_o;
   logic return_resume_o;
@@ -321,6 +323,8 @@ module tb_poly_frontend_core;
     .x86_range_fault_o(),
     .poly_ctrl_o(poly_ctrl_o),
     .subop_o(subop_o),
+    .raw_branch_target_valid_o(raw_branch_target_valid_o),
+    .raw_branch_target_o(raw_branch_target_o),
     .raw_fetch_wait_o(),
     .raw_request_error_o(),
     .raw_mem_fault_o(),
@@ -553,6 +557,17 @@ module tb_poly_frontend_core;
     check(memory_retire_allowed_o && retire_o && !fault_o,
       "decoded raw store retires when store buffer has space");
     check(memory_enqueue_store_o, "decoded raw store enqueues store on retire");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend_i = POLY_FRONTEND_AARCH64;
+    pc_i = 64'h6000;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'h94000002;
+    #1;
+    check(retire_o && !fault_o, "decoded raw direct branch retires");
+    check(raw_branch_target_valid_o && raw_branch_target_o == 64'h6008,
+      "decoded raw direct branch exposes retired target");
 
     $display("POLY_RTL_FRONTEND_CORE_SIM_OK");
     $finish;

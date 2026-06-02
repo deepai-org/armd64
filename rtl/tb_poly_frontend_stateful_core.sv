@@ -453,6 +453,21 @@ module tb_poly_frontend_stateful_core;
     check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h4004,
       "raw fallthrough updates architectural state");
 
+    valid_i = 1'b1;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'h94000002;
+    #1;
+    check(raw_mem_req_valid_o && retire_o && !fault_o, "raw direct branch retires");
+    check(commit_frontend_o == POLY_FRONTEND_AARCH64 && commit_pc_o == 64'h4008,
+      "raw direct branch still reports fallthrough commit metadata");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&
+      redirect_pc_o == 64'h400c, "raw direct branch redirects to decoded target");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h400c,
+      "raw direct branch updates architectural state");
+
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_X86;
     init_pc_i = 64'h1000;

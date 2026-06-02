@@ -219,6 +219,8 @@ module poly_frontend_core (
 
     output logic        poly_ctrl_o,
     output logic [6:0]  subop_o,
+    output logic        raw_branch_target_valid_o,
+    output logic [63:0] raw_branch_target_o,
     output logic        raw_fetch_wait_o,
     output logic        raw_request_error_o,
     output logic        raw_mem_fault_o,
@@ -321,6 +323,10 @@ module poly_frontend_core (
     retire_o && memory_aarch64_barrier_noop_raw;
   assign memory_riscv_fence_noop_o =
     retire_o && memory_riscv_fence_noop_raw;
+  assign raw_branch_target_valid_o =
+    retire_o && raw_branch_target_valid && !poly_ctrl_o;
+  assign raw_branch_target_o =
+    raw_branch_target_valid_o ? raw_branch_target : 64'd0;
   assign block_retire =
     interrupt_enter_x86_o || interrupt_restore_raw_o ||
     trap_wait_response_o || trap_packet_delivered_o;

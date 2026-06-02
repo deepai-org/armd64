@@ -249,10 +249,18 @@ module poly_frontend_stateful_core (
   logic [63:0] state_pc;
   logic state_interrupt_update;
   logic state_stall;
+  logic raw_branch_target_valid;
+  logic [63:0] raw_branch_target;
+  logic [1:0] state_commit_frontend;
+  logic [63:0] state_commit_pc;
 
   assign state_interrupt_update =
     interrupt_enter_x86_o || interrupt_restore_raw_o;
   assign state_stall = wait_fetch_o || wait_execute_o;
+  assign state_commit_frontend =
+    raw_branch_target_valid ? state_frontend : commit_frontend_o;
+  assign state_commit_pc =
+    raw_branch_target_valid ? raw_branch_target : commit_pc_o;
   assign state_frontend_o = state_frontend;
   assign state_pc_o = state_pc;
 
@@ -449,6 +457,8 @@ module poly_frontend_stateful_core (
     .x86_range_fault_o(x86_range_fault_o),
     .poly_ctrl_o(poly_ctrl_o),
     .subop_o(subop_o),
+    .raw_branch_target_valid_o(raw_branch_target_valid),
+    .raw_branch_target_o(raw_branch_target),
     .raw_fetch_wait_o(raw_fetch_wait_o),
     .raw_request_error_o(raw_request_error_o),
     .raw_mem_fault_o(raw_mem_fault_o),
@@ -468,8 +478,8 @@ module poly_frontend_stateful_core (
     .init_frontend_i(init_frontend_i),
     .init_pc_i(init_pc_i),
     .commit_i(retire_o),
-    .commit_frontend_i(commit_frontend_o),
-    .commit_pc_i(commit_pc_o),
+    .commit_frontend_i(state_commit_frontend),
+    .commit_pc_i(state_commit_pc),
     .interrupt_restore_i(state_interrupt_update),
     .interrupt_frontend_i(interrupt_next_frontend_o),
     .interrupt_pc_i(interrupt_next_pc_o),
