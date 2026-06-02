@@ -50,6 +50,11 @@ class TransitionStack:
         self.stack.append((frontend, pc, sp, flags))
         return (False, False, False)
 
+    def peek(self) -> tuple[int, int, int, int] | None:
+        if not self.stack:
+            return None
+        return self.stack[-1]
+
     def pop(self) -> tuple[bool, bool, tuple[int, int, int, int] | None]:
         if not self.stack:
             return (False, True, None)
@@ -72,6 +77,18 @@ def main() -> int:
         c["POLY_MODE_RAW_AARCH64"],
         c["POLY_MODE_RAW_RISCV"],
     }
+    rtl_text = RTL.read_text()
+    for needle in [
+        "peek_valid_o",
+        "peek_frontend_o",
+        "peek_pc_o",
+        "peek_sp_o",
+        "peek_flags_o",
+        "peek_frontend_o = frontend_q[depth_q - 1'b1]",
+    ]:
+        if needle not in rtl_text:
+            raise AssertionError(f"missing transition-stack peek wiring: {needle}")
+
     stack = TransitionStack(rtl_depth)
 
     for n in range(rtl_depth):
@@ -81,6 +98,7 @@ def main() -> int:
         assert stack.push(mode, 0x1000 + n * 4, 0x8000 - n * 16, n) == (
             False, False, False
         )
+        assert stack.peek() == (mode, 0x1000 + n * 4, 0x8000 - n * 16, n)
 
     assert stack.push(c["POLY_MODE_X86"], 0x2000, 0x7000, 0) == (
         True, False, False
@@ -98,6 +116,7 @@ def main() -> int:
         assert flags == n
 
     assert stack.pop() == (False, True, None)
+    assert stack.peek() is None
 
     print("POLY_RTL_TRANSITION_STACK_OK")
     return 0

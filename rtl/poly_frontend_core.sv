@@ -31,6 +31,9 @@ module poly_frontend_core (
 
     input  logic        transition_pop_i,
 
+    input  logic        return_recover_valid_i,
+    input  logic [63:0] return_target_pc_i,
+
     output logic        raw_mem_req_valid_o,
     output logic [63:0] raw_mem_req_addr_o,
     output logic [2:0]  raw_mem_req_bytes_o,
@@ -56,6 +59,18 @@ module poly_frontend_core (
     output logic [3:0]  transition_stack_depth_o,
     output logic        transition_stack_unavailable_o,
 
+    output logic        return_cookie_hit_o,
+    output logic        return_recover_pop_o,
+    output logic        return_resume_o,
+    output logic [1:0]  return_resume_frontend_o,
+    output logic [63:0] return_resume_pc_o,
+    output logic [63:0] return_resume_sp_o,
+    output logic [31:0] return_resume_flags_o,
+    output logic        return_recover_error_o,
+    output logic        return_recover_invalid_frontend_o,
+    output logic        return_recover_missing_transition_o,
+    output logic        return_recover_blocked_o,
+
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
     output logic        older_fault_o,
@@ -78,12 +93,45 @@ module poly_frontend_core (
     output logic        invalid_signature_slot_o
 );
   logic stack_full;
+  logic stack_empty;
   logic stack_unavailable;
   logic commit_push_transition;
+  logic stack_pop_request;
+  logic peek_valid;
+  logic [1:0] peek_frontend;
+  logic [63:0] peek_pc;
+  logic [63:0] peek_sp;
+  logic [31:0] peek_flags;
+  logic return_pop_raw;
+  logic return_resume_raw;
+  logic [1:0] return_resume_frontend_raw;
+  logic [63:0] return_resume_pc_raw;
+  logic [63:0] return_resume_sp_raw;
+  logic [31:0] return_resume_flags_raw;
+  logic return_error_raw;
+  logic return_invalid_frontend_raw;
+  logic return_missing_transition_raw;
 
-  assign stack_unavailable = stack_full || transition_pop_i;
+  assign stack_pop_request = transition_pop_i || (return_pop_raw && !transition_pop_i);
+  assign stack_unavailable = stack_full || stack_pop_request;
   assign transition_stack_unavailable_o = stack_unavailable;
   assign commit_push_transition_o = commit_push_transition;
+  assign transition_stack_empty_o = stack_empty;
+
+  assign return_recover_blocked_o = transition_pop_i && return_cookie_hit_o;
+  assign return_recover_pop_o = return_pop_raw && !transition_pop_i;
+  assign return_resume_o = return_resume_raw && !transition_pop_i;
+  assign return_resume_frontend_o =
+    return_resume_o ? return_resume_frontend_raw : frontend_i;
+  assign return_resume_pc_o =
+    return_resume_o ? return_resume_pc_raw : return_target_pc_i;
+  assign return_resume_sp_o = return_resume_o ? return_resume_sp_raw : 64'd0;
+  assign return_resume_flags_o =
+    return_resume_o ? return_resume_flags_raw : 32'd0;
+  assign return_recover_error_o =
+    return_error_raw || return_recover_blocked_o;
+  assign return_recover_invalid_frontend_o = return_invalid_frontend_raw;
+  assign return_recover_missing_transition_o = return_missing_transition_raw;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),
@@ -142,18 +190,44 @@ module poly_frontend_core (
     .push_pc_i(transition_return_pc_i),
     .push_sp_i(sp_i),
     .push_flags_i(transition_flags_i),
-    .pop_i(transition_pop_i),
+    .pop_i(stack_pop_request),
     .pop_valid_o(transition_pop_valid_o),
     .pop_frontend_o(transition_pop_frontend_o),
     .pop_pc_o(transition_pop_pc_o),
     .pop_sp_o(transition_pop_sp_o),
     .pop_flags_o(transition_pop_flags_o),
-    .empty_o(transition_stack_empty_o),
+    .peek_valid_o(peek_valid),
+    .peek_frontend_o(peek_frontend),
+    .peek_pc_o(peek_pc),
+    .peek_sp_o(peek_sp),
+    .peek_flags_o(peek_flags),
+    .empty_o(stack_empty),
     .full_o(stack_full),
     .overflow_o(transition_stack_overflow_o),
     .underflow_o(transition_stack_underflow_o),
     .conflict_o(transition_stack_conflict_o),
     .depth_o(transition_stack_depth_o)
+  );
+
+  poly_return_cookie_recover return_cookie_recover (
+    .valid_i(return_recover_valid_i),
+    .current_frontend_i(frontend_i),
+    .return_target_pc_i(return_target_pc_i),
+    .transition_empty_i(!peek_valid),
+    .pop_frontend_i(peek_frontend),
+    .pop_pc_i(peek_pc),
+    .pop_sp_i(peek_sp),
+    .pop_flags_i(peek_flags),
+    .cookie_hit_o(return_cookie_hit_o),
+    .pop_transition_o(return_pop_raw),
+    .resume_o(return_resume_raw),
+    .resume_frontend_o(return_resume_frontend_raw),
+    .resume_pc_o(return_resume_pc_raw),
+    .resume_sp_o(return_resume_sp_raw),
+    .resume_flags_o(return_resume_flags_raw),
+    .error_o(return_error_raw),
+    .invalid_frontend_o(return_invalid_frontend_raw),
+    .missing_transition_o(return_missing_transition_raw)
   );
 
   assign transition_stack_full_o = stack_full;

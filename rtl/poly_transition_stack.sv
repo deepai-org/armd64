@@ -22,6 +22,12 @@ module poly_transition_stack #(
     output logic [63:0] pop_sp_o,
     output logic [31:0] pop_flags_o,
 
+    output logic        peek_valid_o,
+    output logic [1:0]  peek_frontend_o,
+    output logic [63:0] peek_pc_o,
+    output logic [63:0] peek_sp_o,
+    output logic [31:0] peek_flags_o,
+
     output logic        empty_o,
     output logic        full_o,
     output logic        overflow_o,
@@ -41,6 +47,22 @@ module poly_transition_stack #(
   assign empty_o = depth_q == '0;
   assign full_o = depth_q == DEPTH_VALUE;
   assign depth_o = depth_q;
+
+  always_comb begin
+    peek_valid_o = !empty_o;
+    if (empty_o) begin
+      peek_frontend_o = 2'd0;
+      peek_pc_o = 64'd0;
+      peek_sp_o = 64'd0;
+      peek_flags_o = 32'd0;
+    end
+    else begin
+      peek_frontend_o = frontend_q[depth_q - 1'b1];
+      peek_pc_o = pc_q[depth_q - 1'b1];
+      peek_sp_o = sp_q[depth_q - 1'b1];
+      peek_flags_o = flags_q[depth_q - 1'b1];
+    end
+  end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HEADER = ROOT / "tools/include/polycpuid.h"
 RTL = ROOT / "rtl/poly_frontend_core.sv"
 STACK_RTL = ROOT / "rtl/poly_transition_stack.sv"
+BOCHS = ROOT / "bochs-prepoly-src/bochs/cpu/proc_ctrl.cc"
 
 
 def parse_c_enum_constants(path: Path) -> dict[str, int]:
@@ -43,6 +44,14 @@ def parse_default_depth(path: Path) -> int:
     if not match:
         raise AssertionError("missing transition-stack DEPTH parameter")
     return int(match.group(1))
+
+
+def parse_bochs_return_cookie(path: Path) -> int:
+    text = path.read_text()
+    match = re.search(r"BX_POLY_RETURN_COOKIE\s*=\s*BX_CONST64\((0x[0-9a-fA-F]+)\)", text)
+    if not match:
+        raise AssertionError("missing BX_POLY_RETURN_COOKIE")
+    return int(match.group(1), 0)
 
 
 def x86_ctrl_word(subop: int) -> int:
@@ -102,9 +111,17 @@ def core_step(
     target_pc: int,
     signature_valid: bool,
     pop: bool,
+    return_valid: bool,
+    return_target: int,
+    cookie: int,
     c: dict[str, int],
 ) -> dict[str, int | bool | tuple[int, int, int, int] | None]:
-    stack_unavailable = stack.full() or pop
+    return_hit = return_valid and return_target == cookie
+    return_missing = return_hit and not stack.frames
+    return_blocked = return_hit and pop
+    return_pop_raw = return_hit and not return_missing
+    return_pop = return_pop_raw and not pop
+    stack_unavailable = stack.full() or pop or return_pop
     is_pcall = (
         valid and
         fetch_valid and
@@ -125,7 +142,7 @@ def core_step(
     )
     retire = bool(valid and fetch_valid and not control_fault)
     commit_push = bool(is_pcall and retire)
-    popped = stack.pop() if pop else None
+    popped = stack.pop() if (pop or return_pop) else None
     if commit_push:
         stack.push((frontend, return_pc, sp, flags))
     return {
@@ -135,6 +152,11 @@ def core_step(
         "fault": control_fault,
         "stack_unavailable": stack_unavailable,
         "popped": popped,
+        "return_hit": return_hit,
+        "return_resume": return_pop,
+        "return_error": return_missing or return_blocked,
+        "return_missing": return_missing,
+        "return_blocked": return_blocked,
         "depth": len(stack.frames),
     }
 
@@ -145,13 +167,17 @@ def require_structural_wiring() -> None:
         "poly_frontend_memory_retire frontend_memory_retire",
         "poly_transition_stack transition_stack",
         "transition_return_pc_i",
-        "assign stack_unavailable = stack_full || transition_pop_i;",
+        "assign stack_unavailable = stack_full || stack_pop_request;",
         ".transition_stack_full_i(stack_unavailable)",
         ".push_i(commit_push_transition)",
         ".push_frontend_i(frontend_i)",
         ".push_pc_i(transition_return_pc_i)",
         ".push_sp_i(sp_i)",
         ".push_flags_i(transition_flags_i)",
+        "poly_return_cookie_recover return_cookie_recover",
+        "assign stack_pop_request = transition_pop_i || (return_pop_raw && !transition_pop_i);",
+        ".peek_frontend_o(peek_frontend)",
+        ".transition_empty_i(!peek_valid)",
     ]:
         if needle not in text:
             raise AssertionError(f"missing core wiring: {needle}")
@@ -160,6 +186,7 @@ def require_structural_wiring() -> None:
 def main() -> int:
     c = parse_c_enum_constants(HEADER)
     depth = parse_default_depth(STACK_RTL)
+    cookie = parse_bochs_return_cookie(BOCHS)
     assert depth == c["POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH"]
     require_structural_wiring()
 
@@ -179,6 +206,9 @@ def main() -> int:
         target_pc=0x2000,
         signature_valid=True,
         pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
         c=c,
     )
     assert first["retire"] and first["transition"] and first["push"]
@@ -201,6 +231,9 @@ def main() -> int:
         target_pc=0,
         signature_valid=False,
         pop=True,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
         c=c,
     )
     assert popped["popped"] == (c["POLY_FRONTEND_X86"], 0x1004, 0x8000, 0x55)
@@ -223,6 +256,9 @@ def main() -> int:
         target_pc=0x2400,
         signature_valid=True,
         pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
         c=c,
     )
     assert not full["retire"] and not full["push"] and full["fault"]
@@ -243,11 +279,66 @@ def main() -> int:
         target_pc=0x2600,
         signature_valid=True,
         pop=True,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
         c=c,
     )
     assert not conflict_free["retire"] and not conflict_free["push"]
     assert conflict_free["popped"] is not None
     assert not full_stack.conflict
+
+    return_stack = TransitionStack(depth)
+    return_stack.push((c["POLY_FRONTEND_AARCH64"], 0x4400, 0x8800, 0x80))
+    recovered = core_step(
+        return_stack,
+        valid=False,
+        frontend=c["POLY_FRONTEND_RISCV"],
+        pc=0,
+        sp=0,
+        return_pc=0,
+        flags=0,
+        word=0,
+        fetch_valid=False,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0,
+        signature_valid=False,
+        pop=False,
+        return_valid=True,
+        return_target=cookie,
+        cookie=cookie,
+        c=c,
+    )
+    assert recovered["return_hit"] and recovered["return_resume"]
+    assert recovered["popped"] == (
+        c["POLY_FRONTEND_AARCH64"], 0x4400, 0x8800, 0x80
+    )
+    assert recovered["depth"] == 0
+
+    blocked_stack = TransitionStack(depth)
+    blocked_stack.push((c["POLY_FRONTEND_X86"], 0x5000, 0x9000, 0x81))
+    blocked = core_step(
+        blocked_stack,
+        valid=False,
+        frontend=c["POLY_FRONTEND_AARCH64"],
+        pc=0,
+        sp=0,
+        return_pc=0,
+        flags=0,
+        word=0,
+        fetch_valid=False,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0,
+        signature_valid=False,
+        pop=True,
+        return_valid=True,
+        return_target=cookie,
+        cookie=cookie,
+        c=c,
+    )
+    assert blocked["return_hit"] and blocked["return_blocked"]
+    assert blocked["return_error"] and not blocked["return_resume"]
+    assert blocked["popped"] == (c["POLY_FRONTEND_X86"], 0x5000, 0x9000, 0x81)
 
     print("POLY_RTL_FRONTEND_CORE_OK")
     return 0
