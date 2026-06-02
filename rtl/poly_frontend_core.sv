@@ -1,0 +1,160 @@
+// Poly frontend core bring-up wrapper.
+//
+// This composes fetch-to-retire control with the hardware transition stack.
+// The caller supplies transition_return_pc_i because the precise return PC is
+// frontend/decoder dependent and should not be inferred by the stack block.
+module poly_frontend_core (
+    input  logic        clk_i,
+    input  logic        rst_ni,
+
+    input  logic        valid_i,
+    input  logic [1:0]  frontend_i,
+    input  logic [63:0] pc_i,
+    input  logic [63:0] sp_i,
+    input  logic [63:0] transition_return_pc_i,
+    input  logic [31:0] transition_flags_i,
+
+    input  logic        x86_fetch_valid_i,
+    input  logic        x86_fetch_fault_i,
+    input  logic [31:0] x86_fetch_word_i,
+    input  logic [63:0] x86_fallthrough_pc_i,
+
+    input  logic        raw_mem_resp_valid_i,
+    input  logic        raw_mem_resp_fault_i,
+    input  logic [31:0] raw_mem_resp_word_i,
+
+    input  logic        older_fault_i,
+    input  logic        execute_fault_i,
+    input  logic [1:0]  target_frontend_i,
+    input  logic [63:0] target_pc_i,
+    input  logic        signature_slot_valid_i,
+
+    input  logic        transition_pop_i,
+
+    output logic        raw_mem_req_valid_o,
+    output logic [63:0] raw_mem_req_addr_o,
+    output logic [2:0]  raw_mem_req_bytes_o,
+
+    output logic        wait_fetch_o,
+    output logic        retire_o,
+    output logic        commit_transition_o,
+    output logic        commit_push_transition_o,
+    output logic [1:0]  commit_frontend_o,
+    output logic [63:0] commit_pc_o,
+    output logic [6:0]  commit_signature_slot_o,
+
+    output logic        transition_pop_valid_o,
+    output logic [1:0]  transition_pop_frontend_o,
+    output logic [63:0] transition_pop_pc_o,
+    output logic [63:0] transition_pop_sp_o,
+    output logic [31:0] transition_pop_flags_o,
+    output logic        transition_stack_empty_o,
+    output logic        transition_stack_full_o,
+    output logic        transition_stack_overflow_o,
+    output logic        transition_stack_underflow_o,
+    output logic        transition_stack_conflict_o,
+    output logic [3:0]  transition_stack_depth_o,
+    output logic        transition_stack_unavailable_o,
+
+    output logic        fault_o,
+    output logic [63:0] fault_pc_o,
+    output logic        older_fault_o,
+    output logic        fetch_fault_o,
+    output logic        execute_fault_o,
+    output logic        control_fault_o,
+    output logic        invalid_frontend_o,
+
+    output logic        poly_ctrl_o,
+    output logic [6:0]  subop_o,
+    output logic        raw_fetch_wait_o,
+    output logic        raw_request_error_o,
+    output logic        raw_mem_fault_o,
+    output logic        raw_noncanonical_pc_o,
+    output logic        raw_align_fault_o,
+    output logic        raw_range_fault_o,
+    output logic        invalid_subop_o,
+    output logic        noncanonical_target_o,
+    output logic        target_align_fault_o,
+    output logic        invalid_signature_slot_o
+);
+  logic stack_full;
+  logic stack_unavailable;
+  logic commit_push_transition;
+
+  assign stack_unavailable = stack_full || transition_pop_i;
+  assign transition_stack_unavailable_o = stack_unavailable;
+  assign commit_push_transition_o = commit_push_transition;
+
+  poly_frontend_memory_retire frontend_memory_retire (
+    .valid_i(valid_i),
+    .frontend_i(frontend_i),
+    .pc_i(pc_i),
+    .x86_fetch_valid_i(x86_fetch_valid_i),
+    .x86_fetch_fault_i(x86_fetch_fault_i),
+    .x86_fetch_word_i(x86_fetch_word_i),
+    .x86_fallthrough_pc_i(x86_fallthrough_pc_i),
+    .raw_mem_resp_valid_i(raw_mem_resp_valid_i),
+    .raw_mem_resp_fault_i(raw_mem_resp_fault_i),
+    .raw_mem_resp_word_i(raw_mem_resp_word_i),
+    .older_fault_i(older_fault_i),
+    .execute_fault_i(execute_fault_i),
+    .target_frontend_i(target_frontend_i),
+    .target_pc_i(target_pc_i),
+    .signature_slot_valid_i(signature_slot_valid_i),
+    .transition_stack_full_i(stack_unavailable),
+    .raw_mem_req_valid_o(raw_mem_req_valid_o),
+    .raw_mem_req_addr_o(raw_mem_req_addr_o),
+    .raw_mem_req_bytes_o(raw_mem_req_bytes_o),
+    .wait_fetch_o(wait_fetch_o),
+    .retire_o(retire_o),
+    .commit_transition_o(commit_transition_o),
+    .commit_push_transition_o(commit_push_transition),
+    .commit_frontend_o(commit_frontend_o),
+    .commit_pc_o(commit_pc_o),
+    .commit_signature_slot_o(commit_signature_slot_o),
+    .fault_o(fault_o),
+    .fault_pc_o(fault_pc_o),
+    .older_fault_o(older_fault_o),
+    .fetch_fault_o(fetch_fault_o),
+    .execute_fault_o(execute_fault_o),
+    .control_fault_o(control_fault_o),
+    .invalid_frontend_o(invalid_frontend_o),
+    .poly_ctrl_o(poly_ctrl_o),
+    .subop_o(subop_o),
+    .raw_fetch_wait_o(raw_fetch_wait_o),
+    .raw_request_error_o(raw_request_error_o),
+    .raw_mem_fault_o(raw_mem_fault_o),
+    .raw_noncanonical_pc_o(raw_noncanonical_pc_o),
+    .raw_align_fault_o(raw_align_fault_o),
+    .raw_range_fault_o(raw_range_fault_o),
+    .invalid_subop_o(invalid_subop_o),
+    .noncanonical_target_o(noncanonical_target_o),
+    .target_align_fault_o(target_align_fault_o),
+    .invalid_signature_slot_o(invalid_signature_slot_o),
+    .transition_stack_full_o()
+  );
+
+  poly_transition_stack transition_stack (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .push_i(commit_push_transition),
+    .push_frontend_i(frontend_i),
+    .push_pc_i(transition_return_pc_i),
+    .push_sp_i(sp_i),
+    .push_flags_i(transition_flags_i),
+    .pop_i(transition_pop_i),
+    .pop_valid_o(transition_pop_valid_o),
+    .pop_frontend_o(transition_pop_frontend_o),
+    .pop_pc_o(transition_pop_pc_o),
+    .pop_sp_o(transition_pop_sp_o),
+    .pop_flags_o(transition_pop_flags_o),
+    .empty_o(transition_stack_empty_o),
+    .full_o(stack_full),
+    .overflow_o(transition_stack_overflow_o),
+    .underflow_o(transition_stack_underflow_o),
+    .conflict_o(transition_stack_conflict_o),
+    .depth_o(transition_stack_depth_o)
+  );
+
+  assign transition_stack_full_o = stack_full;
+endmodule
