@@ -79,6 +79,9 @@ specific subsystem.
   are canonical and qword-aligned.
 - AArch64 and RISC-V64 can switch or call each other directly without bouncing
   through x86_64.
+- RTL bring-up includes the architectural frontend/PC state block, integrated
+  frontend core, and dual fetch-request issue block for x86 byte fetch versus
+  raw AArch64/RISC-V instruction fetch.
 
 ## Docs
 

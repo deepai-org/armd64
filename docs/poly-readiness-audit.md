@@ -13,8 +13,9 @@ RISC-V64 code.
 | Direct foreign fetch, not per-instruction traps | `docs/poly-isa.md`; Bochs raw AArch64/RISC-V decode in `bochs/cpu/proc_ctrl.cc`; `boot-poly-full-real-xsave-arch-traps` passed. |
 | Dedicated Poly control operations | `docs/poly-isa.md`; CPUID geometry in `tools/include/polycpuid.h`; Bochs x86/AArch64/RISC-V control decode in `bochs/cpu/proc_ctrl.cc`. |
 | Opcode discovery contract | `tools/include/polycpuid.h` defines CPUID escape subleafs 32 and 33 for active x86 opcode geometry and vendor/prototype opcode-contract flags; Bochs returns both leaves; runtime probes validate both leaves; `rtl/poly_frontend_core.sv` exposes the Poly CPUID ROM through a hardware discovery sideband. |
-| FPGA-facing RTL bring-up artifacts | `rtl/poly_ctrl_decode.sv`; `rtl/poly_frontend_handoff.sv`; `rtl/poly_frontend_step.sv`; `rtl/poly_frontend_retire.sv`; `rtl/poly_frontend_memory_retire.sv`; `rtl/poly_frontend_core.sv`; `rtl/poly_frontend_state.sv`; `rtl/poly_frontend_stateful_core.sv`; `rtl/poly_interrupt_boundary.sv`; `rtl/poly_transition_stack.sv`; `rtl/poly_transition_cycle_budget.sv`; `rtl/poly_abi_signature_slots.sv`; `rtl/poly_cpuid_rom.sv`; `rtl/poly_memory_order.sv`; `rtl/poly_raw_fetch_request.sv`; `rtl/poly_raw_fetch_stage.sv`; `rtl/poly_raw_fetch_plan.sv`; `rtl/poly_return_cookie_recover.sv`; `rtl/poly_trap_packet_encode.sv`; `rtl/poly_trap_packet_stage.sv`; `make check-poly-rtl` passed. |
+| FPGA-facing RTL bring-up artifacts | `rtl/poly_ctrl_decode.sv`; `rtl/poly_frontend_handoff.sv`; `rtl/poly_frontend_step.sv`; `rtl/poly_frontend_retire.sv`; `rtl/poly_frontend_memory_retire.sv`; `rtl/poly_frontend_core.sv`; `rtl/poly_frontend_state.sv`; `rtl/poly_frontend_stateful_core.sv`; `rtl/poly_frontend_fetch_issue.sv`; `rtl/poly_interrupt_boundary.sv`; `rtl/poly_transition_stack.sv`; `rtl/poly_transition_cycle_budget.sv`; `rtl/poly_abi_signature_slots.sv`; `rtl/poly_cpuid_rom.sv`; `rtl/poly_memory_order.sv`; `rtl/poly_raw_fetch_request.sv`; `rtl/poly_raw_fetch_stage.sv`; `rtl/poly_raw_fetch_plan.sv`; `rtl/poly_return_cookie_recover.sv`; `rtl/poly_trap_packet_encode.sv`; `rtl/poly_trap_packet_stage.sv`; `make check-poly-rtl` passed. |
 | Raw frontend memory path | `rtl/poly_raw_fetch_request.sv` validates raw instruction fetch addresses; `rtl/poly_raw_fetch_stage.sv` consumes memory responses and blocks instruction retirement on memory faults. |
+| Dual frontend fetch issue | `rtl/poly_frontend_fetch_issue.sv` selects the active x86 byte frontend or raw AArch64/RISC-V fetch path from architectural frontend/PC state, validates canonical/range/alignment constraints, and emits one fetch request without decoding or OS policy. |
 | Frontend fetch-to-retire prototype | `rtl/poly_frontend_memory_retire.sv` connects external x86 fetch or raw AArch64/RISC-V memory fetch to `rtl/poly_frontend_retire.sv`, producing end-to-end retire/commit/fault outputs. |
 | Frontend/transition-stack integration | `rtl/poly_frontend_core.sv` connects precise retired PCALL commits, TSO memory-order backpressure, raw interrupt save/restore, trap-packet delivery, ABI signature lookup, CPUID discovery, cycle-budget reporting, and native return-cookie recovery to `rtl/poly_transition_stack.sv`, blocks PCALL retirement when the transition stack is full or servicing a pop, and keeps return-cookie recovery from colliding with another same-cycle pop. |
 | Stateful frontend/PC update boundary | `rtl/poly_frontend_state.sv` validates and applies committed frontend/PC transitions, matching raw interrupt restores, and native return-cookie resumes while holding state on stalls, faults, invalid targets, or same-cycle update conflicts. |
@@ -35,9 +36,10 @@ RISC-V64 code.
 
 ## Not Yet Silicon-Complete
 
-- A stateful RTL frontend/PC update boundary and integrated frontend core
-  exist, but there is not yet a full RTL/FPGA CPU frontend-switch
-  implementation with real x86/AArch64/RISC-V decode engines behind it.
+- A stateful RTL frontend/PC update boundary, integrated frontend core, and
+  dual fetch-request issue block exist, but there is not yet a full RTL/FPGA
+  CPU frontend-switch implementation with real x86/AArch64/RISC-V decode
+  engines behind it.
 - A directed cycle-budget model exists for the few-cycle `PSWITCH`/`PCALL`
   target, but no synthesized timing/timing-closure proof exists.
 - Bochs proves functional behavior, not timing, area, power, or decode-stage
