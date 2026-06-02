@@ -484,6 +484,7 @@ enum {
   POLY_CPUID_STATE_LANDING_POLICY_XSAVE = (1U << 17),
   POLY_CPUID_STATE_STATE_KEY_XSAVE = (1U << 18),
   POLY_CPUID_STATE_TRAP_RESTORE_XSAVE = (1U << 19),
+  POLY_CPUID_STATE_NATIVE_RETURN_XSAVE = (1U << 20),
   POLY_STATE_XSAVE_MAGIC = 0x31594c50, /* "PLY1" */
   POLY_STATE_XSAVE_COMPONENT_NONE = 0,
   POLY_STATE_XSAVE_BYTES_NONE = 0,
@@ -491,7 +492,7 @@ enum {
   POLY_STATE_XSAVE_OFFSET_ARCH = 0x3000,
   POLY_STATE_XSAVE_BYTES_ARCH = 8192,
   POLY_STATE_XSAVE_ALIGN_ARCH = 64,
-  POLY_STATE_XSAVE_LAYOUT_VERSION = 11,
+  POLY_STATE_XSAVE_LAYOUT_VERSION = 12,
   POLY_STATE_XSAVE_FLAG_XCR0_USER = (1U << 0),
   POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED = (1U << 1),
   POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME = (1U << 2),
@@ -505,6 +506,10 @@ enum {
   POLY_STATE_XSAVE_FLAG_LANDING_POLICY = (1U << 10),
   POLY_STATE_XSAVE_FLAG_STATE_KEY = (1U << 11),
   POLY_STATE_XSAVE_FLAG_TRAP_RESTORE = (1U << 12),
+  POLY_STATE_XSAVE_FLAG_NATIVE_RETURN = (1U << 13),
+  POLY_NATIVE_RETURN_FRAME_FLAG_SRET = (1U << 0),
+  POLY_NATIVE_RETURN_FRAME_FLAGS_SUPPORTED =
+    POLY_NATIVE_RETURN_FRAME_FLAG_SRET,
   POLY_TRAP_RESTORE_FLAG_VALID = (1U << 0),
   POLY_TRAP_RESTORE_FLAG_AARCH64_STATE_VALID = (1U << 1),
   POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID = (1U << 2),
@@ -520,6 +525,23 @@ enum {
   POLY_X86_RETURN_MAP_COMPACT_U32_F32 = 8,
   POLY_X86_RETURN_MAP_COMPACT_F32_U32 = 9,
   POLY_X86_RETURN_MAP_MAX = POLY_X86_RETURN_MAP_COMPACT_F32_U32,
+  POLY_NATIVE_RETURN_KIND_DEFAULT = 0,
+  POLY_NATIVE_RETURN_KIND_FPAIR32 = 1,
+  POLY_NATIVE_RETURN_KIND_HETERO_U64_F64 = 2,
+  POLY_NATIVE_RETURN_KIND_HETERO_F64_U64 = 3,
+  POLY_NATIVE_RETURN_KIND_HETERO_U64_F32 = 4,
+  POLY_NATIVE_RETURN_KIND_HETERO_F32_U64 = 5,
+  POLY_NATIVE_RETURN_KIND_COMPACT_U32_F32 = 6,
+  POLY_NATIVE_RETURN_KIND_COMPACT_F32_U32 = 7,
+  POLY_NATIVE_RETURN_KIND_VEC128_U32 = 8,
+  POLY_NATIVE_RETURN_KIND_AARCH64_HFA3_F64 = 9,
+  POLY_NATIVE_RETURN_KIND_AARCH64_HFA4_F64 = 10,
+  POLY_NATIVE_RETURN_KIND_AARCH64_HFA3_F32 = 11,
+  POLY_NATIVE_RETURN_KIND_AARCH64_HFA4_F32 = 12,
+  POLY_NATIVE_RETURN_KIND_FP64 = 13,
+  POLY_NATIVE_RETURN_KIND_FP32 = 14,
+  POLY_NATIVE_RETURN_KIND_FPAIR64 = 15,
+  POLY_NATIVE_RETURN_KIND_MAX = POLY_NATIVE_RETURN_KIND_FPAIR64,
   POLY_STATE_XSAVE_HEADER_OFFSET = 0x000,
   POLY_STATE_XSAVE_HEADER_BYTES = 0x040,
   POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
@@ -560,8 +582,12 @@ enum {
   POLY_STATE_XSAVE_STATE_KEY_BYTES = 0x040,
   POLY_STATE_XSAVE_TRAP_RESTORE_OFFSET = 0x1000,
   POLY_STATE_XSAVE_TRAP_RESTORE_BYTES = 0x800,
-  POLY_STATE_XSAVE_RESERVED_OFFSET = 0x1800,
-  POLY_STATE_XSAVE_RESERVED_BYTES = 0x800,
+  POLY_STATE_XSAVE_NATIVE_RETURN_OFFSET = 0x1800,
+  POLY_STATE_XSAVE_NATIVE_RETURN_BYTES = 0x280,
+  POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH = 8,
+  POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES = 0x40,
+  POLY_STATE_XSAVE_RESERVED_OFFSET = 0x1a80,
+  POLY_STATE_XSAVE_RESERVED_BYTES = 0x580,
   POLY_TRAP_PACKET_LAYOUT_VERSION = 2,
   POLY_TRAP_PACKET_HEADER_BYTES = 64,
   POLY_TRAP_PACKET_ARG_COUNT = 8,
@@ -910,6 +936,29 @@ struct poly_cross_return_state {
       sizeof(struct poly_cross_return_frame)];
 };
 
+struct poly_native_return_frame {
+  uint64_t return_pc;
+  uint64_t return_sp;
+  uint64_t sret_ptr;
+  uint32_t target_mode;
+  uint16_t return_kind;
+  uint16_t flags;
+  uint64_t reserved[4];
+};
+
+struct poly_native_return_state {
+  uint64_t active_valid;
+  uint64_t top;
+  uint64_t depth;
+  uint64_t supported_flags;
+  struct poly_native_return_frame active;
+  struct poly_native_return_frame
+    frames[POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH];
+  uint8_t reserved[POLY_STATE_XSAVE_NATIVE_RETURN_BYTES - 32 -
+    (POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH + 1) *
+      sizeof(struct poly_native_return_frame)];
+};
+
 struct poly_abi_signature_slot_state {
   uint32_t kind;
   uint32_t register_map;
@@ -989,6 +1038,7 @@ struct poly_xsave_state {
     POLY_STATE_XSAVE_STATE_KEY_OFFSET -
     POLY_STATE_XSAVE_STATE_KEY_BYTES];
   struct poly_trap_restore_state trap_restore;
+  struct poly_native_return_state native_return;
   uint8_t reserved[POLY_STATE_XSAVE_RESERVED_BYTES];
 };
 
@@ -1040,6 +1090,12 @@ POLY_STATIC_ASSERT(sizeof(struct poly_state_key_state) ==
 POLY_STATIC_ASSERT(sizeof(struct poly_trap_restore_state) ==
   POLY_STATE_XSAVE_TRAP_RESTORE_BYTES,
   "poly trap-restore area size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_native_return_frame) ==
+  POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES,
+  "poly native-return frame size must match XSAVE layout");
+POLY_STATIC_ASSERT(sizeof(struct poly_native_return_state) ==
+  POLY_STATE_XSAVE_NATIVE_RETURN_BYTES,
+  "poly native-return area size must match XSAVE layout");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, header) ==
   POLY_STATE_XSAVE_HEADER_OFFSET,
   "poly XSAVE header offset drifted");
@@ -1091,6 +1147,9 @@ POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, state_key) ==
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, trap_restore) ==
   POLY_STATE_XSAVE_TRAP_RESTORE_OFFSET,
   "poly trap-restore offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, native_return) ==
+  POLY_STATE_XSAVE_NATIVE_RETURN_OFFSET,
+  "poly native-return offset drifted");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, reserved) ==
   POLY_STATE_XSAVE_RESERVED_OFFSET,
   "poly reserved area offset drifted");
@@ -1460,7 +1519,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_state_leaf(void) {
     POLY_CPUID_STATE_FRONTEND_TLS_XSAVE |
     POLY_CPUID_STATE_LANDING_POLICY_XSAVE |
     POLY_CPUID_STATE_STATE_KEY_XSAVE |
-    POLY_CPUID_STATE_TRAP_RESTORE_XSAVE;
+    POLY_CPUID_STATE_TRAP_RESTORE_XSAVE |
+    POLY_CPUID_STATE_NATIVE_RETURN_XSAVE;
   regs.ebx = 0;
   regs.ecx = POLY_STATE_XSAVE_COMPONENT_ARCH;
   regs.edx = POLY_STATE_XSAVE_BYTES_ARCH;
@@ -1485,7 +1545,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_arch_state_leaf(void) {
     POLY_STATE_XSAVE_FLAG_FRONTEND_TLS |
     POLY_STATE_XSAVE_FLAG_LANDING_POLICY |
     POLY_STATE_XSAVE_FLAG_STATE_KEY |
-    POLY_STATE_XSAVE_FLAG_TRAP_RESTORE;
+    POLY_STATE_XSAVE_FLAG_TRAP_RESTORE |
+    POLY_STATE_XSAVE_FLAG_NATIVE_RETURN;
   return regs;
 }
 
@@ -1622,6 +1683,16 @@ poly_cpuid_expected_arch_state_trap_restore_leaf(void) {
 }
 
 static inline struct poly_cpuid_regs
+poly_cpuid_expected_arch_state_native_return_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_NATIVE_RETURN_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_NATIVE_RETURN_BYTES;
+  regs.ecx = POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH;
+  regs.edx = POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
 poly_cpuid_expected_arch_state_reserved_leaf(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_STATE_XSAVE_RESERVED_OFFSET;
@@ -1720,6 +1791,16 @@ poly_cpuid_expected_transition_import_return_leaf(void) {
   regs.ebx = POLY_STATE_XSAVE_IMPORT_RETURN_BYTES;
   regs.ecx = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
   regs.edx = POLY_STATE_XSAVE_IMPORT_RETURN_FRAME_BYTES;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs
+poly_cpuid_expected_transition_native_return_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_STATE_XSAVE_NATIVE_RETURN_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_NATIVE_RETURN_BYTES;
+  regs.ecx = POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH;
+  regs.edx = POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES;
   return regs;
 }
 
@@ -1869,34 +1950,46 @@ static inline int poly_cpuid_arch_state_contract_check(size_t index,
     check->expected = poly_cpuid_expected_arch_state_trap_restore_leaf();
     return 1;
   case 15:
-    check->name = "poly XSAVE reserved layout";
+    check->name = "poly native-return layout";
     check->leaf = POLY_CPUID_BASE + 4;
     check->subleaf = 14;
-    check->expected = poly_cpuid_expected_arch_state_reserved_leaf();
+    check->expected = poly_cpuid_expected_arch_state_native_return_leaf();
     return 1;
   case 16:
+    check->name = "poly XSAVE reserved layout";
+    check->leaf = POLY_CPUID_BASE + 4;
+    check->subleaf = 15;
+    check->expected = poly_cpuid_expected_arch_state_reserved_leaf();
+    return 1;
+  case 17:
     check->name = "poly transition contract";
     check->leaf = POLY_CPUID_BASE + 8;
     check->subleaf = 0;
     check->expected = poly_cpuid_expected_transition_leaf();
     return 1;
-  case 17:
+  case 18:
     check->name = "poly transition frame layout";
     check->leaf = POLY_CPUID_BASE + 8;
     check->subleaf = 2;
     check->expected = poly_cpuid_expected_transition_layout_leaf();
     return 1;
-  case 18:
+  case 19:
     check->name = "poly cross-return layout";
     check->leaf = POLY_CPUID_BASE + 8;
     check->subleaf = 3;
     check->expected = poly_cpuid_expected_transition_cross_return_leaf();
     return 1;
-  case 19:
+  case 20:
     check->name = "poly import-return layout";
     check->leaf = POLY_CPUID_BASE + 8;
     check->subleaf = 4;
     check->expected = poly_cpuid_expected_transition_import_return_leaf();
+    return 1;
+  case 21:
+    check->name = "poly native-return transition layout";
+    check->leaf = POLY_CPUID_BASE + 8;
+    check->subleaf = 5;
+    check->expected = poly_cpuid_expected_transition_native_return_leaf();
     return 1;
   default:
     return 0;

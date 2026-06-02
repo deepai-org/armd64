@@ -6720,17 +6720,21 @@ static int nativecheck_poly_state_control_equal(
         sizeof(after->abi_signature)) != 0 ||
       memcmp(&after->cross_return, &before->cross_return,
         sizeof(after->cross_return)) != 0 ||
+      memcmp(&after->native_return, &before->native_return,
+        sizeof(after->native_return)) != 0 ||
       memcmp(&after->landing_policy, &before->landing_policy,
         sizeof(after->landing_policy)) != 0 ||
       memcmp(&after->state_key, &before->state_key,
         sizeof(after->state_key)) != 0) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly rejected control mutated XSAVE state case=%s mode=%u/%u import=%llu/%llu cross=%llu/%llu slot5=%u/%u landing=0x%llx/0x%llx statekey=0x%llx/0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly rejected control mutated XSAVE state case=%s mode=%u/%u import=%llu/%llu cross=%llu/%llu native=%llu/%llu slot5=%u/%u landing=0x%llx/0x%llx statekey=0x%llx/0x%llx\n",
       label, after->header.current_mode, before->header.current_mode,
       (unsigned long long) after->import_return.top,
       (unsigned long long) before->import_return.top,
       (unsigned long long) after->cross_return.top,
       (unsigned long long) before->cross_return.top,
+      (unsigned long long) after->native_return.top,
+      (unsigned long long) before->native_return.top,
       after->abi_signature.slots[5].kind,
       before->abi_signature.slots[5].kind,
       (unsigned long long) after->landing_policy.flags,
@@ -7453,11 +7457,19 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   }
   if (snapshot.import_return.top > POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH ||
-      snapshot.cross_return.top > POLY_STATE_XSAVE_CROSS_RETURN_DEPTH) {
+      snapshot.cross_return.top > POLY_STATE_XSAVE_CROSS_RETURN_DEPTH ||
+      snapshot.native_return.active_valid > 1 ||
+      snapshot.native_return.top > POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH ||
+      snapshot.native_return.depth != POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH ||
+      snapshot.native_return.supported_flags !=
+        POLY_NATIVE_RETURN_FRAME_FLAGS_SUPPORTED) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly state export stack top mismatch import=%llu cross=%llu\n",
+      "NATIVE_CHECK_FAIL: poly state export stack top mismatch import=%llu cross=%llu native=%llu/%llu active=%llu\n",
       (unsigned long long) snapshot.import_return.top,
-      (unsigned long long) snapshot.cross_return.top);
+      (unsigned long long) snapshot.cross_return.top,
+      (unsigned long long) snapshot.native_return.top,
+      (unsigned long long) snapshot.native_return.depth,
+      (unsigned long long) snapshot.native_return.active_valid);
     return 1;
   }
   if (nativecheck_bytes_are_zero(snapshot.transition.reserved,
@@ -7482,6 +7494,18 @@ static int run_poly_state_save_restore_probe(void) {
         "inactive cross-return frames") != 0 ||
       nativecheck_bytes_are_zero(snapshot.cross_return.reserved,
         sizeof(snapshot.cross_return.reserved), "cross-return reserved") != 0 ||
+      (snapshot.native_return.active_valid == 0 &&
+        nativecheck_bytes_are_zero(&snapshot.native_return.active,
+          sizeof(snapshot.native_return.active),
+          "inactive native-return active frame") != 0) ||
+      nativecheck_bytes_are_zero(
+        &snapshot.native_return.frames[snapshot.native_return.top],
+        (POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH - snapshot.native_return.top) *
+          sizeof(snapshot.native_return.frames[0]),
+        "inactive native-return frames") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.native_return.reserved,
+        sizeof(snapshot.native_return.reserved),
+        "native-return reserved") != 0 ||
       nativecheck_bytes_are_zero(snapshot.frontend_tls.reserved,
         sizeof(snapshot.frontend_tls.reserved), "frontend TLS reserved") != 0 ||
       nativecheck_bytes_are_zero(snapshot.landing_policy.reserved,
@@ -8209,6 +8233,22 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.cross_return.frames[0].caller_mode = POLY_MODE_RAW_AARCH64;
   complex.cross_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
   complex.cross_return.frames[0].abi_kind = POLY_CROSS_BRIDGE_DEFAULT;
+  complex.native_return.active_valid = 1;
+  complex.native_return.top = 1;
+  complex.native_return.depth = POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH;
+  complex.native_return.supported_flags =
+    POLY_NATIVE_RETURN_FRAME_FLAGS_SUPPORTED;
+  complex.native_return.active.return_pc = 0x0000000000481000ULL;
+  complex.native_return.active.return_sp = 0x00007fff50005000ULL;
+  complex.native_return.active.sret_ptr = 0x00007fff50006000ULL;
+  complex.native_return.active.target_mode = POLY_MODE_RAW_AARCH64;
+  complex.native_return.active.return_kind = POLY_NATIVE_RETURN_KIND_DEFAULT;
+  complex.native_return.active.flags = POLY_NATIVE_RETURN_FRAME_FLAG_SRET;
+  complex.native_return.frames[0].return_pc = 0x0000000000491000ULL;
+  complex.native_return.frames[0].return_sp = 0x00007fff60006000ULL;
+  complex.native_return.frames[0].target_mode = POLY_MODE_RAW_RISCV;
+  complex.native_return.frames[0].return_kind =
+    POLY_NATIVE_RETURN_KIND_DEFAULT;
 
   poly_state_import(&complex);
   memset(nativecheck_real_xsave_area, 0,
@@ -8244,6 +8284,14 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       memcmp(&saved->cross_return.frames[0],
         &complex.cross_return.frames[0],
         sizeof(saved->cross_return.frames[0])) != 0 ||
+      saved->native_return.active_valid != 1 ||
+      saved->native_return.top != 1 ||
+      saved->native_return.depth != POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH ||
+      memcmp(&saved->native_return.active, &complex.native_return.active,
+        sizeof(saved->native_return.active)) != 0 ||
+      memcmp(&saved->native_return.frames[0],
+        &complex.native_return.frames[0],
+        sizeof(saved->native_return.frames[0])) != 0 ||
       saved->transition.active.return_pc !=
         complex.cross_return.frames[0].return_pc ||
       saved->transition.active.cookie !=
@@ -8252,7 +8300,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->transition.active.target_mode != POLY_MODE_RAW_RISCV ||
       saved->transition.active.abi_kind != POLY_CROSS_BRIDGE_DEFAULT) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XSAVE complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
+      "NATIVE_CHECK_FAIL: real XSAVE complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu native_top=%llu transition=0x%llx\n",
       (unsigned long long) saved->frontend_tls.aarch64_tls_base,
       (unsigned long long) saved->frontend_tls.riscv_tls_base,
       (unsigned long long) saved->state_key.explicit_key,
@@ -8260,6 +8308,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       (unsigned long long) saved->trap_args[7],
       (unsigned long long) saved->import_return.top,
       (unsigned long long) saved->cross_return.top,
+      (unsigned long long) saved->native_return.top,
       (unsigned long long) saved->transition.active.return_pc);
     poly_state_import(&clean);
     return 1;
@@ -8288,18 +8337,25 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       roundtrip.state_key.explicit_key != real_xsave_state_key ||
       roundtrip.import_return.top != 1 ||
       roundtrip.cross_return.top != 1 ||
+      roundtrip.native_return.active_valid != 1 ||
+      roundtrip.native_return.top != 1 ||
       memcmp(&roundtrip.import_return.frames[0],
         &complex.import_return.frames[0],
         sizeof(roundtrip.import_return.frames[0])) != 0 ||
       memcmp(&roundtrip.cross_return.frames[0],
         &complex.cross_return.frames[0],
         sizeof(roundtrip.cross_return.frames[0])) != 0 ||
+      memcmp(&roundtrip.native_return.active, &complex.native_return.active,
+        sizeof(roundtrip.native_return.active)) != 0 ||
+      memcmp(&roundtrip.native_return.frames[0],
+        &complex.native_return.frames[0],
+        sizeof(roundtrip.native_return.frames[0])) != 0 ||
       roundtrip.transition.active.return_pc !=
         complex.cross_return.frames[0].return_pc ||
       roundtrip.transition.active.cookie !=
         complex.cross_return.frames[0].return_sp) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XRSTOR complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
+      "NATIVE_CHECK_FAIL: real XRSTOR complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu native_top=%llu transition=0x%llx\n",
       (unsigned long long) roundtrip.frontend_tls.aarch64_tls_base,
       (unsigned long long) roundtrip.frontend_tls.riscv_tls_base,
       (unsigned long long) roundtrip.state_key.explicit_key,
@@ -8307,6 +8363,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       (unsigned long long) roundtrip.trap_args[7],
       (unsigned long long) roundtrip.import_return.top,
       (unsigned long long) roundtrip.cross_return.top,
+      (unsigned long long) roundtrip.native_return.top,
       (unsigned long long) roundtrip.transition.active.return_pc);
     poly_state_import(&clean);
     return 1;
@@ -9279,20 +9336,31 @@ static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
     uint64_t expected_import_id, uint32_t expected_alias_valid) {
   const struct poly_import_return_state *state =
     &nativecheck_import_live_state.import_return;
+  const struct poly_native_return_state *native =
+    &nativecheck_import_live_state.native_return;
   if (nativecheck_import_live_state.header.layout_version !=
         POLY_STATE_XSAVE_LAYOUT_VERSION ||
       state->top != 1 ||
-      state->depth != POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH) {
+      state->depth != POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH ||
+      native->active_valid > 1 ||
+      native->top > POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH ||
+      native->depth != POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH ||
+      native->supported_flags != POLY_NATIVE_RETURN_FRAME_FLAGS_SUPPORTED) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly import xsave header mismatch mode=%u version=%u top=%llu depth=%llu\n",
+      "NATIVE_CHECK_FAIL: poly import xsave header mismatch mode=%u version=%u top=%llu depth=%llu native=%llu/%llu/%llu flags=0x%llx\n",
       expected_mode,
       nativecheck_import_live_state.header.layout_version,
       (unsigned long long) state->top,
-      (unsigned long long) state->depth);
+      (unsigned long long) state->depth,
+      (unsigned long long) native->active_valid,
+      (unsigned long long) native->top,
+      (unsigned long long) native->depth,
+      (unsigned long long) native->supported_flags);
     return 1;
   }
 
   const struct poly_import_return_frame *frame = &state->frames[0];
+  const struct poly_native_return_frame *native_frame = &native->active;
   if (frame->source_mode != expected_mode ||
       frame->alias_valid != expected_alias_valid ||
       frame->return_pc == 0 ||
@@ -9310,6 +9378,42 @@ static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
       (unsigned long long) frame->import_id,
       (unsigned long long) frame->return_map);
     return 1;
+  }
+
+  if (native->active_valid != 0) {
+    if (native_frame->target_mode != expected_mode ||
+        native_frame->return_pc == 0 ||
+        native_frame->return_sp == 0 ||
+        native_frame->return_kind != POLY_NATIVE_RETURN_KIND_DEFAULT ||
+        native_frame->flags != 0 ||
+        nativecheck_import_live_state.transition.active.return_pc !=
+          native_frame->return_pc ||
+        nativecheck_import_live_state.transition.active.cookie !=
+          native_frame->return_sp ||
+        nativecheck_import_live_state.transition.active.caller_mode !=
+          POLY_MODE_X86 ||
+        nativecheck_import_live_state.transition.active.target_mode !=
+          expected_mode ||
+        nativecheck_import_live_state.transition.active.abi_kind !=
+          POLY_NATIVE_RETURN_KIND_DEFAULT ||
+        nativecheck_import_live_state.transition.active.flags !=
+          POLY_TRANSITION_FLAG_NATIVE_RETURN_COOKIE) {
+      fprintf(stderr,
+        "NATIVE_CHECK_FAIL: poly native-return xsave mismatch expected_mode=%u mode=%u pc=0x%llx sp=0x%llx kind=%u flags=0x%x transition=0x%llx/0x%llx/%u/%u/%u/0x%x\n",
+        expected_mode, native_frame->target_mode,
+        (unsigned long long) native_frame->return_pc,
+        (unsigned long long) native_frame->return_sp,
+        native_frame->return_kind, native_frame->flags,
+        (unsigned long long)
+          nativecheck_import_live_state.transition.active.return_pc,
+        (unsigned long long)
+          nativecheck_import_live_state.transition.active.cookie,
+        nativecheck_import_live_state.transition.active.caller_mode,
+        nativecheck_import_live_state.transition.active.target_mode,
+        nativecheck_import_live_state.transition.active.abi_kind,
+        nativecheck_import_live_state.transition.active.flags);
+      return 1;
+    }
   }
 
   return 0;
@@ -10984,8 +11088,11 @@ int main(void) {
         nativecheck_cpuid_expect("poly CPUID trap-restore layout",
           POLY_CPUID_BASE + 4, 13,
           poly_cpuid_expected_arch_state_trap_restore_leaf()) != 0 ||
-        nativecheck_cpuid_expect("poly CPUID reserved layout",
+        nativecheck_cpuid_expect("poly CPUID native-return layout",
           POLY_CPUID_BASE + 4, 14,
+          poly_cpuid_expected_arch_state_native_return_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID reserved layout",
+          POLY_CPUID_BASE + 4, 15,
           poly_cpuid_expected_arch_state_reserved_leaf()) != 0)
       return 1;
     struct poly_cpuid_regs xsave0 = poly_read_cpuid(0x0d, 0);
@@ -11102,6 +11209,19 @@ int main(void) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID import-return layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         import_return.eax, import_return.ebx, import_return.ecx,
         import_return.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_native_return =
+      poly_cpuid_expected_transition_native_return_leaf();
+    struct poly_cpuid_regs native_return =
+      poly_read_cpuid(POLY_CPUID_BASE + 8, 5);
+    if (native_return.eax != expected_native_return.eax ||
+        native_return.ebx != expected_native_return.ebx ||
+        native_return.ecx != expected_native_return.ecx ||
+        native_return.edx != expected_native_return.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID native-return layout mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        native_return.eax, native_return.ebx, native_return.ecx,
+        native_return.edx);
       return 1;
     }
     struct poly_cpuid_regs expected_frontends =
