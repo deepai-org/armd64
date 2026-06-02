@@ -1,9 +1,10 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly extends x86_64 with AArch64 and RISC-V64 user-mode frontends. The goal is
-to run existing precompiled cross-ISA code in one process address space.
+Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU. The
+goal is compatibility with existing precompiled code across ISAs in one process
+address space.
 
-## How To Run
+## Run
 
 ```bash
 make image
@@ -18,24 +19,23 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-call-real-xsave-arch-traps
 make BOOT_TIMEOUT_SECONDS=900 boot-poly-binfmt-arch-traps
 ```
 
-## Difference From x86_64
+## Architectural Contract
 
 - x86_64 remains the system ISA for boot, privilege, paging, interrupts,
   syscalls, atomics, and the effective memory model.
 - AArch64 and RISC-V64 are raw user frontends that fetch native 32-bit
   instructions from `RIP`.
-- Mode switches are decoded control operations, not `#UD` envelopes.
-- Cross-ISA calls preserve real ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
+- Mode switches are decoded control instructions, not `#UD` traps or per-
+  instruction envelopes.
+- Cross-ISA interop targets real ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
 - Extra foreign registers are per-thread XSAVE-style architectural state.
-- Silicon should switch frontends and optionally remap register names. It should
-  not parse user-memory descriptors, repack stacks, implement libc, or translate
-  OS syscalls.
-- Recoverable foreign traps produce OS-neutral trap packets for runtime or OS
-  policy.
+- Hardware may switch frontends and remap register names. It must not parse
+  user-memory descriptors, repack stacks, implement libc, or translate syscalls.
+- Recoverable foreign traps produce OS-neutral trap packets for runtime policy.
 
 ## Temporary Bochs Encodings
 
-Prototype encodings only. Hardware needs allocated opcode space.
+These are prototype encodings only; real hardware needs allocated opcode space.
 
 | ISA | Control encoding |
 | --- | --- |
