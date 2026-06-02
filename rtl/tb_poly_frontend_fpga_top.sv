@@ -146,6 +146,24 @@ module tb_poly_frontend_fpga_top;
   logic cycle_invalid_op_o;
   logic cycle_blocked_o;
   logic trap_mem_write_valid_o;
+  logic [63:0] trap_mem_write_addr_o;
+  logic [7:0] trap_mem_write_bytes_o;
+  logic [63:0] trap_mem_write_qword0_o;
+  logic [63:0] trap_mem_write_qword1_o;
+  logic [63:0] trap_mem_write_qword2_o;
+  logic [63:0] trap_mem_write_qword3_o;
+  logic [63:0] trap_mem_write_qword4_o;
+  logic [63:0] trap_mem_write_qword5_o;
+  logic [63:0] trap_mem_write_qword6_o;
+  logic [63:0] trap_mem_write_qword7_o;
+  logic [63:0] trap_mem_write_qword8_o;
+  logic [63:0] trap_mem_write_qword9_o;
+  logic [63:0] trap_mem_write_qword10_o;
+  logic [63:0] trap_mem_write_qword11_o;
+  logic [63:0] trap_mem_write_qword12_o;
+  logic [63:0] trap_mem_write_qword13_o;
+  logic [63:0] trap_mem_write_qword14_o;
+  logic [63:0] trap_mem_write_qword15_o;
   logic trap_packet_delivered_o;
   logic trap_fault_o;
   logic trap_encode_error_o;
@@ -304,8 +322,24 @@ module tb_poly_frontend_fpga_top;
     .raw_branch_wait_o(raw_branch_wait_o),
     .raw_branch_resolved_fault_o(raw_branch_resolved_fault_o),
     .trap_mem_write_valid_o(trap_mem_write_valid_o),
-    .trap_mem_write_addr_o(),
-    .trap_mem_write_bytes_o(),
+    .trap_mem_write_addr_o(trap_mem_write_addr_o),
+    .trap_mem_write_bytes_o(trap_mem_write_bytes_o),
+    .trap_mem_write_qword0_o(trap_mem_write_qword0_o),
+    .trap_mem_write_qword1_o(trap_mem_write_qword1_o),
+    .trap_mem_write_qword2_o(trap_mem_write_qword2_o),
+    .trap_mem_write_qword3_o(trap_mem_write_qword3_o),
+    .trap_mem_write_qword4_o(trap_mem_write_qword4_o),
+    .trap_mem_write_qword5_o(trap_mem_write_qword5_o),
+    .trap_mem_write_qword6_o(trap_mem_write_qword6_o),
+    .trap_mem_write_qword7_o(trap_mem_write_qword7_o),
+    .trap_mem_write_qword8_o(trap_mem_write_qword8_o),
+    .trap_mem_write_qword9_o(trap_mem_write_qword9_o),
+    .trap_mem_write_qword10_o(trap_mem_write_qword10_o),
+    .trap_mem_write_qword11_o(trap_mem_write_qword11_o),
+    .trap_mem_write_qword12_o(trap_mem_write_qword12_o),
+    .trap_mem_write_qword13_o(trap_mem_write_qword13_o),
+    .trap_mem_write_qword14_o(trap_mem_write_qword14_o),
+    .trap_mem_write_qword15_o(trap_mem_write_qword15_o),
     .trap_wait_response_o(),
     .trap_packet_delivered_o(trap_packet_delivered_o),
     .trap_fault_o(trap_fault_o),
@@ -629,9 +663,42 @@ module tb_poly_frontend_fpga_top;
     trap_vector_pc_i = 64'h8000;
     trap_reason_i = POLY_TRAP_BREAK;
     trap_source_mode_i = POLY_MODE_RAW_RISCV;
+    trap_number_i = 64'h11;
+    trap_selector_i = 64'h22;
+    trap_pc_i = 64'h7000;
+    trap_resume_pc_i = 64'h7004;
+    trap_arg0_i = 64'h8000_0000_0000_0001;
+    trap_arg1_i = 64'h8000_0000_0000_0002;
+    trap_arg2_i = 64'h8000_0000_0000_0003;
+    trap_arg3_i = 64'h8000_0000_0000_0004;
+    trap_arg4_i = 64'h8000_0000_0000_0005;
+    trap_arg5_i = 64'h8000_0000_0000_0006;
+    trap_arg6_i = 64'h8000_0000_0000_0007;
+    trap_arg7_i = 64'h8000_0000_0000_0008;
     trap_mem_write_resp_valid_i = 1'b1;
     cycle_memory_response_cycles_i = 8'd6;
     #1;
+    check(trap_mem_write_valid_o && trap_mem_write_addr_o == 64'h457000 &&
+      trap_mem_write_bytes_o == 8'd128,
+      "fpga top exposes trap-packet memory write envelope");
+    check(trap_mem_write_qword0_o == {POLY_MODE_RAW_RISCV, POLY_TRAP_BREAK} &&
+      trap_mem_write_qword1_o == 64'h11 &&
+      trap_mem_write_qword2_o == 64'h22 &&
+      trap_mem_write_qword3_o == 64'h7000 &&
+      trap_mem_write_qword4_o == 64'h7004 &&
+      trap_mem_write_qword5_o == 64'h7f &&
+      trap_mem_write_qword6_o == 64'h0 &&
+      trap_mem_write_qword7_o == 64'h0,
+      "fpga top exposes trap-packet metadata qwords");
+    check(trap_mem_write_qword8_o == 64'h8000_0000_0000_0001 &&
+      trap_mem_write_qword9_o == 64'h8000_0000_0000_0002 &&
+      trap_mem_write_qword10_o == 64'h8000_0000_0000_0003 &&
+      trap_mem_write_qword11_o == 64'h8000_0000_0000_0004 &&
+      trap_mem_write_qword12_o == 64'h8000_0000_0000_0005 &&
+      trap_mem_write_qword13_o == 64'h8000_0000_0000_0006 &&
+      trap_mem_write_qword14_o == 64'h8000_0000_0000_0007 &&
+      trap_mem_write_qword15_o == 64'h8000_0000_0000_0008,
+      "fpga top exposes trap-packet argument qwords");
     check(trap_vector_apply_o && trap_vector_frontend_o == POLY_FRONTEND_RISCV &&
       trap_vector_pc_o == 64'h8000, "fpga top exposes trap-vector apply target");
     check(cycle_budget_valid_o && cycle_fixed_o == 8'd2 &&
