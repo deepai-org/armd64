@@ -98,7 +98,7 @@ def encode(
     wrap = last < addr
     disabled = valid and not enabled
     noncanonical = valid and enabled and (not canonical(addr) or not canonical(last))
-    align = valid and enabled and (addr & 0x3F) != 0
+    align = valid and enabled and (addr & 0x7) != 0
     range_fault = valid and enabled and wrap
     invalid_reason = valid and enabled and reason not in {
         c["POLY_TRAP_SYSCALL"],
@@ -154,6 +154,7 @@ def main() -> int:
         c["POLY_STATE_XSAVE_TRAP_PACKET_BYTES"] +
         c["POLY_STATE_XSAVE_TRAP_ARGS_BYTES"]
     )
+    assert sv["POLY_MONITOR_PACKET_ALIGN"] == 8
     assert sv["POLY_TRAP_PACKET_REQUIRED_FLAGS"] == trap_flags(c)
 
     args = [0x100 + n for n in range(c["POLY_TRAP_PACKET_ARG_COUNT"])]
@@ -167,6 +168,12 @@ def main() -> int:
         (c["POLY_MODE_RAW_AARCH64"] << 32) | c["POLY_TRAP_SYSCALL"],
         172, 7, 0x4000, 0x4004, trap_flags(c), 0, 0, *args
     ]
+
+    ok_8_aligned = encode(
+        True, True, 0x0000000000457008, c["POLY_TRAP_BREAK"],
+        c["POLY_MODE_RAW_RISCV"], 5, 0, 0x8000, 0x8002, args, c
+    )
+    assert ok_8_aligned["packet_valid"] and not ok_8_aligned["error"]
 
     disabled = encode(
         True, False, 0x0000000000457000, c["POLY_TRAP_BREAK"],

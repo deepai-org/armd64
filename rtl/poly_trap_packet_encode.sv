@@ -60,6 +60,8 @@ module poly_trap_packet_encode (
   localparam logic [31:0] POLY_TRAP_ILLEGAL = 32'd4;
 
   localparam logic [7:0]  POLY_MONITOR_PACKET_BYTES = 8'd128;
+  localparam logic [7:0]  POLY_MONITOR_PACKET_ALIGN = 8'd8;
+  localparam logic [63:0] POLY_MONITOR_PACKET_ALIGN_MASK = 64'd7;
   localparam logic [63:0] POLY_MONITOR_PACKET_LAST_OFFSET = 64'd127;
   localparam logic [63:0] POLY_TRAP_PACKET_REQUIRED_FLAGS = 64'h000000000000007f;
 
@@ -83,7 +85,8 @@ module poly_trap_packet_encode (
       valid_i && monitor_enabled_i &&
       (!packet_start_canonical || !packet_end_canonical);
     packet_align_fault_o =
-      valid_i && monitor_enabled_i && monitor_packet_addr_i[5:0] != 6'd0;
+      valid_i && monitor_enabled_i &&
+      (monitor_packet_addr_i & POLY_MONITOR_PACKET_ALIGN_MASK) != 64'd0;
     packet_range_fault_o =
       valid_i && monitor_enabled_i && range_wrap;
     invalid_reason_o =
