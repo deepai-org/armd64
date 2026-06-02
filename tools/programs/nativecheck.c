@@ -11193,6 +11193,39 @@ int main(void) {
         expected_features, POLY_STATE_XSAVE_COMPONENT_ARCH);
       return 1;
     }
+    struct poly_cpuid_regs expected_x86_trap_manifest =
+      poly_cpuid_expected_escape_leaf1();
+    struct poly_cpuid_regs x86_trap_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 1);
+    if (!poly_cpuid_regs_match(&x86_trap_manifest,
+          &expected_x86_trap_manifest)) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 trap control leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        x86_trap_manifest.eax, x86_trap_manifest.ebx,
+        x86_trap_manifest.ecx, x86_trap_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_x86_state_manifest =
+      poly_cpuid_expected_escape_leaf2();
+    struct poly_cpuid_regs x86_state_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 2);
+    if (!poly_cpuid_regs_match(&x86_state_manifest,
+          &expected_x86_state_manifest)) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 state control leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        x86_state_manifest.eax, x86_state_manifest.ebx,
+        x86_state_manifest.ecx, x86_state_manifest.edx);
+      return 1;
+    }
+    struct poly_cpuid_regs expected_x86_setup_manifest =
+      poly_cpuid_expected_escape_leaf3();
+    struct poly_cpuid_regs x86_setup_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 3);
+    if (!poly_cpuid_regs_match(&x86_setup_manifest,
+          &expected_x86_setup_manifest)) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 setup control leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        x86_setup_manifest.eax, x86_setup_manifest.ebx,
+        x86_setup_manifest.ecx, x86_setup_manifest.edx);
+      return 1;
+    }
     struct poly_cpuid_regs expected_x86_control_manifest =
       poly_cpuid_expected_escape_leaf5();
     struct poly_cpuid_regs x86_control_manifest =
