@@ -51,6 +51,8 @@ silicon prototype.
   frontends, including foreign barrier/fence no-op handling.
 - `poly_memory_order_formal.sv`: formal harness with assertions for the TSO
   retirement policy. It requires an external formal backend to discharge.
+- `poly_x86_fetch_stage.sv`: x86 frontend response stage that waits for the
+  byte frontend and reports response faults before retirement.
 - `poly_raw_fetch_plan.sv`: raw AArch64/RISC-V fetch geometry for alignment,
   instruction width, instruction bits, and next-PC calculation.
 - `poly_raw_fetch_request.sv`: raw AArch64/RISC-V instruction-memory request
@@ -106,6 +108,8 @@ silicon prototype.
   contains the expected TSO assertions.
 - `test_poly_memory_order_litmus.py`: litmus-style checks for x86 TSO message
   passing, store buffering, and coherence behavior.
+- `test_poly_x86_fetch_stage.py`: x86 fetch response-stage checks for wait,
+  instruction-valid, fallthrough, and response-fault behavior.
 - `test_poly_raw_fetch_plan.py`: raw foreign-fetch geometry checks against
   `tools/include/polycpuid.h`.
 - `test_poly_raw_fetch_request.py`: raw instruction-fetch request checks
@@ -139,6 +143,7 @@ python3 rtl/test_poly_cpuid_rom.py
 python3 rtl/test_poly_memory_order.py
 python3 rtl/test_poly_memory_order_formal.py
 python3 rtl/test_poly_memory_order_litmus.py
+python3 rtl/test_poly_x86_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_request.py
 python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
@@ -168,6 +173,7 @@ POLY_RTL_CPUID_ROM_OK
 POLY_RTL_MEMORY_ORDER_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_OK
 POLY_RTL_MEMORY_ORDER_LITMUS_OK
+POLY_RTL_X86_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_REQUEST_OK
 POLY_RTL_RAW_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_PLAN_OK

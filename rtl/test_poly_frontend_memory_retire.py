@@ -322,11 +322,14 @@ def pipeline(
     raw_fault = req["error"] or (req["valid"] and raw_resp_valid and raw_resp_fault)
     raw_valid = req["valid"] and raw_resp_valid and not raw_resp_fault
     raw_insn = raw_plan(frontend, pc, raw_word, c)["insn"] if raw_valid else 0
-    fetch_valid = (x86 and x86_valid and not x86_fault) or (raw and raw_valid)
+    x86_wait = x86_req["valid"] and not x86_valid
+    x86_mem_fault = x86_req["valid"] and x86_valid and x86_fault
+    x86_insn_valid = x86_req["valid"] and x86_valid and not x86_fault
+    fetch_valid = (x86 and x86_insn_valid) or (raw and raw_valid)
     pipeline_invalid = valid and not frontend_valid
     fetch_fault = (
         pipeline_invalid or
-        (x86 and (x86_fault or x86_req["error"])) or
+        (x86 and (x86_req["error"] or x86_mem_fault)) or
         (raw and raw_fault)
     )
     fetch_word = raw_insn if raw else x86_word
@@ -342,6 +345,8 @@ def pipeline(
         "x86_addr": pc,
         "x86_bytes": x86_req["bytes"],
         "x86_request_error": x86_req["error"],
+        "x86_wait": x86_wait,
+        "x86_mem_fault": x86_mem_fault,
         "x86_noncanonical": x86_req["noncanonical"],
         "x86_range": x86_req["range"],
         "raw_req": req["valid"],
@@ -358,10 +363,12 @@ def main() -> int:
     c = parse_c_enum_constants(HEADER)
     text = RTL.read_text()
     assert "poly_frontend_fetch_issue fetch_issue" in text
+    assert "poly_x86_fetch_stage x86_fetch_stage" in text
     assert "poly_raw_fetch_plan raw_fetch_plan" in text
     assert "poly_frontend_retire frontend_retire" in text
     assert ".x86_fetch_req_valid_o(x86_fetch_req_valid_o)" in text
     assert ".raw_fetch_req_valid_o(raw_mem_req_valid_o)" in text
+    assert ".wait_response_o(x86_fetch_wait_o)" in text
     assert "x86_request_error_o = x86_noncanonical_pc_o || x86_range_fault_o;" in text
     assert ".execute_ready_i(execute_ready_i)" in text
     assert ".block_retire_i(block_retire_i)" in text
@@ -379,6 +386,15 @@ def main() -> int:
     assert x86_switch["retire"] and x86_switch["transition"]
     assert x86_switch["commit_frontend"] == c["POLY_FRONTEND_AARCH64"]
     assert x86_switch["commit_pc"] == 0x4000
+
+    x86_wait = pipeline(
+        True, c["POLY_FRONTEND_X86"], 0x1000, False, False,
+        x86_ctrl_word(c["POLY_X86_CTRL_PSWITCH_MODE"]), 0x1004,
+        False, False, 0, False, True, False, False,
+        c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
+    )
+    assert x86_wait["x86_req"] and x86_wait["x86_wait"]
+    assert x86_wait["wait"] and not x86_wait["fault"] and not x86_wait["retire"]
 
     raw_wait = pipeline(
         True, c["POLY_FRONTEND_AARCH64"], 0x4000, False, False, 0, 0,
@@ -419,10 +435,11 @@ def main() -> int:
     assert not raw_mem_fault["retire"]
 
     x86_fetch_fault = pipeline(
-        True, c["POLY_FRONTEND_X86"], 0x1000, False, True, 0, 0x1004,
+        True, c["POLY_FRONTEND_X86"], 0x1000, True, True, 0, 0x1004,
         False, False, 0, False, True, False, False,
         c["POLY_FRONTEND_AARCH64"], 0x4000, True, False, c
     )
+    assert x86_fetch_fault["x86_mem_fault"]
     assert x86_fetch_fault["fault"] and x86_fetch_fault["fetch_fault"]
     assert not x86_fetch_fault["retire"] and not x86_fetch_fault["raw_req"]
 
