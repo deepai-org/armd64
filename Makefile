@@ -99,6 +99,10 @@ check-poly-rtl-sim:
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_ctrl_decode" \
 		rtl/poly_ctrl_decode.sv rtl/tb_poly_ctrl_decode.sv; \
 	vvp "$$tmp_dir/tb_poly_ctrl_decode"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_raw_fetch_path" \
+		rtl/poly_raw_fetch_plan.sv rtl/poly_raw_fetch_request.sv \
+		rtl/poly_raw_fetch_response_stage.sv rtl/tb_poly_raw_fetch_path.sv; \
+	vvp "$$tmp_dir/tb_poly_raw_fetch_path"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_state"; \
