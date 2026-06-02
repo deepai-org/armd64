@@ -42,9 +42,9 @@ struct payload {
   uint64_t break_arg_expected[POLY_TRAP_PACKET_ARG_COUNT];
   char scratch_expected[SCRATCH_CHECK_SIZE + 1];
   char scratch_hex_expected[SCRATCH_CHECK_SIZE * 2 + 1];
-  uint32_t *insns;
-  size_t insn_count;
-  size_t insn_capacity;
+  uint8_t *code_bytes;
+  size_t code_size;
+  size_t code_capacity;
   unsigned syscall_arg_mask;
   unsigned break_arg_mask;
   unsigned break_id;
@@ -587,13 +587,6 @@ static int read_file(const char *path, unsigned char **data, size_t *size) {
   return 0;
 }
 
-static uint32_t read_le32(const unsigned char *bytes) {
-  return (uint32_t) bytes[0] |
-    ((uint32_t) bytes[1] << 8) |
-    ((uint32_t) bytes[2] << 16) |
-    ((uint32_t) bytes[3] << 24);
-}
-
 static void emit_u32(uint8_t *code, size_t *offset, uint32_t value) {
   code[(*offset)++] = (uint8_t) (value & 0xff);
   code[(*offset)++] = (uint8_t) ((value >> 8) & 0xff);
@@ -700,24 +693,56 @@ static uint32_t riscv_addi(unsigned rd, unsigned rs1, int64_t byte_offset) {
     ((rs1 & 0x1fU) << 15) | ((rd & 0x1fU) << 7) | 0x13U;
 }
 
-static int append_insn(struct payload *payload, uint32_t insn) {
-  if (payload->insn_count == payload->insn_capacity) {
-    size_t new_capacity = payload->insn_capacity ? payload->insn_capacity * 2 : 16;
-    if (new_capacity > MAX_PROGRAM_BYTES / 4)
-      new_capacity = MAX_PROGRAM_BYTES / 4;
-    if (new_capacity <= payload->insn_capacity) {
-      fprintf(stderr, "POLYAPP_FAIL: too many instructions in %s\n", payload->path);
+static int append_code_bytes(struct payload *payload, const uint8_t *bytes,
+    size_t size) {
+  if (size == 0)
+    return 0;
+  if (payload->code_size > MAX_PROGRAM_BYTES ||
+      size > MAX_PROGRAM_BYTES - payload->code_size) {
+    fprintf(stderr, "POLYAPP_FAIL: too much code in %s\n", payload->path);
+    return -1;
+  }
+  const size_t needed = payload->code_size + size;
+  if (needed > payload->code_capacity) {
+    size_t new_capacity = payload->code_capacity ? payload->code_capacity * 2 : 64;
+    while (new_capacity < needed && new_capacity < MAX_PROGRAM_BYTES)
+      new_capacity *= 2;
+    if (new_capacity > MAX_PROGRAM_BYTES)
+      new_capacity = MAX_PROGRAM_BYTES;
+    if (new_capacity < needed) {
+      fprintf(stderr, "POLYAPP_FAIL: too much code in %s\n", payload->path);
       return -1;
     }
-    uint32_t *new_insns = realloc(payload->insns, new_capacity * sizeof(payload->insns[0]));
-    if (!new_insns) {
+    uint8_t *new_code = realloc(payload->code_bytes, new_capacity);
+    if (!new_code) {
       fprintf(stderr, "POLYAPP_FAIL: out of memory loading %s\n", payload->path);
       return -1;
     }
-    payload->insns = new_insns;
-    payload->insn_capacity = new_capacity;
+    payload->code_bytes = new_code;
+    payload->code_capacity = new_capacity;
   }
-  payload->insns[payload->insn_count++] = insn;
+  memcpy(payload->code_bytes + payload->code_size, bytes, size);
+  payload->code_size += size;
+  return 0;
+}
+
+static int append_insn(struct payload *payload, uint32_t insn) {
+  const uint8_t bytes[4] = {
+    (uint8_t) (insn & 0xff),
+    (uint8_t) ((insn >> 8) & 0xff),
+    (uint8_t) ((insn >> 16) & 0xff),
+    (uint8_t) ((insn >> 24) & 0xff)
+  };
+  return append_code_bytes(payload, bytes, sizeof(bytes));
+}
+
+static int payload_code_is_valid_for_arch(const struct payload *payload) {
+  if (payload->code_size == 0)
+    return 0;
+  if (payload->arch == POLY_ARCH_AARCH64)
+    return (payload->code_size % 4) == 0;
+  if (payload->arch == POLY_ARCH_RISCV)
+    return (payload->code_size % 2) == 0;
   return 0;
 }
 
@@ -781,25 +806,22 @@ static int load_elf_instructions(struct payload *payload) {
       continue;
     const uint64_t entry_offset = ehdr->e_entry - phdr->p_vaddr;
     const uint64_t entry_filesz = phdr->p_filesz - entry_offset;
-    if (entry_filesz == 0 || (entry_filesz % 4) != 0 || entry_filesz > MAX_PROGRAM_BYTES ||
+    if (entry_filesz == 0 || entry_filesz > MAX_PROGRAM_BYTES ||
         phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset) {
       fprintf(stderr, "POLYAPP_FAIL: bad ELF executable segment: %s\n", payload->elf_path);
       free(data);
       return -1;
     }
 
-    free(payload->insns);
-    payload->insns = NULL;
-    payload->insn_count = 0;
-    payload->insn_capacity = 0;
+    free(payload->code_bytes);
+    payload->code_bytes = NULL;
+    payload->code_size = 0;
+    payload->code_capacity = 0;
 
     const unsigned char *entry_bytes = data + phdr->p_offset + entry_offset;
-    const size_t insn_count = (size_t) (entry_filesz / 4);
-    for (size_t insn = 0; insn < insn_count; insn++) {
-      if (append_insn(payload, read_le32(entry_bytes + insn * 4)) < 0) {
-        free(data);
-        return -1;
-      }
+    if (append_code_bytes(payload, entry_bytes, (size_t) entry_filesz) < 0) {
+      free(data);
+      return -1;
     }
     free(data);
     return 0;
@@ -954,7 +976,7 @@ static int load_payload(const char *path, struct payload *payload) {
   if (payload->use_elf && load_elf_instructions(payload) < 0)
     return -1;
 
-  if (payload->arch == 0 || payload->insn_count == 0) {
+  if (payload->arch == 0 || !payload_code_is_valid_for_arch(payload)) {
     fprintf(stderr, "POLYAPP_FAIL: incomplete payload %s\n", path);
     return -1;
   }
@@ -971,10 +993,10 @@ static int load_payload(const char *path, struct payload *payload) {
 }
 
 static void free_payload(struct payload *payload) {
-  free(payload->insns);
-  payload->insns = NULL;
-  payload->insn_count = 0;
-  payload->insn_capacity = 0;
+  free(payload->code_bytes);
+  payload->code_bytes = NULL;
+  payload->code_size = 0;
+  payload->code_capacity = 0;
 }
 
 static int check_polyapp_arch_state_contract(void) {
@@ -1081,13 +1103,13 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     uint64_t *break_number_result, uint64_t *switch_delta,
     char scratch_result[SCRATCH_CHECK_SIZE + 1],
     char scratch_hex_result[SCRATCH_CHECK_SIZE * 2 + 1]) {
-  const size_t return_setup_insns = payload->arch == POLY_ARCH_AARCH64 ? 2 : 3;
+  const size_t return_setup_bytes = payload->arch == POLY_ARCH_AARCH64 ? 8 : 12;
   const size_t penter_size = x86_penter_frontend_size_at(3,
     payload->arch == POLY_ARCH_AARCH64 ? POLY_FRONTEND_AARCH64 :
     POLY_FRONTEND_RISCV);
   const size_t final_tail_size = 5;
   const size_t code_size = 3 + penter_size +
-    (return_setup_insns + payload->insn_count) * 4 + final_tail_size;
+    return_setup_bytes + payload->code_size + final_tail_size;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (code == MAP_FAILED) {
     fprintf(stderr, "POLYAPP_FAIL: mmap failed: %s\n", strerror(errno));
@@ -1100,11 +1122,11 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   size_t offset = 3;
   if (payload->arch == POLY_ARCH_AARCH64) {
     emit_x86_penter_frontend(code, &offset, POLY_FRONTEND_AARCH64);
-    emit_u32(code, &offset, aarch64_adr(30, (int64_t) (payload->insn_count + 2) * 4));
+    emit_u32(code, &offset, aarch64_adr(30, (int64_t) payload->code_size + 8));
     emit_u32(code, &offset, 0xd2800008U);
   } else if (payload->arch == POLY_ARCH_RISCV) {
     emit_x86_penter_frontend(code, &offset, POLY_FRONTEND_RISCV);
-    int64_t escape_offset = (int64_t) (payload->insn_count + 3) * 4;
+    int64_t escape_offset = (int64_t) payload->code_size + 12;
     emit_u32(code, &offset, riscv_auipc(1, escape_offset));
     emit_u32(code, &offset, riscv_addi(1, 1, escape_offset));
     emit_u32(code, &offset, 0x00000893U);
@@ -1114,9 +1136,8 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     munmap(code, code_size);
     return -1;
   }
-  for (size_t n = 0; n < payload->insn_count; n++) {
-    emit_u32(code, &offset, payload->insns[n]);
-  }
+  memcpy(code + offset, payload->code_bytes, payload->code_size);
+  offset += payload->code_size;
   if (payload->final_arch == POLY_ARCH_X86) {
     code[offset++] = 0x48;
     code[offset++] = 0x83;
@@ -1186,8 +1207,8 @@ int main(int argc, char **argv) {
     if (load_payload(argv[n], &payload) < 0)
       return 1;
     if (payload.use_elf) {
-      printf("POLYAPP_ELF: arch=%s insns=%zu elf=%s\n",
-        payload.arch_name, payload.insn_count, payload.elf_path);
+      printf("POLYAPP_ELF: arch=%s bytes=%zu elf=%s\n",
+        payload.arch_name, payload.code_size, payload.elf_path);
     }
 
     uint64_t result = 0;
