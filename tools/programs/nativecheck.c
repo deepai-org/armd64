@@ -4631,8 +4631,10 @@ static void poly_unexpected_trap_vector_exit_handler(void) {
 }
 
 extern const unsigned char poly_aarch64_trap_vector_raw[];
+extern const unsigned char poly_aarch64_trap_vector_header_raw[];
 extern const unsigned char poly_aarch64_trap_vector_ext_raw[];
 extern const unsigned char poly_riscv_trap_vector_raw[];
+extern const unsigned char poly_riscv_trap_vector_header_raw[];
 extern const unsigned char poly_riscv_trap_vector_ext_raw[];
 
 __asm__(
@@ -4646,6 +4648,16 @@ __asm__(
   ".long 0xd5032edf\n" // aarch64 polyctrl trap return, architectural trap return
   "ud2\n"
   ".size poly_aarch64_trap_vector_raw, .-poly_aarch64_trap_vector_raw\n"
+  ".balign 4\n"
+  ".globl poly_aarch64_trap_vector_header_raw\n"
+  ".type poly_aarch64_trap_vector_header_raw,@function\n"
+  "poly_aarch64_trap_vector_header_raw:\n"
+  ".long 0x8b010000\n" // add x0,x0,x1, reason + source mode
+  ".long 0x8b020000\n" // add x0,x0,x2, + trap number
+  ".long 0x8b040000\n" // add x0,x0,x4, + selector
+  ".long 0xd5032edf\n" // aarch64 polyctrl trap return
+  "ud2\n"
+  ".size poly_aarch64_trap_vector_header_raw, .-poly_aarch64_trap_vector_header_raw\n"
   ".balign 4\n"
   ".globl poly_aarch64_trap_vector_ext_raw\n"
   ".type poly_aarch64_trap_vector_ext_raw,@function\n"
@@ -4669,6 +4681,16 @@ __asm__(
   ".long 0x0c00700b\n" // riscv polyctrl trap return
   "ud2\n"
   ".size poly_riscv_trap_vector_raw, .-poly_riscv_trap_vector_raw\n"
+  ".balign 4\n"
+  ".globl poly_riscv_trap_vector_header_raw\n"
+  ".type poly_riscv_trap_vector_header_raw,@function\n"
+  "poly_riscv_trap_vector_header_raw:\n"
+  ".long 0x00b50533\n" // add a0,a0,a1, reason + source mode
+  ".long 0x00c50533\n" // add a0,a0,a2, + trap number
+  ".long 0x00e50533\n" // add a0,a0,a4, + selector
+  ".long 0x0c00700b\n" // riscv polyctrl trap return
+  "ud2\n"
+  ".size poly_riscv_trap_vector_header_raw, .-poly_riscv_trap_vector_header_raw\n"
   ".balign 4\n"
   ".globl poly_riscv_trap_vector_ext_raw\n"
   ".type poly_riscv_trap_vector_ext_raw,@function\n"
@@ -6094,6 +6116,57 @@ static int run_poly_trap_vector_probe(void) {
   if (expect_monitor_packet("aarch64-to-riscv syscall vector",
       &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7, 1,
       7, 8) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
+  poly_trap_vector_set_value(
+    (uint64_t) (void *) poly_aarch64_trap_vector_header_raw);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00100513\n" // addi a0,zero,1
+    ".long 0x00000813\n" // addi a6,zero,0
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 175) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 trap header vector result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet("riscv-to-aarch64 syscall header vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0, 1,
+      0, 172) != 0)
+    return 1;
+
+  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  poly_trap_vector_mode_set_value(POLY_MODE_RAW_RISCV);
+  poly_trap_vector_set_value(
+    (uint64_t) (void *) poly_riscv_trap_vector_header_raw);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800020\n" // movz x0,#1
+    ".long 0xd2800006\n" // movz x6,#0
+    ".long 0xd2800007\n" // movz x7,#0
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 181) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64-to-riscv trap header vector result mismatch got=%llu\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (expect_monitor_packet("aarch64-to-riscv syscall header vector",
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 7, 1,
+      0, 0) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
