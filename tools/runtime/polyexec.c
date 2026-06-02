@@ -2710,6 +2710,73 @@ static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
   return 0;
 }
 
+static char *polyexec_stpcpy(char *dest, const char *src) {
+  while ((*dest = *src) != '\0') {
+    dest++;
+    src++;
+  }
+  return dest;
+}
+
+static char *polyexec_stpncpy(char *dest, const char *src, size_t n) {
+  size_t copied = 0;
+  while (copied < n && src[copied] != '\0') {
+    dest[copied] = src[copied];
+    copied++;
+  }
+  char *ret = dest + copied;
+  while (copied < n)
+    dest[copied++] = '\0';
+  return ret;
+}
+
+static void *polyexec_mempcpy(void *dest, const void *src, size_t n) {
+  memcpy(dest, src, n);
+  return (uint8_t *) dest + n;
+}
+
+static void *polyexec_rawmemchr(const void *s, int c) {
+  const unsigned char *p = (const unsigned char *) s;
+  const unsigned char needle = (unsigned char) c;
+  while (*p != needle)
+    p++;
+  return (void *) p;
+}
+
+static char *polyexec_strchrnul(const char *s, int c) {
+  const unsigned char needle = (unsigned char) c;
+  while (*s != '\0' && (unsigned char) *s != needle)
+    s++;
+  return (char *) s;
+}
+
+static void *polyexec_memrchr(const void *s, int c, size_t n) {
+  const unsigned char *p = (const unsigned char *) s + n;
+  const unsigned char needle = (unsigned char) c;
+  while (p != (const unsigned char *) s) {
+    p--;
+    if (*p == needle)
+      return (void *) p;
+  }
+  return NULL;
+}
+
+static void *polyexec_memmem(const void *haystack, size_t haystack_len,
+    const void *needle, size_t needle_len) {
+  if (needle_len == 0)
+    return (void *) haystack;
+  if (needle_len > haystack_len)
+    return NULL;
+  const unsigned char *h = (const unsigned char *) haystack;
+  const unsigned char *n = (const unsigned char *) needle;
+  for (size_t offset = 0; offset <= haystack_len - needle_len; offset++) {
+    if (h[offset] == n[0] &&
+        memcmp(h + offset, n, needle_len) == 0)
+      return (void *) (h + offset);
+  }
+  return NULL;
+}
+
 static uint64_t poly_handle_foreign_import(uint64_t number,
     const uint64_t args[8]) {
   switch (number) {
@@ -2760,6 +2827,34 @@ static uint64_t poly_handle_foreign_import(uint64_t number,
           (const char *) (uintptr_t) args[1], (size_t) args[2]);
     case POLY_IMPORT_FUNC_STRNLEN:
       return strnlen((const char *) (uintptr_t) args[0], (size_t) args[1]);
+    case POLY_IMPORT_FUNC_STPCPY:
+      return (uint64_t) (uintptr_t)
+        polyexec_stpcpy((char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_STPNCPY:
+      return (uint64_t) (uintptr_t)
+        polyexec_stpncpy((char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_MEMPCPY:
+      return (uint64_t) (uintptr_t)
+        polyexec_mempcpy((void *) (uintptr_t) args[0],
+          (const void *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_RAWMEMCHR:
+      return (uint64_t) (uintptr_t)
+        polyexec_rawmemchr((const void *) (uintptr_t) args[0],
+          (int) args[1]);
+    case POLY_IMPORT_FUNC_STRCHRNUL:
+      return (uint64_t) (uintptr_t)
+        polyexec_strchrnul((const char *) (uintptr_t) args[0],
+          (int) args[1]);
+    case POLY_IMPORT_FUNC_MEMRCHR:
+      return (uint64_t) (uintptr_t)
+        polyexec_memrchr((const void *) (uintptr_t) args[0],
+          (int) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_MEMMEM:
+      return (uint64_t) (uintptr_t)
+        polyexec_memmem((const void *) (uintptr_t) args[0], (size_t) args[1],
+          (const void *) (uintptr_t) args[2], (size_t) args[3]);
     case POLY_IMPORT_FUNC_STRCAT:
       return (uint64_t) (uintptr_t)
         strcat((char *) (uintptr_t) args[0],

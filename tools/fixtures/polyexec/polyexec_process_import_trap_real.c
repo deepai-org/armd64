@@ -18,10 +18,18 @@ static char poly_import_cat_dest[32] = "poly";
 static char poly_import_cat_expected[] = "poly-isa";
 static char poly_import_ncat_dest[32] = "trap";
 static char poly_import_ncat_expected[] = "trap-pack";
+static char poly_import_stpcpy_dest[16];
+static char poly_import_stpncpy_dest[16];
+static char poly_import_mempcpy_dest[16];
 static char poly_import_span_text[] = "abc123";
 static char poly_import_span_accept[] = "abc";
 static char poly_import_span_reject[] = "123";
 static char poly_import_pbrk_accept[] = "39";
+static char poly_import_rawmemchr_text[] = "raw-helper";
+static char poly_import_strchrnul_text[] = "none";
+static char poly_import_memrchr_text[] = "abacad";
+static char poly_import_memmem_haystack[] = "abcneedlezzz";
+static char poly_import_memmem_needle[] = "needle";
 static char poly_import_bcmp_expected[] = "trap-packets";
 static char poly_import_bcopy_dest[16];
 static char poly_import_bzero_dest[] = "zero";
@@ -59,6 +67,36 @@ static uint64_t poly_call_import3(uint64_t import_id, uint64_t arg0,
 #endif
 }
 
+static uint64_t poly_call_import4(uint64_t import_id, uint64_t arg0,
+    uint64_t arg1, uint64_t arg2, uint64_t arg3) {
+#if defined(__aarch64__)
+  register uint64_t x0 __asm__("x0") = arg0;
+  register uint64_t x1 __asm__("x1") = arg1;
+  register uint64_t x2 __asm__("x2") = arg2;
+  register uint64_t x3 __asm__("x3") = arg3;
+  register uint64_t x16 __asm__("x16") = poly_import_target(import_id);
+  __asm__ volatile("blr x16" : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3),
+    "+r"(x16) : : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11",
+      "x12", "x13", "x14", "x15", "x17", "x18", "x19", "x20", "x21",
+      "x22", "x23", "x24", "x25", "x26", "x27", "x28", "x30", "cc",
+      "memory");
+  return x0;
+#elif defined(__riscv)
+  register uint64_t a0 __asm__("a0") = arg0;
+  register uint64_t a1 __asm__("a1") = arg1;
+  register uint64_t a2 __asm__("a2") = arg2;
+  register uint64_t a3 __asm__("a3") = arg3;
+  register uint64_t t0 __asm__("t0") = poly_import_target(import_id);
+  __asm__ volatile("jalr ra,0(t0)" : "+r"(a0), "+r"(a1), "+r"(a2),
+    "+r"(a3), "+r"(t0) : : "a4", "a5", "a6", "a7", "t1", "t2", "t3",
+      "t4", "t5", "t6", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+      "s8", "s9", "s10", "s11", "ra", "memory");
+  return a0;
+#else
+#error unsupported architecture
+#endif
+}
+
 static uint64_t poly_process_main(void) {
   uint64_t text = (uint64_t) (uintptr_t) poly_import_text;
   uint64_t source = (uint64_t) (uintptr_t) poly_import_source;
@@ -77,10 +115,21 @@ static uint64_t poly_process_main(void) {
   uint64_t cat_expected = (uint64_t) (uintptr_t) poly_import_cat_expected;
   uint64_t ncat_dest = (uint64_t) (uintptr_t) poly_import_ncat_dest;
   uint64_t ncat_expected = (uint64_t) (uintptr_t) poly_import_ncat_expected;
+  uint64_t stpcpy_dest = (uint64_t) (uintptr_t) poly_import_stpcpy_dest;
+  uint64_t stpncpy_dest = (uint64_t) (uintptr_t) poly_import_stpncpy_dest;
+  uint64_t mempcpy_dest = (uint64_t) (uintptr_t) poly_import_mempcpy_dest;
   uint64_t span_text = (uint64_t) (uintptr_t) poly_import_span_text;
   uint64_t span_accept = (uint64_t) (uintptr_t) poly_import_span_accept;
   uint64_t span_reject = (uint64_t) (uintptr_t) poly_import_span_reject;
   uint64_t pbrk_accept = (uint64_t) (uintptr_t) poly_import_pbrk_accept;
+  uint64_t rawmemchr_text =
+    (uint64_t) (uintptr_t) poly_import_rawmemchr_text;
+  uint64_t strchrnul_text =
+    (uint64_t) (uintptr_t) poly_import_strchrnul_text;
+  uint64_t memrchr_text = (uint64_t) (uintptr_t) poly_import_memrchr_text;
+  uint64_t memmem_haystack =
+    (uint64_t) (uintptr_t) poly_import_memmem_haystack;
+  uint64_t memmem_needle = (uint64_t) (uintptr_t) poly_import_memmem_needle;
   uint64_t bcmp_expected =
     (uint64_t) (uintptr_t) poly_import_bcmp_expected;
   uint64_t bcopy_dest = (uint64_t) (uintptr_t) poly_import_bcopy_dest;
@@ -132,12 +181,36 @@ static uint64_t poly_process_main(void) {
       (uint64_t) (uintptr_t) "-packets", 5);
   uint64_t strncat_cmp =
     poly_call_import3(POLY_IMPORT_FUNC_STRCMP, ncat_dest, ncat_expected, 0);
+  uint64_t stpcpy_ret =
+    poly_call_import3(POLY_IMPORT_FUNC_STPCPY, stpcpy_dest, text, 0);
+  uint64_t stpcpy_cmp =
+    poly_call_import3(POLY_IMPORT_FUNC_STRCMP, stpcpy_dest, text, 0);
+  uint64_t stpncpy_ret =
+    poly_call_import3(POLY_IMPORT_FUNC_STPNCPY, stpncpy_dest, source, 6);
+  uint64_t stpncpy_cmp =
+    poly_call_import3(POLY_IMPORT_FUNC_MEMCMP, stpncpy_dest, source, 6);
+  uint64_t mempcpy_ret =
+    poly_call_import3(POLY_IMPORT_FUNC_MEMPCPY, mempcpy_dest, source,
+      sizeof("trap-packets"));
+  uint64_t mempcpy_cmp =
+    poly_call_import3(POLY_IMPORT_FUNC_MEMCMP, mempcpy_dest, source,
+      sizeof("trap-packets"));
   uint64_t strspn_result =
     poly_call_import3(POLY_IMPORT_FUNC_STRSPN, span_text, span_accept, 0);
   uint64_t strcspn_result =
     poly_call_import3(POLY_IMPORT_FUNC_STRCSPN, span_text, span_reject, 0);
   uint64_t strpbrk_result =
     poly_call_import3(POLY_IMPORT_FUNC_STRPBRK, span_text, pbrk_accept, 0);
+  uint64_t rawmemchr_result =
+    poly_call_import3(POLY_IMPORT_FUNC_RAWMEMCHR, rawmemchr_text, 'h', 0);
+  uint64_t strchrnul_result =
+    poly_call_import3(POLY_IMPORT_FUNC_STRCHRNUL, strchrnul_text, 'z', 0);
+  uint64_t memrchr_result =
+    poly_call_import3(POLY_IMPORT_FUNC_MEMRCHR, memrchr_text, 'a',
+      sizeof("abacad") - 1);
+  uint64_t memmem_result =
+    poly_call_import4(POLY_IMPORT_FUNC_MEMMEM, memmem_haystack,
+      sizeof("abcneedlezzz") - 1, memmem_needle, sizeof("needle") - 1);
   uint64_t bcmp_result =
     poly_call_import3(POLY_IMPORT_FUNC_BCMP, source, bcmp_expected,
       sizeof("trap-packets") - 1);
@@ -226,8 +299,16 @@ static uint64_t poly_process_main(void) {
     (strncpy_ret == ncopy_dest && strncpy_cmp == 0 ? 6 : 0) +
     (strcat_ret == cat_dest && strcat_cmp == 0 ? 41 : 0) +
     (strncat_ret == ncat_dest && strncat_cmp == 0 ? 43 : 0) +
+    (stpcpy_ret == stpcpy_dest + len && stpcpy_cmp == 0 ? 73 : 0) +
+    (stpncpy_ret == stpncpy_dest + 6 && stpncpy_cmp == 0 ? 79 : 0) +
+    (mempcpy_ret == mempcpy_dest + sizeof("trap-packets") &&
+      mempcpy_cmp == 0 ? 83 : 0) +
     (strspn_result == 3 ? 47 : 0) + (strcspn_result == 3 ? 53 : 0) +
     (strpbrk_result == span_text + 5 ? 59 : 0) +
+    (rawmemchr_result == rawmemchr_text + 4 ? 89 : 0) +
+    (strchrnul_result == strchrnul_text + 4 ? 97 : 0) +
+    (memrchr_result == memrchr_text + 4 ? 101 : 0) +
+    (memmem_result == memmem_haystack + 3 ? 103 : 0) +
     (bcmp_result == 0 ? 61 : 0) +
     (bcopy_result == 0 && bcopy_cmp == 0 ? 67 : 0) +
     (bzero_result == 0 && poly_import_bzero_dest[0] == 0 &&
