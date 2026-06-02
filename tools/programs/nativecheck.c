@@ -674,6 +674,8 @@ static uint64_t nativecheck_generic_switch_riscv_x86_add(void) {
   return result;
 }
 
+static void poly_trap_vector_handler(void);
+
 static inline void poly_trap_vector_clear(void) {
   asm volatile(
     "xor %%eax,%%eax\n"
@@ -1558,9 +1560,10 @@ static uint64_t nativecheck_import_descriptor_table[
   NATIVECHECK_IMPORT_DESCRIPTOR_QWORD_COUNT] __attribute__((aligned(64)));
 static sigjmp_buf nativecheck_sigill_env;
 static volatile sig_atomic_t nativecheck_expect_sigill;
+static volatile sig_atomic_t nativecheck_last_signal;
 
 static void nativecheck_sigill_handler(int signal_number) {
-  (void) signal_number;
+  nativecheck_last_signal = signal_number;
   if (nativecheck_expect_sigill)
     siglongjmp(nativecheck_sigill_env, 1);
   _exit(98);
@@ -1853,6 +1856,65 @@ static void child_expect_no_vector_trap_return_rejected(void) {
   nativecheck_expect_sigill = 0;
   if (sigaction(SIGILL, &old_action, 0) != 0)
     _exit(96);
+  _exit(0);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_monitor_packet_fault_trap_return_rejected(void) {
+  struct sigaction action;
+  struct sigaction old_sigill;
+  struct sigaction old_sigsegv;
+  volatile sig_atomic_t stage = 0;
+  long page_size = sysconf(_SC_PAGESIZE);
+  if (page_size <= 0)
+    _exit(90);
+  void *packet = mmap(NULL, (size_t) page_size, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (packet == MAP_FAILED)
+    _exit(91);
+  if (mprotect(packet, (size_t) page_size, PROT_NONE) != 0)
+    _exit(92);
+
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = nativecheck_sigill_handler;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(SIGILL, &action, &old_sigill) != 0)
+    _exit(93);
+  if (sigaction(SIGSEGV, &action, &old_sigsegv) != 0)
+    _exit(94);
+
+  nativecheck_expect_sigill = 1;
+  nativecheck_last_signal = 0;
+  if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
+    stage = 1;
+    poly_trap_vector_set_value((uint64_t) poly_trap_vector_handler);
+    poly_trap_vector_mode_set_value(POLY_MODE_X86);
+    poly_monitor_packet_set_value((uint64_t) (uintptr_t) packet);
+    asm volatile(
+      POLY_OP_ENTER_A64
+      ".long 0xd2801588\n" // movz x8,#172
+      ".long 0xd40000e1\n" // svc #7
+      ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+      ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+          "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+    _exit(95);
+  }
+  if (stage != 1 || nativecheck_last_signal != SIGSEGV)
+    _exit(96);
+
+  nativecheck_last_signal = 0;
+  if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
+    stage = 2;
+    asm volatile(POLY_OP_TRAP_RETURN ::: "rax", "r15", "memory");
+    _exit(97);
+  }
+  if (stage != 2 || nativecheck_last_signal != SIGILL)
+    _exit(99);
+
+  nativecheck_expect_sigill = 0;
+  poly_trap_vector_clear();
+  sigaction(SIGSEGV, &old_sigsegv, 0);
+  sigaction(SIGILL, &old_sigill, 0);
   _exit(0);
 }
 
@@ -3896,6 +3958,10 @@ static int run_poly_no_vector_signal_probe(void) {
   if (expect_child_exit("poly no-vector trap return rejected", 0,
         child_expect_no_vector_trap_return_rejected) != 0)
     return 1;
+  if (expect_child_exit("poly monitor packet fault trap return rejected", 0,
+        child_expect_monitor_packet_fault_trap_return_rejected) != 0)
+    return 1;
+  poly_trap_vector_clear();
   if (expect_child_signal("poly aarch64 brk no-vector", SIGTRAP,
         child_expect_aarch64_brk_signal) != 0)
     return 1;
