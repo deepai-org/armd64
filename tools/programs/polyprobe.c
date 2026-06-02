@@ -1327,7 +1327,7 @@ static inline void export_live_cross_return_state_probe(
   asm volatile(
     "leaq 1f(%%rip), %%rdx\n" // AArch64 -> RISC-V target.
     "leaq 3f(%%rip), %%rcx\n" // AArch64 return site.
-    "leaq 4f(%%rip), %%rdi\n" // RISC-V -> x86 helper target.
+    "leaq 4f(%%rip), %%rdi\n" // RISC-V -> x86 callee target.
     "leaq 2f(%%rip), %%rsi\n" // RISC-V return site after helper.
     "movq %0, %%rax\n"        // AArch64 x0 / RISC-V a0: state buffer.
     POLY_OP_ENTER_A64
@@ -1336,7 +1336,7 @@ static inline void export_live_cross_return_state_probe(
     ".long 0xd2800051\n" // movz x17,#2 (RISC-V frontend)
     ".long 0xd5032f3f\n" // AArch64 generic PCALL
     "1:\n"
-    ".long 0x00068293\n" // mv t0,a3 (x86 helper target)
+    ".long 0x00068293\n" // mv t0,a3 (x86 callee target)
     ".long 0x00070393\n" // mv t2,a4 (RISC-V helper return)
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
     ".long 0x4600700b\n" // RISC-V PCALL_SIG_IMM slot 3
@@ -1361,7 +1361,7 @@ static inline void export_live_reverse_cross_return_state_probe(
   asm volatile(
     "leaq 1f(%%rip), %%rdx\n" // RISC-V -> AArch64 target.
     "leaq 3f(%%rip), %%rcx\n" // RISC-V return site.
-    "leaq 4f(%%rip), %%rdi\n" // AArch64 -> x86 helper target.
+    "leaq 4f(%%rip), %%rdi\n" // AArch64 -> x86 callee target.
     "leaq 2f(%%rip), %%rsi\n" // AArch64 return site after helper.
     "movq %0, %%rax\n"        // RISC-V a0 / AArch64 x0: state buffer.
     POLY_OP_ENTER_RV64
@@ -1370,7 +1370,7 @@ static inline void export_live_reverse_cross_return_state_probe(
     ".long 0x00100313\n" // addi t1,zero,1 (AArch64 frontend)
     ".long 0x1200700b\n" // RISC-V generic PCALL
     "1:\n"
-    ".long 0xaa0303f0\n" // mov x16,x3 (x86 helper target)
+    ".long 0xaa0303f0\n" // mov x16,x3 (x86 callee target)
     ".long 0xaa0403f2\n" // mov x18,x4 (AArch64 helper return)
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0xd5032a7f\n" // AArch64 PCALL_SIG_IMM slot 3
