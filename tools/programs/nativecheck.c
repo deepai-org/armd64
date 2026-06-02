@@ -57,6 +57,10 @@
 #define NATIVECHECK_AARCH64_FPSR_MASK 0x9fULL
 #define NATIVECHECK_RISCV_FCSR_MASK 0xffULL
 #define NATIVECHECK_NONCANONICAL_ADDR (1ULL << 57)
+#define NATIVECHECK_MONITOR_PACKET_BYTES \
+  (POLY_STATE_XSAVE_TRAP_PACKET_BYTES + POLY_STATE_XSAVE_TRAP_ARGS_BYTES)
+#define NATIVECHECK_MONITOR_PACKET_CROSS_CANONICAL_ADDR \
+  ((1ULL << 47) - (NATIVECHECK_MONITOR_PACKET_BYTES / 2))
 
 #ifndef ARCH_GET_XCOMP_SUPP
 #define ARCH_GET_XCOMP_SUPP 0x1021
@@ -3601,6 +3605,17 @@ static void child_expect_bad_monitor_packet_alignment_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_monitor_packet_range_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.monitor_packet_addr =
+    NATIVECHECK_MONITOR_PACKET_CROSS_CANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_trap_reason_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -4886,6 +4901,8 @@ static int run_poly_trap_vector_probe(void) {
   const uint64_t monitor_packet_addr =
     (uint64_t) (uintptr_t) &monitor_packet;
   const uint64_t monitor_packet_unaligned = monitor_packet_addr + 1;
+  const uint64_t monitor_packet_cross_canonical =
+    NATIVECHECK_MONITOR_PACKET_CROSS_CANONICAL_ADDR;
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) handler);
   poly_monitor_packet_set_value(monitor_packet_addr);
@@ -5025,6 +5042,19 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) read_rax());
     return 1;
   }
+  if (poly_monitor_packet_set_result(monitor_packet_cross_canonical) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 monitor packet accepted cross-canonical packet range\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != monitor_packet_addr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 cross-canonical monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
   if (poly_aarch64_trap_vector_set_get((uint64_t) handler) !=
       (uint64_t) handler) {
     fputs("NATIVE_CHECK_FAIL: poly aarch64 trap vector set/get mismatch\n",
@@ -5126,6 +5156,19 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) read_rax());
     return 1;
   }
+  if (poly_aarch64_monitor_packet_set(monitor_packet_cross_canonical) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly aarch64 monitor packet accepted cross-canonical packet range\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != monitor_packet_addr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 cross-canonical monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
   if (poly_riscv_trap_vector_set_get((uint64_t) handler) !=
       (uint64_t) handler) {
     fputs("NATIVE_CHECK_FAIL: poly riscv trap vector set/get mismatch\n",
@@ -5224,6 +5267,19 @@ static int run_poly_trap_vector_probe(void) {
   if (read_rax() != monitor_packet_addr) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv unaligned monitor packet mutated state got=0x%llx\n",
+      (unsigned long long) read_rax());
+    return 1;
+  }
+  if (poly_riscv_monitor_packet_set(monitor_packet_cross_canonical) !=
+      (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly riscv monitor packet accepted cross-canonical packet range\n",
+      stderr);
+    return 1;
+  }
+  poly_monitor_packet_get();
+  if (read_rax() != monitor_packet_addr) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv cross-canonical monitor packet mutated state got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
@@ -7413,6 +7469,9 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad monitor packet alignment xstate", SIGILL,
         child_expect_bad_monitor_packet_alignment_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad monitor packet range xstate", SIGILL,
+        child_expect_bad_monitor_packet_range_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad trap reason xstate", SIGILL,
         child_expect_bad_trap_reason_xsave_signal) != 0)
