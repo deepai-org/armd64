@@ -6632,6 +6632,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-condbranch.elf" 0xd2800000 0xb5000040 0x91000400 0xd2800000 0xb4000040 0xd2800c60 0x91000c00 0xb4000040 0x91001400 0xb5000040 0xd2800c60 0x91014c00
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-loop.elf" 0xd2800060 0xd1000400 0xb5ffffe0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ret.elf" 0xd28006e0 0xd65f03c0 0xd2800020
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pauth-ret.elf" 0xd2800360 0xd503233f 0xd50323bf 0xd65f0bff
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sum.elf" 0x8b010000 0x8b020000 0x8b030000 0x8b040000 0x8b050000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sum8.elf" 0x8b010000 0x8b020000 0x8b030000 0x8b040000 0x8b050000 0x8b060000 0x8b070000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-sum9.elf" 0x8b010000 0x8b020000 0x8b030000 0x8b040000 0x8b050000 0x8b060000 0x8b070000 0xf94003e8 0x8b080000 0xd65f03c0
@@ -7580,6 +7581,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-condbranch.elf=91 \
     /usr/lib/polyapps/aarch64-loop.elf=0 \
     /usr/lib/polyapps/aarch64-ret.elf=55 \
+    /usr/lib/polyapps/aarch64-pauth-ret.elf=27 \
     /usr/lib/polyapps/aarch64-mem.elf=77 \
     /usr/lib/polyapps/aarch64-memwidth.elf=0x100001324 \
     /usr/lib/polyapps/aarch64-pair-frame.elf=35 \
@@ -9240,6 +9242,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     /usr/lib/polyapps/aarch64-pcall-bl.elf=3 \
     /usr/lib/polyapps/aarch64-pcall-adrp.elf=42 \
     /usr/lib/polyapps/aarch64-pcall-cond.elf=42 \
+    /usr/lib/polyapps/aarch64-pauth-ret.elf=27 \
     /usr/lib/polyapps/aarch64-hints.elf=27 \
     /usr/lib/polyapps/aarch64-prfm.elf=27 \
     /usr/lib/polyapps/aarch64-cacheops.elf=27 \
@@ -10475,6 +10478,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-condbranch.elf \
       /usr/lib/polyapps/aarch64-loop.elf \
       /usr/lib/polyapps/aarch64-ret.elf \
+      /usr/lib/polyapps/aarch64-pauth-ret.elf \
       /usr/lib/polyapps/aarch64-mem.elf \
       /usr/lib/polyapps/aarch64-memwidth.elf \
       /usr/lib/polyapps/aarch64-pair-frame.elf \
@@ -10871,6 +10875,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-condbranch.elf \
     /usr/lib/polyapps/aarch64-loop.elf \
     /usr/lib/polyapps/aarch64-ret.elf \
+    /usr/lib/polyapps/aarch64-pauth-ret.elf \
     /usr/lib/polyapps/aarch64-mem.elf \
     /usr/lib/polyapps/aarch64-memwidth.elf \
     /usr/lib/polyapps/aarch64-pair-frame.elf \
