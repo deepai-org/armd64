@@ -2,7 +2,8 @@
 //
 // This ties the integrated frontend core to an architectural frontend/PC state
 // register. Fetch/decode inputs are driven from state, and retired commits,
-// raw interrupt entry/restore, and native return-cookie resumes update state.
+// raw interrupt entry/restore, precise trap-vector delivery, and native
+// return-cookie resumes update state.
 module poly_frontend_stateful_core (
     input  logic        clk_i,
     input  logic        rst_ni,
@@ -57,6 +58,9 @@ module poly_frontend_stateful_core (
     input  logic        trap_valid_i,
     input  logic        trap_monitor_enabled_i,
     input  logic [63:0] trap_monitor_packet_addr_i,
+    input  logic        trap_vector_valid_i,
+    input  logic [1:0]  trap_vector_frontend_i,
+    input  logic [63:0] trap_vector_pc_i,
     input  logic [31:0] trap_reason_i,
     input  logic [31:0] trap_source_mode_i,
     input  logic [63:0] trap_number_i,
@@ -213,6 +217,9 @@ module poly_frontend_stateful_core (
     output logic        trap_packet_range_fault_o,
     output logic        trap_invalid_reason_o,
     output logic        trap_invalid_source_mode_o,
+    output logic        trap_vector_apply_o,
+    output logic [1:0]  trap_vector_frontend_o,
+    output logic [63:0] trap_vector_pc_o,
 
     output logic        abi_signature_set_ok_o,
     output logic        abi_signature_set_error_o,
@@ -327,6 +334,9 @@ module poly_frontend_stateful_core (
     .trap_valid_i(trap_valid_i),
     .trap_monitor_enabled_i(trap_monitor_enabled_i),
     .trap_monitor_packet_addr_i(trap_monitor_packet_addr_i),
+    .trap_vector_valid_i(trap_vector_valid_i),
+    .trap_vector_frontend_i(trap_vector_frontend_i),
+    .trap_vector_pc_i(trap_vector_pc_i),
     .trap_reason_i(trap_reason_i),
     .trap_source_mode_i(trap_source_mode_i),
     .trap_number_i(trap_number_i),
@@ -459,6 +469,9 @@ module poly_frontend_stateful_core (
     .trap_packet_range_fault_o(trap_packet_range_fault_o),
     .trap_invalid_reason_o(trap_invalid_reason_o),
     .trap_invalid_source_mode_o(trap_invalid_source_mode_o),
+    .trap_vector_apply_o(trap_vector_apply_o),
+    .trap_vector_frontend_o(trap_vector_frontend_o),
+    .trap_vector_pc_o(trap_vector_pc_o),
     .abi_signature_set_ok_o(abi_signature_set_ok_o),
     .abi_signature_set_error_o(abi_signature_set_error_o),
     .abi_signature_apply_o(abi_signature_apply_o),
@@ -523,6 +536,9 @@ module poly_frontend_stateful_core (
     .return_resume_i(return_resume_o),
     .return_frontend_i(return_resume_frontend_o),
     .return_pc_i(return_resume_pc_o),
+    .trap_vector_i(trap_vector_apply_o),
+    .trap_frontend_i(trap_vector_frontend_o),
+    .trap_pc_i(trap_vector_pc_o),
     .fault_i(fault_o),
     .stall_i(state_stall),
     .current_frontend_o(state_frontend),

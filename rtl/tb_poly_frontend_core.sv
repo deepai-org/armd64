@@ -9,6 +9,8 @@ module tb_poly_frontend_core;
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 7'h30;
   localparam logic [31:0] POLY_CPUID_BASE = 32'h40000000;
   localparam logic [31:0] POLY_CPUID_MAX = 32'h40000009;
+  localparam logic [31:0] POLY_TRAP_IMPORT = 32'd3;
+  localparam logic [31:0] POLY_MODE_RAW_RISCV = 32'd2;
 
   logic clk_i;
   logic rst_ni;
@@ -54,6 +56,9 @@ module tb_poly_frontend_core;
   logic trap_valid_i;
   logic trap_monitor_enabled_i;
   logic [63:0] trap_monitor_packet_addr_i;
+  logic trap_vector_valid_i;
+  logic [1:0] trap_vector_frontend_i;
+  logic [63:0] trap_vector_pc_i;
   logic [31:0] trap_reason_i;
   logic [31:0] trap_source_mode_i;
   logic [63:0] trap_number_i;
@@ -147,6 +152,9 @@ module tb_poly_frontend_core;
   logic [63:0] raw_branch_static_target_o;
   logic raw_branch_wait_o;
   logic raw_branch_resolved_fault_o;
+  logic trap_vector_apply_o;
+  logic [1:0] trap_vector_frontend_o;
+  logic [63:0] trap_vector_pc_o;
 
   poly_frontend_core dut (
     .clk_i(clk_i),
@@ -192,6 +200,9 @@ module tb_poly_frontend_core;
     .trap_valid_i(trap_valid_i),
     .trap_monitor_enabled_i(trap_monitor_enabled_i),
     .trap_monitor_packet_addr_i(trap_monitor_packet_addr_i),
+    .trap_vector_valid_i(trap_vector_valid_i),
+    .trap_vector_frontend_i(trap_vector_frontend_i),
+    .trap_vector_pc_i(trap_vector_pc_i),
     .trap_reason_i(trap_reason_i),
     .trap_source_mode_i(trap_source_mode_i),
     .trap_number_i(trap_number_i),
@@ -324,6 +335,9 @@ module tb_poly_frontend_core;
     .trap_packet_range_fault_o(),
     .trap_invalid_reason_o(),
     .trap_invalid_source_mode_o(),
+    .trap_vector_apply_o(trap_vector_apply_o),
+    .trap_vector_frontend_o(trap_vector_frontend_o),
+    .trap_vector_pc_o(trap_vector_pc_o),
     .abi_signature_set_ok_o(),
     .abi_signature_set_error_o(),
     .abi_signature_apply_o(abi_signature_apply_o),
@@ -422,6 +436,9 @@ module tb_poly_frontend_core;
       trap_valid_i = 1'b0;
       trap_monitor_enabled_i = 1'b0;
       trap_monitor_packet_addr_i = 64'd0;
+      trap_vector_valid_i = 1'b0;
+      trap_vector_frontend_i = POLY_FRONTEND_X86;
+      trap_vector_pc_i = 64'd0;
       trap_reason_i = 32'd0;
       trap_source_mode_i = 32'd0;
       trap_number_i = 64'd0;
@@ -675,6 +692,26 @@ module tb_poly_frontend_core;
     check(raw_branch_valid_o && raw_branch_unresolved_o &&
       !raw_branch_wait_o && !raw_branch_resolved_fault_o,
       "decoded raw resolved taken branch exposes clean sideband");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend_i = POLY_FRONTEND_RISCV;
+    pc_i = 64'h8000;
+    trap_valid_i = 1'b1;
+    trap_monitor_enabled_i = 1'b1;
+    trap_monitor_packet_addr_i = 64'h457000;
+    trap_vector_valid_i = 1'b1;
+    trap_vector_frontend_i = POLY_FRONTEND_X86;
+    trap_vector_pc_i = 64'h1800;
+    trap_reason_i = POLY_TRAP_IMPORT;
+    trap_source_mode_i = POLY_MODE_RAW_RISCV;
+    trap_mem_write_resp_valid_i = 1'b1;
+    #1;
+    check(trap_vector_apply_o, "delivered packet applies trap vector");
+    check(trap_vector_frontend_o == POLY_FRONTEND_X86 &&
+      trap_vector_pc_o == 64'h1800, "trap vector sideband carries target");
+    check(wait_retire_o && !retire_o && !fault_o,
+      "trap-vector delivery blocks same-cycle retirement");
 
     $display("POLY_RTL_FRONTEND_CORE_SIM_OK");
     $finish;

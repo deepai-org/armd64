@@ -105,6 +105,12 @@ the monitor owns syscall translation, lazy binding, helper calls, and debugger
 policy. The kernel still owns hard page faults, signals, scheduling,
 interrupts, and real syscalls issued by the monitor.
 
+If a monitor vector is enabled, hardware must publish the monitor packet before
+redirecting the frontend to the vector PC. A failed packet write or invalid
+packet address prevents the redirect and reports a precise fault instead. This
+keeps monitor entry replayable and avoids hidden side effects before the
+runtime can inspect the trap record.
+
 Trap-vector and monitor-packet addresses are architectural control addresses.
 Non-canonical values, invalid frontend alignment, unaligned monitor packets,
 and packet ranges that cross the canonical boundary are rejected by the control

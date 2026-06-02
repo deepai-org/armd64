@@ -9,6 +9,7 @@ module tb_poly_frontend_state;
   localparam logic [2:0] POLY_REDIRECT_COMMIT    = 3'd2;
   localparam logic [2:0] POLY_REDIRECT_INTERRUPT = 3'd3;
   localparam logic [2:0] POLY_REDIRECT_RETURN    = 3'd4;
+  localparam logic [2:0] POLY_REDIRECT_TRAP      = 3'd5;
 
   logic clk;
   logic rst_n;
@@ -24,6 +25,9 @@ module tb_poly_frontend_state;
   logic return_resume;
   logic [1:0] return_frontend;
   logic [63:0] return_pc;
+  logic trap_vector;
+  logic [1:0] trap_frontend;
+  logic [63:0] trap_pc;
   logic fault;
   logic stall;
 
@@ -55,6 +59,9 @@ module tb_poly_frontend_state;
     .return_resume_i(return_resume),
     .return_frontend_i(return_frontend),
     .return_pc_i(return_pc),
+    .trap_vector_i(trap_vector),
+    .trap_frontend_i(trap_frontend),
+    .trap_pc_i(trap_pc),
     .fault_i(fault),
     .stall_i(stall),
     .current_frontend_o(current_frontend),
@@ -87,6 +94,9 @@ module tb_poly_frontend_state;
       return_resume = 1'b0;
       return_frontend = 2'd0;
       return_pc = 64'd0;
+      trap_vector = 1'b0;
+      trap_frontend = 2'd0;
+      trap_pc = 64'd0;
       fault = 1'b0;
       stall = 1'b0;
     end
@@ -200,6 +210,21 @@ module tb_poly_frontend_state;
     clear_inputs();
 
     @(negedge clk);
+    trap_vector = 1'b1;
+    trap_frontend = POLY_FRONTEND_AARCH64;
+    trap_pc = 64'h6000;
+    #1;
+    check(update && redirect_valid, "trap vector redirects");
+    check(redirect_frontend == POLY_FRONTEND_AARCH64, "trap redirect frontend");
+    check(redirect_pc == 64'h6000, "trap redirect pc");
+    check(redirect_reason == POLY_REDIRECT_TRAP, "trap redirect reason");
+    @(posedge clk);
+    #1;
+    check(current_frontend == POLY_FRONTEND_AARCH64, "trap frontend state");
+    check(current_pc == 64'h6000, "trap pc state");
+    clear_inputs();
+
+    @(negedge clk);
     commit = 1'b1;
     commit_frontend = POLY_FRONTEND_AARCH64;
     commit_pc = 64'h4000;
@@ -211,8 +236,8 @@ module tb_poly_frontend_state;
     check(!update && !redirect_valid, "conflict blocks redirect");
     @(posedge clk);
     #1;
-    check(current_frontend == POLY_FRONTEND_X86, "conflict holds frontend");
-    check(current_pc == 64'h1200, "conflict holds pc");
+    check(current_frontend == POLY_FRONTEND_AARCH64, "conflict holds frontend");
+    check(current_pc == 64'h6000, "conflict holds pc");
     clear_inputs();
 
     @(negedge clk);

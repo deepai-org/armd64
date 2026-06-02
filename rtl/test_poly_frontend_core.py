@@ -210,6 +210,9 @@ def core_step(
     trap_valid: bool = False,
     trap_monitor_enabled: bool = True,
     trap_monitor_packet_addr: int = 0x457000,
+    trap_vector_valid: bool = False,
+    trap_vector_frontend: int = 0,
+    trap_vector_pc: int = 0,
     trap_reason: int = 1,
     trap_source_mode: int = 1,
     trap_mem_write_resp_valid: bool = False,
@@ -295,6 +298,9 @@ def core_step(
         trap_mem_write_fault
     )
     trap_fault = trap_encode_error or trap_packet_mem_fault
+    trap_vector_apply = (
+        trap_delivered and trap_vector_valid and not trap_fault
+    )
     interrupt_block = interrupt_enter or interrupt_restore
     block_retire = interrupt_block or trap_wait or trap_delivered
 
@@ -479,6 +485,11 @@ def core_step(
         "trap_fault": trap_fault,
         "trap_encode_error": trap_encode_error,
         "trap_packet_mem_fault": trap_packet_mem_fault,
+        "trap_vector_apply": trap_vector_apply,
+        "trap_vector_frontend": (
+            trap_vector_frontend if trap_vector_apply else frontend
+        ),
+        "trap_vector_pc": trap_vector_pc if trap_vector_apply else pc,
         "depth": len(stack.frames),
     }
 
@@ -569,6 +580,16 @@ def require_structural_wiring() -> None:
         ".x86_range_fault_o(x86_range_fault_o)",
         "poly_interrupt_boundary interrupt_boundary",
         "poly_trap_packet_stage trap_packet_stage",
+        "input  logic        trap_vector_valid_i",
+        "input  logic [1:0]  trap_vector_frontend_i",
+        "input  logic [63:0] trap_vector_pc_i",
+        "output logic        trap_vector_apply_o",
+        "output logic [1:0]  trap_vector_frontend_o",
+        "output logic [63:0] trap_vector_pc_o",
+        "assign trap_vector_apply_o =",
+        "trap_packet_delivered_o && trap_vector_valid_i && !trap_fault_o;",
+        "trap_vector_apply_o ? trap_vector_frontend_i : frontend_i;",
+        "trap_vector_apply_o ? trap_vector_pc_i : pc_i;",
         "interrupted_valid_q",
         "trap_wait_response_o || trap_packet_delivered_o",
         "assign execute_fault =",
@@ -1242,10 +1263,42 @@ def main() -> int:
         c=c,
     )
     assert trap_delivered["trap_delivered"] and trap_delivered["wait_retire"]
+    assert not trap_delivered["trap_vector_apply"]
     assert trap_delivered["trap_required_flags"] == 0x7F
     assert not trap_delivered["retire"] and not trap_delivered["execute_fault"]
     assert trap_delivered["cycle_valid"] and trap_delivered["cycle_total"] == 3
     assert trap_delivered["cycle_waits_memory"] and not trap_delivered["cycle_few"]
+
+    trap_vector_delivered = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_RISCV"],
+        pc=0x8000,
+        sp=0x9000,
+        return_pc=0,
+        flags=0,
+        word=0x00000033,
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_X86"],
+        target_pc=0x1000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        trap_valid=True,
+        trap_vector_valid=True,
+        trap_vector_frontend=c["POLY_FRONTEND_X86"],
+        trap_vector_pc=0x1800,
+        trap_reason=c["POLY_TRAP_IMPORT"],
+        trap_source_mode=c["POLY_MODE_RAW_RISCV"],
+        trap_mem_write_resp_valid=True,
+        c=c,
+    )
+    assert trap_vector_delivered["trap_delivered"]
+    assert trap_vector_delivered["trap_vector_apply"]
+    assert trap_vector_delivered["trap_vector_frontend"] == c["POLY_FRONTEND_X86"]
+    assert trap_vector_delivered["trap_vector_pc"] == 0x1800
 
     trap_packet_fault = core_step(
         TransitionStack(depth),

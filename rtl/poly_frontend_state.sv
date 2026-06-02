@@ -2,8 +2,8 @@
 //
 // This is the state-update boundary for the frontend-switch prototype. It does
 // not fetch or decode instructions; it validates and commits the next
-// architectural frontend/PC selected by retirement, interrupt return, or native
-// return-cookie recovery.
+// architectural frontend/PC selected by retirement, interrupt return, native
+// return-cookie recovery, or precise trap-vector delivery.
 module poly_frontend_state (
     input  logic        clk_i,
     input  logic        rst_ni,
@@ -23,6 +23,10 @@ module poly_frontend_state (
     input  logic        return_resume_i,
     input  logic [1:0]  return_frontend_i,
     input  logic [63:0] return_pc_i,
+
+    input  logic        trap_vector_i,
+    input  logic [1:0]  trap_frontend_i,
+    input  logic [63:0] trap_pc_i,
 
     input  logic        fault_i,
     input  logic        stall_i,
@@ -48,6 +52,7 @@ module poly_frontend_state (
   localparam logic [2:0] POLY_REDIRECT_COMMIT    = 3'd2;
   localparam logic [2:0] POLY_REDIRECT_INTERRUPT = 3'd3;
   localparam logic [2:0] POLY_REDIRECT_RETURN    = 3'd4;
+  localparam logic [2:0] POLY_REDIRECT_TRAP      = 3'd5;
 
   logic [1:0] frontend_q;
   logic [63:0] pc_q;
@@ -92,7 +97,10 @@ module poly_frontend_state (
     multiple_requests =
       (commit_i && interrupt_restore_i) ||
       (commit_i && return_resume_i) ||
-      (interrupt_restore_i && return_resume_i);
+      (commit_i && trap_vector_i) ||
+      (interrupt_restore_i && return_resume_i) ||
+      (interrupt_restore_i && trap_vector_i) ||
+      (return_resume_i && trap_vector_i);
     conflict_o = !init_i && multiple_requests;
 
     if (init_i) begin
@@ -110,6 +118,11 @@ module poly_frontend_state (
       selected_pc = interrupt_pc_i;
       selected_reason = POLY_REDIRECT_INTERRUPT;
     end
+    else if (trap_vector_i) begin
+      selected_frontend = trap_frontend_i;
+      selected_pc = trap_pc_i;
+      selected_reason = POLY_REDIRECT_TRAP;
+    end
     else if (commit_i) begin
       selected_frontend = commit_frontend_i;
       selected_pc = commit_pc_i;
@@ -121,7 +134,9 @@ module poly_frontend_state (
       selected_reason = POLY_REDIRECT_NONE;
     end
 
-    request_valid = init_i || commit_i || interrupt_restore_i || return_resume_i;
+    request_valid =
+      init_i || commit_i || interrupt_restore_i || return_resume_i ||
+      trap_vector_i;
     invalid_frontend_o =
       request_valid && !conflict_o && !frontend_valid(selected_frontend);
     invalid_pc_o =

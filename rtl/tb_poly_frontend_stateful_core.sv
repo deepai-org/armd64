@@ -7,6 +7,8 @@ module tb_poly_frontend_stateful_core;
 
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_MODE = 7'h2d;
   localparam logic [63:0] POLY_RETURN_COOKIE = 64'hfffffffffffff000;
+  localparam logic [31:0] POLY_TRAP_SYSCALL = 32'd1;
+  localparam logic [31:0] POLY_MODE_RAW_AARCH64 = 32'd1;
 
   logic clk_i;
   logic rst_ni;
@@ -52,6 +54,9 @@ module tb_poly_frontend_stateful_core;
   logic trap_valid_i;
   logic trap_monitor_enabled_i;
   logic [63:0] trap_monitor_packet_addr_i;
+  logic trap_vector_valid_i;
+  logic [1:0] trap_vector_frontend_i;
+  logic [63:0] trap_vector_pc_i;
   logic [31:0] trap_reason_i;
   logic [31:0] trap_source_mode_i;
   logic [63:0] trap_number_i;
@@ -125,6 +130,9 @@ module tb_poly_frontend_stateful_core;
   logic [7:0] abi_signature_kind_o;
   logic [6:0] abi_signature_map_o;
   logic abi_signature_tls_base_o;
+  logic trap_vector_apply_o;
+  logic [1:0] trap_vector_frontend_o;
+  logic [63:0] trap_vector_pc_o;
 
   poly_frontend_stateful_core dut (
     .clk_i(clk_i),
@@ -171,6 +179,9 @@ module tb_poly_frontend_stateful_core;
     .trap_valid_i(trap_valid_i),
     .trap_monitor_enabled_i(trap_monitor_enabled_i),
     .trap_monitor_packet_addr_i(trap_monitor_packet_addr_i),
+    .trap_vector_valid_i(trap_vector_valid_i),
+    .trap_vector_frontend_i(trap_vector_frontend_i),
+    .trap_vector_pc_i(trap_vector_pc_i),
     .trap_reason_i(trap_reason_i),
     .trap_source_mode_i(trap_source_mode_i),
     .trap_number_i(trap_number_i),
@@ -315,6 +326,9 @@ module tb_poly_frontend_stateful_core;
     .trap_packet_range_fault_o(),
     .trap_invalid_reason_o(),
     .trap_invalid_source_mode_o(),
+    .trap_vector_apply_o(trap_vector_apply_o),
+    .trap_vector_frontend_o(trap_vector_frontend_o),
+    .trap_vector_pc_o(trap_vector_pc_o),
     .abi_signature_set_ok_o(),
     .abi_signature_set_error_o(),
     .abi_signature_apply_o(abi_signature_apply_o),
@@ -412,6 +426,9 @@ module tb_poly_frontend_stateful_core;
       trap_valid_i = 1'b0;
       trap_monitor_enabled_i = 1'b0;
       trap_monitor_packet_addr_i = 64'd0;
+      trap_vector_valid_i = 1'b0;
+      trap_vector_frontend_i = POLY_FRONTEND_X86;
+      trap_vector_pc_i = 64'd0;
       trap_reason_i = 32'd0;
       trap_source_mode_i = 32'd0;
       trap_number_i = 64'd0;
@@ -624,6 +641,34 @@ module tb_poly_frontend_stateful_core;
       "return cookie updates architectural state");
     check(transition_stack_empty_o && transition_stack_depth_o == 4'd0,
       "return cookie drains transition frame");
+
+    valid_i = 1'b1;
+    trap_valid_i = 1'b1;
+    trap_monitor_enabled_i = 1'b1;
+    trap_monitor_packet_addr_i = 64'h457000;
+    trap_vector_valid_i = 1'b1;
+    trap_vector_frontend_i = POLY_FRONTEND_AARCH64;
+    trap_vector_pc_i = 64'h7000;
+    trap_reason_i = POLY_TRAP_SYSCALL;
+    trap_source_mode_i = POLY_MODE_RAW_AARCH64;
+    trap_mem_write_resp_valid_i = 1'b1;
+    #1;
+    check(trap_vector_apply_o && trap_vector_frontend_o == POLY_FRONTEND_AARCH64 &&
+      trap_vector_pc_o == 64'h7000, "stateful trap vector apply sideband");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&
+      redirect_pc_o == 64'h7000 && redirect_reason_o == 3'd5,
+      "stateful trap vector redirects state");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_AARCH64 && state_pc_o == 64'h7000,
+      "trap vector updates architectural state");
+
+    init_i = 1'b1;
+    init_frontend_i = POLY_FRONTEND_X86;
+    init_pc_i = 64'h1004;
+    tick();
+    clear_inputs();
 
     valid_i = 1'b1;
     x86_fetch_valid_i = 1'b0;

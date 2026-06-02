@@ -55,6 +55,9 @@ module poly_frontend_core (
     input  logic        trap_valid_i,
     input  logic        trap_monitor_enabled_i,
     input  logic [63:0] trap_monitor_packet_addr_i,
+    input  logic        trap_vector_valid_i,
+    input  logic [1:0]  trap_vector_frontend_i,
+    input  logic [63:0] trap_vector_pc_i,
     input  logic [31:0] trap_reason_i,
     input  logic [31:0] trap_source_mode_i,
     input  logic [63:0] trap_number_i,
@@ -198,6 +201,9 @@ module poly_frontend_core (
     output logic        trap_packet_range_fault_o,
     output logic        trap_invalid_reason_o,
     output logic        trap_invalid_source_mode_o,
+    output logic        trap_vector_apply_o,
+    output logic [1:0]  trap_vector_frontend_o,
+    output logic [63:0] trap_vector_pc_o,
 
     output logic        abi_signature_set_ok_o,
     output logic        abi_signature_set_error_o,
@@ -446,6 +452,11 @@ module poly_frontend_core (
     raw_memory_access ? raw_memory_access_bytes : 4'd0;
   assign raw_data_mem_wait_o = raw_memory_execute_wait;
   assign raw_data_mem_fault_o = raw_memory_execute_fault;
+  assign trap_vector_apply_o =
+    trap_packet_delivered_o && trap_vector_valid_i && !trap_fault_o;
+  assign trap_vector_frontend_o =
+    trap_vector_apply_o ? trap_vector_frontend_i : frontend_i;
+  assign trap_vector_pc_o = trap_vector_apply_o ? trap_vector_pc_i : pc_i;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),

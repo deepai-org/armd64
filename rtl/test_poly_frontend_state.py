@@ -13,6 +13,7 @@ REDIRECT_INIT = 1
 REDIRECT_COMMIT = 2
 REDIRECT_INTERRUPT = 3
 REDIRECT_RETURN = 4
+REDIRECT_TRAP = 5
 
 
 def parse_c_enum_constants(path: Path) -> dict[str, int]:
@@ -63,13 +64,16 @@ class FrontendState:
         commit: tuple[int, int] | None = None,
         interrupt_restore: tuple[int, int] | None = None,
         return_resume: tuple[int, int] | None = None,
+        trap_vector: tuple[int, int] | None = None,
         fault: bool = False,
         stall: bool = False,
     ) -> dict[str, int | bool]:
         old_frontend = self.frontend
         old_pc = self.pc
         requests = [
-            value is not None for value in (commit, interrupt_restore, return_resume)
+            value is not None for value in (
+                commit, interrupt_restore, return_resume, trap_vector
+            )
         ]
         conflict = init is None and sum(requests) > 1
         if init is not None:
@@ -81,6 +85,9 @@ class FrontendState:
         elif interrupt_restore is not None:
             selected = interrupt_restore
             reason = REDIRECT_INTERRUPT
+        elif trap_vector is not None:
+            selected = trap_vector
+            reason = REDIRECT_TRAP
         elif commit is not None:
             selected = commit
             reason = REDIRECT_COMMIT
@@ -137,6 +144,10 @@ def require_structural_wiring() -> None:
         "POLY_REDIRECT_COMMIT",
         "POLY_REDIRECT_INTERRUPT",
         "POLY_REDIRECT_RETURN",
+        "POLY_REDIRECT_TRAP",
+        "trap_vector_i",
+        "trap_frontend_i",
+        "trap_pc_i",
         "redirect_valid_o = update_o",
         "update_o =",
         "fault_i",
@@ -205,6 +216,14 @@ def main() -> int:
     assert return_resume["redirect_pc"] == 0x1200
     assert state.frontend == c["POLY_FRONTEND_X86"] and state.pc == 0x1200
 
+    trap_vector = state.step(trap_vector=(c["POLY_FRONTEND_AARCH64"], 0x6000))
+    assert trap_vector["update"]
+    assert trap_vector["redirect_valid"]
+    assert trap_vector["redirect_reason"] == REDIRECT_TRAP
+    assert trap_vector["redirect_frontend"] == c["POLY_FRONTEND_AARCH64"]
+    assert trap_vector["redirect_pc"] == 0x6000
+    assert state.frontend == c["POLY_FRONTEND_AARCH64"] and state.pc == 0x6000
+
     conflict = state.step(
         commit=(c["POLY_FRONTEND_AARCH64"], 0x4000),
         return_resume=(c["POLY_FRONTEND_X86"], 0x1300),
@@ -212,7 +231,7 @@ def main() -> int:
     assert conflict["error"] and conflict["conflict"]
     assert not conflict["update"]
     assert not conflict["redirect_valid"]
-    assert state.frontend == c["POLY_FRONTEND_X86"] and state.pc == 0x1200
+    assert state.frontend == c["POLY_FRONTEND_AARCH64"] and state.pc == 0x6000
 
     bad_frontend = state.step(commit=(3, 0x1000))
     assert bad_frontend["error"] and bad_frontend["invalid_frontend"]
