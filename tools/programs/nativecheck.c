@@ -2221,6 +2221,19 @@ static void child_expect_invalid_generic_enter_frontend_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_wide_generic_enter_frontend_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "movabsq $0x100000001, %%r15\n"
+    POLY_OP_ENTER_MODE
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape if truncated.
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_unaligned_aarch64_enter_target_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -2297,6 +2310,22 @@ static void child_expect_invalid_generic_switch_frontend_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_wide_generic_switch_frontend_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "movabsq $0x100000001, %%r15\n"
+    POLY_OP_SWITCH_MODE
+    ".balign 4, 0x90\n"
+    "1:\n"
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape if truncated.
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_invalid_generic_switch_target_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -2324,6 +2353,26 @@ static void child_expect_invalid_generic_pcall_frontend_signal(void) {
     POLY_OP_PCALL_SIG_MODE
     "1:\n"
     "retq\n"
+    "2:\n"
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_wide_generic_pcall_frontend_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "xorq %%r12, %%r12\n"
+    "movabsq $0x100000001, %%r15\n"
+    POLY_OP_PCALL_SIG_MODE
+    ".balign 4, 0x90\n"
+    "1:\n"
+    ".long 0xd5032f7f\n" // aarch64 landing pad
+    ".long 0xd65f03c0\n" // ret x30
     "2:\n"
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
@@ -2385,6 +2434,28 @@ static void child_expect_invalid_generic_pcall_slot_signal(void) {
     :
     : "i"(POLY_ABI_SIGNATURE_SLOT_COUNT),
       "i"(POLY_FRONTEND_AARCH64)
+    : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_wide_generic_pcall_slot_signal(void) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  asm volatile(
+    "leaq 1f(%%rip), %%rbx\n"
+    "leaq 2f(%%rip), %%r11\n"
+    "movabsq $0x100000000, %%r12\n"
+    "movq %0, %%r15\n"
+    POLY_OP_PCALL_SIG_MODE
+    ".balign 4, 0x90\n"
+    "1:\n"
+    ".long 0xd5032f7f\n" // aarch64 landing pad
+    ".long 0xd65f03c0\n" // ret x30
+    "2:\n"
+    :
+    : "i"(POLY_FRONTEND_AARCH64)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
       "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   _exit(99);
@@ -4292,6 +4363,9 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
   if (expect_child_signal("poly invalid generic enter frontend", SIGILL,
         child_expect_invalid_generic_enter_frontend_signal) != 0)
     return 1;
+  if (expect_child_signal("poly wide generic enter frontend", SIGILL,
+        child_expect_wide_generic_enter_frontend_signal) != 0)
+    return 1;
   if (expect_child_signal("poly unaligned aarch64 enter target", SIGILL,
         child_expect_unaligned_aarch64_enter_target_signal) != 0)
     return 1;
@@ -4307,11 +4381,17 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
   if (expect_child_signal("poly invalid generic switch frontend", SIGILL,
         child_expect_invalid_generic_switch_frontend_signal) != 0)
     return 1;
+  if (expect_child_signal("poly wide generic switch frontend", SIGILL,
+        child_expect_wide_generic_switch_frontend_signal) != 0)
+    return 1;
   if (expect_child_signal("poly invalid generic switch target", SIGILL,
         child_expect_invalid_generic_switch_target_signal) != 0)
     return 1;
   if (expect_child_signal("poly invalid generic pcall frontend", SIGILL,
         child_expect_invalid_generic_pcall_frontend_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly wide generic pcall frontend", SIGILL,
+        child_expect_wide_generic_pcall_frontend_signal) != 0)
     return 1;
   if (expect_child_signal("poly invalid generic pcall target", SIGILL,
         child_expect_invalid_generic_pcall_target_signal) != 0)
@@ -4321,6 +4401,9 @@ static int run_poly_invalid_generic_control_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly invalid generic pcall slot", SIGILL,
         child_expect_invalid_generic_pcall_slot_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly wide generic pcall slot", SIGILL,
+        child_expect_wide_generic_pcall_slot_signal) != 0)
     return 1;
   if (expect_child_signal("poly invalid generic pcall immediate slot", SIGILL,
         child_expect_invalid_generic_pcall_imm_slot_signal) != 0)
@@ -5043,6 +5126,12 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (poly_trap_vector_mode_set_result(255) != (uint64_t) -EINVAL) {
     fputs("NATIVE_CHECK_FAIL: poly x86 trap vector mode accepted invalid mode\n",
+      stderr);
+    return 1;
+  }
+  if (poly_trap_vector_mode_set_result(
+        (1ULL << 32) | POLY_MODE_X86) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 trap vector mode accepted wide mode\n",
       stderr);
     return 1;
   }
@@ -10313,11 +10402,32 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
 
+  result = poly_abi_signature_set((1ULL << 32) | 5,
+    POLY_ABI_SIGNATURE_KIND_NATIVE_REGS);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 ABI signature wide slot accepted result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
   result = poly_abi_signature_get(POLY_ABI_SIGNATURE_SLOT_COUNT);
   if (result != (uint64_t) -EINVAL ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly x86 ABI signature invalid get mismatch result=%llu slot5=%llu\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get(5));
+    return 1;
+  }
+
+  result = poly_abi_signature_get((1ULL << 32) | 5);
+  if (result != (uint64_t) -EINVAL ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_EXCHANGE) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 ABI signature wide get accepted result=%llu slot5=%llu\n",
       (unsigned long long) result,
       (unsigned long long) poly_abi_signature_get(5));
     return 1;
