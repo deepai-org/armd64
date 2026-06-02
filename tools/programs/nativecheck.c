@@ -1902,11 +1902,23 @@ static void child_expect_monitor_packet_fault_trap_return_rejected(void) {
   if (stage != 1 || nativecheck_last_signal != SIGSEGV)
     _exit(96);
 
+  struct poly_xsave_state snapshot __attribute__((aligned(64)));
+  memset(&snapshot, 0, sizeof(snapshot));
+  poly_state_export(&snapshot);
+  if (snapshot.trap.reason != 0 ||
+      snapshot.trap.source_mode != POLY_MODE_X86 ||
+      snapshot.trap.number != 0 ||
+      snapshot.trap.selector != 0 ||
+      snapshot.trap.trap_pc != 0 ||
+      snapshot.trap.resume_pc != 0 ||
+      snapshot.trap.flags != 0)
+    _exit(97);
+
   nativecheck_last_signal = 0;
   if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
     stage = 2;
     asm volatile(POLY_OP_TRAP_RETURN ::: "rax", "r15", "memory");
-    _exit(97);
+    _exit(98);
   }
   if (stage != 2 || nativecheck_last_signal != SIGILL)
     _exit(99);
