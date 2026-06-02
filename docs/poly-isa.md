@@ -1,10 +1,7 @@
 # Poly ISA
 
-Poly is an x86_64 CPU extension prototype that adds AArch64 and RISC-V64
-user-mode frontends. The goal is compatibility with existing precompiled
-objects in one process address space, not a new compiler-only ABI.
-
-Long-form rationale is in `docs/poly-isa-design-directions.md`.
+Poly extends x86_64 with AArch64 and RISC-V64 user-mode frontends. The goal is
+to run existing precompiled cross-ISA code in one process address space.
 
 ## How To Run
 
@@ -14,34 +11,31 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
 rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Useful focused targets:
+Focused checks:
 
 ```bash
 make BOOT_TIMEOUT_SECONDS=900 boot-poly-call-real-xsave-arch-traps
 make BOOT_TIMEOUT_SECONDS=900 boot-poly-binfmt-arch-traps
 ```
 
-## How It Differs From x86_64
+## Difference From x86_64
 
-- x86_64 remains the system ISA: boot, privilege, paging, interrupts, syscalls,
-  atomics, and the effective memory model stay x86_64-owned.
-- AArch64 and RISC-V64 are raw user-mode instruction frontends. They fetch and
-  decode native 32-bit instructions directly from `RIP`.
-- Mode switches are decoded control operations, not `#UD` exception envelopes.
-- Cross-ISA calls target the real platform ABIs: x86_64 SysV, AArch64 AAPCS64,
-  and RISC-V psABI.
-- Foreign non-aliased registers are per-thread architectural state, modeled as
-  XSAVE-style state rather than CR3-scoped hidden emulator data.
-- Hardware may remap register names for cached ABI signatures, but it must not
-  parse user-memory call descriptors, repack stack layouts, implement libc, or
-  translate syscalls.
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  syscalls, atomics, and the effective memory model.
+- AArch64 and RISC-V64 are raw user frontends that fetch native 32-bit
+  instructions from `RIP`.
+- Mode switches are decoded control operations, not `#UD` envelopes.
+- Cross-ISA calls preserve real ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
+- Extra foreign registers are per-thread XSAVE-style architectural state.
+- Silicon should switch frontends and optionally remap register names. It should
+  not parse user-memory descriptors, repack stacks, implement libc, or translate
+  OS syscalls.
 - Recoverable foreign traps produce OS-neutral trap packets for runtime or OS
-  policy code.
+  policy.
 
 ## Temporary Bochs Encodings
 
-These encodings are prototype encodings for Bochs. A hardware ISA would allocate
-real opcode space.
+Prototype encodings only. Hardware needs allocated opcode space.
 
 | ISA | Control encoding |
 | --- | --- |
