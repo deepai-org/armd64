@@ -3685,6 +3685,35 @@ static void child_expect_bad_trap_source_mode_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_trap_number_width_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = POLY_TRAP_SYSCALL;
+  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.trap.number = 0x100000000ULL;
+  bad.trap.trap_pc = 0x0000000000457000ULL;
+  bad.trap.resume_pc = 0x0000000000457004ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_trap_selector_width_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = POLY_TRAP_SYSCALL;
+  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.trap.number = 172;
+  bad.trap.selector = 0x100000000ULL;
+  bad.trap.trap_pc = 0x0000000000457000ULL;
+  bad.trap.resume_pc = 0x0000000000457004ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_trap_pc_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -7555,6 +7584,12 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad trap source mode xstate", SIGILL,
         child_expect_bad_trap_source_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap number width xstate", SIGILL,
+        child_expect_bad_trap_number_width_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap selector width xstate", SIGILL,
+        child_expect_bad_trap_selector_width_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad trap pc xstate", SIGILL,
         child_expect_bad_trap_pc_xsave_signal) != 0)
