@@ -114,7 +114,10 @@ check-poly-rtl-sim:
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_trap_packet_stage" \
 		rtl/poly_trap_packet_encode.sv rtl/poly_trap_packet_stage.sv \
 		rtl/tb_poly_trap_packet_stage.sv; \
-	vvp "$$tmp_dir/tb_poly_trap_packet_stage"
+	vvp "$$tmp_dir/tb_poly_trap_packet_stage"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_memory_order" \
+		rtl/poly_memory_order.sv rtl/tb_poly_memory_order.sv; \
+	vvp "$$tmp_dir/tb_poly_memory_order"
 
 check-poly-rtl-verilator:
 	verilator $(POLY_RTL_VERILATOR_FLAGS) $(POLY_RTL_SV)
