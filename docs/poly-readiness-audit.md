@@ -12,6 +12,7 @@ RISC-V64 code.
 | --- | --- |
 | Direct foreign fetch, not per-instruction traps | `docs/poly-isa.md`; Bochs raw AArch64/RISC-V decode in `bochs/cpu/proc_ctrl.cc`; `boot-poly-full-real-xsave-arch-traps` passed. |
 | Dedicated Poly control operations | `docs/poly-isa.md`; CPUID geometry in `tools/include/polycpuid.h`; Bochs x86/AArch64/RISC-V control decode in `bochs/cpu/proc_ctrl.cc`. |
+| Opcode discovery contract | `tools/include/polycpuid.h` defines CPUID escape subleafs 32 and 33 for active x86 opcode geometry and vendor/prototype opcode-contract flags; Bochs returns both leaves; runtime probes validate both leaves. |
 | FPGA-facing RTL bring-up artifacts | `rtl/poly_ctrl_decode.sv`; `rtl/poly_frontend_handoff.sv`; `rtl/poly_frontend_step.sv`; `rtl/poly_frontend_retire.sv`; `rtl/poly_frontend_memory_retire.sv`; `rtl/poly_interrupt_boundary.sv`; `rtl/poly_transition_stack.sv`; `rtl/poly_transition_cycle_budget.sv`; `rtl/poly_abi_signature_slots.sv`; `rtl/poly_cpuid_rom.sv`; `rtl/poly_memory_order.sv`; `rtl/poly_raw_fetch_request.sv`; `rtl/poly_raw_fetch_stage.sv`; `rtl/poly_raw_fetch_plan.sv`; `rtl/poly_return_cookie_recover.sv`; `rtl/poly_trap_packet_encode.sv`; `rtl/poly_trap_packet_stage.sv`; `make check-poly-rtl` passed. |
 | Raw frontend memory path | `rtl/poly_raw_fetch_request.sv` validates raw instruction fetch addresses; `rtl/poly_raw_fetch_stage.sv` consumes memory responses and blocks instruction retirement on memory faults. |
 | Frontend fetch-to-retire prototype | `rtl/poly_frontend_memory_retire.sv` connects external x86 fetch or raw AArch64/RISC-V memory fetch to `rtl/poly_frontend_retire.sv`, producing end-to-end retire/commit/fault outputs. |
@@ -48,5 +49,5 @@ RISC-V64 code.
 
 1. Add formal memory-model checks around `rtl/poly_memory_order.sv`; the
    current RTL gate has directed and litmus-style tests, not a proof.
-2. Decide the production x86 opcode allocation or define the vendor CPUID
-   discovery contract that lets software consume non-Bochs encodings.
+2. Convert the vendor/prototype x86 opcode family into a production allocation
+   or keep it as a CPUID-discovered vendor extension for FPGA bring-up.

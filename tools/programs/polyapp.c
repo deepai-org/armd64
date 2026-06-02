@@ -1084,6 +1084,8 @@ static int read_polyapp_base_contract(void) {
         poly_cpuid_expected_escape_leaf7()) < 0 ||
       check_polyapp_cpuid_leaf("x86 opcode geometry", 32,
         poly_cpuid_expected_escape_leaf32()) < 0 ||
+      check_polyapp_cpuid_leaf("x86 opcode contract", 33,
+        poly_cpuid_expected_escape_leaf33()) < 0 ||
       check_polyapp_cpuid_leaf("FP64 signature", 22,
         poly_cpuid_expected_escape_leaf22()) < 0 ||
       check_polyapp_cpuid_leaf("FP32 signature", 23,

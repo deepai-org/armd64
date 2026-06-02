@@ -44,3 +44,9 @@ switching. The x86_64 byte family is the Bochs allocation for this prototype;
 silicon/FPGA implementations can allocate a different dedicated opcode family,
 but must expose its geometry through Poly CPUID so runtimes do not infer it
 from documentation.
+
+CPUID `POLY_CPUID_BASE + 2, subleaf 32` reports the active x86 byte geometry.
+Subleaf 33 reports the opcode contract flags: the current Bochs encoding is a
+vendor/prototype dedicated decode path, not a `#UD` trap envelope, and software
+must discover it through CPUID instead of hard-coding it as a production x86
+allocation.

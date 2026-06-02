@@ -229,6 +229,8 @@ static int setup_polythread_native_signature_slot(void) {
     poly_cpuid_expected_escape_leaf5();
   const struct poly_cpuid_regs expected_x86_geometry =
     poly_cpuid_expected_escape_leaf32();
+  const struct poly_cpuid_regs expected_x86_opcode_contract =
+    poly_cpuid_expected_escape_leaf33();
   const struct poly_cpuid_regs expected_fp64_signature =
     poly_cpuid_expected_escape_leaf22();
   const struct poly_cpuid_regs expected_hfa32_ret_signature =
@@ -243,6 +245,8 @@ static int setup_polythread_native_signature_slot(void) {
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs x86_geometry =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 32);
+  const struct poly_cpuid_regs x86_opcode_contract =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 33);
   const struct poly_cpuid_regs signature =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 7);
   const struct poly_cpuid_regs fp64_signature =
@@ -271,6 +275,14 @@ static int setup_polythread_native_signature_slot(void) {
       "POLYTHREAD_FAIL: x86 opcode geometry mismatch leaf32=(0x%x,0x%x,0x%x,0x%x)\n",
       x86_geometry.eax, x86_geometry.ebx, x86_geometry.ecx,
       x86_geometry.edx);
+    return -1;
+  }
+  if (!poly_cpuid_regs_match(&x86_opcode_contract,
+        &expected_x86_opcode_contract)) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: x86 opcode contract mismatch leaf33=(0x%x,0x%x,0x%x,0x%x)\n",
+      x86_opcode_contract.eax, x86_opcode_contract.ebx,
+      x86_opcode_contract.ecx, x86_opcode_contract.edx);
     return -1;
   }
   if (signature.eax != POLY_X86_CTRL_PCALL_SIG_IMM_BASE ||
