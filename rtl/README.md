@@ -20,6 +20,8 @@ silicon prototype.
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
   `PCALL` and native return-cookie recovery.
+- `poly_transition_cycle_budget.sv`: cycle-budget model for fixed-latency
+  `PSWITCH`, register-only `PCALL`, return-cookie recovery, and trap delivery.
 - `poly_abi_signature_slots.sv`: cached register-only ABI signature slots for
   hardware register aliasing.
 - `poly_cpuid_rom.sv`: Poly vendor CPUID discovery ROM for feature bits, XSAVE
@@ -50,6 +52,8 @@ silicon prototype.
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
   `tools/include/polycpuid.h`.
+- `test_poly_transition_cycle_budget.py`: cycle-budget checks for the
+  hardware fast paths and trap-packet memory response accounting.
 - `test_poly_abi_signature_slots.py`: signature-slot checks against
   `tools/include/polycpuid.h`.
 - `test_poly_cpuid_rom.py`: CPUID ROM checks against
@@ -85,6 +89,7 @@ python3 rtl/test_poly_raw_fetch_request.py
 python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
 python3 rtl/test_poly_return_cookie_recover.py
+python3 rtl/test_poly_transition_cycle_budget.py
 python3 rtl/test_poly_trap_packet_encode.py
 python3 rtl/test_poly_trap_packet_stage.py
 ```
@@ -105,6 +110,7 @@ POLY_RTL_RAW_FETCH_REQUEST_OK
 POLY_RTL_RAW_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_PLAN_OK
 POLY_RTL_RETURN_COOKIE_RECOVER_OK
+POLY_RTL_TRANSITION_CYCLE_BUDGET_OK
 POLY_RTL_TRAP_PACKET_ENCODE_OK
 POLY_RTL_TRAP_PACKET_STAGE_OK
 ```

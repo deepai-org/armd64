@@ -38,6 +38,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_raw_fetch_stage.py
 	python3 rtl/test_poly_raw_fetch_plan.py
 	python3 rtl/test_poly_return_cookie_recover.py
+	python3 rtl/test_poly_transition_cycle_budget.py
 	python3 rtl/test_poly_trap_packet_encode.py
 	python3 rtl/test_poly_trap_packet_stage.py
 
