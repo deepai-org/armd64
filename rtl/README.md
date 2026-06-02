@@ -25,9 +25,8 @@ silicon prototype.
   older, fetch, execution, and control faults.
 - `poly_frontend_fetch_issue.sv`: dual frontend fetch-request issuer for x86
   byte fetch versus raw AArch64/RISC-V instruction fetch.
-- `poly_frontend_memory_retire.sv`: fetch-to-retire prototype that connects
-  explicit x86 fetch requests and raw foreign instruction memory responses to
-  frontend retirement commits.
+- `poly_frontend_memory_retire.sv`: fetch-to-retire prototype that feeds the
+  integrated fetch/decode pipeline into frontend retirement commits.
 - `poly_frontend_core.sv`: frontend core wrapper that connects fetch-to-retire
   commits, TSO memory-order backpressure, raw interrupt save/restore,
   trap-packet delivery, ABI signature lookup, CPUID discovery, and native

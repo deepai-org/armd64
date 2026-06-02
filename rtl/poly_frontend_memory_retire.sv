@@ -1,10 +1,9 @@
 // Poly frontend fetch-to-retire prototype.
 //
-// This composes dual frontend fetch issue with the frontend retirement gate.
-// The x86 byte frontend receives an explicit request and supplies its fetched
-// word/fallthrough PC through a response stage; AArch64/RISC-V issue raw
-// memory requests through the shared instruction-memory path and consume them
-// through a raw response stage before retirement.
+// This composes the fetch/decode pipeline boundary with the frontend
+// retirement gate. Fetch issue, frontend responses, and fetch faults are handled
+// before retirement; transition validation and architectural commits remain
+// precise in poly_frontend_retire.
 module poly_frontend_memory_retire (
     input  logic        valid_i,
     input  logic [1:0]  frontend_i,
@@ -73,103 +72,62 @@ module poly_frontend_memory_retire (
     output logic        invalid_signature_slot_o,
     output logic        transition_stack_full_o
 );
-  localparam logic [1:0] POLY_FRONTEND_X86     = 2'd0;
-  localparam logic [1:0] POLY_FRONTEND_AARCH64 = 2'd1;
-  localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
-
-  logic x86_frontend;
-  logic raw_frontend;
-  logic frontend_valid;
-  logic x86_insn_valid;
-  logic [31:0] x86_insn;
-  logic [63:0] x86_fetch_fallthrough_pc;
-  logic x86_fetch_fault;
-  logic raw_insn_valid;
-  logic [31:0] raw_insn;
-  logic raw_fetch_fault;
+  logic fetch_pipeline_valid;
+  logic fetch_pipeline_fault;
+  logic [31:0] fetch_pipeline_word;
+  logic [63:0] fetch_pipeline_fallthrough_pc;
+  logic fetch_pipeline_invalid_frontend;
   logic retire_fetch_valid;
   logic retire_fetch_fault;
   logic [31:0] retire_fetch_word;
-  logic pipeline_invalid_frontend;
-  logic fetch_issue_invalid_frontend;
-  logic raw_invalid_frontend;
   logic retire_invalid_frontend;
   logic retire_fault;
 
-  always_comb begin
-    x86_frontend = frontend_i == POLY_FRONTEND_X86;
-    raw_frontend =
-      frontend_i == POLY_FRONTEND_AARCH64 ||
-      frontend_i == POLY_FRONTEND_RISCV;
-    frontend_valid = x86_frontend || raw_frontend;
-  end
-
-  poly_frontend_fetch_issue fetch_issue (
+  poly_frontend_fetch_decode_pipeline fetch_decode_pipeline (
     .valid_i(valid_i),
     .frontend_i(frontend_i),
     .pc_i(pc_i),
+    .x86_fetch_resp_valid_i(x86_fetch_valid_i),
+    .x86_fetch_resp_fault_i(x86_fetch_fault_i),
+    .x86_fetch_resp_word_i(x86_fetch_word_i),
+    .x86_fetch_resp_fallthrough_pc_i(x86_fallthrough_pc_i),
+    .raw_mem_resp_valid_i(raw_mem_resp_valid_i),
+    .raw_mem_resp_fault_i(raw_mem_resp_fault_i),
+    .raw_mem_resp_word_i(raw_mem_resp_word_i),
     .x86_fetch_req_valid_o(x86_fetch_req_valid_o),
     .x86_fetch_req_addr_o(x86_fetch_req_addr_o),
     .x86_fetch_req_bytes_o(x86_fetch_req_bytes_o),
-    .raw_fetch_req_valid_o(raw_mem_req_valid_o),
-    .raw_fetch_req_addr_o(raw_mem_req_addr_o),
-    .raw_fetch_req_bytes_o(raw_mem_req_bytes_o),
-    .fault_o(),
-    .invalid_frontend_o(fetch_issue_invalid_frontend),
+    .raw_mem_req_valid_o(raw_mem_req_valid_o),
+    .raw_mem_req_addr_o(raw_mem_req_addr_o),
+    .raw_mem_req_bytes_o(raw_mem_req_bytes_o),
+    .wait_fetch_o(),
+    .fetch_valid_o(fetch_pipeline_valid),
+    .fetch_fault_o(fetch_pipeline_fault),
+    .fetch_word_o(fetch_pipeline_word),
+    .fetch_fallthrough_pc_o(fetch_pipeline_fallthrough_pc),
+    .decode_valid_o(),
+    .poly_ctrl_o(),
+    .subop_o(),
+    .call_sig_imm_o(),
+    .signature_slot_o(),
+    .invalid_frontend_o(fetch_pipeline_invalid_frontend),
+    .x86_fetch_wait_o(x86_fetch_wait_o),
+    .x86_request_error_o(x86_request_error_o),
+    .x86_mem_fault_o(x86_mem_fault_o),
     .x86_noncanonical_pc_o(x86_noncanonical_pc_o),
     .x86_range_fault_o(x86_range_fault_o),
+    .raw_fetch_wait_o(raw_fetch_wait_o),
     .raw_request_error_o(raw_request_error_o),
-    .raw_invalid_frontend_o(raw_invalid_frontend),
+    .raw_mem_fault_o(raw_mem_fault_o),
     .raw_noncanonical_pc_o(raw_noncanonical_pc_o),
     .raw_align_fault_o(raw_align_fault_o),
     .raw_range_fault_o(raw_range_fault_o)
   );
 
-  poly_x86_fetch_stage x86_fetch_stage (
-    .valid_i(valid_i && x86_frontend),
-    .request_valid_i(x86_fetch_req_valid_o),
-    .fetch_resp_valid_i(x86_fetch_valid_i),
-    .fetch_resp_fault_i(x86_fetch_fault_i),
-    .fetch_resp_word_i(x86_fetch_word_i),
-    .fetch_resp_fallthrough_pc_i(x86_fallthrough_pc_i),
-    .wait_response_o(x86_fetch_wait_o),
-    .insn_valid_o(x86_insn_valid),
-    .insn_o(x86_insn),
-    .fallthrough_pc_o(x86_fetch_fallthrough_pc),
-    .fault_o(x86_fetch_fault),
-    .mem_fault_o(x86_mem_fault_o)
-  );
-
-  poly_raw_fetch_response_stage raw_fetch_response_stage (
-    .valid_i(valid_i && raw_frontend),
-    .frontend_i(frontend_i),
-    .pc_i(pc_i),
-    .request_valid_i(raw_mem_req_valid_o),
-    .mem_resp_valid_i(raw_mem_resp_valid_i),
-    .mem_resp_fault_i(raw_mem_resp_fault_i),
-    .mem_resp_word_i(raw_mem_resp_word_i),
-    .wait_response_o(raw_fetch_wait_o),
-    .insn_valid_o(raw_insn_valid),
-    .insn_o(raw_insn),
-    .insn_bytes_o(),
-    .next_pc_o(),
-    .fault_o(raw_fetch_fault),
-    .mem_fault_o(raw_mem_fault_o),
-    .response_align_fault_o()
-  );
-
   always_comb begin
-    pipeline_invalid_frontend =
-      valid_i && (!frontend_valid || fetch_issue_invalid_frontend);
-    x86_request_error_o = x86_noncanonical_pc_o || x86_range_fault_o;
-    retire_fetch_valid =
-      (x86_frontend && x86_insn_valid) ||
-      (raw_frontend && raw_insn_valid);
-    retire_fetch_fault =
-      pipeline_invalid_frontend ||
-      (x86_frontend && (x86_request_error_o || x86_fetch_fault)) ||
-      (raw_frontend && (raw_request_error_o || raw_fetch_fault));
-    retire_fetch_word = raw_frontend ? raw_insn : x86_insn;
+    retire_fetch_valid = fetch_pipeline_valid;
+    retire_fetch_fault = fetch_pipeline_fault;
+    retire_fetch_word = fetch_pipeline_word;
   end
 
   poly_frontend_retire frontend_retire (
@@ -183,7 +141,7 @@ module poly_frontend_memory_retire (
     .frontend_i(frontend_i),
     .pc_i(pc_i),
     .fetch_word_i(retire_fetch_word),
-    .x86_fallthrough_pc_i(x86_fetch_fallthrough_pc),
+    .x86_fallthrough_pc_i(fetch_pipeline_fallthrough_pc),
     .target_frontend_i(target_frontend_i),
     .target_pc_i(target_pc_i),
     .signature_slot_valid_i(signature_slot_valid_i),
@@ -217,7 +175,6 @@ module poly_frontend_memory_retire (
   always_comb begin
     fault_o = retire_fault;
     invalid_frontend_o =
-      pipeline_invalid_frontend || raw_invalid_frontend ||
-      retire_invalid_frontend;
+      fetch_pipeline_invalid_frontend || retire_invalid_frontend;
   end
 endmodule

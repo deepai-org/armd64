@@ -362,15 +362,15 @@ def pipeline(
 def main() -> int:
     c = parse_c_enum_constants(HEADER)
     text = RTL.read_text()
-    assert "poly_frontend_fetch_issue fetch_issue" in text
-    assert "poly_x86_fetch_stage x86_fetch_stage" in text
-    assert "poly_raw_fetch_response_stage raw_fetch_response_stage" in text
+    assert "poly_frontend_fetch_decode_pipeline fetch_decode_pipeline" in text
     assert "poly_frontend_retire frontend_retire" in text
     assert ".x86_fetch_req_valid_o(x86_fetch_req_valid_o)" in text
-    assert ".raw_fetch_req_valid_o(raw_mem_req_valid_o)" in text
-    assert ".wait_response_o(x86_fetch_wait_o)" in text
-    assert ".wait_response_o(raw_fetch_wait_o)" in text
-    assert "x86_request_error_o = x86_noncanonical_pc_o || x86_range_fault_o;" in text
+    assert ".raw_mem_req_valid_o(raw_mem_req_valid_o)" in text
+    assert ".fetch_valid_o(fetch_pipeline_valid)" in text
+    assert ".fetch_fault_o(fetch_pipeline_fault)" in text
+    assert ".fetch_word_o(fetch_pipeline_word)" in text
+    assert ".x86_fetch_wait_o(x86_fetch_wait_o)" in text
+    assert ".raw_fetch_wait_o(raw_fetch_wait_o)" in text
     assert ".execute_ready_i(execute_ready_i)" in text
     assert ".block_retire_i(block_retire_i)" in text
     assert ".wait_execute_o(wait_execute_o)" in text
