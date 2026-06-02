@@ -8,17 +8,23 @@ silicon prototype.
 
 - `poly_ctrl_decode.sv`: synthesizable SystemVerilog decoder for x86_64,
   AArch64, and RISC-V64 Poly control instructions.
+- `poly_transition_stack.sv`: fixed-depth hardware transition stack for
+  `PCALL` and native return-cookie recovery.
 - `test_poly_ctrl_decode.py`: static and behavioral consistency test against
+  `tools/include/polycpuid.h`.
+- `test_poly_transition_stack.py`: behavioral transition-stack checks against
   `tools/include/polycpuid.h`.
 
 ## Run
 
 ```bash
 python3 rtl/test_poly_ctrl_decode.py
+python3 rtl/test_poly_transition_stack.py
 ```
 
 Expected output:
 
 ```text
 POLY_RTL_CTRL_DECODE_OK
+POLY_RTL_TRANSITION_STACK_OK
 ```

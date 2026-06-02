@@ -12,7 +12,7 @@ RISC-V64 code.
 | --- | --- |
 | Direct foreign fetch, not per-instruction traps | `docs/poly-isa.md`; Bochs raw AArch64/RISC-V decode in `bochs/cpu/proc_ctrl.cc`; `boot-poly-full-real-xsave-arch-traps` passed. |
 | Dedicated Poly control operations | `docs/poly-isa.md`; CPUID geometry in `tools/include/polycpuid.h`; Bochs x86/AArch64/RISC-V control decode in `bochs/cpu/proc_ctrl.cc`. |
-| FPGA-facing control decode artifact | `rtl/poly_ctrl_decode.sv`; `make check-poly-rtl` passed. |
+| FPGA-facing RTL bring-up artifacts | `rtl/poly_ctrl_decode.sv`; `rtl/poly_transition_stack.sv`; `make check-poly-rtl` passed. |
 | OS-neutral syscall/libcall boundary | Trap-packet contract in `docs/poly-isa-design-directions.md`; Bochs `handle_poly_syscall_trap`; userspace monitor policy in `tools/runtime/polyexec.c`. |
 | Explicit per-thread state | XSAVE-style state layout in `tools/include/polycpuid.h`; guest XCR0 module in `tools/kernel/poly_xcr0.c`; real-XSAVE gates passed. |
 | Native-ABI fast path | ABI signature slots and register maps in `tools/include/polycpuid.h`; `PCALL` implementation in Bochs; cross-ISA runtime stubs in `tools/runtime/polyexec.c`. |
@@ -22,7 +22,7 @@ RISC-V64 code.
 
 ## Not Yet Silicon-Complete
 
-- Only the first RTL bring-up block exists. There is not yet a full RTL/FPGA
+- Only the first RTL bring-up blocks exist. There is not yet a full RTL/FPGA
   CPU frontend-switch implementation.
 - No cycle-level proof exists for the few-cycle `PSWITCH`/`PCALL` target.
 - Bochs proves functional behavior, not timing, area, power, or decode-stage
@@ -36,8 +36,9 @@ RISC-V64 code.
 
 ## Next Engineering Gates
 
-1. Extend the RTL/FPGA prototype beyond control decode to implement CPUID, raw
-   32-bit foreign fetch, register alias slots, and the return-cookie stack.
+1. Extend the RTL/FPGA prototype beyond control decode and transition-stack
+   primitives to implement CPUID, raw 32-bit foreign fetch, and register alias
+   slots.
 2. Build a cycle-counting model for `PSWITCH`, register-only `PCALL`, native
    return-cookie recovery, and trap-packet delivery.
 3. Generate a silicon-facing state-layout table from `tools/include/polycpuid.h`
