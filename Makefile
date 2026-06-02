@@ -32,6 +32,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_transition_stack.py
 	python3 rtl/test_poly_abi_signature_slots.py
 	python3 rtl/test_poly_cpuid_rom.py
+	python3 rtl/test_poly_raw_fetch_request.py
 	python3 rtl/test_poly_raw_fetch_plan.py
 	python3 rtl/test_poly_return_cookie_recover.py
 	python3 rtl/test_poly_trap_packet_encode.py
