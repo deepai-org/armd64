@@ -27,6 +27,7 @@ check-poly-cpuid-contract:
 check-poly-rtl:
 	python3 rtl/test_poly_ctrl_decode.py
 	python3 rtl/test_poly_transition_stack.py
+	python3 rtl/test_poly_abi_signature_slots.py
 
 boot:
 	docker run --rm \
