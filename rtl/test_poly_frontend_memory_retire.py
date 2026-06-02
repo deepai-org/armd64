@@ -363,6 +363,9 @@ def main() -> int:
     c = parse_c_enum_constants(HEADER)
     text = RTL.read_text()
     assert "poly_frontend_fetch_decode_pipeline fetch_decode_pipeline" in text
+    assert "output logic [3:0]  raw_memory_access_bytes_o" in text
+    assert ".raw_memory_access_bytes_o(decode_pipeline_raw_memory_access_bytes)" in text
+    assert "raw_memory_access_bytes_o =" in text
     assert "poly_frontend_predecoded_retire frontend_predecoded_retire" in text
     assert ".x86_fetch_req_valid_o(x86_fetch_req_valid_o)" in text
     assert ".raw_mem_req_valid_o(raw_mem_req_valid_o)" in text

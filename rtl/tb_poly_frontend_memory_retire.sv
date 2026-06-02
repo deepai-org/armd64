@@ -122,6 +122,7 @@ module tb_poly_frontend_memory_retire;
     .raw_memory_store_o(),
     .raw_memory_atomic_o(),
     .raw_memory_barrier_o(),
+    .raw_memory_access_bytes_o(),
     .raw_branch_o(),
     .raw_call_o(),
     .raw_return_o(),

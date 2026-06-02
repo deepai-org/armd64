@@ -43,6 +43,7 @@ module tb_poly_frontend_fetch_decode_pipeline;
   logic raw_memory_store;
   logic raw_memory_atomic;
   logic raw_memory_barrier;
+  logic [3:0] raw_memory_access_bytes;
   logic raw_branch;
   logic raw_call;
   logic raw_return;
@@ -95,6 +96,7 @@ module tb_poly_frontend_fetch_decode_pipeline;
     .raw_memory_store_o(raw_memory_store),
     .raw_memory_atomic_o(raw_memory_atomic),
     .raw_memory_barrier_o(raw_memory_barrier),
+    .raw_memory_access_bytes_o(raw_memory_access_bytes),
     .raw_branch_o(raw_branch),
     .raw_call_o(raw_call),
     .raw_return_o(raw_return),

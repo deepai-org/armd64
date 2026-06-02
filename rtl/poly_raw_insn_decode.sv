@@ -15,6 +15,7 @@ module poly_raw_insn_decode (
     output logic        memory_store_o,
     output logic        memory_atomic_o,
     output logic        memory_barrier_o,
+    output logic [3:0]  memory_access_bytes_o,
     output logic        branch_o,
     output logic        call_o,
     output logic        return_o,
@@ -37,6 +38,7 @@ module poly_raw_insn_decode (
   logic a64_blr;
   logic a64_ret;
   logic a64_trap;
+  logic [3:0] a64_memory_access_bytes;
   logic riscv_32;
   logic [6:0] rv_opcode;
   logic [4:0] rv_rd;
@@ -53,6 +55,7 @@ module poly_raw_insn_decode (
   logic rv_trap;
   logic rv32_uncond_direct;
   logic rv16_uncond_direct;
+  logic [3:0] rv_memory_access_bytes;
   logic [63:0] a64_b_offset;
   logic [63:0] rv_jal_offset;
   logic [63:0] rv16_j_offset;
@@ -71,6 +74,7 @@ module poly_raw_insn_decode (
     a64_blr = (insn_i & 32'hfffffc1f) == 32'hd63f0000;
     a64_ret = (insn_i & 32'hfffffc1f) == 32'hd65f0000;
     a64_trap = (insn_i & 32'hff000000) == 32'hd4000000;
+    a64_memory_access_bytes = 4'd1 << insn_i[31:30];
     a64_b_offset = {{36{insn_i[25]}}, insn_i[25:0], 2'b00};
 
     riscv_32 = insn_i[1:0] == 2'b11;
@@ -131,6 +135,22 @@ module poly_raw_insn_decode (
       {52{rv16[12]}}, rv16[12], rv16[8], rv16[10:9], rv16[6],
       rv16[7], rv16[2], rv16[11], rv16[5:3], 1'b0
     };
+    rv_memory_access_bytes = 4'd0;
+    if (riscv_32) begin
+      unique case (insn_i[14:12])
+        3'b000, 3'b100: rv_memory_access_bytes = 4'd1;
+        3'b001, 3'b101: rv_memory_access_bytes = 4'd2;
+        3'b010, 3'b110: rv_memory_access_bytes = 4'd4;
+        3'b011: rv_memory_access_bytes = 4'd8;
+        default: rv_memory_access_bytes = 4'd0;
+      endcase
+    end else begin
+      unique case (rv16_funct3)
+        3'b001, 3'b011, 3'b101, 3'b111: rv_memory_access_bytes = 4'd8;
+        3'b010, 3'b110: rv_memory_access_bytes = 4'd4;
+        default: rv_memory_access_bytes = 4'd0;
+      endcase
+    end
 
     raw_insn_valid_o = aarch64_valid || riscv_valid;
 
@@ -151,6 +171,10 @@ module poly_raw_insn_decode (
     memory_order_valid_o =
       raw_insn_valid_o &&
       (memory_load_o || memory_store_o || memory_atomic_o || memory_barrier_o);
+    memory_access_bytes_o = 4'd0;
+    if (memory_load_o || memory_store_o || memory_atomic_o)
+      memory_access_bytes_o =
+        aarch64_valid ? a64_memory_access_bytes : rv_memory_access_bytes;
 
     call_o = (aarch64_valid && (a64_bl || a64_blr)) || (riscv_valid && rv_call);
     return_o = (aarch64_valid && a64_ret) || (riscv_valid && rv_return);

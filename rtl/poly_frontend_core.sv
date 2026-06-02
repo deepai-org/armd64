@@ -137,6 +137,14 @@ module poly_frontend_core (
     output logic        memory_invalid_op_o,
     output logic        memory_fault_o,
 
+    output logic        raw_data_mem_valid_o,
+    output logic        raw_data_mem_load_o,
+    output logic        raw_data_mem_store_o,
+    output logic        raw_data_mem_atomic_o,
+    output logic [3:0]  raw_data_mem_access_bytes_o,
+    output logic        raw_data_mem_wait_o,
+    output logic        raw_data_mem_fault_o,
+
     output logic        interrupt_enter_x86_o,
     output logic        interrupt_save_interrupted_o,
     output logic [1:0]  interrupt_saved_frontend_o,
@@ -280,6 +288,7 @@ module poly_frontend_core (
   logic raw_memory_store;
   logic raw_memory_atomic;
   logic raw_memory_barrier;
+  logic [3:0] raw_memory_access_bytes;
   logic raw_branch;
   logic raw_call;
   logic raw_return;
@@ -416,6 +425,14 @@ module poly_frontend_core (
   assign raw_memory_execute_wait =
     raw_memory_access && !raw_memory_resolved_i && !raw_memory_fault_i;
   assign raw_memory_execute_fault = raw_memory_access && raw_memory_fault_i;
+  assign raw_data_mem_valid_o = raw_memory_access;
+  assign raw_data_mem_load_o = raw_memory_access && raw_memory_load;
+  assign raw_data_mem_store_o = raw_memory_access && raw_memory_store;
+  assign raw_data_mem_atomic_o = raw_memory_access && raw_memory_atomic;
+  assign raw_data_mem_access_bytes_o =
+    raw_memory_access ? raw_memory_access_bytes : 4'd0;
+  assign raw_data_mem_wait_o = raw_memory_execute_wait;
+  assign raw_data_mem_fault_o = raw_memory_execute_fault;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),
@@ -471,6 +488,7 @@ module poly_frontend_core (
     .raw_memory_store_o(raw_memory_store),
     .raw_memory_atomic_o(raw_memory_atomic),
     .raw_memory_barrier_o(raw_memory_barrier),
+    .raw_memory_access_bytes_o(raw_memory_access_bytes),
     .raw_branch_o(raw_branch),
     .raw_call_o(raw_call),
     .raw_return_o(raw_return),

@@ -30,11 +30,11 @@ silicon prototype.
 - `poly_frontend_memory_retire.sv`: fetch-to-retire prototype that feeds the
   integrated fetch/decode pipeline into frontend retirement commits.
 - `poly_frontend_core.sv`: frontend core wrapper that connects fetch-to-retire
-  commits, TSO memory-order backpressure, raw data-memory completion/fault
-  gating, raw interrupt save/restore, trap-packet delivery, ABI signature
-  lookup, CPUID discovery, and native return-cookie recovery to the hardware
-  transition stack, with fast-path cycle-budget reporting for integrated
-  transition events.
+  commits, TSO memory-order backpressure, raw data-memory op metadata,
+  completion/fault gating, raw interrupt save/restore, trap-packet delivery,
+  ABI signature lookup, CPUID discovery, and native return-cookie recovery to
+  the hardware transition stack, with fast-path cycle-budget reporting for
+  integrated transition events.
 - `poly_frontend_state.sv`: architectural frontend/PC state register that
   validates and applies committed transitions, raw interrupt restores, and
   native return-cookie resumes, and emits same-cycle redirect metadata for
@@ -42,12 +42,13 @@ silicon prototype.
 - `poly_frontend_stateful_core.sv`: stateful wrapper that feeds
   `poly_frontend_core.sv` from architectural frontend/PC state and applies
   retired commits, raw unconditional direct branch targets, execute-resolved
-  raw branch targets, raw data-memory completion/faults, raw interrupt
-  entry/restore, and native return-cookie resume updates back into that state
-  while stalling unresolved raw branches/data accesses and exposing redirect
-  sidebands.
+  raw branch targets, raw data-memory op metadata and completion/faults, raw
+  interrupt entry/restore, and native return-cookie resume updates back into
+  that state while stalling unresolved raw branches/data accesses and exposing
+  redirect sidebands.
 - `poly_frontend_fpga_top.sv`: FPGA-facing top that wraps the stateful core and
-  converts split x86/raw fetch ports into one tagged instruction-memory bus.
+  converts split x86/raw fetch ports into one tagged instruction-memory bus
+  while exposing raw data-memory op metadata to an external execute/data path.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -108,7 +109,7 @@ silicon prototype.
   x86 external fetch and raw AArch64/RISC-V memory fetch.
 - `test_poly_frontend_core.py`: frontend/transition-stack integration checks
   for PCALL push, stack-full blocking, TSO memory-order backpressure, raw
-  data-memory completion/fault gating, raw interrupt save/restore,
+  data-memory metadata and completion/fault gating, raw interrupt save/restore,
   trap-packet wait/deliver/fault handling, ABI signature lookup, CPUID
   discovery, return-cookie recovery, transition cycle-budget reporting, and
   return-pop conflict avoidance.
@@ -118,10 +119,10 @@ silicon prototype.
 - `test_poly_frontend_stateful_core.py`: stateful core wiring checks for
   state-fed frontend/PC inputs and state updates from retire, interrupt, and
   return-cookie paths, including the raw unconditional direct branch commit mux
-  and execute-resolved raw branch/data-memory wiring.
+  and execute-resolved raw branch/data-memory metadata wiring.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
-  tagged instruction-memory interface, raw branch/data execute inputs, and
-  absence of OS/runtime policy.
+  tagged instruction-memory interface, raw branch/data execute inputs,
+  raw data-memory metadata outputs, and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -245,7 +246,7 @@ POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_SYNTH_OK
-POLY_RTL_FPGA_RESOURCES cells=6647 estimated_lcs=3075
+POLY_RTL_FPGA_RESOURCES cells=6666 estimated_lcs=3088
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK

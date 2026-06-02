@@ -66,6 +66,7 @@ module poly_frontend_memory_retire (
     output logic        raw_memory_store_o,
     output logic        raw_memory_atomic_o,
     output logic        raw_memory_barrier_o,
+    output logic [3:0]  raw_memory_access_bytes_o,
     output logic        raw_branch_o,
     output logic        raw_call_o,
     output logic        raw_return_o,
@@ -98,6 +99,7 @@ module poly_frontend_memory_retire (
   logic decode_pipeline_raw_memory_store;
   logic decode_pipeline_raw_memory_atomic;
   logic decode_pipeline_raw_memory_barrier;
+  logic [3:0] decode_pipeline_raw_memory_access_bytes;
   logic decode_pipeline_raw_branch;
   logic decode_pipeline_raw_call;
   logic decode_pipeline_raw_return;
@@ -143,6 +145,7 @@ module poly_frontend_memory_retire (
     .raw_memory_store_o(decode_pipeline_raw_memory_store),
     .raw_memory_atomic_o(decode_pipeline_raw_memory_atomic),
     .raw_memory_barrier_o(decode_pipeline_raw_memory_barrier),
+    .raw_memory_access_bytes_o(decode_pipeline_raw_memory_access_bytes),
     .raw_branch_o(decode_pipeline_raw_branch),
     .raw_call_o(decode_pipeline_raw_call),
     .raw_return_o(decode_pipeline_raw_return),
@@ -176,6 +179,8 @@ module poly_frontend_memory_retire (
       decode_pipeline_valid && decode_pipeline_raw_memory_atomic;
     raw_memory_barrier_o =
       decode_pipeline_valid && decode_pipeline_raw_memory_barrier;
+    raw_memory_access_bytes_o =
+      raw_memory_order_valid_o ? decode_pipeline_raw_memory_access_bytes : 4'd0;
     raw_branch_o = decode_pipeline_valid && decode_pipeline_raw_branch;
     raw_call_o = decode_pipeline_valid && decode_pipeline_raw_call;
     raw_return_o = decode_pipeline_valid && decode_pipeline_raw_return;

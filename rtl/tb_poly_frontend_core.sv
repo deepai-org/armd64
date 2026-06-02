@@ -134,6 +134,13 @@ module tb_poly_frontend_core;
   logic memory_enqueue_store_o;
   logic memory_wait_store_buffer_o;
   logic memory_wait_atomic_order_o;
+  logic raw_data_mem_valid_o;
+  logic raw_data_mem_load_o;
+  logic raw_data_mem_store_o;
+  logic raw_data_mem_atomic_o;
+  logic [3:0] raw_data_mem_access_bytes_o;
+  logic raw_data_mem_wait_o;
+  logic raw_data_mem_fault_o;
 
   poly_frontend_core dut (
     .clk_i(clk_i),
@@ -252,6 +259,13 @@ module tb_poly_frontend_core;
     .memory_invalid_frontend_o(),
     .memory_invalid_op_o(),
     .memory_fault_o(),
+    .raw_data_mem_valid_o(raw_data_mem_valid_o),
+    .raw_data_mem_load_o(raw_data_mem_load_o),
+    .raw_data_mem_store_o(raw_data_mem_store_o),
+    .raw_data_mem_atomic_o(raw_data_mem_atomic_o),
+    .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o),
+    .raw_data_mem_wait_o(raw_data_mem_wait_o),
+    .raw_data_mem_fault_o(raw_data_mem_fault_o),
     .interrupt_enter_x86_o(),
     .interrupt_save_interrupted_o(),
     .interrupt_saved_frontend_o(),
@@ -583,17 +597,25 @@ module tb_poly_frontend_core;
     #1;
     check(wait_execute_o && !retire_o && !fault_o,
       "decoded raw load waits for data-memory resolution");
+    check(raw_data_mem_valid_o && raw_data_mem_load_o &&
+      !raw_data_mem_store_o && !raw_data_mem_atomic_o,
+      "decoded raw load exposes data-memory load sideband");
+    check(raw_data_mem_access_bytes_o == 4'd8 && raw_data_mem_wait_o,
+      "decoded raw load exposes 8-byte pending data-memory access");
 
     raw_memory_resolved_i = 1'b1;
     #1;
     check(memory_retire_allowed_o && retire_o && !fault_o,
       "decoded raw load retires after data-memory resolution");
+    check(raw_data_mem_valid_o && !raw_data_mem_wait_o,
+      "resolved raw load keeps metadata without wait");
 
     raw_memory_resolved_i = 1'b0;
     raw_memory_fault_i = 1'b1;
     #1;
     check(fault_o && !retire_o,
       "decoded raw load data-memory fault blocks retirement");
+    check(raw_data_mem_fault_o, "decoded raw load reports data-memory fault");
 
     clear_inputs();
     valid_i = 1'b1;

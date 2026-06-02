@@ -31,6 +31,8 @@ def main() -> int:
         "input  logic [63:0] raw_branch_target_i",
         "input  logic        raw_memory_resolved_i",
         "input  logic        raw_memory_fault_i",
+        "output logic        raw_data_mem_valid_o",
+        "output logic [3:0]  raw_data_mem_access_bytes_o",
         ".x86_fetch_valid_i(x86_resp_valid)",
         ".raw_mem_resp_valid_i(raw_resp_valid)",
         ".raw_branch_resolved_i(raw_branch_resolved_i)",
@@ -38,6 +40,8 @@ def main() -> int:
         ".raw_branch_target_i(raw_branch_target_i)",
         ".raw_memory_resolved_i(raw_memory_resolved_i)",
         ".raw_memory_fault_i(raw_memory_fault_i)",
+        ".raw_data_mem_valid_o(raw_data_mem_valid_o)",
+        ".raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o)",
         ".x86_fetch_req_valid_o(x86_fetch_req_valid)",
         ".raw_mem_req_valid_o(raw_mem_req_valid)",
     ]

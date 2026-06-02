@@ -87,6 +87,7 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] redirect_pc_o;
   logic [2:0] redirect_reason_o;
   logic wait_fetch_o;
+  logic wait_execute_o;
   logic retire_o;
   logic commit_push_transition_o;
   logic [1:0] commit_frontend_o;
@@ -95,6 +96,10 @@ module tb_poly_frontend_fpga_top;
   logic fault_o;
   logic poly_ctrl_o;
   logic [6:0] subop_o;
+  logic raw_data_mem_valid_o;
+  logic raw_data_mem_load_o;
+  logic [3:0] raw_data_mem_access_bytes_o;
+  logic raw_data_mem_wait_o;
 
   poly_frontend_fpga_top dut (
     .clk_i(clk_i),
@@ -177,7 +182,7 @@ module tb_poly_frontend_fpga_top;
     .redirect_pc_o(redirect_pc_o),
     .redirect_reason_o(redirect_reason_o),
     .wait_fetch_o(wait_fetch_o),
-    .wait_execute_o(),
+    .wait_execute_o(wait_execute_o),
     .wait_retire_o(),
     .retire_o(retire_o),
     .commit_transition_o(),
@@ -193,6 +198,13 @@ module tb_poly_frontend_fpga_top;
     .return_resume_o(),
     .return_resume_frontend_o(),
     .return_resume_pc_o(),
+    .raw_data_mem_valid_o(raw_data_mem_valid_o),
+    .raw_data_mem_load_o(raw_data_mem_load_o),
+    .raw_data_mem_store_o(),
+    .raw_data_mem_atomic_o(),
+    .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o),
+    .raw_data_mem_wait_o(raw_data_mem_wait_o),
+    .raw_data_mem_fault_o(),
     .trap_mem_write_valid_o(),
     .trap_mem_write_addr_o(),
     .trap_mem_write_bytes_o(),
@@ -350,6 +362,25 @@ module tb_poly_frontend_fpga_top;
     clear_inputs();
     #1;
     check(state_pc_o == 64'h4004, "raw response updates state");
+
+    valid_i = 1'b1;
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_AARCH64;
+    instr_resp_word_i = 32'hf9400000;
+    #1;
+    check(wait_execute_o && !retire_o && raw_data_mem_valid_o,
+      "fpga top raw load waits on data-memory resolution");
+    check(raw_data_mem_load_o && raw_data_mem_access_bytes_o == 4'd8 &&
+      raw_data_mem_wait_o,
+      "fpga top exposes raw load data-memory metadata");
+    raw_memory_resolved_i = 1'b1;
+    #1;
+    check(retire_o && !fault_o && raw_data_mem_valid_o &&
+      !raw_data_mem_wait_o, "fpga top raw load retires when data resolves");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_pc_o == 64'h4008, "resolved raw load updates state");
 
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_X86;

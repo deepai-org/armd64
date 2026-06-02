@@ -110,6 +110,10 @@ module tb_poly_frontend_stateful_core;
   logic fault_o;
   logic poly_ctrl_o;
   logic [6:0] subop_o;
+  logic raw_data_mem_valid_o;
+  logic raw_data_mem_load_o;
+  logic [3:0] raw_data_mem_access_bytes_o;
+  logic raw_data_mem_wait_o;
 
   poly_frontend_stateful_core dut (
     .clk_i(clk_i),
@@ -241,6 +245,13 @@ module tb_poly_frontend_stateful_core;
     .memory_invalid_frontend_o(),
     .memory_invalid_op_o(),
     .memory_fault_o(),
+    .raw_data_mem_valid_o(raw_data_mem_valid_o),
+    .raw_data_mem_load_o(raw_data_mem_load_o),
+    .raw_data_mem_store_o(),
+    .raw_data_mem_atomic_o(),
+    .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o),
+    .raw_data_mem_wait_o(raw_data_mem_wait_o),
+    .raw_data_mem_fault_o(),
     .interrupt_enter_x86_o(),
     .interrupt_save_interrupted_o(),
     .interrupt_saved_frontend_o(),

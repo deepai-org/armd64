@@ -94,6 +94,29 @@ def decode(valid: bool, frontend: int, insn: int, pc: int = 0x1000) -> dict[str,
     store = (a64 and a64_load_store and not a64_atomic and not bool((insn >> 22) & 1)) or (rv and rv_store)
     atomic = (a64 and a64_atomic) or (rv and rv_atomic)
     barrier = (a64 and a64_barrier) or (rv and rv_barrier)
+    a64_bytes = 1 << ((insn >> 30) & 0x3)
+    if rv32:
+        rv_bytes = {
+            0b000: 1,
+            0b001: 2,
+            0b010: 4,
+            0b011: 8,
+            0b100: 1,
+            0b101: 2,
+            0b110: 4,
+        }.get((insn >> 12) & 0x7, 0)
+    else:
+        rv_bytes = {
+            0b001: 8,
+            0b010: 4,
+            0b011: 8,
+            0b101: 8,
+            0b110: 4,
+            0b111: 8,
+        }.get(rv16_funct3, 0)
+    access_bytes = 0
+    if load or store or atomic:
+        access_bytes = a64_bytes if a64 else rv_bytes
     raw = a64 or rv
     target_valid = (
         (a64 and (a64_b or a64_bl)) or
@@ -115,6 +138,7 @@ def decode(valid: bool, frontend: int, insn: int, pc: int = 0x1000) -> dict[str,
         "store": store,
         "atomic": atomic,
         "barrier": barrier,
+        "bytes": access_bytes,
         "branch": (a64 and (a64_b or a64_cond_b or a64_br or a64_bl or a64_blr or a64_ret)) or (rv and rv_branch),
         "call": (a64 and (a64_bl or a64_blr)) or (rv and rv_call),
         "return": (a64 and a64_ret) or (rv and rv_return),
@@ -129,8 +153,12 @@ def require_structural_wiring() -> None:
     for needle in [
         "module poly_raw_insn_decode",
         "input  logic [63:0] pc_i",
+        "output logic [3:0]  memory_access_bytes_o",
         "a64_load_store_group = insn_i[27:25] == 3'b100",
+        "a64_memory_access_bytes = 4'd1 << insn_i[31:30]",
         "rv_opcode = insn_i[6:0]",
+        "rv_memory_access_bytes = 4'd0",
+        "memory_access_bytes_o = 4'd0",
         "branch_target_valid_o =",
         "branch_target_o = pc_i +",
         "rv32_uncond_direct =",
@@ -158,25 +186,29 @@ def main() -> int:
 
     assert_class(POLY_FRONTEND_X86, 0x0FFC3A0F, raw=False, memory_order=False)
 
-    assert_class(POLY_FRONTEND_AARCH64, 0xF9400000, raw=True, memory_order=True, load=True, store=False)
-    assert_class(POLY_FRONTEND_AARCH64, 0xF9000000, memory_order=True, load=False, store=True)
-    assert_class(POLY_FRONTEND_AARCH64, 0xC85F7C00, memory_order=True, atomic=True, load=False, store=False)
-    assert_class(POLY_FRONTEND_AARCH64, 0xD5033FBF, memory_order=True, barrier=True)
+    assert_class(POLY_FRONTEND_AARCH64, 0xF9400000, raw=True, memory_order=True, load=True, store=False, bytes=8)
+    assert_class(POLY_FRONTEND_AARCH64, 0x39400000, memory_order=True, load=True, bytes=1)
+    assert_class(POLY_FRONTEND_AARCH64, 0xF9000000, memory_order=True, load=False, store=True, bytes=8)
+    assert_class(POLY_FRONTEND_AARCH64, 0x79000000, memory_order=True, store=True, bytes=2)
+    assert_class(POLY_FRONTEND_AARCH64, 0xC85F7C00, memory_order=True, atomic=True, load=False, store=False, bytes=8)
+    assert_class(POLY_FRONTEND_AARCH64, 0xD5033FBF, memory_order=True, barrier=True, bytes=0)
     assert_class(POLY_FRONTEND_AARCH64, 0x94000002, pc=0x6000, branch=True, call=True, target_valid=True, target=0x6008)
     assert_class(POLY_FRONTEND_AARCH64, 0x17FFFFFE, pc=0x6000, branch=True, target_valid=True, target=0x5FF8)
     assert_class(POLY_FRONTEND_AARCH64, 0x54000040, pc=0x6000, branch=True, target_valid=False, target=0)
     assert_class(POLY_FRONTEND_AARCH64, 0xD65F03C0, branch=True, call=False, target_valid=False, **{"return": True})
     assert_class(POLY_FRONTEND_AARCH64, 0xD4200000, trap=True)
 
-    assert_class(POLY_FRONTEND_RISCV, 0x00013083, memory_order=True, load=True, store=False)
-    assert_class(POLY_FRONTEND_RISCV, 0x00113023, memory_order=True, load=False, store=True)
-    assert_class(POLY_FRONTEND_RISCV, 0x08B5302F, memory_order=True, atomic=True)
-    assert_class(POLY_FRONTEND_RISCV, 0x0000000F, memory_order=True, barrier=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x00013083, memory_order=True, load=True, store=False, bytes=8)
+    assert_class(POLY_FRONTEND_RISCV, 0x00004083, memory_order=True, load=True, bytes=1)
+    assert_class(POLY_FRONTEND_RISCV, 0x00113023, memory_order=True, load=False, store=True, bytes=8)
+    assert_class(POLY_FRONTEND_RISCV, 0x00112023, memory_order=True, store=True, bytes=4)
+    assert_class(POLY_FRONTEND_RISCV, 0x08B5302F, memory_order=True, atomic=True, bytes=8)
+    assert_class(POLY_FRONTEND_RISCV, 0x0000000F, memory_order=True, barrier=True, bytes=0)
     assert_class(POLY_FRONTEND_RISCV, 0x008000EF, pc=0xA000, branch=True, call=True, target_valid=True, target=0xA008)
     assert_class(POLY_FRONTEND_RISCV, 0xFE000CE3, pc=0xA000, branch=True, target_valid=False, target=0)
     assert_class(POLY_FRONTEND_RISCV, 0x00008067, branch=True, target_valid=False, **{"return": True})
     assert_class(POLY_FRONTEND_RISCV, 0x00000073, trap=True)
-    assert_class(POLY_FRONTEND_RISCV, 0x0000E002, memory_order=True, store=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x0000E002, memory_order=True, store=True, bytes=8)
     assert_class(POLY_FRONTEND_RISCV, 0x00009002, trap=True)
 
     disabled = decode(False, POLY_FRONTEND_AARCH64, 0xF9400000)

@@ -149,6 +149,8 @@ def require_structural_wiring() -> None:
         "module poly_frontend_decode_dispatch",
         "poly_raw_fetch_plan raw_fetch_plan",
         "poly_ctrl_decode ctrl_decode",
+        "raw_memory_access_bytes_o",
+        ".memory_access_bytes_o(raw_memory_access_bytes_o)",
         "decode_insn = raw_fetch_o ? raw_insn : fetch_word_i",
         "decode_valid_o = valid_i && !raw_align_fault",
         "fallthrough_pc_o = raw_fetch_o ? raw_next_pc : x86_fallthrough_pc_i",

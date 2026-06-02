@@ -183,6 +183,8 @@ def require_structural_wiring() -> None:
         "poly_x86_fetch_stage x86_fetch_stage",
         "poly_raw_fetch_response_stage raw_fetch_response_stage",
         "poly_frontend_decode_dispatch decode_dispatch",
+        "raw_memory_access_bytes_o",
+        ".raw_memory_access_bytes_o(raw_memory_access_bytes_o)",
         "wait_fetch_o = x86_fetch_wait_o || raw_fetch_wait_o",
         "fetch_valid_o =",
         "fetch_fault_o =",
