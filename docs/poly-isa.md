@@ -1,10 +1,10 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds raw AArch64 and RISC-V64 user frontends to an x86_64 CPU. The Bochs
-prototype targets existing precompiled foreign code in one x86_64 address
-space.
+Poly is an x86_64 CPU extension prototype that adds AArch64 and RISC-V64
+user-mode decode frontends. The compatibility target is existing native ABI
+code and shared libraries in one x86_64 virtual address space.
 
-## Quick Run
+## Run The Gate
 
 ```bash
 make image
@@ -12,25 +12,29 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
 rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Useful focused targets: `boot-poly-apps-arch-traps`,
+Focused targets: `boot-poly-apps-arch-traps`,
 `boot-poly-call-real-xsave-arch-traps`, `boot-poly-binfmt-arch-traps`.
 
-## x86_64 Differences
+## ISA Contract
 
-- x86_64 owns boot, privilege, paging, interrupts, syscalls, atomics, and TSO.
-- AArch64 and RISC-V64 are user-mode instruction frontends. They fetch native
-  32-bit instructions from the current `RIP`.
-- Mode changes use decoded Poly control instructions, not `#UD` envelopes.
-- Cross-ISA calls target real ABIs: SysV x86_64, AAPCS64, and RISC-V64 psABI.
+- x86_64 remains the system ISA: boot, privilege, paging, faults, interrupts,
+  syscalls, atomics, and global TSO memory ordering.
+- AArch64 and RISC-V64 are user frontends fetched from the same `RIP` address
+  space. AArch64 is fixed 32-bit fetch; RISC-V64 supports 16/32-bit RVC fetch.
+- Frontend changes are decoded Poly control instructions, not fast-path `#UD`
+  envelopes.
+- Cross-ISA calls target real native ABIs: x86_64 SysV, AAPCS64, and RISC-V64
+  psABI. This is compatibility glue, not a new compiler-only ABI.
 - Foreign state is explicit per-thread XSAVE-style state.
-- CPU work: switch frontends, rename registers, deliver trap packets.
-- Runtime/loader work: syscalls, libcalls, lazy binding, ABI reshaping.
-- Not CPU work: Linux, libc, linker semantics, user-memory call descriptors, or
-  stack repacking.
+- CPU work: frontend switching, register rename signatures, transition return
+  tracking, and trap packets.
+- Runtime/loader work: stack arguments, aggregates, variadics, syscalls,
+  libcalls, lazy binding, linker policy, and other memory-shaped ABI cases.
 
-## Temporary Controls
+## Control Encodings
 
-These Bochs encodings are placeholders for real allocated opcode space.
+These are Bochs prototype encodings. A real CPU would allocate official opcode
+space with the same fixed-latency semantics.
 
 | ISA | Encoding |
 | --- | --- |
@@ -41,4 +45,11 @@ These Bochs encodings are placeholders for real allocated opcode space.
 Subops cover `PENTER`, `PSWITCH`, `PLANDING`, `PCALL`, signature-slot calls,
 `PTRAPRET`, and setup/query controls.
 
-Deeper design notes: `docs/poly-isa-design-directions.md`.
+## Trap Scope
+
+- Unsupported foreign instructions produce architectural trap records.
+- Foreign `svc`/`ecall`, breakpoints, illegal instructions, and import exits
+  are OS-neutral trap packets for a runtime or OS handler.
+- Bochs is a functional ISA prototype, not a cycle-accurate performance model.
+
+Deeper hardware/ABI notes: `docs/poly-isa-design-directions.md`.
