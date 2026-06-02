@@ -120,6 +120,11 @@ module tb_poly_frontend_stateful_core;
   logic [63:0] raw_branch_static_target_o;
   logic raw_branch_wait_o;
   logic raw_branch_resolved_fault_o;
+  logic abi_signature_apply_o;
+  logic abi_signature_valid_o;
+  logic [7:0] abi_signature_kind_o;
+  logic [6:0] abi_signature_map_o;
+  logic abi_signature_tls_base_o;
 
   poly_frontend_stateful_core dut (
     .clk_i(clk_i),
@@ -312,11 +317,11 @@ module tb_poly_frontend_stateful_core;
     .trap_invalid_source_mode_o(),
     .abi_signature_set_ok_o(),
     .abi_signature_set_error_o(),
-    .abi_signature_apply_o(),
-    .abi_signature_valid_o(),
-    .abi_signature_kind_o(),
-    .abi_signature_map_o(),
-    .abi_signature_tls_base_o(),
+    .abi_signature_apply_o(abi_signature_apply_o),
+    .abi_signature_valid_o(abi_signature_valid_o),
+    .abi_signature_kind_o(abi_signature_kind_o),
+    .abi_signature_map_o(abi_signature_map_o),
+    .abi_signature_tls_base_o(abi_signature_tls_base_o),
     .cpuid_hit_o(),
     .cpuid_eax_o(),
     .cpuid_ebx_o(),
@@ -587,6 +592,10 @@ module tb_poly_frontend_stateful_core;
     #1;
     check(x86_fetch_req_valid_o && retire_o && commit_push_transition_o,
       "stateful pcall retires and pushes");
+    check(abi_signature_apply_o && abi_signature_valid_o &&
+      abi_signature_kind_o == 8'd0 && abi_signature_map_o == 7'd0 &&
+      !abi_signature_tls_base_o,
+      "stateful pcall exposes default abi signature metadata");
     check(commit_frontend_o == POLY_FRONTEND_AARCH64 && commit_pc_o == 64'h5000,
       "stateful pcall commit target");
     check(state_update_o && redirect_frontend_o == POLY_FRONTEND_AARCH64 &&

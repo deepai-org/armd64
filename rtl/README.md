@@ -49,7 +49,8 @@ silicon prototype.
 - `poly_frontend_fpga_top.sv`: FPGA-facing top that wraps the stateful core and
   converts split x86/raw fetch ports into one tagged instruction-memory bus
   while exposing raw data-memory op metadata and validated raw data-memory
-  request/response/fault sidebands to an external execute/data path.
+  request/response/fault sidebands plus ABI signature programming/apply
+  metadata to external execute, data, and register-alias paths.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -131,7 +132,7 @@ silicon prototype.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
   tagged instruction-memory interface, raw branch/data execute inputs,
   raw branch metadata outputs, raw data-memory metadata/request/response
-  outputs, and absence of OS/runtime policy.
+  outputs, ABI signature sideband outputs, and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against

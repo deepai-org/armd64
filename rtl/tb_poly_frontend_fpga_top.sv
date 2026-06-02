@@ -115,6 +115,13 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] raw_branch_static_target_o;
   logic raw_branch_wait_o;
   logic raw_branch_resolved_fault_o;
+  logic abi_signature_set_ok_o;
+  logic abi_signature_set_error_o;
+  logic abi_signature_apply_o;
+  logic abi_signature_valid_o;
+  logic [7:0] abi_signature_kind_o;
+  logic [6:0] abi_signature_map_o;
+  logic abi_signature_tls_base_o;
 
   poly_frontend_fpga_top dut (
     .clk_i(clk_i),
@@ -251,6 +258,13 @@ module tb_poly_frontend_fpga_top;
     .trap_wait_response_o(),
     .trap_packet_delivered_o(),
     .trap_fault_o(),
+    .abi_signature_set_ok_o(abi_signature_set_ok_o),
+    .abi_signature_set_error_o(abi_signature_set_error_o),
+    .abi_signature_apply_o(abi_signature_apply_o),
+    .abi_signature_valid_o(abi_signature_valid_o),
+    .abi_signature_kind_o(abi_signature_kind_o),
+    .abi_signature_map_o(abi_signature_map_o),
+    .abi_signature_tls_base_o(abi_signature_tls_base_o),
     .cpuid_hit_o(),
     .cpuid_eax_o(),
     .cpuid_ebx_o(),
@@ -474,6 +488,18 @@ module tb_poly_frontend_fpga_top;
     check(state_frontend_o == POLY_FRONTEND_X86 &&
       state_pc_o == 64'h1000, "reinit to x86 frontend");
 
+    abi_signature_set_i = 1'b1;
+    abi_signature_set_slot_i = 4'd0;
+    abi_signature_set_kind_i = 8'd7;
+    abi_signature_set_map_i = 32'h0000001a;
+    tick();
+    abi_signature_set_i = 1'b0;
+    #1;
+    check(abi_signature_set_ok_o && !abi_signature_set_error_o,
+      "fpga top programs abi signature slot");
+    clear_inputs();
+    #1;
+
     valid_i = 1'b1;
     sp_i = 64'h8000;
     transition_return_pc_i = 64'h1004;
@@ -498,6 +524,10 @@ module tb_poly_frontend_fpga_top;
     check(poly_ctrl_o && subop_o == POLY_X86_CTRL_PCALL_SIG_MODE,
       "x86 response decodes pcall");
     check(retire_o && commit_push_transition_o, "x86 pcall retires");
+    check(abi_signature_apply_o && abi_signature_valid_o &&
+      abi_signature_kind_o == 8'd7 && abi_signature_map_o == 7'h1a &&
+      !abi_signature_tls_base_o,
+      "fpga top exposes pcall abi signature metadata");
     check(commit_frontend_o == POLY_FRONTEND_AARCH64 &&
       commit_pc_o == 64'h5000, "x86 pcall commits target frontend");
     tick();
