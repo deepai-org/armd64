@@ -84,6 +84,40 @@ def trap_flags(c: dict[str, int]) -> int:
     )
 
 
+def abi_slot(slot: int, c: dict[str, int]) -> tuple[bool, int, int, bool]:
+    slots = [
+        (c["POLY_ABI_SIGNATURE_KIND_EXCHANGE"], c["POLY_ABI_REGISTER_MAP_EXCHANGE"]),
+        (c["POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS"],
+         c["POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE"]),
+        (c["POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128"],
+         c["POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_I128"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS"], c["POLY_ABI_REGISTER_MAP_NATIVE"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128"],
+         c["POLY_ABI_REGISTER_MAP_NATIVE_I128"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32"],
+         c["POLY_ABI_REGISTER_MAP_NATIVE_VEC128_U32"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32"],
+         c["POLY_ABI_REGISTER_MAP_NATIVE_COMPACT_U32_F32"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32"],
+         c["POLY_ABI_REGISTER_MAP_NATIVE_COMPACT_F32_U32"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64"],
+         c["POLY_ABI_REGISTER_MAP_NATIVE_FP64"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP32"],
+         c["POLY_ABI_REGISTER_MAP_NATIVE_FP32"]),
+        (c["POLY_ABI_SIGNATURE_KIND_SRET_X86_SYSV_REGS"],
+         c["POLY_ABI_REGISTER_MAP_SRET_X86_SYSV_TO_NATIVE"]),
+        (c["POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_FP128_RET"],
+         c["POLY_ABI_REGISTER_MAP_X86_SYSV_TO_NATIVE_FP128_RET"]),
+        (c["POLY_ABI_SIGNATURE_KIND_NATIVE_SRET_REGS"],
+         c["POLY_ABI_REGISTER_MAP_NATIVE_SRET"]),
+    ]
+    if slot >= len(slots):
+        return (False, 0, 0, False)
+    kind, register_map = slots[slot]
+    tls_flag = c["POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE"]
+    return (True, kind, register_map & 0x7F, bool(register_map & tls_flag))
+
+
 class TransitionStack:
     def __init__(self, depth: int):
         self.depth = depth
@@ -244,11 +278,25 @@ def core_step(
     return_pop_raw = return_hit and not return_missing
     return_pop = return_pop_raw and not pop
     stack_unavailable = stack.full() or pop or return_pop
-    is_pcall = (
-        valid and
-        fetch_valid and
+    x86_ctrl = (
         frontend == c["POLY_FRONTEND_X86"] and
-        word == x86_ctrl_word(c["POLY_X86_CTRL_PCALL_SIG_MODE"])
+        (word & 0x00FFFFFF) == 0x00FC3A0F and
+        not (word >> 31)
+    )
+    x86_subop = (word >> 24) & 0x7F if x86_ctrl else 0
+    x86_call_sig_imm = (
+        x86_ctrl and
+        c["POLY_X86_CTRL_PCALL_SIG_IMM_BASE"] <= x86_subop <
+        c["POLY_X86_CTRL_PCALL_SIG_IMM_BASE"] +
+        c["POLY_ABI_SIGNATURE_SLOT_COUNT"]
+    )
+    pcall_slot = (
+        x86_subop - c["POLY_X86_CTRL_PCALL_SIG_IMM_BASE"]
+        if x86_call_sig_imm else 0
+    )
+    is_pcall = (
+        valid and fetch_valid and frontend == c["POLY_FRONTEND_X86"] and
+        (x86_subop == c["POLY_X86_CTRL_PCALL_SIG_MODE"] or x86_call_sig_imm)
     )
     target_error = (
         target_frontend not in {
@@ -287,6 +335,7 @@ def core_step(
     popped = stack.pop() if (pop or return_pop) else None
     if commit_push:
         stack.push((frontend, return_pc, sp, flags))
+    abi_valid, abi_kind, abi_map, abi_tls = abi_slot(pcall_slot, c)
     if interrupt_enter:
         interrupt_state.valid = True
         interrupt_state.frontend = frontend
@@ -299,6 +348,12 @@ def core_step(
         "retire": retire,
         "transition": bool(is_pcall and retire),
         "push": commit_push,
+        "slot": pcall_slot if commit_push else 0,
+        "abi_apply": commit_push,
+        "abi_valid": commit_push and abi_valid,
+        "abi_kind": abi_kind if commit_push and abi_valid else 0,
+        "abi_map": abi_map if commit_push and abi_valid else 0,
+        "abi_tls": commit_push and abi_valid and abi_tls,
         "fault": control_fault,
         "execute_ready": execute_ready,
         "wait_execute": bool(valid and fetch_valid and not execute_ready and not execute_fault),
@@ -369,6 +424,10 @@ def require_structural_wiring() -> None:
         ".enter_x86_interrupt_o(interrupt_enter_x86_o)",
         ".wait_response_o(trap_wait_response_o)",
         ".packet_delivered_o(trap_packet_delivered_o)",
+        "poly_abi_signature_slots abi_signature_slots",
+        ".select_slot_i(commit_signature_slot_o[3:0])",
+        "assign abi_signature_apply_o = commit_push_transition_o;",
+        "assign abi_signature_valid_o = commit_push_transition_o && abi_select_valid;",
         "interrupted_valid_q <= 1'b1;",
         "interrupted_valid_q <= 1'b0;",
     ]:
@@ -406,9 +465,38 @@ def main() -> int:
     )
     assert first["retire"] and first["transition"] and first["push"]
     assert first["depth"] == 1
+    assert first["abi_apply"] and first["abi_valid"]
+    assert first["slot"] == 0
+    assert first["abi_kind"] == c["POLY_ABI_SIGNATURE_KIND_EXCHANGE"]
+    assert first["abi_map"] == c["POLY_ABI_REGISTER_MAP_EXCHANGE"]
     assert stack.frames[-1] == (
         c["POLY_FRONTEND_X86"], 0x1004, 0x8000, 0x55
     )
+
+    immediate_slot_call = core_step(
+        TransitionStack(depth),
+        valid=True,
+        frontend=c["POLY_FRONTEND_X86"],
+        pc=0x1100,
+        sp=0x7ff0,
+        return_pc=0x1104,
+        flags=0,
+        word=x86_ctrl_word(c["POLY_X86_CTRL_PCALL_SIG_IMM_BASE"] + 8),
+        fetch_valid=True,
+        target_frontend=c["POLY_FRONTEND_RISCV"],
+        target_pc=0x8000,
+        signature_valid=True,
+        pop=False,
+        return_valid=False,
+        return_target=0,
+        cookie=cookie,
+        c=c,
+    )
+    assert immediate_slot_call["retire"] and immediate_slot_call["push"]
+    assert immediate_slot_call["slot"] == 8
+    assert immediate_slot_call["abi_apply"] and immediate_slot_call["abi_valid"]
+    assert immediate_slot_call["abi_kind"] == c["POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_FP64"]
+    assert immediate_slot_call["abi_map"] == c["POLY_ABI_REGISTER_MAP_NATIVE_FP64"]
 
     popped = core_step(
         stack,

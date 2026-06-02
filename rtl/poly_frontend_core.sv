@@ -67,6 +67,11 @@ module poly_frontend_core (
     input  logic        trap_mem_write_resp_valid_i,
     input  logic        trap_mem_write_fault_i,
 
+    input  logic        abi_signature_set_i,
+    input  logic [3:0]  abi_signature_set_slot_i,
+    input  logic [7:0]  abi_signature_set_kind_i,
+    input  logic [31:0] abi_signature_set_map_i,
+
     output logic        raw_mem_req_valid_o,
     output logic [63:0] raw_mem_req_addr_o,
     output logic [2:0]  raw_mem_req_bytes_o,
@@ -166,6 +171,14 @@ module poly_frontend_core (
     output logic        trap_invalid_reason_o,
     output logic        trap_invalid_source_mode_o,
 
+    output logic        abi_signature_set_ok_o,
+    output logic        abi_signature_set_error_o,
+    output logic        abi_signature_apply_o,
+    output logic        abi_signature_valid_o,
+    output logic [7:0]  abi_signature_kind_o,
+    output logic [6:0]  abi_signature_map_o,
+    output logic        abi_signature_tls_base_o,
+
     output logic        fault_o,
     output logic [63:0] fault_pc_o,
     output logic        older_fault_o,
@@ -213,6 +226,10 @@ module poly_frontend_core (
   logic memory_barrier_noop_raw;
   logic memory_aarch64_barrier_noop_raw;
   logic memory_riscv_fence_noop_raw;
+  logic abi_select_valid;
+  logic [7:0] abi_select_kind;
+  logic [6:0] abi_select_map;
+  logic abi_select_tls_base;
   logic interrupted_valid_q;
   logic [1:0] interrupted_frontend_q;
   logic [63:0] interrupted_pc_q;
@@ -251,6 +268,14 @@ module poly_frontend_core (
   assign block_retire =
     interrupt_enter_x86_o || interrupt_restore_raw_o ||
     trap_wait_response_o || trap_packet_delivered_o;
+  assign abi_signature_apply_o = commit_push_transition_o;
+  assign abi_signature_valid_o = commit_push_transition_o && abi_select_valid;
+  assign abi_signature_kind_o =
+    abi_signature_valid_o ? abi_select_kind : 8'd0;
+  assign abi_signature_map_o =
+    abi_signature_valid_o ? abi_select_map : 7'd0;
+  assign abi_signature_tls_base_o =
+    abi_signature_valid_o && abi_select_tls_base;
   assign interrupted_valid_o = interrupted_valid_q;
   assign interrupted_frontend_o = interrupted_frontend_q;
   assign interrupted_pc_o = interrupted_pc_q;
@@ -407,6 +432,22 @@ module poly_frontend_core (
     .packet_range_fault_o(trap_packet_range_fault_o),
     .invalid_reason_o(trap_invalid_reason_o),
     .invalid_source_mode_o(trap_invalid_source_mode_o)
+  );
+
+  poly_abi_signature_slots abi_signature_slots (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .set_i(abi_signature_set_i),
+    .set_slot_i(abi_signature_set_slot_i),
+    .set_kind_i(abi_signature_set_kind_i),
+    .set_map_i(abi_signature_set_map_i),
+    .set_ok_o(abi_signature_set_ok_o),
+    .set_error_o(abi_signature_set_error_o),
+    .select_slot_i(commit_signature_slot_o[3:0]),
+    .select_valid_o(abi_select_valid),
+    .select_kind_o(abi_select_kind),
+    .select_map_o(abi_select_map),
+    .select_tls_base_o(abi_select_tls_base)
   );
 
   poly_transition_stack transition_stack (
