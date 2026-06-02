@@ -3169,6 +3169,42 @@ static void child_expect_bad_import_return_sp_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_import_return_aarch64_tls_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].source_mode = POLY_MODE_RAW_AARCH64;
+  bad.import_return.frames[0].return_pc = 0x400000ULL;
+  bad.import_return.frames[0].return_sp = 0x700000ULL;
+  bad.import_return.frames[0].import_id = 0;
+  bad.import_return.frames[0].return_map = POLY_X86_RETURN_MAP_DEFAULT;
+  bad.import_return.frames[0].saved_aarch64_tls_base =
+    NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_import_return_riscv_tls_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.import_return.top = 1;
+  bad.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
+  bad.import_return.frames[0].source_mode = POLY_MODE_RAW_RISCV;
+  bad.import_return.frames[0].return_pc = 0x400000ULL;
+  bad.import_return.frames[0].return_sp = 0x700000ULL;
+  bad.import_return.frames[0].import_id = 0;
+  bad.import_return.frames[0].return_map = POLY_X86_RETURN_MAP_DEFAULT;
+  bad.import_return.frames[0].saved_riscv_tls_base =
+    NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_abi_signature_flags_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -7456,6 +7492,12 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad import-return sp xstate", SIGILL,
         child_expect_bad_import_return_sp_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad import-return aarch64 tls xstate", SIGILL,
+        child_expect_bad_import_return_aarch64_tls_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad import-return riscv tls xstate", SIGILL,
+        child_expect_bad_import_return_riscv_tls_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad ABI signature flags xstate", SIGILL,
         child_expect_bad_abi_signature_flags_xsave_signal) != 0)
