@@ -4650,7 +4650,13 @@ __asm__(
   ".globl poly_aarch64_trap_vector_ext_raw\n"
   ".type poly_aarch64_trap_vector_ext_raw,@function\n"
   "poly_aarch64_trap_vector_ext_raw:\n"
-  ".long 0x8b0c0160\n" // add x0,x11,x12, return trap arg6+arg7
+  ".long 0x8b0600a0\n" // add x0,x5,x6, start sum of trap args 0..7
+  ".long 0x8b070000\n" // add x0,x0,x7
+  ".long 0x8b080000\n" // add x0,x0,x8
+  ".long 0x8b090000\n" // add x0,x0,x9
+  ".long 0x8b0a0000\n" // add x0,x0,x10
+  ".long 0x8b0b0000\n" // add x0,x0,x11
+  ".long 0x8b0c0000\n" // add x0,x0,x12
   ".long 0xd5032edf\n" // aarch64 polyctrl trap return, architectural trap return
   "ud2\n"
   ".size poly_aarch64_trap_vector_ext_raw, .-poly_aarch64_trap_vector_ext_raw\n"
@@ -4667,7 +4673,13 @@ __asm__(
   ".globl poly_riscv_trap_vector_ext_raw\n"
   ".type poly_riscv_trap_vector_ext_raw,@function\n"
   "poly_riscv_trap_vector_ext_raw:\n"
-  ".long 0x01de0533\n" // add a0,t3,t4, return trap arg6+arg7
+  ".long 0x01078533\n" // add a0,a5,a6, start sum of trap args 0..7
+  ".long 0x01150533\n" // add a0,a0,a7
+  ".long 0x00550533\n" // add a0,a0,t0
+  ".long 0x00650533\n" // add a0,a0,t1
+  ".long 0x00750533\n" // add a0,a0,t2
+  ".long 0x01c50533\n" // add a0,a0,t3
+  ".long 0x01d50533\n" // add a0,a0,t4
   ".long 0x0c00700b\n" // riscv polyctrl trap return
   "ud2\n"
   ".size poly_riscv_trap_vector_ext_raw, .-poly_riscv_trap_vector_ext_raw\n"
@@ -6102,7 +6114,7 @@ static int run_poly_trap_vector_probe(void) {
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
-  if (result != 32) {
+  if (result != 173) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 extended trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
@@ -6130,7 +6142,7 @@ static int run_poly_trap_vector_probe(void) {
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
-  if (result != 35) {
+  if (result != 116) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv extended trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
@@ -6161,7 +6173,7 @@ static int run_poly_trap_vector_probe(void) {
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
-  if (result != 32) {
+  if (result != 173) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv-to-aarch64 import trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
@@ -6194,7 +6206,7 @@ static int run_poly_trap_vector_probe(void) {
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
-  if (result != 35) {
+  if (result != 116) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64-to-riscv import trap vector result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
