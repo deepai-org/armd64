@@ -96,6 +96,9 @@ check-poly-rtl:
 check-poly-rtl-sim:
 	tmp_dir=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp_dir"' EXIT; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_ctrl_decode" \
+		rtl/poly_ctrl_decode.sv rtl/tb_poly_ctrl_decode.sv; \
+	vvp "$$tmp_dir/tb_poly_ctrl_decode"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_state"; \
