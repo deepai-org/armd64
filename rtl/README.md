@@ -172,6 +172,12 @@ python3 rtl/test_poly_trap_packet_encode.py
 python3 rtl/test_poly_trap_packet_stage.py
 ```
 
+Run HDL frontend checks for the integrated stateful frontend core:
+
+```bash
+make check-poly-rtl-hdl
+```
+
 Expected output:
 
 ```text

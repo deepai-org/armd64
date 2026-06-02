@@ -42,18 +42,22 @@ module poly_interrupt_boundary (
   logic return_candidate;
 
   function automatic logic canonical64(input logic [63:0] addr);
-    return addr[63:48] == {16{addr[47]}};
+    begin
+      canonical64 = addr[63:48] == {16{addr[47]}};
+    end
   endfunction
 
   function automatic logic frontend_aligned(
       input logic [1:0] frontend,
       input logic [63:0] addr
   );
-    unique case (frontend)
-      POLY_FRONTEND_AARCH64: return addr[1:0] == 2'b00;
-      POLY_FRONTEND_RISCV: return addr[0] == 1'b0;
-      default: return 1'b1;
-    endcase
+    begin
+      unique case (frontend)
+        POLY_FRONTEND_AARCH64: frontend_aligned = addr[1:0] == 2'b00;
+        POLY_FRONTEND_RISCV: frontend_aligned = addr[0] == 1'b0;
+        default: frontend_aligned = 1'b1;
+      endcase
+    end
   endfunction
 
   always_comb begin

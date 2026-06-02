@@ -36,17 +36,22 @@ module poly_transition_stack #(
     output logic [3:0]  depth_o
 );
   localparam int DEPTH_BITS = 4;
-  localparam logic [DEPTH_BITS-1:0] DEPTH_VALUE = DEPTH;
+  localparam int INDEX_BITS = 3;
+  localparam logic [DEPTH_BITS-1:0] DEPTH_VALUE = 4'd8;
 
   logic [1:0]  frontend_q [DEPTH];
   logic [63:0] pc_q       [DEPTH];
   logic [63:0] sp_q       [DEPTH];
   logic [31:0] flags_q    [DEPTH];
   logic [DEPTH_BITS-1:0] depth_q;
+  logic [INDEX_BITS-1:0] top_index;
+  logic [INDEX_BITS-1:0] push_index;
 
   assign empty_o = depth_q == '0;
   assign full_o = depth_q == DEPTH_VALUE;
   assign depth_o = depth_q;
+  assign top_index = depth_q[INDEX_BITS-1:0] - {{(INDEX_BITS-1){1'b0}}, 1'b1};
+  assign push_index = depth_q[INDEX_BITS-1:0];
 
   always_comb begin
     peek_valid_o = !empty_o;
@@ -57,10 +62,10 @@ module poly_transition_stack #(
       peek_flags_o = 32'd0;
     end
     else begin
-      peek_frontend_o = frontend_q[depth_q - 1'b1];
-      peek_pc_o = pc_q[depth_q - 1'b1];
-      peek_sp_o = sp_q[depth_q - 1'b1];
-      peek_flags_o = flags_q[depth_q - 1'b1];
+      peek_frontend_o = frontend_q[top_index];
+      peek_pc_o = pc_q[top_index];
+      peek_sp_o = sp_q[top_index];
+      peek_flags_o = flags_q[top_index];
     end
   end
 
@@ -90,10 +95,10 @@ module poly_transition_stack #(
           overflow_o <= 1'b1;
         end
         else begin
-          frontend_q[depth_q] <= push_frontend_i;
-          pc_q[depth_q] <= push_pc_i;
-          sp_q[depth_q] <= push_sp_i;
-          flags_q[depth_q] <= push_flags_i;
+          frontend_q[push_index] <= push_frontend_i;
+          pc_q[push_index] <= push_pc_i;
+          sp_q[push_index] <= push_sp_i;
+          flags_q[push_index] <= push_flags_i;
           depth_q <= depth_q + 1'b1;
         end
       end
@@ -103,10 +108,10 @@ module poly_transition_stack #(
         end
         else begin
           pop_valid_o <= 1'b1;
-          pop_frontend_o <= frontend_q[depth_q - 1'b1];
-          pop_pc_o <= pc_q[depth_q - 1'b1];
-          pop_sp_o <= sp_q[depth_q - 1'b1];
-          pop_flags_o <= flags_q[depth_q - 1'b1];
+          pop_frontend_o <= frontend_q[top_index];
+          pop_pc_o <= pc_q[top_index];
+          pop_sp_o <= sp_q[top_index];
+          pop_flags_o <= flags_q[top_index];
           depth_q <= depth_q - 1'b1;
         end
       end

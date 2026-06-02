@@ -51,6 +51,8 @@ def parse_sv_params(path: Path) -> dict[str, int]:
         if sv:
             _, base, value = sv.groups()
             constants[name] = int(value.replace("_", ""), {"h": 16, "d": 10, "b": 2}[base])
+        elif re.fullmatch(r"\d+'\([A-Z0-9_]+\)", expr):
+            continue
         elif re.fullmatch(r"[A-Z0-9_]+", expr):
             pending_aliases.append((name, expr))
         else:

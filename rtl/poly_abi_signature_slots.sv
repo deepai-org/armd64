@@ -22,7 +22,7 @@ module poly_abi_signature_slots #(
     output logic [6:0]  select_map_o,
     output logic        select_tls_base_o
 );
-  localparam logic [3:0] SLOT_COUNT_VALUE = SLOT_COUNT;
+  localparam logic [3:0] SLOT_COUNT_VALUE = 4'd13;
   localparam logic [7:0] POLY_ABI_SIGNATURE_KIND_LAST_VALID = 8'd28;
   localparam logic [6:0] POLY_ABI_REGISTER_MAP_LAST_VALID = 7'd27;
   localparam logic [31:0] POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE = 32'h80000000;
@@ -31,18 +31,22 @@ module poly_abi_signature_slots #(
   logic [31:0] map_q [SLOT_COUNT];
 
   function automatic logic valid_slot(input logic [3:0] slot);
-    return slot < SLOT_COUNT_VALUE;
+    begin
+      valid_slot = slot < SLOT_COUNT_VALUE;
+    end
   endfunction
 
   function automatic logic valid_kind(input logic [7:0] kind);
-    return kind <= POLY_ABI_SIGNATURE_KIND_LAST_VALID;
+    begin
+      valid_kind = kind <= POLY_ABI_SIGNATURE_KIND_LAST_VALID;
+    end
   endfunction
 
   function automatic logic valid_map(input logic [31:0] map);
     logic [31:0] map_without_tls;
     begin
       map_without_tls = map & ~POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE;
-      return (map & ~POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE & 32'hffffff80) == 32'd0 &&
+      valid_map = map_without_tls[31:7] == 25'd0 &&
         map_without_tls[6:0] <= POLY_ABI_REGISTER_MAP_LAST_VALID;
     end
   endfunction

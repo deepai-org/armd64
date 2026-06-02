@@ -38,8 +38,16 @@ module poly_frontend_fetch_issue (
   logic raw_frontend;
   logic [63:0] x86_last_addr;
 
+  assign x86_frontend = frontend_i == POLY_FRONTEND_X86;
+  assign raw_frontend =
+    frontend_i == POLY_FRONTEND_AARCH64 ||
+    frontend_i == POLY_FRONTEND_RISCV;
+  assign x86_last_addr = pc_i + POLY_X86_LAST_OFFSET;
+
   function automatic logic canonical64(input logic [63:0] addr);
-    return addr[63:48] == {16{addr[47]}};
+    begin
+      canonical64 = addr[63:48] == {16{addr[47]}};
+    end
   endfunction
 
   poly_raw_fetch_request raw_fetch_request (
@@ -57,12 +65,6 @@ module poly_frontend_fetch_issue (
   );
 
   always_comb begin
-    x86_frontend = frontend_i == POLY_FRONTEND_X86;
-    raw_frontend =
-      frontend_i == POLY_FRONTEND_AARCH64 ||
-      frontend_i == POLY_FRONTEND_RISCV;
-    x86_last_addr = pc_i + POLY_X86_LAST_OFFSET;
-
     invalid_frontend_o = valid_i && !x86_frontend && !raw_frontend;
     x86_noncanonical_pc_o =
       valid_i && x86_frontend &&

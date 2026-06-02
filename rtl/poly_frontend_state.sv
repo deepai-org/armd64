@@ -57,26 +57,35 @@ module poly_frontend_state (
   logic request_valid;
   logic multiple_requests;
 
+  assign current_frontend_o = frontend_q;
+  assign current_pc_o = pc_q;
+
   function automatic logic canonical64(input logic [63:0] addr);
-    return addr[63:48] == {16{addr[47]}};
+    begin
+      canonical64 = addr[63:48] == {16{addr[47]}};
+    end
   endfunction
 
   function automatic logic frontend_valid(input logic [1:0] frontend);
-    return
-      frontend == POLY_FRONTEND_X86 ||
-      frontend == POLY_FRONTEND_AARCH64 ||
-      frontend == POLY_FRONTEND_RISCV;
+    begin
+      frontend_valid =
+        frontend == POLY_FRONTEND_X86 ||
+        frontend == POLY_FRONTEND_AARCH64 ||
+        frontend == POLY_FRONTEND_RISCV;
+    end
   endfunction
 
   function automatic logic frontend_aligned(
       input logic [1:0] frontend,
       input logic [63:0] addr
   );
-    unique case (frontend)
-      POLY_FRONTEND_AARCH64: return addr[1:0] == 2'b00;
-      POLY_FRONTEND_RISCV: return addr[0] == 1'b0;
-      default: return 1'b1;
-    endcase
+    begin
+      unique case (frontend)
+        POLY_FRONTEND_AARCH64: frontend_aligned = addr[1:0] == 2'b00;
+        POLY_FRONTEND_RISCV: frontend_aligned = addr[0] == 1'b0;
+        default: frontend_aligned = 1'b1;
+      endcase
+    end
   endfunction
 
   always_comb begin
@@ -124,8 +133,6 @@ module poly_frontend_state (
     update_o =
       request_valid && !fault_i && !stall_i && !error_o;
     hold_o = !update_o;
-    current_frontend_o = frontend_q;
-    current_pc_o = pc_q;
     redirect_valid_o = update_o;
     redirect_frontend_o = update_o ? selected_frontend : frontend_q;
     redirect_pc_o = update_o ? selected_pc : pc_q;

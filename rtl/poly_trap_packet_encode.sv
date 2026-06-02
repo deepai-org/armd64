@@ -71,7 +71,9 @@ module poly_trap_packet_encode (
   logic packet_end_canonical;
 
   function automatic logic canonical64(input logic [63:0] addr);
-    return addr[63:48] == {16{addr[47]}};
+    begin
+      canonical64 = addr[63:48] == {16{addr[47]}};
+    end
   endfunction
 
   always_comb begin

@@ -84,7 +84,9 @@ def main() -> int:
         "peek_pc_o",
         "peek_sp_o",
         "peek_flags_o",
-        "peek_frontend_o = frontend_q[depth_q - 1'b1]",
+        "top_index = depth_q[INDEX_BITS-1:0] -",
+        "peek_frontend_o = frontend_q[top_index]",
+        "frontend_q[push_index] <= push_frontend_i",
     ]:
         if needle not in rtl_text:
             raise AssertionError(f"missing transition-stack peek wiring: {needle}")
