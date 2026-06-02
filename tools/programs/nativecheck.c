@@ -3757,6 +3757,18 @@ static void child_expect_inactive_trap_payload_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_inactive_trap_args_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = 0;
+  bad.trap.source_mode = POLY_MODE_X86;
+  bad.trap_args[3] = 0x1234;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_aarch64_nzcv_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -7558,6 +7570,9 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly inactive trap payload xstate", SIGILL,
         child_expect_inactive_trap_payload_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly inactive trap args xstate", SIGILL,
+        child_expect_inactive_trap_args_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad AArch64 NZCV xstate", SIGILL,
         child_expect_bad_aarch64_nzcv_xsave_signal) != 0)
