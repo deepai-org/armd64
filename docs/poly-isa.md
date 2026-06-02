@@ -1,12 +1,12 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Quick reference for the Bochs prototype. Design rationale lives in
-`docs/poly-isa-design-directions.md`.
+Short operational reference for the Bochs prototype. See
+`docs/poly-isa-design-directions.md` for rationale and hardware direction.
 
-## Purpose
+## Goal
 
-Run existing precompiled x86_64, AArch64, and RISC-V64 user code in one
-x86_64 virtual address space without per-instruction trap envelopes.
+Run existing precompiled x86_64, AArch64, and RISC-V64 user code in one x86_64
+virtual address space without per-instruction trap envelopes.
 
 ## Run
 
@@ -20,7 +20,7 @@ Useful focused gates: `boot-poly-apps-arch-traps`,
 `boot-poly-call-real-xsave-arch-traps`, and
 `boot-poly-binfmt-arch-traps`.
 
-## Difference From x86_64
+## How It Differs From x86_64
 
 - x86_64 remains the system ISA for boot, privilege, paging, interrupts,
   faults, atomics, syscalls, VM control, and TSO memory ordering.
@@ -30,12 +30,12 @@ Useful focused gates: `boot-poly-apps-arch-traps`,
 - AArch64 uses 32-bit aligned fetch. RISC-V64 supports 16/32-bit fetch.
 - `PCALL` can switch ISA and apply cached native-ABI register aliases for
   x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI calls.
-- Software handles memory-shaped ABI work: stack arguments, aggregates,
-  variadics, lazy binding, syscalls, libcalls, and debugger policy.
 - Foreign state is per-thread XSAVE-style architectural state.
 - Recoverable foreign traps write OS-neutral trap records.
+- Software handles stack arguments, aggregates, variadics, lazy binding,
+  syscalls, libcalls, and debugger policy.
 
-## Prototype Control Encodings
+## Temporary Encodings
 
 | Frontend | Encoding |
 | --- | --- |
@@ -43,5 +43,5 @@ Useful focused gates: `boot-poly-apps-arch-traps`,
 | AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
-Subops include `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, `PLANDING`,
-`PTRAPRET`, setup, and query operations.
+Subops include `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup, query,
+`PLANDING`, and `PTRAPRET`.
