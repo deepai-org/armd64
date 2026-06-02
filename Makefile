@@ -110,7 +110,11 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_interrupt_boundary"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_return_cookie_recover" \
 		rtl/poly_return_cookie_recover.sv rtl/tb_poly_return_cookie_recover.sv; \
-	vvp "$$tmp_dir/tb_poly_return_cookie_recover"
+	vvp "$$tmp_dir/tb_poly_return_cookie_recover"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_trap_packet_stage" \
+		rtl/poly_trap_packet_encode.sv rtl/poly_trap_packet_stage.sv \
+		rtl/tb_poly_trap_packet_stage.sv; \
+	vvp "$$tmp_dir/tb_poly_trap_packet_stage"
 
 check-poly-rtl-verilator:
 	verilator $(POLY_RTL_VERILATOR_FLAGS) $(POLY_RTL_SV)
