@@ -2,7 +2,7 @@
 
 Poly is an OS-neutral multi-frontend CPU extension for running existing
 precompiled x86_64, AArch64, and RISC-V64 code in one virtual address space.
-For commands and prototype encodings, see `docs/poly-isa.md`.
+For commands and current control-op encodings, see `docs/poly-isa.md`.
 
 ## Contract
 

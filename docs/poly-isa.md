@@ -27,7 +27,7 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 - Software handles stack arguments, aggregates, variadics, lazy binding,
   syscalls, libcalls, and debugger policy.
 
-## Prototype Opcode Allocations
+## Control Opcode Allocations
 
 | Frontend | Encoding |
 | --- | --- |
@@ -38,7 +38,9 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
 `PLANDING`, and `PTRAPRET`.
 
-Silicon/FPGA implementations should keep the same fixed-latency subop contract
-but allocate a dedicated decoded control-op family for the x86_64 frontend.
-Prototype x86_64 control-op geometry is exposed through Poly CPUID so runtimes
-do not need to infer it from documentation.
+These are fixed-latency decoded control operations: they do not read user
+descriptors, repack stacks, or enter exception delivery for normal frontend
+switching. The x86_64 byte family is the Bochs allocation for this prototype;
+silicon/FPGA implementations can allocate a different dedicated opcode family,
+but must expose its geometry through Poly CPUID so runtimes do not infer it
+from documentation.
