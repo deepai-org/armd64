@@ -1,9 +1,9 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Short operational reference for the Bochs prototype. See
-`docs/poly-isa-design-directions.md` for rationale and hardware direction.
+Operational reference for the Bochs prototype. Design rationale lives in
+`docs/poly-isa-design-directions.md`.
 
-## Goal
+## Purpose
 
 Run existing precompiled x86_64, AArch64, and RISC-V64 user code in one x86_64
 virtual address space without per-instruction trap envelopes.
@@ -16,20 +16,15 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
 rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Useful focused gates: `boot-poly-apps-arch-traps`,
-`boot-poly-call-real-xsave-arch-traps`, and
-`boot-poly-binfmt-arch-traps`.
-
-## How It Differs From x86_64
+## Differences From x86_64
 
 - x86_64 remains the system ISA for boot, privilege, paging, interrupts,
   faults, atomics, syscalls, VM control, and TSO memory ordering.
-- AArch64 and RISC-V64 are peer user-mode decode frontends fetched from the
-  same virtual address space.
+- AArch64 and RISC-V64 are user-mode decode frontends fetched from the same
+  virtual address space.
 - Frontend switches are decoded control instructions, not `#UD` exceptions.
 - AArch64 uses 32-bit aligned fetch. RISC-V64 supports 16/32-bit fetch.
-- `PCALL` can switch ISA and apply cached native-ABI register aliases for
-  x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI calls.
+- `PCALL` can switch ISA and apply cached native-ABI register aliases.
 - Foreign state is per-thread XSAVE-style architectural state.
 - Recoverable foreign traps write OS-neutral trap records.
 - Software handles stack arguments, aggregates, variadics, lazy binding,
