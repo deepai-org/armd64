@@ -181,8 +181,7 @@ def main() -> int:
     c = parse_c_enum_constants(HEADER)
     text = RTL.read_text()
     for instance in [
-        "poly_raw_fetch_plan raw_fetch_plan",
-        "poly_ctrl_decode ctrl_decode",
+        "poly_frontend_decode_dispatch decode_dispatch",
         "poly_frontend_handoff frontend_handoff",
     ]:
         assert instance in text, f"missing integrated instance: {instance}"

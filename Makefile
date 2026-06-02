@@ -34,6 +34,7 @@ check-poly-state-layout:
 check-poly-rtl:
 	python3 rtl/test_poly_ctrl_decode.py
 	python3 rtl/test_poly_frontend_handoff.py
+	python3 rtl/test_poly_frontend_decode_dispatch.py
 	python3 rtl/test_poly_frontend_step.py
 	python3 rtl/test_poly_frontend_retire.py
 	python3 rtl/test_poly_frontend_fetch_issue.py

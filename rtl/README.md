@@ -11,8 +11,11 @@ silicon prototype.
 - `poly_frontend_handoff.sv`: fixed-latency frontend/PC handoff controller with
   pre-commit validation for targets, alignment, signature slots, and stack
   capacity.
+- `poly_frontend_decode_dispatch.sv`: fetch/decode dispatch boundary that
+  normalizes x86 byte fetch and raw AArch64/RISC-V instruction words before
+  Poly control decode.
 - `poly_frontend_step.sv`: one-step planner that composes raw fetch geometry,
-  control decode, and handoff validation for an already-fetched instruction
+  decode dispatch, and handoff validation for an already-fetched instruction
   word.
 - `poly_frontend_retire.sv`: retirement gate that blocks frontend, PC, and
   transition-stack mutations behind fetch/execute/async-boundary stalls or
@@ -64,6 +67,9 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_frontend_handoff.py`: transition fault-ordering checks against
   `tools/include/polycpuid.h`.
+- `test_poly_frontend_decode_dispatch.py`: fetch/decode dispatch checks for
+  x86 control words, raw AArch64/RISC-V instruction width, fallthrough PC, and
+  raw alignment suppression.
 - `test_poly_frontend_step.py`: integration checks for raw fetch, control
   decode, and handoff composition.
 - `test_poly_frontend_retire.py`: retirement-ordering checks that
@@ -118,6 +124,7 @@ silicon prototype.
 ```bash
 python3 rtl/test_poly_ctrl_decode.py
 python3 rtl/test_poly_frontend_handoff.py
+python3 rtl/test_poly_frontend_decode_dispatch.py
 python3 rtl/test_poly_frontend_step.py
 python3 rtl/test_poly_frontend_retire.py
 python3 rtl/test_poly_frontend_fetch_issue.py
@@ -146,6 +153,7 @@ Expected output:
 ```text
 POLY_RTL_CTRL_DECODE_OK
 POLY_RTL_FRONTEND_HANDOFF_OK
+POLY_RTL_FRONTEND_DECODE_DISPATCH_OK
 POLY_RTL_FRONTEND_STEP_OK
 POLY_RTL_FRONTEND_RETIRE_OK
 POLY_RTL_FRONTEND_FETCH_ISSUE_OK
