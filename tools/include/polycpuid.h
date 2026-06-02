@@ -106,6 +106,7 @@
 #define POLY_X86_CTRL_PCALL_SIG_IMM_INVALID_SLOT_ASM \
   POLY_X86_CTRL_ASM_BYTE(0x3b)
 #define POLY_X86_CTRL_SWITCH_COUNT_STATUS_ASM POLY_X86_CTRL_ASM_BYTE(0x40)
+#define POLY_X86_CTRL_CURRENT_MODE_STATUS_ASM POLY_X86_CTRL_ASM_BYTE(0x41)
 #define POLY_X86_CTRL_FOREIGN_INSN_COUNT_STATUS_ASM \
   POLY_X86_CTRL_ASM_BYTE(0x42)
 #define POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS_ASM \
@@ -195,6 +196,7 @@ enum {
   POLY_X86_CTRL_PCALL_SIG_MODE = 0x2d,
   POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 0x30,
   POLY_X86_CTRL_SWITCH_COUNT_STATUS = 0x40,
+  POLY_X86_CTRL_CURRENT_MODE_STATUS = 0x41,
   POLY_X86_CTRL_FOREIGN_INSN_COUNT_STATUS = 0x42,
   POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS = 0x43,
   POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS = 0x44,
@@ -1280,6 +1282,24 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf29(void) {
   regs.ebx = POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA3_F64_RET;
   regs.ecx = POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_AARCH64_HFA4_F64_RET;
   regs.edx = POLY_ABI_REGISTER_MAP_X86_SYSV_TO_AARCH64_HFA4_F64_RET;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf30(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_X86_CTRL_SWITCH_COUNT_STATUS;
+  regs.ebx = POLY_X86_CTRL_CURRENT_MODE_STATUS;
+  regs.ecx = POLY_X86_CTRL_FOREIGN_INSN_COUNT_STATUS;
+  regs.edx = POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf31(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS;
+  regs.ebx = POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS;
+  regs.ecx = 0;
+  regs.edx = 0;
   return regs;
 }
 

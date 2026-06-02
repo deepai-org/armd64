@@ -11499,6 +11499,14 @@ int main(void) {
       poly_cpuid_expected_escape_leaf29();
     struct poly_cpuid_regs hfa64_ret_signature_manifest =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 29);
+    struct poly_cpuid_regs expected_x86_status_manifest =
+      poly_cpuid_expected_escape_leaf30();
+    struct poly_cpuid_regs x86_status_manifest =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 30);
+    struct poly_cpuid_regs expected_x86_status_manifest2 =
+      poly_cpuid_expected_escape_leaf31();
+    struct poly_cpuid_regs x86_status_manifest2 =
+      poly_read_cpuid(POLY_CPUID_BASE + 2, 31);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -11611,6 +11619,20 @@ int main(void) {
         hfa64_ret_signature_manifest.ebx,
         hfa64_ret_signature_manifest.ecx,
         hfa64_ret_signature_manifest.edx);
+      return 1;
+    }
+    if (!poly_cpuid_regs_match(&x86_status_manifest,
+          &expected_x86_status_manifest)) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 status manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        x86_status_manifest.eax, x86_status_manifest.ebx,
+        x86_status_manifest.ecx, x86_status_manifest.edx);
+      return 1;
+    }
+    if (!poly_cpuid_regs_match(&x86_status_manifest2,
+          &expected_x86_status_manifest2)) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 status manifest2 mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        x86_status_manifest2.eax, x86_status_manifest2.ebx,
+        x86_status_manifest2.ecx, x86_status_manifest2.edx);
       return 1;
     }
     if (check_poly_abi_signature_slot_default(
