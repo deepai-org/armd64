@@ -57,6 +57,9 @@ silicon prototype.
   instruction width, instruction bits, and next-PC calculation.
 - `poly_raw_fetch_request.sv`: raw AArch64/RISC-V instruction-memory request
   geometry with canonical-range and alignment validation.
+- `poly_raw_fetch_response_stage.sv`: raw AArch64/RISC-V instruction-memory
+  response stage that waits for memory, extracts instruction width, and reports
+  response faults before retirement.
 - `poly_raw_fetch_stage.sv`: raw fetch request/response stage that blocks
   instruction retirement on request errors or memory faults.
 - `poly_return_cookie_recover.sv`: native return-cookie detector that requests
@@ -114,6 +117,9 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_raw_fetch_request.py`: raw instruction-fetch request checks
   against `tools/include/polycpuid.h`.
+- `test_poly_raw_fetch_response_stage.py`: raw instruction-fetch response
+  stage checks for wait, instruction extraction, memory faults, and response
+  alignment faults.
 - `test_poly_raw_fetch_stage.py`: raw instruction-fetch request/response
   integration checks.
 - `test_poly_return_cookie_recover.py`: native return-cookie recovery checks
@@ -145,6 +151,7 @@ python3 rtl/test_poly_memory_order_formal.py
 python3 rtl/test_poly_memory_order_litmus.py
 python3 rtl/test_poly_x86_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_request.py
+python3 rtl/test_poly_raw_fetch_response_stage.py
 python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
 python3 rtl/test_poly_return_cookie_recover.py
@@ -175,6 +182,7 @@ POLY_RTL_MEMORY_ORDER_FORMAL_OK
 POLY_RTL_MEMORY_ORDER_LITMUS_OK
 POLY_RTL_X86_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_REQUEST_OK
+POLY_RTL_RAW_FETCH_RESPONSE_STAGE_OK
 POLY_RTL_RAW_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_PLAN_OK
 POLY_RTL_RETURN_COOKIE_RECOVER_OK

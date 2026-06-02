@@ -364,11 +364,12 @@ def main() -> int:
     text = RTL.read_text()
     assert "poly_frontend_fetch_issue fetch_issue" in text
     assert "poly_x86_fetch_stage x86_fetch_stage" in text
-    assert "poly_raw_fetch_plan raw_fetch_plan" in text
+    assert "poly_raw_fetch_response_stage raw_fetch_response_stage" in text
     assert "poly_frontend_retire frontend_retire" in text
     assert ".x86_fetch_req_valid_o(x86_fetch_req_valid_o)" in text
     assert ".raw_fetch_req_valid_o(raw_mem_req_valid_o)" in text
     assert ".wait_response_o(x86_fetch_wait_o)" in text
+    assert ".wait_response_o(raw_fetch_wait_o)" in text
     assert "x86_request_error_o = x86_noncanonical_pc_o || x86_range_fault_o;" in text
     assert ".execute_ready_i(execute_ready_i)" in text
     assert ".block_retire_i(block_retire_i)" in text

@@ -51,6 +51,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_memory_order_litmus.py
 	python3 rtl/test_poly_x86_fetch_stage.py
 	python3 rtl/test_poly_raw_fetch_request.py
+	python3 rtl/test_poly_raw_fetch_response_stage.py
 	python3 rtl/test_poly_raw_fetch_stage.py
 	python3 rtl/test_poly_raw_fetch_plan.py
 	python3 rtl/test_poly_return_cookie_recover.py

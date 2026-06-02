@@ -3,8 +3,8 @@
 // This composes dual frontend fetch issue with the frontend retirement gate.
 // The x86 byte frontend receives an explicit request and supplies its fetched
 // word/fallthrough PC through a response stage; AArch64/RISC-V issue raw
-// memory requests through the shared instruction-memory path and cannot retire
-// until the response is fault-free.
+// memory requests through the shared instruction-memory path and consume them
+// through a raw response stage before retirement.
 module poly_frontend_memory_retire (
     input  logic        valid_i,
     input  logic [1:0]  frontend_i,
@@ -87,9 +87,6 @@ module poly_frontend_memory_retire (
   logic raw_insn_valid;
   logic [31:0] raw_insn;
   logic raw_fetch_fault;
-  logic raw_plan_valid;
-  logic raw_plan_fetch;
-  logic raw_plan_align_fault;
   logic retire_fetch_valid;
   logic retire_fetch_fault;
   logic [31:0] retire_fetch_word;
@@ -143,30 +140,25 @@ module poly_frontend_memory_retire (
     .mem_fault_o(x86_mem_fault_o)
   );
 
-  poly_raw_fetch_plan raw_fetch_plan (
-    .valid_i(raw_plan_valid),
+  poly_raw_fetch_response_stage raw_fetch_response_stage (
+    .valid_i(valid_i && raw_frontend),
     .frontend_i(frontend_i),
     .pc_i(pc_i),
-    .fetch_word_i(raw_mem_resp_word_i),
-    .raw_fetch_o(raw_plan_fetch),
-    .align_fault_o(raw_plan_align_fault),
-    .fetch_addr_o(),
-    .fetch_bytes_o(),
+    .request_valid_i(raw_mem_req_valid_o),
+    .mem_resp_valid_i(raw_mem_resp_valid_i),
+    .mem_resp_fault_i(raw_mem_resp_fault_i),
+    .mem_resp_word_i(raw_mem_resp_word_i),
+    .wait_response_o(raw_fetch_wait_o),
+    .insn_valid_o(raw_insn_valid),
     .insn_o(raw_insn),
-    .next_pc_o()
+    .insn_bytes_o(),
+    .next_pc_o(),
+    .fault_o(raw_fetch_fault),
+    .mem_fault_o(raw_mem_fault_o),
+    .response_align_fault_o()
   );
 
   always_comb begin
-    raw_fetch_wait_o = raw_mem_req_valid_o && !raw_mem_resp_valid_i;
-    raw_plan_valid =
-      raw_mem_req_valid_o && raw_mem_resp_valid_i && !raw_mem_resp_fault_i;
-    raw_insn_valid = raw_plan_fetch && !raw_plan_align_fault;
-    raw_mem_fault_o =
-      raw_mem_req_valid_o && raw_mem_resp_valid_i && raw_mem_resp_fault_i;
-    raw_fetch_fault =
-      raw_request_error_o ||
-      raw_mem_fault_o ||
-      (raw_plan_valid && raw_plan_align_fault);
     pipeline_invalid_frontend =
       valid_i && (!frontend_valid || fetch_issue_invalid_frontend);
     x86_request_error_o = x86_noncanonical_pc_o || x86_range_fault_o;
@@ -176,7 +168,7 @@ module poly_frontend_memory_retire (
     retire_fetch_fault =
       pipeline_invalid_frontend ||
       (x86_frontend && (x86_request_error_o || x86_fetch_fault)) ||
-      (raw_frontend && raw_fetch_fault);
+      (raw_frontend && (raw_request_error_o || raw_fetch_fault));
     retire_fetch_word = raw_frontend ? raw_insn : x86_insn;
   end
 
