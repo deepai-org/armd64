@@ -2760,6 +2760,34 @@ static uint64_t poly_handle_foreign_import(uint64_t number,
           (const char *) (uintptr_t) args[1], (size_t) args[2]);
     case POLY_IMPORT_FUNC_STRNLEN:
       return strnlen((const char *) (uintptr_t) args[0], (size_t) args[1]);
+    case POLY_IMPORT_FUNC_STRCAT:
+      return (uint64_t) (uintptr_t)
+        strcat((char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_STRNCAT:
+      return (uint64_t) (uintptr_t)
+        strncat((char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_STRSPN:
+      return strspn((const char *) (uintptr_t) args[0],
+        (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_STRCSPN:
+      return strcspn((const char *) (uintptr_t) args[0],
+        (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_STRPBRK:
+      return (uint64_t) (uintptr_t)
+        strpbrk((const char *) (uintptr_t) args[0],
+          (const char *) (uintptr_t) args[1]);
+    case POLY_IMPORT_FUNC_BCMP:
+      return (uint64_t) bcmp((const void *) (uintptr_t) args[0],
+        (const void *) (uintptr_t) args[1], (size_t) args[2]);
+    case POLY_IMPORT_FUNC_BCOPY:
+      bcopy((const void *) (uintptr_t) args[0], (void *) (uintptr_t) args[1],
+        (size_t) args[2]);
+      return 0;
+    case POLY_IMPORT_FUNC_BZERO:
+      bzero((void *) (uintptr_t) args[0], (size_t) args[1]);
+      return 0;
     case POLY_IMPORT_FUNC_ATOI:
       return (uint64_t) (int64_t) atoi((const char *) (uintptr_t) args[0]);
     case POLY_IMPORT_FUNC_ATOL:

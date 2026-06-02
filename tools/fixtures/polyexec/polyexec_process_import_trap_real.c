@@ -14,6 +14,17 @@ static char poly_import_dest[16];
 static char poly_import_scratch[16];
 static char poly_import_copy_dest[16];
 static char poly_import_ncopy_dest[16];
+static char poly_import_cat_dest[32] = "poly";
+static char poly_import_cat_expected[] = "poly-isa";
+static char poly_import_ncat_dest[32] = "trap";
+static char poly_import_ncat_expected[] = "trap-pack";
+static char poly_import_span_text[] = "abc123";
+static char poly_import_span_accept[] = "abc";
+static char poly_import_span_reject[] = "123";
+static char poly_import_pbrk_accept[] = "39";
+static char poly_import_bcmp_expected[] = "trap-packets";
+static char poly_import_bcopy_dest[16];
+static char poly_import_bzero_dest[] = "zero";
 static char poly_import_overlap[] = "0123456789";
 static char poly_import_overlap_expected[] = "0101234789";
 
@@ -62,6 +73,18 @@ static uint64_t poly_process_main(void) {
   uint64_t scratch = (uint64_t) (uintptr_t) poly_import_scratch;
   uint64_t copy_dest = (uint64_t) (uintptr_t) poly_import_copy_dest;
   uint64_t ncopy_dest = (uint64_t) (uintptr_t) poly_import_ncopy_dest;
+  uint64_t cat_dest = (uint64_t) (uintptr_t) poly_import_cat_dest;
+  uint64_t cat_expected = (uint64_t) (uintptr_t) poly_import_cat_expected;
+  uint64_t ncat_dest = (uint64_t) (uintptr_t) poly_import_ncat_dest;
+  uint64_t ncat_expected = (uint64_t) (uintptr_t) poly_import_ncat_expected;
+  uint64_t span_text = (uint64_t) (uintptr_t) poly_import_span_text;
+  uint64_t span_accept = (uint64_t) (uintptr_t) poly_import_span_accept;
+  uint64_t span_reject = (uint64_t) (uintptr_t) poly_import_span_reject;
+  uint64_t pbrk_accept = (uint64_t) (uintptr_t) poly_import_pbrk_accept;
+  uint64_t bcmp_expected =
+    (uint64_t) (uintptr_t) poly_import_bcmp_expected;
+  uint64_t bcopy_dest = (uint64_t) (uintptr_t) poly_import_bcopy_dest;
+  uint64_t bzero_dest = (uint64_t) (uintptr_t) poly_import_bzero_dest;
   uint64_t overlap = (uint64_t) (uintptr_t) poly_import_overlap;
   uint64_t overlap_expected =
     (uint64_t) (uintptr_t) poly_import_overlap_expected;
@@ -99,6 +122,33 @@ static uint64_t poly_process_main(void) {
     poly_call_import3(POLY_IMPORT_FUNC_STRNCPY, ncopy_dest, source, 4);
   uint64_t strncpy_cmp =
     poly_call_import3(POLY_IMPORT_FUNC_MEMCMP, ncopy_dest, source, 4);
+  uint64_t strcat_ret =
+    poly_call_import3(POLY_IMPORT_FUNC_STRCAT, cat_dest,
+      (uint64_t) (uintptr_t) "-isa", 0);
+  uint64_t strcat_cmp =
+    poly_call_import3(POLY_IMPORT_FUNC_STRCMP, cat_dest, cat_expected, 0);
+  uint64_t strncat_ret =
+    poly_call_import3(POLY_IMPORT_FUNC_STRNCAT, ncat_dest,
+      (uint64_t) (uintptr_t) "-packets", 5);
+  uint64_t strncat_cmp =
+    poly_call_import3(POLY_IMPORT_FUNC_STRCMP, ncat_dest, ncat_expected, 0);
+  uint64_t strspn_result =
+    poly_call_import3(POLY_IMPORT_FUNC_STRSPN, span_text, span_accept, 0);
+  uint64_t strcspn_result =
+    poly_call_import3(POLY_IMPORT_FUNC_STRCSPN, span_text, span_reject, 0);
+  uint64_t strpbrk_result =
+    poly_call_import3(POLY_IMPORT_FUNC_STRPBRK, span_text, pbrk_accept, 0);
+  uint64_t bcmp_result =
+    poly_call_import3(POLY_IMPORT_FUNC_BCMP, source, bcmp_expected,
+      sizeof("trap-packets") - 1);
+  uint64_t bcopy_result =
+    poly_call_import3(POLY_IMPORT_FUNC_BCOPY, source, bcopy_dest,
+      sizeof("trap-packets"));
+  uint64_t bcopy_cmp =
+    poly_call_import3(POLY_IMPORT_FUNC_MEMCMP, bcopy_dest, source,
+      sizeof("trap-packets"));
+  uint64_t bzero_result =
+    poly_call_import3(POLY_IMPORT_FUNC_BZERO, bzero_dest, 2, 0);
   uint64_t atoi_result =
     poly_call_import3(POLY_IMPORT_FUNC_ATOI, signed_decimal, 0, 0);
   uint64_t atol_result =
@@ -174,6 +224,15 @@ static uint64_t poly_process_main(void) {
     (memmove_ret == overlap + 2 ? 31 : 0) + (overlap_cmp == 0 ? 37 : 0) +
     (strcpy_ret == copy_dest && strcpy_cmp == 0 ? 4 : 0) +
     (strncpy_ret == ncopy_dest && strncpy_cmp == 0 ? 6 : 0) +
+    (strcat_ret == cat_dest && strcat_cmp == 0 ? 41 : 0) +
+    (strncat_ret == ncat_dest && strncat_cmp == 0 ? 43 : 0) +
+    (strspn_result == 3 ? 47 : 0) + (strcspn_result == 3 ? 53 : 0) +
+    (strpbrk_result == span_text + 5 ? 59 : 0) +
+    (bcmp_result == 0 ? 61 : 0) +
+    (bcopy_result == 0 && bcopy_cmp == 0 ? 67 : 0) +
+    (bzero_result == 0 && poly_import_bzero_dest[0] == 0 &&
+      poly_import_bzero_dest[1] == 0 &&
+      poly_import_bzero_dest[2] == 'r' ? 71 : 0) +
     (numeric_ok ? 5 : 0) + (ctype_ok ? 6 : 0) + (integer_ok ? 7 : 0);
 }
 
