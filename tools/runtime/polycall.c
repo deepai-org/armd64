@@ -228,19 +228,23 @@ enum {
   POLY_RUNTIME_CROSS_BRIDGE_FP64_STACK = POLY_CROSS_BRIDGE_RESERVED_1
 };
 
-static const size_t POLY_X86_IMPORT_DESCRIPTOR_SIZE = 32;
+/*
+ * Loader-generated x86 thunk metadata. This is deliberately not a CPU
+ * descriptor format: hardware only performs register-only ISA transitions.
+ */
+static const size_t POLY_X86_IMPORT_THUNK_RECORD_SIZE = 32;
 
 enum {
-  POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS = (1U << 0),
+  POLY_IMPORT_X86_THUNK_STACK_ARGS = (1U << 0),
   POLY_IMPORT_X86_RETURN_SHAPE_I128 = (1U << 1),
   POLY_IMPORT_X86_RETURN_SHAPE_FP128 = (1U << 2),
-  POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_MEMORY = (1U << 3),
-  POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_GPR0 = (1U << 4),
+  POLY_IMPORT_X86_THUNK_STACK_FROM_MEMORY = (1U << 3),
+  POLY_IMPORT_X86_THUNK_STACK_FROM_GPR0 = (1U << 4),
   POLY_IMPORT_X86_RETURN_SHAPE_FPAIR64 = (1U << 5),
   POLY_IMPORT_X86_RETURN_SHAPE_FPAIR32 = (1U << 6),
   POLY_IMPORT_X86_RETURN_SHAPE_VEC128 = (1U << 7),
-  POLY_IMPORT_X86_DESCRIPTOR_VEC128_FROM_GPR_PAIRS = (1U << 8),
-  POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8 = (1U << 9),
+  POLY_IMPORT_X86_THUNK_VEC128_FROM_GPR_PAIRS = (1U << 8),
+  POLY_IMPORT_X86_THUNK_AARCH64_SRET_X8 = (1U << 9),
   POLY_IMPORT_X86_RETURN_SHAPE_FP64 = (1U << 10),
   POLY_IMPORT_X86_RETURN_SHAPE_FP32 = (1U << 11)
 };
@@ -282,7 +286,7 @@ struct poly_import_contract {
   uint32_t import_count;
   uint32_t x86_slot0;
   uint32_t x86_slot_count;
-  uint32_t x86_descriptor_size;
+  uint32_t x86_thunk_record_size;
   uint32_t abi_flags;
   uint32_t gpr_arg_count;
   uint32_t fp_arg_count;
@@ -670,7 +674,7 @@ static int read_poly_import_contract(struct poly_import_contract *contract) {
   contract->x86_slot0 = POLY_IMPORT_FUNC_X86_SLOT0;
   contract->x86_slot_count = POLY_IMPORT_FUNC_X86_SLOT7 -
     POLY_IMPORT_FUNC_X86_SLOT0 + 1;
-  contract->x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE;
+  contract->x86_thunk_record_size = POLY_X86_IMPORT_THUNK_RECORD_SIZE;
   return 0;
 }
 
@@ -1342,7 +1346,7 @@ extern uint64_t poly_host_x86_riscv_unordtf2(uint64_t left_lo,
 static int resolve_aarch64_outline_atomic_import(const char *symbol_name,
     uint64_t *symbol_value);
 
-static int import_symbol_uses_x86_descriptor(const char *symbol_name) {
+static int import_symbol_uses_x86_thunk_record(const char *symbol_name) {
   static const char *const names[] = {
     "poly_import_add", "poly_import_mul",
     "poly_import_fp64_add", "poly_import_fp32_add",
@@ -1759,7 +1763,7 @@ static int resolve_direct_x86_register_import(int arch,
   return -1;
 }
 
-static uint64_t x86_descriptor_target_for_import_id(int arch,
+static uint64_t x86_thunk_target_for_import_id(int arch,
     uint64_t import_id) {
   switch (import_id) {
     case POLY_IMPORT_FUNC_ADD:
@@ -2270,19 +2274,19 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
   }
 }
 
-static uint64_t x86_descriptor_flags_for_import_id(int arch,
+static uint64_t x86_thunk_flags_for_import_id(int arch,
     uint64_t import_id) {
   switch (import_id) {
     case POLY_IMPORT_FUNC_X86_SUM10:
     case POLY_IMPORT_FUNC_X86_SUM14:
     case POLY_IMPORT_FUNC_X86_ALIGN14:
-      return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS;
+      return POLY_IMPORT_X86_THUNK_STACK_ARGS;
     case POLY_IMPORT_FUNC_X86_FP64_SUM10:
       if (arch == POLY_ARCH_RISCV)
-        return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS |
-          POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_GPR0;
-      return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS |
-        POLY_IMPORT_X86_DESCRIPTOR_STACK_FROM_MEMORY;
+        return POLY_IMPORT_X86_THUNK_STACK_ARGS |
+          POLY_IMPORT_X86_THUNK_STACK_FROM_GPR0;
+      return POLY_IMPORT_X86_THUNK_STACK_ARGS |
+        POLY_IMPORT_X86_THUNK_STACK_FROM_MEMORY;
     case POLY_IMPORT_FUNC_UDIVTI3:
     case POLY_IMPORT_FUNC_UMODTI3:
     case POLY_IMPORT_FUNC_DIVTI3:
@@ -2324,28 +2328,28 @@ static uint64_t x86_descriptor_flags_for_import_id(int arch,
     case POLY_IMPORT_FUNC_X86_VEC128_U32:
       if (arch == POLY_ARCH_RISCV)
         return POLY_IMPORT_X86_RETURN_SHAPE_VEC128 |
-          POLY_IMPORT_X86_DESCRIPTOR_VEC128_FROM_GPR_PAIRS;
+          POLY_IMPORT_X86_THUNK_VEC128_FROM_GPR_PAIRS;
       return POLY_IMPORT_X86_RETURN_SHAPE_VEC128;
     case POLY_IMPORT_FUNC_X86_SRET_U64:
       if (arch == POLY_ARCH_AARCH64)
-        return POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8;
+        return POLY_IMPORT_X86_THUNK_AARCH64_SRET_X8;
       return 0;
     case POLY_IMPORT_FUNC_X86_SRET_U64_STACK:
       if (arch == POLY_ARCH_AARCH64)
-        return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS |
-          POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8;
-      return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS;
+        return POLY_IMPORT_X86_THUNK_STACK_ARGS |
+          POLY_IMPORT_X86_THUNK_AARCH64_SRET_X8;
+      return POLY_IMPORT_X86_THUNK_STACK_ARGS;
     case POLY_IMPORT_FUNC_X86_SRET_U64_STACK10:
       if (arch == POLY_ARCH_AARCH64)
-        return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS |
-          POLY_IMPORT_X86_DESCRIPTOR_AARCH64_SRET_X8;
-      return POLY_IMPORT_X86_DESCRIPTOR_STACK_ARGS;
+        return POLY_IMPORT_X86_THUNK_STACK_ARGS |
+          POLY_IMPORT_X86_THUNK_AARCH64_SRET_X8;
+      return POLY_IMPORT_X86_THUNK_STACK_ARGS;
     default:
       return 0;
   }
 }
 
-static uint64_t x86_descriptor_stack_arg_count_for_import_id(
+static uint64_t x86_thunk_stack_arg_count_for_import_id(
     uint64_t import_id) {
   switch (import_id) {
     case POLY_IMPORT_FUNC_X86_SUM10:
@@ -7211,7 +7215,7 @@ static int resolve_external_reloc_symbol(struct poly_program *program,
     if (strcmp(symbol_name, "__errno_location") == 0)
       program->needs_errno_location = 1;
     if (strcmp(symbol_name, "poly_import_x86_vec128_u32") == 0 ||
-        import_symbol_uses_x86_descriptor(symbol_name))
+        import_symbol_uses_x86_thunk_record(symbol_name))
       program->needs_x86_import = 1;
     *base_kind = RELOC_BASE_IMPORT_CALL;
     return 0;
@@ -9193,7 +9197,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     .import_count = POLY_IMPORT_FUNC_COUNT,
     .x86_slot0 = POLY_IMPORT_FUNC_X86_SLOT0,
     .x86_slot_count = POLY_IMPORT_FUNC_X86_SLOT7 - POLY_IMPORT_FUNC_X86_SLOT0 + 1,
-    .x86_descriptor_size = POLY_X86_IMPORT_DESCRIPTOR_SIZE,
+    .x86_thunk_record_size = POLY_X86_IMPORT_THUNK_RECORD_SIZE,
     .signature_slot_count = POLY_ABI_SIGNATURE_SLOT_COUNT,
     .signature_slot_exchange = POLY_ABI_SIGNATURE_SLOT_EXCHANGE,
     .signature_slot_x86_sysv_regs =
@@ -9329,10 +9333,10 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     callee_restore_size + 1;
   const size_t import_return_size = needs_x86_import ?
     POLY_X86_CONTROL_OPCODE_SIZE : 0;
-  const size_t import_descriptor_count = needs_x86_import ?
+  const size_t import_thunk_record_count = needs_x86_import ?
     import_contract.import_count : 0;
-  const size_t import_descriptor_size = needs_x86_import ?
-    import_descriptor_count * import_contract.x86_descriptor_size : 0;
+  const size_t import_thunk_record_size = needs_x86_import ?
+    import_thunk_record_count * import_contract.x86_thunk_record_size : 0;
   const size_t callback_pcall_sequence_size =
     POLY_X86_PCALL_SIG_IMM_SEQUENCE_SIZE;
   const size_t callback_pcall_return_delta = callee_save_size + 10 + 10 +
@@ -9341,7 +9345,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   const size_t callback_stub_size =
     callback_pcall_return_delta + callee_restore_size + 1;
   const size_t callback_stub_offset =
-    main_stub_size + import_return_size + import_descriptor_size;
+    main_stub_size + import_return_size + import_thunk_record_size;
   const size_t stub_size = callback_stub_offset + callback_stub_size;
   const size_t cross_stub_size = 65536;
   const size_t callback_callee_save_area_size = 48;
@@ -9568,7 +9572,11 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
   code[offset++] = 0xc3;
   if (needs_x86_import) {
     emit_x86_poly_control(code, &offset, POLY_X86_CTRL_IMPORT_RETURN);
-    for (size_t n = 0; n < import_descriptor_count; n++) {
+    /*
+     * The following table is consumed by generated userspace thunks after an
+     * import trap exit. The Bochs CPU model must not parse or depend on it.
+     */
+    for (size_t n = 0; n < import_thunk_record_count; n++) {
       emit_u64(code, &offset, 0);
       emit_u64(code, &offset, 0);
       emit_u64(code, &offset, 0);
@@ -9577,17 +9585,17 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     for (uint64_t import_id = 0; import_id < import_contract.import_count;
          import_id++) {
       const uint64_t target =
-        x86_descriptor_target_for_import_id(program->arch, import_id);
+        x86_thunk_target_for_import_id(program->arch, import_id);
       if (target == 0)
         continue;
-      const size_t descriptor_offset = import_x86_table_offset +
-        (size_t) import_id * import_contract.x86_descriptor_size;
-      write_le64(code + descriptor_offset, target);
-      write_le64(code + descriptor_offset + 8, import_x86_return);
-      write_le64(code + descriptor_offset + 16,
-        x86_descriptor_flags_for_import_id(program->arch, import_id));
-      write_le64(code + descriptor_offset + 24,
-        x86_descriptor_stack_arg_count_for_import_id(import_id));
+      const size_t thunk_record_offset = import_x86_table_offset +
+        (size_t) import_id * import_contract.x86_thunk_record_size;
+      write_le64(code + thunk_record_offset, target);
+      write_le64(code + thunk_record_offset + 8, import_x86_return);
+      write_le64(code + thunk_record_offset + 16,
+        x86_thunk_flags_for_import_id(program->arch, import_id));
+      write_le64(code + thunk_record_offset + 24,
+        x86_thunk_stack_arg_count_for_import_id(import_id));
     }
   }
   if (offset != callback_stub_offset) {
@@ -9754,7 +9762,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = (uint64_t) (uintptr_t) import_page;
       else if (dep->relocs[r].base_kind ==
           RELOC_BASE_X86_DIRECT_IMPORT_STUB) {
-        const uint64_t target = x86_descriptor_target_for_import_id(dep->arch,
+        const uint64_t target = x86_thunk_target_for_import_id(dep->arch,
           dep->relocs[r].value);
         uint64_t stub_addr = 0;
         if (target == 0 ||
@@ -10018,7 +10026,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     }
     else if (program->relocs[n].base_kind ==
         RELOC_BASE_X86_DIRECT_IMPORT_STUB) {
-      const uint64_t target = x86_descriptor_target_for_import_id(program->arch,
+      const uint64_t target = x86_thunk_target_for_import_id(program->arch,
         program->relocs[n].value);
       uint64_t stub_addr = 0;
       if (target == 0 ||

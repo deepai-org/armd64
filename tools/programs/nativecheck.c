@@ -1607,20 +1607,20 @@ static unsigned nativecheck_direct_x86_helper_calls;
 static unsigned nativecheck_direct_x86_i128_helper_calls;
 static unsigned nativecheck_direct_x86_fp64_helper_calls;
 static unsigned nativecheck_direct_x86_vec128_helper_calls;
-static unsigned nativecheck_descriptor_target_calls;
+static unsigned nativecheck_thunk_target_calls;
 static uint64_t nativecheck_expected_source_sp __attribute__((used));
 enum {
   NATIVECHECK_IMPORT_FUNC_STRLEN = 8,
   NATIVECHECK_IMPORT_UNKNOWN_SELECTOR = POLY_IMPORT_SELECTOR_COUNT - 16,
-  NATIVECHECK_IMPORT_DESCRIPTOR_BYTES = 32,
-  NATIVECHECK_IMPORT_DESCRIPTOR_QWORDS =
-    NATIVECHECK_IMPORT_DESCRIPTOR_BYTES / sizeof(uint64_t),
-  NATIVECHECK_IMPORT_DESCRIPTOR_QWORD_COUNT =
+  NATIVECHECK_IMPORT_THUNK_RECORD_BYTES = 32,
+  NATIVECHECK_IMPORT_THUNK_RECORD_QWORDS =
+    NATIVECHECK_IMPORT_THUNK_RECORD_BYTES / sizeof(uint64_t),
+  NATIVECHECK_IMPORT_THUNK_RECORD_QWORD_COUNT =
     (NATIVECHECK_IMPORT_FUNC_STRLEN + 1) *
-    NATIVECHECK_IMPORT_DESCRIPTOR_QWORDS
+    NATIVECHECK_IMPORT_THUNK_RECORD_QWORDS
 };
-static uint64_t nativecheck_import_descriptor_table[
-  NATIVECHECK_IMPORT_DESCRIPTOR_QWORD_COUNT] __attribute__((aligned(64)));
+static uint64_t nativecheck_import_thunk_table[
+  NATIVECHECK_IMPORT_THUNK_RECORD_QWORD_COUNT] __attribute__((aligned(64)));
 static sigjmp_buf nativecheck_sigill_env;
 static volatile sig_atomic_t nativecheck_expect_sigill;
 static volatile sig_atomic_t nativecheck_last_signal;
@@ -1688,20 +1688,20 @@ static void nativecheck_direct_x86_source_sp_matches(void) {
 }
 
 __attribute__((noreturn, noinline, noipa, used))
-static void nativecheck_descriptor_target_should_not_run(void) {
-  nativecheck_descriptor_target_calls++;
+static void nativecheck_thunk_target_should_not_run(void) {
+  nativecheck_thunk_target_calls++;
   _exit(97);
 }
 
-static void nativecheck_install_descriptor_poison(void) {
-  memset(nativecheck_import_descriptor_table, 0,
-    sizeof(nativecheck_import_descriptor_table));
+static void nativecheck_install_thunk_poison(void) {
+  memset(nativecheck_import_thunk_table, 0,
+    sizeof(nativecheck_import_thunk_table));
   const size_t base = (size_t) NATIVECHECK_IMPORT_FUNC_STRLEN *
-    NATIVECHECK_IMPORT_DESCRIPTOR_QWORDS;
-  nativecheck_import_descriptor_table[base] =
-    (uint64_t) (uintptr_t) nativecheck_descriptor_target_should_not_run;
-  nativecheck_import_descriptor_table[base + 1] =
-    (uint64_t) (uintptr_t) nativecheck_descriptor_target_should_not_run;
+    NATIVECHECK_IMPORT_THUNK_RECORD_QWORDS;
+  nativecheck_import_thunk_table[base] =
+    (uint64_t) (uintptr_t) nativecheck_thunk_target_should_not_run;
+  nativecheck_import_thunk_table[base + 1] =
+    (uint64_t) (uintptr_t) nativecheck_thunk_target_should_not_run;
 }
 
 static inline uint64_t read_xcr0(void) {
@@ -2083,7 +2083,7 @@ static void child_expect_aarch64_import_signal(void) {
     ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
     ".long 0xd28009a0\n" // movz x0,#77
-    ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
+    ".long 0xd63f0200\n" // blr x16, unresolved strlen import slot
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
@@ -2098,7 +2098,7 @@ static void child_expect_riscv_import_signal(void) {
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_RV64
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
-    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen import slot
     ".long 0x04d00513\n" // addi a0,zero,77
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
@@ -6278,7 +6278,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd2800a45\n" // movz x5,#82
     ".long 0xd2800b06\n" // movz x6,#88
     ".long 0xd2800c67\n" // movz x7,#99
-    ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
+    ".long 0xd63f0200\n" // blr x16, unresolved strlen import slot
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
@@ -6296,10 +6296,10 @@ static int run_poly_trap_vector_probe(void) {
       POLY_IMPORT_FUNC_STRLEN) != 0)
     return 1;
 
-  nativecheck_install_descriptor_poison();
+  nativecheck_install_thunk_poison();
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
-    "leaq %[descriptor], %%r12\n"
+    "leaq %[thunk_table], %%r12\n"
     POLY_OP_ENTER_A64
     ".long 0xd29c1010\n" // movz x16,#0xe080
     ".long 0xf2bffff0\n" // movk x16,#0xffff,lsl #16
@@ -6313,28 +6313,28 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd2800a45\n" // movz x5,#82
     ".long 0xd2800b06\n" // movz x6,#88
     ".long 0xd2800c67\n" // movz x7,#99
-    ".long 0xd63f0200\n" // blr x16, import must trap despite descriptor
+    ".long 0xd63f0200\n" // blr x16, import must trap despite thunk table
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     :
-    : [descriptor] "m"(nativecheck_import_descriptor_table)
+    : [thunk_table] "m"(nativecheck_import_thunk_table)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
       "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 5555) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 descriptor-backed import trap result mismatch got=%llu\n",
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 thunk-table import trap result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
-  if (nativecheck_descriptor_target_calls != 0) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 descriptor target executed calls=%u\n",
-      nativecheck_descriptor_target_calls);
+  if (nativecheck_thunk_target_calls != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly aarch64 thunk target executed calls=%u\n",
+      nativecheck_thunk_target_calls);
     return 1;
   }
-  if (expect_monitor_packet_args("aarch64 descriptor-backed import",
+  if (expect_monitor_packet_args("aarch64 thunk-table import",
       &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0,
       import_args_77_99) != 0)
     return 1;
-  if (expect_monitor_packet_import_pc("aarch64 descriptor-backed import",
+  if (expect_monitor_packet_import_pc("aarch64 thunk-table import",
       &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
     return 1;
 
@@ -6343,7 +6343,7 @@ static int run_poly_trap_vector_probe(void) {
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_RV64
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
-    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen import slot
     ".long 0x04d00513\n" // addi a0,zero,77
     ".long 0x04e00593\n" // addi a1,zero,78
     ".long 0x04f00613\n" // addi a2,zero,79
@@ -6370,10 +6370,10 @@ static int run_poly_trap_vector_probe(void) {
       POLY_IMPORT_FUNC_STRLEN) != 0)
     return 1;
 
-  nativecheck_install_descriptor_poison();
+  nativecheck_install_thunk_poison();
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
-    "leaq %[descriptor], %%r12\n"
+    "leaq %[thunk_table], %%r12\n"
     POLY_OP_ENTER_RV64
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
     ".long 0x08028293\n" // addi t0,t0,0x80 -> strlen import
@@ -6385,39 +6385,39 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0x05200793\n" // addi a5,zero,82
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
-    ".long 0x000280e7\n" // jalr ra,0(t0), must trap despite descriptor
+    ".long 0x000280e7\n" // jalr ra,0(t0), must trap despite thunk table
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     :
-    : [descriptor] "m"(nativecheck_import_descriptor_table)
+    : [thunk_table] "m"(nativecheck_import_thunk_table)
     : "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
       "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 5555) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv descriptor-backed import trap result mismatch got=%llu\n",
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv thunk-table import trap result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
-  if (nativecheck_descriptor_target_calls != 0) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv descriptor target executed calls=%u\n",
-      nativecheck_descriptor_target_calls);
+  if (nativecheck_thunk_target_calls != 0) {
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly riscv thunk target executed calls=%u\n",
+      nativecheck_thunk_target_calls);
     return 1;
   }
-  if (expect_monitor_packet_args("riscv descriptor-backed import",
+  if (expect_monitor_packet_args("riscv thunk-table import",
       &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0,
       import_args_77_99) != 0)
     return 1;
-  if (expect_monitor_packet_import_pc("riscv descriptor-backed import",
+  if (expect_monitor_packet_import_pc("riscv thunk-table import",
       &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
     return 1;
 
-  nativecheck_detail_marker("NATIVE_POLY_DESCRIPTOR_IMPORT_TRAPS_OK");
+  nativecheck_detail_marker("NATIVE_POLY_THUNK_IMPORT_TRAPS_OK");
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   asm volatile(
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_RV64
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
-    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen import slot
     ".long 0x04d00513\n" // addi a0,zero,77
     ".long 0x04e00593\n" // addi a1,zero,78
     ".long 0x04f00613\n" // addi a2,zero,79
@@ -6781,7 +6781,7 @@ static int run_poly_trap_vector_probe(void) {
     "xorq %%r12,%%r12\n"
     POLY_OP_ENTER_RV64
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
-    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
+    ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen import slot
     ".long 0x01500513\n" // addi a0,zero,21
     ".long 0x01600593\n" // addi a1,zero,22
     ".long 0x01700613\n" // addi a2,zero,23
@@ -6823,7 +6823,7 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xd2800205\n" // movz x5,#16
     ".long 0xd2800226\n" // movz x6,#17
     ".long 0xd2800247\n" // movz x7,#18
-    ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
+    ".long 0xd63f0200\n" // blr x16, unresolved strlen import slot
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory");
