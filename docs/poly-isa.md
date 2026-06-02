@@ -1,21 +1,27 @@
 # Poly ISA
 
-Poly lets existing x86_64, AArch64, and RISC-V64 user-mode code run in one
-x86_64 virtual address space. It is compatibility-focused: the target ABIs are
-x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI, not a new Poly-only ABI.
+Poly lets existing x86_64, AArch64, and RISC-V64 user-mode code share one
+x86_64 virtual address space. It targets real ABI compatibility: x86_64 SysV,
+AArch64 AAPCS64, and RISC-V psABI.
 
 ## Contract
 
 - x86_64 remains the system ISA for boot, privilege, paging, faults,
   interrupts, syscalls, VM control, atomics, and global TSO ordering.
-- AArch64 and RISC-V64 are user-mode decode frontends only.
-- AArch64 fetch is aligned 32-bit; RISC-V64 fetch is 16/32-bit with RVC.
-- Frontend changes use decoded control instructions, not `#UD` envelopes.
-- Fast cross-ISA calls may use register-only ABI signature slots.
-- Stack arguments, aggregates, variadics, lazy binding, libc/syscall policy,
-  and other memory-shaped ABI work stay in software thunks or monitors.
-- Foreign state is per-thread XSAVE-style architectural state.
+- AArch64 and RISC-V64 are user-mode decode frontends.
+- AArch64 fetches aligned 32-bit instructions.
+- RISC-V64 fetches 16/32-bit instructions, including RVC.
+- Mode changes use decoded control instructions, not `#UD` envelopes.
+- Foreign architectural state is per-thread XSAVE-style state.
 - Recoverable foreign traps produce OS-neutral trap packets.
+
+## Interop
+
+- Fast calls use register-only ABI signature slots where possible.
+- Stack arguments, aggregates, variadics, lazy binding, libc policy, syscall
+  policy, and other memory-shaped ABI work stay in software thunks or monitors.
+- The ISA supplies fast frontend switching and register-state mechanics; it does
+  not parse user-memory call descriptors or rewrite stack layouts in hardware.
 
 ## Controls
 
