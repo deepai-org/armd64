@@ -8454,20 +8454,18 @@ static void request_poly_xsave_permission(uint64_t *xcr0) {
 __attribute__((noinline, noipa))
 static uint64_t nativecheck_direct_pcall_aarch64_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
-  register uint64_t r8_arg asm("r8") = a5;
-  register uint64_t target asm("r10") =
-    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
   asm volatile(
+    "movq %5, %%r8\n"
+    "leaq nativecheck_import_x86_sum6(%%rip), %%r10\n"
     POLY_OP_ENTER_A64
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
     ".long 0xd5032f3f\n" // generic pcall frontend=x17 target=x16
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg), "+r"(target)
-    :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4)
+    : "r"(a5)
+    : "rbx", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
       "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
       "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
       "xmm14", "xmm15", "cc", "memory");
@@ -8477,10 +8475,9 @@ static uint64_t nativecheck_direct_pcall_aarch64_import_sum6(uint64_t a0,
 __attribute__((noinline, noipa))
 static uint64_t nativecheck_direct_pcall_riscv_import_sum6(uint64_t a0,
     uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
-  register uint64_t r8_arg asm("r8") = a5;
-  register uint64_t target asm("r10") =
-    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
   asm volatile(
+    "movq %5, %%r8\n"
+    "leaq nativecheck_import_x86_sum6(%%rip), %%r10\n"
     POLY_OP_ENTER_RV64
     ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
@@ -8488,10 +8485,9 @@ static uint64_t nativecheck_direct_pcall_riscv_import_sum6(uint64_t a0,
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
     ".long 0x1200700b\n" // generic pcall frontend=t1 target=t0 return=t2
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg), "+r"(target)
-    :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4)
+    : "r"(a5)
+    : "rbx", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
       "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
       "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
       "xmm14", "xmm15", "cc", "memory");
@@ -8502,20 +8498,18 @@ __attribute__((noinline, noipa))
 static uint64_t nativecheck_signature_imm_direct_pcall_aarch64_import_sum6(
     uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,
     uint64_t a5) {
-  register uint64_t r8_arg asm("r8") = a5;
-  register uint64_t target asm("r10") =
-    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
   asm volatile(
+    "movq %5, %%r8\n"
+    "leaq nativecheck_import_x86_sum6(%%rip), %%r10\n"
     POLY_OP_ENTER_A64
     ".long 0xaa0703f0\n" // mov x16,x7, x86 target from R10/P7
     ".long 0xd2800011\n" // movz x17,#0 (x86 frontend)
     ".long 0x10000052\n" // adr x18,return
     ".long 0xd5032a7f\n" // generic signature pcall, immediate slot 3
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg), "+r"(target)
-    :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4)
+    : "r"(a5)
+    : "rbx", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
       "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
       "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
       "xmm14", "xmm15", "cc", "memory");
@@ -8526,10 +8520,9 @@ __attribute__((noinline, noipa))
 static uint64_t nativecheck_signature_imm_direct_pcall_riscv_import_sum6(
     uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4,
     uint64_t a5) {
-  register uint64_t r8_arg asm("r8") = a5;
-  register uint64_t target asm("r10") =
-    (uint64_t) (uintptr_t) nativecheck_import_x86_sum6;
   asm volatile(
+    "movq %5, %%r8\n"
+    "leaq nativecheck_import_x86_sum6(%%rip), %%r10\n"
     POLY_OP_ENTER_RV64
     ".long 0x00088293\n" // addi t0,a7,0, x86 target from R10/P7
     ".long 0x00000313\n" // addi t1,zero,0 (x86 frontend)
@@ -8537,10 +8530,9 @@ static uint64_t nativecheck_signature_imm_direct_pcall_riscv_import_sum6(
     ".long 0x00c38393\n" // addi t2,t2,12 -> return
     ".long 0x4600700b\n" // generic signature pcall, immediate slot 3
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4),
-      "+r"(r8_arg), "+r"(target)
-    :
-    : "rbx", "r9", "r11", "r12", "r13", "r14", "r15",
+    : "+a"(a0), "+d"(a1), "+c"(a2), "+D"(a3), "+S"(a4)
+    : "r"(a5)
+    : "rbx", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
       "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
       "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13",
       "xmm14", "xmm15", "cc", "memory");

@@ -38,6 +38,7 @@ case "$path" in
   */aarch64-memwidth.elf) expected=0x100001324 ;;
   */aarch64-pair-frame.elf) expected=35 ;;
   */aarch64-casp.elf) expected=66 ;;
+  */aarch64-ldxp.elf) expected=37 ;;
   */aarch64-hints.elf) expected=27 ;;
   */aarch64-prfm.elf) expected=27 ;;
   */aarch64-cacheops.elf) expected=27 ;;

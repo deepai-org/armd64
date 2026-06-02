@@ -7449,6 +7449,18 @@ static int emit_and_run_process(struct poly_program *program,
     (program->arch == POLY_ARCH_X86 ||
      process_tree_has_arch_tls(program, POLY_ARCH_X86)) ?
     (uint64_t) (uintptr_t) process_tls : 0;
+  if (process_runtime_x86_tls_base != 0 &&
+      poly_abi_signature_set(process_native_signature_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_TLS_BASE) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly native TLS signature slot setup failed slot=%u\n",
+      process_native_signature_slot);
+    munmap(process_tls, process_tls_size);
+    unmap_process_dependencies(program);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
   process_runtime_host_fs_base = get_x86_fs_base();
   const uint64_t startup_x86_tls_base =
     program->arch == POLY_ARCH_X86 ? process_runtime_x86_tls_base : 0;
