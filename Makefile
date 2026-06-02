@@ -111,6 +111,9 @@ check-poly-rtl-sim:
 		rtl/poly_frontend_fetch_decode_pipeline.sv \
 		rtl/tb_poly_frontend_fetch_decode_pipeline.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_fetch_decode_pipeline"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_cpuid_rom" \
+		rtl/poly_cpuid_rom.sv rtl/tb_poly_cpuid_rom.sv; \
+	vvp "$$tmp_dir/tb_poly_cpuid_rom"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_state"; \
