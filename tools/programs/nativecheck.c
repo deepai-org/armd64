@@ -675,6 +675,7 @@ static uint64_t nativecheck_generic_switch_riscv_x86_add(void) {
 }
 
 static void poly_trap_vector_handler(void);
+static void poly_trap_vector_xsave_roundtrip_handler(void);
 
 static inline void poly_trap_vector_clear(void) {
   asm volatile(
@@ -694,6 +695,21 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
 
 static inline void poly_state_import(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "r15", "memory");
+}
+
+static struct poly_xsave_state
+  nativecheck_trap_restore_roundtrip_state __attribute__((aligned(64)));
+
+static __attribute__((noinline, used))
+void poly_trap_vector_xsave_roundtrip_handler(void) {
+  poly_state_export(&nativecheck_trap_restore_roundtrip_state);
+  poly_state_import(&nativecheck_trap_restore_roundtrip_state);
+  asm volatile(
+    "movq $0x5a5a, %%rax\n"
+    "pxor %%xmm0, %%xmm0\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n"
+    ::: "rax", "r15", "xmm0", "memory");
 }
 
 static inline uint64_t poly_state_key_set_value(uint64_t value) {
@@ -5362,6 +5378,56 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
   }
 
+  memset(&nativecheck_trap_restore_roundtrip_state, 0,
+    sizeof(nativecheck_trap_restore_roundtrip_state));
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(
+    (uint64_t) (uintptr_t) poly_trap_vector_xsave_roundtrip_handler);
+  asm volatile(
+    POLY_OP_ENTER_A64
+    ".long 0xd2800041\n" // movz x1,#2
+    ".long 0xd2800062\n" // movz x2,#3
+    ".long 0xd2800083\n" // movz x3,#4
+    ".long 0xd28000a4\n" // movz x4,#5
+    ".long 0xd28000c5\n" // movz x5,#6
+    ".long 0xd2801588\n" // movz x8,#172
+    ".long 0xd40000e1\n" // svc #7
+    ".long 0x8b020020\n" // add x0,x1,x2
+    ".long 0x8b030000\n" // add x0,x0,x3
+    ".long 0x8b040000\n" // add x0,x0,x4
+    ".long 0x8b050000\n" // add x0,x0,x5
+    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 20 ||
+      nativecheck_trap_restore_roundtrip_state.trap.source_mode !=
+        POLY_MODE_RAW_AARCH64 ||
+      (nativecheck_trap_restore_roundtrip_state.trap.flags &
+        POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0 ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.mode !=
+        POLY_MODE_RAW_AARCH64 ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.flags !=
+        (POLY_TRAP_RESTORE_FLAG_VALID |
+         POLY_TRAP_RESTORE_FLAG_AARCH64_STATE_VALID) ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.aarch64_gpr[1] != 2 ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.aarch64_gpr[5] != 6 ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.riscv_gpr_valid_mask != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly aarch64 XSAVE trap restore roundtrip result=%llu mode=%u flags=0x%llx restore_mode=%u restore_flags=0x%llx x1=%llu x5=%llu rvmask=0x%llx\n",
+      (unsigned long long) result,
+      nativecheck_trap_restore_roundtrip_state.trap.source_mode,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap.flags,
+      nativecheck_trap_restore_roundtrip_state.trap_restore.mode,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.flags,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.aarch64_gpr[1],
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.aarch64_gpr[5],
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.riscv_gpr_valid_mask);
+    return 1;
+  }
+
+  poly_trap_vector_set_value((uint64_t) handler);
+
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x00200593\n" // addi a1,zero,2
@@ -5384,6 +5450,56 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
+
+  memset(&nativecheck_trap_restore_roundtrip_state, 0,
+    sizeof(nativecheck_trap_restore_roundtrip_state));
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  poly_trap_vector_set_value(
+    (uint64_t) (uintptr_t) poly_trap_vector_xsave_roundtrip_handler);
+  asm volatile(
+    POLY_OP_ENTER_RV64
+    ".long 0x00200593\n" // addi a1,zero,2
+    ".long 0x00300613\n" // addi a2,zero,3
+    ".long 0x00400693\n" // addi a3,zero,4
+    ".long 0x00500713\n" // addi a4,zero,5
+    ".long 0x00600793\n" // addi a5,zero,6
+    ".long 0x0ac00893\n" // addi a7,zero,172
+    ".long 0x00000073\n" // ecall
+    ".long 0x00c58533\n" // add a0,a1,a2
+    ".long 0x00d50533\n" // add a0,a0,a3
+    ".long 0x00e50533\n" // add a0,a0,a4
+    ".long 0x00f50533\n" // add a0,a0,a5
+    ".long 0x0000700b\n" // riscv polyctrl x86 escape
+    ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+        "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+  result = read_rax();
+  if (result != 20 ||
+      nativecheck_trap_restore_roundtrip_state.trap.source_mode !=
+        POLY_MODE_RAW_RISCV ||
+      (nativecheck_trap_restore_roundtrip_state.trap.flags &
+        POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0 ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.mode !=
+        POLY_MODE_RAW_RISCV ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.flags !=
+        (POLY_TRAP_RESTORE_FLAG_VALID |
+         POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID) ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.riscv_gpr[11] != 2 ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.riscv_gpr[15] != 6 ||
+      nativecheck_trap_restore_roundtrip_state.trap_restore.aarch64_gpr_valid_mask != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly riscv XSAVE trap restore roundtrip result=%llu mode=%u flags=0x%llx restore_mode=%u restore_flags=0x%llx a1=%llu a5=%llu a64mask=0x%llx\n",
+      (unsigned long long) result,
+      nativecheck_trap_restore_roundtrip_state.trap.source_mode,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap.flags,
+      nativecheck_trap_restore_roundtrip_state.trap_restore.mode,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.flags,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.riscv_gpr[11],
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.riscv_gpr[15],
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.aarch64_gpr_valid_mask);
+    return 1;
+  }
+
+  poly_trap_vector_set_value((uint64_t) handler);
 
   asm volatile(
     POLY_OP_ENTER_A64
@@ -7194,6 +7310,13 @@ static int run_poly_state_save_restore_probe(void) {
         sizeof(snapshot.frontend_tls.reserved), "frontend TLS reserved") != 0 ||
       nativecheck_bytes_are_zero(snapshot.landing_policy.reserved,
         sizeof(snapshot.landing_policy.reserved), "landing policy reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.state_key.reserved,
+        sizeof(snapshot.state_key.reserved), "state-key reserved") != 0 ||
+      nativecheck_bytes_are_zero(snapshot.pre_trap_restore_reserved,
+        sizeof(snapshot.pre_trap_restore_reserved),
+        "pre-trap-restore reserved") != 0 ||
+      nativecheck_bytes_are_zero(&snapshot.trap_restore,
+        sizeof(snapshot.trap_restore), "inactive trap-restore") != 0 ||
       nativecheck_bytes_are_zero(snapshot.reserved, sizeof(snapshot.reserved),
         "top-level reserved") != 0) {
     return 1;
@@ -10645,8 +10768,11 @@ int main(void) {
         nativecheck_cpuid_expect("poly CPUID state-key layout",
           POLY_CPUID_BASE + 4, 12,
           poly_cpuid_expected_arch_state_state_key_leaf()) != 0 ||
-        nativecheck_cpuid_expect("poly CPUID reserved layout",
+        nativecheck_cpuid_expect("poly CPUID trap-restore layout",
           POLY_CPUID_BASE + 4, 13,
+          poly_cpuid_expected_arch_state_trap_restore_leaf()) != 0 ||
+        nativecheck_cpuid_expect("poly CPUID reserved layout",
+          POLY_CPUID_BASE + 4, 14,
           poly_cpuid_expected_arch_state_reserved_leaf()) != 0)
       return 1;
     struct poly_cpuid_regs xsave0 = poly_read_cpuid(0x0d, 0);
