@@ -87,7 +87,8 @@ def decode(valid: bool, frontend: int, insn: int, c: dict[str, int]) -> tuple[bo
 
 def canonical(pc: int) -> bool:
     high = (pc >> 48) & 0xFFFF
-    return high == 0 or high == 0xFFFF
+    sign = (pc >> 47) & 1
+    return high == (0xFFFF if sign else 0)
 
 
 def aligned(frontend: int, pc: int) -> bool:

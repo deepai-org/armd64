@@ -22,6 +22,8 @@ silicon prototype.
   geometry, trap packets, transitions, and ABI signatures.
 - `poly_raw_fetch_plan.sv`: raw AArch64/RISC-V fetch geometry for alignment,
   instruction width, instruction bits, and next-PC calculation.
+- `poly_trap_packet_encode.sv`: OS-neutral trap-packet encoder for recoverable
+  foreign exits and monitor-packet address validation.
 - `test_poly_ctrl_decode.py`: static and behavioral consistency test against
   `tools/include/polycpuid.h`.
 - `test_poly_frontend_handoff.py`: transition fault-ordering checks against
@@ -36,6 +38,8 @@ silicon prototype.
   `tools/include/polycpuid.h`.
 - `test_poly_raw_fetch_plan.py`: raw foreign-fetch geometry checks against
   `tools/include/polycpuid.h`.
+- `test_poly_trap_packet_encode.py`: trap-packet layout and monitor-address
+  validation checks against `tools/include/polycpuid.h`.
 
 ## Run
 
@@ -47,6 +51,7 @@ python3 rtl/test_poly_transition_stack.py
 python3 rtl/test_poly_abi_signature_slots.py
 python3 rtl/test_poly_cpuid_rom.py
 python3 rtl/test_poly_raw_fetch_plan.py
+python3 rtl/test_poly_trap_packet_encode.py
 ```
 
 Expected output:
@@ -59,4 +64,5 @@ POLY_RTL_TRANSITION_STACK_OK
 POLY_RTL_ABI_SIGNATURE_SLOTS_OK
 POLY_RTL_CPUID_ROM_OK
 POLY_RTL_RAW_FETCH_PLAN_OK
+POLY_RTL_TRAP_PACKET_ENCODE_OK
 ```

@@ -55,7 +55,8 @@ def parse_sv_localparams(path: Path) -> dict[str, int]:
 
 def canonical(addr: int) -> bool:
     high = (addr >> 48) & 0xFFFF
-    return high == 0 or high == 0xFFFF
+    sign = (addr >> 47) & 1
+    return high == (0xFFFF if sign else 0)
 
 
 def aligned(frontend: int, pc: int) -> bool:
@@ -257,7 +258,7 @@ def main() -> int:
         current=c["POLY_FRONTEND_X86"],
         subop=c["POLY_X86_CTRL_PSWITCH_MODE"],
         target_frontend=c["POLY_FRONTEND_AARCH64"],
-        target_pc=0x0001000000000000,
+        target_pc=0x0000800000000000,
         **{k: v for k, v in base.items() if k != "target_pc"},
     )
     assert bad_pc["error"] and bad_pc["noncanonical"] and not bad_pc["transition"]

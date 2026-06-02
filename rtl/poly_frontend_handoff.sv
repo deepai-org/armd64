@@ -68,7 +68,7 @@ module poly_frontend_handoff (
   logic [1:0] effective_target_frontend;
 
   function automatic logic canonical64(input logic [63:0] addr);
-    return addr[63:48] == 16'h0000 || addr[63:48] == 16'hffff;
+    return addr[63:48] == {16{addr[47]}};
   endfunction
 
   function automatic logic aligned_target(
