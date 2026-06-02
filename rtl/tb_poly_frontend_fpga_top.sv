@@ -32,8 +32,8 @@ module tb_poly_frontend_fpga_top;
   logic raw_branch_taken_i;
   logic [63:0] raw_branch_target_i;
   logic [63:0] raw_data_mem_addr_i;
-  logic raw_memory_resolved_i;
-  logic raw_memory_fault_i;
+  logic raw_data_mem_resp_valid_i;
+  logic raw_data_mem_resp_fault_i;
   logic memory_order_valid_i;
   logic memory_load_i;
   logic memory_store_i;
@@ -106,6 +106,9 @@ module tb_poly_frontend_fpga_top;
   logic [3:0] raw_data_mem_req_bytes_o;
   logic raw_data_mem_req_load_o;
   logic raw_data_mem_req_error_o;
+  logic raw_data_mem_resp_wait_o;
+  logic raw_data_mem_resp_resolved_o;
+  logic raw_data_mem_resp_fault_o;
 
   poly_frontend_fpga_top dut (
     .clk_i(clk_i),
@@ -133,8 +136,8 @@ module tb_poly_frontend_fpga_top;
     .raw_branch_taken_i(raw_branch_taken_i),
     .raw_branch_target_i(raw_branch_target_i),
     .raw_data_mem_addr_i(raw_data_mem_addr_i),
-    .raw_memory_resolved_i(raw_memory_resolved_i),
-    .raw_memory_fault_i(raw_memory_fault_i),
+    .raw_data_mem_resp_valid_i(raw_data_mem_resp_valid_i),
+    .raw_data_mem_resp_fault_i(raw_data_mem_resp_fault_i),
     .memory_order_valid_i(memory_order_valid_i),
     .memory_load_i(memory_load_i),
     .memory_store_i(memory_store_i),
@@ -225,6 +228,11 @@ module tb_poly_frontend_fpga_top;
     .raw_data_mem_req_noncanonical_o(),
     .raw_data_mem_req_align_fault_o(),
     .raw_data_mem_req_range_fault_o(),
+    .raw_data_mem_resp_wait_o(raw_data_mem_resp_wait_o),
+    .raw_data_mem_resp_resolved_o(raw_data_mem_resp_resolved_o),
+    .raw_data_mem_resp_fault_o(raw_data_mem_resp_fault_o),
+    .raw_data_mem_resp_request_fault_o(),
+    .raw_data_mem_resp_memory_fault_o(),
     .trap_mem_write_valid_o(),
     .trap_mem_write_addr_o(),
     .trap_mem_write_bytes_o(),
@@ -275,8 +283,8 @@ module tb_poly_frontend_fpga_top;
       raw_branch_taken_i = 1'b0;
       raw_branch_target_i = 64'd0;
       raw_data_mem_addr_i = 64'd0;
-      raw_memory_resolved_i = 1'b0;
-      raw_memory_fault_i = 1'b0;
+      raw_data_mem_resp_valid_i = 1'b0;
+      raw_data_mem_resp_fault_i = 1'b0;
       memory_order_valid_i = 1'b0;
       memory_load_i = 1'b0;
       memory_store_i = 1'b0;
@@ -399,10 +407,14 @@ module tb_poly_frontend_fpga_top;
       raw_data_mem_req_load_o && raw_data_mem_req_addr_o == 64'h9000 &&
       raw_data_mem_req_bytes_o == 4'd8,
       "fpga top issues raw data-memory request metadata");
-    raw_memory_resolved_i = 1'b1;
+    check(raw_data_mem_resp_wait_o && !raw_data_mem_resp_resolved_o,
+      "fpga top raw load waits for data-memory response");
+    raw_data_mem_resp_valid_i = 1'b1;
     #1;
     check(retire_o && !fault_o && raw_data_mem_valid_o &&
       !raw_data_mem_wait_o, "fpga top raw load retires when data resolves");
+    check(raw_data_mem_resp_resolved_o && !raw_data_mem_resp_fault_o,
+      "fpga top raw load reports resolved response");
     tick();
     clear_inputs();
     #1;

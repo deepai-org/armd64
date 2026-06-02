@@ -27,6 +27,7 @@ POLY_RTL_SV = \
 	rtl/poly_interrupt_boundary.sv \
 	rtl/poly_memory_order.sv \
 	rtl/poly_raw_data_mem_request.sv \
+	rtl/poly_raw_data_mem_response_stage.sv \
 	rtl/poly_raw_insn_decode.sv \
 	rtl/poly_raw_fetch_plan.sv \
 	rtl/poly_raw_fetch_request.sv \
@@ -87,6 +88,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_memory_order_formal.py
 	python3 rtl/test_poly_memory_order_litmus.py
 	python3 rtl/test_poly_raw_data_mem_request.py
+	python3 rtl/test_poly_raw_data_mem_response_stage.py
 	python3 rtl/test_poly_raw_insn_decode.py
 	python3 rtl/test_poly_x86_fetch_stage.py
 	python3 rtl/test_poly_raw_fetch_request.py
@@ -119,6 +121,10 @@ check-poly-rtl-sim:
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_raw_data_mem_request" \
 		rtl/poly_raw_data_mem_request.sv rtl/tb_poly_raw_data_mem_request.sv; \
 	vvp "$$tmp_dir/tb_poly_raw_data_mem_request"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_raw_data_mem_response_stage" \
+		rtl/poly_raw_data_mem_response_stage.sv \
+		rtl/tb_poly_raw_data_mem_response_stage.sv; \
+	vvp "$$tmp_dir/tb_poly_raw_data_mem_response_stage"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_fetch_decode_pipeline" \
 		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
 		rtl/poly_raw_insn_decode.sv \
@@ -201,6 +207,7 @@ check-poly-rtl-sim:
 		rtl/poly_frontend_core.sv rtl/poly_frontend_state.sv \
 		rtl/poly_frontend_stateful_core.sv rtl/poly_frontend_fpga_top.sv \
 		rtl/poly_raw_data_mem_request.sv \
+		rtl/poly_raw_data_mem_response_stage.sv \
 		rtl/tb_poly_frontend_fpga_top.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_fpga_top"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \

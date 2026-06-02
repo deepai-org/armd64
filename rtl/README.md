@@ -49,7 +49,7 @@ silicon prototype.
 - `poly_frontend_fpga_top.sv`: FPGA-facing top that wraps the stateful core and
   converts split x86/raw fetch ports into one tagged instruction-memory bus
   while exposing raw data-memory op metadata and validated raw data-memory
-  request/error sidebands to an external execute/data path.
+  request/response/fault sidebands to an external execute/data path.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -69,6 +69,9 @@ silicon prototype.
 - `poly_raw_data_mem_request.sv`: raw AArch64/RISC-V data-memory request
   validator for execute-produced effective addresses, decoded op kind, and byte
   width, with canonical/range checks and atomic-only alignment faults.
+- `poly_raw_data_mem_response_stage.sv`: raw data-memory response adapter that
+  converts request validation errors and memory response faults into precise
+  execute-stage resolved/fault signals for the frontend core.
 - `poly_raw_insn_decode.sv`: raw AArch64/RISC-V instruction-class decoder that
   emits memory-order, branch/call/return, and trap sidebands for hardware
   policy, plus unconditional direct branch/call target sidebands, without
@@ -126,7 +129,8 @@ silicon prototype.
   and execute-resolved raw branch/data-memory metadata wiring.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
   tagged instruction-memory interface, raw branch/data execute inputs,
-  raw data-memory metadata/request outputs, and absence of OS/runtime policy.
+  raw data-memory metadata/request/response outputs, and absence of OS/runtime
+  policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -146,6 +150,9 @@ silicon prototype.
 - `test_poly_raw_data_mem_request.py`: raw data-memory request checks for
   frontend/op/width validation, canonical/range faults, unaligned scalar access
   pass-through, and atomic alignment faults.
+- `test_poly_raw_data_mem_response_stage.py`: raw data-memory response-stage
+  checks for memory wait, clean completion, request-validation faults, and
+  memory-response faults.
 - `test_poly_raw_insn_decode.py`: raw AArch64/RISC-V instruction-class checks
   for loads, stores, atomics, barriers/fences, calls, returns, traps, and
   unconditional direct branch/call target arithmetic and unresolved conditional
@@ -253,7 +260,7 @@ POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_SYNTH_OK
-POLY_RTL_FPGA_RESOURCES cells=6842 estimated_lcs=3165
+POLY_RTL_FPGA_RESOURCES cells=6847 estimated_lcs=3168
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK

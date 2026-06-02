@@ -35,8 +35,8 @@ module poly_frontend_fpga_top (
     input  logic        raw_branch_taken_i,
     input  logic [63:0] raw_branch_target_i,
     input  logic [63:0] raw_data_mem_addr_i,
-    input  logic        raw_memory_resolved_i,
-    input  logic        raw_memory_fault_i,
+    input  logic        raw_data_mem_resp_valid_i,
+    input  logic        raw_data_mem_resp_fault_i,
     input  logic        memory_order_valid_i,
     input  logic        memory_load_i,
     input  logic        memory_store_i,
@@ -138,6 +138,11 @@ module poly_frontend_fpga_top (
     output logic        raw_data_mem_req_noncanonical_o,
     output logic        raw_data_mem_req_align_fault_o,
     output logic        raw_data_mem_req_range_fault_o,
+    output logic        raw_data_mem_resp_wait_o,
+    output logic        raw_data_mem_resp_resolved_o,
+    output logic        raw_data_mem_resp_fault_o,
+    output logic        raw_data_mem_resp_request_fault_o,
+    output logic        raw_data_mem_resp_memory_fault_o,
 
     output logic        trap_mem_write_valid_o,
     output logic [63:0] trap_mem_write_addr_o,
@@ -180,6 +185,21 @@ module poly_frontend_fpga_top (
   logic raw_data_mem_store;
   logic raw_data_mem_atomic;
   logic [3:0] raw_data_mem_access_bytes;
+  logic raw_data_mem_req_valid;
+  logic [63:0] raw_data_mem_req_addr;
+  logic [3:0] raw_data_mem_req_bytes;
+  logic raw_data_mem_req_load;
+  logic raw_data_mem_req_store;
+  logic raw_data_mem_req_atomic;
+  logic raw_data_mem_req_error;
+  logic raw_data_mem_req_invalid_frontend;
+  logic raw_data_mem_req_invalid_op;
+  logic raw_data_mem_req_invalid_width;
+  logic raw_data_mem_req_noncanonical;
+  logic raw_data_mem_req_align_fault;
+  logic raw_data_mem_req_range_fault;
+  logic raw_memory_resolved;
+  logic raw_memory_fault;
   logic x86_resp_valid;
   logic raw_resp_valid;
   logic raw_resp_frontend;
@@ -223,8 +243,8 @@ module poly_frontend_fpga_top (
     .raw_branch_resolved_i(raw_branch_resolved_i),
     .raw_branch_taken_i(raw_branch_taken_i),
     .raw_branch_target_i(raw_branch_target_i),
-    .raw_memory_resolved_i(raw_memory_resolved_i),
-    .raw_memory_fault_i(raw_memory_fault_i),
+    .raw_memory_resolved_i(raw_memory_resolved),
+    .raw_memory_fault_i(raw_memory_fault),
     .memory_order_valid_i(memory_order_valid_i),
     .memory_load_i(memory_load_i),
     .memory_store_i(memory_store_i),
@@ -436,6 +456,21 @@ module poly_frontend_fpga_top (
   assign raw_data_mem_store_o = raw_data_mem_store;
   assign raw_data_mem_atomic_o = raw_data_mem_atomic;
   assign raw_data_mem_access_bytes_o = raw_data_mem_access_bytes;
+  assign raw_data_mem_req_valid_o = raw_data_mem_req_valid;
+  assign raw_data_mem_req_addr_o = raw_data_mem_req_addr;
+  assign raw_data_mem_req_bytes_o = raw_data_mem_req_bytes;
+  assign raw_data_mem_req_load_o = raw_data_mem_req_load;
+  assign raw_data_mem_req_store_o = raw_data_mem_req_store;
+  assign raw_data_mem_req_atomic_o = raw_data_mem_req_atomic;
+  assign raw_data_mem_req_error_o = raw_data_mem_req_error;
+  assign raw_data_mem_req_invalid_frontend_o = raw_data_mem_req_invalid_frontend;
+  assign raw_data_mem_req_invalid_op_o = raw_data_mem_req_invalid_op;
+  assign raw_data_mem_req_invalid_width_o = raw_data_mem_req_invalid_width;
+  assign raw_data_mem_req_noncanonical_o = raw_data_mem_req_noncanonical;
+  assign raw_data_mem_req_align_fault_o = raw_data_mem_req_align_fault;
+  assign raw_data_mem_req_range_fault_o = raw_data_mem_req_range_fault;
+  assign raw_data_mem_resp_resolved_o = raw_memory_resolved;
+  assign raw_data_mem_resp_fault_o = raw_memory_fault;
 
   poly_raw_data_mem_request raw_data_mem_request (
     .valid_i(raw_data_mem_valid),
@@ -445,18 +480,31 @@ module poly_frontend_fpga_top (
     .store_i(raw_data_mem_store),
     .atomic_i(raw_data_mem_atomic),
     .access_bytes_i(raw_data_mem_access_bytes),
-    .request_valid_o(raw_data_mem_req_valid_o),
-    .request_addr_o(raw_data_mem_req_addr_o),
-    .request_bytes_o(raw_data_mem_req_bytes_o),
-    .request_load_o(raw_data_mem_req_load_o),
-    .request_store_o(raw_data_mem_req_store_o),
-    .request_atomic_o(raw_data_mem_req_atomic_o),
-    .error_o(raw_data_mem_req_error_o),
-    .invalid_frontend_o(raw_data_mem_req_invalid_frontend_o),
-    .invalid_op_o(raw_data_mem_req_invalid_op_o),
-    .invalid_width_o(raw_data_mem_req_invalid_width_o),
-    .noncanonical_addr_o(raw_data_mem_req_noncanonical_o),
-    .align_fault_o(raw_data_mem_req_align_fault_o),
-    .range_fault_o(raw_data_mem_req_range_fault_o)
+    .request_valid_o(raw_data_mem_req_valid),
+    .request_addr_o(raw_data_mem_req_addr),
+    .request_bytes_o(raw_data_mem_req_bytes),
+    .request_load_o(raw_data_mem_req_load),
+    .request_store_o(raw_data_mem_req_store),
+    .request_atomic_o(raw_data_mem_req_atomic),
+    .error_o(raw_data_mem_req_error),
+    .invalid_frontend_o(raw_data_mem_req_invalid_frontend),
+    .invalid_op_o(raw_data_mem_req_invalid_op),
+    .invalid_width_o(raw_data_mem_req_invalid_width),
+    .noncanonical_addr_o(raw_data_mem_req_noncanonical),
+    .align_fault_o(raw_data_mem_req_align_fault),
+    .range_fault_o(raw_data_mem_req_range_fault)
+  );
+
+  poly_raw_data_mem_response_stage raw_data_mem_response_stage (
+    .valid_i(raw_data_mem_valid),
+    .request_valid_i(raw_data_mem_req_valid),
+    .request_error_i(raw_data_mem_req_error),
+    .mem_resp_valid_i(raw_data_mem_resp_valid_i),
+    .mem_resp_fault_i(raw_data_mem_resp_fault_i),
+    .wait_response_o(raw_data_mem_resp_wait_o),
+    .resolved_o(raw_memory_resolved),
+    .fault_o(raw_memory_fault),
+    .request_fault_o(raw_data_mem_resp_request_fault_o),
+    .memory_fault_o(raw_data_mem_resp_memory_fault_o)
   );
 endmodule
