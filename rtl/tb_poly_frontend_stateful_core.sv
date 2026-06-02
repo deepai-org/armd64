@@ -29,6 +29,8 @@ module tb_poly_frontend_stateful_core;
   logic raw_branch_resolved_i;
   logic raw_branch_taken_i;
   logic [63:0] raw_branch_target_i;
+  logic raw_memory_resolved_i;
+  logic raw_memory_fault_i;
   logic memory_order_valid_i;
   logic memory_load_i;
   logic memory_store_i;
@@ -131,6 +133,8 @@ module tb_poly_frontend_stateful_core;
     .raw_branch_resolved_i(raw_branch_resolved_i),
     .raw_branch_taken_i(raw_branch_taken_i),
     .raw_branch_target_i(raw_branch_target_i),
+    .raw_memory_resolved_i(raw_memory_resolved_i),
+    .raw_memory_fault_i(raw_memory_fault_i),
     .memory_order_valid_i(memory_order_valid_i),
     .memory_load_i(memory_load_i),
     .memory_store_i(memory_store_i),
@@ -357,6 +361,8 @@ module tb_poly_frontend_stateful_core;
       raw_branch_resolved_i = 1'b0;
       raw_branch_taken_i = 1'b0;
       raw_branch_target_i = 64'd0;
+      raw_memory_resolved_i = 1'b0;
+      raw_memory_fault_i = 1'b0;
       memory_order_valid_i = 1'b0;
       memory_load_i = 1'b0;
       memory_store_i = 1'b0;

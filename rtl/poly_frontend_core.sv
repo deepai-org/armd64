@@ -28,6 +28,8 @@ module poly_frontend_core (
     input  logic        raw_branch_resolved_i,
     input  logic        raw_branch_taken_i,
     input  logic [63:0] raw_branch_target_i,
+    input  logic        raw_memory_resolved_i,
+    input  logic        raw_memory_fault_i,
     input  logic        memory_order_valid_i,
     input  logic        memory_load_i,
     input  logic        memory_store_i,
@@ -290,6 +292,9 @@ module poly_frontend_core (
   logic raw_resolved_branch_target_invalid;
   logic raw_commit_branch_target_valid;
   logic [63:0] raw_commit_branch_target;
+  logic raw_memory_access;
+  logic raw_memory_execute_wait;
+  logic raw_memory_execute_fault;
   logic effective_memory_order_valid;
   logic effective_memory_load;
   logic effective_memory_store;
@@ -342,10 +347,11 @@ module poly_frontend_core (
   assign return_recover_missing_transition_o = return_missing_transition_raw;
   assign execute_ready =
     (!effective_memory_order_valid || memory_retire_allowed_raw) &&
-    !raw_unresolved_branch_wait;
+    !raw_unresolved_branch_wait &&
+    !raw_memory_execute_wait;
   assign execute_fault =
     execute_fault_i || memory_fault_o || interrupt_error_o || trap_fault_o ||
-    raw_resolved_branch_target_invalid;
+    raw_resolved_branch_target_invalid || raw_memory_execute_fault;
   assign memory_retire_allowed_o = memory_retire_allowed_raw;
   assign memory_enqueue_store_o = retire_o && memory_enqueue_store_raw;
   assign memory_barrier_noop_o = retire_o && memory_barrier_noop_raw;
@@ -404,6 +410,12 @@ module poly_frontend_core (
     raw_branch_target_valid || raw_resolved_branch_target_valid;
   assign raw_commit_branch_target =
     raw_branch_target_valid ? raw_branch_target : raw_branch_target_i;
+  assign raw_memory_access =
+    raw_memory_order_valid &&
+    (raw_memory_load || raw_memory_store || raw_memory_atomic);
+  assign raw_memory_execute_wait =
+    raw_memory_access && !raw_memory_resolved_i && !raw_memory_fault_i;
+  assign raw_memory_execute_fault = raw_memory_access && raw_memory_fault_i;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),

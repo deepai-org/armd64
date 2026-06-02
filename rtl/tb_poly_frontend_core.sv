@@ -31,6 +31,8 @@ module tb_poly_frontend_core;
   logic raw_branch_resolved_i;
   logic raw_branch_taken_i;
   logic [63:0] raw_branch_target_i;
+  logic raw_memory_resolved_i;
+  logic raw_memory_fault_i;
   logic memory_order_valid_i;
   logic memory_load_i;
   logic memory_store_i;
@@ -154,6 +156,8 @@ module tb_poly_frontend_core;
     .raw_branch_resolved_i(raw_branch_resolved_i),
     .raw_branch_taken_i(raw_branch_taken_i),
     .raw_branch_target_i(raw_branch_target_i),
+    .raw_memory_resolved_i(raw_memory_resolved_i),
+    .raw_memory_fault_i(raw_memory_fault_i),
     .memory_order_valid_i(memory_order_valid_i),
     .memory_load_i(memory_load_i),
     .memory_store_i(memory_store_i),
@@ -369,6 +373,8 @@ module tb_poly_frontend_core;
       raw_branch_resolved_i = 1'b0;
       raw_branch_taken_i = 1'b0;
       raw_branch_target_i = 64'd0;
+      raw_memory_resolved_i = 1'b0;
+      raw_memory_fault_i = 1'b0;
       memory_order_valid_i = 1'b0;
       memory_load_i = 1'b0;
       memory_store_i = 1'b0;
@@ -553,6 +559,7 @@ module tb_poly_frontend_core;
     pc_i = 64'h4000;
     raw_mem_resp_valid_i = 1'b1;
     raw_mem_resp_word_i = 32'hf9000000;
+    raw_memory_resolved_i = 1'b1;
     store_buffer_full_i = 1'b1;
     #1;
     check(raw_mem_req_valid_o, "raw store issues raw fetch");
@@ -566,6 +573,27 @@ module tb_poly_frontend_core;
     check(memory_retire_allowed_o && retire_o && !fault_o,
       "decoded raw store retires when store buffer has space");
     check(memory_enqueue_store_o, "decoded raw store enqueues store on retire");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend_i = POLY_FRONTEND_AARCH64;
+    pc_i = 64'h5000;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'hf9400000;
+    #1;
+    check(wait_execute_o && !retire_o && !fault_o,
+      "decoded raw load waits for data-memory resolution");
+
+    raw_memory_resolved_i = 1'b1;
+    #1;
+    check(memory_retire_allowed_o && retire_o && !fault_o,
+      "decoded raw load retires after data-memory resolution");
+
+    raw_memory_resolved_i = 1'b0;
+    raw_memory_fault_i = 1'b1;
+    #1;
+    check(fault_o && !retire_o,
+      "decoded raw load data-memory fault blocks retirement");
 
     clear_inputs();
     valid_i = 1'b1;
