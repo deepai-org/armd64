@@ -1,0 +1,7 @@
+# poly payload v1
+arch=riscv
+elf=/usr/lib/polyapps/riscv-compressed-fp.elf
+expected=64
+syscall_expected=2
+break_id=0
+break_expected=0x4c000200
