@@ -104,7 +104,10 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_transition_stack"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_abi_signature_slots" \
 		rtl/poly_abi_signature_slots.sv rtl/tb_poly_abi_signature_slots.sv; \
-	vvp "$$tmp_dir/tb_poly_abi_signature_slots"
+	vvp "$$tmp_dir/tb_poly_abi_signature_slots"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_interrupt_boundary" \
+		rtl/poly_interrupt_boundary.sv rtl/tb_poly_interrupt_boundary.sv; \
+	vvp "$$tmp_dir/tb_poly_interrupt_boundary"
 
 check-poly-rtl-verilator:
 	verilator $(POLY_RTL_VERILATOR_FLAGS) $(POLY_RTL_SV)
