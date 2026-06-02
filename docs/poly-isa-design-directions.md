@@ -101,10 +101,12 @@ policy. The kernel still owns hard page faults, signals, scheduling,
 interrupts, and real syscalls issued by the monitor.
 
 Trap-vector and monitor-packet addresses are architectural control addresses.
-Non-canonical values are rejected by the control instruction or XSAVE import
-before mutating state, so a bad monitor setup cannot fail later during an
-unrelated frontend trap. Trap vectors must also satisfy the target frontend's
-fetch alignment, and monitor packets must be qword-aligned.
+Non-canonical values, invalid frontend alignment, unaligned monitor packets,
+and packet ranges that cross the canonical boundary are rejected by the control
+instruction or XSAVE import before mutating state. The CPU does not pre-walk or
+pin monitor-packet pages; packet delivery writes through normal virtual-memory
+semantics, so missing permissions or unmapped pages fault at the packet write
+like a hardware store.
 
 Frontend transition targets and `PCALL` return addresses follow the same rule:
 non-canonical control-flow addresses are rejected before changing frontend,
