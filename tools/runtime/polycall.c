@@ -205,6 +205,7 @@ enum {
   RELOC_BASE_ROOT_IFUNC_FP64 = 20,
   RELOC_BASE_ROOT_CROSS_STUB_FP32 = 21,
   RELOC_BASE_ROOT_IFUNC_FP32 = 22,
+  RELOC_BASE_AARCH64_TLSDESC_HELPER = 23,
   RELOC_BASE_DEP_LOAD_BIAS = 100,
   RELOC_BASE_DEP_COPY = 200,
   RELOC_BASE_DEP_IFUNC = 300,
@@ -4006,6 +4007,22 @@ static void record_cross_stub_stats(struct poly_cross_stub_stats *stats,
   }
 }
 
+static int emit_aarch64_tlsdesc_helper_stub(uint8_t *stubs,
+    size_t stub_limit, size_t *stub_offset, uint64_t *helper_addr) {
+  if (*helper_addr != 0)
+    return 0;
+  if (align_stub_offset(stub_offset, 4, stub_limit) < 0 ||
+      *stub_offset > stub_limit ||
+      stub_limit - *stub_offset < 8)
+    return -1;
+
+  const size_t start = *stub_offset;
+  *helper_addr = (uint64_t) (uintptr_t) (stubs + start);
+  emit_u32(stubs, stub_offset, 0xf9400400U); // ldr x0, [x0, #8]
+  emit_u32(stubs, stub_offset, 0xd65f03c0U); // ret
+  return 0;
+}
+
 static int emit_cross_isa_call_stub(uint8_t *stubs, size_t stub_limit,
     size_t *stub_offset, int caller_arch, int callee_arch, uint64_t target,
     int bridge_kind, uint32_t signature_slot,
@@ -7357,7 +7374,6 @@ static int process_rela_table(struct poly_program *program,
       continue;
     }
     if (program->arch == POLY_ARCH_AARCH64 && reloc_type == R_AARCH64_TLSDESC) {
-      program->needs_x86_import = 1;
       if (!dynsym.symbols &&
           load_dynsym_from_dynamic(program, dyn, dyn_count, &dynsym) < 0 &&
           load_dynsym_from_sections(data, size, ehdr, &dynsym) < 0) {
@@ -7378,9 +7394,8 @@ static int process_rela_table(struct poly_program *program,
           program->path);
         return -1;
       }
-      if (append_dynamic_reloc(program, relocation_offset,
-            POLY_IMPORT_FUNC_AARCH64_TLSDESC,
-            RELOC_BASE_X86_DIRECT_IMPORT_STUB) < 0 ||
+      if (append_dynamic_reloc(program, relocation_offset, 0,
+            RELOC_BASE_AARCH64_TLSDESC_HELPER) < 0 ||
           append_dynamic_reloc(program, relocation_offset + 8,
             tls_offset + (uint64_t) rela[n].r_addend,
             tls_base_kind) < 0)
@@ -9377,6 +9392,7 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
     callee_save_area + callee_save_area_size;
   uint8_t *cross_stubs = code + cross_stub_base_offset;
   size_t cross_stub_offset = 0;
+  uint64_t aarch64_tlsdesc_helper_stub = 0;
   const uint64_t foreign_target = (uint64_t) (uintptr_t) (foreign + program->entry_offset);
   const uint64_t stub_state_key = polycall_use_explicit_state_key ?
     (uint64_t) (uintptr_t) &poly_state_key_anchor : 0;
@@ -9664,6 +9680,24 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
         reloc_base = dep_load_bias[d];
       else if (dep->relocs[r].base_kind == RELOC_BASE_ROOT_LOAD_BIAS)
         reloc_base = root_load_bias;
+      else if (dep->relocs[r].base_kind ==
+          RELOC_BASE_AARCH64_TLSDESC_HELPER) {
+        if (emit_aarch64_tlsdesc_helper_stub(cross_stubs, cross_stub_size,
+              &cross_stub_offset, &aarch64_tlsdesc_helper_stub) < 0) {
+          fprintf(stderr, "POLYCALL_FAIL: dependency AArch64 TLSDESC helper overflow: %s\n",
+            dep->path);
+          unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+          if (tls)
+            munmap(tls, tls_size);
+          munmap(import_page, 4096);
+          munmap(foreign, foreign_size);
+          munmap(code, code_size);
+          return -1;
+        }
+        write_le64(dep_foreign[d] + dep->relocs[r].offset,
+          aarch64_tlsdesc_helper_stub);
+        continue;
+      }
       else if (reloc_base_is_root_cross_stub(dep->relocs[r].base_kind)) {
         uint64_t stub_addr = 0;
         if (emit_cross_isa_call_stub(cross_stubs, cross_stub_size,
@@ -9934,6 +9968,24 @@ static int emit_and_call(const struct poly_program *program, int call_kind,
       reloc_base = load_bias;
     else if (program->relocs[n].base_kind == RELOC_BASE_IMPORT_PAGE)
       reloc_base = (uint64_t) (uintptr_t) import_page;
+    else if (program->relocs[n].base_kind ==
+        RELOC_BASE_AARCH64_TLSDESC_HELPER) {
+      if (emit_aarch64_tlsdesc_helper_stub(cross_stubs, cross_stub_size,
+            &cross_stub_offset, &aarch64_tlsdesc_helper_stub) < 0) {
+        fprintf(stderr, "POLYCALL_FAIL: AArch64 TLSDESC helper overflow: %s\n",
+          program->path);
+        unmap_dependency_images(dep_foreign, dep_sizes, program->dep_count);
+        if (tls)
+          munmap(tls, tls_size);
+        munmap(import_page, 4096);
+        munmap(foreign, foreign_size);
+        munmap(code, code_size);
+        return -1;
+      }
+      write_le64(foreign + program->relocs[n].offset,
+        aarch64_tlsdesc_helper_stub);
+      continue;
+    }
     else if (program->relocs[n].base_kind ==
         RELOC_BASE_X86_DIRECT_IMPORT_STUB) {
       const uint64_t target = x86_descriptor_target_for_import_id(program->arch,
