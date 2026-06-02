@@ -67,6 +67,8 @@ module poly_frontend_fetch_decode_pipeline (
   logic raw_insn_valid;
   logic [31:0] raw_insn;
   logic raw_fetch_fault;
+  logic [63:0] fetch_stage_fallthrough_pc;
+  logic [63:0] dispatch_fallthrough_pc;
 
   always_comb begin
     x86_frontend = frontend_i == POLY_FRONTEND_X86;
@@ -139,7 +141,8 @@ module poly_frontend_fetch_decode_pipeline (
       (x86_frontend && x86_fetch_fault) ||
       (raw_frontend && raw_fetch_fault);
     fetch_word_o = raw_frontend ? raw_insn : x86_insn;
-    fetch_fallthrough_pc_o = x86_frontend ? x86_fallthrough_pc : 64'd0;
+    fetch_stage_fallthrough_pc = x86_frontend ? x86_fallthrough_pc : 64'd0;
+    fetch_fallthrough_pc_o = dispatch_fallthrough_pc;
     x86_request_error_o = x86_noncanonical_pc_o || x86_range_fault_o;
     invalid_frontend_o =
       fetch_issue_invalid_frontend || raw_invalid_frontend;
@@ -150,12 +153,12 @@ module poly_frontend_fetch_decode_pipeline (
     .frontend_i(frontend_i),
     .pc_i(pc_i),
     .fetch_word_i(fetch_word_o),
-    .x86_fallthrough_pc_i(fetch_fallthrough_pc_o),
+    .x86_fallthrough_pc_i(fetch_stage_fallthrough_pc),
     .raw_fetch_o(),
     .fetch_addr_o(),
     .fetch_bytes_o(),
     .insn_o(),
-    .fallthrough_pc_o(),
+    .fallthrough_pc_o(dispatch_fallthrough_pc),
     .decode_valid_o(decode_valid_o),
     .poly_ctrl_o(poly_ctrl_o),
     .subop_o(subop_o),

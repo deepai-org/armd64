@@ -124,6 +124,16 @@ check-poly-rtl-sim:
 		rtl/poly_frontend_handoff.sv rtl/poly_frontend_predecoded_retire.sv \
 		rtl/tb_poly_frontend_predecoded_retire.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_predecoded_retire"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_memory_retire" \
+		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_fetch_request.sv rtl/poly_raw_fetch_response_stage.sv \
+		rtl/poly_frontend_fetch_issue.sv rtl/poly_x86_fetch_stage.sv \
+		rtl/poly_frontend_decode_dispatch.sv \
+		rtl/poly_frontend_fetch_decode_pipeline.sv \
+		rtl/poly_frontend_handoff.sv rtl/poly_frontend_predecoded_retire.sv \
+		rtl/poly_frontend_memory_retire.sv \
+		rtl/tb_poly_frontend_memory_retire.sv; \
+	vvp "$$tmp_dir/tb_poly_frontend_memory_retire"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
 	vvp "$$tmp_dir/tb_poly_frontend_state"; \
