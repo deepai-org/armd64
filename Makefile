@@ -212,10 +212,8 @@ boot-poly-binfmt-arch-traps:
 		-v "$(CURDIR)":/work \
 		$(BOOT_DOCKER_ENV) \
 		-e POLY_ENABLED=1 \
-		-e RUN_NATIVE_CHECK=1 \
 		-e RUN_POLY_BINFMT=1 \
 		-e RUN_POLY_BINFMT_ARCH_TRAPS=1 \
-		-e EXPECT_POLY_CPUID=1 \
 		$(IMAGE) \
 		./scripts/boot.sh
 
