@@ -1814,6 +1814,49 @@ static void child_expect_riscv_ecall_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_no_vector_trap_return_rejected(void) {
+  struct sigaction action;
+  struct sigaction old_action;
+  volatile sig_atomic_t stage = 0;
+
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = nativecheck_sigill_handler;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(SIGILL, &action, &old_action) != 0)
+    _exit(91);
+
+  nativecheck_expect_sigill = 1;
+  if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
+    stage = 1;
+    poly_trap_vector_set_value(0);
+    poly_trap_vector_mode_set_value(POLY_MODE_X86);
+    asm volatile(
+      POLY_OP_ENTER_A64
+      ".long 0xd2801588\n" // movz x8,#172
+      ".long 0xd40000e1\n" // svc #7
+      ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
+      ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+          "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
+    _exit(92);
+  }
+  if (stage != 1)
+    _exit(93);
+
+  if (sigsetjmp(nativecheck_sigill_env, 1) == 0) {
+    stage = 2;
+    asm volatile(POLY_OP_TRAP_RETURN ::: "rax", "r15", "memory");
+    _exit(94);
+  }
+  if (stage != 2)
+    _exit(95);
+
+  nativecheck_expect_sigill = 0;
+  if (sigaction(SIGILL, &old_action, 0) != 0)
+    _exit(96);
+  _exit(0);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_aarch64_brk_signal(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -3849,6 +3892,9 @@ static int run_poly_no_vector_signal_probe(void) {
     return 1;
   if (expect_child_signal("poly riscv ecall no-vector", SIGILL,
         child_expect_riscv_ecall_signal) != 0)
+    return 1;
+  if (expect_child_exit("poly no-vector trap return rejected", 0,
+        child_expect_no_vector_trap_return_rejected) != 0)
     return 1;
   if (expect_child_signal("poly aarch64 brk no-vector", SIGTRAP,
         child_expect_aarch64_brk_signal) != 0)
