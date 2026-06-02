@@ -3348,6 +3348,34 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 ABI signature mismatched register map accepted\n");
     return 1;
   }
+  if (poly_abi_signature_set(6,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32) != 0 ||
+      poly_abi_signature_get(6) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32 ||
+      poly_abi_signature_set_raw(7,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32 |
+        ((uint64_t) POLY_ABI_REGISTER_MAP_NATIVE_COMPACT_F32_U32 << 32)) !=
+        0 ||
+      poly_abi_signature_get(7) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_F32_U32) {
+    fprintf(stderr, "POLY_PROBE_FAIL: compact ABI signature register-map programming mismatch\n");
+    return 1;
+  }
+  if (poly_abi_signature_set_raw(6,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32 |
+        ((uint64_t) POLY_ABI_REGISTER_MAP_NATIVE_COMPACT_F32_U32 << 32)) !=
+        POLY_ERR_INVAL ||
+      poly_abi_signature_get(6) !=
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_COMPACT_U32_F32) {
+    fprintf(stderr, "POLY_PROBE_FAIL: compact ABI signature mismatched register map accepted\n");
+    return 1;
+  }
+  if (poly_abi_signature_set(6, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0 ||
+      poly_abi_signature_set(7,
+        POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS_I128) != 0) {
+    fprintf(stderr, "POLY_PROBE_FAIL: compact ABI signature cleanup failed\n");
+    return 1;
+  }
   aarch64_abi_signature_control_probe();
   if (read_rax() != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
