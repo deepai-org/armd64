@@ -1538,6 +1538,66 @@ uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_u64(uint8_t *dest,
     (const char *) format, (const char *) text, left, right);
 }
 
+static int poly_format_has_fp_conversion(const uint8_t *format)
+{
+  const char *p = (const char *) format;
+  while (*p) {
+    if (*p++ != '%')
+      continue;
+    if (*p == '%') {
+      p++;
+      continue;
+    }
+    while (*p == '-' || *p == '+' || *p == ' ' || *p == '#' || *p == '0')
+      p++;
+    while (*p >= '0' && *p <= '9')
+      p++;
+    if (*p == '.') {
+      p++;
+      while (*p >= '0' && *p <= '9')
+        p++;
+    }
+    while (*p == 'h' || *p == 'l' || *p == 'L' || *p == 'j' ||
+        *p == 'z' || *p == 't')
+      p++;
+    if (*p == 'a' || *p == 'A' || *p == 'e' || *p == 'E' ||
+        *p == 'f' || *p == 'F' || *p == 'g' || *p == 'G')
+      return 1;
+    if (*p)
+      p++;
+  }
+  return 0;
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_aarch64(uint8_t *dest,
+    uint64_t size, const uint8_t *format, const uint8_t *text,
+    uint64_t left, double fp, uint64_t right)
+{
+  if (poly_format_has_fp_conversion(format)) {
+    return (uint64_t) snprintf((char *) dest, (size_t) size,
+      (const char *) format, (const char *) text, left, fp);
+  }
+  return (uint64_t) snprintf((char *) dest, (size_t) size,
+    (const char *) format, (const char *) text, left, right);
+}
+
+uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_riscv(uint8_t *dest,
+    uint64_t size, const uint8_t *format, const uint8_t *text,
+    uint64_t left, uint64_t middle)
+{
+  if (poly_format_has_fp_conversion(format)) {
+    union {
+      uint64_t u;
+      double d;
+    } fp;
+    fp.u = middle;
+    return (uint64_t) snprintf((char *) dest, (size_t) size,
+      (const char *) format, (const char *) text, left, fp.d);
+  }
+  return (uint64_t) snprintf((char *) dest, (size_t) size,
+    (const char *) format, (const char *) text, left, middle);
+}
+
 double POLY_HOST_HELPER poly_host_x86_strtod(const uint8_t *text,
     uint8_t **endptr)
 {

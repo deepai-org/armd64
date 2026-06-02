@@ -1073,6 +1073,12 @@ extern uint64_t poly_host_x86_strtoull(const uint8_t *text, uint8_t **endptr,
 extern uint64_t poly_host_x86_snprintf_u64(uint8_t *dest, uint64_t size,
     const uint8_t *format, const uint8_t *text, uint64_t left,
     uint64_t right);
+extern uint64_t poly_host_x86_snprintf_aarch64(uint8_t *dest, uint64_t size,
+    const uint8_t *format, const uint8_t *text, uint64_t left,
+    double fp, uint64_t right);
+extern uint64_t poly_host_x86_snprintf_riscv(uint8_t *dest, uint64_t size,
+    const uint8_t *format, const uint8_t *text, uint64_t left,
+    uint64_t middle);
 extern double poly_host_x86_strtod(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_strtof(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_fabsf(float value);
@@ -1851,6 +1857,10 @@ static uint64_t x86_descriptor_target_for_import_id(int arch,
     case POLY_IMPORT_FUNC_STRTOULL:
       return (uint64_t) (uintptr_t) poly_host_x86_strtoull;
     case POLY_IMPORT_FUNC_SNPRINTF:
+      if (arch == POLY_ARCH_AARCH64)
+        return (uint64_t) (uintptr_t) poly_host_x86_snprintf_aarch64;
+      if (arch == POLY_ARCH_RISCV)
+        return (uint64_t) (uintptr_t) poly_host_x86_snprintf_riscv;
       return (uint64_t) (uintptr_t) poly_host_x86_snprintf_u64;
     case POLY_IMPORT_FUNC_STRTOD:
       return (uint64_t) (uintptr_t) poly_host_x86_strtod;
