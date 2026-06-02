@@ -47,6 +47,11 @@ an out-of-order CPU this can be implemented in rename by rebinding
 architectural names to existing physical registers; no data moves through
 execution units and no memory is touched.
 
+Signature slots are architectural `kind | (register_map << 32)` values.
+`ABI_SIGNATURE_GET` returns that full encoded value, including the TLS-base map
+flag when present. This keeps software, Bochs, RTL, and a future rename-stage
+RAT implementation aligned on the exact register-map selected by `PCALL`.
+
 Example x86_64 SysV to AArch64 AAPCS64 slot:
 
 | Source | Target |

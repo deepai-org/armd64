@@ -274,13 +274,20 @@ static inline uint64_t poly_abi_signature_set_raw(uint64_t slot,
   return rax;
 }
 
-static inline uint64_t poly_abi_signature_get(uint64_t slot) {
+static inline uint64_t poly_abi_signature_get_raw(uint64_t slot) {
   uint64_t rax = slot;
   asm volatile(POLY_OP_ABI_SIGNATURE_GET
       : "+a"(rax)
       :
       : "memory");
   return rax;
+}
+
+static inline uint64_t poly_abi_signature_get(uint64_t slot) {
+  const uint64_t raw = poly_abi_signature_get_raw(slot);
+  if ((raw >> 32) == UINT32_MAX)
+    return raw;
+  return (uint32_t) raw;
 }
 
 static inline uint64_t poly_landing_policy_set(uint64_t policy) {

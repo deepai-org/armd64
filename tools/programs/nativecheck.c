@@ -933,13 +933,21 @@ poly_abi_signature_set_raw(uint64_t slot, uint64_t value) {
 }
 
 static __attribute__((noinline)) uint64_t
-poly_abi_signature_get(uint64_t slot) {
+poly_abi_signature_get_raw(uint64_t slot) {
   uint64_t rax = slot;
   asm volatile(POLY_OP_ABI_SIGNATURE_GET
       : "+a"(rax)
       :
       : "r15", "memory");
   return rax;
+}
+
+static __attribute__((noinline)) uint64_t
+poly_abi_signature_get(uint64_t slot) {
+  const uint64_t raw = poly_abi_signature_get_raw(slot);
+  if ((raw >> 32) == UINT32_MAX)
+    return raw;
+  return (uint32_t) raw;
 }
 
 static __attribute__((noinline)) void
@@ -10482,6 +10490,28 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
 
+  const uint64_t native_tls_signature =
+    poly_abi_signature_control_value_with_flags(
+      POLY_ABI_SIGNATURE_KIND_NATIVE_REGS,
+      POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE);
+  result = poly_abi_signature_set_raw(5, native_tls_signature);
+  if (result != 0 ||
+      poly_abi_signature_get_raw(5) != native_tls_signature ||
+      poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly x86 ABI signature raw get mismatch result=%llu raw=0x%llx kind=%llu expected_raw=0x%llx\n",
+      (unsigned long long) result,
+      (unsigned long long) poly_abi_signature_get_raw(5),
+      (unsigned long long) poly_abi_signature_get(5),
+      (unsigned long long) native_tls_signature);
+    return 1;
+  }
+  if (poly_abi_signature_set(5, POLY_ABI_SIGNATURE_KIND_EXCHANGE) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly x86 signature raw-get cleanup failed\n",
+      stderr);
+    return 1;
+  }
+
   result = poly_abi_signature_set(POLY_ABI_SIGNATURE_SLOT_COUNT,
     POLY_ABI_SIGNATURE_KIND_NATIVE_REGS);
   if (result != (uint64_t) -EINVAL ||
@@ -10525,7 +10555,8 @@ static int run_poly_foreign_signature_pcall_probe(void) {
   }
 
   result = nativecheck_aarch64_abi_signature_set_get_slot5();
-  if (result != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
+  if (result != poly_abi_signature_control_value(
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly aarch64 ABI signature control mismatch result=%llu x86_get=%llu\n",
@@ -10539,7 +10570,8 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
   result = nativecheck_riscv_abi_signature_set_get_slot5();
-  if (result != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS ||
+  if (result != poly_abi_signature_control_value(
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv ABI signature control mismatch result=%llu x86_get=%llu\n",
@@ -10558,7 +10590,8 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
   result = nativecheck_aarch64_abi_signature_set_get_slot6_i128();
-  if (result != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128 ||
+  if (result != poly_abi_signature_control_value(
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) ||
       poly_abi_signature_get(6) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly aarch64 ABI signature i128 control mismatch result=%llu x86_get=%llu\n",
@@ -10572,7 +10605,8 @@ static int run_poly_foreign_signature_pcall_probe(void) {
     return 1;
   }
   result = nativecheck_riscv_abi_signature_set_get_slot6_i128();
-  if (result != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128 ||
+  if (result != poly_abi_signature_control_value(
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) ||
       poly_abi_signature_get(6) != POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_I128) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv ABI signature i128 control mismatch result=%llu x86_get=%llu\n",

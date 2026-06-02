@@ -36,7 +36,10 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
 Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
-`PLANDING`, and `PTRAPRET`.
+`PLANDING`, and `PTRAPRET`. ABI signature setup writes a register-only
+signature slot as `kind | (register_map << 32)`. Query returns the same encoded
+value, so runtimes and hardware can verify the exact RAT/register-map policy
+instead of inferring it from the kind alone.
 
 These are fixed-latency decoded control operations: they do not read user
 descriptors, repack stacks, or enter exception delivery for normal frontend
