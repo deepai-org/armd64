@@ -4799,6 +4799,15 @@ static int run_poly_trap_vector_probe(void) {
       NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, POLY_IMPORT_SELECTOR_COUNT);
     return 1;
   }
+  const uint64_t import_args_77_99[POLY_TRAP_PACKET_ARG_COUNT] = {
+    77, 78, 79, 80, 81, 82, 88, 99
+  };
+  const uint64_t import_args_riscv_ext[POLY_TRAP_PACKET_ARG_COUNT] = {
+    21, 22, 23, 24, 25, 26, 27, 5
+  };
+  const uint64_t import_args_aarch64_ext[POLY_TRAP_PACKET_ARG_COUNT] = {
+    11, 12, 13, 14, 15, 16, 17, 18
+  };
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   const uint64_t monitor_packet_addr =
     (uint64_t) (uintptr_t) &monitor_packet;
@@ -5716,6 +5725,11 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
     ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd28009c1\n" // movz x1,#78
+    ".long 0xd28009e2\n" // movz x2,#79
+    ".long 0xd2800a03\n" // movz x3,#80
+    ".long 0xd2800a24\n" // movz x4,#81
+    ".long 0xd2800a45\n" // movz x5,#82
     ".long 0xd2800b06\n" // movz x6,#88
     ".long 0xd2800c67\n" // movz x7,#99
     ".long 0xd63f0200\n" // blr x16, unresolved strlen descriptor
@@ -5728,8 +5742,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("aarch64 import", &monitor_packet,
-      POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 77, 88, 99) != 0)
+  if (expect_monitor_packet_args("aarch64 import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0,
+      import_args_77_99) != 0)
     return 1;
   if (expect_monitor_packet_import_pc("aarch64 import", &monitor_packet,
       POLY_IMPORT_FUNC_STRLEN) != 0)
@@ -5745,6 +5760,11 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
     ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd28009c1\n" // movz x1,#78
+    ".long 0xd28009e2\n" // movz x2,#79
+    ".long 0xd2800a03\n" // movz x3,#80
+    ".long 0xd2800a24\n" // movz x4,#81
+    ".long 0xd2800a45\n" // movz x5,#82
     ".long 0xd2800b06\n" // movz x6,#88
     ".long 0xd2800c67\n" // movz x7,#99
     ".long 0xd63f0200\n" // blr x16, import must trap despite descriptor
@@ -5764,8 +5784,9 @@ static int run_poly_trap_vector_probe(void) {
       nativecheck_descriptor_target_calls);
     return 1;
   }
-  if (expect_monitor_packet("aarch64 descriptor-backed import", &monitor_packet,
-      POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 77, 88, 99) != 0)
+  if (expect_monitor_packet_args("aarch64 descriptor-backed import",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0,
+      import_args_77_99) != 0)
     return 1;
   if (expect_monitor_packet_import_pc("aarch64 descriptor-backed import",
       &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
@@ -5778,6 +5799,11 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
     ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
     ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x04e00593\n" // addi a1,zero,78
+    ".long 0x04f00613\n" // addi a2,zero,79
+    ".long 0x05000693\n" // addi a3,zero,80
+    ".long 0x05100713\n" // addi a4,zero,81
+    ".long 0x05200793\n" // addi a5,zero,82
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
     ".long 0x000280e7\n" // jalr ra,0(t0)
@@ -5790,8 +5816,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv import", &monitor_packet,
-      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
+  if (expect_monitor_packet_args("riscv import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0,
+      import_args_77_99) != 0)
     return 1;
   if (expect_monitor_packet_import_pc("riscv import", &monitor_packet,
       POLY_IMPORT_FUNC_STRLEN) != 0)
@@ -5805,6 +5832,11 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
     ".long 0x08028293\n" // addi t0,t0,0x80 -> strlen import
     ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x04e00593\n" // addi a1,zero,78
+    ".long 0x04f00613\n" // addi a2,zero,79
+    ".long 0x05000693\n" // addi a3,zero,80
+    ".long 0x05100713\n" // addi a4,zero,81
+    ".long 0x05200793\n" // addi a5,zero,82
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
     ".long 0x000280e7\n" // jalr ra,0(t0), must trap despite descriptor
@@ -5824,8 +5856,9 @@ static int run_poly_trap_vector_probe(void) {
       nativecheck_descriptor_target_calls);
     return 1;
   }
-  if (expect_monitor_packet("riscv descriptor-backed import", &monitor_packet,
-      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
+  if (expect_monitor_packet_args("riscv descriptor-backed import",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0,
+      import_args_77_99) != 0)
     return 1;
   if (expect_monitor_packet_import_pc("riscv descriptor-backed import",
       &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
@@ -5840,6 +5873,11 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xffffe2b7\n" // lui t0,0xffffe -> 0xffffffffffffe000
     ".long 0x08028293\n" // addi t0,t0,0x80 -> unresolved strlen descriptor
     ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x04e00593\n" // addi a1,zero,78
+    ".long 0x04f00613\n" // addi a2,zero,79
+    ".long 0x05000693\n" // addi a3,zero,80
+    ".long 0x05100713\n" // addi a4,zero,81
+    ".long 0x05200793\n" // addi a5,zero,82
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
     ".short 0x9282\n" // c.jalr t0
@@ -5852,8 +5890,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv compressed import", &monitor_packet,
-      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 77, 88, 99) != 0)
+  if (expect_monitor_packet_args("riscv compressed import", &monitor_packet,
+      POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0,
+      import_args_77_99) != 0)
     return 1;
   if (expect_monitor_packet_import_pc("riscv compressed import",
       &monitor_packet, POLY_IMPORT_FUNC_STRLEN) != 0)
@@ -5868,6 +5907,11 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xf2dffff0\n" // movk x16,#0xffff,lsl #32
     ".long 0xf2fffff0\n" // movk x16,#0xffff,lsl #48
     ".long 0xd28009a0\n" // movz x0,#77
+    ".long 0xd28009c1\n" // movz x1,#78
+    ".long 0xd28009e2\n" // movz x2,#79
+    ".long 0xd2800a03\n" // movz x3,#80
+    ".long 0xd2800a24\n" // movz x4,#81
+    ".long 0xd2800a45\n" // movz x5,#82
     ".long 0xd2800b06\n" // movz x6,#88
     ".long 0xd2800c67\n" // movz x7,#99
     ".long 0xd63f0200\n" // blr x16, opaque import selector
@@ -5880,9 +5924,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("aarch64 opaque import", &monitor_packet,
+  if (expect_monitor_packet_args("aarch64 opaque import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64,
-      NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, 0, 77, 88, 99) != 0)
+      NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, 0, import_args_77_99) != 0)
     return 1;
   if (expect_monitor_packet_import_pc("aarch64 opaque import",
       &monitor_packet, NATIVECHECK_IMPORT_UNKNOWN_SELECTOR) != 0)
@@ -5895,6 +5939,11 @@ static int run_poly_trap_vector_probe(void) {
     ".long 0xfffff2b7\n" // lui t0,0xfffff -> 0xfffffffffffff000
     ".long 0xf0028293\n" // addi t0,t0,-256 -> selector 240
     ".long 0x04d00513\n" // addi a0,zero,77
+    ".long 0x04e00593\n" // addi a1,zero,78
+    ".long 0x04f00613\n" // addi a2,zero,79
+    ".long 0x05000693\n" // addi a3,zero,80
+    ".long 0x05100713\n" // addi a4,zero,81
+    ".long 0x05200793\n" // addi a5,zero,82
     ".long 0x05800813\n" // addi a6,zero,88
     ".long 0x06300893\n" // addi a7,zero,99
     ".long 0x000280e7\n" // jalr ra,0(t0), opaque import selector
@@ -5907,9 +5956,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv opaque import", &monitor_packet,
+  if (expect_monitor_packet_args("riscv opaque import", &monitor_packet,
       POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV,
-      NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, 0, 77, 88, 99) != 0)
+      NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, 0, import_args_77_99) != 0)
     return 1;
   if (expect_monitor_packet_import_pc("riscv opaque import",
       &monitor_packet, NATIVECHECK_IMPORT_UNKNOWN_SELECTOR) != 0)
@@ -6107,9 +6156,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("riscv-to-aarch64 import vector",
-      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 21, 27,
-      5) != 0)
+  if (expect_monitor_packet_args("riscv-to-aarch64 import vector",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0,
+      import_args_riscv_ext) != 0)
     return 1;
 
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -6140,9 +6189,9 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  if (expect_monitor_packet("aarch64-to-riscv import vector",
-      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 11,
-      17, 18) != 0)
+  if (expect_monitor_packet_args("aarch64-to-riscv import vector",
+      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0,
+      import_args_aarch64_ext) != 0)
     return 1;
 
   poly_trap_vector_mode_set_value(POLY_MODE_RAW_AARCH64);
