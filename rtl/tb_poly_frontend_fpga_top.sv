@@ -135,6 +135,15 @@ module tb_poly_frontend_fpga_top;
   logic [7:0] abi_signature_kind_o;
   logic [6:0] abi_signature_map_o;
   logic abi_signature_tls_base_o;
+  logic cycle_budget_valid_o;
+  logic [7:0] cycle_fixed_o;
+  logic [7:0] cycle_variable_o;
+  logic [8:0] cycle_total_o;
+  logic cycle_few_cycle_fast_path_o;
+  logic cycle_waits_for_memory_o;
+  logic cycle_unsupported_o;
+  logic cycle_invalid_op_o;
+  logic cycle_blocked_o;
   logic trap_vector_apply_o;
   logic [1:0] trap_vector_frontend_o;
   logic [63:0] trap_vector_pc_o;
@@ -307,9 +316,15 @@ module tb_poly_frontend_fpga_top;
     .cpuid_ebx_o(),
     .cpuid_ecx_o(),
     .cpuid_edx_o(),
-    .cycle_budget_valid_o(),
-    .cycle_total_o(),
-    .cycle_few_cycle_fast_path_o(),
+    .cycle_budget_valid_o(cycle_budget_valid_o),
+    .cycle_fixed_o(cycle_fixed_o),
+    .cycle_variable_o(cycle_variable_o),
+    .cycle_total_o(cycle_total_o),
+    .cycle_few_cycle_fast_path_o(cycle_few_cycle_fast_path_o),
+    .cycle_waits_for_memory_o(cycle_waits_for_memory_o),
+    .cycle_unsupported_o(cycle_unsupported_o),
+    .cycle_invalid_op_o(cycle_invalid_op_o),
+    .cycle_blocked_o(cycle_blocked_o),
     .fault_o(fault_o),
     .fault_pc_o(),
     .fetch_fault_o(),
@@ -571,6 +586,11 @@ module tb_poly_frontend_fpga_top;
       abi_signature_kind_o == 8'd7 && abi_signature_map_o == 7'h1a &&
       !abi_signature_tls_base_o,
       "fpga top exposes pcall abi signature metadata");
+    check(cycle_budget_valid_o && cycle_fixed_o == 8'd4 &&
+      cycle_variable_o == 8'd0 && cycle_total_o == 9'd4 &&
+      cycle_few_cycle_fast_path_o && !cycle_waits_for_memory_o &&
+      !cycle_unsupported_o && !cycle_invalid_op_o && !cycle_blocked_o,
+      "fpga top exposes pcall few-cycle budget");
     check(commit_frontend_o == POLY_FRONTEND_AARCH64 &&
       commit_pc_o == 64'h5000, "x86 pcall commits target frontend");
     tick();
@@ -590,9 +610,15 @@ module tb_poly_frontend_fpga_top;
     trap_reason_i = POLY_TRAP_BREAK;
     trap_source_mode_i = POLY_MODE_RAW_RISCV;
     trap_mem_write_resp_valid_i = 1'b1;
+    cycle_memory_response_cycles_i = 8'd6;
     #1;
     check(trap_vector_apply_o && trap_vector_frontend_o == POLY_FRONTEND_RISCV &&
       trap_vector_pc_o == 64'h8000, "fpga top exposes trap-vector apply target");
+    check(cycle_budget_valid_o && cycle_fixed_o == 8'd2 &&
+      cycle_variable_o == 8'd6 && cycle_total_o == 9'd8 &&
+      !cycle_few_cycle_fast_path_o && cycle_waits_for_memory_o &&
+      !cycle_unsupported_o && !cycle_invalid_op_o && !cycle_blocked_o,
+      "fpga top exposes trap-packet memory-response cycle budget");
     check(state_update_o && redirect_frontend_o == POLY_FRONTEND_RISCV &&
       redirect_pc_o == 64'h8000, "fpga top trap vector redirects state");
     tick();
