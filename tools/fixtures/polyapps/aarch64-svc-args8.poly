@@ -1,0 +1,24 @@
+# poly payload v1
+arch=aarch64
+expected=0x53032101
+syscall_expected=1
+syscall_number_expected=0x321
+syscall_selector_expected=0x55
+syscall_arg0_expected=11
+syscall_arg1_expected=22
+syscall_arg2_expected=33
+syscall_arg3_expected=44
+syscall_arg4_expected=55
+syscall_arg5_expected=66
+syscall_arg6_expected=77
+syscall_arg7_expected=88
+insn=0xd2800160
+insn=0xd28002c1
+insn=0xd2800422
+insn=0xd2800583
+insn=0xd28006e4
+insn=0xd2800845
+insn=0xd28009a6
+insn=0xd2800b07
+insn=0xd2806428
+insn=0xd4000aa1

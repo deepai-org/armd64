@@ -1,0 +1,23 @@
+# poly payload v1
+arch=riscv
+expected=0x53012302
+syscall_expected=2
+syscall_number_expected=0x123
+syscall_selector_expected=0
+syscall_arg0_expected=11
+syscall_arg1_expected=22
+syscall_arg2_expected=33
+syscall_arg3_expected=44
+syscall_arg4_expected=55
+syscall_arg5_expected=66
+syscall_arg6_expected=77
+syscall_arg7_expected=0x123
+insn=0x00b00513
+insn=0x01600593
+insn=0x02100613
+insn=0x02c00693
+insn=0x03700713
+insn=0x04200793
+insn=0x04d00813
+insn=0x12300893
+insn=0x00000073
