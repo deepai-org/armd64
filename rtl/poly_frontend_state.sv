@@ -1,0 +1,126 @@
+// Poly architectural frontend/PC state register.
+//
+// This is the state-update boundary for the frontend-switch prototype. It does
+// not fetch or decode instructions; it validates and commits the next
+// architectural frontend/PC selected by retirement, interrupt return, or native
+// return-cookie recovery.
+module poly_frontend_state (
+    input  logic        clk_i,
+    input  logic        rst_ni,
+
+    input  logic        init_i,
+    input  logic [1:0]  init_frontend_i,
+    input  logic [63:0] init_pc_i,
+
+    input  logic        commit_i,
+    input  logic [1:0]  commit_frontend_i,
+    input  logic [63:0] commit_pc_i,
+
+    input  logic        interrupt_restore_i,
+    input  logic [1:0]  interrupt_frontend_i,
+    input  logic [63:0] interrupt_pc_i,
+
+    input  logic        return_resume_i,
+    input  logic [1:0]  return_frontend_i,
+    input  logic [63:0] return_pc_i,
+
+    input  logic        fault_i,
+    input  logic        stall_i,
+
+    output logic [1:0]  current_frontend_o,
+    output logic [63:0] current_pc_o,
+    output logic        update_o,
+    output logic        hold_o,
+    output logic        conflict_o,
+    output logic        invalid_frontend_o,
+    output logic        invalid_pc_o,
+    output logic        error_o
+);
+  localparam logic [1:0] POLY_FRONTEND_X86     = 2'd0;
+  localparam logic [1:0] POLY_FRONTEND_AARCH64 = 2'd1;
+  localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
+
+  logic [1:0] frontend_q;
+  logic [63:0] pc_q;
+  logic [1:0] selected_frontend;
+  logic [63:0] selected_pc;
+  logic request_valid;
+  logic multiple_requests;
+
+  function automatic logic canonical64(input logic [63:0] addr);
+    return addr[63:48] == {16{addr[47]}};
+  endfunction
+
+  function automatic logic frontend_valid(input logic [1:0] frontend);
+    return
+      frontend == POLY_FRONTEND_X86 ||
+      frontend == POLY_FRONTEND_AARCH64 ||
+      frontend == POLY_FRONTEND_RISCV;
+  endfunction
+
+  function automatic logic frontend_aligned(
+      input logic [1:0] frontend,
+      input logic [63:0] addr
+  );
+    unique case (frontend)
+      POLY_FRONTEND_AARCH64: return addr[1:0] == 2'b00;
+      POLY_FRONTEND_RISCV: return addr[0] == 1'b0;
+      default: return 1'b1;
+    endcase
+  endfunction
+
+  always_comb begin
+    multiple_requests =
+      (commit_i && interrupt_restore_i) ||
+      (commit_i && return_resume_i) ||
+      (interrupt_restore_i && return_resume_i);
+    conflict_o = !init_i && multiple_requests;
+
+    if (init_i) begin
+      selected_frontend = init_frontend_i;
+      selected_pc = init_pc_i;
+    end
+    else if (return_resume_i) begin
+      selected_frontend = return_frontend_i;
+      selected_pc = return_pc_i;
+    end
+    else if (interrupt_restore_i) begin
+      selected_frontend = interrupt_frontend_i;
+      selected_pc = interrupt_pc_i;
+    end
+    else if (commit_i) begin
+      selected_frontend = commit_frontend_i;
+      selected_pc = commit_pc_i;
+    end
+    else begin
+      selected_frontend = frontend_q;
+      selected_pc = pc_q;
+    end
+
+    request_valid = init_i || commit_i || interrupt_restore_i || return_resume_i;
+    invalid_frontend_o =
+      request_valid && !conflict_o && !frontend_valid(selected_frontend);
+    invalid_pc_o =
+      request_valid && !conflict_o &&
+      (!canonical64(selected_pc) ||
+        !frontend_aligned(selected_frontend, selected_pc));
+    error_o = conflict_o || invalid_frontend_o || invalid_pc_o;
+
+    update_o =
+      request_valid && !fault_i && !stall_i && !error_o;
+    hold_o = !update_o;
+    current_frontend_o = frontend_q;
+    current_pc_o = pc_q;
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      frontend_q <= POLY_FRONTEND_X86;
+      pc_q <= 64'd0;
+    end
+    else if (update_o) begin
+      frontend_q <= selected_frontend;
+      pc_q <= selected_pc;
+    end
+  end
+endmodule

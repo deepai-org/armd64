@@ -38,6 +38,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_frontend_retire.py
 	python3 rtl/test_poly_frontend_memory_retire.py
 	python3 rtl/test_poly_frontend_core.py
+	python3 rtl/test_poly_frontend_state.py
 	python3 rtl/test_poly_interrupt_boundary.py
 	python3 rtl/test_poly_transition_stack.py
 	python3 rtl/test_poly_abi_signature_slots.py
