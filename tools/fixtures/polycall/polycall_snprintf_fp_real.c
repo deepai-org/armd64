@@ -18,9 +18,9 @@ unsigned long poly_entry(unsigned long a0, unsigned long a1,
     unsigned long a8)
 {
   char buffer[64];
-  int written = snprintf(buffer, sizeof(buffer), "%s-%lu-%.2f",
-    "poly", a0 + a1 + a2, 2.25);
-  if (written != 11 || strcmp(buffer, "poly-6-2.25") != 0)
+  int written = snprintf(buffer, sizeof(buffer), "%s-%lu-%.2f-%lu",
+    "poly", a0 + a1 + a2, 2.25, a8);
+  if (written != 13 || strcmp(buffer, "poly-6-2.25-9") != 0)
     return 1;
   if (a0 != 1)
     return 100;

@@ -1575,7 +1575,7 @@ uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_aarch64(uint8_t *dest,
 {
   if (poly_format_has_fp_conversion(format)) {
     return (uint64_t) snprintf((char *) dest, (size_t) size,
-      (const char *) format, (const char *) text, left, fp);
+      (const char *) format, (const char *) text, left, fp, right);
   }
   return (uint64_t) snprintf((char *) dest, (size_t) size,
     (const char *) format, (const char *) text, left, right);
@@ -1583,7 +1583,7 @@ uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_aarch64(uint8_t *dest,
 
 uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_riscv(uint8_t *dest,
     uint64_t size, const uint8_t *format, const uint8_t *text,
-    uint64_t left, uint64_t middle)
+    uint64_t left, uint64_t middle, uint64_t right)
 {
   if (poly_format_has_fp_conversion(format)) {
     union {
@@ -1592,7 +1592,7 @@ uint64_t POLY_HOST_HELPER poly_host_x86_snprintf_riscv(uint8_t *dest,
     } fp;
     fp.u = middle;
     return (uint64_t) snprintf((char *) dest, (size_t) size,
-      (const char *) format, (const char *) text, left, fp.d);
+      (const char *) format, (const char *) text, left, fp.d, right);
   }
   return (uint64_t) snprintf((char *) dest, (size_t) size,
     (const char *) format, (const char *) text, left, middle);

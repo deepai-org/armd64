@@ -1078,7 +1078,7 @@ extern uint64_t poly_host_x86_snprintf_aarch64(uint8_t *dest, uint64_t size,
     double fp, uint64_t right);
 extern uint64_t poly_host_x86_snprintf_riscv(uint8_t *dest, uint64_t size,
     const uint8_t *format, const uint8_t *text, uint64_t left,
-    uint64_t middle);
+    uint64_t middle, uint64_t right);
 extern double poly_host_x86_strtod(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_strtof(const uint8_t *text, uint8_t **endptr);
 extern float poly_host_x86_fabsf(float value);
@@ -4262,10 +4262,13 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     import_id == POLY_IMPORT_FUNC_X86_SRET_U64_STACK10;
   const int needs_mixed_stack_x86_thunk =
     import_id == POLY_IMPORT_FUNC_X86_MIXED_U64_FP64_STACK;
+  const int needs_riscv_snprintf_x86_thunk =
+    caller_arch == POLY_ARCH_RISCV && import_id == POLY_IMPORT_FUNC_SNPRINTF;
   const int needs_x86_thunk =
     needs_int_stack_x86_thunk ||
     needs_fp64_stack_x86_thunk || needs_sret_stack_x86_thunk ||
-    needs_sret_stack10_x86_thunk || needs_mixed_stack_x86_thunk;
+    needs_sret_stack10_x86_thunk || needs_mixed_stack_x86_thunk ||
+    needs_riscv_snprintf_x86_thunk;
   const uint32_t foreign_stack_source_disp =
     caller_arch == POLY_ARCH_AARCH64 ?
       (needs_sret_stack10_x86_thunk ? 112U : 96U) :
@@ -4514,6 +4517,52 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     stubs[(*stub_offset)++] = 0x28;
     stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
   }
+  else if (needs_riscv_snprintf_x86_thunk) {
+    if (stub_limit - *stub_offset < 96)
+      return -1;
+    x86_thunk_addr = (uint64_t) (uintptr_t) (stubs + *stub_offset);
+    stubs[(*stub_offset)++] = 0x48; // sub rsp,24: align and reserve arg 6.
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xec;
+    stubs[(*stub_offset)++] = 0x18;
+    emit_x86_mov_mrsp_disp8_r9(stubs, stub_offset, 0); // helper arg 6.
+    stubs[(*stub_offset)++] = 0x49; // mov r10,rdi
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xfa;
+    stubs[(*stub_offset)++] = 0x49; // mov r11,rsi
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xf3;
+    stubs[(*stub_offset)++] = 0x48; // mov rdi,rax
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc7;
+    stubs[(*stub_offset)++] = 0x4c; // mov rax,r8
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc0;
+    stubs[(*stub_offset)++] = 0x48; // mov rsi,rdx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd6;
+    stubs[(*stub_offset)++] = 0x48; // mov rdx,rcx
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xca;
+    stubs[(*stub_offset)++] = 0x4c; // mov rcx,r10
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd1;
+    stubs[(*stub_offset)++] = 0x4d; // mov r8,r11
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xd8;
+    stubs[(*stub_offset)++] = 0x49; // mov r9,rax
+    stubs[(*stub_offset)++] = 0x89;
+    stubs[(*stub_offset)++] = 0xc1;
+    emit_movabs_r11(stubs, stub_offset, target);
+    stubs[(*stub_offset)++] = 0x41; // call r11
+    stubs[(*stub_offset)++] = 0xff;
+    stubs[(*stub_offset)++] = 0xd3;
+    stubs[(*stub_offset)++] = 0x48; // add rsp,24
+    stubs[(*stub_offset)++] = 0x83;
+    stubs[(*stub_offset)++] = 0xc4;
+    stubs[(*stub_offset)++] = 0x18;
+    stubs[(*stub_offset)++] = 0xc3; // ret through the hardware cookie.
+  }
 
   if (align_stub_offset(stub_offset, 8, stub_limit) < 0)
     return -1;
@@ -4530,6 +4579,7 @@ static int emit_x86_direct_import_stub(uint8_t *stubs, size_t stub_limit,
     needs_sret_stack_x86_thunk ? contract->signature_slot_exchange :
     needs_sret_stack10_x86_thunk ? contract->signature_slot_exchange :
     needs_mixed_stack_x86_thunk ? contract->signature_slot_exchange :
+    needs_riscv_snprintf_x86_thunk ? contract->signature_slot_exchange :
     uses_x86_sysv_fp128_return_signature ?
       contract->signature_slot_x86_sysv_regs_fp128_ret :
     x86_direct_import_uses_vec128_signature(import_id) ?

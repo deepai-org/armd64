@@ -1,20 +1,47 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU so
-existing native objects can share one process address space.
+Poly is an x86_64 CPU extension prototype that adds AArch64 and RISC-V64
+user-mode frontends. The goal is compatibility with existing precompiled
+objects in one process address space, not a new compiler-only ABI.
 
-## Architectural Contract
+Long-form rationale is in `docs/poly-isa-design-directions.md`.
 
-- Compatibility target: x86_64 SysV, AArch64 AAPCS64, and RISC-V psABI.
-- x86_64 owns boot, privilege, paging, interrupts, syscalls, atomics, and TSO.
-- AArch64/RISC-V execute by direct raw fetch/decode, not per-instruction traps.
-- Frontend switches are real decoded control operations, not `#UD` envelopes.
-- Foreign register state is per-thread XSAVE-style architectural state.
-- Recoverable exits report OS-neutral trap packets to runtime/OS policy code.
-- Hardware may remap register names for ABI signatures, but must not parse
-  user-memory descriptors, repack stacks, implement libc, or translate syscalls.
+## How To Run
+
+```bash
+make image
+make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
+rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
+```
+
+Useful focused targets:
+
+```bash
+make BOOT_TIMEOUT_SECONDS=900 boot-poly-call-real-xsave-arch-traps
+make BOOT_TIMEOUT_SECONDS=900 boot-poly-binfmt-arch-traps
+```
+
+## How It Differs From x86_64
+
+- x86_64 remains the system ISA: boot, privilege, paging, interrupts, syscalls,
+  atomics, and the effective memory model stay x86_64-owned.
+- AArch64 and RISC-V64 are raw user-mode instruction frontends. They fetch and
+  decode native 32-bit instructions directly from `RIP`.
+- Mode switches are decoded control operations, not `#UD` exception envelopes.
+- Cross-ISA calls target the real platform ABIs: x86_64 SysV, AArch64 AAPCS64,
+  and RISC-V psABI.
+- Foreign non-aliased registers are per-thread architectural state, modeled as
+  XSAVE-style state rather than CR3-scoped hidden emulator data.
+- Hardware may remap register names for cached ABI signatures, but it must not
+  parse user-memory call descriptors, repack stack layouts, implement libc, or
+  translate syscalls.
+- Recoverable foreign traps produce OS-neutral trap packets for runtime or OS
+  policy code.
 
 ## Temporary Bochs Encodings
+
+These encodings are prototype encodings for Bochs. A hardware ISA would allocate
+real opcode space.
 
 | ISA | Control encoding |
 | --- | --- |
@@ -31,13 +58,3 @@ existing native objects can share one process address space.
 | `0x30..0x3c` | `PCALL_SLOT` |
 | `0x62` | `PTRAPRET` |
 | `0x65..0x6e` | setup/query |
-
-## Validation
-
-```bash
-make image
-make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
-rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
-```
-
-Design rationale lives in `docs/poly-isa-design-directions.md`.
