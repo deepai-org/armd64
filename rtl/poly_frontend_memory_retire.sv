@@ -70,6 +70,8 @@ module poly_frontend_memory_retire (
     output logic        raw_call_o,
     output logic        raw_return_o,
     output logic        raw_trap_o,
+    output logic        raw_branch_target_valid_o,
+    output logic [63:0] raw_branch_target_o,
     output logic        raw_fetch_wait_o,
     output logic        raw_request_error_o,
     output logic        raw_mem_fault_o,
@@ -100,6 +102,8 @@ module poly_frontend_memory_retire (
   logic decode_pipeline_raw_call;
   logic decode_pipeline_raw_return;
   logic decode_pipeline_raw_trap;
+  logic decode_pipeline_raw_branch_target_valid;
+  logic [63:0] decode_pipeline_raw_branch_target;
   logic fetch_pipeline_invalid_frontend;
   logic retire_fetch_valid;
   logic retire_fetch_fault;
@@ -143,6 +147,8 @@ module poly_frontend_memory_retire (
     .raw_call_o(decode_pipeline_raw_call),
     .raw_return_o(decode_pipeline_raw_return),
     .raw_trap_o(decode_pipeline_raw_trap),
+    .raw_branch_target_valid_o(decode_pipeline_raw_branch_target_valid),
+    .raw_branch_target_o(decode_pipeline_raw_branch_target),
     .invalid_frontend_o(fetch_pipeline_invalid_frontend),
     .x86_fetch_wait_o(x86_fetch_wait_o),
     .x86_request_error_o(x86_request_error_o),
@@ -174,6 +180,10 @@ module poly_frontend_memory_retire (
     raw_call_o = decode_pipeline_valid && decode_pipeline_raw_call;
     raw_return_o = decode_pipeline_valid && decode_pipeline_raw_return;
     raw_trap_o = decode_pipeline_valid && decode_pipeline_raw_trap;
+    raw_branch_target_valid_o =
+      decode_pipeline_valid && decode_pipeline_raw_branch_target_valid;
+    raw_branch_target_o =
+      raw_branch_target_valid_o ? decode_pipeline_raw_branch_target : 64'd0;
   end
 
   poly_frontend_predecoded_retire frontend_predecoded_retire (

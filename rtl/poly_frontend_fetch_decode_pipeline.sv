@@ -48,6 +48,8 @@ module poly_frontend_fetch_decode_pipeline (
     output logic        raw_call_o,
     output logic        raw_return_o,
     output logic        raw_trap_o,
+    output logic        raw_branch_target_valid_o,
+    output logic [63:0] raw_branch_target_o,
 
     output logic        invalid_frontend_o,
     output logic        x86_fetch_wait_o,
@@ -185,6 +187,8 @@ module poly_frontend_fetch_decode_pipeline (
     .raw_call_o(raw_call_o),
     .raw_return_o(raw_return_o),
     .raw_trap_o(raw_trap_o),
+    .raw_branch_target_valid_o(raw_branch_target_valid_o),
+    .raw_branch_target_o(raw_branch_target_o),
     .raw_align_fault_o()
   );
 endmodule

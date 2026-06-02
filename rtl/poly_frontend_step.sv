@@ -77,6 +77,8 @@ module poly_frontend_step (
     .raw_call_o(),
     .raw_return_o(),
     .raw_trap_o(),
+    .raw_branch_target_valid_o(),
+    .raw_branch_target_o(),
     .raw_align_fault_o(raw_align_fault)
   );
 

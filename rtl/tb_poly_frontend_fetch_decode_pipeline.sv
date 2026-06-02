@@ -47,6 +47,8 @@ module tb_poly_frontend_fetch_decode_pipeline;
   logic raw_call;
   logic raw_return;
   logic raw_trap;
+  logic raw_branch_target_valid;
+  logic [63:0] raw_branch_target;
   logic invalid_frontend;
   logic x86_fetch_wait;
   logic x86_request_error;
@@ -97,6 +99,8 @@ module tb_poly_frontend_fetch_decode_pipeline;
     .raw_call_o(raw_call),
     .raw_return_o(raw_return),
     .raw_trap_o(raw_trap),
+    .raw_branch_target_valid_o(raw_branch_target_valid),
+    .raw_branch_target_o(raw_branch_target),
     .invalid_frontend_o(invalid_frontend),
     .x86_fetch_wait_o(x86_fetch_wait),
     .x86_request_error_o(x86_request_error),
@@ -237,6 +241,19 @@ module tb_poly_frontend_fetch_decode_pipeline;
       "aarch64 ret emits branch/return class");
     check(!raw_memory_order_valid && !raw_call && !raw_trap,
       "aarch64 ret has no memory/call/trap class");
+    check(!raw_branch_target_valid && raw_branch_target == 64'd0,
+      "aarch64 ret has no direct target");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend = POLY_FRONTEND_AARCH64;
+    pc = 64'h6000;
+    raw_mem_resp_valid = 1'b1;
+    raw_mem_resp_word = 32'h94000002;
+    #1;
+    check(fetch_valid && raw_branch && raw_call && raw_branch_target_valid,
+      "aarch64 bl emits direct call target");
+    check(raw_branch_target == 64'h6008, "aarch64 bl target is pc plus imm26");
 
     clear_inputs();
     valid_i = 1'b1;
@@ -275,6 +292,17 @@ module tb_poly_frontend_fetch_decode_pipeline;
       "riscv compressed fetch zero-extends 16-bit instruction");
     check(raw_insn_valid && raw_memory_order_valid && raw_memory_store,
       "riscv compressed store emits store ordering");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend = POLY_FRONTEND_RISCV;
+    pc = 64'ha000;
+    raw_mem_resp_valid = 1'b1;
+    raw_mem_resp_word = 32'h008000ef;
+    #1;
+    check(fetch_valid && raw_branch && raw_call && raw_branch_target_valid,
+      "riscv jal emits direct call target");
+    check(raw_branch_target == 64'ha008, "riscv jal target is pc plus j imm");
 
     clear_inputs();
     valid_i = 1'b1;

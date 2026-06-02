@@ -6,6 +6,7 @@
 module poly_raw_insn_decode (
     input  logic        valid_i,
     input  logic [1:0]  frontend_i,
+    input  logic [63:0] pc_i,
     input  logic [31:0] insn_i,
 
     output logic        raw_insn_valid_o,
@@ -17,7 +18,9 @@ module poly_raw_insn_decode (
     output logic        branch_o,
     output logic        call_o,
     output logic        return_o,
-    output logic        trap_o
+    output logic        trap_o,
+    output logic        branch_target_valid_o,
+    output logic [63:0] branch_target_o
 );
   localparam logic [1:0] POLY_FRONTEND_AARCH64 = 2'd1;
   localparam logic [1:0] POLY_FRONTEND_RISCV   = 2'd2;
@@ -48,6 +51,14 @@ module poly_raw_insn_decode (
   logic rv_call;
   logic rv_return;
   logic rv_trap;
+  logic rv32_branch_direct;
+  logic rv16_branch_direct;
+  logic [63:0] a64_b_offset;
+  logic [63:0] a64_cond_b_offset;
+  logic [63:0] rv_jal_offset;
+  logic [63:0] rv_branch_offset;
+  logic [63:0] rv16_j_offset;
+  logic [63:0] rv16_branch_offset;
 
   always_comb begin
     aarch64_valid = valid_i && frontend_i == POLY_FRONTEND_AARCH64;
@@ -63,6 +74,8 @@ module poly_raw_insn_decode (
     a64_blr = (insn_i & 32'hfffffc1f) == 32'hd63f0000;
     a64_ret = (insn_i & 32'hfffffc1f) == 32'hd65f0000;
     a64_trap = (insn_i & 32'hff000000) == 32'hd4000000;
+    a64_b_offset = {{36{insn_i[25]}}, insn_i[25:0], 2'b00};
+    a64_cond_b_offset = {{43{insn_i[23]}}, insn_i[23:5], 2'b00};
 
     riscv_32 = insn_i[1:0] == 2'b11;
     rv_opcode = insn_i[6:0];
@@ -110,6 +123,28 @@ module poly_raw_insn_decode (
     rv_trap =
       (riscv_32 && rv_opcode == 7'h73) ||
       (!riscv_32 && rv16 == 16'h9002);
+    rv32_branch_direct =
+      riscv_32 && (rv_opcode == 7'h63 || rv_opcode == 7'h6f);
+    rv16_branch_direct =
+      !riscv_32 && rv16_quad == 2'b01 &&
+      (rv16_funct3 == 3'b001 || rv16_funct3 == 3'b101 ||
+       rv16_funct3 == 3'b110 || rv16_funct3 == 3'b111);
+    rv_jal_offset = {
+      {43{insn_i[31]}}, insn_i[31], insn_i[19:12], insn_i[20],
+      insn_i[30:21], 1'b0
+    };
+    rv_branch_offset = {
+      {51{insn_i[31]}}, insn_i[31], insn_i[7], insn_i[30:25],
+      insn_i[11:8], 1'b0
+    };
+    rv16_j_offset = {
+      {52{rv16[12]}}, rv16[12], rv16[8], rv16[10:9], rv16[6],
+      rv16[7], rv16[2], rv16[11], rv16[5:3], 1'b0
+    };
+    rv16_branch_offset = {
+      {55{rv16[12]}}, rv16[12], rv16[6:5], rv16[2], rv16[11:10],
+      rv16[4:3], 1'b0
+    };
 
     raw_insn_valid_o = aarch64_valid || riscv_valid;
 
@@ -138,5 +173,25 @@ module poly_raw_insn_decode (
         (a64_b || a64_cond_b || a64_br || a64_bl || a64_blr || a64_ret)) ||
       (riscv_valid && rv_branch);
     trap_o = (aarch64_valid && a64_trap) || (riscv_valid && rv_trap);
+
+    branch_target_valid_o =
+      (aarch64_valid && (a64_b || a64_bl || a64_cond_b)) ||
+      (riscv_valid && (rv32_branch_direct || rv16_branch_direct));
+    branch_target_o = 64'd0;
+    if (branch_target_valid_o) begin
+      if (aarch64_valid && (a64_b || a64_bl))
+        branch_target_o = pc_i + a64_b_offset;
+      else if (aarch64_valid && a64_cond_b)
+        branch_target_o = pc_i + a64_cond_b_offset;
+      else if (riscv_valid && riscv_32 && rv_opcode == 7'h6f)
+        branch_target_o = pc_i + rv_jal_offset;
+      else if (riscv_valid && riscv_32 && rv_opcode == 7'h63)
+        branch_target_o = pc_i + rv_branch_offset;
+      else
+        branch_target_o = pc_i + rv16_j_offset;
+      if (riscv_valid && !riscv_32 &&
+          (rv16_funct3 == 3'b110 || rv16_funct3 == 3'b111))
+        branch_target_o = pc_i + rv16_branch_offset;
+    end
   end
 endmodule

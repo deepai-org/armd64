@@ -126,6 +126,8 @@ module tb_poly_frontend_memory_retire;
     .raw_call_o(),
     .raw_return_o(),
     .raw_trap_o(),
+    .raw_branch_target_valid_o(),
+    .raw_branch_target_o(),
     .raw_fetch_wait_o(raw_fetch_wait),
     .raw_request_error_o(raw_request_error),
     .raw_mem_fault_o(raw_mem_fault),

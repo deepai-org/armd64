@@ -33,6 +33,8 @@ module poly_frontend_decode_dispatch (
     output logic        raw_call_o,
     output logic        raw_return_o,
     output logic        raw_trap_o,
+    output logic        raw_branch_target_valid_o,
+    output logic [63:0] raw_branch_target_o,
 
     output logic        raw_align_fault_o
 );
@@ -75,6 +77,7 @@ module poly_frontend_decode_dispatch (
   poly_raw_insn_decode raw_insn_decode (
     .valid_i(decode_valid_o && raw_fetch_o),
     .frontend_i(frontend_i),
+    .pc_i(pc_i),
     .insn_i(decode_insn),
     .raw_insn_valid_o(raw_insn_valid_o),
     .memory_order_valid_o(raw_memory_order_valid_o),
@@ -85,6 +88,8 @@ module poly_frontend_decode_dispatch (
     .branch_o(raw_branch_o),
     .call_o(raw_call_o),
     .return_o(raw_return_o),
-    .trap_o(raw_trap_o)
+    .trap_o(raw_trap_o),
+    .branch_target_valid_o(raw_branch_target_valid_o),
+    .branch_target_o(raw_branch_target_o)
   );
 endmodule

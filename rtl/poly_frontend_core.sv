@@ -277,6 +277,8 @@ module poly_frontend_core (
   logic raw_call;
   logic raw_return;
   logic raw_trap;
+  logic raw_branch_target_valid;
+  logic [63:0] raw_branch_target;
   logic effective_memory_order_valid;
   logic effective_memory_load;
   logic effective_memory_store;
@@ -411,6 +413,8 @@ module poly_frontend_core (
     .raw_call_o(raw_call),
     .raw_return_o(raw_return),
     .raw_trap_o(raw_trap),
+    .raw_branch_target_valid_o(raw_branch_target_valid),
+    .raw_branch_target_o(raw_branch_target),
     .raw_fetch_wait_o(raw_fetch_wait_o),
     .raw_request_error_o(raw_request_error_o),
     .raw_mem_fault_o(raw_mem_fault_o),
