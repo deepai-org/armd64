@@ -152,17 +152,28 @@ static int expect_monitor_packet_args(const char *label,
 static inline void poly_mode_x86(void) {
   asm volatile(POLY_OP_EXIT ::: "r11", "memory");
 }
-static inline void poly_switch_count_status(void) {
-  asm volatile(POLY_X86_CTRL_SWITCH_COUNT_STATUS_ASM ::: "memory");
+static inline uint64_t poly_switch_count_status(void) {
+  uint64_t rax;
+  asm volatile(POLY_X86_CTRL_SWITCH_COUNT_STATUS_ASM : "=a"(rax) :: "memory");
+  return rax;
 }
-static inline void poly_foreign_insn_count_status(void) {
-  asm volatile(POLY_X86_CTRL_FOREIGN_INSN_COUNT_STATUS_ASM ::: "memory");
+static inline uint64_t poly_foreign_insn_count_status(void) {
+  uint64_t rax;
+  asm volatile(POLY_X86_CTRL_FOREIGN_INSN_COUNT_STATUS_ASM : "=a"(rax) ::
+      "memory");
+  return rax;
 }
-static inline void poly_foreign_syscall_count_status(void) {
-  asm volatile(POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS_ASM ::: "memory");
+static inline uint64_t poly_foreign_syscall_count_status(void) {
+  uint64_t rax;
+  asm volatile(POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS_ASM : "=a"(rax) ::
+      "memory");
+  return rax;
 }
-static inline void poly_foreign_break_count_status(void) {
-  asm volatile(POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS_ASM ::: "memory");
+static inline uint64_t poly_foreign_break_count_status(void) {
+  uint64_t rax;
+  asm volatile(POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS_ASM : "=a"(rax) ::
+      "memory");
+  return rax;
 }
 
 static inline void poly_trap_vector_set_value(uint64_t value) {
@@ -294,12 +305,10 @@ static inline uint64_t read_rsp(void) {
 
 #define CHECK_POLYPROBE_SWITCH_DELTA(name, probe, expected_result, expected_delta) \
   do { \
-    poly_switch_count_status(); \
-    uint64_t switches_before_ = read_rax(); \
+    uint64_t switches_before_ = poly_switch_count_status(); \
     probe(); \
     uint64_t result_ = read_rax(); \
-    poly_switch_count_status(); \
-    uint64_t switch_delta_ = read_rax() - switches_before_; \
+    uint64_t switch_delta_ = poly_switch_count_status() - switches_before_; \
     if (result_ != (uint64_t) (expected_result)) { \
       fprintf(stderr, \
         "POLY_PROBE_FAIL: %s result expected %llu got %llu\n", \
@@ -2311,11 +2320,18 @@ static inline void raw_aarch64_break_probe(uint64_t arg0) {
   register uint64_t rdi __asm__("rdi") = arg0;
   asm volatile(
     POLY_OP_ENTER_A64
+    ".long 0xd2800181\n" // movz x1,#12
+    ".long 0xd28001a2\n" // movz x2,#13
+    ".long 0xd28001c3\n" // movz x3,#14
+    ".long 0xd28001e4\n" // movz x4,#15
+    ".long 0xd2800205\n" // movz x5,#16
+    ".long 0xd2800226\n" // movz x6,#17
+    ".long 0xd2800247\n" // movz x7,#18
     ".long 0xd4200020\n"
     ".long 0xd5032e1f\n"
     : "+a"(rax), "+D"(rdi)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "r10", "r11", "memory");
 }
 
 static inline void raw_riscv_break_probe(uint64_t arg0) {
@@ -2323,12 +2339,18 @@ static inline void raw_riscv_break_probe(uint64_t arg0) {
   register uint64_t rdi __asm__("rdi") = arg0;
   asm volatile(
     POLY_OP_ENTER_RV64
+    ".long 0x01600593\n" // addi a1,zero,22
+    ".long 0x01700613\n" // addi a2,zero,23
+    ".long 0x01800693\n" // addi a3,zero,24
+    ".long 0x01900713\n" // addi a4,zero,25
+    ".long 0x01a00793\n" // addi a5,zero,26
+    ".long 0x01b00813\n" // addi a6,zero,27
     ".long 0x00100893\n"
     ".long 0x00100073\n"
     ".long 0x0000700b\n"
     : "+a"(rax), "+D"(rdi)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDI, "r10", "r11", "memory");
 }
 
 static inline uint64_t raw_aarch64_trap_restore_probe(void) {
@@ -4053,8 +4075,7 @@ int main(void) {
   }
 
   stage("POLY_STAGE: switch-stress");
-  poly_switch_count_status();
-  uint64_t switches_before = read_rax();
+  uint64_t switches_before = poly_switch_count_status();
   uint64_t switch_accum = 0;
   for (unsigned n = 0; n < 8; n++)
     switch_accum = raw_switch_stress_step(switch_accum);
@@ -4062,8 +4083,7 @@ int main(void) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw switch stress result mismatch\n");
     return 1;
   }
-  poly_switch_count_status();
-  if (read_rax() != switches_before + 32) {
+  if (poly_switch_count_status() != switches_before + 32) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw switch count mismatch\n");
     return 1;
   }
@@ -4083,12 +4103,12 @@ int main(void) {
   if (expect_monitor_packet_header("aarch64 break", &monitor_packet,
         POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 1, 1, 1) != 0)
     return 1;
-  if (monitor_packet.args[0] != break_arg) {
-    fprintf(stderr, "POLY_PROBE_FAIL: monitor packet aarch64 break arg0 mismatch got=%llu expected=%llu\n",
-      (unsigned long long) monitor_packet.args[0],
-      (unsigned long long) break_arg);
+  const uint64_t aarch64_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    break_arg, 12, 13, 14, 15, 16, 17, 18
+  };
+  if (expect_monitor_packet_args("aarch64 break", &monitor_packet,
+      aarch64_break_args) != 0)
     return 1;
-  }
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   raw_riscv_break_probe(break_arg);
   if (read_rax() != (0x4c000001ULL | ((uint64_t) POLY_MODE_RAW_RISCV << 8))) {
@@ -4098,12 +4118,12 @@ int main(void) {
   if (expect_monitor_packet_header("riscv break", &monitor_packet,
         POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 1, 0, 1) != 0)
     return 1;
-  if (monitor_packet.args[0] != break_arg) {
-    fprintf(stderr, "POLY_PROBE_FAIL: monitor packet riscv break arg0 mismatch got=%llu expected=%llu\n",
-      (unsigned long long) monitor_packet.args[0],
-      (unsigned long long) break_arg);
+  const uint64_t riscv_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    break_arg, 22, 23, 24, 25, 26, 27, 1
+  };
+  if (expect_monitor_packet_args("riscv break", &monitor_packet,
+      riscv_break_args) != 0)
     return 1;
-  }
   memset(&monitor_packet, 0, sizeof(monitor_packet));
   if (raw_aarch64_trap_restore_probe() != 51) {
     fprintf(stderr,
@@ -4311,29 +4331,23 @@ int main(void) {
   polyprobe_current_monitor_packet = 0;
 
   stage("POLY_STAGE: counters");
-  poly_foreign_insn_count_status();
-  uint64_t insns_before = read_rax();
+  uint64_t insns_before = poly_foreign_insn_count_status();
   raw_aarch64_arith_probe();
-  poly_foreign_insn_count_status();
-  if (read_rax() != insns_before + 3) {
+  if (poly_foreign_insn_count_status() != insns_before + 3) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw foreign instruction count mismatch\n");
     return 1;
   }
 
-  poly_foreign_syscall_count_status();
-  uint64_t syscalls_before = read_rax();
+  uint64_t syscalls_before = poly_foreign_syscall_count_status();
   raw_aarch64_getpid_probe();
-  poly_foreign_syscall_count_status();
-  if (read_rax() != syscalls_before + 1) {
+  if (poly_foreign_syscall_count_status() != syscalls_before + 1) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw foreign syscall count mismatch\n");
     return 1;
   }
 
-  poly_foreign_break_count_status();
-  uint64_t breaks_before = read_rax();
+  uint64_t breaks_before = poly_foreign_break_count_status();
   raw_aarch64_break_probe(break_arg);
-  poly_foreign_break_count_status();
-  if (read_rax() != breaks_before + 1) {
+  if (poly_foreign_break_count_status() != breaks_before + 1) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw foreign break count mismatch\n");
     return 1;
   }
