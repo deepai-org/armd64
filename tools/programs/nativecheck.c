@@ -8940,7 +8940,7 @@ static uint64_t nativecheck_signature_pcall_riscv_x86_direct_i128(void) {
 }
 
 static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
-    uint64_t expected_import_id) {
+    uint64_t expected_import_id, uint32_t expected_alias_valid) {
   const struct poly_import_return_state *state =
     &nativecheck_import_live_state.import_return;
   if (nativecheck_import_live_state.header.layout_version !=
@@ -8958,16 +8958,17 @@ static int check_poly_import_return_xsave_frame(uint32_t expected_mode,
 
   const struct poly_import_return_frame *frame = &state->frames[0];
   if (frame->source_mode != expected_mode ||
-      frame->alias_valid != 1 ||
+      frame->alias_valid != expected_alias_valid ||
       frame->return_pc == 0 ||
       frame->return_sp == 0 ||
       frame->import_id != expected_import_id ||
       frame->return_map != POLY_X86_RETURN_MAP_DEFAULT) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly import xsave frame mismatch expected_mode=%u mode=%u alias=%u pc=0x%llx sp=0x%llx import=%llu map=0x%llx\n",
+      "NATIVE_CHECK_FAIL: poly import xsave frame mismatch expected_mode=%u mode=%u alias=%u/%u pc=0x%llx sp=0x%llx import=%llu map=0x%llx\n",
       expected_mode,
       frame->source_mode,
       frame->alias_valid,
+      expected_alias_valid,
       (unsigned long long) frame->return_pc,
       (unsigned long long) frame->return_sp,
       (unsigned long long) frame->import_id,
@@ -8995,7 +8996,7 @@ static int run_poly_import_return_xsave_probe(void) {
     return 1;
   }
   if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_AARCH64,
-        UINT64_MAX) != 0)
+        UINT64_MAX, 0) != 0)
     return 1;
 
   memset(&nativecheck_import_live_state, 0,
@@ -9012,7 +9013,7 @@ static int run_poly_import_return_xsave_probe(void) {
     return 1;
   }
   if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_RISCV,
-        UINT64_MAX) != 0)
+        UINT64_MAX, 0) != 0)
     return 1;
 
   if (poly_abi_signature_set(3, POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) != 0) {
@@ -9036,7 +9037,7 @@ static int run_poly_import_return_xsave_probe(void) {
     return 1;
   }
   if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_AARCH64,
-        UINT64_MAX) != 0)
+        UINT64_MAX, 0) != 0)
     return 1;
 
   memset(&nativecheck_import_live_state, 0,
@@ -9054,7 +9055,7 @@ static int run_poly_import_return_xsave_probe(void) {
     return 1;
   }
   if (check_poly_import_return_xsave_frame(POLY_MODE_RAW_RISCV,
-        UINT64_MAX) != 0)
+        UINT64_MAX, 0) != 0)
     return 1;
 
   puts("NATIVE_POLY_IMPORT_RETURN_XSAVE_OK");
