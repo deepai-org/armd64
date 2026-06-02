@@ -133,8 +133,9 @@ silicon prototype.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
   tagged instruction-memory interface, raw branch/data execute inputs,
   raw branch metadata outputs, raw data-memory metadata/request/response
-  outputs, state validation/error outputs, ABI signature sideband outputs,
-  transition cycle-budget outputs, and absence of OS/runtime policy.
+  outputs, state validation/error outputs, trap-packet validation/error outputs,
+  ABI signature sideband outputs, transition cycle-budget outputs, and absence
+  of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
