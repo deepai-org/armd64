@@ -3479,6 +3479,26 @@ static void child_expect_inactive_state_key_value_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_header_bytes_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.header_bytes ^= 8;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_header_flags_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.flags ^= (1ULL << 63);
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_trap_vector_mode_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -7317,6 +7337,12 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly inactive state-key value xstate", SIGILL,
         child_expect_inactive_state_key_value_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad header bytes xstate", SIGILL,
+        child_expect_bad_header_bytes_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad header flags xstate", SIGILL,
+        child_expect_bad_header_flags_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad trap-vector mode xstate", SIGILL,
         child_expect_bad_trap_vector_mode_xsave_signal) != 0)
