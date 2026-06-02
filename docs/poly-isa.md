@@ -20,6 +20,8 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 - `PCALL` switches ISA and can apply cached native-ABI register aliases.
 - Foreign state is per-thread XSAVE-style architectural state.
 - Recoverable foreign traps write OS-neutral trap records.
+- Import trap selectors are opaque CPU values; named libc/libgcc bindings are
+  runtime policy, not CPUID/ISA features.
 - Software handles stack arguments, aggregates, variadics, lazy binding,
   syscalls, libcalls, and debugger policy.
 
