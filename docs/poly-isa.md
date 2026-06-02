@@ -1,83 +1,61 @@
-# Poly ISA Quick Reference
+# Poly ISA
 
-This is the short operational reference for the Bochs prototype. For build and
-test details, see `README.md`. For the hardware/ABI rationale, see
+Poly is a hardware-style extension for running existing x86_64, AArch64, and
+RISC-V64 userspace code in one virtual address space. Compatibility with real
+native ABI objects is the priority; this is not a new compiler-only ABI.
+
+For build/test commands, see `README.md`. For design rationale, see
 `docs/poly-isa-design-directions.md`.
 
-## Goal
+## Model
 
-Run precompiled x86_64, AArch64, and RISC-V64 userspace code in one virtual
-address space, with native ABI compatibility as the priority. This is not a
-new compiler-only ABI.
-
-## Run
-
-```bash
-make image
-make boot-poly-focused-validation
-rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
-```
-
-Useful narrower targets:
-
-- `make boot`: plain x86_64 VM sanity boot.
-- `make boot-poly`: shorter Poly smoke/regression run.
-- `make boot-poly-nativecheck-arch-traps`: native x86 plus Poly CPU controls.
-- `make boot-poly-probe-arch-traps`: trap/control-plane probe coverage.
-- `make boot-poly-call-real-xsave-arch-traps`: cross-ISA calls with real XSAVE
-  state enabled.
-- `make boot-poly-full-real-xsave-arch-traps`: broad silicon-facing regression.
-
-Use `BOOT_TIMEOUT_SECONDS=900 make <target>` for long runs.
-
-## How It Differs From x86_64
-
-- x86_64 remains the system ISA: boot, privilege, paging, faults, interrupts,
+- x86_64 remains the system ISA: boot, privilege, paging, interrupts, faults,
   VM control, atomics, syscalls, and global TSO memory ordering.
-- AArch64 and RISC-V64 are peer user-mode decode frontends fetched from the
-  same address space.
-- Frontend switches are decoded control instructions, not per-instruction
-  `#UD` envelopes.
-- AArch64 uses fixed 32-bit fetch. RISC-V64 supports 16/32-bit fetch,
+- AArch64 and RISC-V64 are additional user-mode decode frontends over the same
+  virtual address space.
+- Frontend changes use decoded control instructions. There are no legacy
+  per-instruction `#UD` envelopes.
+- AArch64 fetch is fixed 32-bit. RISC-V64 fetch supports 16/32-bit instructions
   including RVC.
+- AArch64 and RISC-V64 may call/switch directly; x86_64 is not a required
+  trampoline frontend.
+
+## Compatibility
+
 - Cross-ISA calls target real native ABIs: x86_64 SysV, AArch64 AAPCS64, and
   RISC-V psABI.
-- Register-only calls may use ABI signature slots and hardware-style register
-  aliasing. Stack arguments, aggregates, variadics, lazy binding, libc policy,
-  and syscall policy stay in software.
-- Foreign architectural state is per-thread XSAVE-style state. Hidden Bochs
-  banks are prototype fallback machinery, not the hardware contract.
+- Fast calls use register exchange/ABI signature slots for arguments and return
+  values that already fit in registers.
+- Software thunks handle stack arguments, aggregates, variadics, lazy binding,
+  libc policy, and syscall-number/policy translation.
+- Foreign register state is per-thread XSAVE-style architectural state. Hidden
+  Bochs banks are prototype fallback/debug machinery only.
 - Foreign `svc`, `ecall`, breakpoints, illegal instructions, and frontend
   faults produce OS-neutral trap packets for a runtime or OS handler.
-- AArch64 and RISC-V64 can switch/call each other directly; they do not need to
-  bounce through x86_64.
 
-## Temporary Control Encodings
+## Controls
 
-These are prototype encodings chosen to decode as normal instructions in Bochs.
-They model dedicated hardware controls and are not the final silicon opcode
-allocation.
+Temporary Bochs encodings model dedicated silicon controls. They are prototype
+opcode allocations, not final architecture numbers.
 
-- x86_64 control prefix: `0f 3a fc <subop>`
-- AArch64 control form: `0xd503201f | ((subop & 0x7f) << 5)`
-- RISC-V64 control form: `0x0000700b | ((subop & 0x7f) << 25)`
+| Frontend | Encoding |
+| --- | --- |
+| x86_64 | `0f 3a fc <subop>` |
+| AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
+| RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
-Core subops:
+| Subop | Control |
+| --- | --- |
+| `0x03` | `PENTER` |
+| `0x04` | `PSWITCH` |
+| `0x05` | `PLANDING` |
+| `0x2d` | `PCALL` |
+| `0x30..0x3c` | `PCALL_SLOT` |
+| `0x62` | `PTRAPRET` |
+| `0x65..0x6e` | setup/query controls |
 
-- `0x03`: `PENTER`
-- `0x04`: `PSWITCH`
-- `0x05`: `PLANDING`
-- `0x2d`: `PCALL`
-- `0x30..0x3c`: `PCALL_SLOT`
-- `0x62`: `PTRAPRET`
-- `0x65..0x6e`: setup/query controls
+## Boundary
 
-## Compatibility Boundary
-
-Fast hardware support covers frontend switching, direct raw fetch/decode,
-register exchange windows, ABI signature slots, trap-packet delivery, and
-XSAVE-visible foreign state.
-
-Software still owns anything that requires memory interpretation: stack layout,
-large or split aggregates, variadic calls, dynamic linker thunks, libc behavior,
-and syscall-number/policy translation.
+Hardware should stay fixed-latency: switch frontends, fetch/decode raw foreign
+instructions, alias register arguments, deliver trap packets, and expose state
+through XSAVE. Anything that requires interpreting user memory remains software.

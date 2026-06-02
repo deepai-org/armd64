@@ -3378,6 +3378,64 @@ static void child_expect_bad_trap_source_mode_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_trap_pc_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = POLY_TRAP_SYSCALL;
+  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.trap.trap_pc = NATIVECHECK_NONCANONICAL_ADDR;
+  bad.trap.resume_pc = 0x0000000000457004ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_trap_resume_pc_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = POLY_TRAP_SYSCALL;
+  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.trap.trap_pc = 0x0000000000457000ULL;
+  bad.trap.resume_pc = NATIVECHECK_NONCANONICAL_ADDR;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_bad_trap_flags_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = POLY_TRAP_SYSCALL;
+  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.trap.trap_pc = 0x0000000000457000ULL;
+  bad.trap.resume_pc = 0x0000000000457004ULL;
+  bad.trap.flags = 1ULL << 63;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
+static void child_expect_inactive_trap_payload_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.trap.reason = 0;
+  bad.trap.source_mode = POLY_MODE_X86;
+  bad.trap.number = 0;
+  bad.trap.selector = 0;
+  bad.trap.resume_pc = 0;
+  bad.trap.flags = 0;
+  bad.trap.reserved[0] = 0;
+  bad.trap.reserved[1] = 0;
+  bad.trap.trap_pc = 0x0000000000457000ULL;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_aarch64_nzcv_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -6592,6 +6650,18 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   if (expect_child_signal("poly bad trap source mode xstate", SIGILL,
         child_expect_bad_trap_source_mode_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap pc xstate", SIGILL,
+        child_expect_bad_trap_pc_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap resume pc xstate", SIGILL,
+        child_expect_bad_trap_resume_pc_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly bad trap flags xstate", SIGILL,
+        child_expect_bad_trap_flags_xsave_signal) != 0)
+    return 1;
+  if (expect_child_signal("poly inactive trap payload xstate", SIGILL,
+        child_expect_inactive_trap_payload_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad AArch64 NZCV xstate", SIGILL,
         child_expect_bad_aarch64_nzcv_xsave_signal) != 0)
