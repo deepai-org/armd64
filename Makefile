@@ -98,7 +98,10 @@ check-poly-rtl-sim:
 	trap 'rm -rf "$$tmp_dir"' EXIT; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_state" \
 		rtl/poly_frontend_state.sv rtl/tb_poly_frontend_state.sv; \
-	vvp "$$tmp_dir/tb_poly_frontend_state"
+	vvp "$$tmp_dir/tb_poly_frontend_state"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_transition_stack" \
+		rtl/poly_transition_stack.sv rtl/tb_poly_transition_stack.sv; \
+	vvp "$$tmp_dir/tb_poly_transition_stack"
 
 check-poly-rtl-verilator:
 	verilator $(POLY_RTL_VERILATOR_FLAGS) $(POLY_RTL_SV)
