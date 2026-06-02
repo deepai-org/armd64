@@ -8153,8 +8153,8 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.trap.selector = 7;
   complex.trap.trap_pc = 0x0000000000457000ULL;
   complex.trap.resume_pc = 0x0000000000457004ULL;
-  complex.trap_args[6] = 0x4567800045678006ULL;
-  complex.trap_args[7] = 0x4567800045678007ULL;
+  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++)
+    complex.trap_args[n] = 0x4567800045678000ULL + n;
   complex.state_key.flags = 1;
   complex.state_key.explicit_key = real_xsave_state_key;
   complex.state_key.supported_flags = 1;
@@ -8196,8 +8196,8 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->trap.selector != complex.trap.selector ||
       saved->trap.trap_pc != complex.trap.trap_pc ||
       saved->trap.resume_pc != complex.trap.resume_pc ||
-      saved->trap_args[6] != complex.trap_args[6] ||
-      saved->trap_args[7] != complex.trap_args[7] ||
+      memcmp(saved->trap_args, complex.trap_args,
+        sizeof(complex.trap_args)) != 0 ||
       saved->state_key.flags != 1 ||
       saved->state_key.explicit_key != real_xsave_state_key ||
       saved->state_key.supported_flags != 1 ||
@@ -8219,10 +8219,12 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->transition.active.target_mode != POLY_MODE_RAW_RISCV ||
       saved->transition.active.abi_kind != POLY_CROSS_BRIDGE_DEFAULT) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XSAVE complex state mismatch tls=0x%llx/0x%llx key=0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
+      "NATIVE_CHECK_FAIL: real XSAVE complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
       (unsigned long long) saved->frontend_tls.aarch64_tls_base,
       (unsigned long long) saved->frontend_tls.riscv_tls_base,
       (unsigned long long) saved->state_key.explicit_key,
+      (unsigned long long) saved->trap_args[0],
+      (unsigned long long) saved->trap_args[7],
       (unsigned long long) saved->import_return.top,
       (unsigned long long) saved->cross_return.top,
       (unsigned long long) saved->transition.active.return_pc);
@@ -8247,8 +8249,8 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       roundtrip.trap.selector != complex.trap.selector ||
       roundtrip.trap.trap_pc != complex.trap.trap_pc ||
       roundtrip.trap.resume_pc != complex.trap.resume_pc ||
-      roundtrip.trap_args[6] != complex.trap_args[6] ||
-      roundtrip.trap_args[7] != complex.trap_args[7] ||
+      memcmp(roundtrip.trap_args, complex.trap_args,
+        sizeof(complex.trap_args)) != 0 ||
       roundtrip.state_key.flags != 1 ||
       roundtrip.state_key.explicit_key != real_xsave_state_key ||
       roundtrip.import_return.top != 1 ||
@@ -8264,10 +8266,12 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       roundtrip.transition.active.cookie !=
         complex.cross_return.frames[0].return_sp) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XRSTOR complex state mismatch tls=0x%llx/0x%llx key=0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
+      "NATIVE_CHECK_FAIL: real XRSTOR complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu transition=0x%llx\n",
       (unsigned long long) roundtrip.frontend_tls.aarch64_tls_base,
       (unsigned long long) roundtrip.frontend_tls.riscv_tls_base,
       (unsigned long long) roundtrip.state_key.explicit_key,
+      (unsigned long long) roundtrip.trap_args[0],
+      (unsigned long long) roundtrip.trap_args[7],
       (unsigned long long) roundtrip.import_return.top,
       (unsigned long long) roundtrip.cross_return.top,
       (unsigned long long) roundtrip.transition.active.return_pc);
