@@ -267,6 +267,21 @@ module poly_frontend_core (
   logic cycle_valid;
   logic [2:0] cycle_op;
   logic cycle_transition_stack_ready;
+  logic raw_insn_valid;
+  logic raw_memory_order_valid;
+  logic raw_memory_load;
+  logic raw_memory_store;
+  logic raw_memory_atomic;
+  logic raw_memory_barrier;
+  logic raw_branch;
+  logic raw_call;
+  logic raw_return;
+  logic raw_trap;
+  logic effective_memory_order_valid;
+  logic effective_memory_load;
+  logic effective_memory_store;
+  logic effective_memory_atomic;
+  logic effective_memory_barrier;
 
   localparam logic [2:0] POLY_CYCLE_OP_PSWITCH = 3'd1;
   localparam logic [2:0] POLY_CYCLE_OP_PCALL_REG = 3'd2;
@@ -293,7 +308,8 @@ module poly_frontend_core (
     return_error_raw || return_recover_blocked_o;
   assign return_recover_invalid_frontend_o = return_invalid_frontend_raw;
   assign return_recover_missing_transition_o = return_missing_transition_raw;
-  assign execute_ready = !memory_order_valid_i || memory_retire_allowed_raw;
+  assign execute_ready =
+    !effective_memory_order_valid || memory_retire_allowed_raw;
   assign execute_fault =
     execute_fault_i || memory_fault_o || interrupt_error_o || trap_fault_o;
   assign memory_retire_allowed_o = memory_retire_allowed_raw;
@@ -330,6 +346,12 @@ module poly_frontend_core (
     cycle_op == POLY_CYCLE_OP_PCALL_REG ? !transition_stack_full_o :
     cycle_op == POLY_CYCLE_OP_RETURN_COOKIE ? return_recover_pop_o :
     1'b1;
+  assign effective_memory_order_valid =
+    memory_order_valid_i || raw_memory_order_valid;
+  assign effective_memory_load = memory_load_i || raw_memory_load;
+  assign effective_memory_store = memory_store_i || raw_memory_store;
+  assign effective_memory_atomic = memory_atomic_i || raw_memory_atomic;
+  assign effective_memory_barrier = memory_barrier_i || raw_memory_barrier;
 
   poly_frontend_memory_retire frontend_memory_retire (
     .valid_i(valid_i),
@@ -379,6 +401,16 @@ module poly_frontend_core (
     .x86_range_fault_o(x86_range_fault_o),
     .poly_ctrl_o(poly_ctrl_o),
     .subop_o(subop_o),
+    .raw_insn_valid_o(raw_insn_valid),
+    .raw_memory_order_valid_o(raw_memory_order_valid),
+    .raw_memory_load_o(raw_memory_load),
+    .raw_memory_store_o(raw_memory_store),
+    .raw_memory_atomic_o(raw_memory_atomic),
+    .raw_memory_barrier_o(raw_memory_barrier),
+    .raw_branch_o(raw_branch),
+    .raw_call_o(raw_call),
+    .raw_return_o(raw_return),
+    .raw_trap_o(raw_trap),
     .raw_fetch_wait_o(raw_fetch_wait_o),
     .raw_request_error_o(raw_request_error_o),
     .raw_mem_fault_o(raw_mem_fault_o),
@@ -393,12 +425,12 @@ module poly_frontend_core (
   );
 
   poly_memory_order memory_order (
-    .valid_i(memory_order_valid_i),
+    .valid_i(effective_memory_order_valid),
     .frontend_i(frontend_i),
-    .load_i(memory_load_i),
-    .store_i(memory_store_i),
-    .atomic_i(memory_atomic_i),
-    .barrier_i(memory_barrier_i),
+    .load_i(effective_memory_load),
+    .store_i(effective_memory_store),
+    .atomic_i(effective_memory_atomic),
+    .barrier_i(effective_memory_barrier),
     .older_store_pending_i(older_store_pending_i),
     .store_buffer_full_i(store_buffer_full_i),
     .retire_allowed_o(memory_retire_allowed_raw),

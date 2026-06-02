@@ -67,6 +67,16 @@ module poly_frontend_step (
     .subop_o(subop_o),
     .call_sig_imm_o(call_sig_imm),
     .signature_slot_o(signature_slot),
+    .raw_insn_valid_o(),
+    .raw_memory_order_valid_o(),
+    .raw_memory_load_o(),
+    .raw_memory_store_o(),
+    .raw_memory_atomic_o(),
+    .raw_memory_barrier_o(),
+    .raw_branch_o(),
+    .raw_call_o(),
+    .raw_return_o(),
+    .raw_trap_o(),
     .raw_align_fault_o(raw_align_fault)
   );
 

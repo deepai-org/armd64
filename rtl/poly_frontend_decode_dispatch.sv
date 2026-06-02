@@ -23,6 +23,17 @@ module poly_frontend_decode_dispatch (
     output logic        call_sig_imm_o,
     output logic [6:0]  signature_slot_o,
 
+    output logic        raw_insn_valid_o,
+    output logic        raw_memory_order_valid_o,
+    output logic        raw_memory_load_o,
+    output logic        raw_memory_store_o,
+    output logic        raw_memory_atomic_o,
+    output logic        raw_memory_barrier_o,
+    output logic        raw_branch_o,
+    output logic        raw_call_o,
+    output logic        raw_return_o,
+    output logic        raw_trap_o,
+
     output logic        raw_align_fault_o
 );
   logic raw_align_fault;
@@ -59,5 +70,21 @@ module poly_frontend_decode_dispatch (
     .subop_o(subop_o),
     .call_sig_imm_o(call_sig_imm_o),
     .signature_slot_o(signature_slot_o)
+  );
+
+  poly_raw_insn_decode raw_insn_decode (
+    .valid_i(decode_valid_o && raw_fetch_o),
+    .frontend_i(frontend_i),
+    .insn_i(decode_insn),
+    .raw_insn_valid_o(raw_insn_valid_o),
+    .memory_order_valid_o(raw_memory_order_valid_o),
+    .memory_load_o(raw_memory_load_o),
+    .memory_store_o(raw_memory_store_o),
+    .memory_atomic_o(raw_memory_atomic_o),
+    .memory_barrier_o(raw_memory_barrier_o),
+    .branch_o(raw_branch_o),
+    .call_o(raw_call_o),
+    .return_o(raw_return_o),
+    .trap_o(raw_trap_o)
   );
 endmodule

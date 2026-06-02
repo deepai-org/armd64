@@ -38,6 +38,17 @@ module poly_frontend_fetch_decode_pipeline (
     output logic        call_sig_imm_o,
     output logic [6:0]  signature_slot_o,
 
+    output logic        raw_insn_valid_o,
+    output logic        raw_memory_order_valid_o,
+    output logic        raw_memory_load_o,
+    output logic        raw_memory_store_o,
+    output logic        raw_memory_atomic_o,
+    output logic        raw_memory_barrier_o,
+    output logic        raw_branch_o,
+    output logic        raw_call_o,
+    output logic        raw_return_o,
+    output logic        raw_trap_o,
+
     output logic        invalid_frontend_o,
     output logic        x86_fetch_wait_o,
     output logic        x86_request_error_o,
@@ -164,6 +175,16 @@ module poly_frontend_fetch_decode_pipeline (
     .subop_o(subop_o),
     .call_sig_imm_o(call_sig_imm_o),
     .signature_slot_o(signature_slot_o),
+    .raw_insn_valid_o(raw_insn_valid_o),
+    .raw_memory_order_valid_o(raw_memory_order_valid_o),
+    .raw_memory_load_o(raw_memory_load_o),
+    .raw_memory_store_o(raw_memory_store_o),
+    .raw_memory_atomic_o(raw_memory_atomic_o),
+    .raw_memory_barrier_o(raw_memory_barrier_o),
+    .raw_branch_o(raw_branch_o),
+    .raw_call_o(raw_call_o),
+    .raw_return_o(raw_return_o),
+    .raw_trap_o(raw_trap_o),
     .raw_align_fault_o()
   );
 endmodule

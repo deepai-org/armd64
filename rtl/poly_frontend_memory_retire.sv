@@ -60,6 +60,16 @@ module poly_frontend_memory_retire (
 
     output logic        poly_ctrl_o,
     output logic [6:0]  subop_o,
+    output logic        raw_insn_valid_o,
+    output logic        raw_memory_order_valid_o,
+    output logic        raw_memory_load_o,
+    output logic        raw_memory_store_o,
+    output logic        raw_memory_atomic_o,
+    output logic        raw_memory_barrier_o,
+    output logic        raw_branch_o,
+    output logic        raw_call_o,
+    output logic        raw_return_o,
+    output logic        raw_trap_o,
     output logic        raw_fetch_wait_o,
     output logic        raw_request_error_o,
     output logic        raw_mem_fault_o,
@@ -80,6 +90,16 @@ module poly_frontend_memory_retire (
   logic [6:0] decode_pipeline_subop;
   logic decode_pipeline_call_sig_imm;
   logic [6:0] decode_pipeline_signature_slot;
+  logic decode_pipeline_raw_insn_valid;
+  logic decode_pipeline_raw_memory_order_valid;
+  logic decode_pipeline_raw_memory_load;
+  logic decode_pipeline_raw_memory_store;
+  logic decode_pipeline_raw_memory_atomic;
+  logic decode_pipeline_raw_memory_barrier;
+  logic decode_pipeline_raw_branch;
+  logic decode_pipeline_raw_call;
+  logic decode_pipeline_raw_return;
+  logic decode_pipeline_raw_trap;
   logic fetch_pipeline_invalid_frontend;
   logic retire_fetch_valid;
   logic retire_fetch_fault;
@@ -113,6 +133,16 @@ module poly_frontend_memory_retire (
     .subop_o(decode_pipeline_subop),
     .call_sig_imm_o(decode_pipeline_call_sig_imm),
     .signature_slot_o(decode_pipeline_signature_slot),
+    .raw_insn_valid_o(decode_pipeline_raw_insn_valid),
+    .raw_memory_order_valid_o(decode_pipeline_raw_memory_order_valid),
+    .raw_memory_load_o(decode_pipeline_raw_memory_load),
+    .raw_memory_store_o(decode_pipeline_raw_memory_store),
+    .raw_memory_atomic_o(decode_pipeline_raw_memory_atomic),
+    .raw_memory_barrier_o(decode_pipeline_raw_memory_barrier),
+    .raw_branch_o(decode_pipeline_raw_branch),
+    .raw_call_o(decode_pipeline_raw_call),
+    .raw_return_o(decode_pipeline_raw_return),
+    .raw_trap_o(decode_pipeline_raw_trap),
     .invalid_frontend_o(fetch_pipeline_invalid_frontend),
     .x86_fetch_wait_o(x86_fetch_wait_o),
     .x86_request_error_o(x86_request_error_o),
@@ -130,6 +160,20 @@ module poly_frontend_memory_retire (
   always_comb begin
     retire_fetch_valid = fetch_pipeline_valid;
     retire_fetch_fault = fetch_pipeline_fault;
+    raw_insn_valid_o = decode_pipeline_valid && decode_pipeline_raw_insn_valid;
+    raw_memory_order_valid_o =
+      decode_pipeline_valid && decode_pipeline_raw_memory_order_valid;
+    raw_memory_load_o = decode_pipeline_valid && decode_pipeline_raw_memory_load;
+    raw_memory_store_o =
+      decode_pipeline_valid && decode_pipeline_raw_memory_store;
+    raw_memory_atomic_o =
+      decode_pipeline_valid && decode_pipeline_raw_memory_atomic;
+    raw_memory_barrier_o =
+      decode_pipeline_valid && decode_pipeline_raw_memory_barrier;
+    raw_branch_o = decode_pipeline_valid && decode_pipeline_raw_branch;
+    raw_call_o = decode_pipeline_valid && decode_pipeline_raw_call;
+    raw_return_o = decode_pipeline_valid && decode_pipeline_raw_return;
+    raw_trap_o = decode_pipeline_valid && decode_pipeline_raw_trap;
   end
 
   poly_frontend_predecoded_retire frontend_predecoded_retire (

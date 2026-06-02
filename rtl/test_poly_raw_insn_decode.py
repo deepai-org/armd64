@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""Instruction-class checks for rtl/poly_raw_insn_decode.sv."""
+
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+RTL = ROOT / "rtl/poly_raw_insn_decode.sv"
+
+POLY_FRONTEND_X86 = 0
+POLY_FRONTEND_AARCH64 = 1
+POLY_FRONTEND_RISCV = 2
+
+
+def decode(valid: bool, frontend: int, insn: int) -> dict[str, bool]:
+    a64 = valid and frontend == POLY_FRONTEND_AARCH64
+    rv = valid and frontend == POLY_FRONTEND_RISCV
+
+    a64_load_store = ((insn >> 25) & 0x7) == 0b100
+    a64_atomic = a64_load_store and ((insn >> 24) & 0x3F) == 0b001000
+    a64_barrier = (insn & 0xFFFFF01F) == 0xD503301F
+    a64_bl = (insn & 0xFC000000) == 0x94000000
+    a64_b = (insn & 0x7C000000) == 0x14000000
+    a64_cond_b = (insn & 0xFF000010) == 0x54000000
+    a64_br = (insn & 0xFFFFFC1F) == 0xD61F0000
+    a64_blr = (insn & 0xFFFFFC1F) == 0xD63F0000
+    a64_ret = (insn & 0xFFFFFC1F) == 0xD65F0000
+    a64_trap = (insn & 0xFF000000) == 0xD4000000
+
+    rv32 = (insn & 3) == 3
+    opcode = insn & 0x7F
+    rd = (insn >> 7) & 0x1F
+    rv16 = insn & 0xFFFF
+    rv16_funct3 = (rv16 >> 13) & 0x7
+    rv16_quad = rv16 & 0x3
+
+    rv_load = (
+        (rv32 and opcode in {0x03, 0x07}) or
+        (not rv32 and rv16_quad in {0b00, 0b10} and rv16_funct3 in {0b001, 0b010, 0b011})
+    )
+    rv_store = (
+        (rv32 and opcode in {0x23, 0x27}) or
+        (not rv32 and rv16_quad in {0b00, 0b10} and rv16_funct3 in {0b101, 0b110, 0b111})
+    )
+    rv_atomic = rv32 and opcode == 0x2F
+    rv_barrier = rv32 and opcode == 0x0F
+    rv_branch = (
+        (rv32 and opcode in {0x63, 0x67, 0x6F}) or
+        (not rv32 and (
+            (rv16_quad == 0b01 and rv16_funct3 in {0b001, 0b101, 0b110, 0b111}) or
+            (rv16_quad == 0b10 and ((rv16 >> 12) & 0xF) == 0b1000 and ((rv16 >> 2) & 0x1F) == 0)
+        ))
+    )
+    rv_call = (
+        (rv32 and (
+            (opcode == 0x6F and rd in {1, 5}) or
+            (opcode == 0x67 and rd in {1, 5})
+        )) or
+        (not rv32 and rv16_quad == 0b10 and ((rv16 >> 12) & 0xF) == 0b1001 and
+         ((rv16 >> 7) & 0x1F) != 0 and ((rv16 >> 2) & 0x1F) == 0)
+    )
+    rv_return = rv32 and insn == 0x00008067
+    rv_trap = (rv32 and opcode == 0x73) or (not rv32 and rv16 == 0x9002)
+
+    load = (a64 and a64_load_store and not a64_atomic and bool((insn >> 22) & 1)) or (rv and rv_load)
+    store = (a64 and a64_load_store and not a64_atomic and not bool((insn >> 22) & 1)) or (rv and rv_store)
+    atomic = (a64 and a64_atomic) or (rv and rv_atomic)
+    barrier = (a64 and a64_barrier) or (rv and rv_barrier)
+    raw = a64 or rv
+    return {
+        "raw": raw,
+        "memory_order": raw and (load or store or atomic or barrier),
+        "load": load,
+        "store": store,
+        "atomic": atomic,
+        "barrier": barrier,
+        "branch": (a64 and (a64_b or a64_cond_b or a64_br or a64_bl or a64_blr or a64_ret)) or (rv and rv_branch),
+        "call": (a64 and (a64_bl or a64_blr)) or (rv and rv_call),
+        "return": (a64 and a64_ret) or (rv and rv_return),
+        "trap": (a64 and a64_trap) or (rv and rv_trap),
+    }
+
+
+def require_structural_wiring() -> None:
+    text = RTL.read_text()
+    for needle in [
+        "module poly_raw_insn_decode",
+        "a64_load_store_group = insn_i[27:25] == 3'b100",
+        "rv_opcode = insn_i[6:0]",
+        "memory_order_valid_o =",
+        "call_o =",
+        "return_o =",
+        "trap_o =",
+    ]:
+        if needle not in text:
+            raise AssertionError(f"missing raw decoder structure: {needle}")
+
+
+def assert_class(frontend: int, insn: int, **expected: bool) -> None:
+    got = decode(True, frontend, insn)
+    for name, value in expected.items():
+        assert got[name] is value, (hex(insn), name, got)
+
+
+def main() -> int:
+    require_structural_wiring()
+
+    assert_class(POLY_FRONTEND_X86, 0x0FFC3A0F, raw=False, memory_order=False)
+
+    assert_class(POLY_FRONTEND_AARCH64, 0xF9400000, raw=True, memory_order=True, load=True, store=False)
+    assert_class(POLY_FRONTEND_AARCH64, 0xF9000000, memory_order=True, load=False, store=True)
+    assert_class(POLY_FRONTEND_AARCH64, 0xC85F7C00, memory_order=True, atomic=True, load=False, store=False)
+    assert_class(POLY_FRONTEND_AARCH64, 0xD5033FBF, memory_order=True, barrier=True)
+    assert_class(POLY_FRONTEND_AARCH64, 0x94000000, branch=True, call=True)
+    assert_class(POLY_FRONTEND_AARCH64, 0xD65F03C0, branch=True, call=False, **{"return": True})
+    assert_class(POLY_FRONTEND_AARCH64, 0xD4200000, trap=True)
+
+    assert_class(POLY_FRONTEND_RISCV, 0x00013083, memory_order=True, load=True, store=False)
+    assert_class(POLY_FRONTEND_RISCV, 0x00113023, memory_order=True, load=False, store=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x08B5302F, memory_order=True, atomic=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x0000000F, memory_order=True, barrier=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x000000EF, branch=True, call=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x00008067, branch=True, **{"return": True})
+    assert_class(POLY_FRONTEND_RISCV, 0x00000073, trap=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x0000E002, memory_order=True, store=True)
+    assert_class(POLY_FRONTEND_RISCV, 0x00009002, trap=True)
+
+    disabled = decode(False, POLY_FRONTEND_AARCH64, 0xF9400000)
+    assert not disabled["raw"] and not disabled["memory_order"]
+
+    print("POLY_RTL_RAW_INSN_DECODE_OK")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

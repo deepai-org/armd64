@@ -123,6 +123,10 @@ module tb_poly_frontend_core;
   logic [31:0] return_resume_flags_o;
   logic return_recover_error_o;
   logic return_recover_blocked_o;
+  logic memory_retire_allowed_o;
+  logic memory_enqueue_store_o;
+  logic memory_wait_store_buffer_o;
+  logic memory_wait_atomic_order_o;
 
   poly_frontend_core dut (
     .clk_i(clk_i),
@@ -225,10 +229,10 @@ module tb_poly_frontend_core;
     .return_recover_invalid_frontend_o(),
     .return_recover_missing_transition_o(),
     .return_recover_blocked_o(return_recover_blocked_o),
-    .memory_retire_allowed_o(),
-    .memory_enqueue_store_o(),
-    .memory_wait_store_buffer_o(),
-    .memory_wait_atomic_order_o(),
+    .memory_retire_allowed_o(memory_retire_allowed_o),
+    .memory_enqueue_store_o(memory_enqueue_store_o),
+    .memory_wait_store_buffer_o(memory_wait_store_buffer_o),
+    .memory_wait_atomic_order_o(memory_wait_atomic_order_o),
     .memory_barrier_noop_o(),
     .memory_aarch64_barrier_noop_o(),
     .memory_riscv_fence_noop_o(),
@@ -529,6 +533,26 @@ module tb_poly_frontend_core;
     #1;
     check(transition_stack_depth_o == 4'd0 && transition_stack_empty_o,
       "return cookie pop drains transition stack");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend_i = POLY_FRONTEND_AARCH64;
+    pc_i = 64'h4000;
+    raw_mem_resp_valid_i = 1'b1;
+    raw_mem_resp_word_i = 32'hf9000000;
+    store_buffer_full_i = 1'b1;
+    #1;
+    check(raw_mem_req_valid_o, "raw store issues raw fetch");
+    check(wait_execute_o && !retire_o && !fault_o,
+      "decoded raw store waits for full store buffer");
+    check(memory_wait_store_buffer_o && !memory_retire_allowed_o,
+      "decoded raw store drives tso store-buffer wait");
+
+    store_buffer_full_i = 1'b0;
+    #1;
+    check(memory_retire_allowed_o && retire_o && !fault_o,
+      "decoded raw store retires when store buffer has space");
+    check(memory_enqueue_store_o, "decoded raw store enqueues store on retire");
 
     $display("POLY_RTL_FRONTEND_CORE_SIM_OK");
     $finish;

@@ -60,6 +60,9 @@ silicon prototype.
   frontends, including foreign barrier/fence no-op handling.
 - `poly_memory_order_formal.sv`: formal harness with assertions for the TSO
   retirement policy, discharged by the Yosys `check-poly-rtl-formal` target.
+- `poly_raw_insn_decode.sv`: raw AArch64/RISC-V instruction-class decoder that
+  emits memory-order, branch/call/return, and trap sidebands for hardware
+  policy without high-level emulation.
 - `poly_x86_fetch_stage.sv`: x86 frontend response stage that waits for the
   byte frontend and reports response faults before retirement.
 - `poly_raw_fetch_plan.sv`: raw AArch64/RISC-V fetch geometry for alignment,
@@ -127,6 +130,8 @@ silicon prototype.
   contains the expected TSO assertions.
 - `test_poly_memory_order_litmus.py`: litmus-style checks for x86 TSO message
   passing, store buffering, and coherence behavior.
+- `test_poly_raw_insn_decode.py`: raw AArch64/RISC-V instruction-class checks
+  for loads, stores, atomics, barriers/fences, calls, returns, and traps.
 - `test_poly_x86_fetch_stage.py`: x86 fetch response-stage checks for wait,
   instruction-valid, fallthrough, and response-fault behavior.
 - `test_poly_raw_fetch_plan.py`: raw foreign-fetch geometry checks against
@@ -168,6 +173,7 @@ python3 rtl/test_poly_cpuid_rom.py
 python3 rtl/test_poly_memory_order.py
 python3 rtl/test_poly_memory_order_formal.py
 python3 rtl/test_poly_memory_order_litmus.py
+python3 rtl/test_poly_raw_insn_decode.py
 python3 rtl/test_poly_x86_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_request.py
 python3 rtl/test_poly_raw_fetch_response_stage.py
@@ -216,6 +222,7 @@ POLY_RTL_CPUID_ROM_OK
 POLY_RTL_MEMORY_ORDER_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_OK
 POLY_RTL_MEMORY_ORDER_LITMUS_OK
+POLY_RTL_RAW_INSN_DECODE_OK
 POLY_RTL_X86_FETCH_STAGE_OK
 POLY_RTL_RAW_FETCH_REQUEST_OK
 POLY_RTL_RAW_FETCH_RESPONSE_STAGE_OK
@@ -228,7 +235,7 @@ POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_SYNTH_OK
-POLY_RTL_FPGA_RESOURCES cells=6117 estimated_lcs=2805
+POLY_RTL_FPGA_RESOURCES cells=6211 estimated_lcs=2859
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK

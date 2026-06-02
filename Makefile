@@ -26,6 +26,7 @@ POLY_RTL_SV = \
 	rtl/poly_frontend_step.sv \
 	rtl/poly_interrupt_boundary.sv \
 	rtl/poly_memory_order.sv \
+	rtl/poly_raw_insn_decode.sv \
 	rtl/poly_raw_fetch_plan.sv \
 	rtl/poly_raw_fetch_request.sv \
 	rtl/poly_raw_fetch_response_stage.sv \
@@ -84,6 +85,7 @@ check-poly-rtl:
 	python3 rtl/test_poly_memory_order.py
 	python3 rtl/test_poly_memory_order_formal.py
 	python3 rtl/test_poly_memory_order_litmus.py
+	python3 rtl/test_poly_raw_insn_decode.py
 	python3 rtl/test_poly_x86_fetch_stage.py
 	python3 rtl/test_poly_raw_fetch_request.py
 	python3 rtl/test_poly_raw_fetch_response_stage.py
@@ -114,6 +116,7 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_raw_fetch_path"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_fetch_decode_pipeline" \
 		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_insn_decode.sv \
 		rtl/poly_raw_fetch_request.sv rtl/poly_raw_fetch_response_stage.sv \
 		rtl/poly_frontend_fetch_issue.sv rtl/poly_x86_fetch_stage.sv \
 		rtl/poly_frontend_decode_dispatch.sv \
@@ -125,6 +128,7 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_cpuid_rom"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_retire" \
 		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_insn_decode.sv \
 		rtl/poly_frontend_decode_dispatch.sv rtl/poly_frontend_handoff.sv \
 		rtl/poly_frontend_step.sv rtl/poly_frontend_retire.sv \
 		rtl/tb_poly_frontend_retire.sv; \
@@ -135,6 +139,7 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_frontend_predecoded_retire"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_memory_retire" \
 		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_insn_decode.sv \
 		rtl/poly_raw_fetch_request.sv rtl/poly_raw_fetch_response_stage.sv \
 		rtl/poly_frontend_fetch_issue.sv rtl/poly_x86_fetch_stage.sv \
 		rtl/poly_frontend_decode_dispatch.sv \
@@ -145,6 +150,7 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_frontend_memory_retire"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_core" \
 		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_insn_decode.sv \
 		rtl/poly_raw_fetch_request.sv rtl/poly_raw_fetch_response_stage.sv \
 		rtl/poly_frontend_fetch_issue.sv rtl/poly_x86_fetch_stage.sv \
 		rtl/poly_frontend_decode_dispatch.sv \
@@ -159,6 +165,7 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_frontend_core"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_stateful_core" \
 		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_insn_decode.sv \
 		rtl/poly_raw_fetch_request.sv rtl/poly_raw_fetch_response_stage.sv \
 		rtl/poly_frontend_fetch_issue.sv rtl/poly_x86_fetch_stage.sv \
 		rtl/poly_frontend_decode_dispatch.sv \
@@ -175,6 +182,7 @@ check-poly-rtl-sim:
 	vvp "$$tmp_dir/tb_poly_frontend_stateful_core"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_frontend_fpga_top" \
 		rtl/poly_ctrl_decode.sv rtl/poly_raw_fetch_plan.sv \
+		rtl/poly_raw_insn_decode.sv \
 		rtl/poly_raw_fetch_request.sv rtl/poly_raw_fetch_response_stage.sv \
 		rtl/poly_frontend_fetch_issue.sv rtl/poly_x86_fetch_stage.sv \
 		rtl/poly_frontend_decode_dispatch.sv \

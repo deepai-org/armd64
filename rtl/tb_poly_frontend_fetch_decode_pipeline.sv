@@ -37,6 +37,16 @@ module tb_poly_frontend_fetch_decode_pipeline;
   logic [6:0] subop;
   logic call_sig_imm;
   logic [6:0] signature_slot;
+  logic raw_insn_valid;
+  logic raw_memory_order_valid;
+  logic raw_memory_load;
+  logic raw_memory_store;
+  logic raw_memory_atomic;
+  logic raw_memory_barrier;
+  logic raw_branch;
+  logic raw_call;
+  logic raw_return;
+  logic raw_trap;
   logic invalid_frontend;
   logic x86_fetch_wait;
   logic x86_request_error;
@@ -77,6 +87,16 @@ module tb_poly_frontend_fetch_decode_pipeline;
     .subop_o(subop),
     .call_sig_imm_o(call_sig_imm),
     .signature_slot_o(signature_slot),
+    .raw_insn_valid_o(raw_insn_valid),
+    .raw_memory_order_valid_o(raw_memory_order_valid),
+    .raw_memory_load_o(raw_memory_load),
+    .raw_memory_store_o(raw_memory_store),
+    .raw_memory_atomic_o(raw_memory_atomic),
+    .raw_memory_barrier_o(raw_memory_barrier),
+    .raw_branch_o(raw_branch),
+    .raw_call_o(raw_call),
+    .raw_return_o(raw_return),
+    .raw_trap_o(raw_trap),
     .invalid_frontend_o(invalid_frontend),
     .x86_fetch_wait_o(x86_fetch_wait),
     .x86_request_error_o(x86_request_error),
@@ -190,6 +210,33 @@ module tb_poly_frontend_fetch_decode_pipeline;
       "aarch64 signature control decodes");
     check(subop == POLY_AARCH64_CTRL_SUBOP_CALL_SIG_IMM_BASE + 7'd2,
       "aarch64 signature subop");
+    check(raw_insn_valid && !raw_memory_order_valid && !raw_branch,
+      "aarch64 control is raw but not memory/branch class");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend = POLY_FRONTEND_AARCH64;
+    pc = 64'h5000;
+    raw_mem_resp_valid = 1'b1;
+    raw_mem_resp_word = 32'hf9400000;
+    #1;
+    check(fetch_valid && decode_valid && !poly_ctrl, "aarch64 ldr decodes non-control");
+    check(raw_insn_valid && raw_memory_order_valid && raw_memory_load,
+      "aarch64 ldr emits load ordering");
+    check(!raw_memory_store && !raw_memory_atomic && !raw_memory_barrier,
+      "aarch64 ldr has only load class");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend = POLY_FRONTEND_AARCH64;
+    pc = 64'h5004;
+    raw_mem_resp_valid = 1'b1;
+    raw_mem_resp_word = 32'hd65f03c0;
+    #1;
+    check(fetch_valid && raw_insn_valid && raw_branch && raw_return,
+      "aarch64 ret emits branch/return class");
+    check(!raw_memory_order_valid && !raw_call && !raw_trap,
+      "aarch64 ret has no memory/call/trap class");
 
     clear_inputs();
     valid_i = 1'b1;
@@ -204,6 +251,30 @@ module tb_poly_frontend_fetch_decode_pipeline;
       "riscv signature control decodes");
     check(subop == POLY_RISCV_CTRL_SUBOP_CALL_SIG_IMM_BASE + 7'd3,
       "riscv signature subop");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend = POLY_FRONTEND_RISCV;
+    pc = 64'h9000;
+    raw_mem_resp_valid = 1'b1;
+    raw_mem_resp_word = 32'h0000000f;
+    #1;
+    check(fetch_valid && raw_insn_valid && raw_memory_order_valid,
+      "riscv fence decodes as memory-order instruction");
+    check(raw_memory_barrier && !raw_memory_load && !raw_memory_store,
+      "riscv fence emits barrier only");
+
+    clear_inputs();
+    valid_i = 1'b1;
+    frontend = POLY_FRONTEND_RISCV;
+    pc = 64'h9002;
+    raw_mem_resp_valid = 1'b1;
+    raw_mem_resp_word = 32'hffffe002;
+    #1;
+    check(fetch_valid && fetch_word == 32'h0000e002,
+      "riscv compressed fetch zero-extends 16-bit instruction");
+    check(raw_insn_valid && raw_memory_order_valid && raw_memory_store,
+      "riscv compressed store emits store ordering");
 
     clear_inputs();
     valid_i = 1'b1;
