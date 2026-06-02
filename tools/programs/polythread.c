@@ -1320,7 +1320,7 @@ static int run_explicit_state_key_probe(uintptr_t worker_id, uint64_t base) {
       pcall_aarch64_hidden_fp_set(aarch64_fp) != aarch64_fp ||
       pcall_riscv_hidden_fp_set(riscv_fp) != riscv_fp) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu explicit state-key bank setup failed\n",
+      "POLYTHREAD_FAIL: worker=%lu explicit state-key state setup failed\n",
       (unsigned long) worker_id);
     return -1;
   }
@@ -1337,7 +1337,7 @@ static int run_explicit_state_key_probe(uintptr_t worker_id, uint64_t base) {
       pcall_riscv_hidden_fp_get(double_to_bits(5.0)) !=
         double_to_bits((double) worker_id + 28.5)) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu explicit state-key bank isolation failed\n",
+      "POLYTHREAD_FAIL: worker=%lu explicit state-key state isolation failed\n",
       (unsigned long) worker_id);
     return -1;
   }
@@ -1474,7 +1474,7 @@ static int run_real_xsave_no_key_probe(uintptr_t worker_id, uint64_t base) {
   return 0;
 }
 
-static int check_exported_thread_banks(uintptr_t worker_id,
+static int check_exported_thread_state(uintptr_t worker_id,
     uint64_t expected_aarch64_gpr, uint64_t expected_riscv_gpr,
     uint64_t expected_aarch64_fp, uint64_t expected_riscv_fp) {
   struct poly_xsave_state snapshot __attribute__((aligned(64)));
@@ -1484,7 +1484,7 @@ static int check_exported_thread_banks(uintptr_t worker_id,
       snapshot.aarch64_fp[20].lo != expected_aarch64_fp ||
       snapshot.riscv_fp[20].lo != expected_riscv_fp) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu exported banks a64x20=0x%llx/0x%llx rvx20=0x%llx/0x%llx a64d20=0x%llx/0x%llx rvf20=0x%llx/0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu exported state a64x20=0x%llx/0x%llx rvx20=0x%llx/0x%llx a64d20=0x%llx/0x%llx rvf20=0x%llx/0x%llx\n",
       (unsigned long) worker_id,
       (unsigned long long) snapshot.aarch64_gpr[20],
       (unsigned long long) expected_aarch64_gpr,
@@ -1665,7 +1665,7 @@ static void *worker_main(void *arg) {
   uint64_t default_aarch64_result = pcall_aarch64_hidden_get(9);
   if (default_aarch64_result != default_aarch64_seed + 9) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default aarch64 bank got=%llu expected=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 state got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) default_aarch64_result,
       (unsigned long long) (default_aarch64_seed + 9));
@@ -1674,7 +1674,7 @@ static void *worker_main(void *arg) {
   uint64_t default_riscv_result = pcall_riscv_hidden_get(11);
   if (default_riscv_result != default_riscv_seed + 11) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default riscv bank got=%llu expected=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu default riscv state got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) default_riscv_result,
       (unsigned long long) (default_riscv_seed + 11));
@@ -1686,7 +1686,7 @@ static void *worker_main(void *arg) {
     double_to_bits((double) default_aarch64_fp_seed + 9.0);
   if (default_aarch64_fp_result != default_aarch64_fp_expected) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default aarch64 fp bank got=0x%llx expected=0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu default aarch64 fp state got=0x%llx expected=0x%llx\n",
       (unsigned long) worker_id,
       (unsigned long long) default_aarch64_fp_result,
       (unsigned long long) default_aarch64_fp_expected);
@@ -1698,13 +1698,13 @@ static void *worker_main(void *arg) {
     double_to_bits((double) default_riscv_fp_seed + 11.0);
   if (default_riscv_fp_result != default_riscv_fp_expected) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu default riscv fp bank got=0x%llx expected=0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu default riscv fp state got=0x%llx expected=0x%llx\n",
       (unsigned long) worker_id,
       (unsigned long long) default_riscv_fp_result,
       (unsigned long long) default_riscv_fp_expected);
     return (void *) 1;
   }
-  if (check_exported_thread_banks(worker_id, default_aarch64_seed,
+  if (check_exported_thread_state(worker_id, default_aarch64_seed,
       default_riscv_seed, double_to_bits((double) default_aarch64_fp_seed),
       double_to_bits((double) default_riscv_fp_seed)) != 0)
     return (void *) 1;
@@ -1751,7 +1751,7 @@ static void *worker_main(void *arg) {
   uint64_t stack_aarch64_result = pcall_aarch64_hidden_get(13);
   if (stack_aarch64_result != stack_aarch64_seed + 13) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-depth aarch64 bank got=%llu expected=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-depth aarch64 state got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_aarch64_result,
       (unsigned long long) (stack_aarch64_seed + 13));
@@ -1760,7 +1760,7 @@ static void *worker_main(void *arg) {
   uint64_t stack_riscv_result = pcall_riscv_hidden_get(17);
   if (stack_riscv_result != stack_riscv_seed + 17) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-depth riscv bank got=%llu expected=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-depth riscv state got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_riscv_result,
       (unsigned long long) (stack_riscv_seed + 17));
@@ -1772,7 +1772,7 @@ static void *worker_main(void *arg) {
     double_to_bits((double) stack_aarch64_fp_seed + 13.0);
   if (stack_aarch64_fp_result != stack_aarch64_fp_expected) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-depth aarch64 fp bank got=0x%llx expected=0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-depth aarch64 fp state got=0x%llx expected=0x%llx\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_aarch64_fp_result,
       (unsigned long long) stack_aarch64_fp_expected);
@@ -1784,7 +1784,7 @@ static void *worker_main(void *arg) {
     double_to_bits((double) stack_riscv_fp_seed + 17.0);
   if (stack_riscv_fp_result != stack_riscv_fp_expected) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-depth riscv fp bank got=0x%llx expected=0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-depth riscv fp state got=0x%llx expected=0x%llx\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_riscv_fp_result,
       (unsigned long long) stack_riscv_fp_expected);
@@ -1830,7 +1830,7 @@ static void *worker_main(void *arg) {
   stack_aarch64_result = pcall_aarch64_hidden_get_deep(19);
   if (stack_aarch64_result != stack_aarch64_seed + 19) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-reset aarch64 bank got=%llu expected=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-reset aarch64 state got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_aarch64_result,
       (unsigned long long) (stack_aarch64_seed + 19));
@@ -1839,7 +1839,7 @@ static void *worker_main(void *arg) {
   stack_riscv_result = pcall_riscv_hidden_get_deep(23);
   if (stack_riscv_result != stack_riscv_seed + 23) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-reset riscv bank got=%llu expected=%llu\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-reset riscv state got=%llu expected=%llu\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_riscv_result,
       (unsigned long long) (stack_riscv_seed + 23));
@@ -1851,7 +1851,7 @@ static void *worker_main(void *arg) {
     double_to_bits((double) stack_aarch64_fp_seed + 19.0);
   if (stack_aarch64_fp_result != stack_aarch64_fp_expected) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-reset aarch64 fp bank got=0x%llx expected=0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-reset aarch64 fp state got=0x%llx expected=0x%llx\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_aarch64_fp_result,
       (unsigned long long) stack_aarch64_fp_expected);
@@ -1863,13 +1863,13 @@ static void *worker_main(void *arg) {
     double_to_bits((double) stack_riscv_fp_seed + 23.0);
   if (stack_riscv_fp_result != stack_riscv_fp_expected) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu stack-reset riscv fp bank got=0x%llx expected=0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu stack-reset riscv fp state got=0x%llx expected=0x%llx\n",
       (unsigned long) worker_id,
       (unsigned long long) stack_riscv_fp_result,
       (unsigned long long) stack_riscv_fp_expected);
     return (void *) 1;
   }
-  if (check_exported_thread_banks(worker_id, stack_aarch64_seed,
+  if (check_exported_thread_state(worker_id, stack_aarch64_seed,
       stack_riscv_seed, stack_aarch64_fp_bits, stack_riscv_fp_bits) != 0)
     return (void *) 1;
 
