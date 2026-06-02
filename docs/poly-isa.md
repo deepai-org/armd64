@@ -1,8 +1,9 @@
-# Poly ISA
+# Poly ISA Quick Reference
 
-Poly adds AArch64 and RISC-V64 user-mode frontends to an x86_64 system CPU. The
-goal is compatibility with existing precompiled code across ISAs in one process
-address space.
+Poly is a Bochs prototype for running existing x86_64, AArch64, and RISC-V64
+user-mode code in one x86_64 process.
+
+For hardware/ABI design rationale, see `docs/poly-isa-design-directions.md`.
 
 ## Run
 
@@ -12,45 +13,29 @@ make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
 rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
 
-Focused checks:
+## How It Differs From x86_64
 
-```bash
-make BOOT_TIMEOUT_SECONDS=900 boot-poly-call-real-xsave-arch-traps
-make BOOT_TIMEOUT_SECONDS=900 boot-poly-binfmt-arch-traps
-```
+- x86_64 still owns boot, privilege, paging, interrupts, syscalls, atomics, and
+  the effective TSO memory model.
+- AArch64 and RISC-V64 are raw user frontends fetching native instructions from
+  the same virtual address space.
+- Mode changes are decoded Poly control instructions, not `#UD` traps or
+  per-instruction envelopes.
+- Cross-ISA calls target real native ABIs: SysV x86_64, AAPCS64, and RISC-V
+  psABI.
+- Foreign register state is explicit XSAVE-style per-thread state.
+- Hardware may switch frontends and rename registers, but must not implement
+  libc, translate syscalls, parse user descriptors, or repack stacks.
+- Recoverable foreign events produce OS-neutral trap packets for the runtime.
 
-## Difference From x86_64
+## Prototype Controls
 
-- x86_64 remains the system ISA: boot, privilege, paging, interrupts, syscalls,
-  atomics, and the effective memory model all stay x86_64-owned.
-- AArch64 and RISC-V64 are raw user-mode frontends. They fetch native 32-bit
-  instructions from the same architectural instruction pointer.
-- Mode changes are decoded control instructions. They are not `#UD` traps and
-  not per-instruction envelopes.
-- Cross-ISA interop targets real ABIs: SysV x86_64, AAPCS64, and RISC-V psABI.
-- Extra foreign registers are per-thread XSAVE-style architectural state, not
-  hidden CR3-scoped emulator state.
-- Hardware may switch frontends and remap register names. It must not parse user
-  memory descriptors, repack stacks, implement libc, or translate syscalls.
-- Recoverable foreign traps produce OS-neutral trap packets. User/runtime policy
-  decides what to do with them.
+Current Bochs encodings are temporary; real hardware needs allocated opcode
+space. Subops map to `PENTER`, `PSWITCH`, `PLANDING`, `PCALL`, `PCALL_SLOT`,
+`PTRAPRET`, and setup/query controls.
 
-## Temporary Bochs Encodings
-
-These are prototype encodings only; real hardware needs allocated opcode space.
-
-| ISA | Control encoding |
+| ISA | Encoding |
 | --- | --- |
 | x86_64 | `0f 3a fc <subop>` |
 | AArch64 | `0xd503201f | ((subop & 0x7f) << 5)` |
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
-
-| Subop | Meaning |
-| --- | --- |
-| `0x03` | `PENTER` |
-| `0x04` | `PSWITCH` |
-| `0x05` | `PLANDING` |
-| `0x2d` | `PCALL` |
-| `0x30..0x3c` | `PCALL_SLOT` |
-| `0x62` | `PTRAPRET` |
-| `0x65..0x6e` | setup/query |
