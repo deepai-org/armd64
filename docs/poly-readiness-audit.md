@@ -12,8 +12,9 @@ RISC-V64 code.
 | --- | --- |
 | Direct foreign fetch, not per-instruction traps | `docs/poly-isa.md`; Bochs raw AArch64/RISC-V decode in `bochs/cpu/proc_ctrl.cc`; `boot-poly-full-real-xsave-arch-traps` passed. |
 | Dedicated Poly control operations | `docs/poly-isa.md`; CPUID geometry in `tools/include/polycpuid.h`; Bochs x86/AArch64/RISC-V control decode in `bochs/cpu/proc_ctrl.cc`. |
-| FPGA-facing RTL bring-up artifacts | `rtl/poly_ctrl_decode.sv`; `rtl/poly_frontend_handoff.sv`; `rtl/poly_frontend_step.sv`; `rtl/poly_frontend_retire.sv`; `rtl/poly_interrupt_boundary.sv`; `rtl/poly_transition_stack.sv`; `rtl/poly_transition_cycle_budget.sv`; `rtl/poly_abi_signature_slots.sv`; `rtl/poly_cpuid_rom.sv`; `rtl/poly_memory_order.sv`; `rtl/poly_raw_fetch_request.sv`; `rtl/poly_raw_fetch_stage.sv`; `rtl/poly_raw_fetch_plan.sv`; `rtl/poly_return_cookie_recover.sv`; `rtl/poly_trap_packet_encode.sv`; `rtl/poly_trap_packet_stage.sv`; `make check-poly-rtl` passed. |
+| FPGA-facing RTL bring-up artifacts | `rtl/poly_ctrl_decode.sv`; `rtl/poly_frontend_handoff.sv`; `rtl/poly_frontend_step.sv`; `rtl/poly_frontend_retire.sv`; `rtl/poly_frontend_memory_retire.sv`; `rtl/poly_interrupt_boundary.sv`; `rtl/poly_transition_stack.sv`; `rtl/poly_transition_cycle_budget.sv`; `rtl/poly_abi_signature_slots.sv`; `rtl/poly_cpuid_rom.sv`; `rtl/poly_memory_order.sv`; `rtl/poly_raw_fetch_request.sv`; `rtl/poly_raw_fetch_stage.sv`; `rtl/poly_raw_fetch_plan.sv`; `rtl/poly_return_cookie_recover.sv`; `rtl/poly_trap_packet_encode.sv`; `rtl/poly_trap_packet_stage.sv`; `make check-poly-rtl` passed. |
 | Raw frontend memory path | `rtl/poly_raw_fetch_request.sv` validates raw instruction fetch addresses; `rtl/poly_raw_fetch_stage.sv` consumes memory responses and blocks instruction retirement on memory faults. |
+| Frontend fetch-to-retire prototype | `rtl/poly_frontend_memory_retire.sv` connects external x86 fetch or raw AArch64/RISC-V memory fetch to `rtl/poly_frontend_retire.sv`, producing end-to-end retire/commit/fault outputs. |
 | Poly control retirement ordering | `rtl/poly_frontend_retire.sv` prevents frontend/PC/transition-stack commits when older, fetch, execution, or control-validation faults are pending. |
 | Hardware-shaped interrupt boundary | `rtl/poly_interrupt_boundary.sv` records precise raw frontend PC on CPL3 interrupt entry and resumes raw mode only on matching user-return PC. |
 | Hardware-shaped trap delivery | `rtl/poly_trap_packet_encode.sv` emits the 16-qword monitor packet and rejects disabled, non-canonical, unaligned, and boundary-crossing packet addresses before delivery. |
@@ -45,10 +46,8 @@ RISC-V64 code.
 
 ## Next Engineering Gates
 
-1. Extend the one-step RTL planner into a frontend/memory prototype that
-   performs real instruction fetch and end-to-end instruction retirement.
-2. Add litmus-style and formal memory-model checks around
+1. Add litmus-style and formal memory-model checks around
    `rtl/poly_memory_order.sv`; the current RTL gate is directed-test coverage,
    not a proof.
-3. Decide the production x86 opcode allocation or define the vendor CPUID
+2. Decide the production x86 opcode allocation or define the vendor CPUID
    discovery contract that lets software consume non-Bochs encodings.
