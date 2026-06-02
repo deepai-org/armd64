@@ -2909,9 +2909,11 @@ static void poly_trap_vector_handler(void) {
     "pushq %r14\n"
     "pushq %r15\n"
     "pushq %rbp\n"
-    "subq $56, %rsp\n"
+    "movq %rsp, %rbp\n"
+    "andq $-16, %rsp\n"
+    "subq $128, %rsp\n"
     "call poly_trap_vector_dispatch\n"
-    "addq $56, %rsp\n"
+    "movq %rbp, %rsp\n"
     "popq %rbp\n"
     "popq %r15\n"
     "popq %r14\n"
@@ -7488,6 +7490,19 @@ static int emit_and_run_exit_child(const struct poly_program *program,
       program->path, strerror(errno));
     return -1;
   }
+
+  if (polyexec_use_explicit_state_key) {
+    const uint64_t key = (uint64_t) (uintptr_t) &poly_state_key_anchor;
+    if (poly_state_key_set(key) != 0 || poly_state_key_get() != key) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: parent Poly state-key restore failed for %s got=0x%llx\n",
+        program->path, (unsigned long long) poly_state_key_get());
+      return -1;
+    }
+  }
+  poly_mode_x86();
+  if (use_trap_vector)
+    install_poly_trap_vector();
 
   if (WIFEXITED(status)) {
     *result = (uint64_t) WEXITSTATUS(status);
