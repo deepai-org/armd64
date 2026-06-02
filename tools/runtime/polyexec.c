@@ -534,6 +534,17 @@ static uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
   return rax;
 }
 
+static uint64_t poly_abi_signature_set_with_flags(uint64_t slot, uint64_t kind,
+    uint32_t flags) {
+  uint64_t rax = slot;
+  uint64_t rdx = poly_abi_signature_control_value_with_flags(kind, flags);
+  asm volatile(POLY_OP_ABI_SIGNATURE_SET
+    : "+a"(rax), "+d"(rdx)
+    :
+    : "memory");
+  return rax;
+}
+
 static int polyexec_check_arch_state_contract(void) {
   struct poly_cpuid_contract_failure failure;
   if (!poly_cpuid_verify_arch_state_contract(&failure)) {
@@ -4123,6 +4134,17 @@ static void run_poly_process_entry(const uint8_t *code,
     uint64_t value = state_key;
     asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
   }
+  if (x86_fs_base != 0) {
+    uint64_t slot = process_native_signature_slot;
+    uint64_t signature =
+      poly_abi_signature_control_value_with_flags(
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS,
+        POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE);
+    asm volatile(POLY_OP_ABI_SIGNATURE_SET
+      : "+a"(slot), "+d"(signature)
+      :
+      : "memory");
+  }
   if (use_trap_vector) {
     uint64_t value = (uint64_t) (uintptr_t) poly_monitor_packet;
     asm volatile(POLY_OP_MONITOR_PACKET_SET : "+a"(value) :: "memory");
@@ -7582,8 +7604,9 @@ static int emit_and_run_process(struct poly_program *program,
      process_tree_has_arch_tls(program, POLY_ARCH_X86)) ?
     (uint64_t) (uintptr_t) process_tls : 0;
   if (process_runtime_x86_tls_base != 0 &&
-      poly_abi_signature_set(process_native_signature_slot,
-        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_TLS_BASE) != 0) {
+      poly_abi_signature_set_with_flags(process_native_signature_slot,
+        POLY_ABI_SIGNATURE_KIND_NATIVE_REGS,
+        POLY_ABI_REGISTER_MAP_FLAG_TLS_BASE) != 0) {
     fprintf(stderr,
       "POLYEXEC_FAIL: poly native TLS signature slot setup failed slot=%u\n",
       process_native_signature_slot);

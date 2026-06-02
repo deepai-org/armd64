@@ -3831,33 +3831,37 @@ static void child_expect_bad_trap_source_mode_xsave_signal(void) {
   _exit(99);
 }
 
-__attribute__((noreturn, noinline))
-static void child_expect_bad_trap_number_width_xsave_signal(void) {
-  struct poly_xsave_state bad __attribute__((aligned(64)));
-  memset(&bad, 0, sizeof(bad));
-  poly_state_export(&bad);
-  bad.trap.reason = POLY_TRAP_SYSCALL;
-  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  bad.trap.number = 0x100000000ULL;
-  bad.trap.trap_pc = 0x0000000000457000ULL;
-  bad.trap.resume_pc = 0x0000000000457004ULL;
-  poly_state_import(&bad);
-  _exit(99);
-}
-
-__attribute__((noreturn, noinline))
-static void child_expect_bad_trap_selector_width_xsave_signal(void) {
-  struct poly_xsave_state bad __attribute__((aligned(64)));
-  memset(&bad, 0, sizeof(bad));
-  poly_state_export(&bad);
-  bad.trap.reason = POLY_TRAP_SYSCALL;
-  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  bad.trap.number = 172;
-  bad.trap.selector = 0x100000000ULL;
-  bad.trap.trap_pc = 0x0000000000457000ULL;
-  bad.trap.resume_pc = 0x0000000000457004ULL;
-  poly_state_import(&bad);
-  _exit(99);
+static int nativecheck_expect_wide_trap_packet_xsave_roundtrip(void) {
+  struct poly_xsave_state before __attribute__((aligned(64)));
+  struct poly_xsave_state wide __attribute__((aligned(64)));
+  struct poly_xsave_state roundtrip __attribute__((aligned(64)));
+  poly_state_export(&before);
+  memcpy(&wide, &before, sizeof(wide));
+  wide.trap.reason = POLY_TRAP_SYSCALL;
+  wide.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  wide.trap.number = 0x100000000ULL;
+  wide.trap.selector = 0x100000001ULL;
+  wide.trap.trap_pc = 0x0000000000457000ULL;
+  wide.trap.resume_pc = 0x0000000000457004ULL;
+  poly_state_import(&wide);
+  poly_state_export(&roundtrip);
+  poly_state_import(&before);
+  if (roundtrip.trap.reason != POLY_TRAP_SYSCALL ||
+      roundtrip.trap.source_mode != POLY_MODE_RAW_AARCH64 ||
+      roundtrip.trap.number != wide.trap.number ||
+      roundtrip.trap.selector != wide.trap.selector ||
+      roundtrip.trap.trap_pc != wide.trap.trap_pc ||
+      roundtrip.trap.resume_pc != wide.trap.resume_pc) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly wide trap packet xsave roundtrip mismatch reason=%u mode=%u number=0x%llx selector=0x%llx pc=0x%llx resume=0x%llx\n",
+      roundtrip.trap.reason, roundtrip.trap.source_mode,
+      (unsigned long long) roundtrip.trap.number,
+      (unsigned long long) roundtrip.trap.selector,
+      (unsigned long long) roundtrip.trap.trap_pc,
+      (unsigned long long) roundtrip.trap.resume_pc);
+    return 1;
+  }
+  return 0;
 }
 
 __attribute__((noreturn, noinline))
@@ -4756,6 +4760,21 @@ static void poly_trap_vector_handler(void) {
     "jne 3f\n"
     "cmpq $1, %rbx\n"
     "jne 1f\n"
+    "movq %rcx, %rdx\n"
+    "shrq $32, %rdx\n"
+    "cmpq $1, %rdx\n"
+    "jne 11f\n"
+    "movl %ecx, %edx\n"
+    "testq %rdx, %rdx\n"
+    "jne 9f\n"
+    "cmpq $7, %rsi\n"
+    "jne 9f\n"
+    "movq $6464, %rax\n"
+    "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n"
+    "11:\n"
     "cmpq $172, %rcx\n"
     "jne 9f\n"
     "cmpq $7, %rsi\n"
@@ -4769,6 +4788,21 @@ static void poly_trap_vector_handler(void) {
     "1:\n"
     "cmpq $2, %rbx\n"
     "jne 9f\n"
+    "movq %rcx, %rdx\n"
+    "shrq $32, %rdx\n"
+    "cmpq $1, %rdx\n"
+    "jne 12f\n"
+    "movl %ecx, %edx\n"
+    "testq %rdx, %rdx\n"
+    "jne 9f\n"
+    "cmpq $0, %rsi\n"
+    "jne 9f\n"
+    "movq $6565, %rax\n"
+    "pxor %xmm0, %xmm0\n"
+    "pxor %xmm8, %xmm8\n"
+    POLY_OP_TRAP_RETURN
+    "ud2\n"
+    "12:\n"
     "cmpq $172, %rcx\n"
     "jne 9f\n"
     "cmpq $0, %rsi\n"
@@ -5650,15 +5684,15 @@ static int run_poly_trap_vector_probe(void) {
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
-  if (result != 4664) {
+  if (result != 6464) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly aarch64 wide syscall illegal result mismatch got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly aarch64 wide syscall trap result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
   if (expect_monitor_packet_args("aarch64 wide syscall",
-      &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
-      0xffffffffULL, 4, zero_trap_args) != 0)
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64,
+      0x100000000ULL, 7, zero_trap_args) != 0)
     return 1;
 
   uint64_t saved_r13 = 0;
@@ -5795,15 +5829,18 @@ static int run_poly_trap_vector_probe(void) {
     ::: "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
-  if (result != 4665) {
+  if (result != 6565) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: poly riscv wide syscall illegal result mismatch got=%llu\n",
+      "NATIVE_CHECK_FAIL: poly riscv wide syscall trap result mismatch got=%llu\n",
       (unsigned long long) result);
     return 1;
   }
+  const uint64_t wide_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+    0, 0, 0, 0, 0, 0, 0, 0x100000000ULL
+  };
   if (expect_monitor_packet_args("riscv wide syscall",
-      &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
-      0xffffffffULL, 4, zero_trap_args) != 0)
+      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV,
+      0x100000000ULL, 0, wide_riscv_syscall_args) != 0)
     return 1;
 
   saved_r13 = 0;
@@ -7886,11 +7923,7 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad trap source mode xstate", SIGILL,
         child_expect_bad_trap_source_mode_xsave_signal) != 0)
     return 1;
-  if (expect_child_signal("poly bad trap number width xstate", SIGILL,
-        child_expect_bad_trap_number_width_xsave_signal) != 0)
-    return 1;
-  if (expect_child_signal("poly bad trap selector width xstate", SIGILL,
-        child_expect_bad_trap_selector_width_xsave_signal) != 0)
+  if (nativecheck_expect_wide_trap_packet_xsave_roundtrip() != 0)
     return 1;
   if (expect_child_signal("poly bad trap pc xstate", SIGILL,
         child_expect_bad_trap_pc_xsave_signal) != 0)
