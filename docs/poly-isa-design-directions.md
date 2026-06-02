@@ -35,7 +35,7 @@ These are decoded control instructions, not `#UD` envelopes.
 
 ## ABI Boundary
 
-Hardware handles only fixed-latency register aliasing, including hidden
+Hardware handles only fixed-latency register aliasing, including implicit
 structure-return pointer registers when the native ABI represents them as
 ordinary register inputs. Software thunks handle stack arguments, by-value
 aggregates, variadics, structure-return stack reshaping, lazy binding,
