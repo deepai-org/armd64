@@ -6,6 +6,10 @@ BOOT_DETAIL_ASSERTS ?= 1
 BOOT_DOCKER_ENV = -e BOOT_TIMEOUT_SECONDS=$(BOOT_TIMEOUT_SECONDS) -e BOOT_DETAIL_ASSERTS=$(BOOT_DETAIL_ASSERTS)
 POLY_RTL_TOP ?= poly_frontend_fpga_top
 POLY_RTL_XDC ?= rtl/poly_frontend_fpga_top.xdc
+POLY_RTL_FPGA_OUT ?= out/rtl
+POLY_RTL_FPGA_EDIF = $(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).edif
+POLY_RTL_FPGA_XDC = $(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).xdc
+POLY_RTL_FPGA_MANIFEST = $(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).manifest
 POLY_RTL_VERILATOR_FLAGS = --lint-only --Wall \
 	-Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
 	--top-module $(POLY_RTL_TOP)
@@ -41,7 +45,7 @@ POLY_RTL_SV = \
 	rtl/poly_trap_packet_stage.sv \
 	rtl/poly_x86_fetch_stage.sv
 
-.PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
+.PHONY: image poly-xcr0-module poly-rtl-fpga-artifacts check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -262,6 +266,27 @@ check-poly-rtl-fpga-resources:
 	awk '/Number of cells:/ { cells = $$4 } /Estimated number of LCs:/ { lcs = $$5 } END { if (!cells || !lcs) exit 1; printf "POLY_RTL_FPGA_RESOURCES cells=%s estimated_lcs=%s\n", cells, lcs }' "$$tmp_dir/yosys.log"
 
 check-poly-rtl-hdl: check-poly-rtl-constraints check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources
+
+poly-rtl-fpga-artifacts: check-poly-rtl-constraints
+	mkdir -p $(POLY_RTL_FPGA_OUT)
+	yosys -p "read_verilog -sv $(POLY_RTL_SV); synth_xilinx -family xc7 -top $(POLY_RTL_TOP) -noiopad -noclkbuf -edif $(POLY_RTL_FPGA_EDIF); stat -tech xilinx" > "$(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).yosys.log"
+	test -s $(POLY_RTL_FPGA_EDIF)
+	cp $(POLY_RTL_XDC) $(POLY_RTL_FPGA_XDC)
+	cells=$$(awk '/Number of cells:/ { cells = $$4 } END { if (!cells) exit 1; print cells }' "$(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).yosys.log"); \
+	lcs=$$(awk '/Estimated number of LCs:/ { lcs = $$5 } END { if (!lcs) exit 1; print lcs }' "$(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).yosys.log"); \
+	edif_sha=$$(sha256sum $(POLY_RTL_FPGA_EDIF) | awk '{ print $$1 }'); \
+	xdc_sha=$$(sha256sum $(POLY_RTL_FPGA_XDC) | awk '{ print $$1 }'); \
+	{ \
+	  printf "top=%s\n" "$(POLY_RTL_TOP)"; \
+	  printf "edif=%s\n" "$(POLY_RTL_FPGA_EDIF)"; \
+	  printf "xdc=%s\n" "$(POLY_RTL_FPGA_XDC)"; \
+	  printf "cells=%s\n" "$$cells"; \
+	  printf "estimated_lcs=%s\n" "$$lcs"; \
+	  printf "edif_sha256=%s\n" "$$edif_sha"; \
+	  printf "xdc_sha256=%s\n" "$$xdc_sha"; \
+	  printf "timing_closure=not_run\n"; \
+	} > $(POLY_RTL_FPGA_MANIFEST)
+	@echo POLY_RTL_FPGA_ARTIFACTS $(POLY_RTL_FPGA_EDIF) $(POLY_RTL_FPGA_XDC) $(POLY_RTL_FPGA_MANIFEST)
 
 boot:
 	docker run --rm \

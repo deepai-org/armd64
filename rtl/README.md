@@ -237,6 +237,17 @@ frontend core:
 make check-poly-rtl-hdl
 ```
 
+Generate a persistent FPGA handoff bundle for downstream place-and-route:
+
+```bash
+make poly-rtl-fpga-artifacts
+```
+
+This writes `out/rtl/poly_frontend_fpga_top.edif`, copies
+`rtl/poly_frontend_fpga_top.xdc`, and emits
+`out/rtl/poly_frontend_fpga_top.manifest` with resource counts, SHA-256 hashes,
+and `timing_closure=not_run`.
+
 Run the memory-order formal proof directly:
 
 ```bash
@@ -281,6 +292,7 @@ POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_CONSTRAINTS_OK
 POLY_RTL_FPGA_SYNTH_OK
 POLY_RTL_FPGA_RESOURCES cells=7146 estimated_lcs=3425
+POLY_RTL_FPGA_ARTIFACTS out/rtl/poly_frontend_fpga_top.edif out/rtl/poly_frontend_fpga_top.xdc out/rtl/poly_frontend_fpga_top.manifest
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK

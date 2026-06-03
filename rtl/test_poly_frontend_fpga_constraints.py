@@ -93,7 +93,11 @@ def main() -> int:
             raise AssertionError(f"over-broad timing exception: {fragment}")
 
     assert "POLY_RTL_XDC ?= rtl/poly_frontend_fpga_top.xdc" in makefile
+    assert "POLY_RTL_FPGA_OUT ?= out/rtl" in makefile
+    assert "POLY_RTL_FPGA_MANIFEST = $(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).manifest" in makefile
     assert "check-poly-rtl-constraints" in makefile
+    assert "poly-rtl-fpga-artifacts: check-poly-rtl-constraints" in makefile
+    assert "timing_closure=not_run" in makefile
     assert "python3 rtl/test_poly_frontend_fpga_constraints.py" in makefile
     assert "check-poly-rtl-hdl: check-poly-rtl-constraints" in makefile
 
