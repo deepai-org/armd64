@@ -59,7 +59,9 @@ POLYEXEC_PROCESS_NEEDED_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_pro
 POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_libc_main_real.c"
 POLYEXEC_PROCESS_IMPORT_TRAP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_import_trap_real.c"
 POLYEXEC_LARGE_IMAGE_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_large_image_real.c"
+POLYEXEC_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_PROCESS_VERSIONED_DEP_REAL_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_versioned_dep_real.map"
+POLY_PREEMPT_STRESS_SRC="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 POLYCALL_STATE_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_state.c"
 POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_import_real.c"
 POLYCALL_LIBC_IMPORT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_libc_import_real.c"
@@ -359,6 +361,7 @@ RUN_POLY_EXEC_CROSS="${RUN_POLY_EXEC_CROSS:-0}"
 RUN_POLY_EXEC_SYSCALL="${RUN_POLY_EXEC_SYSCALL:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
+RUN_POLY_PREEMPT_STRESS="${RUN_POLY_PREEMPT_STRESS:-0}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
 RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
 RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
@@ -581,6 +584,11 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_LARGE_IMAGE_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-large-image-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PREEMPT_STRESS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-preempt-stress-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -3804,6 +3812,11 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_LARGE_IMAGE_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-large-image-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PREEMPT_STRESS_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-preempt-stress-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -7334,8 +7347,10 @@ build_initramfs() {
   cp "$POLY_SIGNAL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polysignal"
   cp "$POLY_BENCH_BIN" "$TMP_DIR/initramfs-root/usr/bin/polybench"
   cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
+  cp "$POLY_PREEMPT_STRESS_SRC" "$TMP_DIR/initramfs-root/usr/bin/poly-preemption-stress"
   cp "$NATIVE_CHECK_BIN" "$TMP_DIR/initramfs-root/usr/bin/nativecheck.elf"
   chmod +x "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
+  chmod +x "$TMP_DIR/initramfs-root/usr/bin/poly-preemption-stress"
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
   build_poly_elf_payloads
   build_binfmt_module
@@ -7353,6 +7368,7 @@ RUN_POLY_NEUTRAL="$RUN_POLY_NEUTRAL"
 RUN_POLY_EXEC_CROSS="$RUN_POLY_EXEC_CROSS"
 RUN_POLY_EXEC_SYSCALL="$RUN_POLY_EXEC_SYSCALL"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
+RUN_POLY_PREEMPT_STRESS="$RUN_POLY_PREEMPT_STRESS"
 RUN_POLY_CALL="$RUN_POLY_CALL"
 RUN_POLY_THREAD="$RUN_POLY_THREAD"
 RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
@@ -8113,9 +8129,25 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-large-image-real.elf=42 \
       large-image >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-preempt-stress-real.elf=42 \
+      preempt-stress >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-large-image-real.elf=42 \
       large-image >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-preempt-stress-real.elf=42 \
+      preempt-stress >/dev/ttyS0 2>&1
     echo "POLY_EXEC_BLOCK_OK" >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_PREEMPT_STRESS" = "1" ]; then
+    /usr/bin/poly-preemption-stress --process \
+      --payload /usr/lib/polyapps/aarch64-process-preempt-stress-real.elf \
+      --expected 42 --jobs 4 --iterations 2 >/dev/ttyS0 2>&1
+    /usr/bin/poly-preemption-stress --process \
+      --payload /usr/lib/polyapps/riscv-process-preempt-stress-real.elf \
+      --expected 42 --jobs 4 --iterations 2 >/dev/ttyS0 2>&1
+    echo "POLY_PREEMPT_STRESS_OK" >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
@@ -8220,6 +8252,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-large-image-real.elf=42 \
       large-image >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-preempt-stress-real.elf=42 \
+      preempt-stress >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-syscall-real.elf=42 \
       probe >/dev/ttyS0 2>&1
@@ -8536,6 +8571,9 @@ if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-large-image-real.elf=42 \
       large-image >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-preempt-stress-real.elf=42 \
+      preempt-stress >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-syscall-real.elf=42 \
       probe >/dev/ttyS0 2>&1
@@ -11533,6 +11571,7 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_EXEC_SYSCALL" "POLY_EXEC_SYSCALL_OK" || return 1
   required_section_complete "$RUN_POLY_EXEC" "POLY_EXEC_BLOCK_OK" || return 1
   required_section_complete "$RUN_POLY_ARCH_TRAP_EXEC" "POLY_ARCH_TRAP_EXEC_OK" || return 1
+  required_section_complete "$RUN_POLY_PREEMPT_STRESS" "POLY_PREEMPT_STRESS_OK" || return 1
   required_section_complete "$RUN_POLY_CALL" "POLYCALL_OK" || return 1
   required_section_complete "$RUN_POLY_THREAD" "POLYTHREAD_OK" || return 1
   required_section_complete "$RUN_POLY_SIGNAL" "POLYSIGNAL_OK" || return 1
@@ -12010,6 +12049,24 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=27 path=/usr/lib/polyapps/riscv-add\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-preempt-stress-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-preempt-stress-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_PREEMPT_STRESS" == "1" ]]; then
+        if ! grep -q "POLY_PREEMPT_STRESS_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -Ec "POLY_STRESS_OK: jobs=4 iterations=2 payload=/usr/lib/polyapps/(aarch64|riscv)-process-preempt-stress-real\\.elf expected=42" "$SERIAL_LOG" || true)" -lt 2 ]]; then
           sleep 1
           continue
         fi

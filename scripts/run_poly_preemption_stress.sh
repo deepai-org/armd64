@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
-usage: run_poly_preemption_stress.sh --payload ELF --expected VALUE [--jobs N] [--iterations N] [--polyexec PATH] [--log-dir DIR]
+usage: run_poly_preemption_stress.sh --payload ELF --expected VALUE [--process] [--jobs N] [--iterations N] [--polyexec PATH] [--log-dir DIR]
 
 Runs multiple polyexec instances in parallel and verifies that each instance:
   - exits successfully,
@@ -20,6 +20,7 @@ jobs="${POLY_STRESS_JOBS:-4}"
 iterations="${POLY_STRESS_ITER:-1}"
 polyexec="${POLYEXEC:-/usr/bin/polyexec}"
 log_dir=""
+process_mode=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,6 +48,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || { usage; exit 2; }
       polyexec="$2"
       shift 2
+      ;;
+    --process)
+      process_mode=1
+      shift
       ;;
     --log-dir)
       [[ $# -ge 2 ]] || { usage; exit 2; }
@@ -91,7 +96,11 @@ for job in $(seq 1 "$jobs"); do
   log="$log_dir/poly-preempt-$job.log"
   (
     for iter in $(seq 1 "$iterations"); do
-      POLYEXEC_AUTO_SPILL=1 "$polyexec" "$payload=$expected"
+      if [[ "$process_mode" -eq 1 ]]; then
+        POLYEXEC_AUTO_SPILL=1 "$polyexec" --process "$payload=$expected"
+      else
+        POLYEXEC_AUTO_SPILL=1 "$polyexec" "$payload=$expected"
+      fi
     done
   ) >"$log" 2>&1 &
   pids+=("$!")

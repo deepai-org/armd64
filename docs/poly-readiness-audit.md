@@ -65,11 +65,14 @@ RISC-V64 code.
 - Bochs now exposes auto-spill count, spilled-byte, and estimated-cycle status
   counters for profiling, and `polyexec` reports them as
   `POLYEXEC_AUTO_SPILL_STATUS`. The estimates are an emulator model rather than
-  a silicon timing result. `scripts/run_poly_preemption_stress.sh` is the guest
-  harness for running multiple `polyexec` instances and requiring both correct
-  results and nonzero auto-spill counts; a dedicated full-state math payload
-  still needs to be selected or written before claiming the whole
-  zero-kernel-change architecture is validated end to end.
+  a silicon timing result. `polyexec_preempt_stress_real.c` builds
+  AArch64/RISC-V process-mode stress payloads that keep almost every GPR and the
+  full FP register bank live across a deterministic checksum loop.
+  `scripts/run_poly_preemption_stress.sh` is the guest harness for running
+  multiple `polyexec` instances and requiring both correct results and nonzero
+  auto-spill counts; a `RUN_POLY_PREEMPT_STRESS=1` Bochs/Linux run is still
+  required before claiming the whole zero-kernel-change architecture is
+  validated end to end.
 - Hardware transition-stack depth, same-cycle push/pop conflicts, underflow,
   overflow, and return-cookie recovery behavior now have directed tests and a
   Yosys temporal-induction proof over a reduced-depth instance; full-depth

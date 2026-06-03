@@ -17,6 +17,8 @@ POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
 NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
 POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
 POLY_PREEMPT_STRESS="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
+POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
+BOOT_SCRIPT="$ROOT_DIR/scripts/boot.sh"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -63,7 +65,7 @@ assert_contains() {
   local file="$2"
   local description="$3"
 
-  if ! grep -Eq "$pattern" "$file"; then
+  if ! grep -Eq -- "$pattern" "$file"; then
     fail "$description"
   fi
 }
@@ -73,7 +75,7 @@ assert_not_contains() {
   local file="$2"
   local description="$3"
 
-  if grep -Eq "$pattern" "$file"; then
+  if grep -Eq -- "$pattern" "$file"; then
     fail "$description"
   fi
 }
@@ -370,6 +372,20 @@ assert_contains "POLYEXEC_RESULT: .* value=[$]expected" "$POLY_PREEMPT_STRESS" \
   "preemption stress harness must verify per-instance math results"
 assert_contains "POLYEXEC_AUTO_SPILL_STATUS: count=\\[1-9\\]" "$POLY_PREEMPT_STRESS" \
   "preemption stress harness must require observed auto-spills"
+assert_contains "--process" "$POLY_PREEMPT_STRESS" \
+  "preemption stress harness must support process-mode Poly payloads"
+assert_contains "fmov d31" "$POLYEXEC_PREEMPT_STRESS_SRC" \
+  "preemption stress fixture must keep the full AArch64 FP bank live"
+assert_contains "\\.irp r,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31" "$POLYEXEC_PREEMPT_STRESS_SRC" \
+  "preemption stress fixture must keep the full RISC-V FP bank live"
+assert_contains "fmv\\.d\\.x f\\\\\\\\r" "$POLYEXEC_PREEMPT_STRESS_SRC" \
+  "preemption stress fixture must write RISC-V FP registers"
+assert_contains "POLYEXEC_PREEMPT_STRESS_REAL_SRC" "$BOOT_SCRIPT" \
+  "boot image must build the preemption stress fixture"
+assert_contains "RUN_POLY_PREEMPT_STRESS" "$BOOT_SCRIPT" \
+  "boot script must expose an end-to-end preemption stress section"
+assert_contains "POLY_PREEMPT_STRESS_OK" "$BOOT_SCRIPT" \
+  "boot script must mark successful preemption stress completion"
 assert_contains "CPL[[:space:]]*!=[[:space:]]*3" "$RESTORE_FUNC" \
   "raw interrupt restore must only run on return to userspace"
 assert_contains "bx_poly_interrupted_raw_valid" "$RESTORE_FUNC" \
