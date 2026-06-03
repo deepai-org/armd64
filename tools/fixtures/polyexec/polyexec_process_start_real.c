@@ -148,18 +148,37 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 45;
   if (!poly_auxv_terminates(auxv))
     return 46;
+#if defined(POLY_PROCESS_EXPECT_INTERP)
+  if (argc != 2)
+    return 10 + argc;
+#else
   if (argc != 3)
     return 10 + argc;
+#endif
+#if defined(POLY_PROCESS_EXPECT_INTERP)
+  if (!argv[0] || !poly_contains(argv[0], "process-dynamic-libc"))
+    return 20;
+#else
   if (!argv[0] || !poly_contains(argv[0], "process-argv-envp"))
     return 20;
+#endif
+#if defined(POLY_PROCESS_EXPECT_INTERP)
+  if (!argv[1] || !poly_streq(argv[1], "dynamic-libc"))
+    return 21;
+  if (argv[2] != 0)
+    return 23;
+#else
   if (!argv[1] || !poly_streq(argv[1], "alpha"))
     return 21;
   if (!argv[2] || !poly_streq(argv[2], "beta"))
     return 22;
   if (argv[3] != 0)
     return 23;
+#endif
+#if !defined(POLY_PROCESS_EXPECT_INTERP)
   if (!poly_env_has(envp, "POLY_PROCESS_ENV=present"))
     return 24;
+#endif
   if (poly_aux_get(auxv, POLY_AT_PAGESZ) != 4096)
     return 25;
   if (poly_aux_get(auxv, POLY_AT_PHENT) != 56)
@@ -170,9 +189,15 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 28;
   if (poly_aux_get(auxv, POLY_AT_ENTRY) == 0)
     return 29;
-  if (!poly_aux_has(auxv, POLY_AT_BASE) ||
-      poly_aux_get(auxv, POLY_AT_BASE) != 0)
+  if (!poly_aux_has(auxv, POLY_AT_BASE))
     return 33;
+#if defined(POLY_PROCESS_EXPECT_INTERP)
+  if (poly_aux_get(auxv, POLY_AT_BASE) == 0)
+    return 49;
+#else
+  if (poly_aux_get(auxv, POLY_AT_BASE) != 0)
+    return 33;
+#endif
   if (!poly_aux_has(auxv, POLY_AT_FLAGS) ||
       poly_aux_get(auxv, POLY_AT_FLAGS) != 0)
     return 34;
@@ -210,10 +235,17 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
       !poly_random_nonzero((const unsigned char *)
         poly_aux_get(auxv, POLY_AT_RANDOM)))
     return 30;
-  if (!poly_aux_get(auxv, POLY_AT_EXECFN) ||
-      !poly_contains((const char *) poly_aux_get(auxv, POLY_AT_EXECFN),
+  if (!poly_aux_get(auxv, POLY_AT_EXECFN))
+    return 31;
+#if defined(POLY_PROCESS_EXPECT_INTERP)
+  if (!poly_contains((const char *) poly_aux_get(auxv, POLY_AT_EXECFN),
+        "process-dynamic-libc"))
+    return 31;
+#else
+  if (!poly_contains((const char *) poly_aux_get(auxv, POLY_AT_EXECFN),
         "process-argv-envp"))
     return 31;
+#endif
   if (!poly_aux_get(auxv, POLY_AT_PLATFORM) ||
       !poly_streq((const char *) poly_aux_get(auxv, POLY_AT_PLATFORM),
         platform))

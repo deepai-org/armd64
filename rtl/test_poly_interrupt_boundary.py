@@ -72,6 +72,7 @@ def boundary(
     cpl3: bool,
     interrupt: bool,
     user_return: bool,
+    state_dirty: bool,
     current: int,
     current_pc: int,
     interrupted_valid: bool,
@@ -110,6 +111,9 @@ def boundary(
     return {
         "enter": enter,
         "save": enter,
+        "spill_full": enter and state_dirty,
+        "spill_header_only": enter and not state_dirty,
+        "clear_dirty": enter,
         "saved_frontend": current if enter else c["POLY_FRONTEND_X86"],
         "saved_pc": current_pc if enter else 0,
         "restore": restore,
@@ -137,11 +141,13 @@ def main() -> int:
 
     raw_enter = boundary(
         True, True, True, True, False,
+        False,
         c["POLY_FRONTEND_AARCH64"], 0x4000, False,
         c["POLY_FRONTEND_X86"], 0, 0, c
     )
     assert raw_enter == {
         "enter": True, "save": True,
+        "spill_full": False, "spill_header_only": True, "clear_dirty": True,
         "saved_frontend": c["POLY_FRONTEND_AARCH64"], "saved_pc": 0x4000,
         "restore": False, "clear": False,
         "next_frontend": c["POLY_FRONTEND_X86"], "next_pc": 0x4000,
@@ -150,8 +156,20 @@ def main() -> int:
         "invalid_interrupted_pc": False,
     }
 
+    dirty_enter = boundary(
+        True, True, True, True, False,
+        True,
+        c["POLY_FRONTEND_AARCH64"], 0x5000, False,
+        c["POLY_FRONTEND_X86"], 0, 0, c
+    )
+    assert dirty_enter["enter"]
+    assert dirty_enter["spill_full"]
+    assert not dirty_enter["spill_header_only"]
+    assert dirty_enter["clear_dirty"]
+
     x86_interrupt = boundary(
         True, True, True, True, False,
+        False,
         c["POLY_FRONTEND_X86"], 0x1000, False,
         c["POLY_FRONTEND_X86"], 0, 0, c
     )
@@ -159,6 +177,7 @@ def main() -> int:
 
     cpl0_interrupt = boundary(
         True, True, False, True, False,
+        False,
         c["POLY_FRONTEND_RISCV"], 0x8000, False,
         c["POLY_FRONTEND_X86"], 0, 0, c
     )
@@ -166,6 +185,7 @@ def main() -> int:
 
     bad_pc = boundary(
         True, True, True, True, False,
+        False,
         c["POLY_FRONTEND_AARCH64"], 0x4002, False,
         c["POLY_FRONTEND_X86"], 0, 0, c
     )
@@ -174,6 +194,7 @@ def main() -> int:
 
     restore = boundary(
         True, True, True, False, True,
+        False,
         c["POLY_FRONTEND_X86"], 0x4000, True,
         c["POLY_FRONTEND_RISCV"], 0x8000, 0x8000, c
     )
@@ -183,6 +204,7 @@ def main() -> int:
 
     mismatch = boundary(
         True, True, True, False, True,
+        False,
         c["POLY_FRONTEND_X86"], 0x4000, True,
         c["POLY_FRONTEND_RISCV"], 0x8000, 0x8002, c
     )
@@ -191,6 +213,7 @@ def main() -> int:
 
     invalid_mode = boundary(
         True, True, True, False, True,
+        False,
         c["POLY_FRONTEND_X86"], 0x4000, True,
         c["POLY_FRONTEND_X86"], 0x4000, 0x4000, c
     )
@@ -198,6 +221,7 @@ def main() -> int:
 
     invalid_interrupted_pc = boundary(
         True, True, True, False, True,
+        False,
         c["POLY_FRONTEND_X86"], 0x4000, True,
         c["POLY_FRONTEND_RISCV"], 0x0000800000000000, 0x0000800000000000, c
     )

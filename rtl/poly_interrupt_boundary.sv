@@ -10,6 +10,7 @@ module poly_interrupt_boundary (
     input  logic        cpl3_i,
     input  logic        interrupt_i,
     input  logic        user_return_i,
+    input  logic        state_dirty_i,
     input  logic [1:0]  current_frontend_i,
     input  logic [63:0] current_pc_i,
     input  logic        interrupted_valid_i,
@@ -19,6 +20,9 @@ module poly_interrupt_boundary (
 
     output logic        enter_x86_interrupt_o,
     output logic        save_interrupted_o,
+    output logic        spill_full_state_o,
+    output logic        spill_header_only_o,
+    output logic        clear_state_dirty_o,
     output logic [1:0]  saved_frontend_o,
     output logic [63:0] saved_pc_o,
     output logic        restore_raw_o,
@@ -98,6 +102,9 @@ module poly_interrupt_boundary (
 
     enter_x86_interrupt_o = interrupt_candidate && !error_o;
     save_interrupted_o = enter_x86_interrupt_o;
+    spill_full_state_o = enter_x86_interrupt_o && state_dirty_i;
+    spill_header_only_o = enter_x86_interrupt_o && !state_dirty_i;
+    clear_state_dirty_o = enter_x86_interrupt_o;
     saved_frontend_o = save_interrupted_o ? current_frontend_i : POLY_FRONTEND_X86;
     saved_pc_o = save_interrupted_o ? current_pc_i : 64'd0;
 

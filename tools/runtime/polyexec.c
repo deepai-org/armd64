@@ -8,6 +8,8 @@
 #include <strings.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
@@ -364,6 +366,8 @@ struct poly_program {
   uint64_t phdr_vaddr;
   uint16_t phent;
   uint16_t phnum;
+  int has_interp;
+  char interp_path[160];
   size_t dynamic_offset;
   size_t dynamic_size;
   struct poly_load_segment load_segments[MAX_LOAD_SEGMENTS];
@@ -421,17 +425,31 @@ static int process_cross_state_key_stub_reported;
 static int polyexec_use_explicit_state_key;
 static int polyexec_use_auto_spill;
 static const char *process_cross_report_path;
-static struct poly_xsave_state poly_auto_spill_state
+static __thread struct poly_xsave_state poly_auto_spill_state
   __attribute__((aligned(64)));
-static volatile sig_atomic_t poly_auto_spill_installed;
-static volatile uint64_t poly_auto_spill_resume_buffer;
-static volatile uint64_t poly_auto_spill_resume_mode;
+static __thread volatile sig_atomic_t poly_auto_spill_installed;
+struct poly_auto_spill_resume_info {
+  uint64_t buffer;
+  uint64_t mode;
+};
+static __thread volatile struct poly_auto_spill_resume_info
+  poly_auto_spill_resume_info;
 
 struct poly_request {
   char path[160];
   char symbol[80];
   uint64_t expected;
   int check_expected;
+};
+
+struct poly_thread_run_context {
+  struct poly_request request;
+  volatile int *start_flag;
+  int use_trap_vector;
+  uintptr_t index;
+  uint64_t result;
+  uint64_t spill_buffer;
+  int status;
 };
 
 static uint32_t process_native_signature_slot = 3;
@@ -447,7 +465,8 @@ static uint32_t process_vec128_signature_slot = 5;
 static uint32_t process_compact_u32_f32_signature_slot = 6;
 static uint32_t process_compact_f32_u32_signature_slot = 7;
 static __thread uint8_t poly_state_key_anchor;
-static volatile uint64_t poly_monitor_packet[16] __attribute__((aligned(64)));
+static __thread volatile uint64_t poly_monitor_packet[16]
+  __attribute__((aligned(64)));
 static volatile uint64_t poly_monitor_packet_count;
 static volatile uint64_t poly_monitor_packet_syscall_aarch64_count;
 static volatile uint64_t poly_monitor_packet_syscall_riscv_count;
@@ -481,6 +500,7 @@ struct poly_process_exit_finalizer_context {
   uint64_t return_pc;
   uint8_t *scratch;
   int active;
+  int run_finalizers;
   int running;
   int completed;
 };
@@ -490,6 +510,7 @@ static struct poly_process_exit_finalizer_context
 
 static int run_process_exit_finalizers(void);
 static void reset_process_brk_arena(void);
+static void free_program(struct poly_program *program);
 
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
@@ -979,10 +1000,11 @@ static uint64_t poly_auto_spill_resume_dispatch(void) {
         "POLYEXEC_FAIL: auto-spill refresh failed during resume\n");
       _exit(125);
     }
-    poly_auto_spill_resume_buffer =
+    poly_auto_spill_resume_info.buffer =
       (uint64_t) (uintptr_t) &poly_auto_spill_state;
-    poly_auto_spill_resume_mode = poly_auto_spill_state.header.current_mode;
-    return 0;
+    poly_auto_spill_resume_info.mode =
+      poly_auto_spill_state.header.current_mode;
+    return (uint64_t) (uintptr_t) &poly_auto_spill_resume_info;
   }
 
   if (reason == POLY_SPILL_REASON_PAGE_FAULT) {
@@ -1030,8 +1052,9 @@ static void poly_auto_spill_resume_trampoline(void) {
     "popq %rdx\n"
     "popq %rcx\n"
     "popq %rbx\n"
-    "movq poly_auto_spill_resume_buffer(%rip), %rax\n"
-    "movq poly_auto_spill_resume_mode(%rip), %r15\n"
+    "movq (%rax), %rdx\n"
+    "movq 8(%rax), %r15\n"
+    "movq %rdx, %rax\n"
     POLY_OP_PRESTORE
     POLY_X86_CTRL_PENTER_MODE_ASM
     "ud2\n");
@@ -2589,17 +2612,24 @@ static uint64_t poly_dispatch_process_brk(uint64_t requested_break) {
   return process_brk_current;
 }
 
-static void poly_prefault_writable_range(uint64_t address, uint64_t length) {
+static void poly_prefault_range(uint64_t address, uint64_t length,
+    int writable) {
   if (address == 0 || length == 0 || length > (uint64_t) SIZE_MAX)
     return;
   volatile uint8_t *bytes = (volatile uint8_t *) (uintptr_t) address;
   const size_t len = (size_t) length;
   for (size_t offset = 0; offset < len; offset += 4096) {
     uint8_t value = bytes[offset];
-    bytes[offset] = value;
+    if (writable)
+      bytes[offset] = value;
   }
   uint8_t value = bytes[len - 1];
-  bytes[len - 1] = value;
+  if (writable)
+    bytes[len - 1] = value;
+}
+
+static void poly_prefault_writable_range(uint64_t address, uint64_t length) {
+  poly_prefault_range(address, length, 1);
 }
 
 static int poly_handle_structured_foreign_syscall(uint64_t number,
@@ -2691,19 +2721,33 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         return 0;
       *result = (uint64_t) poly_x86_syscall6(SYS_mprotect, arg0, arg1, arg2,
         0, 0, 0);
-      if (*result == 0 && (arg2 & PROT_WRITE) != 0)
-        poly_prefault_writable_range(arg0, arg1);
+      if (*result == 0 && (arg2 & (PROT_READ | PROT_WRITE | PROT_EXEC)) != 0)
+        poly_prefault_range(arg0, arg1, (arg2 & PROT_WRITE) != 0);
       return 1;
     case 222: {
       uint64_t flags = arg3;
-      if ((arg2 & PROT_WRITE) != 0 && (flags & MAP_ANONYMOUS) != 0)
+      if ((arg2 & PROT_WRITE) != 0)
         flags |= MAP_POPULATE;
       *result = (uint64_t) poly_x86_syscall6(SYS_mmap, arg0, arg1, arg2,
         flags, arg4, arg5);
       if (poly_process_exit_finalizers.active &&
           (int64_t) *result >= 0 &&
-          (arg2 & PROT_WRITE) != 0 && (flags & MAP_ANONYMOUS) != 0)
-        poly_prefault_writable_range(*result, arg1);
+          (arg2 & (PROT_READ | PROT_WRITE | PROT_EXEC)) != 0) {
+        uint64_t prefault_length = arg1;
+        if ((flags & MAP_ANONYMOUS) == 0 && (int64_t) arg4 >= 0) {
+          struct stat mmap_stat;
+          if (fstat((int) arg4, &mmap_stat) == 0 && mmap_stat.st_size >= 0) {
+            const uint64_t file_size = (uint64_t) mmap_stat.st_size;
+            prefault_length =
+              arg5 < file_size && file_size - arg5 < prefault_length ?
+              file_size - arg5 : prefault_length;
+            if (arg5 >= file_size)
+              prefault_length = 0;
+          }
+        }
+        poly_prefault_range(*result, prefault_length,
+          (arg2 & PROT_WRITE) != 0);
+      }
       return 1;
     }
     default:
@@ -3329,6 +3373,12 @@ uint64_t poly_trap_vector_dispatch(void) {
       if (run_process_exit_finalizers() < 0)
         poly_process_terminal_exit_code = 125;
       report_poly_monitor_packets();
+      if (poly_process_exit_finalizers.program != NULL) {
+        printf("POLYEXEC_PROCESS_EXIT: arch=%s code=%llu path=%s\n",
+          poly_process_exit_finalizers.program->arch_name,
+          (unsigned long long) poly_process_terminal_exit_code,
+          poly_process_exit_finalizers.program->path);
+      }
       fflush(NULL);
       poly_x86_exit_group_now(poly_process_terminal_exit_code);
     }
@@ -4513,8 +4563,9 @@ static int copy_stack_string(uint8_t *stack, uint8_t **cursor,
 
 static int build_process_stack(const struct poly_program *program,
     const struct poly_request *request, const uint8_t *loaded_image,
-    int extra_argc, char **extra_argv, uint8_t **stack_out,
-    size_t *stack_size_out, uint64_t *initial_sp_out) {
+    uint64_t at_base, int extra_argc, char **extra_argv,
+    uint8_t **stack_out, size_t *stack_size_out,
+    uint64_t *initial_sp_out) {
   const size_t stack_size = 1024 * 1024;
   uint8_t *stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -4626,7 +4677,7 @@ static int build_process_stack(const struct poly_program *program,
     { AT_PHENT, program->phent },
     { AT_PHNUM, program->phnum },
     { AT_PAGESZ, 4096 },
-    { AT_BASE, 0 },
+    { AT_BASE, at_base },
     { AT_FLAGS, 0 },
     { AT_ENTRY, entry_addr },
     { AT_CLKTCK, (uint64_t) clock_tick },
@@ -6421,7 +6472,7 @@ static int run_process_dependency_finalizers(struct poly_program *program,
 static int run_process_exit_finalizers(void) {
   struct poly_process_exit_finalizer_context *ctx =
     &poly_process_exit_finalizers;
-  if (!ctx->active || ctx->completed || ctx->running)
+  if (!ctx->active || !ctx->run_finalizers || ctx->completed || ctx->running)
     return 0;
   ctx->running = 1;
   int status = 0;
@@ -6674,6 +6725,21 @@ static int load_elf_program(const char *path, const char *symbol_name,
     if (phdr->p_type == PT_DYNAMIC) {
       dynamic_vaddr = phdr->p_vaddr;
       dynamic_size = phdr->p_filesz;
+      continue;
+    }
+    if (phdr->p_type == PT_INTERP) {
+      if (phdr->p_filesz == 0 ||
+          phdr->p_filesz >= sizeof(program->interp_path) ||
+          phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+          memchr(data + phdr->p_offset, '\0', (size_t) phdr->p_filesz) == NULL) {
+        fprintf(stderr, "POLYEXEC_FAIL: bad ELF interpreter: %s\n", path);
+        free(data);
+        return -1;
+      }
+      memcpy(program->interp_path, data + phdr->p_offset,
+        (size_t) phdr->p_filesz);
+      program->interp_path[sizeof(program->interp_path) - 1] = '\0';
+      program->has_interp = 1;
       continue;
     }
     if (phdr->p_type == PT_GNU_RELRO) {
@@ -7550,7 +7616,8 @@ static int map_process_dependencies(struct poly_program *program,
   return 0;
 }
 
-static int emit_and_run(const struct poly_program *program, uint64_t *result) {
+static int emit_and_run(const struct poly_program *program, uint64_t *result,
+    int prepare_scratch) {
   const size_t prefix_size = poly_trampoline_prefix_size(program->arch);
   if (prefix_size == 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported trampoline arch: %s\n",
@@ -7645,7 +7712,9 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
     return -1;
   }
 
-  if (prepare_program_scratch(program->path, (char *) scratch, scratch_size) < 0) {
+  if (prepare_scratch &&
+      prepare_program_scratch(program->path, (char *) scratch,
+        scratch_size) < 0) {
     munmap(scratch, scratch_size);
     munmap(mapping, mapping_size);
     return -1;
@@ -7682,7 +7751,7 @@ static int run_poly_page_fault_selftest(void) {
 
   uint64_t result = 0;
   puts("POLYEXEC_SELFTEST_PAGEFAULT: start");
-  if (emit_and_run(&program, &result) < 0)
+  if (emit_and_run(&program, &result, 0) < 0)
     return -1;
   fprintf(stderr,
     "POLYEXEC_FAIL: page-fault self-test returned without SIGSEGV result=%llu\n",
@@ -7936,7 +8005,7 @@ static int emit_and_run_process(struct poly_program *program,
   uint8_t *process_stack = NULL;
   size_t process_stack_size = 0;
   uint64_t initial_sp = 0;
-  if (build_process_stack(program, request, loaded_image,
+  if (build_process_stack(program, request, loaded_image, 0,
         extra_argc, extra_argv, &process_stack, &process_stack_size,
         &initial_sp) < 0) {
     if (process_tls)
@@ -7956,6 +8025,7 @@ static int emit_and_run_process(struct poly_program *program,
       .return_pc = lifecycle_return_pc,
       .scratch = scratch,
       .active = 1,
+      .run_finalizers = 1,
     };
 
   (void) result;
@@ -7986,6 +8056,221 @@ static int emit_and_run_process(struct poly_program *program,
     startup_x86_tls_base, process_state_key, use_trap_vector, program->arch);
 }
 
+static int resolve_process_interpreter_path(const struct poly_program *program,
+    char *out, size_t out_size) {
+  if (!program->has_interp || program->interp_path[0] == '\0')
+    return -1;
+  if (strlen(program->interp_path) < out_size &&
+      access(program->interp_path, R_OK) == 0) {
+    strcpy(out, program->interp_path);
+    return 0;
+  }
+
+  const char *interp_name = strrchr(program->interp_path, '/');
+  interp_name = interp_name ? interp_name + 1 : program->interp_path;
+  const char *arch_dir = program->arch == POLY_ARCH_AARCH64 ? "aarch64" :
+    program->arch == POLY_ARCH_RISCV ? "riscv64" : "x86_64";
+  const char *slash = strrchr(program->path, '/');
+  const size_t dir_len = slash ? (size_t) (slash - program->path) : 0;
+  if (dir_len + strlen("/processdeps/") + strlen(arch_dir) + 1 +
+      strlen(interp_name) + 1 > out_size)
+    return -1;
+  memcpy(out, program->path, dir_len);
+  out[dir_len] = '\0';
+  strcat(out, "/processdeps/");
+  strcat(out, arch_dir);
+  strcat(out, "/");
+  strcat(out, interp_name);
+  if (access(out, R_OK) == 0)
+    return 0;
+  return -1;
+}
+
+static int map_process_exec_image(const struct poly_program *program,
+    int include_control, uint8_t **mapping_out, size_t *mapping_size_out,
+    uint8_t **loaded_image_out, uint8_t **code_out,
+    uint64_t *return_pc_out) {
+  const size_t prefix_size = poly_trampoline_prefix_size(program->arch);
+  const size_t load_base_offset = 4096;
+  const uint64_t image_mapping_size_u64 =
+    align_up_u64((uint64_t) program->code_size, 0x1000);
+  if (image_mapping_size_u64 == 0 || image_mapping_size_u64 > SIZE_MAX ||
+      (!program->is_et_exec &&
+       image_mapping_size_u64 > SIZE_MAX - load_base_offset)) {
+    fprintf(stderr, "POLYEXEC_FAIL: interpreter image mapping is too large: %s\n",
+      program->path);
+    return -1;
+  }
+  const size_t image_mapping_size = (size_t) image_mapping_size_u64;
+  const size_t image_offset = program->is_et_exec ? 0 : load_base_offset;
+  size_t mapping_size = image_offset + image_mapping_size;
+  size_t control_offset = 0;
+  size_t return_page_offset = 0;
+  if (include_control) {
+    if (prefix_size == 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: unsupported interpreter trampoline arch: %s\n",
+        program->path);
+      return -1;
+    }
+    control_offset = mapping_size;
+    return_page_offset = control_offset + 4096;
+    if (mapping_size > SIZE_MAX - 8192) {
+      fprintf(stderr, "POLYEXEC_FAIL: interpreter control mapping is too large: %s\n",
+        program->path);
+      return -1;
+    }
+    mapping_size += 8192;
+  }
+  if (program->is_et_exec &&
+      (program->base_vaddr > UINTPTR_MAX ||
+       (uint64_t) mapping_size > UINTPTR_MAX - program->base_vaddr)) {
+    fprintf(stderr, "POLYEXEC_FAIL: fixed interpreter address is invalid: %s\n",
+      program->path);
+    return -1;
+  }
+
+  void *desired_mapping = program->is_et_exec ?
+    (void *) (uintptr_t) program->base_vaddr : NULL;
+  const int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS |
+    (program->is_et_exec ? MAP_FIXED_NOREPLACE : 0);
+  uint8_t *mapping = mmap(desired_mapping, mapping_size,
+    PROT_READ | PROT_WRITE | PROT_EXEC, mmap_flags, -1, 0);
+  if (mapping == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: interpreter mmap failed: %s: %s\n",
+      program->path, strerror(errno));
+    return -1;
+  }
+  if (program->is_et_exec && mapping != (uint8_t *) desired_mapping) {
+    fprintf(stderr, "POLYEXEC_FAIL: fixed interpreter mmap used wrong address: %s\n",
+      program->path);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+
+  uint8_t *loaded_image = mapping + image_offset;
+  memcpy(loaded_image, program->code_bytes, program->code_size);
+  if (include_control) {
+    const uint32_t escape = program->arch == POLY_ARCH_AARCH64 ?
+      POLY_AARCH64_CTRL_X86_ESCAPE : POLY_RISCV_CTRL_X86_ESCAPE;
+    size_t offset = return_page_offset;
+    if (program->arch != POLY_ARCH_X86)
+      emit_u32(mapping, &offset, escape);
+    emit_x86_exit_group_from_eax(mapping, &offset);
+    *code_out = mapping + control_offset;
+    *return_pc_out = (uint64_t) (uintptr_t) (mapping + return_page_offset);
+  } else {
+    *code_out = NULL;
+    *return_pc_out = 0;
+  }
+  if (protect_load_segments(program, loaded_image) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+
+  *mapping_out = mapping;
+  *mapping_size_out = mapping_size;
+  *loaded_image_out = loaded_image;
+  return 0;
+}
+
+static int emit_and_run_process_interpreter(struct poly_program *program,
+    const struct poly_request *request, int extra_argc, char **extra_argv,
+    uint64_t *result, int use_trap_vector) {
+  reset_process_brk_arena();
+  process_cross_report_path = program->path;
+
+  char interp_path[MAX_DEP_PATH];
+  if (resolve_process_interpreter_path(program, interp_path,
+        sizeof(interp_path)) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: unable to resolve ELF interpreter: %s: %s\n",
+      program->path, program->interp_path);
+    return -1;
+  }
+
+  struct poly_program interp_program;
+  if (load_elf_program(interp_path, "", &interp_program) < 0)
+    return -1;
+  if (interp_program.arch != program->arch) {
+    fprintf(stderr, "POLYEXEC_FAIL: interpreter arch mismatch: %s\n",
+      interp_path);
+    free_program(&interp_program);
+    return -1;
+  }
+
+  uint8_t *main_mapping = NULL;
+  size_t main_mapping_size = 0;
+  uint8_t *loaded_main = NULL;
+  uint8_t *unused_code = NULL;
+  uint64_t unused_return_pc = 0;
+  if (map_process_exec_image(program, 0, &main_mapping, &main_mapping_size,
+        &loaded_main, &unused_code, &unused_return_pc) < 0) {
+    free_program(&interp_program);
+    return -1;
+  }
+
+  uint8_t *interp_mapping = NULL;
+  size_t interp_mapping_size = 0;
+  uint8_t *loaded_interp = NULL;
+  uint8_t *code = NULL;
+  uint64_t process_return_pc = 0;
+  if (map_process_exec_image(&interp_program, 1, &interp_mapping,
+        &interp_mapping_size, &loaded_interp, &code,
+        &process_return_pc) < 0) {
+    munmap(main_mapping, main_mapping_size);
+    free_program(&interp_program);
+    return -1;
+  }
+
+  const size_t prefix_size = poly_trampoline_prefix_size(program->arch);
+  const uint64_t interp_entry_pc = (uint64_t) (uintptr_t)
+    (loaded_interp + interp_program.entry_offset);
+  const uint64_t interp_load_bias =
+    (uint64_t) (uintptr_t) loaded_interp - interp_program.base_vaddr;
+  if (emit_poly_trampoline(&interp_program, code, prefix_size,
+        process_return_pc, interp_entry_pc, 1) < 0) {
+    munmap(interp_mapping, interp_mapping_size);
+    munmap(main_mapping, main_mapping_size);
+    free_program(&interp_program);
+    return -1;
+  }
+
+  uint8_t *process_stack = NULL;
+  size_t process_stack_size = 0;
+  uint64_t initial_sp = 0;
+  if (build_process_stack(program, request, loaded_main, interp_load_bias,
+        extra_argc, extra_argv, &process_stack, &process_stack_size,
+        &initial_sp) < 0) {
+    munmap(interp_mapping, interp_mapping_size);
+    munmap(main_mapping, main_mapping_size);
+    free_program(&interp_program);
+    return -1;
+  }
+
+  printf("POLYEXEC_INTERP_LOAD: arch=%s interp=%s resolved=%s at_base=0x%llx path=%s\n",
+    program->arch_name, program->interp_path, interp_path,
+    (unsigned long long) interp_load_bias, program->path);
+
+  poly_process_exit_finalizers =
+    (struct poly_process_exit_finalizer_context) {
+      .program = program,
+      .loaded_image = loaded_main,
+      .trampoline_code = code,
+      .prefix_size = prefix_size,
+      .return_pc = process_return_pc,
+      .scratch = NULL,
+      .active = 1,
+      .run_finalizers = 0,
+    };
+
+  (void) result;
+  process_runtime_x86_tls_base = 0;
+  process_runtime_host_fs_base = get_x86_fs_base();
+  const uint64_t process_state_key = polyexec_use_explicit_state_key ?
+    (uint64_t) (uintptr_t) &poly_state_key_anchor : 0;
+  run_poly_process_entry(code, initial_sp, 0, 0, process_state_key,
+    use_trap_vector, program->arch);
+}
+
 static int program_exits_process(const char *path) {
   return strstr(path, "-exit.") != NULL ||
     strstr(path, "-exit-group.") != NULL;
@@ -8007,7 +8292,7 @@ static int emit_and_run_exit_child(const struct poly_program *program,
       _exit(125);
     if (use_trap_vector)
       install_poly_trap_vector();
-    if (emit_and_run(program, &child_result) < 0)
+    if (emit_and_run(program, &child_result, 1) < 0)
       _exit(125);
     report_poly_monitor_packets();
     fflush(NULL);
@@ -8048,6 +8333,21 @@ static int emit_and_run_exit_child(const struct poly_program *program,
   return -1;
 }
 
+static int poly_process_uses_real_interpreter(const struct poly_program *program,
+    const struct poly_request *request, int extra_argc, char **extra_argv) {
+  if (!program->has_interp || request->symbol[0])
+    return 0;
+  const char *base = strrchr(program->path, '/');
+  base = base ? base + 1 : program->path;
+  if (strcmp(base, "aarch64-real-ls.elf") == 0)
+    return 1;
+  if (extra_argc != 1 || extra_argv == NULL || extra_argv[0] == NULL ||
+      strcmp(extra_argv[0], "dynamic-libc") != 0)
+    return 0;
+  return strcmp(base, "aarch64-process-dynamic-libc-real.elf") == 0 ||
+    strcmp(base, "riscv-process-dynamic-libc-real.elf") == 0;
+}
+
 static int emit_and_run_process_child(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result, int use_trap_vector) {
@@ -8065,8 +8365,13 @@ static int emit_and_run_process_child(struct poly_program *program,
       _exit(125);
     if (use_trap_vector)
       install_poly_trap_vector();
-    if (emit_and_run_process(program, request, extra_argc, extra_argv,
-          &child_result, use_trap_vector) < 0)
+    const int use_interpreter = poly_process_uses_real_interpreter(program,
+      request, extra_argc, extra_argv);
+    if ((use_interpreter ?
+          emit_and_run_process_interpreter(program, request, extra_argc,
+            extra_argv, &child_result, use_trap_vector) :
+          emit_and_run_process(program, request, extra_argc, extra_argv,
+            &child_result, use_trap_vector)) < 0)
       _exit(125);
     report_poly_monitor_packets();
     fflush(NULL);
@@ -8094,6 +8399,122 @@ static int emit_and_run_process_child(struct poly_program *program,
   return -1;
 }
 
+static void *poly_thread_run_worker(void *arg) {
+  struct poly_thread_run_context *ctx =
+    (struct poly_thread_run_context *) arg;
+  ctx->status = -1;
+
+  if (install_poly_thread_state_key() < 0)
+    return NULL;
+  if (polyexec_use_auto_spill && install_poly_auto_spill() < 0)
+    return NULL;
+  ctx->spill_buffer = (uint64_t) (uintptr_t) &poly_auto_spill_state;
+  if (ctx->use_trap_vector)
+    install_poly_trap_vector();
+
+  while (!*ctx->start_flag)
+    sched_yield();
+
+  struct poly_program program;
+  if (load_elf_program(ctx->request.path, ctx->request.symbol, &program) < 0) {
+    clear_poly_auto_spill();
+    return NULL;
+  }
+
+  uint64_t result = 0;
+  if (emit_and_run(&program, &result, 0) == 0) {
+    ctx->result = result;
+    if (!ctx->request.check_expected || result == ctx->request.expected)
+      ctx->status = 0;
+    else
+      fprintf(stderr,
+        "POLYEXEC_FAIL: thread=%lu %s expected %llu got %llu\n",
+        (unsigned long) ctx->index, ctx->request.path,
+        (unsigned long long) ctx->request.expected,
+        (unsigned long long) result);
+  }
+
+  free_program(&program);
+  poly_mode_x86();
+  if (ctx->use_trap_vector)
+    clear_poly_trap_vector();
+  clear_poly_auto_spill();
+  return NULL;
+}
+
+static int run_poly_thread_stress(const struct poly_request *request,
+    size_t thread_count, int use_trap_vector) {
+  if (thread_count == 0 || thread_count > 64) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: --threads count must be between 1 and 64\n");
+    return -1;
+  }
+
+  pthread_t *threads = calloc(thread_count, sizeof(*threads));
+  struct poly_thread_run_context *contexts =
+    calloc(thread_count, sizeof(*contexts));
+  if (threads == NULL || contexts == NULL) {
+    fprintf(stderr, "POLYEXEC_FAIL: pthread stress allocation failed\n");
+    free(threads);
+    free(contexts);
+    return -1;
+  }
+
+  int failed = 0;
+  volatile int start_flag = 0;
+  size_t created = 0;
+  for (size_t n = 0; n < thread_count; n++) {
+    contexts[n].request = *request;
+    contexts[n].start_flag = &start_flag;
+    contexts[n].use_trap_vector = use_trap_vector;
+    contexts[n].index = n;
+    contexts[n].status = -1;
+    if (pthread_create(&threads[n], NULL, poly_thread_run_worker,
+          &contexts[n]) != 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: pthread_create failed index=%zu\n", n);
+      failed = 1;
+      break;
+    }
+    created++;
+  }
+  start_flag = 1;
+
+  for (size_t n = 0; n < created; n++) {
+    if (pthread_join(threads[n], NULL) != 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: pthread_join failed index=%zu\n", n);
+      failed = 1;
+      continue;
+    }
+    if (contexts[n].status != 0)
+      failed = 1;
+  }
+
+  for (size_t n = 0; n < created; n++) {
+    if (contexts[n].spill_buffer == 0) {
+      failed = 1;
+      continue;
+    }
+    for (size_t m = n + 1; m < created; m++) {
+      if (contexts[n].spill_buffer == contexts[m].spill_buffer) {
+        fprintf(stderr,
+          "POLYEXEC_FAIL: duplicate auto-spill buffer threads=%zu,%zu buffer=0x%llx\n",
+          n, m, (unsigned long long) contexts[n].spill_buffer);
+        failed = 1;
+      }
+    }
+  }
+
+  for (size_t n = 0; n < created; n++) {
+    printf("POLYEXEC_THREAD_RESULT: index=%zu value=%llu spill_buffer=0x%llx path=%s\n",
+      n, (unsigned long long) contexts[n].result,
+      (unsigned long long) contexts[n].spill_buffer, request->path);
+  }
+
+  free(threads);
+  free(contexts);
+  return failed ? -1 : 0;
+}
+
 static void free_program(struct poly_program *program) {
   unmap_process_dependencies(program);
   for (size_t d = 0; d < program->dep_count; d++) {
@@ -8114,7 +8535,7 @@ static void free_program(struct poly_program *program) {
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...] | --selftest-pagefault\n",
+    fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...] | --threads N foreign.elf[=expected] | --selftest-pagefault\n",
       argv[0]);
     return 2;
   }
@@ -8143,6 +8564,38 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  if (strcmp(argv[1], "--threads") == 0) {
+    if (argc != 4) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: --threads requires a count and a foreign ELF\n");
+      return 2;
+    }
+    char *end = NULL;
+    errno = 0;
+    unsigned long count = strtoul(argv[2], &end, 10);
+    if (errno != 0 || end == argv[2] || *end != '\0' ||
+        count == 0 || count > 64) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: --threads count must be between 1 and 64\n");
+      return 2;
+    }
+
+    struct poly_request request;
+    if (parse_request(argv[3], &request) < 0)
+      return 1;
+    if (run_poly_thread_stress(&request, (size_t) count,
+          use_trap_vector) < 0)
+      return 1;
+    report_poly_monitor_packets();
+    report_poly_auto_spill_status();
+    clear_poly_trap_vector();
+    clear_poly_auto_spill();
+    printf("POLYEXEC_THREADS_OK: threads=%lu path=%s\n",
+      count, request.path);
+    puts("POLYEXEC_OK");
+    return 0;
+  }
+
   if (strcmp(argv[1], "--process") == 0) {
     if (argc < 3) {
       fprintf(stderr, "POLYEXEC_FAIL: --process requires a foreign ELF\n");
@@ -8155,14 +8608,17 @@ int main(int argc, char **argv) {
     struct poly_program program;
     if (load_elf_program(request.path, request.symbol, &program) < 0)
       return 1;
-    if (load_process_dependencies(&program) < 0) {
+    const int use_interpreter = poly_process_uses_real_interpreter(&program,
+      &request, argc - 3, argv + 3);
+    if (!use_interpreter && load_process_dependencies(&program) < 0) {
       free_program(&program);
       return 1;
     }
 
-    printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u process=1 path=%s%s%s\n",
+    printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u process=1 interp=%s interp_mode=%u path=%s%s%s\n",
       program.arch_name, program.code_size, program.entry_offset,
       program.load_segment_count, program.relro_size != 0,
+      program.has_interp ? program.interp_path : "-", use_interpreter,
       program.path, request.symbol[0] ? "#" : "", request.symbol);
 
     uint64_t result = 0;
@@ -8214,7 +8670,7 @@ int main(int argc, char **argv) {
     uint64_t result = 0;
     int run_status = program_exits_process(program.path) ?
       emit_and_run_exit_child(&program, &result, use_trap_vector) :
-      emit_and_run(&program, &result);
+      emit_and_run(&program, &result, 1);
     if (run_status < 0) {
       free_program(&program);
       return 1;

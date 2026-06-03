@@ -51,6 +51,8 @@ case "$path" in
   */aarch64-pcall-split-load.elf) expected=123 ;;
   */aarch64-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-libc-main-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-dynamic-libc-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-real-ls.elf) expected=0; process_mode=1 ;;
   */aarch64-process-syscall-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-reloc-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-relr.elf) expected=42; process_mode=1 ;;
@@ -327,6 +329,7 @@ case "$path" in
   */riscv-pcall-split-load.elf) expected=123 ;;
   */riscv-process-argv-envp-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-libc-main-real.elf) expected=42; process_mode=1 ;;
+  */riscv-process-dynamic-libc-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-syscall-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-reloc-real.elf) expected=42; process_mode=1 ;;
   */riscv-process-relr.elf) expected=42; process_mode=1 ;;

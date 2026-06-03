@@ -10,6 +10,7 @@ module tb_poly_interrupt_boundary;
   logic cpl3;
   logic interrupt;
   logic user_return;
+  logic state_dirty;
   logic [1:0] current_frontend;
   logic [63:0] current_pc;
   logic interrupted_valid;
@@ -19,6 +20,9 @@ module tb_poly_interrupt_boundary;
 
   logic enter_x86_interrupt;
   logic save_interrupted;
+  logic spill_full_state;
+  logic spill_header_only;
+  logic clear_state_dirty;
   logic [1:0] saved_frontend;
   logic [63:0] saved_pc;
   logic restore_raw;
@@ -37,6 +41,7 @@ module tb_poly_interrupt_boundary;
     .cpl3_i(cpl3),
     .interrupt_i(interrupt),
     .user_return_i(user_return),
+    .state_dirty_i(state_dirty),
     .current_frontend_i(current_frontend),
     .current_pc_i(current_pc),
     .interrupted_valid_i(interrupted_valid),
@@ -45,6 +50,9 @@ module tb_poly_interrupt_boundary;
     .user_return_pc_i(user_return_pc),
     .enter_x86_interrupt_o(enter_x86_interrupt),
     .save_interrupted_o(save_interrupted),
+    .spill_full_state_o(spill_full_state),
+    .spill_header_only_o(spill_header_only),
+    .clear_state_dirty_o(clear_state_dirty),
     .saved_frontend_o(saved_frontend),
     .saved_pc_o(saved_pc),
     .restore_raw_o(restore_raw),
@@ -65,6 +73,7 @@ module tb_poly_interrupt_boundary;
       cpl3 = 1'b1;
       interrupt = 1'b0;
       user_return = 1'b0;
+      state_dirty = 1'b0;
       current_frontend = POLY_FRONTEND_X86;
       current_pc = 64'd0;
       interrupted_valid = 1'b0;
@@ -96,11 +105,23 @@ module tb_poly_interrupt_boundary;
     current_pc = 64'h4000;
     #1;
     check(enter_x86_interrupt && save_interrupted, "raw interrupt enters x86");
+    check(!spill_full_state && spill_header_only, "clean raw interrupt skips full spill");
+    check(clear_state_dirty, "raw interrupt clears dirty tracking");
     check(saved_frontend == POLY_FRONTEND_AARCH64, "raw interrupt saved frontend");
     check(saved_pc == 64'h4000, "raw interrupt saved pc");
     check(next_frontend == POLY_FRONTEND_X86, "raw interrupt next frontend");
     check(next_pc == 64'h4000, "raw interrupt next pc");
     check(!error, "raw interrupt no error");
+
+    clear_inputs();
+    interrupt = 1'b1;
+    state_dirty = 1'b1;
+    current_frontend = POLY_FRONTEND_AARCH64;
+    current_pc = 64'h5000;
+    #1;
+    check(enter_x86_interrupt && spill_full_state, "dirty raw interrupt spills full state");
+    check(!spill_header_only, "dirty raw interrupt not header-only");
+    check(clear_state_dirty, "dirty raw interrupt clears dirty tracking");
 
     clear_inputs();
     interrupt = 1'b1;

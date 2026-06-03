@@ -329,7 +329,15 @@ module poly_frontend_core (
   logic effective_memory_store;
   logic effective_memory_atomic;
   logic effective_memory_barrier;
+  logic poly_state_dirty_q;
+  logic poly_state_dirty_set;
+  logic poly_state_dirty_clear;
+  logic interrupt_spill_full_state;
+  logic interrupt_spill_header_only;
+  logic interrupt_clear_state_dirty;
 
+  localparam logic [6:0] POLY_X86_CTRL_PENTER_MODE = 7'h03;
+  localparam logic [6:0] POLY_X86_CTRL_PRESTORE = 7'h70;
   localparam logic [2:0] POLY_CYCLE_OP_PSWITCH = 3'd1;
   localparam logic [2:0] POLY_CYCLE_OP_PCALL_REG = 3'd2;
   localparam logic [2:0] POLY_CYCLE_OP_RETURN_COOKIE = 3'd3;
@@ -425,6 +433,12 @@ module poly_frontend_core (
   assign effective_memory_store = memory_store_i || raw_memory_store;
   assign effective_memory_atomic = memory_atomic_i || raw_memory_atomic;
   assign effective_memory_barrier = memory_barrier_i || raw_memory_barrier;
+  assign poly_state_dirty_set = retire_o && raw_insn_valid && !poly_ctrl_o;
+  assign poly_state_dirty_clear =
+    interrupt_clear_state_dirty ||
+    (retire_o && poly_ctrl_o &&
+      (subop_o == POLY_X86_CTRL_PENTER_MODE ||
+       subop_o == POLY_X86_CTRL_PRESTORE));
   assign raw_unresolved_branch =
     raw_branch && !raw_branch_target_valid && !return_recover_pop_o;
   assign raw_unresolved_branch_wait =
@@ -577,6 +591,7 @@ module poly_frontend_core (
     .cpl3_i(cpl3_i),
     .interrupt_i(interrupt_i),
     .user_return_i(user_return_i),
+    .state_dirty_i(poly_state_dirty_q),
     .current_frontend_i(frontend_i),
     .current_pc_i(pc_i),
     .interrupted_valid_i(interrupted_valid_q),
@@ -585,6 +600,9 @@ module poly_frontend_core (
     .user_return_pc_i(user_return_pc_i),
     .enter_x86_interrupt_o(interrupt_enter_x86_o),
     .save_interrupted_o(interrupt_save_interrupted_o),
+    .spill_full_state_o(interrupt_spill_full_state),
+    .spill_header_only_o(interrupt_spill_header_only),
+    .clear_state_dirty_o(interrupt_clear_state_dirty),
     .saved_frontend_o(interrupt_saved_frontend_o),
     .saved_pc_o(interrupt_saved_pc_o),
     .restore_raw_o(interrupt_restore_raw_o),
@@ -745,6 +763,18 @@ module poly_frontend_core (
   );
 
   assign transition_stack_full_o = stack_full;
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      poly_state_dirty_q <= 1'b0;
+    end
+    else if (poly_state_dirty_clear) begin
+      poly_state_dirty_q <= 1'b0;
+    end
+    else if (poly_state_dirty_set) begin
+      poly_state_dirty_q <= 1'b1;
+    end
+  end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin

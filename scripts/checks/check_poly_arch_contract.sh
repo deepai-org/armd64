@@ -16,8 +16,11 @@ POLYPROBE="$ROOT_DIR/tools/programs/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
 NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
 POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
+RTL_INTERRUPT_BOUNDARY="$ROOT_DIR/rtl/poly_interrupt_boundary.sv"
+RTL_FRONTEND_CORE="$ROOT_DIR/rtl/poly_frontend_core.sv"
 POLY_PREEMPT_STRESS="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
+POLYEXEC_THREAD_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
 BOOT_SCRIPT="$ROOT_DIR/scripts/boot.sh"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
 
@@ -342,6 +345,26 @@ assert_contains "bx_poly_auto_spill_bytes[[:space:]]*\\+=[[:space:]]*BX_POLY_STA
   "auto-spill must accumulate spilled bytes for bandwidth profiling"
 assert_contains "bx_poly_auto_spill_cycles[[:space:]]*\\+=" "$INTERRUPT_FUNC" \
   "auto-spill must accumulate estimated spill cycles"
+assert_contains "bx_poly_state_dirty" "$BOCHS_CPU" \
+  "Bochs model must track the Poly state dirty bit"
+assert_contains "spill_full_state[[:space:]]*=[[:space:]]*bx_poly_state_dirty" "$INTERRUPT_FUNC" \
+  "auto-spill must decide full-state write from the dirty bit"
+assert_contains "if[[:space:]]*\\(spill_full_state\\)" "$INTERRUPT_FUNC" \
+  "auto-spill must skip the 8KB state write when dirty is clear"
+assert_contains "bx_poly_auto_spill_bytes[[:space:]]*\\+=[[:space:]]*BX_POLY_STATE_XSAVE_BYTES_ARCH" "$INTERRUPT_FUNC" \
+  "auto-spill byte accounting must remain tied to full 8KB writes"
+assert_contains "0x3ca06800" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support AdvSIMD register-offset STR Q used by real glibc ld.so"
+assert_contains "0x3ce06800" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support AdvSIMD register-offset LDR Q used by real glibc ld.so"
+assert_contains "state_dirty_i" "$RTL_INTERRUPT_BOUNDARY" \
+  "RTL interrupt boundary must consume the Poly state dirty bit"
+assert_contains "spill_full_state_o" "$RTL_INTERRUPT_BOUNDARY" \
+  "RTL interrupt boundary must expose full-state spill decisions"
+assert_contains "spill_header_only_o" "$RTL_INTERRUPT_BOUNDARY" \
+  "RTL interrupt boundary must expose header-only spill decisions"
+assert_contains "poly_state_dirty_q" "$RTL_FRONTEND_CORE" \
+  "RTL frontend core must maintain an internal Poly state dirty bit"
 assert_contains "BX_POLY_X86_CTRL_PRESTORE" "$BOCHS_CPU" \
   "x86 control path must implement PRESTORE"
 assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
@@ -352,6 +375,12 @@ assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
   "userspace monitor must install a SIGSEGV handler for Poly fault translation"
 assert_contains "POLY_OP_SPILL_PTR_SET" "$POLYEXEC" \
   "userspace monitor must register an auto-spill buffer"
+assert_contains "__thread struct poly_xsave_state poly_auto_spill_state" "$POLYEXEC" \
+  "userspace monitor must allocate a unique auto-spill state image per thread"
+assert_contains "__thread volatile uint64_t poly_monitor_packet" "$POLYEXEC" \
+  "userspace monitor must allocate a unique trap packet per thread"
+assert_contains "poly_auto_spill_resume_info" "$POLYEXEC" \
+  "userspace monitor auto-spill resume handoff must be per-thread"
 assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
   "userspace monitor must provide an x86 auto-spill resume trampoline"
 assert_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
@@ -368,6 +397,72 @@ assert_contains "selftest-pagefault" "$POLYEXEC" \
   "userspace monitor must expose a deliberate Poly page-fault self-test"
 assert_contains "POLYEXEC_AUTO_SPILL_STATUS" "$POLYEXEC" \
   "userspace monitor must report auto-spill profiling counters"
+assert_contains "PT_INTERP" "$POLYEXEC" \
+  "userspace monitor must parse ELF interpreter metadata for dynamic process binaries"
+assert_contains "interp=%s" "$POLYEXEC" \
+  "userspace monitor must report process-mode ELF interpreter metadata"
+assert_contains "AT_BASE, at_base" "$POLYEXEC" \
+  "userspace monitor must pass the foreign interpreter load bias in auxv"
+assert_contains "resolve_process_interpreter_path" "$POLYEXEC" \
+  "userspace monitor must resolve copied foreign PT_INTERP loaders"
+assert_contains "POLYEXEC_INTERP_LOAD" "$POLYEXEC" \
+  "userspace monitor must report real foreign interpreter handoff"
+assert_contains "poly_process_uses_real_interpreter" "$POLYEXEC" \
+  "process mode must select real ld.so handoff through an explicit helper"
+assert_contains "dynamic-libc" "$POLYEXEC" \
+  "real ld.so handoff must be limited to the explicit dynamic smoke invocation"
+assert_contains "poly_prefault_range" "$POLYEXEC" \
+  "real ld.so mmap/mprotect translation must prefault mapped pages for raw Poly memory access"
+assert_contains "fstat\\(\\(int\\) arg4" "$POLYEXEC" \
+  "file-backed mmap prefaulting must avoid SIGBUS beyond the mapped file bytes"
+assert_contains "--threads" "$POLYEXEC" \
+  "userspace monitor must expose an in-process pthread auto-spill stress mode"
+assert_contains "pthread_create" "$POLYEXEC" \
+  "userspace monitor thread stress must spawn pthreads inside one address space"
+assert_contains "duplicate auto-spill buffer" "$POLYEXEC" \
+  "userspace monitor thread stress must verify per-thread spill-buffer uniqueness"
+assert_contains "compiler_args\\+=\\(-pthread\\)" "$BOOT_SCRIPT" \
+  "boot image must link polyexec with pthread support"
+assert_contains "RUN_POLY_EXEC_FOCUSED" "$BOOT_SCRIPT" \
+  "boot image must expose a focused polyexec proof mode for thread and interpreter stress cases"
+assert_contains "POLY_EXEC_FOCUSED_OK" "$BOOT_SCRIPT" \
+  "boot validation must gate focused polyexec proof completion"
+assert_contains "poly_entry" "$POLYEXEC_THREAD_PREEMPT_STRESS_SRC" \
+  "thread preemption stress fixture must expose a returning Poly entry point"
+assert_contains "ret" "$POLYEXEC_THREAD_PREEMPT_STRESS_SRC" \
+  "thread preemption stress fixture must return through the monitor instead of exiting"
+assert_contains "aarch64-thread-preempt-stress-real\\.so#poly_entry=42" "$BOOT_SCRIPT" \
+  "boot image must run the AArch64 pthread auto-spill stress fixture"
+assert_contains "riscv-thread-preempt-stress-real\\.so#poly_entry=42" "$BOOT_SCRIPT" \
+  "boot image must run the RISC-V pthread auto-spill stress fixture"
+assert_contains "POLYEXEC_THREADS_OK: threads=4 path=/usr/lib/polyapps/aarch64-thread-preempt-stress-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 pthread auto-spill stress result"
+assert_contains "POLYEXEC_THREADS_OK: threads=4 path=/usr/lib/polyapps/riscv-thread-preempt-stress-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V pthread auto-spill stress result"
+assert_contains "aarch64-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \
+  "boot image must build and run an AArch64 dynamically linked process fixture"
+assert_contains "riscv-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \
+  "boot image must build and run a RISC-V dynamically linked process fixture"
+assert_contains "aarch64-real-ls\\.elf" "$BOOT_SCRIPT" \
+  "boot image must copy and run an unmodified AArch64 dynamically linked real-world binary"
+assert_contains "/bin/ls" "$BOOT_SCRIPT" \
+  "unmodified dynamic binary proof must use the host AArch64 coreutils ls image"
+assert_contains "POLYEXEC_PROCESS_EXIT" "$POLYEXEC" \
+  "userspace monitor must report real dynamic process exit codes"
+assert_contains "processdeps/aarch64/libc\\.so\\.6" "$BOOT_SCRIPT" \
+  "boot image must include AArch64 dynamic libc for process-mode DT_NEEDED loading"
+assert_contains "processdeps/riscv64/libc\\.so\\.6" "$BOOT_SCRIPT" \
+  "boot image must include RISC-V dynamic libc for process-mode DT_NEEDED loading"
+assert_contains "POLYEXEC_INTERP_LOAD: arch=aarch64.*aarch64-process-dynamic-libc-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 real ld.so handoff"
+assert_contains "POLYEXEC_INTERP_LOAD: arch=riscv.*riscv-process-dynamic-libc-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V real ld.so handoff"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-dynamic-libc-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 dynamic libc process result"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=0 process=1 path=/usr/lib/polyapps/aarch64-real-ls" "$BOOT_SCRIPT" \
+  "boot validation must gate the unmodified AArch64 ls dynamic process result"
+assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-dynamic-libc-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V dynamic libc process result"
 assert_contains "POLYEXEC_RESULT: .* value=[$]expected" "$POLY_PREEMPT_STRESS" \
   "preemption stress harness must verify per-instance math results"
 assert_contains "POLYEXEC_AUTO_SPILL_STATUS: count=\\[1-9\\]" "$POLY_PREEMPT_STRESS" \
