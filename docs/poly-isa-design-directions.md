@@ -155,3 +155,5 @@ fallthrough PC is not committed for that instruction.
 5. Support native return-cookie recovery through the hardware transition stack.
 6. Deliver recoverable exits through OS-neutral trap packets and a Ring 3
    monitor.
+7. Track auto-spill count, spilled bytes, and estimated spill cycles so
+   preemption stress tests can measure the cost of the 8KB spill path.

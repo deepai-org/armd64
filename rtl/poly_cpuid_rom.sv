@@ -107,6 +107,9 @@ module poly_cpuid_rom (
 
   localparam logic [31:0] POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS = 32'h00000044;
   localparam logic [31:0] POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS = 32'h00000045;
+  localparam logic [31:0] POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS = 32'h00000046;
+  localparam logic [31:0] POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS = 32'h00000047;
+  localparam logic [31:0] POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS = 32'h00000048;
   localparam logic [31:0] POLY_X86_CTRL_SPILL_PTR_SET = 32'h0000006f;
   localparam logic [31:0] POLY_X86_CTRL_PRESTORE = 32'h00000070;
   localparam logic [31:0] POLY_X86_OPCODE_GEOMETRY_EAX = 32'h00fc3a0f;
@@ -171,6 +174,13 @@ module poly_cpuid_rom (
               eax_o = POLY_X86_OPCODE_CONTRACT_VERSION;
               ebx_o = POLY_X86_OPCODE_FLAGS;
               ecx_o = POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE;
+              edx_o = 32'd0;
+            end
+            32'd34: begin
+              hit_o = 1'b1;
+              eax_o = POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS;
+              ebx_o = POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS;
+              ecx_o = POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS;
               edx_o = 32'd0;
             end
             default: begin

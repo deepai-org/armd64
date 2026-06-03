@@ -8,6 +8,7 @@
 #include <strings.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
@@ -35,6 +36,8 @@ extern char **environ;
 #define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
+#define POLY_OP_SPILL_PTR_SET POLY_X86_CTRL_SPILL_PTR_SET_ASM
+#define POLY_OP_PRESTORE POLY_X86_CTRL_PRESTORE_ASM
 
 #ifndef R_AARCH64_NONE
 #define R_AARCH64_NONE 0
@@ -406,7 +409,13 @@ static size_t process_cross_compact_shuffle_stub_count;
 static size_t process_cross_x86_wrapper_stub_count;
 static int process_cross_state_key_stub_reported;
 static int polyexec_use_explicit_state_key;
+static int polyexec_use_auto_spill;
 static const char *process_cross_report_path;
+static struct poly_xsave_state poly_auto_spill_state
+  __attribute__((aligned(64)));
+static volatile sig_atomic_t poly_auto_spill_installed;
+static volatile uint64_t poly_auto_spill_resume_buffer;
+static volatile uint64_t poly_auto_spill_resume_mode;
 
 struct poly_request {
   char path[160];
@@ -543,6 +552,14 @@ static uint64_t poly_abi_signature_set_with_flags(uint64_t slot, uint64_t kind,
     :
     : "memory");
   return rax;
+}
+
+static uint64_t poly_spill_ptr_set(uint64_t buffer, uint64_t resume_rip) {
+  asm volatile(POLY_OP_SPILL_PTR_SET
+    : "+a"(buffer), "+d"(resume_rip)
+    :
+    : "memory");
+  return buffer;
 }
 
 static int polyexec_check_arch_state_contract(void) {
@@ -837,6 +854,161 @@ static inline void poly_monitor_packet_set_value(uint64_t value) {
 
 static int poly_is_raw_foreign_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
+}
+
+static void poly_write_all_stderr(const char *text, size_t len) {
+  while (len != 0) {
+    ssize_t written = write(STDERR_FILENO, text, len);
+    if (written <= 0)
+      return;
+    text += (size_t) written;
+    len -= (size_t) written;
+  }
+}
+
+static void poly_write_literal_stderr(const char *text) {
+  size_t len = 0;
+  while (text[len] != '\0')
+    len++;
+  poly_write_all_stderr(text, len);
+}
+
+static void poly_write_hex64_stderr(uint64_t value) {
+  static const char hex[] = "0123456789abcdef";
+  char buf[16];
+  for (unsigned n = 0; n < sizeof(buf); n++) {
+    const unsigned shift = (unsigned) ((sizeof(buf) - 1 - n) * 4);
+    buf[n] = hex[(value >> shift) & 0xfU];
+  }
+  poly_write_all_stderr(buf, sizeof(buf));
+}
+
+static void report_poly_spill_page_fault(void) {
+  const uint64_t cr2 = poly_auto_spill_state.trap_args[3];
+  poly_write_literal_stderr("Poly Page Fault at Address 0x");
+  poly_write_hex64_stderr(cr2);
+  poly_write_literal_stderr(" PC 0x");
+  poly_write_hex64_stderr(poly_auto_spill_state.header.foreign_pc);
+  poly_write_literal_stderr("\n");
+}
+
+static void poly_auto_spill_sigsegv(int signo, siginfo_t *info,
+    void *ucontext) {
+  (void) info;
+  (void) ucontext;
+  if (poly_auto_spill_installed &&
+      poly_auto_spill_state.header.magic == POLY_STATE_XSAVE_MAGIC &&
+      poly_auto_spill_state.header.spill_reason ==
+        POLY_SPILL_REASON_PAGE_FAULT) {
+    report_poly_spill_page_fault();
+    _exit(128 + signo);
+  }
+  _exit(128 + signo);
+}
+
+__attribute__((noinline, used))
+static uint64_t poly_auto_spill_resume_dispatch(void) {
+  if (!poly_auto_spill_installed ||
+      poly_auto_spill_state.header.magic != POLY_STATE_XSAVE_MAGIC) {
+    poly_write_literal_stderr(
+      "POLYEXEC_FAIL: auto-spill resume without valid spill image\n");
+    _exit(125);
+  }
+
+  const uint32_t reason = poly_auto_spill_state.header.spill_reason;
+  if (reason == POLY_SPILL_REASON_INTERRUPT) {
+    poly_auto_spill_resume_buffer =
+      (uint64_t) (uintptr_t) &poly_auto_spill_state;
+    poly_auto_spill_resume_mode = poly_auto_spill_state.header.current_mode;
+    return 0;
+  }
+
+  if (reason == POLY_SPILL_REASON_PAGE_FAULT) {
+    report_poly_spill_page_fault();
+    _exit(139);
+  }
+
+  poly_write_literal_stderr("POLYEXEC_FAIL: unsupported Poly auto-spill reason\n");
+  _exit(125);
+}
+
+__attribute__((naked, noinline, used))
+static void poly_auto_spill_resume_trampoline(void) {
+  __asm__(
+    "pushq %rbx\n"
+    "pushq %rcx\n"
+    "pushq %rdx\n"
+    "pushq %rsi\n"
+    "pushq %rdi\n"
+    "pushq %r8\n"
+    "pushq %r9\n"
+    "pushq %r10\n"
+    "pushq %r11\n"
+    "pushq %r12\n"
+    "pushq %r13\n"
+    "pushq %r14\n"
+    "pushq %r15\n"
+    "pushq %rbp\n"
+    "movq %rsp, %rbp\n"
+    "andq $-16, %rsp\n"
+    "subq $128, %rsp\n"
+    "call poly_auto_spill_resume_dispatch\n"
+    "movq %rbp, %rsp\n"
+    "popq %rbp\n"
+    "popq %r15\n"
+    "popq %r14\n"
+    "popq %r13\n"
+    "popq %r12\n"
+    "popq %r11\n"
+    "popq %r10\n"
+    "popq %r9\n"
+    "popq %r8\n"
+    "popq %rdi\n"
+    "popq %rsi\n"
+    "popq %rdx\n"
+    "popq %rcx\n"
+    "popq %rbx\n"
+    "movq poly_auto_spill_resume_buffer(%rip), %rax\n"
+    "movq poly_auto_spill_resume_mode(%rip), %r15\n"
+    POLY_OP_PRESTORE
+    POLY_X86_CTRL_PENTER_MODE_ASM
+    "ud2\n");
+}
+
+static int install_poly_auto_spill(void) {
+  memset(&poly_auto_spill_state, 0, sizeof(poly_auto_spill_state));
+
+  struct sigaction action;
+  memset(&action, 0, sizeof(action));
+  action.sa_sigaction = poly_auto_spill_sigsegv;
+  sigemptyset(&action.sa_mask);
+  action.sa_flags = SA_SIGINFO;
+  if (sigaction(SIGSEGV, &action, NULL) != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: SIGSEGV handler install failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+
+  const uint64_t buffer = (uint64_t) (uintptr_t) &poly_auto_spill_state;
+  const uint64_t resume = (uint64_t) (uintptr_t)
+    poly_auto_spill_resume_trampoline;
+  if (poly_spill_ptr_set(buffer, resume) != 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: auto-spill setup failed buffer=0x%llx resume=0x%llx\n",
+      (unsigned long long) buffer, (unsigned long long) resume);
+    return -1;
+  }
+  poly_auto_spill_installed = 1;
+  printf("POLYEXEC_AUTO_SPILL: buffer=0x%llx resume=0x%llx\n",
+    (unsigned long long) buffer, (unsigned long long) resume);
+  return 0;
+}
+
+static void clear_poly_auto_spill(void) {
+  if (!poly_auto_spill_installed)
+    return;
+  (void) poly_spill_ptr_set(0, 0);
+  poly_auto_spill_installed = 0;
 }
 
 struct poly_linux_generic_stat {
@@ -7642,6 +7814,8 @@ static int emit_and_run_exit_child(const struct poly_program *program,
 
   if (pid == 0) {
     uint64_t child_result = 0;
+    if (polyexec_use_auto_spill && install_poly_auto_spill() < 0)
+      _exit(125);
     if (use_trap_vector)
       install_poly_trap_vector();
     if (emit_and_run(program, &child_result) < 0)
@@ -7698,6 +7872,8 @@ static int emit_and_run_process_child(struct poly_program *program,
 
   if (pid == 0) {
     uint64_t child_result = 0;
+    if (polyexec_use_auto_spill && install_poly_auto_spill() < 0)
+      _exit(125);
     if (use_trap_vector)
       install_poly_trap_vector();
     if (emit_and_run_process(program, request, extra_argc, extra_argv,
@@ -7760,9 +7936,14 @@ int main(int argc, char **argv) {
   const char *trap_vector_env = getenv("POLYEXEC_TRAP_VECTOR");
   const int use_trap_vector =
     trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0;
+  const char *auto_spill_env = getenv("POLYEXEC_AUTO_SPILL");
+  polyexec_use_auto_spill =
+    auto_spill_env == NULL || strcmp(auto_spill_env, "0") != 0;
   if (read_poly_base_contract(use_trap_vector) < 0)
     return 1;
   if (install_poly_thread_state_key() < 0)
+    return 1;
+  if (polyexec_use_auto_spill && install_poly_auto_spill() < 0)
     return 1;
   if (use_trap_vector)
     install_poly_trap_vector();
@@ -7813,6 +7994,7 @@ int main(int argc, char **argv) {
       }
     }
     free_program(&program);
+    clear_poly_auto_spill();
     clear_poly_trap_vector();
     report_poly_monitor_packets();
     puts("POLYEXEC_OK");
@@ -7860,6 +8042,7 @@ int main(int argc, char **argv) {
   }
 
   clear_poly_trap_vector();
+  clear_poly_auto_spill();
   report_poly_monitor_packets();
   puts("POLYEXEC_OK");
   return 0;

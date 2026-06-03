@@ -59,6 +59,9 @@ RISC-V64 code.
 - The production OS contract is now zero-kernel-change via auto-spill and a
   monitor trampoline. Full end-to-end POSIX signal translation in the runtime is
   still a productization task beyond the contract gate.
+- Bochs now exposes auto-spill count, spilled-byte, and estimated-cycle status
+  counters for profiling, but the estimates are an emulator model rather than a
+  silicon timing result.
 - Hardware transition-stack depth, same-cycle push/pop conflicts, underflow,
   overflow, and return-cookie recovery behavior now have directed tests and a
   Yosys temporal-induction proof over a reduced-depth instance; full-depth

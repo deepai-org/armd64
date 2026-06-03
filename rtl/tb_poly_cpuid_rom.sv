@@ -85,6 +85,10 @@ module tb_poly_cpuid_rom;
     check_regs(32'd1, 32'h0000003f, 32'd1, 32'd0,
       "x86 opcode contract leaf");
 
+    set_query(POLY_CPUID_BASE + 32'd2, 32'd34);
+    check_regs(32'h00000046, 32'h00000047, 32'h00000048, 32'd0,
+      "x86 auto-spill profiling leaf");
+
     set_query(POLY_CPUID_BASE + 32'd2, 32'd0);
     check(!hit && eax == 32'd0 && ebx == 32'd0 && ecx == 32'd0 && edx == 32'd0,
       "invalid escape subleaf misses");

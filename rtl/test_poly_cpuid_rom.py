@@ -259,6 +259,12 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
                 c["POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE"],
                 0,
             ),
+            34: (
+                c["POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS"],
+                c["POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS"],
+                c["POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS"],
+                0,
+            ),
         }
         return (True, *escapes[subleaf]) if subleaf in escapes else (False, 0, 0, 0, 0)
     if leaf == base + 3:
@@ -501,6 +507,12 @@ def main() -> int:
             c["POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS"],
         "POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS":
             c["POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS"],
+        "POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS":
+            c["POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS"],
+        "POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS":
+            c["POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS"],
+        "POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS":
+            c["POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS"],
         "POLY_X86_CTRL_SPILL_PTR_SET": c["POLY_X86_CTRL_SPILL_PTR_SET"],
         "POLY_X86_CTRL_PRESTORE": c["POLY_X86_CTRL_PRESTORE"],
         "POLY_X86_OPCODE_GEOMETRY_EAX": rom_model(c["POLY_CPUID_BASE"] + 2, 32, c)[1],
@@ -528,6 +540,7 @@ def main() -> int:
         (c["POLY_CPUID_BASE"] + 2, 31),
         (c["POLY_CPUID_BASE"] + 2, 32),
         (c["POLY_CPUID_BASE"] + 2, 33),
+        (c["POLY_CPUID_BASE"] + 2, 34),
         (c["POLY_CPUID_BASE"] + 3, 0),
         *[(c["POLY_CPUID_BASE"] + 4, subleaf) for subleaf in range(16)],
         (c["POLY_CPUID_BASE"] + 5, 0),

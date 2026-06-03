@@ -67,6 +67,7 @@ matches the Poly vendor string and `EAX >= POLY_CPUID_MAX`.
 | `POLY_CPUID_BASE + 2` | `0..31` | Control-op and ABI signature manifests. |
 | `POLY_CPUID_BASE + 2` | `32` | Active x86 opcode geometry: prefix bytes, total bytes, subop offset, family ID. |
 | `POLY_CPUID_BASE + 2` | `33` | x86 opcode contract version and flags. |
+| `POLY_CPUID_BASE + 2` | `34` | Auto-spill profiling status controls: spill count, spilled bytes, and estimated cycles. |
 | `POLY_CPUID_BASE + 3` | `0` | Poly state feature flags and the 8KB user spill image identity. |
 | `POLY_CPUID_BASE + 4` | `0` | User spill image size, alignment, layout version, and state flags. |
 | `POLY_CPUID_BASE + 4` | `1..15` | Fixed offsets and sizes for header, trap, GPR/FP/status, ABI, TLS, policy, return, and reserved regions. |
@@ -136,6 +137,10 @@ timer/preemption event it executes `PRESTORE` on the image and then `PENTER` to
 resume the raw frontend. For a page fault or POSIX signal, the monitor uses the
 spilled Poly PC, frontend state, CR2, vector, and error code to translate the
 native signal into a Poly-context exception in userspace.
+
+Implementations should expose profiling counters for successful auto-spills,
+total spilled bytes, and estimated spill cycles. The counters are diagnostic and
+do not change the architectural spill image or OS contract.
 
 ## Zero-Kernel-Change OS Contract
 

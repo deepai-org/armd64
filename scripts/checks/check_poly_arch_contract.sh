@@ -332,6 +332,12 @@ assert_contains "BX_POLY_SPILL_REASON_PAGE_FAULT" "$INTERRUPT_FUNC" \
   "auto-spill must distinguish page faults for userspace signal translation"
 assert_contains "BX_CPU_THIS_PTR cr2" "$INTERRUPT_FUNC" \
   "auto-spill page-fault metadata must include the faulting address"
+assert_contains "bx_poly_auto_spill_count\\+\\+" "$INTERRUPT_FUNC" \
+  "auto-spill must count successful hardware spills for profiling"
+assert_contains "bx_poly_auto_spill_bytes[[:space:]]*\\+=[[:space:]]*BX_POLY_STATE_XSAVE_BYTES_ARCH" "$INTERRUPT_FUNC" \
+  "auto-spill must accumulate spilled bytes for bandwidth profiling"
+assert_contains "bx_poly_auto_spill_cycles[[:space:]]*\\+=" "$INTERRUPT_FUNC" \
+  "auto-spill must accumulate estimated spill cycles"
 assert_contains "BX_POLY_X86_CTRL_PRESTORE" "$BOCHS_CPU" \
   "x86 control path must implement PRESTORE"
 assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
