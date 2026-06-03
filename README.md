@@ -12,6 +12,7 @@ Requires Docker with `linux/arm64` support.
 
 ```bash
 make image
+make check-poly-contracts
 make boot-poly-focused-validation
 rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log
 ```
@@ -23,6 +24,9 @@ Make targets enable detailed serial-log assertions by default; use
 Primary targets:
 
 - `make boot`: plain x86_64 sanity boot.
+- `make check-poly-contracts`: fast non-boot ISA/emulator/userspace contract
+  gate for import IDs, ISA readiness, architecture wiring, CPUID constants, and
+  XSAVE-style state layout.
 - `make boot-poly`: shorter Poly smoke/regression run.
 - `make boot-poly-focused-validation`: focused nativecheck plus arch-trap exec,
   probe/control-plane, raw app payload, neutral-switch, polyexec instruction

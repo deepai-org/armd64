@@ -106,6 +106,16 @@ assert_contains "check-poly-isa-readiness" "$MAKEFILE" \
   "Makefile must expose the ISA readiness gate"
 assert_contains "./scripts/checks/check_poly_isa_readiness.sh" "$MAKEFILE" \
   "Makefile must run the ISA readiness script"
+assert_contains "check-poly-contracts:.*check-poly-import-ids" "$MAKEFILE" \
+  "Makefile contract aggregate must include the import selector gate"
+assert_contains "check-poly-contracts:.*check-poly-isa-readiness" "$MAKEFILE" \
+  "Makefile contract aggregate must include the ISA readiness gate"
+assert_contains "check-poly-contracts:.*check-poly-arch-contract" "$MAKEFILE" \
+  "Makefile contract aggregate must include the architecture contract gate"
+assert_contains "check-poly-contracts:.*check-poly-cpuid-contract" "$MAKEFILE" \
+  "Makefile contract aggregate must include the CPUID contract gate"
+assert_contains "check-poly-contracts:.*check-poly-state-layout" "$MAKEFILE" \
+  "Makefile contract aggregate must include the XSAVE state layout gate"
 
 assert_not_contains "is[[:space:]]+a[[:space:]]+production x86 allocation" "$ISA_DOC" \
   "ISA doc must not claim the prototype opcode is production-owned"

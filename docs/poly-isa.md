@@ -6,6 +6,7 @@ user code in one x86_64 virtual address space. Design rationale lives in
 
 ```bash
 make image
+make check-poly-contracts
 make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
 rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 ```
