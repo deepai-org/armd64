@@ -29,6 +29,10 @@ extern char **environ;
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
 
+#ifndef MAP_POPULATE
+#define MAP_POPULATE 0x8000
+#endif
+
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
@@ -2604,6 +2608,14 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         return 0;
       *result = poly_dispatch_riscv_hwprobe(arg0, arg1, arg2, arg3, arg4);
       return 1;
+    case 222: {
+      uint64_t flags = arg3;
+      if ((arg2 & PROT_WRITE) != 0 && (flags & MAP_ANONYMOUS) != 0)
+        flags |= MAP_POPULATE;
+      *result = (uint64_t) poly_x86_syscall6(SYS_mmap, arg0, arg1, arg2,
+        flags, arg4, arg5);
+      return 1;
+    }
     default:
       return 0;
   }
