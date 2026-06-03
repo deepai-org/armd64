@@ -21,7 +21,7 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_VENDOR_ECX = 32'h21555043; // "CPU!"
 
   localparam logic [31:0] POLY_FEATURE_MASK = 32'hbe3fffff;
-  localparam logic [31:0] POLY_STATE_MASK = 32'h001fffe1;
+  localparam logic [31:0] POLY_STATE_MASK = 32'h00ffff61;
   localparam logic [31:0] POLY_MODE_MASK = 32'h00000007;
   localparam logic [31:0] POLY_RAW_MODE_MASK = 32'h00000006;
   localparam logic [31:0] POLY_FRONTEND_MASK = 32'h00000007;
@@ -31,7 +31,7 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_STATE_XSAVE_LAYOUT_VERSION = 32'd12;
   localparam logic [31:0] POLY_STATE_XSAVE_ALIGN_ARCH = 32'd64;
   localparam logic [31:0] POLY_STATE_XSAVE_LAYOUT_ECX = 32'h0040000c;
-  localparam logic [31:0] POLY_STATE_XSAVE_FLAGS = 32'h00003fff;
+  localparam logic [31:0] POLY_STATE_XSAVE_FLAGS = 32'h0001fffc;
 
   localparam logic [31:0] POLY_STATE_XSAVE_HEADER_OFFSET = 32'h00000000;
   localparam logic [31:0] POLY_STATE_XSAVE_HEADER_BYTES = 32'h00000040;
@@ -105,6 +105,10 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_ABI_BRIDGE_FLAGS = 32'h00007e9f;
   localparam logic [31:0] POLY_ABI_BRIDGE_COUNTS_ALIGN = 32'h00100808;
 
+  localparam logic [31:0] POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS = 32'h00000044;
+  localparam logic [31:0] POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS = 32'h00000045;
+  localparam logic [31:0] POLY_X86_CTRL_SPILL_PTR_SET = 32'h0000006f;
+  localparam logic [31:0] POLY_X86_CTRL_PRESTORE = 32'h00000070;
   localparam logic [31:0] POLY_X86_OPCODE_GEOMETRY_EAX = 32'h00fc3a0f;
   localparam logic [31:0] POLY_X86_CTRL_PREFIX_BYTES = 32'd3;
   localparam logic [31:0] POLY_X86_CTRL_TOTAL_BYTES = 32'd4;
@@ -148,6 +152,13 @@ module poly_cpuid_rom (
         end
         POLY_CPUID_BASE + 32'd2: begin
           unique case (subleaf_i)
+            32'd31: begin
+              hit_o = 1'b1;
+              eax_o = POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS;
+              ebx_o = POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS;
+              ecx_o = POLY_X86_CTRL_SPILL_PTR_SET;
+              edx_o = POLY_X86_CTRL_PRESTORE;
+            end
             32'd32: begin
               hit_o = 1'b1;
               eax_o = POLY_X86_OPCODE_GEOMETRY_EAX;

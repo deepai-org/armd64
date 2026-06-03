@@ -3408,7 +3408,9 @@ int main(void) {
     return 1;
   }
   aarch64_abi_signature_control_probe();
-  if (read_rax() != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS ||
+  if (read_rax() !=
+        poly_abi_signature_control_value(
+          POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) ||
       poly_abi_signature_get(5) != POLY_ABI_SIGNATURE_KIND_X86_SYSV_REGS) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 ABI signature control mismatch\n");
     return 1;

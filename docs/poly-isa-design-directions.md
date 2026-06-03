@@ -14,8 +14,8 @@ For commands and current control-op encodings, see `docs/poly-isa.md`.
   4-byte aligned, and RISC-V supports 16/32-bit instruction fetch for RVC.
 - Hardware must not implement Linux, libc, libgcc, libatomic, dynamic-linker
   policy, stack repacking, or user-memory call descriptors.
-- Poly state is explicit XSAVE-style architectural state, not hidden emulator
-  state.
+- Poly state is an explicit 8KB user-owned spill/import image, not hidden
+  emulator state and not OS-managed custom xstate.
 - Compatibility targets ordinary native ABIs: x86_64 SysV, AArch64 AAPCS64,
   and RISC-V psABI.
 
@@ -30,6 +30,8 @@ Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
 | `PCALL frontend, target, sig` | Call another frontend using ABI signature slot `sig`. |
 | `PTRAPRET` | Resume after a precise Poly trap. |
 | `PLANDING` | Validate an indirect cross-frontend target when enabled. |
+| `PSET_SPILL_PTR buffer, resume_rip` | Register the per-thread auto-spill image and x86 monitor trampoline. |
+| `PRESTORE buffer` | Import an auto-spilled image before resuming Poly code. |
 
 These are decoded control instructions, not `#UD` envelopes.
 
@@ -92,18 +94,31 @@ Same-ISA returns stay normal.
 
 ## State And Traps
 
-The XSAVE-style Poly component contains frontend state, interrupted PC, trap
-packet, hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD
-state, RISC-V GPR/FP state, per-frontend TLS bases, user monitor addresses, and
-landing-pad policy. The OS saves/restores it without knowing foreign register
-semantics.
+The Poly spill image contains frontend state, interrupted PC, trap packet,
+hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD state,
+RISC-V GPR/FP state, per-frontend TLS bases, user monitor addresses, and
+landing-pad policy. The OS does not save or restore it; hardware writes it to
+user memory before an OS-visible interrupt/fault boundary, and the Ring 3
+monitor imports it with `PRESTORE`.
+
+For zero-kernel-change execution, the monitor allocates one aligned 8KB spill
+image per thread and registers it with `PSET_SPILL_PTR` before `PENTER`. If a
+timer interrupt, page fault, or other hardware exception arrives while a raw
+frontend is active, microcode exports the full image, records the current Poly
+PC and spill reason, switches the architectural frontend back to x86, replaces
+the interrupted x86 RIP with the registered trampoline, and only then vectors
+to the unmodified OS. The OS sees an ordinary x86 thread. On return or signal
+delivery, the monitor reads the header; timer exits restore and re-enter Poly,
+while page-fault exits are translated into Poly-context exceptions in
+userspace.
 
 Hardware emits precise trap packets for foreign `svc`/`ecall`, breakpoints,
 illegal or unsupported instructions, unresolved imports, and recoverable
 frontend exits. Recoverable events may enter a registered Ring 3 Poly monitor;
 the monitor owns syscall translation, lazy binding, helper calls, and debugger
-policy. The kernel still owns hard page faults, signals, scheduling,
-interrupts, and real syscalls issued by the monitor.
+policy. The kernel still owns page tables, signal delivery, scheduling,
+interrupts, and real syscalls issued by the monitor, but it never owns Poly
+register state.
 
 If a monitor vector is enabled, hardware must publish the monitor packet before
 redirecting the frontend to the vector PC. A failed packet write or invalid
@@ -114,7 +129,7 @@ runtime can inspect the trap record.
 Trap-vector and monitor-packet addresses are architectural control addresses.
 Non-canonical values, invalid frontend alignment, unaligned monitor packets,
 and packet ranges that cross the canonical boundary are rejected by the control
-instruction or XSAVE import before mutating state. The CPU does not pre-walk or
+instruction or `PRESTORE` before mutating state. The CPU does not pre-walk or
 pin monitor-packet pages; packet delivery writes through normal virtual-memory
 semantics, so missing permissions or unmapped pages fault at the packet write
 like a hardware store.
@@ -135,7 +150,8 @@ fallthrough PC is not committed for that instruction.
 1. Keep `PSWITCH` and `PCALL` fixed-latency with no descriptor parsing.
 2. Use register-only ABI signatures for fast native-ABI calls.
 3. Route complex ABI cases through loader/runtime thunks.
-4. Make XSAVE-style Poly state the only context-switch contract.
+4. Make the auto-spill image and monitor trampoline the only asynchronous
+   context-switch contract.
 5. Support native return-cookie recovery through the hardware transition stack.
 6. Deliver recoverable exits through OS-neutral trap packets and a Ring 3
    monitor.

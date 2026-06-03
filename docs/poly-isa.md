@@ -2,13 +2,12 @@
 
 Bochs prototype for running existing precompiled x86_64, AArch64, and RISC-V64
 user code in one x86_64 virtual address space. Design rationale lives in
-[`poly-isa-design-directions.md`](poly-isa-design-directions.md).
+[`poly-isa-design-directions.md`](poly-isa-design-directions.md). The frozen v1
+contract lives in [`poly-isa-v1.md`](poly-isa-v1.md).
 
 ```bash
 make image
 make check-poly-contracts
-make BOOT_TIMEOUT_SECONDS=900 boot-poly-focused-validation
-rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 ```
 
 ## Contract
@@ -19,7 +18,8 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 - ISA switches are decoded control instructions, not `#UD` traps.
 - AArch64 uses 32-bit aligned fetch. RISC-V64 supports 16/32-bit fetch.
 - `PCALL` switches ISA and can apply cached native-ABI register aliases.
-- Foreign state is per-thread XSAVE-style architectural state.
+- Foreign state is an explicit 8KB user-owned spill image; an unmodified OS is
+  not required to save a custom Poly xstate component.
 - Recoverable foreign traps write OS-neutral trap records.
 - Foreign syscall numbers and import selectors are opaque trap fields; hardware
   does not translate them into OS calls or libc/helper functions.
@@ -37,10 +37,10 @@ rg -a 'BOOT_OK|.*_OK|FAIL|Kernel panic|Oops' out/serial.log out/bochs.log
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
 Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
-`PLANDING`, and `PTRAPRET`. ABI signature setup writes a register-only
-signature slot as `kind | (register_map << 32)`. Query returns the same encoded
-value, so runtimes and hardware can verify the exact RAT/register-map policy
-instead of inferring it from the kind alone.
+`PLANDING`, `PTRAPRET`, `PSET_SPILL_PTR`, and `PRESTORE`. ABI signature setup
+writes a register-only signature slot as `kind | (register_map << 32)`. Query
+returns the same encoded value, so runtimes and hardware can verify the exact
+RAT/register-map policy instead of inferring it from the kind alone.
 
 These are fixed-latency decoded control operations: they do not read user
 descriptors, repack stacks, or enter exception delivery for normal frontend
@@ -74,8 +74,14 @@ implement the architecture below without inheriting emulator or runtime policy:
   those slots in rename/RAT logic; stack arguments, aggregates, variadics,
   lazy binding, syscall translation, libcalls, debugger policy, and helper
   imports remain userspace runtime policy.
-- Foreign architectural state is explicit XSAVE-style per-thread state with
-  fixed offsets, size, alignment, and feature leaves.
+- Foreign architectural state is an explicit 8KB user-owned spill/import image
+  with fixed offsets, size, alignment, and feature leaves. The OS is not in the
+  Poly state-management loop.
+- `PSET_SPILL_PTR` registers the per-thread spill image and x86 monitor
+  trampoline. On raw-mode interrupt or fault, hardware writes the 8KB image,
+  records the Poly PC and spill reason, switches back to x86, and makes the OS
+  see the trampoline RIP. `PRESTORE` imports the image before `PENTER` resumes
+  raw Poly code.
 - Recoverable exits publish OS-neutral trap packets before monitor-vector
   redirect. Failed packet writes or invalid packet addresses prevent the
   redirect and report precise faults.
@@ -87,8 +93,10 @@ implement the architecture below without inheriting emulator or runtime policy:
 - Foreign barriers/fences are explicit x86-TSO no-ops, and foreign memory
   operations cannot expose weak reordering in the shared x86 address space.
 
-This boundary deliberately says nothing about FPGA fabric, Verilog structure,
-timing closure, or final opcode ownership. Those are implementation and
+Final opcode ownership, reserved-bit policy, CPUID leaves, spill-image layout,
+trap packet format, error precedence, zero-kernel OS contract, and conformance
+evidence are frozen in `docs/poly-isa-v1.md`. This boundary deliberately says nothing about
+FPGA fabric, Verilog structure, or timing closure. Those are implementation and
 productization tasks. The ISA readiness requirement is that the hardware
 contract is explicit, discoverable, fixed-latency where required, and free of
 OS/libc/runtime policy.

@@ -129,7 +129,6 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         POLY_CPUID_STATE_OVERLAP_GPRS
         POLY_CPUID_STATE_USER_RETURN_RESTORE
         POLY_CPUID_STATE_X86_TSO
-        POLY_CPUID_STATE_XSAVE_VISIBLE
         POLY_CPUID_STATE_KEY_EXPLICIT
         POLY_CPUID_STATE_TRANSITION_FRAME_32
         POLY_CPUID_STATE_EXPLICIT_SAVE_RESTORE
@@ -143,10 +142,11 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         POLY_CPUID_STATE_STATE_KEY_XSAVE
         POLY_CPUID_STATE_TRAP_RESTORE_XSAVE
         POLY_CPUID_STATE_NATIVE_RETURN_XSAVE
+        POLY_CPUID_STATE_USER_SPILL
+        POLY_CPUID_STATE_MONITOR_TRAMPOLINE
+        POLY_CPUID_STATE_OS_XSAVE_NOT_REQUIRED
     """)
     xsave_flags = mask(c, """
-        POLY_STATE_XSAVE_FLAG_XCR0_USER
-        POLY_STATE_XSAVE_FLAG_OSXSAVE_REQUIRED
         POLY_STATE_XSAVE_FLAG_INTERRUPT_RESUME
         POLY_STATE_XSAVE_FLAG_TRAP_STATE
         POLY_STATE_XSAVE_FLAG_COMPLETE_BANK_EXPORT
@@ -159,6 +159,9 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         POLY_STATE_XSAVE_FLAG_STATE_KEY
         POLY_STATE_XSAVE_FLAG_TRAP_RESTORE
         POLY_STATE_XSAVE_FLAG_NATIVE_RETURN
+        POLY_STATE_XSAVE_FLAG_USER_SPILL
+        POLY_STATE_XSAVE_FLAG_MONITOR_TRAMPOLINE
+        POLY_STATE_XSAVE_FLAG_OS_XSAVE_NOT_REQUIRED
     """)
     trap_flags = mask(c, """
         POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY
@@ -238,6 +241,12 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
             POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE
         """)
         escapes = {
+            31: (
+                c["POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS"],
+                c["POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS"],
+                c["POLY_X86_CTRL_SPILL_PTR_SET"],
+                c["POLY_X86_CTRL_PRESTORE"],
+            ),
             32: (
                 x86_opcode_geometry,
                 c["POLY_X86_CTRL_PREFIX_BYTES"],
@@ -488,6 +497,12 @@ def main() -> int:
         "POLY_ABI_BRIDGE_ABI_VERSION": c["POLY_ABI_BRIDGE_ABI_VERSION"],
         "POLY_ABI_BRIDGE_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 9, 0, c)[2],
         "POLY_ABI_BRIDGE_COUNTS_ALIGN": rom_model(c["POLY_CPUID_BASE"] + 9, 0, c)[3],
+        "POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS":
+            c["POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS"],
+        "POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS":
+            c["POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS"],
+        "POLY_X86_CTRL_SPILL_PTR_SET": c["POLY_X86_CTRL_SPILL_PTR_SET"],
+        "POLY_X86_CTRL_PRESTORE": c["POLY_X86_CTRL_PRESTORE"],
         "POLY_X86_OPCODE_GEOMETRY_EAX": rom_model(c["POLY_CPUID_BASE"] + 2, 32, c)[1],
         "POLY_X86_CTRL_PREFIX_BYTES": c["POLY_X86_CTRL_PREFIX_BYTES"],
         "POLY_X86_CTRL_TOTAL_BYTES": c["POLY_X86_CTRL_TOTAL_BYTES"],
@@ -510,6 +525,7 @@ def main() -> int:
     cases = [
         (c["POLY_CPUID_BASE"], 0),
         (c["POLY_CPUID_BASE"] + 1, 0),
+        (c["POLY_CPUID_BASE"] + 2, 31),
         (c["POLY_CPUID_BASE"] + 2, 32),
         (c["POLY_CPUID_BASE"] + 2, 33),
         (c["POLY_CPUID_BASE"] + 3, 0),

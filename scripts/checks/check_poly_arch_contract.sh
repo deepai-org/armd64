@@ -322,6 +322,22 @@ assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*BX_POLY_MODE_X86" 
   "raw interrupt capture must route interrupt handling through x86 decode"
 assert_contains "bx_poly_update_raw_owner" "$INTERRUPT_FUNC" \
   "raw interrupt capture must update the keyed raw owner state"
+assert_contains "bx_poly_spill_buffer[[:space:]]*!=[[:space:]]*0" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must support the auto-spill trampoline path"
+assert_contains "export_poly_xsave_state" "$INTERRUPT_FUNC" \
+  "auto-spill must export the full Poly state image before x86 kernel entry"
+assert_contains "bx_poly_spill_resume_rip" "$INTERRUPT_FUNC" \
+  "auto-spill must redirect the x86 interrupted RIP to the monitor trampoline"
+assert_contains "BX_POLY_SPILL_REASON_PAGE_FAULT" "$INTERRUPT_FUNC" \
+  "auto-spill must distinguish page faults for userspace signal translation"
+assert_contains "BX_CPU_THIS_PTR cr2" "$INTERRUPT_FUNC" \
+  "auto-spill page-fault metadata must include the faulting address"
+assert_contains "BX_POLY_X86_CTRL_PRESTORE" "$BOCHS_CPU" \
+  "x86 control path must implement PRESTORE"
+assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
+  "PRESTORE must arm a pending raw frontend resume target"
+assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip" "$BOCHS_CPU" \
+  "PENTER after PRESTORE must resume at the spilled foreign PC"
 assert_contains "CPL[[:space:]]*!=[[:space:]]*3" "$RESTORE_FUNC" \
   "raw interrupt restore must only run on return to userspace"
 assert_contains "bx_poly_interrupted_raw_valid" "$RESTORE_FUNC" \
@@ -338,7 +354,7 @@ assert_contains "bx_poly_commit_reg_state" "$RESTORE_FUNC" \
   "raw interrupt restore must commit the keyed synthetic bank"
 assert_contains "BX_ASYNC_EVENT_STOP_TRACE" "$RESTORE_FUNC" \
   "raw interrupt restore must split the current x86 trace before raw fetch resumes"
-assert_contains "poly_interrupt_enter\\(\\)" "$BOCHS_EXCEPTION" \
+assert_contains "poly_interrupt_enter\\(vector, type, error_code\\)" "$BOCHS_EXCEPTION" \
   "x86 interrupt delivery must invoke raw foreign interrupt capture"
 assert_contains "poly_iret_return_to_user\\(\\)" "$IRET64_FUNC" \
   "IRET64 return must invoke raw foreign frontend restore"

@@ -73,6 +73,10 @@ module tb_poly_cpuid_rom;
     check_regs(32'd1, 32'h00000007, 32'hbe3fffff, 32'd20,
       "feature leaf");
 
+    set_query(POLY_CPUID_BASE + 32'd2, 32'd31);
+    check_regs(32'h00000044, 32'h00000045, 32'h0000006f, 32'h00000070,
+      "x86 monitor control leaf");
+
     set_query(POLY_CPUID_BASE + 32'd2, 32'd32);
     check_regs(32'h00fc3a0f, 32'd3, 32'd4, 32'd3,
       "x86 opcode geometry leaf");
@@ -86,11 +90,11 @@ module tb_poly_cpuid_rom;
       "invalid escape subleaf misses");
 
     set_query(POLY_CPUID_BASE + 32'd3, 32'd0);
-    check_regs(32'h001fffe1, 32'd0, 32'd20, 32'h00002000,
+    check_regs(32'h00ffff61, 32'd0, 32'd20, 32'h00002000,
       "state leaf");
 
     set_query(POLY_CPUID_BASE + 32'd4, 32'd0);
-    check_regs(32'd20, 32'h00002000, 32'h0040000c, 32'h00003fff,
+    check_regs(32'd20, 32'h00002000, 32'h0040000c, 32'h0001fffc,
       "arch xsave leaf");
 
     set_query(POLY_CPUID_BASE + 32'd4, 32'd1);
