@@ -57,11 +57,17 @@ RISC-V64 code.
 - Foreign ISA support is intentionally a documented baseline plus precise traps
   for unsupported AArch64/RISC-V instructions, not a promise of every extension.
 - The production OS contract is now zero-kernel-change via auto-spill and a
-  monitor trampoline. Full end-to-end POSIX signal translation in the runtime is
-  still a productization task beyond the contract gate.
+  monitor trampoline. `polyexec --selftest-pagefault` is the directed runtime
+  proof for the minimal synchronous fault path: a raw AArch64 null load should
+  auto-spill, arrive as `SIGSEGV`, print `Poly Page Fault at Address ...`, and
+  terminate through the monitor. Full end-to-end POSIX signal translation in the
+  runtime is still a productization task beyond the contract gate.
 - Bochs now exposes auto-spill count, spilled-byte, and estimated-cycle status
-  counters for profiling, but the estimates are an emulator model rather than a
-  silicon timing result.
+  counters for profiling, and `polyexec` reports them as
+  `POLYEXEC_AUTO_SPILL_STATUS`. The estimates are an emulator model rather than
+  a silicon timing result; a multi-instance full-state preemption stress run is
+  still required before claiming the whole zero-kernel-change architecture is
+  validated end to end.
 - Hardware transition-stack depth, same-cycle push/pop conflicts, underflow,
   overflow, and return-cookie recovery behavior now have directed tests and a
   Yosys temporal-induction proof over a reduced-depth instance; full-depth

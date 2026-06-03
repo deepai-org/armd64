@@ -15,6 +15,7 @@ POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
 POLYPROBE="$ROOT_DIR/tools/programs/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
 NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
+POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -344,6 +345,26 @@ assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_i
   "PRESTORE must arm a pending raw frontend resume target"
 assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip" "$BOCHS_CPU" \
   "PENTER after PRESTORE must resume at the spilled foreign PC"
+assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
+  "userspace monitor must install a SIGSEGV handler for Poly fault translation"
+assert_contains "POLY_OP_SPILL_PTR_SET" "$POLYEXEC" \
+  "userspace monitor must register an auto-spill buffer"
+assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
+  "userspace monitor must provide an x86 auto-spill resume trampoline"
+assert_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
+  "userspace monitor must PRESTORE before resuming a raw frontend"
+assert_contains "POLY_SPILL_REASON_PAGE_FAULT" "$POLYEXEC" \
+  "userspace monitor must classify auto-spilled page faults"
+assert_contains "trap_args\\[3\\]" "$POLYEXEC" \
+  "userspace monitor must read the spilled CR2 fault address"
+assert_contains "header\\.foreign_pc" "$POLYEXEC" \
+  "userspace monitor must read the spilled Poly PC"
+assert_contains "Poly Page Fault at Address" "$POLYEXEC" \
+  "userspace monitor must print the Poly page-fault diagnostic"
+assert_contains "selftest-pagefault" "$POLYEXEC" \
+  "userspace monitor must expose a deliberate Poly page-fault self-test"
+assert_contains "POLYEXEC_AUTO_SPILL_STATUS" "$POLYEXEC" \
+  "userspace monitor must report auto-spill profiling counters"
 assert_contains "CPL[[:space:]]*!=[[:space:]]*3" "$RESTORE_FUNC" \
   "raw interrupt restore must only run on return to userspace"
 assert_contains "bx_poly_interrupted_raw_valid" "$RESTORE_FUNC" \

@@ -36,6 +36,12 @@ extern char **environ;
 #define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
+#define POLY_OP_AUTO_SPILL_COUNT_STATUS \
+  POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS_ASM
+#define POLY_OP_AUTO_SPILL_BYTES_STATUS \
+  POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS_ASM
+#define POLY_OP_AUTO_SPILL_CYCLES_STATUS \
+  POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS_ASM
 #define POLY_OP_SPILL_PTR_SET POLY_X86_CTRL_SPILL_PTR_SET_ASM
 #define POLY_OP_PRESTORE POLY_X86_CTRL_PRESTORE_ASM
 
@@ -562,6 +568,27 @@ static uint64_t poly_spill_ptr_set(uint64_t buffer, uint64_t resume_rip) {
   return buffer;
 }
 
+static uint64_t poly_auto_spill_count_status(void) {
+  uint64_t rax;
+  asm volatile(POLY_OP_AUTO_SPILL_COUNT_STATUS : "=a"(rax) ::
+    "memory");
+  return rax;
+}
+
+static uint64_t poly_auto_spill_bytes_status(void) {
+  uint64_t rax;
+  asm volatile(POLY_OP_AUTO_SPILL_BYTES_STATUS : "=a"(rax) ::
+    "memory");
+  return rax;
+}
+
+static uint64_t poly_auto_spill_cycles_status(void) {
+  uint64_t rax;
+  asm volatile(POLY_OP_AUTO_SPILL_CYCLES_STATUS : "=a"(rax) ::
+    "memory");
+  return rax;
+}
+
 static int polyexec_check_arch_state_contract(void) {
   struct poly_cpuid_contract_failure failure;
   if (!poly_cpuid_verify_arch_state_contract(&failure)) {
@@ -649,6 +676,18 @@ static int read_poly_base_contract(int require_trap_vector) {
       "POLYEXEC_FAIL: poly x86 opcode geometry mismatch x86=(0x%x,0x%x,0x%x,0x%x)\n",
       x86_geometry.eax, x86_geometry.ebx, x86_geometry.ecx,
       x86_geometry.edx);
+    return -1;
+  }
+  const struct poly_cpuid_regs auto_spill_status =
+    poly_read_cpuid(POLY_CPUID_BASE + 2, 34);
+  const struct poly_cpuid_regs expected_auto_spill_status =
+    poly_cpuid_expected_escape_leaf34();
+  if (!poly_cpuid_regs_match(&auto_spill_status,
+        &expected_auto_spill_status)) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly auto-spill status manifest mismatch x86=(0x%x,0x%x,0x%x,0x%x)\n",
+      auto_spill_status.eax, auto_spill_status.ebx,
+      auto_spill_status.ecx, auto_spill_status.edx);
     return -1;
   }
 
@@ -3280,6 +3319,17 @@ static void report_poly_monitor_packets(void) {
       (unsigned long long) poly_monitor_packet_illegal_count,
       (unsigned long long) poly_monitor_packet_other_count);
   }
+}
+
+static void report_poly_auto_spill_status(void) {
+  if (!polyexec_use_auto_spill)
+    return;
+  const uint64_t count = poly_auto_spill_count_status();
+  const uint64_t bytes = poly_auto_spill_bytes_status();
+  const uint64_t cycles = poly_auto_spill_cycles_status();
+  printf("POLYEXEC_AUTO_SPILL_STATUS: count=%llu bytes=%llu cycles=%llu\n",
+    (unsigned long long) count, (unsigned long long) bytes,
+    (unsigned long long) cycles);
 }
 
 static int prepare_syscall_fixture_file(void) {
@@ -7502,6 +7552,29 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
   return 0;
 }
 
+static int run_poly_page_fault_selftest(void) {
+  static const uint32_t code_words[] = {
+    0xf94003e0U, // ldr x0,[xzr]: deliberate load from address 0.
+    0xd65f03c0U  // ret: reaching this means the fault path failed.
+  };
+  struct poly_program program;
+  memset(&program, 0, sizeof(program));
+  program.path = "<polyexec-pagefault-selftest>";
+  program.arch_name = "aarch64";
+  program.arch = POLY_ARCH_AARCH64;
+  program.code_bytes = (uint8_t *) (uintptr_t) code_words;
+  program.code_size = sizeof(code_words);
+
+  uint64_t result = 0;
+  puts("POLYEXEC_SELFTEST_PAGEFAULT: start");
+  if (emit_and_run(&program, &result) < 0)
+    return -1;
+  fprintf(stderr,
+    "POLYEXEC_FAIL: page-fault self-test returned without SIGSEGV result=%llu\n",
+    (unsigned long long) result);
+  return -1;
+}
+
 static int emit_and_run_process(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result, int use_trap_vector) {
@@ -7925,7 +7998,7 @@ static void free_program(struct poly_program *program) {
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...]\n",
+    fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...] | --selftest-pagefault\n",
       argv[0]);
     return 2;
   }
@@ -7947,6 +8020,12 @@ int main(int argc, char **argv) {
     return 1;
   if (use_trap_vector)
     install_poly_trap_vector();
+
+  if (strcmp(argv[1], "--selftest-pagefault") == 0) {
+    if (run_poly_page_fault_selftest() < 0)
+      return 1;
+    return 1;
+  }
 
   if (strcmp(argv[1], "--process") == 0) {
     if (argc < 3) {
@@ -7994,9 +8073,10 @@ int main(int argc, char **argv) {
       }
     }
     free_program(&program);
+    report_poly_monitor_packets();
+    report_poly_auto_spill_status();
     clear_poly_auto_spill();
     clear_poly_trap_vector();
-    report_poly_monitor_packets();
     puts("POLYEXEC_OK");
     return 0;
   }
@@ -8041,9 +8121,10 @@ int main(int argc, char **argv) {
     free_program(&program);
   }
 
+  report_poly_monitor_packets();
+  report_poly_auto_spill_status();
   clear_poly_trap_vector();
   clear_poly_auto_spill();
-  report_poly_monitor_packets();
   puts("POLYEXEC_OK");
   return 0;
 }
