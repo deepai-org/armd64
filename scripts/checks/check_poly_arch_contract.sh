@@ -23,6 +23,11 @@ POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_
 POLYEXEC_THREAD_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
 POLYEXEC_PROCESS_EXCEPTION_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
+POLYEXEC_PROCESS_SIGNAL_MASK_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
+POLYEXEC_PROCESS_VDSO_TIME_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_vdso_time_real.c"
+POLYEXEC_AARCH64_VDSO_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.S"
+POLYEXEC_AARCH64_VDSO_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.map"
+POLYEXEC_AARCH64_VDSO_LD="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.ld"
 POLYEXEC_PYTHON_EPOLL_SERVER_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_python_epoll_server.py"
 POLYEXEC_NONROOT_RUNNER_SRC="$ROOT_DIR/tools/programs/polyexec_nonroot_runner.c"
 BOOT_SCRIPT="$ROOT_DIR/scripts/boot.sh"
@@ -453,14 +458,30 @@ assert_contains "fstat\\(\\(int\\) arg4" "$POLYEXEC" \
   "file-backed mmap prefaulting must avoid SIGBUS beyond the mapped file bytes"
 assert_contains "aarch64-real-python3\\.elf" "$POLYEXEC" \
   "process mode must allow unmodified AArch64 python3 to use its real PT_INTERP loader"
+assert_contains "riscv-real-python3\\.elf" "$POLYEXEC" \
+  "process mode must allow unmodified RISC-V python3 to use its real PT_INTERP loader"
 assert_contains "aarch64-process-exception-real\\.elf" "$POLYEXEC" \
   "process mode must allow the AArch64 C++ exception fixture to use real ld.so"
 assert_contains "aarch64-process-setjmp-real\\.elf" "$POLYEXEC" \
   "process mode must allow the AArch64 setjmp fixture to use real ld.so"
+assert_contains "aarch64-process-vdso-time-real\\.elf" "$POLYEXEC" \
+  "process mode must allow the AArch64 vDSO time fixture to use real ld.so"
+assert_contains "riscv-process-exception-real\\.elf" "$POLYEXEC" \
+  "process mode must allow the RISC-V C++ exception fixture to use real ld.so"
+assert_contains "riscv-process-setjmp-real\\.elf" "$POLYEXEC" \
+  "process mode must allow the RISC-V setjmp fixture to use real ld.so"
 assert_contains "POLYEXEC_MONITOR_UID" "$POLYEXEC" \
   "userspace monitor must expose a UID diagnostic for non-root proof runs"
 assert_contains "SYS_epoll_pwait" "$POLYEXEC" \
   "userspace monitor syscall proxy must support epoll waits for daemon-style I/O"
+assert_contains "SYS_rt_sigpending" "$POLYEXEC" \
+  "userspace monitor syscall proxy must expose pending signal masks for foreign signal edge tests"
+assert_contains "AT_SYSINFO_EHDR" "$POLYEXEC" \
+  "process mode must publish a foreign vDSO base through auxv"
+assert_contains "map_process_aarch64_vdso" "$POLYEXEC" \
+  "process mode must map the custom AArch64 vDSO blob"
+assert_contains "POLYEXEC_VDSO_MAP: arch=aarch64" "$POLYEXEC" \
+  "process mode must emit a diagnostic when mapping the AArch64 vDSO"
 assert_contains "SYS_socket" "$POLYEXEC" \
   "userspace monitor syscall proxy must support sockets for daemon-style I/O"
 assert_contains "SYS_getdents64" "$POLYEXEC" \
@@ -505,6 +526,16 @@ assert_contains "/bin/ls" "$BOOT_SCRIPT" \
   "unmodified dynamic binary proof must use the host AArch64 coreutils ls image"
 assert_contains "/usr/bin/python3\\.12" "$BOOT_SCRIPT" \
   "boot image must copy an unmodified AArch64 python3 binary for daemon-style I/O proof"
+assert_contains "POLY_RISCV_PYTHON_PACKAGES" "$BOOT_SCRIPT" \
+  "boot image must define the riscv64 Python 3.12 package closure"
+assert_contains "stage_riscv_python_runtime" "$BOOT_SCRIPT" \
+  "boot image must stage a riscv64 Python 3.12 runtime"
+assert_contains "riscv-real-python3\\.elf" "$BOOT_SCRIPT" \
+  "boot image must copy an unmodified RISC-V python3 binary for daemon-style I/O proof"
+assert_contains "riscv-python-root" "$BOOT_SCRIPT" \
+  "focused RISC-V Python process run must use an architecture-private Python home"
+assert_contains 'download \$POLY_RISCV_PYTHON_PACKAGES' "$BOOT_SCRIPT" \
+  "RISC-V Python staging must fetch the exact configured riscv64 package closure without host installation"
 assert_contains "polyexec_python_epoll_server\\.py" "$BOOT_SCRIPT" \
   "boot image must include the Python epoll web-server smoke script"
 assert_contains "PYTHONHOME=/usr" "$BOOT_SCRIPT" \
@@ -515,6 +546,26 @@ assert_contains "aarch64-process-exception-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the AArch64 C++ exception fixture"
 assert_contains "aarch64-process-setjmp-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the AArch64 setjmp/longjmp fixture"
+assert_contains "aarch64-process-signal-mask-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the AArch64 signal mask edge fixture"
+assert_contains "aarch64-process-vdso-time-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the AArch64 vDSO time fixture"
+assert_contains "aarch64-polyexec-vdso\\.so" "$BOOT_SCRIPT" \
+  "focused boot must build and stage the custom AArch64 vDSO"
+assert_contains "polyexec_aarch64_vdso\\.ld" "$BOOT_SCRIPT" \
+  "focused boot must link the AArch64 vDSO with the fixed single-load layout"
+assert_contains "POLYEXEC_VDSO_MAP: arch=aarch64" "$BOOT_SCRIPT" \
+  "focused boot validation must gate the AArch64 vDSO auxv mapping"
+assert_contains "riscv-process-signal-mask-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the RISC-V signal mask edge fixture"
+assert_contains "riscv-process-exception-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the RISC-V C++ exception fixture"
+assert_contains "riscv-process-setjmp-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the RISC-V setjmp/longjmp fixture"
+assert_contains "processdeps/riscv64/libm\\.so\\.6" "$BOOT_SCRIPT" \
+  "focused boot must stage RISC-V libm for the libstdc++ unwinder dependency chain"
+assert_contains "lib/riscv64-linux-gnu/libm\\.so\\.6" "$BOOT_SCRIPT" \
+  "focused boot must expose RISC-V libm on the foreign loader default library path"
 assert_contains "polyexec-nonroot" "$BOOT_SCRIPT" \
   "focused boot must run the monitor through the non-root privilege-drop wrapper"
 assert_contains "POLYEXEC_PROCESS_EXIT" "$POLYEXEC" \
@@ -537,16 +588,38 @@ assert_contains "POLY_PYTHON_EPOLL_OK: selector=EpollSelector" "$BOOT_SCRIPT" \
   "boot validation must gate the Python epoll web-server success marker"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-real-python3" "$BOOT_SCRIPT" \
   "boot validation must gate the unmodified AArch64 python3 process result"
+assert_contains "POLYEXEC_INTERP_LOAD: arch=riscv.*riscv-real-python3" "$BOOT_SCRIPT" \
+  "boot validation must gate the unmodified RISC-V python3 real ld.so handoff"
+assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-real-python3" "$BOOT_SCRIPT" \
+  "boot validation must gate the unmodified RISC-V python3 process result"
+assert_contains "grep -c \"POLY_PYTHON_EPOLL_OK: selector=EpollSelector\"" "$BOOT_SCRIPT" \
+  "boot validation must require epoll success markers from both AArch64 and RISC-V Python runs"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-exception-real" "$BOOT_SCRIPT" \
   "boot validation must gate the C++ exception process result"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-setjmp-real" "$BOOT_SCRIPT" \
   "boot validation must gate the setjmp/longjmp process result"
+assert_contains "POLY_SIGNAL_MASK_EDGE_OK iterations=8" "$BOOT_SCRIPT" \
+  "boot validation must gate the signal mask queue/drain success marker"
+assert_contains "POLY_VDSO_TIME_OK iterations=64" "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 vDSO time fixture marker"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-vdso-time-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 vDSO time fixture result"
+assert_contains "POLYEXEC_MONITOR_PACKETS: count=\\(\\[1-9\\]\\|\\[1-4\\]\\[0-9\\]\\).*aarch64-process-vdso-time-real" "$BOOT_SCRIPT" \
+  "boot validation must prove the AArch64 vDSO time loop avoids one monitor trap per call"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-signal-mask-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 signal mask edge result"
 assert_contains "POLY_NONROOT_EXEC: uid=65534 euid=65534 gid=65534 egid=65534 command=/usr/bin/polyexec" "$BOOT_SCRIPT" \
   "boot validation must prove polyexec was launched after dropping root privileges"
 assert_contains "POLYEXEC_MONITOR_UID: uid=65534 euid=65534 gid=65534 egid=65534" "$BOOT_SCRIPT" \
   "boot validation must prove the monitor itself observed a non-root uid"
 assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-dynamic-libc-real" "$BOOT_SCRIPT" \
   "boot validation must gate the RISC-V dynamic libc process result"
+assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-exception-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V C++ exception process result"
+assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-setjmp-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V setjmp/longjmp process result"
+assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-signal-mask-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V signal mask edge result"
 assert_contains "throw std::runtime_error" "$POLYEXEC_PROCESS_EXCEPTION_SRC" \
   "C++ exception fixture must throw through the foreign ABI unwinder"
 assert_contains "catch \\(const std::runtime_error" "$POLYEXEC_PROCESS_EXCEPTION_SRC" \
@@ -555,6 +628,34 @@ assert_contains "setjmp" "$POLYEXEC_PROCESS_SETJMP_SRC" \
   "setjmp fixture must save foreign ABI stack/register state"
 assert_contains "longjmp" "$POLYEXEC_PROCESS_SETJMP_SRC" \
   "setjmp fixture must restore foreign ABI stack/register state"
+assert_contains "POLY_SYS_RT_SIGPROCMASK" "$POLYEXEC_PROCESS_SIGNAL_MASK_SRC" \
+  "signal mask edge fixture must use the guest rt_sigprocmask syscall"
+assert_contains "POLY_SYS_RT_SIGPENDING" "$POLYEXEC_PROCESS_SIGNAL_MASK_SRC" \
+  "signal mask edge fixture must assert pending signal queue state"
+assert_contains "POLY_SYS_SIGNALFD4" "$POLYEXEC_PROCESS_SIGNAL_MASK_SRC" \
+  "signal mask edge fixture must drain queued blocked signals explicitly"
+assert_contains "for \\(int iteration = 0; iteration < 8; iteration\\+\\+\\)" "$POLYEXEC_PROCESS_SIGNAL_MASK_SRC" \
+  "signal mask edge fixture must heavily mask and unmask rather than doing a one-shot smoke"
+assert_contains "cntvct_el0" "$POLYEXEC_AARCH64_VDSO_SRC" \
+  "AArch64 vDSO must read the user-mode virtual counter"
+assert_contains "cntfrq_el0" "$POLYEXEC_AARCH64_VDSO_SRC" \
+  "AArch64 vDSO must read the user-mode counter frequency"
+assert_contains "__kernel_clock_gettime" "$POLYEXEC_AARCH64_VDSO_SRC" \
+  "AArch64 vDSO must export the clock_gettime entry point"
+assert_contains "__clock_gettime" "$POLYEXEC_AARCH64_VDSO_SRC" \
+  "AArch64 vDSO must export the glibc AArch64 clock_gettime alias"
+assert_contains "__kernel_gettimeofday" "$POLYEXEC_AARCH64_VDSO_SRC" \
+  "AArch64 vDSO must export the gettimeofday entry point"
+assert_contains "LINUX_2\\.6\\.39" "$POLYEXEC_AARCH64_VDSO_MAP" \
+  "AArch64 vDSO symbols must use the Linux AArch64 vDSO version namespace"
+assert_contains "PT_LOAD FILEHDR PHDRS" "$POLYEXEC_AARCH64_VDSO_LD" \
+  "AArch64 vDSO linker script must keep ELF headers inside the first load segment"
+assert_contains "PT_DYNAMIC FLAGS\\(4\\)" "$POLYEXEC_AARCH64_VDSO_LD" \
+  "AArch64 vDSO linker script must expose a readonly PT_DYNAMIC segment"
+assert_contains "clock_gettime\\(CLOCK_MONOTONIC" "$POLYEXEC_PROCESS_VDSO_TIME_SRC" \
+  "AArch64 vDSO time fixture must exercise monotonic clock_gettime"
+assert_contains "iteration < 64" "$POLYEXEC_PROCESS_VDSO_TIME_SRC" \
+  "AArch64 vDSO time fixture must make enough calls to catch syscall-trap fallback"
 assert_contains "selectors\\.DefaultSelector" "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \
   "Python daemon fixture must use the default selector abstraction"
 assert_contains "EpollSelector" "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \

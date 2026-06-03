@@ -63,7 +63,13 @@ POLYEXEC_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_pre
 POLYEXEC_THREAD_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
 POLYEXEC_PROCESS_EXCEPTION_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
+POLYEXEC_PROCESS_SIGNAL_MASK_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
+POLYEXEC_PROCESS_VDSO_TIME_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_vdso_time_real.c"
+POLYEXEC_AARCH64_VDSO_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.S"
+POLYEXEC_AARCH64_VDSO_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.map"
+POLYEXEC_AARCH64_VDSO_LD="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.ld"
 POLYEXEC_PYTHON_EPOLL_SERVER_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_python_epoll_server.py"
+POLY_RISCV_PYTHON_PACKAGES="${POLY_RISCV_PYTHON_PACKAGES:-python3.12-minimal libpython3.12-minimal libpython3.12-stdlib libc6 libexpat1 zlib1g libssl3t64 libsqlite3-0 liblzma5 libbz2-1.0 libcrypt1 libdb5.3t64 libffi8 libncursesw6 libreadline8t64 libtinfo6}"
 POLYEXEC_PROCESS_VERSIONED_DEP_REAL_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_versioned_dep_real.map"
 POLY_PREEMPT_STRESS_SRC="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 POLYEXEC_NONROOT_RUNNER_SRC="$ROOT_DIR/tools/programs/polyexec_nonroot_runner.c"
@@ -570,6 +576,117 @@ build_poly_elf_generator() {
   "$compiler" -O2 "$POLY_ELF_GEN_SRC" -o "$POLY_ELF_GEN_BIN"
 }
 
+stage_riscv_python_runtime() {
+  local riscv_python_root="${POLY_RISCV_PYTHON_ROOT:-}"
+  if [[ -z "$riscv_python_root" ]]; then
+    riscv_python_root="$TMP_DIR/riscv-python-root"
+    local deb_dir="$TMP_DIR/riscv-python-debs"
+    mkdir -p "$deb_dir"
+    if [[ -n "${POLY_RISCV_PYTHON_DEB_DIR:-}" ]]; then
+      for deb in "$POLY_RISCV_PYTHON_DEB_DIR"/*.deb; do
+        if [[ -f "$deb" ]]; then
+          cp "$deb" "$deb_dir/"
+        fi
+      done
+    else
+      local apt_dir="$TMP_DIR/riscv-python-apt"
+      mkdir -p "$apt_dir/lists/partial" "$apt_dir/cache/archives/partial" \
+        "$apt_dir/sources.list.d"
+      cat >"$apt_dir/sources.list.d/ubuntu-riscv.sources" <<'EOF'
+Types: deb
+URIs: http://ports.ubuntu.com/ubuntu-ports
+Suites: noble noble-updates noble-security
+Components: main universe
+Architectures: riscv64
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
+      apt-get \
+        -o Dir::Etc::sourcelist=/dev/null \
+        -o Dir::Etc::sourceparts="$apt_dir/sources.list.d" \
+        -o Dir::Etc::main=/dev/null \
+        -o Dir::State::status=/dev/null \
+        -o Dir::State::lists="$apt_dir/lists" \
+        -o Dir::Cache="$apt_dir/cache" \
+        -o APT::Architecture=riscv64 \
+        -o APT::Architectures::=riscv64 \
+        -o APT::Get::List-Cleanup=0 \
+        -o Acquire::Languages=none \
+        update
+      (
+        cd "$deb_dir"
+        apt-get \
+          -o Dir::Etc::sourcelist=/dev/null \
+          -o Dir::Etc::sourceparts="$apt_dir/sources.list.d" \
+          -o Dir::Etc::main=/dev/null \
+          -o Dir::State::status=/dev/null \
+          -o Dir::State::lists="$apt_dir/lists" \
+          -o Dir::Cache="$apt_dir/cache" \
+          -o APT::Architecture=riscv64 \
+          -o APT::Architectures::=riscv64 \
+          download $POLY_RISCV_PYTHON_PACKAGES
+      )
+    fi
+    shopt -s nullglob
+    local debs=("$deb_dir"/*.deb)
+    shopt -u nullglob
+    if [[ "${#debs[@]}" -eq 0 ]]; then
+      echo "No riscv64 Python 3.12 packages available for staging." >&2
+      exit 1
+    fi
+    mkdir -p "$riscv_python_root"
+    local deb
+    for deb in "${debs[@]}"; do
+      dpkg-deb -x "$deb" "$riscv_python_root"
+    done
+  fi
+
+  if [[ ! -x "$riscv_python_root/usr/bin/python3.12" ]]; then
+    echo "RISC-V Python 3.12 runtime is missing usr/bin/python3.12." >&2
+    exit 1
+  fi
+  if [[ ! -d "$riscv_python_root/usr/lib/python3.12" ]]; then
+    echo "RISC-V Python 3.12 runtime is missing usr/lib/python3.12." >&2
+    exit 1
+  fi
+
+  mkdir -p \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-python-root/usr/lib/python3.12/encodings" \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-python-root/usr/lib/python3.12/collections"
+  cp "$riscv_python_root/usr/bin/python3.12" \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-real-python3.elf"
+  cp "$riscv_python_root/usr/lib/python3.12/encodings/__init__.py" \
+    "$riscv_python_root/usr/lib/python3.12/encodings/aliases.py" \
+    "$riscv_python_root/usr/lib/python3.12/encodings/utf_8.py" \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-python-root/usr/lib/python3.12/encodings/"
+  cp "$riscv_python_root/usr/lib/python3.12/collections/__init__.py" \
+    "$riscv_python_root/usr/lib/python3.12/collections/abc.py" \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-python-root/usr/lib/python3.12/collections/"
+  cp "$riscv_python_root/usr/lib/python3.12/selectors.py" \
+    "$riscv_python_root/usr/lib/python3.12/keyword.py" \
+    "$riscv_python_root/usr/lib/python3.12/operator.py" \
+    "$riscv_python_root/usr/lib/python3.12/reprlib.py" \
+    "$riscv_python_root/usr/lib/python3.12/socket.py" \
+    "$riscv_python_root/usr/lib/python3.12/enum.py" \
+    "$riscv_python_root/usr/lib/python3.12/types.py" \
+    "$riscv_python_root/usr/lib/python3.12/functools.py" \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-python-root/usr/lib/python3.12/"
+  if [[ -d "$riscv_python_root/usr/lib/riscv64-linux-gnu" ]]; then
+    mkdir -p "$TMP_DIR/initramfs-root/lib/riscv64-linux-gnu"
+    shopt -s nullglob
+    local riscv_libs=(
+      "$riscv_python_root/usr/lib/riscv64-linux-gnu"/libc.so.6
+      "$riscv_python_root/usr/lib/riscv64-linux-gnu"/ld-linux-riscv64-lp64d.so.1
+      "$riscv_python_root/usr/lib/riscv64-linux-gnu"/libexpat.so.1*
+      "$riscv_python_root/usr/lib/riscv64-linux-gnu"/libm.so.6
+      "$riscv_python_root/usr/lib/riscv64-linux-gnu"/libz.so.1*
+    )
+    shopt -u nullglob
+    if [[ "${#riscv_libs[@]}" -gt 0 ]]; then
+      cp -a "${riscv_libs[@]}" "$TMP_DIR/initramfs-root/lib/riscv64-linux-gnu/"
+    fi
+  fi
+}
+
 build_poly_elf_payloads() {
   build_poly_elf_generator
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps"
@@ -577,6 +694,7 @@ build_poly_elf_payloads() {
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/riscv64"
   mkdir -p "$TMP_DIR/initramfs-root/lib"
   mkdir -p "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu"
+  mkdir -p "$TMP_DIR/initramfs-root/lib/riscv64-linux-gnu"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/processenvdeps/aarch64"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/processenvdeps/riscv"
   mkdir -p "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64"
@@ -645,6 +763,14 @@ build_poly_elf_payloads() {
   aarch64-linux-gnu-gcc -O2 -fno-stack-protector \
     "$POLYEXEC_PROCESS_SETJMP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-setjmp-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-stack-protector \
+    "$POLYEXEC_PROCESS_VDSO_TIME_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-vdso-time-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_SIGNAL_MASK_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-signal-mask-real.elf"
   cp /usr/bin/python3.12 \
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-real-python3.elf"
   cp "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \
@@ -685,6 +811,14 @@ build_poly_elf_payloads() {
     "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libselinux.so.1"
   cp /lib/aarch64-linux-gnu/libpcre2-8.so.0 \
     "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libpcre2-8.so.0"
+  aarch64-linux-gnu-gcc -nostdlib -shared -fPIC \
+    -Wl,-T,"$POLYEXEC_AARCH64_VDSO_LD" \
+    -Wl,-soname,linux-vdso.so.1 \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    -Wl,-z,max-page-size=4096 -Wl,-z,common-page-size=4096 \
+    -Wl,--version-script="$POLYEXEC_AARCH64_VDSO_MAP" \
+    "$POLYEXEC_AARCH64_VDSO_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-polyexec-vdso.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -3920,6 +4054,11 @@ build_poly_elf_payloads() {
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_SIGNAL_MASK_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-signal-mask-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_RELOC_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-reloc-real.elf"
   riscv64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
@@ -3935,6 +4074,33 @@ build_poly_elf_payloads() {
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/riscv64/libc.so.6"
   cp /usr/riscv64-linux-gnu/lib/ld-linux-riscv64-lp64d.so.1 \
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/riscv64/ld-linux-riscv64-lp64d.so.1"
+  cp /usr/riscv64-linux-gnu/lib/libstdc++.so.6 \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/riscv64/libstdc++.so.6"
+  cp /usr/riscv64-linux-gnu/lib/libgcc_s.so.1 \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/riscv64/libgcc_s.so.1"
+  cp /usr/riscv64-linux-gnu/lib/libm.so.6 \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/riscv64/libm.so.6"
+  cp /usr/riscv64-linux-gnu/lib/libc.so.6 \
+    "$TMP_DIR/initramfs-root/lib/riscv64-linux-gnu/libc.so.6"
+  cp /usr/riscv64-linux-gnu/lib/libstdc++.so.6 \
+    "$TMP_DIR/initramfs-root/lib/riscv64-linux-gnu/libstdc++.so.6"
+  cp /usr/riscv64-linux-gnu/lib/libgcc_s.so.1 \
+    "$TMP_DIR/initramfs-root/lib/riscv64-linux-gnu/libgcc_s.so.1"
+  cp /usr/riscv64-linux-gnu/lib/libm.so.6 \
+    "$TMP_DIR/initramfs-root/lib/riscv64-linux-gnu/libm.so.6"
+  cp /usr/riscv64-linux-gnu/lib/ld-linux-riscv64-lp64d.so.1 \
+    "$TMP_DIR/initramfs-root/lib/ld-linux-riscv64-lp64d.so.1"
+  stage_riscv_python_runtime
+  riscv64-linux-gnu-g++ -O2 -fno-stack-protector \
+    -march=rv64gc -mabi=lp64d \
+    -Wl,-rpath,/usr/lib/polyapps/processdeps/riscv64 \
+    "$POLYEXEC_PROCESS_EXCEPTION_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-exception-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-stack-protector \
+    -march=rv64gc -mabi=lp64d \
+    -Wl,-rpath,/usr/lib/polyapps/processdeps/riscv64 \
+    "$POLYEXEC_PROCESS_SETJMP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-setjmp-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -8300,6 +8466,12 @@ if [ "$RUN_POLY_EXEC_FOCUSED" = "1" ]; then
 	    /usr/bin/polyexec --process \
 	      /usr/lib/polyapps/aarch64-process-setjmp-real.elf=42 \
 	      setjmp >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-process-vdso-time-real.elf=42 \
+	      vdso-time >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-process-signal-mask-real.elf=42 \
+	      mask-edge >/dev/ttyS0 2>&1
 		    /bin/busybox ip link set lo up >/dev/ttyS0 2>&1 || \
 	      /bin/busybox ifconfig lo up >/dev/ttyS0 2>&1
 		    PYTHONHOME=/usr PYTHONPATH=/usr/lib/python3.12 \
@@ -8312,6 +8484,20 @@ if [ "$RUN_POLY_EXEC_FOCUSED" = "1" ]; then
 	    /usr/bin/polyexec --process \
 	      /usr/lib/polyapps/riscv-process-dynamic-libc-real.elf=42 \
 	      dynamic-libc >/dev/ttyS0 2>&1
+	    PYTHONHOME=/usr/lib/polyapps/riscv-python-root/usr \
+	      PYTHONPATH=/usr/lib/polyapps/riscv-python-root/usr/lib/python3.12 \
+	      /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/riscv-real-python3.elf=42 \
+	      -S /usr/lib/polyapps/polyexec_python_epoll_server.py >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/riscv-process-exception-real.elf=42 \
+	      exception >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/riscv-process-setjmp-real.elf=42 \
+	      setjmp >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/riscv-process-signal-mask-real.elf=42 \
+	      mask-edge >/dev/ttyS0 2>&1
     echo "POLY_EXEC_FOCUSED_OK" >/dev/ttyS0 2>&1
 fi
 
@@ -12296,6 +12482,10 @@ EOF
           sleep 1
           continue
         fi
+        if ! grep -Eq "POLYEXEC_VDSO_MAP: arch=aarch64 path=/usr/lib/polyapps/aarch64-polyexec-vdso\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=aarch64.*aarch64-real-ls\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
@@ -12313,6 +12503,26 @@ EOF
 	          continue
 	        fi
 	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-setjmp-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -q "POLY_VDSO_TIME_OK iterations=64" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-vdso-time-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=([1-9]|[1-4][0-9]) syscall_a64=([1-9]|[1-4][0-9]) .*path=/usr/lib/polyapps/aarch64-process-vdso-time-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-signal-mask-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -q "POLY_SIGNAL_MASK_EDGE_OK iterations=8" "$SERIAL_LOG"; then
 	          sleep 1
 	          continue
 	        fi
@@ -12341,6 +12551,38 @@ EOF
 	          continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-dynamic-libc-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=riscv.*riscv-real-python3\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-real-python3\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -c "POLY_PYTHON_EPOLL_OK: selector=EpollSelector" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=riscv.*riscv-process-exception-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-exception-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=riscv.*riscv-process-setjmp-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-setjmp-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-signal-mask-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

@@ -199,6 +199,10 @@ extern char **environ;
 #define AT_HWCAP2 26
 #endif
 
+#ifndef AT_SYSINFO_EHDR
+#define AT_SYSINFO_EHDR 33
+#endif
+
 #ifndef ARCH_SET_FS
 #define ARCH_SET_FS 0x1002
 #endif
@@ -2912,6 +2916,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 132: *x86_number = SYS_sigaltstack; return 1;
     case 134: *x86_number = SYS_rt_sigaction; return 1;
     case 135: *x86_number = SYS_rt_sigprocmask; return 1;
+    case 136: *x86_number = SYS_rt_sigpending; return 1;
     case 140: *x86_number = SYS_setpriority; return 1;
     case 141: *x86_number = SYS_getpriority; return 1;
     case 143: *x86_number = SYS_setregid; return 1;
@@ -3506,7 +3511,7 @@ static void clear_poly_trap_vector(void) {
 
 static void report_poly_monitor_packets(void) {
   if (poly_monitor_packet_count != 0) {
-    printf("POLYEXEC_MONITOR_PACKETS: count=%llu syscall_a64=%llu syscall_rv=%llu break_a64=%llu break_rv=%llu import=%llu illegal=%llu other=%llu\n",
+    printf("POLYEXEC_MONITOR_PACKETS: count=%llu syscall_a64=%llu syscall_rv=%llu break_a64=%llu break_rv=%llu import=%llu illegal=%llu other=%llu path=%s\n",
       (unsigned long long) poly_monitor_packet_count,
       (unsigned long long) poly_monitor_packet_syscall_aarch64_count,
       (unsigned long long) poly_monitor_packet_syscall_riscv_count,
@@ -3514,7 +3519,8 @@ static void report_poly_monitor_packets(void) {
       (unsigned long long) poly_monitor_packet_break_riscv_count,
       (unsigned long long) poly_monitor_packet_import_count,
       (unsigned long long) poly_monitor_packet_illegal_count,
-      (unsigned long long) poly_monitor_packet_other_count);
+      (unsigned long long) poly_monitor_packet_other_count,
+      process_cross_report_path ? process_cross_report_path : "-");
   }
 }
 
@@ -4606,10 +4612,153 @@ static int copy_stack_string(uint8_t *stack, uint8_t **cursor,
   return 0;
 }
 
+static int map_process_aarch64_vdso(uint64_t *at_sysinfo_ehdr_out) {
+  *at_sysinfo_ehdr_out = 0;
+  const char *path = getenv("POLY_AARCH64_VDSO_PATH");
+  if (!path || path[0] == '\0')
+    path = "/usr/lib/polyapps/aarch64-polyexec-vdso.so";
+
+  int fd = open(path, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    if (errno == ENOENT)
+      return 0;
+    fprintf(stderr, "POLYEXEC_FAIL: unable to open AArch64 vDSO %s: %s\n",
+      path, strerror(errno));
+    return -1;
+  }
+
+  struct stat st;
+  if (fstat(fd, &st) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: invalid AArch64 vDSO stat %s: %s\n",
+      path, strerror(errno));
+    close(fd);
+    return -1;
+  }
+  if (st.st_size <= 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: empty AArch64 vDSO: %s\n", path);
+    close(fd);
+    return -1;
+  }
+  if ((uint64_t) st.st_size > SIZE_MAX) {
+    fprintf(stderr, "POLYEXEC_FAIL: AArch64 vDSO too large: %s\n", path);
+    close(fd);
+    return -1;
+  }
+  const size_t file_size = (size_t) st.st_size;
+  uint8_t *file_image = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  close(fd);
+  if (file_image == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: AArch64 vDSO file mmap failed %s: %s\n",
+      path, strerror(errno));
+    return -1;
+  }
+  if (file_size < sizeof(Elf64_Ehdr)) {
+    fprintf(stderr, "POLYEXEC_FAIL: AArch64 vDSO missing ELF header: %s\n",
+      path);
+    munmap(file_image, file_size);
+    return -1;
+  }
+
+  const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *) file_image;
+  if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG) != 0 ||
+      ehdr->e_ident[EI_CLASS] != ELFCLASS64 ||
+      ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
+      ehdr->e_type != ET_DYN ||
+      ehdr->e_machine != EM_AARCH64) {
+    fprintf(stderr, "POLYEXEC_FAIL: invalid AArch64 vDSO ELF identity: %s\n",
+      path);
+    munmap(file_image, file_size);
+    return -1;
+  }
+  if (ehdr->e_phentsize != sizeof(Elf64_Phdr) ||
+      ehdr->e_phoff > file_size ||
+      ehdr->e_phnum > (file_size - ehdr->e_phoff) / sizeof(Elf64_Phdr)) {
+    fprintf(stderr, "POLYEXEC_FAIL: invalid AArch64 vDSO program headers: %s\n",
+      path);
+    munmap(file_image, file_size);
+    return -1;
+  }
+
+  const Elf64_Phdr *phdrs =
+    (const Elf64_Phdr *) (const void *) (file_image + ehdr->e_phoff);
+  uint64_t min_vaddr = UINT64_MAX;
+  uint64_t max_vaddr = 0;
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *ph = &phdrs[n];
+    if (ph->p_type != PT_LOAD)
+      continue;
+    if (ph->p_memsz < ph->p_filesz ||
+        ph->p_offset > (uint64_t) file_size ||
+        ph->p_filesz > (uint64_t) file_size - ph->p_offset ||
+        ph->p_vaddr > UINT64_MAX - ph->p_memsz) {
+      fprintf(stderr, "POLYEXEC_FAIL: invalid AArch64 vDSO load segment: %s\n",
+        path);
+      munmap(file_image, file_size);
+      return -1;
+    }
+    const uint64_t seg_start = ph->p_vaddr & ~0xfffULL;
+    const uint64_t seg_end = align_up_u64(ph->p_vaddr + ph->p_memsz, 4096);
+    if (seg_start < min_vaddr)
+      min_vaddr = seg_start;
+    if (seg_end > max_vaddr)
+      max_vaddr = seg_end;
+  }
+  if (min_vaddr != 0 || max_vaddr == 0 || max_vaddr > SIZE_MAX) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: unsupported AArch64 vDSO virtual address span: %s\n",
+      path);
+    munmap(file_image, file_size);
+    return -1;
+  }
+
+  uint8_t *mapping = mmap(NULL, (size_t) max_vaddr,
+    PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mapping == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: AArch64 vDSO image mmap failed %s: %s\n",
+      path, strerror(errno));
+    munmap(file_image, file_size);
+    return -1;
+  }
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *ph = &phdrs[n];
+    if (ph->p_type != PT_LOAD)
+      continue;
+    memcpy(mapping + ph->p_vaddr, file_image + ph->p_offset, ph->p_filesz);
+  }
+  for (uint16_t n = 0; n < ehdr->e_phnum; n++) {
+    const Elf64_Phdr *ph = &phdrs[n];
+    if (ph->p_type != PT_LOAD)
+      continue;
+    const uint64_t seg_start = ph->p_vaddr & ~0xfffULL;
+    const uint64_t seg_end = align_up_u64(ph->p_vaddr + ph->p_memsz, 4096);
+    int prot = 0;
+    if (ph->p_flags & PF_R)
+      prot |= PROT_READ;
+    if (ph->p_flags & PF_W)
+      prot |= PROT_WRITE;
+    if (ph->p_flags & PF_X)
+      prot |= PROT_EXEC;
+    if (mprotect(mapping + seg_start, (size_t) (seg_end - seg_start),
+          prot) < 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: AArch64 vDSO mprotect failed %s: %s\n",
+        path, strerror(errno));
+      munmap(mapping, (size_t) max_vaddr);
+      munmap(file_image, file_size);
+      return -1;
+    }
+  }
+  munmap(file_image, file_size);
+
+  *at_sysinfo_ehdr_out = (uint64_t) (uintptr_t) mapping;
+  printf("POLYEXEC_VDSO_MAP: arch=aarch64 path=%s addr=0x%llx bytes=%zu\n",
+    path, (unsigned long long) *at_sysinfo_ehdr_out, file_size);
+  return 0;
+}
+
 static int build_process_stack(const struct poly_program *program,
     const struct poly_request *request, const uint8_t *loaded_image,
-    uint64_t at_base, int extra_argc, char **extra_argv,
-    uint8_t **stack_out, size_t *stack_size_out,
+    uint64_t at_base, uint64_t at_sysinfo_ehdr, int extra_argc,
+    char **extra_argv, uint8_t **stack_out, size_t *stack_size_out,
     uint64_t *initial_sp_out) {
   const size_t stack_size = 1024 * 1024;
   uint8_t *stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
@@ -4736,6 +4885,7 @@ static int build_process_stack(const struct poly_program *program,
     { AT_RANDOM, random_ptr },
     { AT_EXECFN, execfn_ptr },
     { AT_PLATFORM, platform_ptr },
+    { AT_SYSINFO_EHDR, at_sysinfo_ehdr },
     { AT_NULL, 0 }
   };
 
@@ -8050,7 +8200,17 @@ static int emit_and_run_process(struct poly_program *program,
   uint8_t *process_stack = NULL;
   size_t process_stack_size = 0;
   uint64_t initial_sp = 0;
-  if (build_process_stack(program, request, loaded_image, 0,
+  uint64_t at_sysinfo_ehdr = 0;
+  if (program->arch == POLY_ARCH_AARCH64 &&
+      map_process_aarch64_vdso(&at_sysinfo_ehdr) < 0) {
+    if (process_tls)
+      munmap(process_tls, process_tls_size);
+    unmap_process_dependencies(program);
+    munmap(scratch, scratch_size);
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  if (build_process_stack(program, request, loaded_image, 0, at_sysinfo_ehdr,
         extra_argc, extra_argv, &process_stack, &process_stack_size,
         &initial_sp) < 0) {
     if (process_tls)
@@ -8282,8 +8442,16 @@ static int emit_and_run_process_interpreter(struct poly_program *program,
   uint8_t *process_stack = NULL;
   size_t process_stack_size = 0;
   uint64_t initial_sp = 0;
+  uint64_t at_sysinfo_ehdr = 0;
+  if (program->arch == POLY_ARCH_AARCH64 &&
+      map_process_aarch64_vdso(&at_sysinfo_ehdr) < 0) {
+    munmap(interp_mapping, interp_mapping_size);
+    munmap(main_mapping, main_mapping_size);
+    free_program(&interp_program);
+    return -1;
+  }
   if (build_process_stack(program, request, loaded_main, interp_load_bias,
-        extra_argc, extra_argv, &process_stack, &process_stack_size,
+        at_sysinfo_ehdr, extra_argc, extra_argv, &process_stack, &process_stack_size,
         &initial_sp) < 0) {
     munmap(interp_mapping, interp_mapping_size);
     munmap(main_mapping, main_mapping_size);
@@ -8387,7 +8555,12 @@ static int poly_process_uses_real_interpreter(const struct poly_program *program
   if (strcmp(base, "aarch64-real-ls.elf") == 0 ||
       strcmp(base, "aarch64-real-python3.elf") == 0 ||
       strcmp(base, "aarch64-process-exception-real.elf") == 0 ||
-      strcmp(base, "aarch64-process-setjmp-real.elf") == 0)
+      strcmp(base, "aarch64-process-setjmp-real.elf") == 0 ||
+      strcmp(base, "aarch64-process-vdso-time-real.elf") == 0)
+    return 1;
+  if (strcmp(base, "riscv-real-python3.elf") == 0 ||
+      strcmp(base, "riscv-process-exception-real.elf") == 0 ||
+      strcmp(base, "riscv-process-setjmp-real.elf") == 0)
     return 1;
   if (extra_argc != 1 || extra_argv == NULL || extra_argv[0] == NULL ||
       strcmp(extra_argv[0], "dynamic-libc") != 0)
