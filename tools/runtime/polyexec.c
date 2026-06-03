@@ -457,6 +457,9 @@ static volatile uint64_t poly_monitor_packet_import_count;
 static volatile uint64_t poly_monitor_packet_illegal_count;
 static volatile uint64_t poly_monitor_packet_other_count;
 static volatile uint64_t poly_process_terminal_exit_code;
+static uint8_t *process_brk_mapping;
+static size_t process_brk_mapping_size;
+static uint64_t process_brk_current;
 
 struct poly_runtime_trap_packet {
   uint64_t reason;
@@ -486,6 +489,7 @@ static struct poly_process_exit_finalizer_context
   poly_process_exit_finalizers;
 
 static int run_process_exit_finalizers(void);
+static void reset_process_brk_arena(void);
 
 static int run_irelative_resolver(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
@@ -2537,6 +2541,51 @@ static uint64_t poly_dispatch_riscv_hwprobe(uint64_t pairs_address,
   return 0;
 }
 
+static void reset_process_brk_arena(void) {
+  if (process_brk_mapping != NULL)
+    munmap(process_brk_mapping, process_brk_mapping_size);
+  process_brk_mapping = NULL;
+  process_brk_mapping_size = 0;
+  process_brk_current = 0;
+}
+
+static uint64_t poly_dispatch_process_brk(uint64_t requested_break) {
+  const size_t arena_size = 1024 * 1024;
+  if (process_brk_mapping == NULL) {
+    process_brk_mapping = mmap(NULL, arena_size, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (process_brk_mapping == MAP_FAILED) {
+      process_brk_mapping = NULL;
+      return 0;
+    }
+    process_brk_mapping_size = arena_size;
+    memset(process_brk_mapping, 0, process_brk_mapping_size);
+    process_brk_current = (uint64_t) (uintptr_t) process_brk_mapping;
+  }
+
+  const uint64_t base = (uint64_t) (uintptr_t) process_brk_mapping;
+  const uint64_t limit = base + process_brk_mapping_size;
+  if (requested_break == 0)
+    return process_brk_current;
+  if (requested_break < base || requested_break > limit)
+    return process_brk_current;
+  process_brk_current = requested_break;
+  return process_brk_current;
+}
+
+static void poly_prefault_writable_range(uint64_t address, uint64_t length) {
+  if (address == 0 || length == 0 || length > (uint64_t) SIZE_MAX)
+    return;
+  volatile uint8_t *bytes = (volatile uint8_t *) (uintptr_t) address;
+  const size_t len = (size_t) length;
+  for (size_t offset = 0; offset < len; offset += 4096) {
+    uint8_t value = bytes[offset];
+    bytes[offset] = value;
+  }
+  uint8_t value = bytes[len - 1];
+  bytes[len - 1] = value;
+}
+
 static int poly_handle_structured_foreign_syscall(uint64_t number,
     uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
     uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t *result) {
@@ -2608,12 +2657,29 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         return 0;
       *result = poly_dispatch_riscv_hwprobe(arg0, arg1, arg2, arg3, arg4);
       return 1;
+    case 214:
+      if (!poly_process_exit_finalizers.active)
+        return 0;
+      *result = poly_dispatch_process_brk(arg0);
+      return 1;
+    case 216:
+      if (!poly_process_exit_finalizers.active)
+        return 0;
+      *result = (uint64_t) poly_x86_syscall6(SYS_mremap, arg0, arg1, arg2,
+        arg3, arg4, arg5);
+      if ((int64_t) *result >= 0)
+        poly_prefault_writable_range(*result, arg2);
+      return 1;
     case 222: {
       uint64_t flags = arg3;
       if ((arg2 & PROT_WRITE) != 0 && (flags & MAP_ANONYMOUS) != 0)
         flags |= MAP_POPULATE;
       *result = (uint64_t) poly_x86_syscall6(SYS_mmap, arg0, arg1, arg2,
         flags, arg4, arg5);
+      if (poly_process_exit_finalizers.active &&
+          (int64_t) *result >= 0 &&
+          (arg2 & PROT_WRITE) != 0 && (flags & MAP_ANONYMOUS) != 0)
+        poly_prefault_writable_range(*result, arg1);
       return 1;
     }
     default:
@@ -4414,7 +4480,7 @@ static int build_process_stack(const struct poly_program *program,
     const struct poly_request *request, const uint8_t *loaded_image,
     int extra_argc, char **extra_argv, uint8_t **stack_out,
     size_t *stack_size_out, uint64_t *initial_sp_out) {
-  const size_t stack_size = 128 * 1024;
+  const size_t stack_size = 1024 * 1024;
   uint8_t *stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (stack == MAP_FAILED) {
@@ -4422,6 +4488,7 @@ static int build_process_stack(const struct poly_program *program,
       strerror(errno));
     return -1;
   }
+  memset(stack, 0, stack_size);
 
   size_t envc = 0;
   while (environ[envc])
@@ -7590,6 +7657,7 @@ static int run_poly_page_fault_selftest(void) {
 static int emit_and_run_process(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result, int use_trap_vector) {
+  reset_process_brk_arena();
   process_cross_report_path = program->path;
   process_cross_state_key_stub_count = 0;
   process_cross_aarch64_to_riscv_stub_count = 0;
