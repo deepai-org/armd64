@@ -223,6 +223,35 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         return (True, c["POLY_CPUID_MAX"], ebx, ecx, edx)
     if leaf == base + 1:
         return (True, 1, feature, mode_all, c["POLY_STATE_XSAVE_COMPONENT_ARCH"])
+    if leaf == base + 2:
+        x86_opcode_geometry = (
+            c["POLY_X86_CTRL_PREFIX_0"] |
+            (c["POLY_X86_CTRL_PREFIX_1"] << 8) |
+            (c["POLY_X86_CTRL_PREFIX_2"] << 16)
+        )
+        x86_opcode_flags = mask(c, """
+            POLY_X86_OPCODE_FLAG_CPUID_DISCOVERED
+            POLY_X86_OPCODE_FLAG_DEDICATED_DECODE
+            POLY_X86_OPCODE_FLAG_FIXED_LENGTH
+            POLY_X86_OPCODE_FLAG_NOT_UD_TRAP
+            POLY_X86_OPCODE_FLAG_VENDOR_PROTOTYPE
+            POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE
+        """)
+        escapes = {
+            32: (
+                x86_opcode_geometry,
+                c["POLY_X86_CTRL_PREFIX_BYTES"],
+                c["POLY_X86_CTRL_TOTAL_BYTES"],
+                c["POLY_X86_CTRL_SUBOP_OFFSET"],
+            ),
+            33: (
+                c["POLY_X86_OPCODE_CONTRACT_VERSION"],
+                x86_opcode_flags,
+                c["POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE"],
+                0,
+            ),
+        }
+        return (True, *escapes[subleaf]) if subleaf in escapes else (False, 0, 0, 0, 0)
     if leaf == base + 3:
         return (
             True, state, 0, c["POLY_STATE_XSAVE_COMPONENT_ARCH"],
@@ -459,6 +488,14 @@ def main() -> int:
         "POLY_ABI_BRIDGE_ABI_VERSION": c["POLY_ABI_BRIDGE_ABI_VERSION"],
         "POLY_ABI_BRIDGE_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 9, 0, c)[2],
         "POLY_ABI_BRIDGE_COUNTS_ALIGN": rom_model(c["POLY_CPUID_BASE"] + 9, 0, c)[3],
+        "POLY_X86_OPCODE_GEOMETRY_EAX": rom_model(c["POLY_CPUID_BASE"] + 2, 32, c)[1],
+        "POLY_X86_CTRL_PREFIX_BYTES": c["POLY_X86_CTRL_PREFIX_BYTES"],
+        "POLY_X86_CTRL_TOTAL_BYTES": c["POLY_X86_CTRL_TOTAL_BYTES"],
+        "POLY_X86_CTRL_SUBOP_OFFSET": c["POLY_X86_CTRL_SUBOP_OFFSET"],
+        "POLY_X86_OPCODE_CONTRACT_VERSION": c["POLY_X86_OPCODE_CONTRACT_VERSION"],
+        "POLY_X86_OPCODE_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 2, 33, c)[2],
+        "POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE":
+            c["POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE"],
         "POLY_LANDING_POLICY_SUPPORTED": rom_model(c["POLY_CPUID_BASE"] + 4, 11, c)[3],
         "POLY_STATE_KEY_FLAG_EXPLICIT": c["POLY_STATE_KEY_FLAG_EXPLICIT"],
         "POLY_TRAP_RESTORE_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 4, 13, c)[3],
@@ -473,6 +510,8 @@ def main() -> int:
     cases = [
         (c["POLY_CPUID_BASE"], 0),
         (c["POLY_CPUID_BASE"] + 1, 0),
+        (c["POLY_CPUID_BASE"] + 2, 32),
+        (c["POLY_CPUID_BASE"] + 2, 33),
         (c["POLY_CPUID_BASE"] + 3, 0),
         *[(c["POLY_CPUID_BASE"] + 4, subleaf) for subleaf in range(16)],
         (c["POLY_CPUID_BASE"] + 5, 0),

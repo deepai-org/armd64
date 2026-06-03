@@ -73,6 +73,18 @@ module tb_poly_cpuid_rom;
     check_regs(32'd1, 32'hbe3fffff, 32'h00000007, 32'd20,
       "feature leaf");
 
+    set_query(POLY_CPUID_BASE + 32'd2, 32'd32);
+    check_regs(32'h00fc3a0f, 32'd3, 32'd4, 32'd3,
+      "x86 opcode geometry leaf");
+
+    set_query(POLY_CPUID_BASE + 32'd2, 32'd33);
+    check_regs(32'd1, 32'h0000003f, 32'd1, 32'd0,
+      "x86 opcode contract leaf");
+
+    set_query(POLY_CPUID_BASE + 32'd2, 32'd0);
+    check(!hit && eax == 32'd0 && ebx == 32'd0 && ecx == 32'd0 && edx == 32'd0,
+      "invalid escape subleaf misses");
+
     set_query(POLY_CPUID_BASE + 32'd3, 32'd0);
     check_regs(32'h001fffe1, 32'd0, 32'd20, 32'h00002000,
       "state leaf");

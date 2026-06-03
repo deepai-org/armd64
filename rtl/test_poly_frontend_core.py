@@ -657,7 +657,7 @@ def main() -> int:
     assert core_cpuid(True, c["POLY_CPUID_BASE"], c) == (
         True, c["POLY_CPUID_MAX"], *vendor_regs()
     )
-    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 2, c) == (False, 0, 0, 0, 0)
+    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 10, c) == (False, 0, 0, 0, 0)
     assert core_cpuid(False, c["POLY_CPUID_BASE"], c) == (False, 0, 0, 0, 0)
 
     pcall = x86_ctrl_word(c["POLY_X86_CTRL_PCALL_SIG_MODE"])

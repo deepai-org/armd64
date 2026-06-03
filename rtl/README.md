@@ -67,8 +67,9 @@ silicon prototype.
   `PSWITCH`, register-only `PCALL`, return-cookie recovery, and trap delivery.
 - `poly_abi_signature_slots.sv`: cached register-only ABI signature slots for
   hardware register aliasing.
-- `poly_cpuid_rom.sv`: Poly vendor CPUID discovery ROM for feature bits, XSAVE
-  geometry, trap packets, transitions, and ABI signatures.
+- `poly_cpuid_rom.sv`: Poly vendor CPUID discovery ROM for feature bits, x86
+  opcode geometry/contract leaves, XSAVE geometry, trap packets, transitions,
+  and ABI signatures.
 - `poly_memory_order.sv`: x86 TSO memory-order retirement policy for all Poly
   frontends, including foreign barrier/fence no-op handling.
 - `poly_memory_order_formal.sv`: formal harness with assertions for the TSO
@@ -272,7 +273,7 @@ POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_SYNTH_OK
-POLY_RTL_FPGA_RESOURCES cells=7143 estimated_lcs=3404
+POLY_RTL_FPGA_RESOURCES cells=7150 estimated_lcs=3416
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
 POLY_RTL_FRONTEND_FETCH_DECODE_PIPELINE_SIM_OK

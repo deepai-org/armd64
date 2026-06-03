@@ -650,7 +650,23 @@ module tb_poly_frontend_fpga_top;
       cpuid_ebx_o == 32'hbe3fffff && cpuid_ecx_o == 32'h00000007 &&
       cpuid_edx_o == 32'd20, "fpga top exposes cpuid feature leaf");
 
+    cpuid_leaf_i = POLY_CPUID_BASE + 32'd2;
+    cpuid_subleaf_i = 32'd32;
+    #1;
+    check(cpuid_hit_o && cpuid_eax_o == 32'h00fc3a0f &&
+      cpuid_ebx_o == 32'd3 && cpuid_ecx_o == 32'd4 &&
+      cpuid_edx_o == 32'd3,
+      "fpga top exposes x86 opcode geometry cpuid leaf");
+
+    cpuid_subleaf_i = 32'd33;
+    #1;
+    check(cpuid_hit_o && cpuid_eax_o == 32'd1 &&
+      cpuid_ebx_o == 32'h0000003f && cpuid_ecx_o == 32'd1 &&
+      cpuid_edx_o == 32'd0,
+      "fpga top exposes x86 opcode contract cpuid leaf");
+
     cpuid_leaf_i = POLY_CPUID_BASE + 32'd10;
+    cpuid_subleaf_i = 32'd0;
     #1;
     check(!cpuid_hit_o && cpuid_eax_o == 32'd0 && cpuid_ebx_o == 32'd0 &&
       cpuid_ecx_o == 32'd0 && cpuid_edx_o == 32'd0,

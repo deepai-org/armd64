@@ -105,6 +105,14 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_ABI_BRIDGE_FLAGS = 32'h00007e9f;
   localparam logic [31:0] POLY_ABI_BRIDGE_COUNTS_ALIGN = 32'h00100808;
 
+  localparam logic [31:0] POLY_X86_OPCODE_GEOMETRY_EAX = 32'h00fc3a0f;
+  localparam logic [31:0] POLY_X86_CTRL_PREFIX_BYTES = 32'd3;
+  localparam logic [31:0] POLY_X86_CTRL_TOTAL_BYTES = 32'd4;
+  localparam logic [31:0] POLY_X86_CTRL_SUBOP_OFFSET = 32'd3;
+  localparam logic [31:0] POLY_X86_OPCODE_CONTRACT_VERSION = 32'd1;
+  localparam logic [31:0] POLY_X86_OPCODE_FLAGS = 32'h0000003f;
+  localparam logic [31:0] POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE = 32'd1;
+
   localparam logic [31:0] POLY_U64_BYTES = 32'd8;
   localparam logic [31:0] POLY_U128_BYTES = 32'd16;
   localparam logic [31:0] POLY_AARCH64_STATUS_BYTES = 32'h00000080;
@@ -137,6 +145,27 @@ module poly_cpuid_rom (
           ebx_o = POLY_FEATURE_MASK;
           ecx_o = POLY_MODE_MASK;
           edx_o = POLY_STATE_XSAVE_COMPONENT_ARCH;
+        end
+        POLY_CPUID_BASE + 32'd2: begin
+          unique case (subleaf_i)
+            32'd32: begin
+              hit_o = 1'b1;
+              eax_o = POLY_X86_OPCODE_GEOMETRY_EAX;
+              ebx_o = POLY_X86_CTRL_PREFIX_BYTES;
+              ecx_o = POLY_X86_CTRL_TOTAL_BYTES;
+              edx_o = POLY_X86_CTRL_SUBOP_OFFSET;
+            end
+            32'd33: begin
+              hit_o = 1'b1;
+              eax_o = POLY_X86_OPCODE_CONTRACT_VERSION;
+              ebx_o = POLY_X86_OPCODE_FLAGS;
+              ecx_o = POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE;
+              edx_o = 32'd0;
+            end
+            default: begin
+              hit_o = 1'b0;
+            end
+          endcase
         end
         POLY_CPUID_BASE + 32'd3: begin
           hit_o = 1'b1;
