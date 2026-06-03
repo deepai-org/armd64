@@ -84,6 +84,20 @@ def trap_flags(c: dict[str, int]) -> int:
     )
 
 
+def mask(c: dict[str, int], names: str) -> int:
+    value = 0
+    for name in names.split():
+        value |= c[name]
+    return value & 0xFFFFFFFF
+
+
+def mode_mask(c: dict[str, int], names: str) -> int:
+    value = 0
+    for name in names.split():
+        value |= 1 << c[name]
+    return value
+
+
 def vendor_regs() -> tuple[int, int, int]:
     vendor = b"PolyglotCPU!"
     ebx = int.from_bytes(vendor[0:4], "little")
@@ -92,12 +106,68 @@ def vendor_regs() -> tuple[int, int, int]:
     return ebx, ecx, edx
 
 
-def core_cpuid(valid: bool, leaf: int, c: dict[str, int]) -> tuple[bool, int, int, int, int]:
+def core_cpuid(
+    valid: bool, leaf: int, subleaf: int, c: dict[str, int]
+) -> tuple[bool, int, int, int, int]:
     if not valid:
         return (False, 0, 0, 0, 0)
     if leaf == c["POLY_CPUID_BASE"]:
         ebx, ecx, edx = vendor_regs()
         return (True, c["POLY_CPUID_MAX"], ebx, ecx, edx)
+    if leaf == c["POLY_CPUID_BASE"] + 1:
+        features = mask(c, """
+            POLY_CPUID_FEATURE_RAW_AARCH64
+            POLY_CPUID_FEATURE_RAW_RISCV
+            POLY_CPUID_FEATURE_NEUTRAL_SWITCH
+            POLY_CPUID_FEATURE_NATIVE_RET
+            POLY_CPUID_FEATURE_PCALL_SYSV
+            POLY_CPUID_FEATURE_PCALL_SRET
+            POLY_CPUID_FEATURE_FP_BRIDGE
+            POLY_CPUID_FEATURE_TRAP_RECORDS
+            POLY_CPUID_FEATURE_USER_RETURN_RESTORE
+            POLY_CPUID_FEATURE_X86_TSO
+            POLY_CPUID_FEATURE_PER_THREAD_STATE
+            POLY_CPUID_FEATURE_GENERIC_FRONTEND_IDS
+            POLY_CPUID_FEATURE_X86_POLY_OPCODES
+            POLY_CPUID_FEATURE_FPAIR32_RET
+            POLY_CPUID_FEATURE_FPAIR32_ARG
+            POLY_CPUID_FEATURE_HETERO_U64_F64
+            POLY_CPUID_FEATURE_HETERO_F64_U64
+            POLY_CPUID_FEATURE_HETERO_U64_F32
+            POLY_CPUID_FEATURE_HETERO_F32_U64
+            POLY_CPUID_FEATURE_COMPACT_U32_F32
+            POLY_CPUID_FEATURE_COMPACT_F32_U32
+            POLY_CPUID_FEATURE_AARCH64_HFA32_ARGS
+            POLY_CPUID_FEATURE_TRAP_VECTOR
+            POLY_CPUID_FEATURE_STATE_KEY
+            POLY_CPUID_FEATURE_VEC128_BRIDGE
+            POLY_CPUID_FEATURE_AARCH64_HFA64_RET
+            POLY_CPUID_FEATURE_AARCH64_HFA32_RET
+            POLY_CPUID_FEATURE_FOREIGN_PCALL_SIG_IMM
+        """)
+        modes = mode_mask(c, "POLY_MODE_X86 POLY_MODE_RAW_AARCH64 POLY_MODE_RAW_RISCV")
+        return (True, c["POLY_CPUID_ABI_VERSION"], modes, features,
+                c["POLY_STATE_XSAVE_COMPONENT_ARCH"])
+    if leaf == c["POLY_CPUID_BASE"] + 2:
+        geometry = (
+            c["POLY_X86_CTRL_PREFIX_0"] |
+            (c["POLY_X86_CTRL_PREFIX_1"] << 8) |
+            (c["POLY_X86_CTRL_PREFIX_2"] << 16)
+        )
+        flags = mask(c, """
+            POLY_X86_OPCODE_FLAG_CPUID_DISCOVERED
+            POLY_X86_OPCODE_FLAG_DEDICATED_DECODE
+            POLY_X86_OPCODE_FLAG_FIXED_LENGTH
+            POLY_X86_OPCODE_FLAG_NOT_UD_TRAP
+            POLY_X86_OPCODE_FLAG_VENDOR_PROTOTYPE
+            POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE
+        """)
+        if subleaf == 32:
+            return (True, geometry, c["POLY_X86_CTRL_PREFIX_BYTES"],
+                    c["POLY_X86_CTRL_TOTAL_BYTES"], c["POLY_X86_CTRL_SUBOP_OFFSET"])
+        if subleaf == 33:
+            return (True, c["POLY_X86_OPCODE_CONTRACT_VERSION"], flags,
+                    c["POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE"], 0)
     return (False, 0, 0, 0, 0)
 
 
@@ -635,7 +705,12 @@ def require_structural_wiring() -> None:
         "poly_cpuid_rom cpuid_rom",
         ".valid_i(cpuid_valid_i)",
         ".leaf_i(cpuid_leaf_i)",
+        ".subleaf_i(cpuid_subleaf_i)",
         ".hit_o(cpuid_hit_o)",
+        ".eax_o(cpuid_eax_o)",
+        ".ebx_o(cpuid_ebx_o)",
+        ".ecx_o(cpuid_ecx_o)",
+        ".edx_o(cpuid_edx_o)",
         "poly_transition_cycle_budget transition_cycle_budget",
         ".valid_i(cycle_valid)",
         ".op_i(cycle_op)",
@@ -654,11 +729,24 @@ def main() -> int:
     assert depth == c["POLY_STATE_XSAVE_NATIVE_RETURN_DEPTH"]
     require_structural_wiring()
 
-    assert core_cpuid(True, c["POLY_CPUID_BASE"], c) == (
+    assert core_cpuid(True, c["POLY_CPUID_BASE"], 0, c) == (
         True, c["POLY_CPUID_MAX"], *vendor_regs()
     )
-    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 10, c) == (False, 0, 0, 0, 0)
-    assert core_cpuid(False, c["POLY_CPUID_BASE"], c) == (False, 0, 0, 0, 0)
+    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 1, 0, c) == (
+        True, c["POLY_CPUID_ABI_VERSION"], 0x00000007, 0xbe3fffff,
+        c["POLY_STATE_XSAVE_COMPONENT_ARCH"]
+    )
+    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 2, 32, c) == (
+        True, 0x00FC3A0F, c["POLY_X86_CTRL_PREFIX_BYTES"],
+        c["POLY_X86_CTRL_TOTAL_BYTES"], c["POLY_X86_CTRL_SUBOP_OFFSET"]
+    )
+    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 2, 33, c) == (
+        True, c["POLY_X86_OPCODE_CONTRACT_VERSION"], 0x0000003F,
+        c["POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE"], 0
+    )
+    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 2, 0, c) == (False, 0, 0, 0, 0)
+    assert core_cpuid(True, c["POLY_CPUID_BASE"] + 10, 0, c) == (False, 0, 0, 0, 0)
+    assert core_cpuid(False, c["POLY_CPUID_BASE"], 0, c) == (False, 0, 0, 0, 0)
 
     pcall = x86_ctrl_word(c["POLY_X86_CTRL_PCALL_SIG_MODE"])
     trap_wait = core_step(

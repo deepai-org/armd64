@@ -501,6 +501,26 @@ module tb_poly_frontend_core;
     end
   endtask
 
+  task automatic check_cpuid(input logic [31:0] query_leaf,
+                             input logic [31:0] query_subleaf,
+                             input logic [31:0] exp_eax,
+                             input logic [31:0] exp_ebx,
+                             input logic [31:0] exp_ecx,
+                             input logic [31:0] exp_edx,
+                             input [1023:0] message);
+    begin
+      cpuid_valid_i = 1'b1;
+      cpuid_leaf_i = query_leaf;
+      cpuid_subleaf_i = query_subleaf;
+      #1;
+      check(cpuid_hit_o, message);
+      check(cpuid_eax_o == exp_eax, "core cpuid unexpected eax");
+      check(cpuid_ebx_o == exp_ebx, "core cpuid unexpected ebx");
+      check(cpuid_ecx_o == exp_ecx, "core cpuid unexpected ecx");
+      check(cpuid_edx_o == exp_edx, "core cpuid unexpected edx");
+    end
+  endtask
+
   initial begin
     clk_i = 1'b0;
     rst_ni = 1'b0;
@@ -511,12 +531,28 @@ module tb_poly_frontend_core;
     check(transition_stack_empty_o && transition_stack_depth_o == 4'd0,
       "core reset leaves transition stack empty");
 
-    cpuid_valid_i = 1'b1;
-    cpuid_leaf_i = POLY_CPUID_BASE;
+    check_cpuid(POLY_CPUID_BASE, 32'd0,
+      POLY_CPUID_MAX, 32'h796c6f50, 32'h21555043, 32'h746f6c67,
+      "core exposes cpuid vendor leaf");
+
+    check_cpuid(POLY_CPUID_BASE + 32'd1, 32'd0,
+      32'd1, 32'h00000007, 32'hbe3fffff, 32'd20,
+      "core exposes cpuid feature leaf");
+
+    check_cpuid(POLY_CPUID_BASE + 32'd2, 32'd32,
+      32'h00fc3a0f, 32'd3, 32'd4, 32'd3,
+      "core exposes x86 opcode geometry cpuid leaf");
+
+    check_cpuid(POLY_CPUID_BASE + 32'd2, 32'd33,
+      32'd1, 32'h0000003f, 32'd1, 32'd0,
+      "core exposes x86 opcode contract cpuid leaf");
+
+    cpuid_leaf_i = POLY_CPUID_BASE + 32'd10;
+    cpuid_subleaf_i = 32'd0;
     #1;
-    check(cpuid_hit_o && cpuid_eax_o == POLY_CPUID_MAX, "core cpuid base hit");
-    check(cpuid_ebx_o == 32'h796c6f50 && cpuid_ecx_o == 32'h21555043 &&
-      cpuid_edx_o == 32'h746f6c67, "core cpuid vendor");
+    check(!cpuid_hit_o && cpuid_eax_o == 32'd0 && cpuid_ebx_o == 32'd0 &&
+      cpuid_ecx_o == 32'd0 && cpuid_edx_o == 32'd0,
+      "core misses unsupported cpuid leaf");
     cpuid_valid_i = 1'b0;
 
     valid_i = 1'b1;
