@@ -374,10 +374,10 @@ REQUIRE_POLY_REAL_XSAVE="${REQUIRE_POLY_REAL_XSAVE:-0}"
 RUN_CONTRACT_CHECKS="${RUN_CONTRACT_CHECKS:-0}"
 BOOT_TIMEOUT_SECONDS="${BOOT_TIMEOUT_SECONDS:-300}"
 BOOT_DETAIL_ASSERTS="${BOOT_DETAIL_ASSERTS:-0}"
-BOCHS_BIOS_DIR=""
-if [[ -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
+BOCHS_BIOS_DIR="${BOCHS_BIOS_DIR:-}"
+if [[ -z "$BOCHS_BIOS_DIR" && -d "$ROOT_DIR/bochs-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-src/bochs/bios"
-elif [[ -d "$ROOT_DIR/bochs-prepoly-src/bochs/bios" ]]; then
+elif [[ -z "$BOCHS_BIOS_DIR" && -d "$ROOT_DIR/bochs-prepoly-src/bochs/bios" ]]; then
   BOCHS_BIOS_DIR="$ROOT_DIR/bochs-prepoly-src/bochs/bios"
 fi
 
