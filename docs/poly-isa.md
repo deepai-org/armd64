@@ -53,3 +53,41 @@ Subleaf 33 reports the opcode contract flags: the current Bochs encoding is a
 vendor/prototype dedicated decode path, not a `#UD` trap envelope, and software
 must discover it through CPUID instead of hard-coding it as a production x86
 allocation.
+
+## FPGA/Silicon ISA Readiness Boundary
+
+The ISA contract is ready for FPGA or silicon implementation when hardware can
+implement the architecture below without inheriting emulator or runtime policy:
+
+- x86_64 remains the system ISA for boot, privilege, paging, interrupts,
+  faults, atomics, syscalls, VM control, and global TSO memory ordering.
+- AArch64 and RISC-V64 are user-mode native fetch frontends in the same virtual
+  address space, using their native instruction-width and alignment rules.
+- Poly control transfers are fixed-latency decoded control operations, not
+  `#UD` trap envelopes or software descriptor calls.
+- The active x86 control opcode family is CPUID-discovered. The current
+  `0f 3a fc <subop>` allocation is a vendor/prototype dedicated decode page,
+  not a production x86 allocation; silicon may reassign it behind the same
+  discovery contract.
+- `PCALL` fast paths use register-only ABI signature slots. Hardware may apply
+  those slots in rename/RAT logic; stack arguments, aggregates, variadics,
+  lazy binding, syscall translation, libcalls, debugger policy, and helper
+  imports remain userspace runtime policy.
+- Foreign architectural state is explicit XSAVE-style per-thread state with
+  fixed offsets, size, alignment, and feature leaves.
+- Recoverable exits publish OS-neutral trap packets before monitor-vector
+  redirect. Failed packet writes or invalid packet addresses prevent the
+  redirect and report precise faults.
+- Native returns use ordinary frontend return instructions and a hardware
+  transition-stack return cookie; same-ISA returns remain normal.
+- Invalid frontend IDs, non-canonical targets, frontend alignment violations,
+  invalid ABI slots, transition-stack overflow/underflow, and trap-restore
+  conflicts are rejected before mutating architectural frontend/PC state.
+- Foreign barriers/fences are explicit x86-TSO no-ops, and foreign memory
+  operations cannot expose weak reordering in the shared x86 address space.
+
+This boundary deliberately says nothing about FPGA fabric, Verilog structure,
+timing closure, or final opcode ownership. Those are implementation and
+productization tasks. The ISA readiness requirement is that the hardware
+contract is explicit, discoverable, fixed-latency where required, and free of
+OS/libc/runtime policy.

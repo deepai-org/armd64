@@ -136,11 +136,11 @@ assert_contains 'cmpq \$88, %r13' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 6"
 assert_contains 'cmpq \$99, %r14' "$NATIVECHECK" \
   "nativecheck x86 trap vector must verify delivered trap argument lane 7"
-assert_contains 'expect_monitor_packet\("aarch64 import"' "$NATIVECHECK" \
+assert_contains 'expect_monitor_packet(_args)?\("aarch64 import"' "$NATIVECHECK" \
   "nativecheck must verify AArch64 unresolved import trap source mode"
-assert_contains 'expect_monitor_packet\("riscv import"' "$NATIVECHECK" \
+assert_contains 'expect_monitor_packet(_args)?\("riscv import"' "$NATIVECHECK" \
   "nativecheck must verify RISC-V unresolved import trap source mode"
-assert_contains 'expect_monitor_packet\("riscv compressed import"' "$NATIVECHECK" \
+assert_contains 'expect_monitor_packet(_args)?\("riscv compressed import"' "$NATIVECHECK" \
   "nativecheck must exercise RISC-V unresolved import trap argument lanes 6 and 7"
 assert_contains "POLY_TRAP_PACKET_ARG_COUNT[[:space:]]*=[[:space:]]*8" \
   "$ROOT_DIR/tools/include/polycpuid.h" \
