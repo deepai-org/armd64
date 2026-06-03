@@ -16,6 +16,7 @@ POLYPROBE="$ROOT_DIR/tools/programs/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
 NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
 POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
+POLY_PREEMPT_STRESS="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
 
 mkdir -p "$TMP_DIR"
@@ -365,6 +366,10 @@ assert_contains "selftest-pagefault" "$POLYEXEC" \
   "userspace monitor must expose a deliberate Poly page-fault self-test"
 assert_contains "POLYEXEC_AUTO_SPILL_STATUS" "$POLYEXEC" \
   "userspace monitor must report auto-spill profiling counters"
+assert_contains "POLYEXEC_RESULT: .* value=[$]expected" "$POLY_PREEMPT_STRESS" \
+  "preemption stress harness must verify per-instance math results"
+assert_contains "POLYEXEC_AUTO_SPILL_STATUS: count=\\[1-9\\]" "$POLY_PREEMPT_STRESS" \
+  "preemption stress harness must require observed auto-spills"
 assert_contains "CPL[[:space:]]*!=[[:space:]]*3" "$RESTORE_FUNC" \
   "raw interrupt restore must only run on return to userspace"
 assert_contains "bx_poly_interrupted_raw_valid" "$RESTORE_FUNC" \
