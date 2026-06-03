@@ -53,6 +53,9 @@ case "$path" in
   */aarch64-process-libc-main-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-dynamic-libc-real.elf) expected=42; process_mode=1 ;;
   */aarch64-real-ls.elf) expected=0; process_mode=1 ;;
+  */aarch64-real-python3.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-exception-real.elf) expected=42; process_mode=1 ;;
+  */aarch64-process-setjmp-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-syscall-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-reloc-real.elf) expected=42; process_mode=1 ;;
   */aarch64-process-relr.elf) expected=42; process_mode=1 ;;

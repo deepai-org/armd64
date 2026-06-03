@@ -35,6 +35,10 @@ extern char **environ;
 #define MAP_POPULATE 0x8000
 #endif
 
+#ifndef O_DIRECT
+#define O_DIRECT 040000
+#endif
+
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
@@ -218,6 +222,9 @@ extern char **environ;
 #define POLY_RISCV_HWPROBE_EXT_ZICOND (1ULL << 35)
 #define POLY_RISCV_HWPROBE_EXT_ZICNTR (1ULL << 50)
 #define POLY_RISCV_HWPROBE_KEY_CPUPERF_0 5
+
+#define POLY_AARCH64_O_DIRECTORY 040000ULL
+#define POLY_AARCH64_O_DIRECT 0200000ULL
 #define POLY_RISCV_HWPROBE_KEY_ZICBOZ_BLOCK_SIZE 6
 #define POLY_RISCV_HWPROBE_KEY_HIGHEST_VIRT_ADDRESS 7
 #define POLY_RISCV_HWPROBE_KEY_TIME_CSR_FREQ 8
@@ -2612,6 +2619,19 @@ static uint64_t poly_dispatch_process_brk(uint64_t requested_break) {
   return process_brk_current;
 }
 
+static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode) {
+  if (mode != POLY_MODE_RAW_AARCH64)
+    return flags;
+
+  uint64_t translated = flags & ~(POLY_AARCH64_O_DIRECTORY |
+    POLY_AARCH64_O_DIRECT);
+  if ((flags & POLY_AARCH64_O_DIRECTORY) != 0)
+    translated |= O_DIRECTORY;
+  if ((flags & POLY_AARCH64_O_DIRECT) != 0)
+    translated |= O_DIRECT;
+  return translated;
+}
+
 static void poly_prefault_range(uint64_t address, uint64_t length,
     int writable) {
   if (address == 0 || length == 0 || length > (uint64_t) SIZE_MAX)
@@ -2668,13 +2688,38 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         poly_store_linux_generic_statfs(arg1, &statfs_result);
       *result = (uint64_t) status;
       return 1;
-    case 44:
-      status = poly_x86_syscall6(SYS_fstatfs, arg0,
-        (uint64_t) (uintptr_t) &statfs_result, 0, 0, 0, 0);
-      if (status == 0)
-        poly_store_linux_generic_statfs(arg1, &statfs_result);
+	    case 44:
+	      status = poly_x86_syscall6(SYS_fstatfs, arg0,
+	        (uint64_t) (uintptr_t) &statfs_result, 0, 0, 0, 0);
+	      if (status == 0)
+	        poly_store_linux_generic_statfs(arg1, &statfs_result);
+	      *result = (uint64_t) status;
+	      return 1;
+    case 56: {
+      uint64_t flags = poly_translate_open_flags(arg2, mode);
+      status = poly_x86_syscall6(SYS_openat, arg0, arg1, flags, arg3, 0, 0);
       *result = (uint64_t) status;
       return 1;
+    }
+    case 61: {
+      if (arg2 > SIZE_MAX) {
+        *result = (uint64_t) -EINVAL;
+        return 1;
+      }
+      size_t buffer_size = (size_t) arg2;
+      void *entries = malloc(buffer_size == 0 ? 1 : buffer_size);
+      if (entries == NULL) {
+        *result = (uint64_t) -ENOMEM;
+        return 1;
+      }
+      status = poly_x86_syscall6(SYS_getdents64, arg0,
+        (uint64_t) (uintptr_t) entries, buffer_size, 0, 0, 0);
+      if (status > 0)
+        memcpy((void *) (uintptr_t) arg1, entries, (size_t) status);
+      free(entries);
+      *result = (uint64_t) status;
+      return 1;
+    }
     case 79:
       status = poly_x86_syscall6(SYS_newfstatat, arg0, arg1,
         (uint64_t) (uintptr_t) &stat_result, arg3, 0, 0);
@@ -8339,7 +8384,10 @@ static int poly_process_uses_real_interpreter(const struct poly_program *program
     return 0;
   const char *base = strrchr(program->path, '/');
   base = base ? base + 1 : program->path;
-  if (strcmp(base, "aarch64-real-ls.elf") == 0)
+  if (strcmp(base, "aarch64-real-ls.elf") == 0 ||
+      strcmp(base, "aarch64-real-python3.elf") == 0 ||
+      strcmp(base, "aarch64-process-exception-real.elf") == 0 ||
+      strcmp(base, "aarch64-process-setjmp-real.elf") == 0)
     return 1;
   if (extra_argc != 1 || extra_argv == NULL || extra_argv[0] == NULL ||
       strcmp(extra_argv[0], "dynamic-libc") != 0)
@@ -8534,6 +8582,11 @@ static void free_program(struct poly_program *program) {
 }
 
 int main(int argc, char **argv) {
+  if (getenv("POLYEXEC_REPORT_UID") != NULL) {
+    printf("POLYEXEC_MONITOR_UID: uid=%ld euid=%ld gid=%ld egid=%ld\n",
+      (long) getuid(), (long) geteuid(), (long) getgid(), (long) getegid());
+  }
+
   if (argc < 2) {
     fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...] | --threads N foreign.elf[=expected] | --selftest-pagefault\n",
       argv[0]);

@@ -61,8 +61,13 @@ POLYEXEC_PROCESS_IMPORT_TRAP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexe
 POLYEXEC_LARGE_IMAGE_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_large_image_real.c"
 POLYEXEC_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_THREAD_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
+POLYEXEC_PROCESS_EXCEPTION_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
+POLYEXEC_PROCESS_SETJMP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
+POLYEXEC_PYTHON_EPOLL_SERVER_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_python_epoll_server.py"
 POLYEXEC_PROCESS_VERSIONED_DEP_REAL_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_versioned_dep_real.map"
 POLY_PREEMPT_STRESS_SRC="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
+POLYEXEC_NONROOT_RUNNER_SRC="$ROOT_DIR/tools/programs/polyexec_nonroot_runner.c"
+POLYEXEC_NONROOT_RUNNER_BIN="$OUT_DIR/polyexec-nonroot"
 POLYCALL_STATE_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_state.c"
 POLYCALL_IMPORT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_import_real.c"
 POLYCALL_LIBC_IMPORT_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_libc_import_real.c"
@@ -539,6 +544,11 @@ build_native_check() {
   compile_poly_tool "$NATIVE_CHECK_SRC" "$NATIVE_CHECK_BIN" "${NATIVE_CHECK_CC:-}"
 }
 
+build_polyexec_nonroot_runner() {
+  compile_poly_tool "$POLYEXEC_NONROOT_RUNNER_SRC" \
+    "$POLYEXEC_NONROOT_RUNNER_BIN" "${POLYEXEC_NONROOT_RUNNER_CC:-}"
+}
+
 build_poly_elf_generator() {
   if [[ -x "$POLY_ELF_GEN_BIN" && "$POLY_ELF_GEN_BIN" -nt "$POLY_ELF_GEN_SRC" ]]; then
     return
@@ -629,10 +639,48 @@ build_poly_elf_payloads() {
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/aarch64/ld-linux-aarch64.so.1"
   cp /bin/ls \
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-real-ls.elf"
+  aarch64-linux-gnu-g++ -O2 -fno-stack-protector \
+    "$POLYEXEC_PROCESS_EXCEPTION_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-exception-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-stack-protector \
+    "$POLYEXEC_PROCESS_SETJMP_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-setjmp-real.elf"
+  cp /usr/bin/python3.12 \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-real-python3.elf"
+  cp "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/polyexec_python_epoll_server.py"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/python3.12/encodings"
+  mkdir -p "$TMP_DIR/initramfs-root/usr/lib/python3.12/collections"
+  cp /usr/lib/python3.12/encodings/__init__.py \
+    /usr/lib/python3.12/encodings/aliases.py \
+    /usr/lib/python3.12/encodings/utf_8.py \
+    "$TMP_DIR/initramfs-root/usr/lib/python3.12/encodings/"
+  cp /usr/lib/python3.12/collections/__init__.py \
+    /usr/lib/python3.12/collections/abc.py \
+    "$TMP_DIR/initramfs-root/usr/lib/python3.12/collections/"
+  cp /usr/lib/python3.12/selectors.py \
+    /usr/lib/python3.12/keyword.py \
+    /usr/lib/python3.12/operator.py \
+    /usr/lib/python3.12/reprlib.py \
+    /usr/lib/python3.12/socket.py \
+    /usr/lib/python3.12/enum.py \
+    /usr/lib/python3.12/types.py \
+    /usr/lib/python3.12/functools.py \
+    "$TMP_DIR/initramfs-root/usr/lib/python3.12/"
   cp /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 \
     "$TMP_DIR/initramfs-root/lib/ld-linux-aarch64.so.1"
   cp /usr/lib/aarch64-linux-gnu/libc.so.6 \
     "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libc.so.6"
+  cp /usr/lib/aarch64-linux-gnu/libm.so.6 \
+    "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libm.so.6"
+  cp /usr/lib/aarch64-linux-gnu/libz.so.1 \
+    "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libz.so.1"
+  cp /usr/lib/aarch64-linux-gnu/libexpat.so.1 \
+    "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libexpat.so.1"
+  cp /usr/lib/aarch64-linux-gnu/libstdc++.so.6 \
+    "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libstdc++.so.6"
+  cp /usr/lib/aarch64-linux-gnu/libgcc_s.so.1 \
+    "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libgcc_s.so.1"
   cp /lib/aarch64-linux-gnu/libselinux.so.1 \
     "$TMP_DIR/initramfs-root/lib/aarch64-linux-gnu/libselinux.so.1"
   cp /lib/aarch64-linux-gnu/libpcre2-8.so.0 \
@@ -7373,6 +7421,7 @@ build_initramfs() {
   build_poly_signal
   build_poly_bench
   build_native_check
+  build_polyexec_nonroot_runner
   local busybox_version
   local busybox_apk
   local busybox_extract
@@ -7416,6 +7465,7 @@ build_initramfs() {
   cp "$POLY_BINFMT_SRC" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   cp "$POLY_PREEMPT_STRESS_SRC" "$TMP_DIR/initramfs-root/usr/bin/poly-preemption-stress"
   cp "$NATIVE_CHECK_BIN" "$TMP_DIR/initramfs-root/usr/bin/nativecheck.elf"
+  cp "$POLYEXEC_NONROOT_RUNNER_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec-nonroot"
   chmod +x "$TMP_DIR/initramfs-root/usr/bin/polybinfmt"
   chmod +x "$TMP_DIR/initramfs-root/usr/bin/poly-preemption-stress"
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
@@ -7453,6 +7503,8 @@ REQUIRE_POLY_REAL_XSAVE="$REQUIRE_POLY_REAL_XSAVE"
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mkdir -p /tmp
+/bin/busybox chmod 1777 /tmp
 
 if [ ! -c /dev/console ]; then
   mknod -m 600 /dev/console c 5 1
@@ -8239,12 +8291,27 @@ if [ "$RUN_POLY_EXEC_FOCUSED" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-dynamic-libc-real.elf=42 \
       dynamic-libc >/dev/ttyS0 2>&1
-    /usr/bin/polyexec --process \
-      /usr/lib/polyapps/aarch64-real-ls.elf=0 \
-      --version >/dev/ttyS0 2>&1
-    /usr/bin/polyexec --process \
-      /usr/lib/polyapps/riscv-process-dynamic-libc-real.elf=42 \
-      dynamic-libc >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-real-ls.elf=0 \
+	      --version >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-process-exception-real.elf=42 \
+	      exception >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-process-setjmp-real.elf=42 \
+	      setjmp >/dev/ttyS0 2>&1
+		    /bin/busybox ip link set lo up >/dev/ttyS0 2>&1 || \
+	      /bin/busybox ifconfig lo up >/dev/ttyS0 2>&1
+		    PYTHONHOME=/usr PYTHONPATH=/usr/lib/python3.12 \
+	      /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-real-python3.elf=42 \
+	      -S /usr/lib/polyapps/polyexec_python_epoll_server.py >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec-nonroot /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-process-setjmp-real.elf=42 \
+	      nonroot >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/riscv-process-dynamic-libc-real.elf=42 \
+	      dynamic-libc >/dev/ttyS0 2>&1
     echo "POLY_EXEC_FOCUSED_OK" >/dev/ttyS0 2>&1
 fi
 
@@ -12233,13 +12300,45 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=0 process=1 path=/usr/lib/polyapps/aarch64-real-ls\\.elf" "$SERIAL_LOG"; then
-          sleep 1
-          continue
-        fi
-        if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=riscv.*riscv-process-dynamic-libc-real\\.elf" "$SERIAL_LOG"; then
-          sleep 1
-          continue
+	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=0 process=1 path=/usr/lib/polyapps/aarch64-real-ls\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=aarch64.*aarch64-process-exception-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-exception-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-setjmp-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=aarch64.*aarch64-real-python3\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -q "POLY_PYTHON_EPOLL_OK: selector=EpollSelector" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-real-python3\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -q "POLY_NONROOT_EXEC: uid=65534 euid=65534 gid=65534 egid=65534 command=/usr/bin/polyexec" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -q "POLYEXEC_MONITOR_UID: uid=65534 euid=65534 gid=65534 egid=65534" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_INTERP_LOAD: arch=riscv.*riscv-process-dynamic-libc-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-dynamic-libc-real\\.elf" "$SERIAL_LOG"; then
           sleep 1

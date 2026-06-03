@@ -21,6 +21,10 @@ RTL_FRONTEND_CORE="$ROOT_DIR/rtl/poly_frontend_core.sv"
 POLY_PREEMPT_STRESS="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_THREAD_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
+POLYEXEC_PROCESS_EXCEPTION_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
+POLYEXEC_PROCESS_SETJMP_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
+POLYEXEC_PYTHON_EPOLL_SERVER_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_python_epoll_server.py"
+POLYEXEC_NONROOT_RUNNER_SRC="$ROOT_DIR/tools/programs/polyexec_nonroot_runner.c"
 BOOT_SCRIPT="$ROOT_DIR/scripts/boot.sh"
 TMP_DIR="${TMPDIR:-/tmp}/poly-arch-contract.$$"
 
@@ -357,6 +361,38 @@ assert_contains "0x3ca06800" "$BOCHS_CPU" \
   "Bochs AArch64 raw frontend must support AdvSIMD register-offset STR Q used by real glibc ld.so"
 assert_contains "0x3ce06800" "$BOCHS_CPU" \
   "Bochs AArch64 raw frontend must support AdvSIMD register-offset LDR Q used by real glibc ld.so"
+assert_contains "0x7ee08800" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support scalar CMGE D,#0 used by the C++ unwinder runtime"
+assert_contains "0x6e20ac00" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support UMINP v.16b used by unmodified python3 startup"
+assert_contains "0x2e204400" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support USHL v.2d used by unmodified python3 startup"
+assert_contains "0x0e212800" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support XTN v.2s used by unmodified python3 startup"
+assert_contains "0x9b200000" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support SMADDL used by unmodified python3 startup"
+assert_contains "0x9b208000" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support SMSUBL used by unmodified python3 startup"
+assert_contains "0x1e654000" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support FRINTM D used by unmodified python3 startup"
+assert_contains "0x1e64c000" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support FRINTP D used by unmodified python3 startup"
+assert_contains "0x69400000" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support LDPSW used by unmodified python3 startup"
+assert_contains "op && cmode == 14" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support scalar MOVI D used by unmodified python3 startup"
+assert_contains "0x9eae0000" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support FMOV X,V.d[1] used by unmodified python3 startup"
+assert_contains "0x1e600400" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support FCCMP D used by unmodified python3 startup"
+assert_contains "write_virtual_byte\\(BX_SEG_REG_DS, addr, \\(Bit8u\\) value\\)" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support scalar FP STR B used by unmodified python3 startup"
+assert_contains "ip link set lo up" "$BOOT_SCRIPT" \
+  "focused Python epoll boot fixture must enable guest loopback before TCP loopback connect"
+assert_contains "chmod 1777 /tmp" "$BOOT_SCRIPT" \
+  "boot initramfs must provide a writable /tmp for the non-root polyexec proof"
+assert_contains "chdir\\(\"/tmp\"\\)" "$POLYEXEC_NONROOT_RUNNER_SRC" \
+  "non-root polyexec runner must use writable scratch space after dropping privileges"
 assert_contains "state_dirty_i" "$RTL_INTERRUPT_BOUNDARY" \
   "RTL interrupt boundary must consume the Poly state dirty bit"
 assert_contains "spill_full_state_o" "$RTL_INTERRUPT_BOUNDARY" \
@@ -415,6 +451,26 @@ assert_contains "poly_prefault_range" "$POLYEXEC" \
   "real ld.so mmap/mprotect translation must prefault mapped pages for raw Poly memory access"
 assert_contains "fstat\\(\\(int\\) arg4" "$POLYEXEC" \
   "file-backed mmap prefaulting must avoid SIGBUS beyond the mapped file bytes"
+assert_contains "aarch64-real-python3\\.elf" "$POLYEXEC" \
+  "process mode must allow unmodified AArch64 python3 to use its real PT_INTERP loader"
+assert_contains "aarch64-process-exception-real\\.elf" "$POLYEXEC" \
+  "process mode must allow the AArch64 C++ exception fixture to use real ld.so"
+assert_contains "aarch64-process-setjmp-real\\.elf" "$POLYEXEC" \
+  "process mode must allow the AArch64 setjmp fixture to use real ld.so"
+assert_contains "POLYEXEC_MONITOR_UID" "$POLYEXEC" \
+  "userspace monitor must expose a UID diagnostic for non-root proof runs"
+assert_contains "SYS_epoll_pwait" "$POLYEXEC" \
+  "userspace monitor syscall proxy must support epoll waits for daemon-style I/O"
+assert_contains "SYS_socket" "$POLYEXEC" \
+  "userspace monitor syscall proxy must support sockets for daemon-style I/O"
+assert_contains "SYS_getdents64" "$POLYEXEC" \
+  "userspace monitor syscall proxy must support directory enumeration for unmodified python3 imports"
+assert_contains "memcpy\\(\\(void \\*\\) \\(uintptr_t\\) arg1, entries" "$POLYEXEC" \
+  "userspace monitor getdents64 proxy must copy native dirent bytes back to the foreign buffer"
+assert_contains "POLY_AARCH64_O_DIRECTORY" "$POLYEXEC" \
+  "userspace monitor openat proxy must know AArch64 directory-open flag layout"
+assert_contains "poly_translate_open_flags" "$POLYEXEC" \
+  "userspace monitor openat proxy must translate foreign open flags before host syscalls"
 assert_contains "--threads" "$POLYEXEC" \
   "userspace monitor must expose an in-process pthread auto-spill stress mode"
 assert_contains "pthread_create" "$POLYEXEC" \
@@ -447,6 +503,20 @@ assert_contains "aarch64-real-ls\\.elf" "$BOOT_SCRIPT" \
   "boot image must copy and run an unmodified AArch64 dynamically linked real-world binary"
 assert_contains "/bin/ls" "$BOOT_SCRIPT" \
   "unmodified dynamic binary proof must use the host AArch64 coreutils ls image"
+assert_contains "/usr/bin/python3\\.12" "$BOOT_SCRIPT" \
+  "boot image must copy an unmodified AArch64 python3 binary for daemon-style I/O proof"
+assert_contains "polyexec_python_epoll_server\\.py" "$BOOT_SCRIPT" \
+  "boot image must include the Python epoll web-server smoke script"
+assert_contains "PYTHONHOME=/usr" "$BOOT_SCRIPT" \
+  "focused Python process run must set a deterministic Python home inside the initramfs"
+assert_contains "-S /usr/lib/polyapps/polyexec_python_epoll_server\\.py" "$BOOT_SCRIPT" \
+  "focused Python process run must skip site imports to keep the initramfs payload minimal"
+assert_contains "aarch64-process-exception-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the AArch64 C++ exception fixture"
+assert_contains "aarch64-process-setjmp-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the AArch64 setjmp/longjmp fixture"
+assert_contains "polyexec-nonroot" "$BOOT_SCRIPT" \
+  "focused boot must run the monitor through the non-root privilege-drop wrapper"
 assert_contains "POLYEXEC_PROCESS_EXIT" "$POLYEXEC" \
   "userspace monitor must report real dynamic process exit codes"
 assert_contains "processdeps/aarch64/libc\\.so\\.6" "$BOOT_SCRIPT" \
@@ -461,8 +531,40 @@ assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/
   "boot validation must gate the AArch64 dynamic libc process result"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=0 process=1 path=/usr/lib/polyapps/aarch64-real-ls" "$BOOT_SCRIPT" \
   "boot validation must gate the unmodified AArch64 ls dynamic process result"
+assert_contains "POLYEXEC_INTERP_LOAD: arch=aarch64.*aarch64-real-python3" "$BOOT_SCRIPT" \
+  "boot validation must gate the unmodified AArch64 python3 real ld.so handoff"
+assert_contains "POLY_PYTHON_EPOLL_OK: selector=EpollSelector" "$BOOT_SCRIPT" \
+  "boot validation must gate the Python epoll web-server success marker"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-real-python3" "$BOOT_SCRIPT" \
+  "boot validation must gate the unmodified AArch64 python3 process result"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-exception-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the C++ exception process result"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-setjmp-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the setjmp/longjmp process result"
+assert_contains "POLY_NONROOT_EXEC: uid=65534 euid=65534 gid=65534 egid=65534 command=/usr/bin/polyexec" "$BOOT_SCRIPT" \
+  "boot validation must prove polyexec was launched after dropping root privileges"
+assert_contains "POLYEXEC_MONITOR_UID: uid=65534 euid=65534 gid=65534 egid=65534" "$BOOT_SCRIPT" \
+  "boot validation must prove the monitor itself observed a non-root uid"
 assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-dynamic-libc-real" "$BOOT_SCRIPT" \
   "boot validation must gate the RISC-V dynamic libc process result"
+assert_contains "throw std::runtime_error" "$POLYEXEC_PROCESS_EXCEPTION_SRC" \
+  "C++ exception fixture must throw through the foreign ABI unwinder"
+assert_contains "catch \\(const std::runtime_error" "$POLYEXEC_PROCESS_EXCEPTION_SRC" \
+  "C++ exception fixture must catch through the foreign ABI unwinder"
+assert_contains "setjmp" "$POLYEXEC_PROCESS_SETJMP_SRC" \
+  "setjmp fixture must save foreign ABI stack/register state"
+assert_contains "longjmp" "$POLYEXEC_PROCESS_SETJMP_SRC" \
+  "setjmp fixture must restore foreign ABI stack/register state"
+assert_contains "selectors\\.DefaultSelector" "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \
+  "Python daemon fixture must use the default selector abstraction"
+assert_contains "EpollSelector" "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \
+  "Python daemon fixture must require Linux epoll rather than a weaker selector"
+assert_contains "listen\\(1\\)" "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \
+  "Python daemon fixture must create a listening socket"
+assert_contains "setuid\\(65534\\)" "$POLYEXEC_NONROOT_RUNNER_SRC" \
+  "non-root wrapper must drop the monitor to uid 65534 before exec"
+assert_contains "execvp\\(argv\\[1\\]" "$POLYEXEC_NONROOT_RUNNER_SRC" \
+  "non-root wrapper must exec the monitor after dropping privileges"
 assert_contains "POLYEXEC_RESULT: .* value=[$]expected" "$POLY_PREEMPT_STRESS" \
   "preemption stress harness must verify per-instance math results"
 assert_contains "POLYEXEC_AUTO_SPILL_STATUS: count=\\[1-9\\]" "$POLY_PREEMPT_STRESS" \
