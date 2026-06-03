@@ -57,6 +57,9 @@ silicon prototype.
   signature programming/apply metadata, CPUID discovery outputs, and transition
   cycle-budget diagnostics to external execute, data, trap-monitor, interrupt,
   return-stack, register-alias, discovery, and timing-integration paths.
+- `poly_frontend_fpga_top.xdc`: FPGA bring-up timing constraint manifest for
+  the top-level clock, async reset exception, and data I/O delay envelope. This
+  is not a place-and-route timing-closure report.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -144,6 +147,9 @@ silicon prototype.
   raw interrupt entry/restore outputs, transition-stack and return-cookie
   recovery outputs, ABI signature sideband outputs, CPUID discovery outputs,
   transition cycle-budget outputs, and absence of OS/runtime policy.
+- `test_poly_frontend_fpga_constraints.py`: static checks that the FPGA-top XDC
+  constrains `clk_i`, excludes async `rst_ni` from data-input timing, covers all
+  data inputs/outputs with delay envelopes, and rejects broad timing disables.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -272,6 +278,7 @@ POLY_RTL_TRAP_PACKET_ENCODE_OK
 POLY_RTL_TRAP_PACKET_STAGE_OK
 POLY_RTL_MEMORY_ORDER_FORMAL_PROOF_OK
 POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
+POLY_RTL_FPGA_CONSTRAINTS_OK
 POLY_RTL_FPGA_SYNTH_OK
 POLY_RTL_FPGA_RESOURCES cells=7146 estimated_lcs=3425
 POLY_RTL_CTRL_DECODE_SIM_OK

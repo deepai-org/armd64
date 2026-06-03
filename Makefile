@@ -5,6 +5,7 @@ BOOT_FOCUSED_TIMEOUT_SECONDS ?= 900
 BOOT_DETAIL_ASSERTS ?= 1
 BOOT_DOCKER_ENV = -e BOOT_TIMEOUT_SECONDS=$(BOOT_TIMEOUT_SECONDS) -e BOOT_DETAIL_ASSERTS=$(BOOT_DETAIL_ASSERTS)
 POLY_RTL_TOP ?= poly_frontend_fpga_top
+POLY_RTL_XDC ?= rtl/poly_frontend_fpga_top.xdc
 POLY_RTL_VERILATOR_FLAGS = --lint-only --Wall \
 	-Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
 	--top-module $(POLY_RTL_TOP)
@@ -40,7 +41,7 @@ POLY_RTL_SV = \
 	rtl/poly_trap_packet_stage.sv \
 	rtl/poly_x86_fetch_stage.sv
 
-.PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
+.PHONY: image poly-xcr0-module check-poly-import-ids check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -242,6 +243,10 @@ check-poly-rtl-yosys:
 check-poly-rtl-synth:
 	yosys -q -p 'read_verilog -sv $(POLY_RTL_SV); hierarchy -top $(POLY_RTL_TOP); synth -top $(POLY_RTL_TOP); check'
 
+check-poly-rtl-constraints:
+	test -s $(POLY_RTL_XDC)
+	python3 rtl/test_poly_frontend_fpga_constraints.py
+
 check-poly-rtl-fpga:
 	tmp_dir=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp_dir"' EXIT; \
@@ -256,7 +261,7 @@ check-poly-rtl-fpga-resources:
 	test -s "$$tmp_dir/$(POLY_RTL_TOP).edif"; \
 	awk '/Number of cells:/ { cells = $$4 } /Estimated number of LCs:/ { lcs = $$5 } END { if (!cells || !lcs) exit 1; printf "POLY_RTL_FPGA_RESOURCES cells=%s estimated_lcs=%s\n", cells, lcs }' "$$tmp_dir/yosys.log"
 
-check-poly-rtl-hdl: check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources
+check-poly-rtl-hdl: check-poly-rtl-constraints check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources
 
 boot:
 	docker run --rm \
