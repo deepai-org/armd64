@@ -362,6 +362,8 @@ RUN_POLY_EXEC_SYSCALL="${RUN_POLY_EXEC_SYSCALL:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_PREEMPT_STRESS="${RUN_POLY_PREEMPT_STRESS:-0}"
+POLY_PREEMPT_STRESS_JOBS="${POLY_PREEMPT_STRESS_JOBS:-4}"
+POLY_PREEMPT_STRESS_ITERATIONS="${POLY_PREEMPT_STRESS_ITERATIONS:-2}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
 RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
 RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
@@ -7338,7 +7340,11 @@ build_initramfs() {
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/sleep"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/echo"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/cat"
+  ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/grep"
   ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/ls"
+  ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/mktemp"
+  ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/rm"
+  ln -sf /bin/busybox "$TMP_DIR/initramfs-root/bin/seq"
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
@@ -7369,6 +7375,8 @@ RUN_POLY_EXEC_CROSS="$RUN_POLY_EXEC_CROSS"
 RUN_POLY_EXEC_SYSCALL="$RUN_POLY_EXEC_SYSCALL"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_PREEMPT_STRESS="$RUN_POLY_PREEMPT_STRESS"
+POLY_PREEMPT_STRESS_JOBS="$POLY_PREEMPT_STRESS_JOBS"
+POLY_PREEMPT_STRESS_ITERATIONS="$POLY_PREEMPT_STRESS_ITERATIONS"
 RUN_POLY_CALL="$RUN_POLY_CALL"
 RUN_POLY_THREAD="$RUN_POLY_THREAD"
 RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
@@ -8143,10 +8151,12 @@ fi
 if [ "$RUN_POLY_PREEMPT_STRESS" = "1" ]; then
     /usr/bin/poly-preemption-stress --process \
       --payload /usr/lib/polyapps/aarch64-process-preempt-stress-real.elf \
-      --expected 42 --jobs 4 --iterations 2 >/dev/ttyS0 2>&1
+      --expected 42 --jobs "$POLY_PREEMPT_STRESS_JOBS" \
+      --iterations "$POLY_PREEMPT_STRESS_ITERATIONS" >/dev/ttyS0 2>&1
     /usr/bin/poly-preemption-stress --process \
       --payload /usr/lib/polyapps/riscv-process-preempt-stress-real.elf \
-      --expected 42 --jobs 4 --iterations 2 >/dev/ttyS0 2>&1
+      --expected 42 --jobs "$POLY_PREEMPT_STRESS_JOBS" \
+      --iterations "$POLY_PREEMPT_STRESS_ITERATIONS" >/dev/ttyS0 2>&1
     echo "POLY_PREEMPT_STRESS_OK" >/dev/ttyS0 2>&1
 fi
 
@@ -12066,7 +12076,7 @@ EOF
           sleep 1
           continue
         fi
-        if [[ "$(grep -Ec "POLY_STRESS_OK: jobs=4 iterations=2 payload=/usr/lib/polyapps/(aarch64|riscv)-process-preempt-stress-real\\.elf expected=42" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+        if [[ "$(grep -Ec "POLY_STRESS_OK: jobs=$POLY_PREEMPT_STRESS_JOBS iterations=$POLY_PREEMPT_STRESS_ITERATIONS payload=/usr/lib/polyapps/(aarch64|riscv)-process-preempt-stress-real\\.elf expected=42" "$SERIAL_LOG" || true)" -lt 2 ]]; then
           sleep 1
           continue
         fi

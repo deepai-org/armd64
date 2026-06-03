@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 usage() {
   cat >&2 <<'USAGE'
@@ -22,30 +22,30 @@ polyexec="${POLYEXEC:-/usr/bin/polyexec}"
 log_dir=""
 process_mode=0
 
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
   case "$1" in
     --payload)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
+      [ $# -ge 2 ] || { usage; exit 2; }
       payload="$2"
       shift 2
       ;;
     --expected)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
+      [ $# -ge 2 ] || { usage; exit 2; }
       expected="$2"
       shift 2
       ;;
     --jobs)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
+      [ $# -ge 2 ] || { usage; exit 2; }
       jobs="$2"
       shift 2
       ;;
     --iterations)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
+      [ $# -ge 2 ] || { usage; exit 2; }
       iterations="$2"
       shift 2
       ;;
     --polyexec)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
+      [ $# -ge 2 ] || { usage; exit 2; }
       polyexec="$2"
       shift 2
       ;;
@@ -54,7 +54,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --log-dir)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
+      [ $# -ge 2 ] || { usage; exit 2; }
       log_dir="$2"
       shift 2
       ;;
@@ -69,45 +69,52 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$payload" || -z "$expected" ]]; then
+if [ -z "$payload" ] || [ -z "$expected" ]; then
   usage
   exit 2
 fi
-if ! [[ "$jobs" =~ ^[1-9][0-9]*$ && "$iterations" =~ ^[1-9][0-9]*$ ]]; then
+case "$jobs:$iterations" in
+  *[!0-9:]*|0:*|*:0|:*|*:)
+    echo "POLY_STRESS_FAIL: --jobs and --iterations must be positive integers" >&2
+    exit 2
+    ;;
+esac
+if [ "$jobs" -lt 1 ] || [ "$iterations" -lt 1 ]; then
   echo "POLY_STRESS_FAIL: --jobs and --iterations must be positive integers" >&2
   exit 2
 fi
-if [[ ! -x "$polyexec" ]]; then
+if [ ! -x "$polyexec" ]; then
   echo "POLY_STRESS_FAIL: polyexec is not executable: $polyexec" >&2
   exit 2
 fi
 
 cleanup_log_dir=0
-if [[ -z "$log_dir" ]]; then
-  log_dir="$(mktemp -d)"
+if [ -z "$log_dir" ]; then
+  log_dir="${TMPDIR:-/tmp}/poly-preemption-stress.$$"
+  mkdir -p "$log_dir"
   cleanup_log_dir=1
 else
   mkdir -p "$log_dir"
 fi
-trap 'if [[ "$cleanup_log_dir" -eq 1 ]]; then rm -rf "$log_dir"; fi' EXIT
+trap 'if [ "$cleanup_log_dir" -eq 1 ]; then rm -rf "$log_dir"; fi' EXIT
 
-pids=()
+pids=""
 for job in $(seq 1 "$jobs"); do
   log="$log_dir/poly-preempt-$job.log"
   (
     for iter in $(seq 1 "$iterations"); do
-      if [[ "$process_mode" -eq 1 ]]; then
+      if [ "$process_mode" -eq 1 ]; then
         POLYEXEC_AUTO_SPILL=1 "$polyexec" --process "$payload=$expected"
       else
         POLYEXEC_AUTO_SPILL=1 "$polyexec" "$payload=$expected"
       fi
     done
   ) >"$log" 2>&1 &
-  pids+=("$!")
+  pids="$pids $!"
 done
 
 failed=0
-for pid in "${pids[@]}"; do
+for pid in $pids; do
   if ! wait "$pid"; then
     failed=1
   fi
@@ -125,7 +132,7 @@ for job in $(seq 1 "$jobs"); do
   fi
 done
 
-if [[ "$failed" -ne 0 ]]; then
+if [ "$failed" -ne 0 ]; then
   echo "POLY_STRESS_FAIL: logs retained in $log_dir" >&2
   trap - EXIT
   exit 1
