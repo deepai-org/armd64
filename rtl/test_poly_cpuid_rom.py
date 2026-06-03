@@ -222,7 +222,7 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         ebx, ecx, edx = vendor_regs()
         return (True, c["POLY_CPUID_MAX"], ebx, ecx, edx)
     if leaf == base + 1:
-        return (True, 1, feature, mode_all, c["POLY_STATE_XSAVE_COMPONENT_ARCH"])
+        return (True, 1, mode_all, feature, c["POLY_STATE_XSAVE_COMPONENT_ARCH"])
     if leaf == base + 2:
         x86_opcode_geometry = (
             c["POLY_X86_CTRL_PREFIX_0"] |
@@ -439,9 +439,9 @@ def main() -> int:
     expected_sv = {
         "POLY_CPUID_BASE": c["POLY_CPUID_BASE"],
         "POLY_CPUID_MAX": c["POLY_CPUID_MAX"],
-        "POLY_FEATURE_MASK": rom_model(c["POLY_CPUID_BASE"] + 1, 0, c)[2],
+        "POLY_FEATURE_MASK": rom_model(c["POLY_CPUID_BASE"] + 1, 0, c)[3],
         "POLY_STATE_MASK": rom_model(c["POLY_CPUID_BASE"] + 3, 0, c)[1],
-        "POLY_MODE_MASK": rom_model(c["POLY_CPUID_BASE"] + 1, 0, c)[3],
+        "POLY_MODE_MASK": rom_model(c["POLY_CPUID_BASE"] + 1, 0, c)[2],
         "POLY_RAW_MODE_MASK": rom_model(c["POLY_CPUID_BASE"] + 6, 0, c)[4],
         "POLY_FRONTEND_MASK": rom_model(c["POLY_CPUID_BASE"] + 8, 1, c)[4],
         "POLY_STATE_XSAVE_COMPONENT_ARCH": c["POLY_STATE_XSAVE_COMPONENT_ARCH"],
@@ -534,7 +534,7 @@ def main() -> int:
         POLY_ABI_BRIDGE_FLAG_HARDWARE_STACK_ARGS
         POLY_ABI_BRIDGE_FLAG_HARDWARE_USER_DESCRIPTORS
     """)
-    assert (rom_model(c["POLY_CPUID_BASE"] + 1, 0, c)[2] & forbidden_features) == 0
+    assert (rom_model(c["POLY_CPUID_BASE"] + 1, 0, c)[3] & forbidden_features) == 0
     assert (rom_model(c["POLY_CPUID_BASE"] + 9, 0, c)[2] & forbidden_abi) == 0
 
     negative_cases = [

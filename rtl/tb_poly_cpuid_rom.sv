@@ -70,7 +70,7 @@ module tb_poly_cpuid_rom;
       "vendor leaf");
 
     set_query(POLY_CPUID_BASE + 32'd1, 32'd0);
-    check_regs(32'd1, 32'hbe3fffff, 32'h00000007, 32'd20,
+    check_regs(32'd1, 32'h00000007, 32'hbe3fffff, 32'd20,
       "feature leaf");
 
     set_query(POLY_CPUID_BASE + 32'd2, 32'd32);

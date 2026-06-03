@@ -647,7 +647,7 @@ module tb_poly_frontend_fpga_top;
     cpuid_leaf_i = POLY_CPUID_BASE + 32'd1;
     #1;
     check(cpuid_hit_o && cpuid_eax_o == 32'd1 &&
-      cpuid_ebx_o == 32'hbe3fffff && cpuid_ecx_o == 32'h00000007 &&
+      cpuid_ebx_o == 32'h00000007 && cpuid_ecx_o == 32'hbe3fffff &&
       cpuid_edx_o == 32'd20, "fpga top exposes cpuid feature leaf");
 
     cpuid_leaf_i = POLY_CPUID_BASE + 32'd2;

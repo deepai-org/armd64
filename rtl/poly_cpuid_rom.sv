@@ -142,8 +142,8 @@ module poly_cpuid_rom (
         POLY_CPUID_BASE + 32'd1: begin
           hit_o = 1'b1;
           eax_o = 32'd1;
-          ebx_o = POLY_FEATURE_MASK;
-          ecx_o = POLY_MODE_MASK;
+          ebx_o = POLY_MODE_MASK;
+          ecx_o = POLY_FEATURE_MASK;
           edx_o = POLY_STATE_XSAVE_COMPONENT_ARCH;
         end
         POLY_CPUID_BASE + 32'd2: begin
