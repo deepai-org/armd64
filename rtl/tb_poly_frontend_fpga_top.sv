@@ -168,6 +168,22 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] raw_branch_static_target_o;
   logic raw_branch_wait_o;
   logic raw_branch_resolved_fault_o;
+  logic interrupt_enter_x86_o;
+  logic interrupt_save_interrupted_o;
+  logic [1:0] interrupt_saved_frontend_o;
+  logic [63:0] interrupt_saved_pc_o;
+  logic interrupt_restore_raw_o;
+  logic interrupt_clear_interrupted_o;
+  logic [1:0] interrupt_next_frontend_o;
+  logic [63:0] interrupt_next_pc_o;
+  logic interrupted_valid_o;
+  logic [1:0] interrupted_frontend_o;
+  logic [63:0] interrupted_pc_o;
+  logic interrupt_error_o;
+  logic interrupt_invalid_current_frontend_o;
+  logic interrupt_invalid_current_pc_o;
+  logic interrupt_invalid_interrupted_frontend_o;
+  logic interrupt_invalid_interrupted_pc_o;
   logic abi_signature_set_ok_o;
   logic abi_signature_set_error_o;
   logic abi_signature_apply_o;
@@ -386,6 +402,22 @@ module tb_poly_frontend_fpga_top;
     .raw_branch_static_target_o(raw_branch_static_target_o),
     .raw_branch_wait_o(raw_branch_wait_o),
     .raw_branch_resolved_fault_o(raw_branch_resolved_fault_o),
+    .interrupt_enter_x86_o(interrupt_enter_x86_o),
+    .interrupt_save_interrupted_o(interrupt_save_interrupted_o),
+    .interrupt_saved_frontend_o(interrupt_saved_frontend_o),
+    .interrupt_saved_pc_o(interrupt_saved_pc_o),
+    .interrupt_restore_raw_o(interrupt_restore_raw_o),
+    .interrupt_clear_interrupted_o(interrupt_clear_interrupted_o),
+    .interrupt_next_frontend_o(interrupt_next_frontend_o),
+    .interrupt_next_pc_o(interrupt_next_pc_o),
+    .interrupted_valid_o(interrupted_valid_o),
+    .interrupted_frontend_o(interrupted_frontend_o),
+    .interrupted_pc_o(interrupted_pc_o),
+    .interrupt_error_o(interrupt_error_o),
+    .interrupt_invalid_current_frontend_o(interrupt_invalid_current_frontend_o),
+    .interrupt_invalid_current_pc_o(interrupt_invalid_current_pc_o),
+    .interrupt_invalid_interrupted_frontend_o(interrupt_invalid_interrupted_frontend_o),
+    .interrupt_invalid_interrupted_pc_o(interrupt_invalid_interrupted_pc_o),
     .trap_mem_write_valid_o(trap_mem_write_valid_o),
     .trap_mem_write_addr_o(trap_mem_write_addr_o),
     .trap_mem_write_bytes_o(trap_mem_write_bytes_o),
@@ -699,6 +731,67 @@ module tb_poly_frontend_fpga_top;
     clear_inputs();
     #1;
     check(state_pc_o == 64'h5000, "fpga top raw resolved branch updates state");
+
+    init_i = 1'b1;
+    init_frontend_i = POLY_FRONTEND_RISCV;
+    init_pc_i = 64'h8000;
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_RISCV &&
+      state_pc_o == 64'h8000, "fpga top reinit to interrupt raw state");
+
+    valid_i = 1'b1;
+    interrupt_feature_enabled_i = 1'b1;
+    cpl3_i = 1'b1;
+    interrupt_i = 1'b1;
+    #1;
+    check(interrupt_enter_x86_o && interrupt_save_interrupted_o &&
+      interrupt_saved_frontend_o == POLY_FRONTEND_RISCV &&
+      interrupt_saved_pc_o == 64'h8000,
+      "fpga top exposes raw interrupt save sidebands");
+    check(interrupt_next_frontend_o == POLY_FRONTEND_X86 &&
+      interrupt_next_pc_o == 64'h8000 &&
+      !interrupt_error_o && !interrupt_invalid_current_frontend_o &&
+      !interrupt_invalid_current_pc_o,
+      "fpga top exposes raw interrupt x86-entry target");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_X86 &&
+      redirect_pc_o == 64'h8000 && redirect_reason_o == 3'd3,
+      "fpga top raw interrupt redirects state");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_X86 &&
+      state_pc_o == 64'h8000,
+      "fpga top raw interrupt updates state");
+    check(interrupted_valid_o &&
+      interrupted_frontend_o == POLY_FRONTEND_RISCV &&
+      interrupted_pc_o == 64'h8000,
+      "fpga top retains interrupted raw frame");
+
+    valid_i = 1'b1;
+    interrupt_feature_enabled_i = 1'b1;
+    cpl3_i = 1'b1;
+    user_return_i = 1'b1;
+    user_return_pc_i = 64'h8000;
+    #1;
+    check(interrupt_restore_raw_o && interrupt_clear_interrupted_o &&
+      interrupt_next_frontend_o == POLY_FRONTEND_RISCV &&
+      interrupt_next_pc_o == 64'h8000,
+      "fpga top exposes matching user-return restore sidebands");
+    check(!interrupt_error_o && !interrupt_invalid_interrupted_frontend_o &&
+      !interrupt_invalid_interrupted_pc_o,
+      "fpga top exposes clean user-return diagnostics");
+    check(state_update_o && redirect_frontend_o == POLY_FRONTEND_RISCV &&
+      redirect_pc_o == 64'h8000 && redirect_reason_o == 3'd3,
+      "fpga top user return redirects state");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_RISCV &&
+      state_pc_o == 64'h8000,
+      "fpga top user return restores raw state");
+    check(!interrupted_valid_o, "fpga top clears interrupted frame");
 
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_X86;
