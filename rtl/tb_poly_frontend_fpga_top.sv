@@ -7,6 +7,8 @@ module tb_poly_frontend_fpga_top;
 
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_MODE = 7'h2d;
   localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
+  localparam logic [31:0] POLY_CPUID_BASE = 32'h40000000;
+  localparam logic [31:0] POLY_CPUID_MAX = 32'h40000009;
   localparam logic [31:0] POLY_TRAP_BREAK = 32'd2;
   localparam logic [31:0] POLY_MODE_RAW_AARCH64 = 32'd1;
   localparam logic [31:0] POLY_MODE_RAW_RISCV = 32'd2;
@@ -195,6 +197,11 @@ module tb_poly_frontend_fpga_top;
   logic [7:0] abi_signature_kind_o;
   logic [6:0] abi_signature_map_o;
   logic abi_signature_tls_base_o;
+  logic cpuid_hit_o;
+  logic [31:0] cpuid_eax_o;
+  logic [31:0] cpuid_ebx_o;
+  logic [31:0] cpuid_ecx_o;
+  logic [31:0] cpuid_edx_o;
   logic cycle_budget_valid_o;
   logic [7:0] cycle_fixed_o;
   logic [7:0] cycle_variable_o;
@@ -482,11 +489,11 @@ module tb_poly_frontend_fpga_top;
     .abi_signature_kind_o(abi_signature_kind_o),
     .abi_signature_map_o(abi_signature_map_o),
     .abi_signature_tls_base_o(abi_signature_tls_base_o),
-    .cpuid_hit_o(),
-    .cpuid_eax_o(),
-    .cpuid_ebx_o(),
-    .cpuid_ecx_o(),
-    .cpuid_edx_o(),
+    .cpuid_hit_o(cpuid_hit_o),
+    .cpuid_eax_o(cpuid_eax_o),
+    .cpuid_ebx_o(cpuid_ebx_o),
+    .cpuid_ecx_o(cpuid_ecx_o),
+    .cpuid_edx_o(cpuid_edx_o),
     .cycle_budget_valid_o(cycle_budget_valid_o),
     .cycle_fixed_o(cycle_fixed_o),
     .cycle_variable_o(cycle_variable_o),
@@ -628,6 +635,27 @@ module tb_poly_frontend_fpga_top;
     tick();
     rst_ni = 1'b1;
     tick();
+
+    cpuid_valid_i = 1'b1;
+    cpuid_leaf_i = POLY_CPUID_BASE;
+    cpuid_subleaf_i = 32'd0;
+    #1;
+    check(cpuid_hit_o && cpuid_eax_o == POLY_CPUID_MAX &&
+      cpuid_ebx_o == 32'h796c6f50 && cpuid_ecx_o == 32'h21555043 &&
+      cpuid_edx_o == 32'h746f6c67, "fpga top exposes cpuid vendor leaf");
+
+    cpuid_leaf_i = POLY_CPUID_BASE + 32'd1;
+    #1;
+    check(cpuid_hit_o && cpuid_eax_o == 32'd1 &&
+      cpuid_ebx_o == 32'hbe3fffff && cpuid_ecx_o == 32'h00000007 &&
+      cpuid_edx_o == 32'd20, "fpga top exposes cpuid feature leaf");
+
+    cpuid_leaf_i = POLY_CPUID_BASE + 32'd10;
+    #1;
+    check(!cpuid_hit_o && cpuid_eax_o == 32'd0 && cpuid_ebx_o == 32'd0 &&
+      cpuid_ecx_o == 32'd0 && cpuid_edx_o == 32'd0,
+      "fpga top exposes cpuid miss");
+    clear_inputs();
 
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_AARCH64;

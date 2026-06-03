@@ -54,9 +54,9 @@ silicon prototype.
   payload qwords, state validation/error sidebands, raw interrupt
   entry/restore diagnostics,
   transition-stack pop/error and return-cookie recovery diagnostics, ABI
-  signature programming/apply metadata, and transition cycle-budget diagnostics
-  to external execute, data, trap-monitor, interrupt, return-stack,
-  register-alias, and timing-integration paths.
+  signature programming/apply metadata, CPUID discovery outputs, and transition
+  cycle-budget diagnostics to external execute, data, trap-monitor, interrupt,
+  return-stack, register-alias, discovery, and timing-integration paths.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -141,8 +141,8 @@ silicon prototype.
   outputs, TSO memory-order outputs, fetch/decode fault outputs, state
   validation/error outputs, trap-packet payload and validation/error outputs,
   raw interrupt entry/restore outputs, transition-stack and return-cookie
-  recovery outputs, ABI signature sideband outputs, transition cycle-budget
-  outputs, and absence of OS/runtime policy.
+  recovery outputs, ABI signature sideband outputs, CPUID discovery outputs,
+  transition cycle-budget outputs, and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
