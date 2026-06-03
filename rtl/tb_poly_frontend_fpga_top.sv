@@ -131,17 +131,33 @@ module tb_poly_frontend_fpga_top;
   logic return_recover_invalid_frontend_o;
   logic return_recover_missing_transition_o;
   logic return_recover_blocked_o;
+  logic memory_retire_allowed_o;
+  logic memory_enqueue_store_o;
+  logic memory_wait_store_buffer_o;
+  logic memory_wait_atomic_order_o;
+  logic memory_barrier_noop_o;
+  logic memory_aarch64_barrier_noop_o;
+  logic memory_riscv_fence_noop_o;
+  logic memory_weak_reorder_allowed_o;
+  logic memory_invalid_frontend_o;
+  logic memory_invalid_op_o;
+  logic memory_fault_o;
   logic fault_o;
   logic poly_ctrl_o;
   logic [6:0] subop_o;
   logic raw_data_mem_valid_o;
   logic raw_data_mem_load_o;
+  logic raw_data_mem_store_o;
+  logic raw_data_mem_atomic_o;
   logic [3:0] raw_data_mem_access_bytes_o;
   logic raw_data_mem_wait_o;
+  logic raw_data_mem_fault_o;
   logic raw_data_mem_req_valid_o;
   logic [63:0] raw_data_mem_req_addr_o;
   logic [3:0] raw_data_mem_req_bytes_o;
   logic raw_data_mem_req_load_o;
+  logic raw_data_mem_req_store_o;
+  logic raw_data_mem_req_atomic_o;
   logic raw_data_mem_req_error_o;
   logic raw_data_mem_resp_wait_o;
   logic raw_data_mem_resp_resolved_o;
@@ -328,19 +344,30 @@ module tb_poly_frontend_fpga_top;
     .return_recover_invalid_frontend_o(return_recover_invalid_frontend_o),
     .return_recover_missing_transition_o(return_recover_missing_transition_o),
     .return_recover_blocked_o(return_recover_blocked_o),
+    .memory_retire_allowed_o(memory_retire_allowed_o),
+    .memory_enqueue_store_o(memory_enqueue_store_o),
+    .memory_wait_store_buffer_o(memory_wait_store_buffer_o),
+    .memory_wait_atomic_order_o(memory_wait_atomic_order_o),
+    .memory_barrier_noop_o(memory_barrier_noop_o),
+    .memory_aarch64_barrier_noop_o(memory_aarch64_barrier_noop_o),
+    .memory_riscv_fence_noop_o(memory_riscv_fence_noop_o),
+    .memory_weak_reorder_allowed_o(memory_weak_reorder_allowed_o),
+    .memory_invalid_frontend_o(memory_invalid_frontend_o),
+    .memory_invalid_op_o(memory_invalid_op_o),
+    .memory_fault_o(memory_fault_o),
     .raw_data_mem_valid_o(raw_data_mem_valid_o),
     .raw_data_mem_load_o(raw_data_mem_load_o),
-    .raw_data_mem_store_o(),
-    .raw_data_mem_atomic_o(),
+    .raw_data_mem_store_o(raw_data_mem_store_o),
+    .raw_data_mem_atomic_o(raw_data_mem_atomic_o),
     .raw_data_mem_access_bytes_o(raw_data_mem_access_bytes_o),
     .raw_data_mem_wait_o(raw_data_mem_wait_o),
-    .raw_data_mem_fault_o(),
+    .raw_data_mem_fault_o(raw_data_mem_fault_o),
     .raw_data_mem_req_valid_o(raw_data_mem_req_valid_o),
     .raw_data_mem_req_addr_o(raw_data_mem_req_addr_o),
     .raw_data_mem_req_bytes_o(raw_data_mem_req_bytes_o),
     .raw_data_mem_req_load_o(raw_data_mem_req_load_o),
-    .raw_data_mem_req_store_o(),
-    .raw_data_mem_req_atomic_o(),
+    .raw_data_mem_req_store_o(raw_data_mem_req_store_o),
+    .raw_data_mem_req_atomic_o(raw_data_mem_req_atomic_o),
     .raw_data_mem_req_error_o(raw_data_mem_req_error_o),
     .raw_data_mem_req_invalid_frontend_o(),
     .raw_data_mem_req_invalid_op_o(),
@@ -595,6 +622,50 @@ module tb_poly_frontend_fpga_top;
     clear_inputs();
     #1;
     check(state_pc_o == 64'h4008, "resolved raw load updates state");
+
+    valid_i = 1'b1;
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_AARCH64;
+    instr_resp_word_i = 32'hf9000000;
+    raw_data_mem_addr_i = 64'h9010;
+    raw_data_mem_resp_valid_i = 1'b1;
+    store_buffer_full_i = 1'b1;
+    #1;
+    check(wait_execute_o && !retire_o && !fault_o &&
+      memory_wait_store_buffer_o && !memory_retire_allowed_o,
+      "fpga top raw store waits for full store buffer");
+    check(raw_data_mem_valid_o && !raw_data_mem_load_o &&
+      raw_data_mem_store_o && !raw_data_mem_atomic_o &&
+      !raw_data_mem_wait_o && !raw_data_mem_fault_o,
+      "fpga top exposes raw store data-memory metadata");
+    check(raw_data_mem_req_valid_o && !raw_data_mem_req_error_o &&
+      !raw_data_mem_req_load_o && raw_data_mem_req_store_o &&
+      !raw_data_mem_req_atomic_o && raw_data_mem_req_addr_o == 64'h9010 &&
+      raw_data_mem_req_bytes_o == 4'd8,
+      "fpga top issues raw store request metadata");
+    check(!memory_enqueue_store_o && !memory_wait_atomic_order_o &&
+      !memory_barrier_noop_o && !memory_aarch64_barrier_noop_o &&
+      !memory_riscv_fence_noop_o && !memory_weak_reorder_allowed_o &&
+      !memory_invalid_frontend_o && !memory_invalid_op_o && !memory_fault_o,
+      "fpga top exposes clean store-buffer wait diagnostics");
+    store_buffer_full_i = 1'b0;
+    #1;
+    check(retire_o && !fault_o && memory_retire_allowed_o &&
+      memory_enqueue_store_o && !memory_wait_store_buffer_o,
+      "fpga top raw store retires and enqueues when buffer has space");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_pc_o == 64'h400c, "resolved raw store updates state");
+
+    init_i = 1'b1;
+    init_frontend_i = POLY_FRONTEND_AARCH64;
+    init_pc_i = 64'h4008;
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_AARCH64 &&
+      state_pc_o == 64'h4008, "fpga top reinit after raw store");
 
     valid_i = 1'b1;
     instr_resp_valid_i = 1'b1;

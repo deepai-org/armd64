@@ -49,11 +49,12 @@ silicon prototype.
 - `poly_frontend_fpga_top.sv`: FPGA-facing top that wraps the stateful core and
   converts split x86/raw fetch ports into one tagged instruction-memory bus
   while exposing raw data-memory op metadata and validated raw data-memory
-  request/response/fault sidebands, trap-packet write envelope and payload
-  qwords, state validation/error sidebands, transition-stack pop/error and
-  return-cookie recovery diagnostics, ABI signature programming/apply metadata,
-  and transition cycle-budget diagnostics to external execute, data,
-  trap-monitor, return-stack, register-alias, and timing-integration paths.
+  request/response/fault sidebands, TSO memory-order retirement/backpressure
+  diagnostics, trap-packet write envelope and payload qwords, state
+  validation/error sidebands, transition-stack pop/error and return-cookie
+  recovery diagnostics, ABI signature programming/apply metadata, and
+  transition cycle-budget diagnostics to external execute, data, trap-monitor,
+  return-stack, register-alias, and timing-integration paths.
 - `poly_interrupt_boundary.sv`: raw frontend interrupt entry and user-return
   restore planner for precise interrupted-PC handling.
 - `poly_transition_stack.sv`: fixed-depth hardware transition stack for
@@ -135,10 +136,10 @@ silicon prototype.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
   tagged instruction-memory interface, raw branch/data execute inputs,
   raw branch metadata outputs, raw data-memory metadata/request/response
-  outputs, state validation/error outputs, trap-packet payload and
-  validation/error outputs, transition-stack and return-cookie recovery outputs,
-  ABI signature sideband outputs, transition cycle-budget outputs, and absence
-  of OS/runtime policy.
+  outputs, TSO memory-order outputs, state validation/error outputs, trap-packet
+  payload and validation/error outputs, transition-stack and return-cookie
+  recovery outputs, ABI signature sideband outputs, transition cycle-budget
+  outputs, and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
