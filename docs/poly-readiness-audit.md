@@ -39,7 +39,7 @@ RISC-V64 code.
 | Complex ABI software path | Stack, aggregate, variadic, import, and syscall policy handled by loader/runtime thunks in `tools/runtime/polyexec.c`, not by hardware descriptors. |
 | Native return semantics | Return-cookie transition stacks in Bochs and the spill image; native `ret`/`ret x30`/RISC-V `ret` coverage in `tools/programs/nativecheck.c`. |
 | x86 TSO memory-order policy | `tools/include/polycpuid.h` advertises `POLY_MEMORY_MODEL_X86_TSO`; `rtl/poly_memory_order.sv` gates memory-op retirement so foreign frontends do not expose weak reordering and foreign barriers/fences retire as no-ops; `rtl/poly_frontend_core.sv` feeds memory-order waits into precise execute-stage retirement backpressure; `rtl/test_poly_memory_order_litmus.py` checks TSO message-passing and store-buffering outcomes; `rtl/poly_memory_order_formal.sv` captures the intended formal assertions; `make check-poly-rtl-formal` discharges those assertions with Yosys `sat -prove-asserts`. |
-| Broad integration validation | `make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps` passed on 2026-06-03 for the legacy real-XSAVE bring-up path. A dedicated `RUN_POLY_PREEMPT_STRESS=1` Bochs/Linux gate passed on 2026-06-03 with `POLY_PREEMPT_STRESS_JOBS=1` and `POLY_PREEMPT_STRESS_ITERATIONS=1`, covering both AArch64 and RISC-V process-mode stress payloads with nonzero auto-spill counts. `make check-poly-contracts` now gates the zero-kernel state contract. |
+| Broad integration validation | `make BOOT_TIMEOUT_SECONDS=900 boot-poly-full-real-xsave-arch-traps` passed on 2026-06-03 for the legacy real-XSAVE bring-up path. A dedicated `RUN_POLY_PREEMPT_STRESS=1` Bochs/Linux gate passed on 2026-06-03 with the default `POLY_PREEMPT_STRESS_JOBS=4` and `POLY_PREEMPT_STRESS_ITERATIONS=2`, covering both AArch64 and RISC-V process-mode stress payloads with nonzero auto-spill counts. `make check-poly-contracts` now gates the zero-kernel state contract. |
 
 ## Not Yet Silicon-Complete
 
@@ -60,7 +60,9 @@ RISC-V64 code.
   monitor trampoline. `polyexec --selftest-pagefault` is the directed runtime
   proof for the minimal synchronous fault path: a raw AArch64 null load should
   auto-spill, arrive as `SIGSEGV`, print `Poly Page Fault at Address ...`, and
-  terminate through the monitor. Full end-to-end POSIX signal translation in the
+  terminate through the monitor. `RUN_POLY_PAGEFAULT_SELFTEST=1` runs that path
+  under the Bochs/Linux boot harness and requires both the diagnostic and
+  `POLY_PAGEFAULT_SELFTEST_OK`. Full end-to-end POSIX signal translation in the
   runtime is still a productization task beyond the contract gate.
 - Bochs now exposes auto-spill count, spilled-byte, and estimated-cycle status
   counters for profiling, and `polyexec` reports them as
@@ -71,10 +73,8 @@ RISC-V64 code.
   `scripts/run_poly_preemption_stress.sh` is the guest harness for running
   multiple `polyexec` instances and requiring both correct results and nonzero
   auto-spill counts. The dedicated `RUN_POLY_PREEMPT_STRESS=1` Bochs/Linux gate
-  now passes for both process-mode payloads at `POLY_PREEMPT_STRESS_JOBS=1` and
-  `POLY_PREEMPT_STRESS_ITERATIONS=1`; the default 4-job/2-iteration scale should
-  be treated as a longer soak gate, not a prerequisite for the current
-  zero-kernel-change architecture claim.
+  now passes for both process-mode payloads at the default
+  `POLY_PREEMPT_STRESS_JOBS=4` and `POLY_PREEMPT_STRESS_ITERATIONS=2`.
 - Hardware transition-stack depth, same-cycle push/pop conflicts, underflow,
   overflow, and return-cookie recovery behavior now have directed tests and a
   Yosys temporal-induction proof over a reduced-depth instance; full-depth

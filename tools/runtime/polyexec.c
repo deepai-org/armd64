@@ -498,6 +498,7 @@ static int run_irelative_resolver(const struct poly_program *program,
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t target, int bridge_kind, uint32_t signature_slot,
     uint64_t *stub_addr);
+static void poly_auto_spill_resume_trampoline(void);
 
 static inline void poly_mode_x86(void) {
   asm volatile(
@@ -574,6 +575,15 @@ static uint64_t poly_spill_ptr_set(uint64_t buffer, uint64_t resume_rip) {
     :
     : "memory");
   return buffer;
+}
+
+static int refresh_poly_auto_spill(void) {
+  if (!poly_auto_spill_installed)
+    return 0;
+  const uint64_t buffer = (uint64_t) (uintptr_t) &poly_auto_spill_state;
+  const uint64_t resume = (uint64_t) (uintptr_t)
+    poly_auto_spill_resume_trampoline;
+  return poly_spill_ptr_set(buffer, resume) == 0 ? 0 : -1;
 }
 
 static uint64_t poly_auto_spill_count_status(void) {
@@ -964,6 +974,11 @@ static uint64_t poly_auto_spill_resume_dispatch(void) {
 
   const uint32_t reason = poly_auto_spill_state.header.spill_reason;
   if (reason == POLY_SPILL_REASON_INTERRUPT) {
+    if (refresh_poly_auto_spill() < 0) {
+      poly_write_literal_stderr(
+        "POLYEXEC_FAIL: auto-spill refresh failed during resume\n");
+      _exit(125);
+    }
     poly_auto_spill_resume_buffer =
       (uint64_t) (uintptr_t) &poly_auto_spill_state;
     poly_auto_spill_resume_mode = poly_auto_spill_state.header.current_mode;
@@ -1039,13 +1054,14 @@ static int install_poly_auto_spill(void) {
   const uint64_t buffer = (uint64_t) (uintptr_t) &poly_auto_spill_state;
   const uint64_t resume = (uint64_t) (uintptr_t)
     poly_auto_spill_resume_trampoline;
-  if (poly_spill_ptr_set(buffer, resume) != 0) {
+  poly_auto_spill_installed = 1;
+  if (refresh_poly_auto_spill() < 0) {
+    poly_auto_spill_installed = 0;
     fprintf(stderr,
       "POLYEXEC_FAIL: auto-spill setup failed buffer=0x%llx resume=0x%llx\n",
       (unsigned long long) buffer, (unsigned long long) resume);
     return -1;
   }
-  poly_auto_spill_installed = 1;
   printf("POLYEXEC_AUTO_SPILL: buffer=0x%llx resume=0x%llx\n",
     (unsigned long long) buffer, (unsigned long long) resume);
   return 0;
@@ -4391,6 +4407,8 @@ static uint32_t riscv_jalr(unsigned rd, unsigned rs1, int16_t byte_offset);
 
 static uint64_t run_poly_entry(const uint8_t *code, uint8_t *scratch) {
   uint64_t rax = (uint64_t) (uintptr_t) scratch;
+  if (refresh_poly_auto_spill() < 0)
+    return (uint64_t) -EIO;
   asm volatile(
       "pushq %%rbx\n"
       "pushq %%rbp\n"
@@ -4460,6 +4478,15 @@ static void run_poly_process_entry(const uint8_t *code,
     asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET : "+a"(value) :: "memory");
     value = (uint64_t) (uintptr_t) poly_trap_vector_handler;
     asm volatile(POLY_OP_TRAP_VECTOR_SET : "+a"(value) :: "memory");
+  }
+  if (refresh_poly_auto_spill() < 0) {
+    register long exit_rax __asm__("rax") = SYS_exit_group;
+    register long exit_rdi __asm__("rdi") = 125;
+    __asm__ volatile("syscall"
+        :
+        : "a"(exit_rax), "D"(exit_rdi)
+        : "rcx", "r11", "memory");
+    __builtin_unreachable();
   }
   asm volatile(
       "movq %0, %%r11\n"
@@ -7641,7 +7668,8 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result) {
 
 static int run_poly_page_fault_selftest(void) {
   static const uint32_t code_words[] = {
-    0xf94003e0U, // ldr x0,[xzr]: deliberate load from address 0.
+    0xaa1f03e1U, // mov x1,xzr: use a real zero base, not SP.
+    0xf9400020U, // ldr x0,[x1]: deliberate load from address 0.
     0xd65f03c0U  // ret: reaching this means the fault path failed.
   };
   struct poly_program program;

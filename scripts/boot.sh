@@ -362,6 +362,7 @@ RUN_POLY_EXEC_SYSCALL="${RUN_POLY_EXEC_SYSCALL:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_PREEMPT_STRESS="${RUN_POLY_PREEMPT_STRESS:-0}"
+RUN_POLY_PAGEFAULT_SELFTEST="${RUN_POLY_PAGEFAULT_SELFTEST:-0}"
 POLY_PREEMPT_STRESS_JOBS="${POLY_PREEMPT_STRESS_JOBS:-4}"
 POLY_PREEMPT_STRESS_ITERATIONS="${POLY_PREEMPT_STRESS_ITERATIONS:-2}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
@@ -7375,6 +7376,7 @@ RUN_POLY_EXEC_CROSS="$RUN_POLY_EXEC_CROSS"
 RUN_POLY_EXEC_SYSCALL="$RUN_POLY_EXEC_SYSCALL"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_PREEMPT_STRESS="$RUN_POLY_PREEMPT_STRESS"
+RUN_POLY_PAGEFAULT_SELFTEST="$RUN_POLY_PAGEFAULT_SELFTEST"
 POLY_PREEMPT_STRESS_JOBS="$POLY_PREEMPT_STRESS_JOBS"
 POLY_PREEMPT_STRESS_ITERATIONS="$POLY_PREEMPT_STRESS_ITERATIONS"
 RUN_POLY_CALL="$RUN_POLY_CALL"
@@ -8158,6 +8160,19 @@ if [ "$RUN_POLY_PREEMPT_STRESS" = "1" ]; then
       --expected 42 --jobs "$POLY_PREEMPT_STRESS_JOBS" \
       --iterations "$POLY_PREEMPT_STRESS_ITERATIONS" >/dev/ttyS0 2>&1
     echo "POLY_PREEMPT_STRESS_OK" >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_PAGEFAULT_SELFTEST" = "1" ]; then
+    set +e
+    /usr/bin/polyexec --selftest-pagefault >/dev/ttyS0 2>&1
+    pagefault_status="\$?"
+    set -e
+    if [ "\$pagefault_status" = "139" ]; then
+        echo "POLY_PAGEFAULT_SELFTEST_OK" >/dev/ttyS0 2>&1
+    else
+        echo "POLY_PAGEFAULT_SELFTEST_FAIL: status=\$pagefault_status" >/dev/ttyS0 2>&1
+        exit 1
+    fi
 fi
 
 if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
@@ -11582,6 +11597,7 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_EXEC" "POLY_EXEC_BLOCK_OK" || return 1
   required_section_complete "$RUN_POLY_ARCH_TRAP_EXEC" "POLY_ARCH_TRAP_EXEC_OK" || return 1
   required_section_complete "$RUN_POLY_PREEMPT_STRESS" "POLY_PREEMPT_STRESS_OK" || return 1
+  required_section_complete "$RUN_POLY_PAGEFAULT_SELFTEST" "POLY_PAGEFAULT_SELFTEST_OK" || return 1
   required_section_complete "$RUN_POLY_CALL" "POLYCALL_OK" || return 1
   required_section_complete "$RUN_POLY_THREAD" "POLYTHREAD_OK" || return 1
   required_section_complete "$RUN_POLY_SIGNAL" "POLYSIGNAL_OK" || return 1
@@ -12077,6 +12093,16 @@ EOF
           continue
         fi
         if [[ "$(grep -Ec "POLY_STRESS_OK: jobs=$POLY_PREEMPT_STRESS_JOBS iterations=$POLY_PREEMPT_STRESS_ITERATIONS payload=/usr/lib/polyapps/(aarch64|riscv)-process-preempt-stress-real\\.elf expected=42" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_PAGEFAULT_SELFTEST" == "1" ]]; then
+        if ! grep -q "POLY_PAGEFAULT_SELFTEST_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "Poly Page Fault at Address 0x" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
