@@ -2670,6 +2670,14 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
       if ((int64_t) *result >= 0)
         poly_prefault_writable_range(*result, arg2);
       return 1;
+    case 226:
+      if (!poly_process_exit_finalizers.active)
+        return 0;
+      *result = (uint64_t) poly_x86_syscall6(SYS_mprotect, arg0, arg1, arg2,
+        0, 0, 0);
+      if (*result == 0 && (arg2 & PROT_WRITE) != 0)
+        poly_prefault_writable_range(arg0, arg1);
+      return 1;
     case 222: {
       uint64_t flags = arg3;
       if ((arg2 & PROT_WRITE) != 0 && (flags & MAP_ANONYMOUS) != 0)
