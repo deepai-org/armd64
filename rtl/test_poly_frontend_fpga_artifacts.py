@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "out/rtl"
 MANIFEST = OUT / "poly_frontend_fpga_top.manifest"
 YOSYS_LOG = OUT / "poly_frontend_fpga_top.yosys.log"
+MAKEFILE = ROOT / "Makefile"
 
 
 def read_manifest(path: Path) -> dict[str, str]:
@@ -33,6 +34,34 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def rtl_sources_from_makefile(text: str) -> list[str]:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("POLY_RTL_SV ="):
+            sources: list[str] = []
+            current = line.partition("=")[2]
+            while True:
+                stripped = current.strip()
+                continued = stripped.endswith("\\")
+                stripped = stripped[:-1].strip() if continued else stripped
+                sources.extend(stripped.split())
+                if not continued:
+                    return sources
+                index += 1
+                current = lines[index]
+    raise AssertionError("missing POLY_RTL_SV source list")
+
+
+def rtl_sources_sha256(sources: list[str]) -> str:
+    digest = hashlib.sha256()
+    for source in sources:
+        path = ROOT / source
+        if not path.is_file():
+            raise AssertionError(f"missing RTL source: {source}")
+        digest.update(f"{sha256(path)}  {source}\n".encode())
+    return digest.hexdigest()
+
+
 def yosys_resource(log: str, label: str) -> str:
     value = None
     for line in log.splitlines():
@@ -47,6 +76,7 @@ def main() -> int:
     manifest = read_manifest(MANIFEST)
     required = {
         "top",
+        "rtl_sources_sha256",
         "edif",
         "xdc",
         "cells",
@@ -60,6 +90,9 @@ def main() -> int:
 
     assert manifest["top"] == "poly_frontend_fpga_top"
     assert manifest["timing_closure"] == "not_run"
+    assert manifest["rtl_sources_sha256"] == rtl_sources_sha256(
+        rtl_sources_from_makefile(MAKEFILE.read_text())
+    )
 
     edif = ROOT / manifest["edif"]
     xdc = ROOT / manifest["xdc"]

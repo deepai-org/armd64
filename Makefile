@@ -277,10 +277,12 @@ poly-rtl-fpga-artifacts: check-poly-rtl-constraints
 	cp $(POLY_RTL_XDC) $(POLY_RTL_FPGA_XDC)
 	cells=$$(awk '/Number of cells:/ { cells = $$4 } END { if (!cells) exit 1; print cells }' "$(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).yosys.log"); \
 	lcs=$$(awk '/Estimated number of LCs:/ { lcs = $$5 } END { if (!lcs) exit 1; print lcs }' "$(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).yosys.log"); \
+	sv_sha=$$(sha256sum $(POLY_RTL_SV) | sha256sum | awk '{ print $$1 }'); \
 	edif_sha=$$(sha256sum $(POLY_RTL_FPGA_EDIF) | awk '{ print $$1 }'); \
 	xdc_sha=$$(sha256sum $(POLY_RTL_FPGA_XDC) | awk '{ print $$1 }'); \
 	{ \
 	  printf "top=%s\n" "$(POLY_RTL_TOP)"; \
+	  printf "rtl_sources_sha256=%s\n" "$$sv_sha"; \
 	  printf "edif=%s\n" "$(POLY_RTL_FPGA_EDIF)"; \
 	  printf "xdc=%s\n" "$(POLY_RTL_FPGA_XDC)"; \
 	  printf "cells=%s\n" "$$cells"; \

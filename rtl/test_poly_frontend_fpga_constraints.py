@@ -99,6 +99,8 @@ def main() -> int:
     assert "check-poly-rtl-fpga-artifacts" in makefile
     assert "poly-rtl-fpga-artifacts: check-poly-rtl-constraints" in makefile
     assert "python3 rtl/test_poly_frontend_fpga_artifacts.py" in makefile
+    assert "sha256sum $(POLY_RTL_SV) | sha256sum" in makefile
+    assert "rtl_sources_sha256" in makefile
     assert "timing_closure=not_run" in makefile
     assert "python3 rtl/test_poly_frontend_fpga_constraints.py" in makefile
     assert "check-poly-rtl-hdl: check-poly-rtl-constraints" in makefile

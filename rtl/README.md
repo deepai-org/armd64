@@ -151,8 +151,9 @@ silicon prototype.
   constrains `clk_i`, excludes async `rst_ni` from data-input timing, covers all
   data inputs/outputs with delay envelopes, and rejects broad timing disables.
 - `test_poly_frontend_fpga_artifacts.py`: generated-handoff checks that the
-  `out/rtl` EDIF/XDC/manifest bundle has matching paths, resource counts,
-  SHA-256 hashes, and an explicit `timing_closure=not_run` marker.
+  `out/rtl` EDIF/XDC/manifest bundle has matching paths, current RTL source
+  fingerprint, resource counts, SHA-256 hashes, and an explicit
+  `timing_closure=not_run` marker.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -248,8 +249,8 @@ make poly-rtl-fpga-artifacts
 
 This writes `out/rtl/poly_frontend_fpga_top.edif`, copies
 `rtl/poly_frontend_fpga_top.xdc`, and emits
-`out/rtl/poly_frontend_fpga_top.manifest` with resource counts, SHA-256 hashes,
-and `timing_closure=not_run`.
+`out/rtl/poly_frontend_fpga_top.manifest` with the current RTL source
+fingerprint, resource counts, SHA-256 hashes, and `timing_closure=not_run`.
 
 Run the memory-order formal proof directly:
 
