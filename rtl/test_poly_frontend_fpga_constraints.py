@@ -96,7 +96,9 @@ def main() -> int:
     assert "POLY_RTL_FPGA_OUT ?= out/rtl" in makefile
     assert "POLY_RTL_FPGA_MANIFEST = $(POLY_RTL_FPGA_OUT)/$(POLY_RTL_TOP).manifest" in makefile
     assert "check-poly-rtl-constraints" in makefile
+    assert "check-poly-rtl-fpga-artifacts" in makefile
     assert "poly-rtl-fpga-artifacts: check-poly-rtl-constraints" in makefile
+    assert "python3 rtl/test_poly_frontend_fpga_artifacts.py" in makefile
     assert "timing_closure=not_run" in makefile
     assert "python3 rtl/test_poly_frontend_fpga_constraints.py" in makefile
     assert "check-poly-rtl-hdl: check-poly-rtl-constraints" in makefile

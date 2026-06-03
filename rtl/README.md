@@ -150,6 +150,9 @@ silicon prototype.
 - `test_poly_frontend_fpga_constraints.py`: static checks that the FPGA-top XDC
   constrains `clk_i`, excludes async `rst_ni` from data-input timing, covers all
   data inputs/outputs with delay envelopes, and rejects broad timing disables.
+- `test_poly_frontend_fpga_artifacts.py`: generated-handoff checks that the
+  `out/rtl` EDIF/XDC/manifest bundle has matching paths, resource counts,
+  SHA-256 hashes, and an explicit `timing_closure=not_run` marker.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
@@ -292,6 +295,7 @@ POLY_RTL_TRANSITION_STACK_RETURN_FORMAL_PROOF_OK
 POLY_RTL_FPGA_CONSTRAINTS_OK
 POLY_RTL_FPGA_SYNTH_OK
 POLY_RTL_FPGA_RESOURCES cells=7146 estimated_lcs=3425
+POLY_RTL_FPGA_ARTIFACTS_OK
 POLY_RTL_FPGA_ARTIFACTS out/rtl/poly_frontend_fpga_top.edif out/rtl/poly_frontend_fpga_top.xdc out/rtl/poly_frontend_fpga_top.manifest
 POLY_RTL_CTRL_DECODE_SIM_OK
 POLY_RTL_RAW_FETCH_PATH_SIM_OK
