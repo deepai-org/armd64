@@ -143,6 +143,10 @@ module tb_poly_frontend_fpga_top;
   logic memory_invalid_op_o;
   logic memory_fault_o;
   logic fault_o;
+  logic fetch_fault_o;
+  logic execute_fault_o;
+  logic control_fault_o;
+  logic invalid_frontend_o;
   logic poly_ctrl_o;
   logic [6:0] subop_o;
   logic raw_data_mem_valid_o;
@@ -200,6 +204,22 @@ module tb_poly_frontend_fpga_top;
   logic cycle_unsupported_o;
   logic cycle_invalid_op_o;
   logic cycle_blocked_o;
+  logic older_fault_o;
+  logic x86_fetch_wait_o;
+  logic x86_request_error_o;
+  logic x86_mem_fault_o;
+  logic x86_noncanonical_pc_o;
+  logic x86_range_fault_o;
+  logic raw_fetch_wait_o;
+  logic raw_request_error_o;
+  logic raw_mem_fault_o;
+  logic raw_noncanonical_pc_o;
+  logic raw_align_fault_o;
+  logic raw_range_fault_o;
+  logic invalid_subop_o;
+  logic noncanonical_target_o;
+  logic target_align_fault_o;
+  logic invalid_signature_slot_o;
   logic trap_mem_write_valid_o;
   logic [63:0] trap_mem_write_addr_o;
   logic [7:0] trap_mem_write_bytes_o;
@@ -478,12 +498,28 @@ module tb_poly_frontend_fpga_top;
     .cycle_blocked_o(cycle_blocked_o),
     .fault_o(fault_o),
     .fault_pc_o(),
-    .fetch_fault_o(),
-    .execute_fault_o(),
-    .control_fault_o(),
-    .invalid_frontend_o(),
+    .older_fault_o(older_fault_o),
+    .fetch_fault_o(fetch_fault_o),
+    .execute_fault_o(execute_fault_o),
+    .control_fault_o(control_fault_o),
+    .invalid_frontend_o(invalid_frontend_o),
+    .x86_fetch_wait_o(x86_fetch_wait_o),
+    .x86_request_error_o(x86_request_error_o),
+    .x86_mem_fault_o(x86_mem_fault_o),
+    .x86_noncanonical_pc_o(x86_noncanonical_pc_o),
+    .x86_range_fault_o(x86_range_fault_o),
     .poly_ctrl_o(poly_ctrl_o),
-    .subop_o(subop_o)
+    .subop_o(subop_o),
+    .raw_fetch_wait_o(raw_fetch_wait_o),
+    .raw_request_error_o(raw_request_error_o),
+    .raw_mem_fault_o(raw_mem_fault_o),
+    .raw_noncanonical_pc_o(raw_noncanonical_pc_o),
+    .raw_align_fault_o(raw_align_fault_o),
+    .raw_range_fault_o(raw_range_fault_o),
+    .invalid_subop_o(invalid_subop_o),
+    .noncanonical_target_o(noncanonical_target_o),
+    .target_align_fault_o(target_align_fault_o),
+    .invalid_signature_slot_o(invalid_signature_slot_o)
   );
 
   function automatic logic [31:0] x86_ctrl(input logic [6:0] ctrl_subop);
@@ -610,6 +646,8 @@ module tb_poly_frontend_fpga_top;
     check(instr_req_addr_o == 64'h4000 && instr_req_bytes_o == 5'd4,
       "raw request carries address and width");
     check(!instr_req_conflict_o, "raw request has no split-port conflict");
+    check(raw_fetch_wait_o && !raw_request_error_o && !raw_mem_fault_o,
+      "fpga top exposes raw fetch wait diagnostics");
     tick();
 
     instr_resp_valid_i = 1'b1;
@@ -617,6 +655,8 @@ module tb_poly_frontend_fpga_top;
     instr_resp_word_i = 32'h52800000;
     #1;
     check(wait_fetch_o && !retire_o, "wrong frontend response is ignored");
+    check(raw_fetch_wait_o && !fetch_fault_o,
+      "fpga top keeps raw fetch wait on wrong frontend response");
 
     instr_resp_frontend_i = POLY_FRONTEND_AARCH64;
     #1;
@@ -801,6 +841,26 @@ module tb_poly_frontend_fpga_top;
     #1;
     check(state_frontend_o == POLY_FRONTEND_X86 &&
       state_pc_o == 64'h1000, "reinit to x86 frontend");
+
+    valid_i = 1'b1;
+    #1;
+    check(wait_fetch_o && x86_fetch_wait_o && !x86_request_error_o &&
+      !x86_mem_fault_o && !fetch_fault_o,
+      "fpga top exposes x86 fetch wait diagnostics");
+
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_X86;
+    instr_resp_fault_i = 1'b1;
+    #1;
+    check(fault_o && fetch_fault_o && x86_mem_fault_o &&
+      !x86_request_error_o && !x86_noncanonical_pc_o &&
+      !x86_range_fault_o,
+      "fpga top exposes x86 fetch memory-fault diagnostics");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_X86 &&
+      state_pc_o == 64'h1000, "x86 fetch fault preserves state");
 
     abi_signature_set_i = 1'b1;
     abi_signature_set_slot_i = 4'd0;
@@ -1035,6 +1095,21 @@ module tb_poly_frontend_fpga_top;
     #1;
     check(state_frontend_o == POLY_FRONTEND_RISCV &&
       state_pc_o == 64'h8400, "fpga top trap return updates state");
+
+    valid_i = 1'b1;
+    instr_resp_valid_i = 1'b1;
+    instr_resp_frontend_i = POLY_FRONTEND_RISCV;
+    instr_resp_fault_i = 1'b1;
+    #1;
+    check(fault_o && fetch_fault_o && raw_mem_fault_o &&
+      !raw_request_error_o && !raw_noncanonical_pc_o &&
+      !raw_align_fault_o && !raw_range_fault_o,
+      "fpga top exposes raw fetch memory-fault diagnostics");
+    tick();
+    clear_inputs();
+    #1;
+    check(state_frontend_o == POLY_FRONTEND_RISCV &&
+      state_pc_o == 64'h8400, "raw fetch fault preserves state");
 
     init_i = 1'b1;
     init_frontend_i = POLY_FRONTEND_X86;

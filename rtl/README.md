@@ -50,8 +50,9 @@ silicon prototype.
   converts split x86/raw fetch ports into one tagged instruction-memory bus
   while exposing raw data-memory op metadata and validated raw data-memory
   request/response/fault sidebands, TSO memory-order retirement/backpressure
-  diagnostics, trap-packet write envelope and payload qwords, state
-  validation/error sidebands, raw interrupt entry/restore diagnostics,
+  diagnostics, fetch/decode fault diagnostics, trap-packet write envelope and
+  payload qwords, state validation/error sidebands, raw interrupt
+  entry/restore diagnostics,
   transition-stack pop/error and return-cookie recovery diagnostics, ABI
   signature programming/apply metadata, and transition cycle-budget diagnostics
   to external execute, data, trap-monitor, interrupt, return-stack,
@@ -137,10 +138,11 @@ silicon prototype.
 - `test_poly_frontend_fpga_top.py`: FPGA-top wiring checks for the unified
   tagged instruction-memory interface, raw branch/data execute inputs,
   raw branch metadata outputs, raw data-memory metadata/request/response
-  outputs, TSO memory-order outputs, state validation/error outputs, trap-packet
-  payload and validation/error outputs, raw interrupt entry/restore outputs,
-  transition-stack and return-cookie recovery outputs, ABI signature sideband
-  outputs, transition cycle-budget outputs, and absence of OS/runtime policy.
+  outputs, TSO memory-order outputs, fetch/decode fault outputs, state
+  validation/error outputs, trap-packet payload and validation/error outputs,
+  raw interrupt entry/restore outputs, transition-stack and return-cookie
+  recovery outputs, ABI signature sideband outputs, transition cycle-budget
+  outputs, and absence of OS/runtime policy.
 - `test_poly_interrupt_boundary.py`: interrupt-entry and user-return restore
   checks against `tools/include/polycpuid.h`.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
