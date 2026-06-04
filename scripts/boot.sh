@@ -398,6 +398,11 @@ RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
 RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
+RUN_GUEST_NETWORK="${RUN_GUEST_NETWORK:-0}"
+RUN_GUEST_NETWORK_SMOKE="${RUN_GUEST_NETWORK_SMOKE:-0}"
+if [[ "$RUN_GUEST_NETWORK_SMOKE" == "1" ]]; then
+  RUN_GUEST_NETWORK=1
+fi
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
 EXPECT_POLY_CPUID="${EXPECT_POLY_CPUID:-0}"
 REQUIRE_POLY_REAL_XSAVE="${REQUIRE_POLY_REAL_XSAVE:-0}"
@@ -7628,6 +7633,76 @@ build_binfmt_module() {
   esac
 }
 
+extract_linux_virt_module() {
+  local module_regex="$1"
+  local output_path="$2"
+  local description="$3"
+  local linux_virt_version
+  local linux_virt_apk
+  local module_path
+
+  prepare_alpine_index
+  linux_virt_version="$({
+    apk_package_version linux-virt
+  } || true)"
+  if [[ -z "$linux_virt_version" ]]; then
+    echo "Unable to determine Alpine linux-virt version." >&2
+    exit 1
+  fi
+
+  linux_virt_apk="$CACHE_DIR/linux-virt-$linux_virt_version.apk"
+  download \
+    "$ALPINE_X86_64_MAIN_URL/linux-virt-$linux_virt_version.apk" \
+    "$linux_virt_apk"
+  module_path="$(
+    tar -tzf "$linux_virt_apk" 2>/dev/null |
+      awk -v module_regex="$module_regex" '
+        $0 ~ module_regex && found == 0 {
+          print;
+          found = 1;
+        }
+      '
+  )"
+  if [[ -z "$module_path" ]]; then
+    echo "Unable to find $description module in $linux_virt_apk." >&2
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "$output_path")"
+  case "$module_path" in
+    *.gz)
+      tar -xOzf "$linux_virt_apk" "$module_path" 2>/dev/null |
+        gzip -dc > "$output_path"
+      ;;
+    *.xz)
+      tar -xOzf "$linux_virt_apk" "$module_path" 2>/dev/null |
+        xz -dc > "$output_path"
+      ;;
+    *.ko)
+      tar -xOzf "$linux_virt_apk" "$module_path" 2>/dev/null \
+        > "$output_path"
+      ;;
+    *)
+      echo "Unsupported $description module compression: $module_path" >&2
+      exit 1
+      ;;
+  esac
+}
+
+build_network_modules() {
+  if [[ "$RUN_GUEST_NETWORK" != "1" ]]; then
+    return
+  fi
+  extract_linux_virt_module \
+    'kernel/net/packet/af_packet\.ko' \
+    "$TMP_DIR/initramfs-root/lib/modules/poly/af_packet.ko" \
+    "AF_PACKET"
+  extract_linux_virt_module \
+    'kernel/drivers/net/ethernet/intel/e1000/e1000\.ko' \
+    "$TMP_DIR/initramfs-root/lib/modules/poly/e1000.ko" \
+    "e1000"
+}
+
 build_initramfs() {
   rm -rf "$TMP_DIR/initramfs-root"
   mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin,usr/lib/polyapps}
@@ -7689,6 +7764,7 @@ build_initramfs() {
   cp "$POLY_APP_PAYLOAD_DIR"/*.poly "$TMP_DIR/initramfs-root/usr/lib/polyapps/"
   build_poly_elf_payloads
   build_binfmt_module
+  build_network_modules
   if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" && -f "$POLY_XCR0_MODULE" ]]; then
     mkdir -p "$TMP_DIR/initramfs-root/lib/modules/poly"
     cp "$POLY_XCR0_MODULE" "$TMP_DIR/initramfs-root/lib/modules/poly/poly_xcr0.ko"
@@ -7719,6 +7795,8 @@ RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
 RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 RUN_POLY_BINFMT_ARCH_TRAPS="$RUN_POLY_BINFMT_ARCH_TRAPS"
+RUN_GUEST_NETWORK="$RUN_GUEST_NETWORK"
+RUN_GUEST_NETWORK_SMOKE="$RUN_GUEST_NETWORK_SMOKE"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
 EXPECT_POLY_CPUID="$EXPECT_POLY_CPUID"
 REQUIRE_POLY_REAL_XSAVE="$REQUIRE_POLY_REAL_XSAVE"
@@ -7739,6 +7817,67 @@ fi
 
 echo "BOOT_OK: initramfs reached userspace" >/dev/console
 echo "BOOT_OK: initramfs reached userspace" >/dev/ttyS0 2>/dev/null || true
+
+if [ "$RUN_GUEST_NETWORK" = "1" ]; then
+  echo "POLY_GUEST_NETWORK_START" >/dev/ttyS0
+  if [ -f /lib/modules/poly/af_packet.ko ]; then
+    insmod /lib/modules/poly/af_packet.ko >/dev/ttyS0 2>&1 || {
+      echo "POLY_GUEST_NETWORK_FAIL: af_packet module" >/dev/ttyS0
+      exit 1
+    }
+  fi
+  if [ -f /lib/modules/poly/e1000.ko ]; then
+    insmod /lib/modules/poly/e1000.ko >/dev/ttyS0 2>&1 || {
+      echo "POLY_GUEST_NETWORK_FAIL: e1000 module" >/dev/ttyS0
+      exit 1
+    }
+  fi
+  /bin/busybox ip link set lo up >/dev/ttyS0 2>&1 || \
+    /bin/busybox ifconfig lo up >/dev/ttyS0 2>&1 || true
+  mkdir -p /usr/share/udhcpc
+  cat > /usr/share/udhcpc/default.script <<'UDHCPC_EOF'
+#!/bin/busybox sh
+case "\$1" in
+  bound|renew)
+    /bin/busybox ifconfig "\$interface" "\$ip" netmask "\$subnet" up
+    if [ -n "\$router" ]; then
+      /bin/busybox route del default >/dev/null 2>&1 || true
+      /bin/busybox route add default gw \${router%% *} dev "\$interface"
+    fi
+    : > /etc/resolv.conf
+    for ns in \$dns; do
+      echo "nameserver \$ns" >> /etc/resolv.conf
+    done
+    ;;
+esac
+UDHCPC_EOF
+  /bin/busybox chmod +x /usr/share/udhcpc/default.script
+  /bin/busybox ip link set eth0 up >/dev/ttyS0 2>&1 || \
+    /bin/busybox ifconfig eth0 up >/dev/ttyS0 2>&1 || {
+      echo "POLY_GUEST_NETWORK_FAIL: eth0 up" >/dev/ttyS0
+      exit 1
+    }
+  /bin/busybox udhcpc -n -q -i eth0 \
+    -s /usr/share/udhcpc/default.script >/dev/ttyS0 2>&1 || {
+    echo "POLY_GUEST_NETWORK_FAIL: dhcp" >/dev/ttyS0
+    exit 1
+  }
+  /bin/busybox ip addr show eth0 >/dev/ttyS0 2>&1 || true
+  /bin/busybox route -n >/dev/ttyS0 2>&1 || true
+  echo "POLY_GUEST_NETWORK_READY" >/dev/ttyS0
+  if [ "$RUN_GUEST_NETWORK_SMOKE" = "1" ]; then
+    /bin/busybox wget -q -O /tmp/example.html http://example.com/ \
+      >/dev/ttyS0 2>&1 || {
+      echo "POLY_GUEST_NETWORK_FAIL: http" >/dev/ttyS0
+      exit 1
+    }
+    grep -qi "Example Domain" /tmp/example.html || {
+      echo "POLY_GUEST_NETWORK_FAIL: http content" >/dev/ttyS0
+      exit 1
+    }
+    echo "POLY_GUEST_NETWORK_HTTP_OK" >/dev/ttyS0
+  fi
+fi
 
 if [ "$REQUIRE_POLY_REAL_XSAVE" = "1" ]; then
   if [ -f /lib/modules/poly/poly_xcr0.ko ]; then
@@ -12018,6 +12157,11 @@ info: action=report
 debug: action=ignore
 clock: sync=realtime
 EOF
+  if [[ "$RUN_GUEST_NETWORK" == "1" ]]; then
+    cat >> "$BOCHSRC" <<EOF
+e1000: enabled=1, mac=52:54:00:12:34:56, ethmod=slirp, script=
+EOF
+  fi
 }
 
 fatal_logs_present() {
@@ -12060,6 +12204,7 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_SIGNAL" "POLYSIGNAL_OK" || return 1
   required_section_complete "$RUN_POLY_BENCH" "POLYBENCH_OK" || return 1
   required_section_complete "$RUN_POLY_BINFMT" "POLYBINFMT_OK" || return 1
+  required_section_complete "$RUN_GUEST_NETWORK_SMOKE" "POLY_GUEST_NETWORK_HTTP_OK" || return 1
 
   if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
     if [[ "$EXPECT_POLY_CPUID" == "1" ]]; then

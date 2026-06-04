@@ -45,7 +45,7 @@ POLY_RTL_SV = \
 	rtl/poly_trap_packet_stage.sv \
 	rtl/poly_x86_fetch_stage.sv
 
-.PHONY: image poly-xcr0-module poly-rtl-fpga-artifacts check-poly-import-ids check-poly-isa-readiness check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-abi-legacy-bridge check-poly-contracts check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-fpga-artifacts check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
+.PHONY: image poly-xcr0-module poly-rtl-fpga-artifacts check-poly-import-ids check-poly-isa-readiness check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-abi-legacy-bridge check-poly-contracts check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-fpga-artifacts check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-network-smoke boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -332,6 +332,16 @@ boot-poly:
 		-e RUN_POLY_EXEC=1 \
 		-e RUN_POLY_ARCH_TRAP_EXEC=1 \
 		-e EXPECT_POLY_CPUID=1 \
+		$(IMAGE) \
+		./scripts/boot.sh
+
+boot-poly-network-smoke:
+	docker run --rm \
+		--platform=linux/arm64 \
+		-v "$(CURDIR)":/work \
+		$(BOOT_DOCKER_ENV) \
+		-e POLY_ENABLED=1 \
+		-e RUN_GUEST_NETWORK_SMOKE=1 \
 		$(IMAGE) \
 		./scripts/boot.sh
 

@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bochs-x \
     bochsbios \
     libtool \
+    libslirp-dev \
     m4 \
     pkg-config \
     grub-common \
@@ -37,7 +38,7 @@ WORKDIR /work
 COPY . /work
 
 RUN cd /work/bochs-prepoly-src/bochs && \
-    ./configure --with-nogui --enable-x86-64 --disable-docbook --disable-debugger --disable-plugins && \
+    ./configure --with-nogui --enable-x86-64 --enable-e1000 --enable-using-libslirp --disable-docbook --disable-debugger --disable-plugins && \
     make -j2 && \
     cp bochs /usr/local/bin/bochs-poly
 
