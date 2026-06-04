@@ -352,7 +352,7 @@ enum {
   POLY_X86_CONTROL_OPCODE_SIZE = POLY_X86_CTRL_TOTAL_BYTES,
   POLY_X86_PENTER_BASE_SIZE = POLY_X86_CTRL_PENTER_FRONTEND_TOTAL_BYTES,
   POLY_X86_TRAMPOLINE_SIZE = 14,
-  MAX_PROGRAM_BYTES = 16 * 1024 * 1024,
+  MAX_PROGRAM_BYTES = 128 * 1024 * 1024,
   MAX_LOAD_SEGMENTS = 16,
   MAX_PROCESS_DEPS = 8,
   MAX_PROCESS_DEP_DEPTH = 4,
@@ -7675,9 +7675,16 @@ static int load_elf_program(const char *path, const char *symbol_name,
     found_load = 1;
   }
 
-  if (!found_load || limit_vaddr <= base_vaddr ||
-      limit_vaddr - base_vaddr > MAX_PROGRAM_BYTES) {
+  if (!found_load || limit_vaddr <= base_vaddr) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported ELF load image: %s\n", path);
+    free(data);
+    return -1;
+  }
+  if (limit_vaddr - base_vaddr > MAX_PROGRAM_BYTES) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: ELF load image is too large: %s span=0x%llx max=0x%llx\n",
+      path, (unsigned long long) (limit_vaddr - base_vaddr),
+      (unsigned long long) MAX_PROGRAM_BYTES);
     free(data);
     return -1;
   }
@@ -7687,7 +7694,10 @@ static int load_elf_program(const char *path, const char *symbol_name,
   if ((image_size % instruction_align) != 0)
     image_size += instruction_align - (image_size % instruction_align);
   if (image_size == 0 || image_size > MAX_PROGRAM_BYTES) {
-    fprintf(stderr, "POLYEXEC_FAIL: ELF loaded image is too large: %s\n", path);
+    fprintf(stderr,
+      "POLYEXEC_FAIL: ELF loaded image is too large: %s span=0x%llx max=0x%llx\n",
+      path, (unsigned long long) image_size,
+      (unsigned long long) MAX_PROGRAM_BYTES);
     free(data);
     return -1;
   }
