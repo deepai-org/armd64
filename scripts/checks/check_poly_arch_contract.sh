@@ -23,6 +23,7 @@ POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_
 POLYEXEC_THREAD_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
 POLYEXEC_SMP_ATOMIC_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_smp_atomic_real.c"
 POLYEXEC_FPU_TORTURE_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_fpu_torture_real.c"
+POLYEXEC_JIT_SELFMOD_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_jit_selfmod_real.c"
 POLYEXEC_PROCESS_EXCEPTION_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
@@ -600,6 +601,20 @@ assert_contains "fflag_nx" "$POLYEXEC_FPU_TORTURE_SRC" \
   "RISC-V FPU torture fixture must check inexact fflags status"
 assert_contains "0x3ff0000000000001" "$POLYEXEC_FPU_TORTURE_SRC" \
   "FPU torture fixture must check rounding-mode-sensitive results"
+assert_contains "RUN_POLY_JIT_SELFTEST" "$BOOT_SCRIPT" \
+  "boot image must expose a dedicated JIT/self-modifying-code proof mode"
+assert_contains "aarch64-jit-selfmod-real\\.elf=42" "$BOOT_SCRIPT" \
+  "boot image must run the AArch64 JIT self-modifying-code fixture"
+assert_contains "POLY_JIT_SELFTEST_OK" "$BOOT_SCRIPT" \
+  "boot validation must gate JIT self-test completion"
+assert_contains "POLY_JIT_SELF_MOD_OK: arch=aarch64 first=13 second=29 wx=1 icache=1" "$BOOT_SCRIPT" \
+  "boot validation must require the AArch64 JIT self-modifying-code success marker"
+assert_contains "dc cvau" "$POLYEXEC_JIT_SELFMOD_SRC" \
+  "AArch64 JIT fixture must clean data cache before executing generated code"
+assert_contains "ic ivau" "$POLYEXEC_JIT_SELFMOD_SRC" \
+  "AArch64 JIT fixture must invalidate instruction cache for generated code"
+assert_contains "protect_page\\(page, PROT_READ \\| PROT_EXEC\\)" "$POLYEXEC_JIT_SELFMOD_SRC" \
+  "AArch64 JIT fixture must flip generated code to executable without write permission"
 assert_contains "aarch64-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \
   "boot image must build and run an AArch64 dynamically linked process fixture"
 assert_contains "riscv-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \
