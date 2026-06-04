@@ -43,6 +43,34 @@ extern char **environ;
 #define O_DIRECT 040000
 #endif
 
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
+
+#ifndef O_NOATIME
+#ifdef __O_NOATIME
+#define O_NOATIME __O_NOATIME
+#else
+#define O_NOATIME 0
+#endif
+#endif
+
+#ifndef O_PATH
+#ifdef __O_PATH
+#define O_PATH __O_PATH
+#else
+#define O_PATH 0
+#endif
+#endif
+
+#ifndef O_TMPFILE
+#ifdef __O_TMPFILE
+#define O_TMPFILE __O_TMPFILE
+#else
+#define O_TMPFILE 0
+#endif
+#endif
+
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
@@ -231,8 +259,16 @@ extern char **environ;
 #define POLY_RISCV_HWPROBE_EXT_ZICNTR (1ULL << 50)
 #define POLY_RISCV_HWPROBE_KEY_CPUPERF_0 5
 
-#define POLY_AARCH64_O_DIRECT 040000ULL
-#define POLY_AARCH64_O_DIRECTORY 0200000ULL
+#define POLY_AARCH64_O_DIRECTORY 040000ULL
+#define POLY_AARCH64_O_NOFOLLOW 0100000ULL
+#define POLY_AARCH64_O_DIRECT 0200000ULL
+#define POLY_AARCH64_O_LARGEFILE 0400000ULL
+#define POLY_AARCH64_O_NOATIME 01000000ULL
+#define POLY_AARCH64_O_CLOEXEC 02000000ULL
+#define POLY_AARCH64_O_PATH 010000000ULL
+#define POLY_AARCH64___O_TMPFILE 020000000ULL
+#define POLY_AARCH64_O_TMPFILE \
+  (POLY_AARCH64___O_TMPFILE | POLY_AARCH64_O_DIRECTORY)
 #define POLY_RISCV_HWPROBE_KEY_ZICBOZ_BLOCK_SIZE 6
 #define POLY_RISCV_HWPROBE_KEY_HIGHEST_VIRT_ADDRESS 7
 #define POLY_RISCV_HWPROBE_KEY_TIME_CSR_FREQ 8
@@ -2626,12 +2662,28 @@ static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode) {
   if (mode != POLY_MODE_RAW_AARCH64)
     return flags;
 
-  uint64_t translated = flags & ~(POLY_AARCH64_O_DIRECTORY |
-    POLY_AARCH64_O_DIRECT);
+  const uint64_t translated_mask = POLY_AARCH64_O_DIRECT |
+    POLY_AARCH64_O_LARGEFILE | POLY_AARCH64_O_DIRECTORY |
+    POLY_AARCH64_O_NOFOLLOW | POLY_AARCH64_O_NOATIME |
+    POLY_AARCH64_O_CLOEXEC | POLY_AARCH64_O_PATH |
+    POLY_AARCH64___O_TMPFILE;
+  uint64_t translated = flags & ~translated_mask;
   if ((flags & POLY_AARCH64_O_DIRECTORY) != 0)
     translated |= O_DIRECTORY;
   if ((flags & POLY_AARCH64_O_DIRECT) != 0)
     translated |= O_DIRECT;
+  if ((flags & POLY_AARCH64_O_LARGEFILE) != 0)
+    translated |= O_LARGEFILE;
+  if ((flags & POLY_AARCH64_O_NOFOLLOW) != 0)
+    translated |= O_NOFOLLOW;
+  if ((flags & POLY_AARCH64_O_NOATIME) != 0)
+    translated |= O_NOATIME;
+  if ((flags & POLY_AARCH64_O_CLOEXEC) != 0)
+    translated |= O_CLOEXEC;
+  if ((flags & POLY_AARCH64_O_PATH) != 0)
+    translated |= O_PATH;
+  if ((flags & POLY_AARCH64___O_TMPFILE) != 0)
+    translated |= O_TMPFILE;
   return translated;
 }
 

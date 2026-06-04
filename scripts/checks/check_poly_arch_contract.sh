@@ -656,10 +656,14 @@ assert_contains "case 194: \\*x86_number = SYS_shmget" "$POLYEXEC" \
   "generic Linux syscall 194 must translate to shmget for shared-memory workloads"
 assert_contains "case 196: \\*x86_number = SYS_shmat" "$POLYEXEC" \
   "generic Linux syscall 196 must translate to shmat for shared-memory attaches"
-assert_contains "#define POLY_AARCH64_O_DIRECT 040000ULL" "$POLYEXEC" \
-  "AArch64/generic O_DIRECT must not be confused with O_DIRECTORY"
-assert_contains "#define POLY_AARCH64_O_DIRECTORY 0200000ULL" "$POLYEXEC" \
+assert_contains "#define POLY_AARCH64_O_DIRECTORY 040000ULL" "$POLYEXEC" \
   "AArch64/generic O_DIRECTORY must translate directory opens correctly"
+assert_contains "#define POLY_AARCH64_O_NOFOLLOW 0100000ULL" "$POLYEXEC" \
+  "AArch64/generic O_NOFOLLOW must not be confused with O_LARGEFILE"
+assert_contains "#define POLY_AARCH64_O_DIRECT 0200000ULL" "$POLYEXEC" \
+  "AArch64/generic O_DIRECT must not be confused with O_DIRECTORY"
+assert_contains "#define POLY_AARCH64_O_LARGEFILE 0400000ULL" "$POLYEXEC" \
+  "AArch64/generic O_LARGEFILE must be stripped before host openat"
 assert_contains "POLY_SYSV_IPC_OK: shm=1 sem=1 fcntl=1" "$POLYEXEC_PROCESS_SYSCALL_SRC" \
   "process syscall fixture must prove SysV shm/semaphore and fcntl coverage"
 assert_contains "POLY_SYSV_IPC_OK: shm=1 sem=1 fcntl=1" "$BOOT_SCRIPT" \
