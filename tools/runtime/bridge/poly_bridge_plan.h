@@ -54,6 +54,14 @@ int poly_bridge_plan_add_op(struct poly_bridge_plan *plan,
     enum poly_bridge_move_kind kind, struct poly_abi_loc src,
     struct poly_abi_loc dst, uint64_t imm);
 
+int poly_bridge_plan_from_layouts(const struct poly_abi_layout *caller_layout,
+    const struct poly_abi_layout *callee_layout, uint32_t signature_slot,
+    int needs_state_key, struct poly_bridge_plan *plan);
+
+int poly_bridge_plan_from_legacy_kind(enum poly_abi_arch caller,
+    enum poly_abi_arch callee, int bridge_kind, uint32_t signature_slot,
+    int needs_state_key, struct poly_bridge_plan *plan);
+
 int poly_bridge_plan_validate(const struct poly_bridge_plan *plan);
 
 #endif

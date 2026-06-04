@@ -104,6 +104,11 @@ check-poly-bridge-ir:
 		-Itools/include -Itools/runtime \
 		tools/tests/poly_bridge_ir_test.c \
 		tools/runtime/bridge/poly_bridge_plan.c \
+		tools/runtime/abi/poly_abi_legacy_bridge.c \
+		tools/runtime/abi/poly_abi_classify.c \
+		tools/runtime/abi/poly_abi_x86_sysv.c \
+		tools/runtime/abi/poly_abi_aarch64.c \
+		tools/runtime/abi/poly_abi_riscv.c \
 		-o "$$tmp_dir/poly_bridge_ir_test"; \
 	"$$tmp_dir/poly_bridge_ir_test"
 
