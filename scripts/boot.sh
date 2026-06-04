@@ -11,11 +11,15 @@ OUT_DIR="${OUT_DIR:-$ROOT_DIR/out}"
 TMP_DIR="${TMP_DIR:-$ROOT_DIR/tmp}"
 ALPINE_BASE_URL="${ALPINE_BASE_URL:-https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/netboot}"
 ALPINE_X86_64_MAIN_URL="${ALPINE_X86_64_MAIN_URL:-https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64}"
+ALPINE_AARCH64_RELEASES_URL="${ALPINE_AARCH64_RELEASES_URL:-http://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64}"
+ALPINE_AARCH64_MAIN_URL="${ALPINE_AARCH64_MAIN_URL:-http://dl-cdn.alpinelinux.org/alpine/latest-stable/main}"
+ALPINE_AARCH64_COMMUNITY_URL="${ALPINE_AARCH64_COMMUNITY_URL:-http://dl-cdn.alpinelinux.org/alpine/latest-stable/community}"
 KERNEL_URL="${KERNEL_URL:-$ALPINE_BASE_URL/vmlinuz-virt}"
 
 mkdir -p "$CACHE_DIR" "$OUT_DIR" "$TMP_DIR"
 
 APKINDEX_ARCHIVE="$CACHE_DIR/APKINDEX-x86_64.tar.gz"
+ALPINE_AARCH64_RELEASES_YAML="$CACHE_DIR/latest-releases-aarch64.yaml"
 KERNEL_IMAGE="$CACHE_DIR/vmlinuz-virt"
 INITRAMFS_IMAGE="$OUT_DIR/initramfs.cpio.gz"
 ISO_ROOT="$TMP_DIR/iso-root"
@@ -48,6 +52,10 @@ POLY_SIGNAL_BIN="$OUT_DIR/polysignal"
 POLY_BENCH_SRC="$ROOT_DIR/tools/programs/polybench.c"
 POLY_BENCH_BIN="$OUT_DIR/polybench"
 POLY_BINFMT_SRC="$ROOT_DIR/tools/runtime/polybinfmt.sh"
+POLY_BINFMT_EXEC_SRC="$ROOT_DIR/tools/programs/polybinfmt_exec.c"
+POLY_BINFMT_EXEC_BIN="$OUT_DIR/polybinfmt-exec"
+POLY_APK_TRIGGER_MIMIC_SRC="$ROOT_DIR/tools/programs/aarch64_apk_trigger_mimic.c"
+POLY_APK_TRIGGER_MIMIC_BIN="$OUT_DIR/aarch64-apk-trigger-mimic"
 NATIVE_CHECK_SRC="$ROOT_DIR/tools/programs/nativecheck.c"
 NATIVE_CHECK_BIN="$OUT_DIR/nativecheck"
 AARCH64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/aarch64_polycall_real.c"
@@ -398,9 +406,17 @@ RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
 RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
+RUN_POLY_ALPINE_BINFMT_SMOKE="${RUN_POLY_ALPINE_BINFMT_SMOKE:-0}"
+POLY_ALPINE_TRACE_SYSCALLS="${POLY_ALPINE_TRACE_SYSCALLS:-0}"
+POLY_ALPINE_TRACE_TRAP_RETURNS="${POLY_ALPINE_TRACE_TRAP_RETURNS:-0}"
+POLY_ALPINE_AARCH64_HWCAP="${POLY_ALPINE_AARCH64_HWCAP:-}"
+POLY_ALPINE_DUMP_MAPS_ON_FAULT="${POLY_ALPINE_DUMP_MAPS_ON_FAULT:-0}"
+POLY_ALPINE_PROTECT_RUNTIME_SIGNALS="${POLY_ALPINE_PROTECT_RUNTIME_SIGNALS:-0}"
+POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC="${POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC:-0}"
 RUN_GUEST_NETWORK="${RUN_GUEST_NETWORK:-0}"
 RUN_GUEST_NETWORK_SMOKE="${RUN_GUEST_NETWORK_SMOKE:-0}"
-if [[ "$RUN_GUEST_NETWORK_SMOKE" == "1" ]]; then
+if [[ "$RUN_GUEST_NETWORK_SMOKE" == "1" ||
+      "$RUN_POLY_ALPINE_BINFMT_SMOKE" == "1" ]]; then
   RUN_GUEST_NETWORK=1
 fi
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
@@ -432,6 +448,23 @@ download() {
 
 prepare_alpine_index() {
   download "$ALPINE_X86_64_MAIN_URL/APKINDEX.tar.gz" "$APKINDEX_ARCHIVE"
+}
+
+alpine_aarch64_minirootfs_file() {
+  download "$ALPINE_AARCH64_RELEASES_URL/latest-releases.yaml" \
+    "$ALPINE_AARCH64_RELEASES_YAML"
+  awk '
+    /^[[:space:]]*flavor:[[:space:]]*alpine-minirootfs[[:space:]]*$/ {
+      found = 1;
+      next;
+    }
+    found && /^[[:space:]]*file:[[:space:]]*/ {
+      sub(/^[[:space:]]*file:[[:space:]]*/, "", $0);
+      gsub(/"/, "", $0);
+      print;
+      exit;
+    }
+  ' "$ALPINE_AARCH64_RELEASES_YAML"
 }
 
 apk_package_version() {
@@ -518,6 +551,34 @@ build_poly_app() {
 build_poly_exec() {
   compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}" \
     static-pie "$POLY_EXEC_ABI_LEGACY_BRIDGE_SRC"
+}
+
+build_poly_binfmt_exec() {
+  compile_poly_tool "$POLY_BINFMT_EXEC_SRC" "$POLY_BINFMT_EXEC_BIN" \
+    "${POLY_BINFMT_EXEC_CC:-}"
+}
+
+build_poly_apk_trigger_mimic() {
+  if [[ "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" ]]; then
+    return
+  fi
+  local compiler=""
+  for candidate in "${POLY_APK_TRIGGER_MIMIC_CC:-}" aarch64-linux-gnu-gcc gcc; do
+    if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
+      compiler="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$compiler" ]]; then
+    echo "No AArch64 compiler available for $POLY_APK_TRIGGER_MIMIC_SRC." >&2
+    exit 1
+  fi
+  if [[ -x "$POLY_APK_TRIGGER_MIMIC_BIN" &&
+      "$POLY_APK_TRIGGER_MIMIC_BIN" -nt "$POLY_APK_TRIGGER_MIMIC_SRC" ]]; then
+    return
+  fi
+  "$compiler" -O2 -s -fno-stack-protector -static \
+    "$POLY_APK_TRIGGER_MIMIC_SRC" -o "$POLY_APK_TRIGGER_MIMIC_BIN"
 }
 
 build_poly_call() {
@@ -7575,7 +7636,8 @@ build_poly_elf_payloads() {
 }
 
 build_binfmt_module() {
-  if [[ "$RUN_POLY_BINFMT" != "1" ]]; then
+  if [[ "$RUN_POLY_BINFMT" != "1" &&
+      "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" ]]; then
     return
   fi
 
@@ -7703,12 +7765,64 @@ build_network_modules() {
     "e1000"
 }
 
+build_alpine_aarch64_rootfs() {
+  if [[ "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" ]]; then
+    return
+  fi
+
+  local rootfs_file
+  local rootfs_archive
+  local rootfs_dir="$TMP_DIR/initramfs-root/alpine-aarch64"
+
+  rootfs_file="$(alpine_aarch64_minirootfs_file)"
+  if [[ -z "$rootfs_file" ]]; then
+    echo "Unable to determine Alpine AArch64 minirootfs release." >&2
+    exit 1
+  fi
+  rootfs_archive="$CACHE_DIR/$rootfs_file"
+  download "$ALPINE_AARCH64_RELEASES_URL/$rootfs_file" "$rootfs_archive"
+
+  rm -rf "$rootfs_dir"
+  mkdir -p "$rootfs_dir"
+  tar -xzf "$rootfs_archive" -C "$rootfs_dir"
+  mkdir -p "$rootfs_dir"/{dev,proc,sys,tmp,usr/bin}
+  chmod 1777 "$rootfs_dir/tmp"
+  mkdir -p "$rootfs_dir/tmp/poly-apk-scripts"
+  tar -xzf "$rootfs_dir/lib/apk/db/scripts.tar.gz" \
+    -C "$rootfs_dir/tmp/poly-apk-scripts"
+  local busybox_trigger
+  busybox_trigger="$(find "$rootfs_dir/tmp/poly-apk-scripts" \
+    -name 'busybox-*.trigger' -print -quit)"
+  if [[ -z "$busybox_trigger" ]]; then
+    echo "Unable to find Alpine busybox trigger script." >&2
+    exit 1
+  fi
+  cp "$busybox_trigger" "$rootfs_dir/tmp/poly-apk-scripts/busybox.trigger"
+  cp "$POLY_EXEC_BIN" "$rootfs_dir/usr/bin/polyexec"
+  cp "$POLY_APK_TRIGGER_MIMIC_BIN" \
+    "$rootfs_dir/usr/bin/poly-apk-trigger-mimic"
+  cat > "$rootfs_dir/etc/apk/repositories" <<EOF
+$ALPINE_AARCH64_MAIN_URL
+$ALPINE_AARCH64_COMMUNITY_URL
+EOF
+  cat > "$rootfs_dir/etc/polyexec-binfmt.env" <<EOF
+POLYEXEC_TRACE_SYSCALLS=$POLY_ALPINE_TRACE_SYSCALLS
+POLYEXEC_TRACE_TRAP_RETURNS=$POLY_ALPINE_TRACE_TRAP_RETURNS
+POLYEXEC_AARCH64_HWCAP=$POLY_ALPINE_AARCH64_HWCAP
+POLYEXEC_DUMP_MAPS_ON_FAULT=$POLY_ALPINE_DUMP_MAPS_ON_FAULT
+POLYEXEC_PROTECT_RUNTIME_SIGNALS=$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS
+POLY_LD_LIBRARY_PATH=/lib:/usr/lib
+EOF
+}
+
 build_initramfs() {
   rm -rf "$TMP_DIR/initramfs-root"
   mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin,usr/lib/polyapps}
   build_poly_probe
   build_poly_app
   build_poly_exec
+  build_poly_binfmt_exec
+  build_poly_apk_trigger_mimic
   build_poly_call
   build_poly_thread
   build_poly_signal
@@ -7751,6 +7865,7 @@ build_initramfs() {
   cp "$POLY_PROBE_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyprobe"
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
+  cp "$POLY_BINFMT_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt-exec"
   cp "$POLY_CALL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polycall"
   cp "$POLY_THREAD_BIN" "$TMP_DIR/initramfs-root/usr/bin/polythread"
   cp "$POLY_SIGNAL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polysignal"
@@ -7765,6 +7880,7 @@ build_initramfs() {
   build_poly_elf_payloads
   build_binfmt_module
   build_network_modules
+  build_alpine_aarch64_rootfs
   if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" && -f "$POLY_XCR0_MODULE" ]]; then
     mkdir -p "$TMP_DIR/initramfs-root/lib/modules/poly"
     cp "$POLY_XCR0_MODULE" "$TMP_DIR/initramfs-root/lib/modules/poly/poly_xcr0.ko"
@@ -7795,6 +7911,11 @@ RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
 RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 RUN_POLY_BINFMT_ARCH_TRAPS="$RUN_POLY_BINFMT_ARCH_TRAPS"
+RUN_POLY_ALPINE_BINFMT_SMOKE="$RUN_POLY_ALPINE_BINFMT_SMOKE"
+POLY_ALPINE_TRACE_SYSCALLS="$POLY_ALPINE_TRACE_SYSCALLS"
+POLY_ALPINE_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS"
+POLY_ALPINE_AARCH64_HWCAP="$POLY_ALPINE_AARCH64_HWCAP"
+POLY_ALPINE_DUMP_MAPS_ON_FAULT="$POLY_ALPINE_DUMP_MAPS_ON_FAULT"
 RUN_GUEST_NETWORK="$RUN_GUEST_NETWORK"
 RUN_GUEST_NETWORK_SMOKE="$RUN_GUEST_NETWORK_SMOKE"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
@@ -7848,6 +7969,9 @@ case "\$1" in
     for ns in \$dns; do
       echo "nameserver \$ns" >> /etc/resolv.conf
     done
+    if [ ! -s /etc/resolv.conf ]; then
+      echo "nameserver 10.0.2.3" >> /etc/resolv.conf
+    fi
     ;;
 esac
 UDHCPC_EOF
@@ -7864,6 +7988,9 @@ UDHCPC_EOF
   }
   /bin/busybox ip addr show eth0 >/dev/ttyS0 2>&1 || true
   /bin/busybox route -n >/dev/ttyS0 2>&1 || true
+  echo "POLY_GUEST_RESOLV_CONF_BEGIN" >/dev/ttyS0
+  cat /etc/resolv.conf >/dev/ttyS0 2>&1 || true
+  echo "POLY_GUEST_RESOLV_CONF_END" >/dev/ttyS0
   echo "POLY_GUEST_NETWORK_READY" >/dev/ttyS0
   if [ "$RUN_GUEST_NETWORK_SMOKE" = "1" ]; then
     /bin/busybox wget -q -O /tmp/example.html http://example.com/ \
@@ -12069,6 +12196,183 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
   echo "POLYBINFMT_OK" >/dev/ttyS0
 fi
 
+if [ "$RUN_POLY_ALPINE_BINFMT_SMOKE" = "1" ]; then
+  echo "POLY_ALPINE_BINFMT_SMOKE_START" >/dev/ttyS0
+  if [ -f /lib/modules/poly/binfmt_misc.ko ]; then
+    insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
+  fi
+  mkdir -p /proc/sys/fs/binfmt_misc || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: mkdir binfmt_misc" >/dev/ttyS0
+    exit 1
+  }
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: binfmt_misc unavailable" >/dev/ttyS0
+    exit 1
+  fi
+  if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
+    echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
+  fi
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+    > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: register aarch64" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_REGISTERED" >/dev/ttyS0
+
+  cp /etc/resolv.conf /alpine-aarch64/etc/resolv.conf 2>/dev/null || true
+  if [ ! -s /alpine-aarch64/etc/resolv.conf ]; then
+    echo "nameserver 10.0.2.3" > /alpine-aarch64/etc/resolv.conf
+  fi
+  echo "POLY_ALPINE_RESOLV_CONF_BEGIN" >/dev/ttyS0
+  cat /alpine-aarch64/etc/resolv.conf >/dev/ttyS0 2>&1 || true
+  echo "POLY_ALPINE_RESOLV_CONF_END" >/dev/ttyS0
+  /bin/busybox wget -q -O /tmp/poly-alpine-native-example.html \
+    http://example.com/ >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: native dns http" >/dev/ttyS0
+    exit 1
+  }
+  grep -qi "Example Domain" /tmp/poly-alpine-native-example.html || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: native http content" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_NATIVE_HTTP_OK" >/dev/ttyS0
+  mount -t proc proc /alpine-aarch64/proc 2>/dev/null || true
+  mount -t sysfs sysfs /alpine-aarch64/sys 2>/dev/null || true
+  mount -t devtmpfs devtmpfs /alpine-aarch64/dev 2>/dev/null || true
+  if [ ! -c /alpine-aarch64/dev/null ]; then
+    mknod -m 666 /alpine-aarch64/dev/null c 1 3 || true
+  fi
+  if [ ! -c /alpine-aarch64/dev/urandom ]; then
+    mknod -m 444 /alpine-aarch64/dev/urandom c 1 9 || true
+  fi
+
+  poly_alpine_run() {
+    label="\$1"
+    timeout_seconds="\$2"
+    shift 2
+    echo "POLY_ALPINE_BINFMT_SMOKE_CMD: \$label" >/dev/ttyS0
+    POLYEXEC_TRACE_SYSCALLS="\$POLY_ALPINE_TRACE_SYSCALLS" \
+      POLYEXEC_TRACE_TRAP_RETURNS="\$POLY_ALPINE_TRACE_TRAP_RETURNS" \
+      POLYEXEC_AARCH64_HWCAP="\$POLY_ALPINE_AARCH64_HWCAP" \
+      POLYEXEC_DUMP_MAPS_ON_FAULT="\$POLY_ALPINE_DUMP_MAPS_ON_FAULT" \
+      POLY_LD_LIBRARY_PATH=/lib:/usr/lib \
+      /bin/busybox timeout "\$timeout_seconds" \
+      /bin/busybox chroot /alpine-aarch64 "\$@" >/dev/ttyS0 2>&1
+  }
+
+  poly_alpine_run "direct true" 30 /bin/true || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: direct true" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_DIRECT_TRUE_OK" >/dev/ttyS0
+
+  poly_alpine_run "sh -c true" 45 /bin/sh -c 'true' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: sh true" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_SH_TRUE_OK" >/dev/ttyS0
+
+  poly_alpine_run "sh -c echo" 45 \
+    /bin/sh -c 'echo POLY_ALPINE_SHELL_ECHO_OK' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: shell echo" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_SHELL_ECHO_OK" >/dev/ttyS0
+
+  poly_alpine_run "sh -c stderr echo" 45 \
+    /bin/sh -c 'echo POLY_ALPINE_SHELL_STDERR_ECHO_OK >&2' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: shell stderr echo" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_SHELL_STDERR_ECHO_OK" >/dev/ttyS0
+
+  poly_alpine_run "sh -c compound builtins" 45 \
+    /bin/sh -c 'echo POLY_ALPINE_SHELL_COMPOUND_BEFORE >&2; :; echo POLY_ALPINE_SHELL_COMPOUND_AFTER >&2' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: shell compound builtins" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_SHELL_COMPOUND_OK" >/dev/ttyS0
+
+  poly_alpine_run "sh -c external true" 60 \
+    /bin/sh -c 'echo POLY_ALPINE_SHELL_BEFORE_TRUE >&2; /bin/true; echo POLY_ALPINE_SHELL_AFTER_TRUE >&2' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: shell external true" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_SHELL_EXTERNAL_TRUE_OK" >/dev/ttyS0
+
+  poly_alpine_run "direct apk --version" 45 /sbin/apk --version || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: direct apk version" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_APK_VERSION_OK" >/dev/ttyS0
+
+  poly_alpine_run "sh -c apk --version" 60 \
+    /bin/sh -c 'echo POLY_ALPINE_SHELL_BEFORE_APK >&2; apk --version; echo POLY_ALPINE_SHELL_AFTER_APK >&2' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: shell apk version" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_SHELL_APK_VERSION_OK" >/dev/ttyS0
+
+  poly_alpine_run "direct busybox --install -s" 90 \
+    /bin/busybox --install -s || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: busybox install" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_BUSYBOX_INSTALL_OK" >/dev/ttyS0
+
+  poly_alpine_run "direct cat from file" 45 \
+    /bin/sh -c 'printf "POLY_ALPINE_CAT_INPUT\n" >/tmp/poly-cat-input && /bin/cat /tmp/poly-cat-input >/dev/null' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: direct cat file" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_CAT_FILE_OK" >/dev/ttyS0
+
+  poly_alpine_run "shell echo pipe cat" 45 \
+    /bin/sh -c 'echo POLY_ALPINE_CAT_PIPE_INPUT | /bin/cat >/dev/null' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: shell pipe cat" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_CAT_PIPE_OK" >/dev/ttyS0
+
+  poly_alpine_run "shell inherited fd pipe cat" 45 \
+    /bin/sh -c 'trigger=/tmp/poly-apk-scripts/busybox.trigger && exec 9< "\$trigger" && echo POLY_ALPINE_CAT_PIPE_FD_INPUT | /bin/cat >/dev/null' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: shell inherited fd pipe cat" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_CAT_PIPE_FD_OK" >/dev/ttyS0
+
+  poly_alpine_run "direct busybox apk trigger via fd" 90 \
+    /bin/sh -c 'trigger=/tmp/poly-apk-scripts/busybox.trigger && echo "POLY_ALPINE_TRIGGER_PATH=\$trigger" >&2 && exec 9< "\$trigger" && env -i APK_SCRIPT=trigger APK_PACKAGE=busybox /proc/self/fd/9 /bin /usr/bin /sbin /usr/sbin' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: direct busybox apk trigger fd" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_BUSYBOX_TRIGGER_FD_OK" >/dev/ttyS0
+
+  poly_alpine_run "apk trigger mimic fork pipe exec" 90 \
+    /usr/bin/poly-apk-trigger-mimic || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: apk trigger mimic" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_APK_TRIGGER_MIMIC_OK" >/dev/ttyS0
+
+  if [ "$POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC" = "1" ]; then
+    poly_alpine_run "direct busybox apk trigger via fd pipe" 90 \
+      /bin/sh -c 'trigger=/tmp/poly-apk-scripts/busybox.trigger && echo "POLY_ALPINE_TRIGGER_PIPE_PATH=\$trigger" >&2 && exec 9< "\$trigger" && env -i APK_SCRIPT=trigger APK_PACKAGE=busybox /proc/self/fd/9 /bin /usr/bin /sbin /usr/sbin 2>&1 | /bin/cat >/dev/null' || {
+      echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: direct busybox apk trigger fd pipe" >/dev/ttyS0
+      exit 1
+    }
+    echo "POLY_ALPINE_BINFMT_BUSYBOX_TRIGGER_FD_PIPE_OK" >/dev/ttyS0
+  fi
+
+  poly_alpine_run "apk add curl && curl http://example.com" 180 \
+    /bin/sh -c 'apk --allow-untrusted add curl && curl http://example.com/ -o /tmp/example.html && grep -qi "Example Domain" /tmp/example.html' || {
+    echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: apk curl" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_BINFMT_SMOKE_OK" >/dev/ttyS0
+fi
+
 sleep 1
 poweroff -f || halt -f
 EOF
@@ -12204,6 +12508,8 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_SIGNAL" "POLYSIGNAL_OK" || return 1
   required_section_complete "$RUN_POLY_BENCH" "POLYBENCH_OK" || return 1
   required_section_complete "$RUN_POLY_BINFMT" "POLYBINFMT_OK" || return 1
+  required_section_complete "$RUN_POLY_ALPINE_BINFMT_SMOKE" \
+    "POLY_ALPINE_BINFMT_SMOKE_OK" || return 1
   required_section_complete "$RUN_GUEST_NETWORK_SMOKE" "POLY_GUEST_NETWORK_HTTP_OK" || return 1
 
   if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then

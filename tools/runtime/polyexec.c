@@ -76,6 +76,8 @@ extern char **environ;
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
 #define POLY_OP_STATE_KEY_SET POLY_X86_CTRL_STATE_KEY_SET_ASM
 #define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
+#define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
+#define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_AUTO_SPILL_COUNT_STATUS \
@@ -451,9 +453,10 @@ static size_t process_cross_x86_wrapper_stub_count;
 static int process_cross_state_key_stub_reported;
 static int polyexec_use_explicit_state_key;
 static int polyexec_use_auto_spill;
+static int polyexec_dump_maps_on_fault = -1;
+static int polyexec_protect_runtime_signals = -1;
 static const char *process_cross_report_path;
-static __thread struct poly_xsave_state poly_auto_spill_state
-  __attribute__((aligned(64)));
+static __thread struct poly_xsave_state *poly_auto_spill_state;
 static __thread volatile sig_atomic_t poly_auto_spill_installed;
 struct poly_auto_spill_resume_info {
   uint64_t buffer;
@@ -525,6 +528,9 @@ static volatile uint64_t poly_process_terminal_exit_code;
 static uint8_t *process_brk_mapping;
 static size_t process_brk_mapping_size;
 static uint64_t process_brk_current;
+static int polyexec_trace_syscalls = -1;
+static int polyexec_trace_trap_returns = -1;
+static int poly_trap_vector_active;
 
 struct poly_runtime_trap_packet {
   uint64_t reason;
@@ -536,6 +542,13 @@ struct poly_runtime_trap_packet {
   uint64_t flags;
   uint64_t reserved[2];
   uint64_t args[8];
+};
+
+struct poly_linux_ksigaction {
+  uint64_t handler;
+  uint64_t flags;
+  uint64_t restorer;
+  uint64_t mask;
 };
 
 struct poly_process_exit_finalizer_context {
@@ -585,6 +598,14 @@ static uint64_t poly_state_key_get(void) {
   uint64_t value;
   asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "memory");
   return value;
+}
+
+static inline void poly_state_export(struct poly_xsave_state *state) {
+  asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "r15", "memory");
+}
+
+static inline void poly_state_import(const struct poly_xsave_state *state) {
+  asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "r15", "memory");
 }
 
 static int install_poly_thread_state_key(void) {
@@ -647,10 +668,27 @@ static uint64_t poly_spill_ptr_set(uint64_t buffer, uint64_t resume_rip) {
 static int refresh_poly_auto_spill(void) {
   if (!poly_auto_spill_installed)
     return 0;
-  const uint64_t buffer = (uint64_t) (uintptr_t) &poly_auto_spill_state;
+  if (poly_auto_spill_state == NULL)
+    return -1;
+  const uint64_t buffer = (uint64_t) (uintptr_t) poly_auto_spill_state;
   const uint64_t resume = (uint64_t) (uintptr_t)
     poly_auto_spill_resume_trampoline;
   return poly_spill_ptr_set(buffer, resume) == 0 ? 0 : -1;
+}
+
+static int prefault_poly_auto_spill(void) {
+  if (!poly_auto_spill_installed || poly_auto_spill_state == NULL)
+    return 0;
+
+  volatile uint8_t *bytes = (volatile uint8_t *) poly_auto_spill_state;
+  const size_t size = sizeof(*poly_auto_spill_state);
+  for (size_t offset = 0; offset < size; offset += 4096) {
+    uint8_t value = bytes[offset];
+    bytes[offset] = value;
+  }
+  uint8_t value = bytes[size - 1];
+  bytes[size - 1] = value;
+  return refresh_poly_auto_spill();
 }
 
 static uint64_t poly_auto_spill_count_status(void) {
@@ -1007,39 +1045,84 @@ static void poly_write_hex64_stderr(uint64_t value) {
   poly_write_all_stderr(buf, sizeof(buf));
 }
 
+static int poly_dump_maps_on_fault_enabled(void) {
+  if (polyexec_dump_maps_on_fault < 0) {
+    const char *value = getenv("POLYEXEC_DUMP_MAPS_ON_FAULT");
+    polyexec_dump_maps_on_fault = value != NULL && value[0] != '\0' &&
+      strcmp(value, "0") != 0;
+  }
+  return polyexec_dump_maps_on_fault;
+}
+
+static void poly_dump_proc_maps_stderr(void) {
+  int fd = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
+  if (fd < 0)
+    return;
+  poly_write_literal_stderr("POLYEXEC_MAPS_BEGIN\n");
+  char buf[1024];
+  for (;;) {
+    ssize_t n = read(fd, buf, sizeof(buf));
+    if (n <= 0)
+      break;
+    poly_write_all_stderr(buf, (size_t) n);
+  }
+  poly_write_literal_stderr("POLYEXEC_MAPS_END\n");
+  close(fd);
+}
+
 static void report_poly_spill_page_fault(void) {
-  const uint64_t cr2 = poly_auto_spill_state.trap_args[3];
+  const uint64_t cr2 = poly_auto_spill_state->trap_args[3];
   poly_write_literal_stderr("Poly Page Fault at Address 0x");
   poly_write_hex64_stderr(cr2);
   poly_write_literal_stderr(" PC 0x");
-  poly_write_hex64_stderr(poly_auto_spill_state.header.foreign_pc);
+  poly_write_hex64_stderr(poly_auto_spill_state->header.foreign_pc);
   poly_write_literal_stderr("\n");
+  if (poly_dump_maps_on_fault_enabled())
+    poly_dump_proc_maps_stderr();
 }
 
-static void poly_auto_spill_sigsegv(int signo, siginfo_t *info,
+static void poly_auto_spill_signal(int signo, siginfo_t *info,
     void *ucontext) {
-  (void) info;
   (void) ucontext;
+  poly_write_literal_stderr("POLYEXEC_SIGNAL: signo=0x");
+  poly_write_hex64_stderr((uint64_t) signo);
+  poly_write_literal_stderr(" code=0x");
+  poly_write_hex64_stderr(info != NULL ? (uint64_t) info->si_code : 0);
+  poly_write_literal_stderr(" addr=0x");
+  poly_write_hex64_stderr(info != NULL ? (uint64_t) (uintptr_t) info->si_addr : 0);
+  poly_write_literal_stderr("\n");
   if (poly_auto_spill_installed &&
-      poly_auto_spill_state.header.magic == POLY_STATE_XSAVE_MAGIC &&
-      poly_auto_spill_state.header.spill_reason ==
+      poly_auto_spill_state != NULL &&
+      poly_auto_spill_state->header.magic == POLY_STATE_XSAVE_MAGIC &&
+      poly_auto_spill_state->header.spill_reason ==
         POLY_SPILL_REASON_PAGE_FAULT) {
     report_poly_spill_page_fault();
     _exit(128 + signo);
   }
+  if (poly_auto_spill_state != NULL &&
+      poly_auto_spill_state->header.magic == POLY_STATE_XSAVE_MAGIC) {
+    poly_write_literal_stderr(" spill_reason=0x");
+    poly_write_hex64_stderr(poly_auto_spill_state->header.spill_reason);
+    poly_write_literal_stderr(" foreign_pc=0x");
+    poly_write_hex64_stderr(poly_auto_spill_state->header.foreign_pc);
+  }
+  poly_write_literal_stderr("POLYEXEC_SIGNAL_STATE_END\n");
+  if (poly_dump_maps_on_fault_enabled())
+    poly_dump_proc_maps_stderr();
   _exit(128 + signo);
 }
 
 __attribute__((noinline, used))
 static uint64_t poly_auto_spill_resume_dispatch(void) {
   if (!poly_auto_spill_installed ||
-      poly_auto_spill_state.header.magic != POLY_STATE_XSAVE_MAGIC) {
+      poly_auto_spill_state == NULL ||
+      poly_auto_spill_state->header.magic != POLY_STATE_XSAVE_MAGIC) {
     poly_write_literal_stderr(
       "POLYEXEC_FAIL: auto-spill resume without valid spill image\n");
     _exit(125);
   }
 
-  const uint32_t reason = poly_auto_spill_state.header.spill_reason;
+  const uint32_t reason = poly_auto_spill_state->header.spill_reason;
   if (reason == POLY_SPILL_REASON_INTERRUPT) {
     if (refresh_poly_auto_spill() < 0) {
       poly_write_literal_stderr(
@@ -1047,9 +1130,9 @@ static uint64_t poly_auto_spill_resume_dispatch(void) {
       _exit(125);
     }
     poly_auto_spill_resume_info.buffer =
-      (uint64_t) (uintptr_t) &poly_auto_spill_state;
+      (uint64_t) (uintptr_t) poly_auto_spill_state;
     poly_auto_spill_resume_info.mode =
-      poly_auto_spill_state.header.current_mode;
+      poly_auto_spill_state->header.current_mode;
     return (uint64_t) (uintptr_t) &poly_auto_spill_resume_info;
   }
 
@@ -1107,11 +1190,22 @@ static void poly_auto_spill_resume_trampoline(void) {
 }
 
 static int install_poly_auto_spill(void) {
-  memset(&poly_auto_spill_state, 0, sizeof(poly_auto_spill_state));
+  if (poly_auto_spill_state == NULL) {
+    poly_auto_spill_state = mmap(NULL, sizeof(*poly_auto_spill_state),
+      PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+    if (poly_auto_spill_state == MAP_FAILED) {
+      poly_auto_spill_state = NULL;
+      fprintf(stderr, "POLYEXEC_FAIL: auto-spill mmap failed: %s\n",
+        strerror(errno));
+      return -1;
+    }
+  }
+  memset(poly_auto_spill_state, 0, sizeof(*poly_auto_spill_state));
 
   struct sigaction action;
   memset(&action, 0, sizeof(action));
-  action.sa_sigaction = poly_auto_spill_sigsegv;
+  action.sa_sigaction = poly_auto_spill_signal;
   sigemptyset(&action.sa_mask);
   action.sa_flags = SA_SIGINFO;
   if (sigaction(SIGSEGV, &action, NULL) != 0) {
@@ -1119,8 +1213,22 @@ static int install_poly_auto_spill(void) {
       strerror(errno));
     return -1;
   }
+  if (sigaction(SIGBUS, &action, NULL) != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: SIGBUS handler install failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  sigset_t runtime_signals;
+  sigemptyset(&runtime_signals);
+  sigaddset(&runtime_signals, SIGSEGV);
+  sigaddset(&runtime_signals, SIGBUS);
+  if (sigprocmask(SIG_UNBLOCK, &runtime_signals, NULL) != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: runtime signal unblock failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
 
-  const uint64_t buffer = (uint64_t) (uintptr_t) &poly_auto_spill_state;
+  const uint64_t buffer = (uint64_t) (uintptr_t) poly_auto_spill_state;
   const uint64_t resume = (uint64_t) (uintptr_t)
     poly_auto_spill_resume_trampoline;
   poly_auto_spill_installed = 1;
@@ -2658,6 +2766,142 @@ static uint64_t poly_dispatch_process_brk(uint64_t requested_break) {
   return process_brk_current;
 }
 
+static uint64_t poly_dispatch_private_exec_file_mmap(uint64_t address,
+    uint64_t length_arg, uint64_t prot, uint64_t flags, uint64_t fd_arg,
+    uint64_t offset_arg) {
+  if (length_arg == 0 || length_arg > SIZE_MAX || offset_arg > INT64_MAX)
+    return (uint64_t) -EINVAL;
+
+  const int fd = (int) fd_arg;
+  struct stat st;
+  if (fstat(fd, &st) != 0)
+    return (uint64_t) -errno;
+  if (st.st_size < 0)
+    return (uint64_t) -EINVAL;
+
+  int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  if ((flags & MAP_FIXED) != 0)
+    mmap_flags |= MAP_FIXED;
+  if ((flags & MAP_FIXED_NOREPLACE) != 0)
+    mmap_flags |= MAP_FIXED_NOREPLACE;
+
+  const size_t length = (size_t) length_arg;
+  const int load_prot = PROT_READ | PROT_WRITE | (prot & PROT_EXEC);
+  void *mapping = mmap((void *) (uintptr_t) address, length, load_prot,
+    mmap_flags, -1, 0);
+  if (mapping == MAP_FAILED)
+    return (uint64_t) -errno;
+
+  uint64_t available = 0;
+  const uint64_t file_size = (uint64_t) st.st_size;
+  if (offset_arg < file_size) {
+    available = file_size - offset_arg;
+    if (available > length_arg)
+      available = length_arg;
+  }
+
+  uint8_t *dest = (uint8_t *) mapping;
+  size_t copied = 0;
+  while (copied < available) {
+    const size_t remaining = (size_t) (available - copied);
+    ssize_t got = pread(fd, dest + copied, remaining,
+      (off_t) (offset_arg + copied));
+    if (got < 0) {
+      if (errno == EINTR)
+        continue;
+      const int saved_errno = errno;
+      munmap(mapping, length);
+      return (uint64_t) -saved_errno;
+    }
+    if (got == 0)
+      break;
+    copied += (size_t) got;
+  }
+
+  if (mprotect(mapping, length, (int) prot) != 0) {
+    const int saved_errno = errno;
+    munmap(mapping, length);
+    return (uint64_t) -saved_errno;
+  }
+
+  return (uint64_t) (uintptr_t) mapping;
+}
+
+static void poly_sanitize_guest_sigaction(struct poly_linux_ksigaction *action) {
+  if (action->handler != (uint64_t) (uintptr_t) SIG_DFL &&
+      action->handler != (uint64_t) (uintptr_t) SIG_IGN) {
+    action->handler = (uint64_t) (uintptr_t) SIG_DFL;
+    action->flags = 0;
+  }
+  action->restorer = 0;
+}
+
+static void poly_store_default_guest_sigaction(uint64_t oldact) {
+  if (oldact == 0)
+    return;
+  struct poly_linux_ksigaction *guest_oldact =
+    (struct poly_linux_ksigaction *) (uintptr_t) oldact;
+  memset(guest_oldact, 0, sizeof(*guest_oldact));
+  guest_oldact->handler = (uint64_t) (uintptr_t) SIG_DFL;
+}
+
+static uint64_t poly_sigset_clear_signal(uint64_t mask, int signum) {
+  if (signum <= 0 || signum > 64)
+    return mask;
+  return mask & ~(1ULL << (uint64_t) (signum - 1));
+}
+
+static uint64_t poly_sanitize_host_runtime_sigset(uint64_t mask) {
+  mask = poly_sigset_clear_signal(mask, SIGSEGV);
+  mask = poly_sigset_clear_signal(mask, SIGBUS);
+  return mask;
+}
+
+static int poly_protect_runtime_signals_enabled(void) {
+  if (polyexec_protect_runtime_signals < 0) {
+    const char *value = getenv("POLYEXEC_PROTECT_RUNTIME_SIGNALS");
+    polyexec_protect_runtime_signals = value != NULL && value[0] != '\0' &&
+      strcmp(value, "0") != 0;
+  }
+  return polyexec_protect_runtime_signals;
+}
+
+static uint64_t poly_dispatch_rt_sigprocmask(uint64_t how, uint64_t set,
+    uint64_t oldset, uint64_t sigsetsize) {
+  if (sigsetsize != 8)
+    return (uint64_t) -EINVAL;
+
+  uint64_t host_set = 0;
+  uint64_t host_oldset = 0;
+  uint64_t *host_set_ptr = NULL;
+  uint64_t *host_oldset_ptr = NULL;
+
+  if (set != 0) {
+    host_set = *(const uint64_t *) (uintptr_t) set;
+    const uint64_t sanitized = poly_sanitize_host_runtime_sigset(host_set);
+    if (sanitized != host_set) {
+      fprintf(stderr,
+        "POLYEXEC_GUEST_SIGMASK_VIRTUAL: how=%llu mask=0x%llx sanitized=0x%llx\n",
+        (unsigned long long) how,
+        (unsigned long long) host_set,
+        (unsigned long long) sanitized);
+    }
+    host_set = sanitized;
+    host_set_ptr = &host_set;
+  }
+  if (oldset != 0)
+    host_oldset_ptr = &host_oldset;
+
+  long status = poly_x86_syscall6(SYS_rt_sigprocmask, how,
+    (uint64_t) (uintptr_t) host_set_ptr,
+    (uint64_t) (uintptr_t) host_oldset_ptr, sigsetsize, 0, 0);
+  if (status == 0 && oldset != 0) {
+    *(uint64_t *) (uintptr_t) oldset =
+      poly_sanitize_host_runtime_sigset(host_oldset);
+  }
+  return (uint64_t) status;
+}
+
 static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode) {
   if (mode != POLY_MODE_RAW_AARCH64)
     return flags;
@@ -2687,6 +2931,55 @@ static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode) {
   return translated;
 }
 
+static uint64_t poly_dispatch_rt_sigaction(uint64_t mode, uint64_t signum,
+    uint64_t act, uint64_t oldact, uint64_t sigsetsize) {
+  if (!poly_is_raw_foreign_mode(mode))
+    return (uint64_t) -ENOSYS;
+  if (sigsetsize != 8)
+    return (uint64_t) -EINVAL;
+  if (signum == SIGSEGV || signum == SIGBUS) {
+    const struct poly_linux_ksigaction *guest_act =
+      act != 0 ? (const struct poly_linux_ksigaction *) (uintptr_t) act : NULL;
+    fprintf(stderr,
+      "POLYEXEC_GUEST_SIGACTION_VIRTUAL: signum=%llu act=0x%llx handler=0x%llx flags=0x%llx oldact=0x%llx\n",
+      (unsigned long long) signum,
+      (unsigned long long) act,
+      guest_act != NULL ? (unsigned long long) guest_act->handler : 0,
+      guest_act != NULL ? (unsigned long long) guest_act->flags : 0,
+      (unsigned long long) oldact);
+    poly_store_default_guest_sigaction(oldact);
+    return 0;
+  }
+
+  struct poly_linux_ksigaction host_act;
+  struct poly_linux_ksigaction host_oldact;
+  struct poly_linux_ksigaction *host_act_ptr = NULL;
+  struct poly_linux_ksigaction *host_oldact_ptr = NULL;
+
+  if (act != 0) {
+    const struct poly_linux_ksigaction *guest_act =
+      (const struct poly_linux_ksigaction *) (uintptr_t) act;
+    host_act = *guest_act;
+    poly_sanitize_guest_sigaction(&host_act);
+    host_act_ptr = &host_act;
+  }
+  if (oldact != 0) {
+    memset(&host_oldact, 0, sizeof(host_oldact));
+    host_oldact_ptr = &host_oldact;
+  }
+
+  long status = poly_x86_syscall6(SYS_rt_sigaction, signum,
+    (uint64_t) (uintptr_t) host_act_ptr,
+    (uint64_t) (uintptr_t) host_oldact_ptr, sigsetsize, 0, 0);
+  if (status == 0 && oldact != 0) {
+    struct poly_linux_ksigaction *guest_oldact =
+      (struct poly_linux_ksigaction *) (uintptr_t) oldact;
+    poly_sanitize_guest_sigaction(&host_oldact);
+    *guest_oldact = host_oldact;
+  }
+  return (uint64_t) status;
+}
+
 static void poly_prefault_range(uint64_t address, uint64_t length,
     int writable) {
   if (address == 0 || length == 0 || length > (uint64_t) SIZE_MAX)
@@ -2706,6 +2999,106 @@ static void poly_prefault_range(uint64_t address, uint64_t length,
 static void poly_prefault_writable_range(uint64_t address, uint64_t length) {
   poly_prefault_range(address, length, 1);
 }
+
+static void poly_prefault_writable_mapping_line(const char *line) {
+  char *end = NULL;
+  const uint64_t start = strtoull(line, &end, 16);
+  if (end == line || *end != '-')
+    return;
+  const uint64_t stop = strtoull(end + 1, &end, 16);
+  if (end == line || start >= stop)
+    return;
+  while (*end == ' ')
+    end++;
+  if (end[0] == '\0' || end[1] != 'w')
+    return;
+  poly_prefault_writable_range(start, stop - start);
+}
+
+static void poly_prefault_executable_mapping_line(const char *line) {
+  char *end = NULL;
+  const uint64_t start = strtoull(line, &end, 16);
+  if (end == line || *end != '-')
+    return;
+  const uint64_t stop = strtoull(end + 1, &end, 16);
+  if (end == line || start >= stop)
+    return;
+  while (*end == ' ')
+    end++;
+  if (end[0] != 'r' || end[2] != 'x')
+    return;
+  poly_prefault_range(start, stop - start, 0);
+}
+
+static void poly_prefault_writable_mappings(void) {
+  int fd = (int) poly_x86_syscall6(SYS_openat, AT_FDCWD,
+    (uint64_t) (uintptr_t) "/proc/self/maps", O_RDONLY | O_CLOEXEC,
+    0, 0, 0);
+  if (fd < 0)
+    return;
+
+  char buffer[8192];
+  char line[512];
+  size_t line_len = 0;
+  for (;;) {
+    long count = poly_x86_syscall6(SYS_read, fd,
+      (uint64_t) (uintptr_t) buffer, sizeof(buffer), 0, 0, 0);
+    if (count <= 0)
+      break;
+    for (long n = 0; n < count; n++) {
+      char ch = buffer[n];
+      if (ch == '\n') {
+        line[line_len] = '\0';
+        poly_prefault_writable_mapping_line(line);
+        line_len = 0;
+        continue;
+      }
+      if (line_len + 1 < sizeof(line))
+        line[line_len++] = ch;
+    }
+  }
+  if (line_len != 0) {
+    line[line_len] = '\0';
+    poly_prefault_writable_mapping_line(line);
+  }
+  (void) poly_x86_syscall6(SYS_close, fd, 0, 0, 0, 0, 0);
+}
+
+static void poly_prefault_executable_mappings(void) {
+  int fd = (int) poly_x86_syscall6(SYS_openat, AT_FDCWD,
+    (uint64_t) (uintptr_t) "/proc/self/maps", O_RDONLY | O_CLOEXEC,
+    0, 0, 0);
+  if (fd < 0)
+    return;
+
+  char buffer[8192];
+  char line[512];
+  size_t line_len = 0;
+  for (;;) {
+    long count = poly_x86_syscall6(SYS_read, fd,
+      (uint64_t) (uintptr_t) buffer, sizeof(buffer), 0, 0, 0);
+    if (count <= 0)
+      break;
+    for (long n = 0; n < count; n++) {
+      char ch = buffer[n];
+      if (ch == '\n') {
+        line[line_len] = '\0';
+        poly_prefault_executable_mapping_line(line);
+        line_len = 0;
+        continue;
+      }
+      if (line_len + 1 < sizeof(line))
+        line[line_len++] = ch;
+    }
+  }
+  if (line_len != 0) {
+    line[line_len] = '\0';
+    poly_prefault_executable_mapping_line(line);
+  }
+  (void) poly_x86_syscall6(SYS_close, fd, 0, 0, 0, 0, 0);
+}
+
+static void poly_trap_vector_handler(void);
 
 static int poly_handle_structured_foreign_syscall(uint64_t number,
     uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
@@ -2789,6 +3182,15 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         poly_store_linux_generic_stat(arg1, &stat_result);
       *result = (uint64_t) status;
       return 1;
+    case 134:
+      *result = poly_dispatch_rt_sigaction(mode, arg0, arg1, arg2, arg3);
+      return 1;
+    case 135:
+      if (!poly_is_raw_foreign_mode(mode) ||
+          !poly_protect_runtime_signals_enabled())
+        return 0;
+      *result = poly_dispatch_rt_sigprocmask(arg0, arg1, arg2, arg3);
+      return 1;
     case 160:
       status = poly_x86_syscall6(SYS_uname, arg0, 0, 0, 0, 0, 0);
       if (status == 0 && arg0 != 0) {
@@ -2841,6 +3243,15 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
       return 1;
     case 222: {
       uint64_t flags = arg3;
+      if (poly_process_exit_finalizers.active &&
+          (arg2 & PROT_EXEC) != 0 &&
+          (flags & MAP_PRIVATE) != 0 &&
+          (flags & MAP_ANONYMOUS) == 0 &&
+          (int64_t) arg4 >= 0) {
+        *result = poly_dispatch_private_exec_file_mmap(arg0, arg1, arg2,
+          flags, arg4, arg5);
+        return 1;
+      }
       if ((arg2 & PROT_WRITE) != 0)
         flags |= MAP_POPULATE;
       *result = (uint64_t) poly_x86_syscall6(SYS_mmap, arg0, arg1, arg2,
@@ -2946,6 +3357,7 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 85: *x86_number = SYS_timerfd_create; return 1;
     case 86: *x86_number = SYS_timerfd_settime; return 1;
     case 87: *x86_number = SYS_timerfd_gettime; return 1;
+    case 88: *x86_number = SYS_utimensat; return 1;
     case 90: *x86_number = SYS_capget; return 1;
     case 91: *x86_number = SYS_capset; return 1;
     case 92: *x86_number = SYS_personality; return 1;
@@ -3462,12 +3874,131 @@ static uint64_t poly_handle_foreign_import(uint64_t number,
 
 static void report_poly_monitor_packets(void);
 
+static int poly_trace_syscalls_enabled(void) {
+  if (polyexec_trace_syscalls < 0) {
+    const char *value = getenv("POLYEXEC_TRACE_SYSCALLS");
+    polyexec_trace_syscalls = value != NULL && value[0] != '\0' &&
+      strcmp(value, "0") != 0;
+  }
+  return polyexec_trace_syscalls;
+}
+
+static int poly_trace_trap_returns_enabled(void) {
+  if (polyexec_trace_trap_returns < 0) {
+    const char *value = getenv("POLYEXEC_TRACE_TRAP_RETURNS");
+    polyexec_trace_trap_returns = value != NULL && value[0] != '\0' &&
+      strcmp(value, "0") != 0;
+  }
+  return polyexec_trace_trap_returns;
+}
+
+static void poly_trace_syscall_result(
+    const struct poly_runtime_trap_packet *packet, const char *path,
+    long x86_number, uint64_t result) {
+  if (!poly_trace_syscalls_enabled())
+    return;
+  const char *open_path = NULL;
+  uint64_t translated_open_flags = 0;
+  if (packet->number == 56 && packet->args[1] != 0) {
+    open_path = (const char *) (uintptr_t) packet->args[1];
+    translated_open_flags =
+      poly_translate_open_flags(packet->args[2], packet->mode);
+  }
+  fprintf(stderr,
+    "POLYEXEC_SYSCALL: path=%s mode=%llu nr=%llu x86=%ld result=%lld pc=0x%llx next=0x%llx flags=0x%llx args=0x%llx,0x%llx,0x%llx,0x%llx,0x%llx,0x%llx",
+    path,
+    (unsigned long long) packet->mode,
+    (unsigned long long) packet->number,
+    x86_number,
+    (long long) result,
+    (unsigned long long) packet->pc,
+    (unsigned long long) packet->next_pc,
+    (unsigned long long) packet->flags,
+    (unsigned long long) packet->args[0],
+    (unsigned long long) packet->args[1],
+    (unsigned long long) packet->args[2],
+    (unsigned long long) packet->args[3],
+    (unsigned long long) packet->args[4],
+    (unsigned long long) packet->args[5]);
+  if (open_path != NULL)
+    fprintf(stderr, " open_path=%s open_flags=0x%llx translated_flags=0x%llx",
+      open_path,
+      (unsigned long long) packet->args[2],
+      (unsigned long long) translated_open_flags);
+  fputc('\n', stderr);
+}
+
+static void poly_trace_trap_return_result(
+    const struct poly_runtime_trap_packet *packet,
+    const struct poly_xsave_state *trap_state, int has_trap_state,
+    uint64_t result) {
+  if (!poly_trace_trap_returns_enabled())
+    return;
+  const struct poly_trap_restore_state *restore =
+    has_trap_state && trap_state != NULL ? &trap_state->trap_restore : NULL;
+  fprintf(stderr,
+    "POLYEXEC_TRAP_RETURN: reason=%llu mode=%llu nr=%llu result=%lld pc=0x%llx next=0x%llx flags=0x%llx has_restore=%d",
+    (unsigned long long) packet->reason,
+    (unsigned long long) packet->mode,
+    (unsigned long long) packet->number,
+    (long long) result,
+    (unsigned long long) packet->pc,
+    (unsigned long long) packet->next_pc,
+    (unsigned long long) packet->flags,
+    has_trap_state);
+  if (restore != NULL) {
+    fprintf(stderr,
+      " restore_flags=0x%llx restore_mode=%u a64_mask=0x%llx a64_x0=0x%llx a64_x1=0x%llx a64_x2=0x%llx a64_x3=0x%llx a64_x7=0x%llx a64_x8=0x%llx a64_x29=0x%llx a64_x30=0x%llx a64_nzcv=0x%llx a64_fpcr=0x%llx a64_fpsr=0x%llx rv_mask=0x%llx rv_a0=0x%llx rv_a7=0x%llx",
+      (unsigned long long) restore->flags,
+      restore->mode,
+      (unsigned long long) restore->aarch64_gpr_valid_mask,
+      (unsigned long long) restore->aarch64_gpr[0],
+      (unsigned long long) restore->aarch64_gpr[1],
+      (unsigned long long) restore->aarch64_gpr[2],
+      (unsigned long long) restore->aarch64_gpr[3],
+      (unsigned long long) restore->aarch64_gpr[7],
+      (unsigned long long) restore->aarch64_gpr[8],
+      (unsigned long long) restore->aarch64_gpr[29],
+      (unsigned long long) restore->aarch64_gpr[30],
+      (unsigned long long) restore->aarch64_nzcv,
+      (unsigned long long) restore->aarch64_fpcr,
+      (unsigned long long) restore->aarch64_fpsr,
+      (unsigned long long) restore->riscv_gpr_valid_mask,
+      (unsigned long long) restore->riscv_gpr[10],
+      (unsigned long long) restore->riscv_gpr[17]);
+  }
+  fputc('\n', stderr);
+}
+
+static uint64_t poly_trap_vector_return_result(uint64_t result,
+    const struct poly_runtime_trap_packet *packet,
+    const struct poly_xsave_state *trap_state, int has_trap_state) {
+  volatile uint64_t saved_result = result;
+  poly_trace_trap_return_result(packet, trap_state, has_trap_state, result);
+  if (has_trap_state)
+    poly_state_import(trap_state);
+  if (polyexec_use_auto_spill)
+    (void) refresh_poly_auto_spill();
+  if (poly_trap_vector_active) {
+    poly_monitor_packet_set_value((uint64_t) (uintptr_t) poly_monitor_packet);
+    poly_trap_vector_mode_set_value(POLY_MODE_X86);
+    poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
+  }
+  return saved_result;
+}
+
 __attribute__((noinline, used))
 uint64_t poly_trap_vector_dispatch(void) {
   struct poly_runtime_trap_packet packet;
+  struct poly_xsave_state trap_state __attribute__((aligned(64)));
+  int has_trap_state = 0;
 
   if (read_poly_monitor_packet(&packet) < 0)
     return (uint64_t) -EIO;
+  if ((packet.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) != 0) {
+    poly_state_export(&trap_state);
+    has_trap_state = 1;
+  }
   poly_monitor_packet_count++;
   if (packet.reason == POLY_TRAP_SYSCALL &&
       packet.mode == POLY_MODE_RAW_AARCH64)
@@ -3489,18 +4020,46 @@ uint64_t poly_trap_vector_dispatch(void) {
     poly_monitor_packet_other_count++;
 
   if (!poly_is_raw_foreign_mode(packet.mode))
-    return (uint64_t) -ENOSYS;
+    return poly_trap_vector_return_result((uint64_t) -ENOSYS,
+      &packet, &trap_state, has_trap_state);
 
   if (packet.reason == POLY_TRAP_SYSCALL) {
     uint64_t structured_result = 0;
     if (poly_handle_structured_foreign_syscall(packet.number, packet.mode,
           packet.args[0], packet.args[1], packet.args[2], packet.args[3],
-          packet.args[4], packet.args[5], &structured_result))
-      return structured_result;
+          packet.args[4], packet.args[5], &structured_result)) {
+      poly_trace_syscall_result(&packet, "structured", -1,
+        structured_result);
+      return poly_trap_vector_return_result(structured_result,
+        &packet, &trap_state, has_trap_state);
+    }
 
-    long x86_number = -1;
-    if (!poly_generic_linux_syscall_to_x86(packet.number, &x86_number))
-      return (uint64_t) -ENOSYS;
+	    long x86_number = -1;
+    if (!poly_generic_linux_syscall_to_x86(packet.number, &x86_number)) {
+      if (packet.number == 240) {
+        fprintf(stderr,
+          "POLYEXEC_SIGNAL_SYSCALL_UNMAPPED: nr=%llu mode=%llu args=0x%llx,0x%llx,0x%llx,0x%llx\n",
+          (unsigned long long) packet.number,
+          (unsigned long long) packet.mode,
+          (unsigned long long) packet.args[0],
+          (unsigned long long) packet.args[1],
+          (unsigned long long) packet.args[2],
+          (unsigned long long) packet.args[3]);
+      }
+      return poly_trap_vector_return_result((uint64_t) -ENOSYS,
+        &packet, &trap_state, has_trap_state);
+    }
+    if (x86_number == SYS_kill || x86_number == SYS_tkill ||
+        x86_number == SYS_tgkill || x86_number == SYS_pidfd_send_signal) {
+      fprintf(stderr,
+        "POLYEXEC_SIGNAL_SYSCALL: foreign_nr=%llu x86_nr=%ld mode=%llu args=0x%llx,0x%llx,0x%llx,0x%llx\n",
+        (unsigned long long) packet.number, x86_number,
+        (unsigned long long) packet.mode,
+        (unsigned long long) packet.args[0],
+        (unsigned long long) packet.args[1],
+        (unsigned long long) packet.args[2],
+        (unsigned long long) packet.args[3]);
+    }
     if (x86_number == SYS_exit || x86_number == SYS_exit_group) {
       poly_process_terminal_exit_code = packet.args[0];
       if (run_process_exit_finalizers() < 0)
@@ -3518,17 +4077,40 @@ uint64_t poly_trap_vector_dispatch(void) {
     uint64_t args[6];
     for (size_t n = 0; n < 6; n++)
       args[n] = packet.args[n];
-    return (uint64_t) poly_x86_syscall6(x86_number, args[0], args[1],
-      args[2], args[3], args[4], args[5]);
+    if (x86_number == SYS_clone &&
+        (packet.mode == POLY_MODE_RAW_AARCH64 ||
+         packet.mode == POLY_MODE_RAW_RISCV)) {
+      const uint64_t child_tid = args[4];
+      args[4] = args[3];
+      args[3] = child_tid;
+    }
+    uint64_t syscall_result = (uint64_t) poly_x86_syscall6(x86_number,
+      args[0], args[1], args[2], args[3], args[4], args[5]);
+    if ((x86_number == SYS_clone || x86_number == SYS_clone3) &&
+        (int64_t) syscall_result >= 0) {
+      poly_prefault_executable_mappings();
+      poly_prefault_writable_mappings();
+      if (prefault_poly_auto_spill() < 0)
+        syscall_result = (uint64_t) -EFAULT;
+    }
+    poly_trace_syscall_result(&packet, "generic", x86_number,
+      syscall_result);
+    return poly_trap_vector_return_result(syscall_result,
+      &packet, &trap_state, has_trap_state);
   }
 
   if (packet.reason == POLY_TRAP_BREAK) {
-    return 0x4c000000ULL | (packet.mode << 8) | packet.number;
+    return poly_trap_vector_return_result(
+      0x4c000000ULL | (packet.mode << 8) | packet.number,
+      &packet, &trap_state, has_trap_state);
   }
   if (packet.reason == POLY_TRAP_IMPORT)
-    return poly_handle_foreign_import(packet.number, packet.args);
+    return poly_trap_vector_return_result(
+      poly_handle_foreign_import(packet.number, packet.args),
+      &packet, &trap_state, has_trap_state);
 
-  return (uint64_t) -ENOSYS;
+  return poly_trap_vector_return_result((uint64_t) -ENOSYS,
+    &packet, &trap_state, has_trap_state);
 }
 
 __attribute__((naked, noinline, used))
@@ -3584,12 +4166,14 @@ static void install_poly_trap_vector(void) {
   poly_monitor_packet_set_value((uint64_t) (uintptr_t) poly_monitor_packet);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
+  poly_trap_vector_active = 1;
 }
 
 static void clear_poly_trap_vector(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_monitor_packet_set_value(0);
+  poly_trap_vector_active = 0;
 }
 
 static void report_poly_monitor_packets(void) {
@@ -4695,6 +5279,21 @@ static int copy_stack_string(uint8_t *stack, uint8_t **cursor,
   return 0;
 }
 
+static int parse_u64_env(const char *name, uint64_t *out_value) {
+  const char *value = getenv(name);
+  if (value == NULL || value[0] == '\0')
+    return 0;
+  errno = 0;
+  char *end = NULL;
+  uint64_t parsed = strtoull(value, &end, 0);
+  if (errno != 0 || end == value || *end != '\0') {
+    fprintf(stderr, "POLYEXEC_FAIL: invalid %s=%s\n", name, value);
+    return -1;
+  }
+  *out_value = parsed;
+  return 1;
+}
+
 static int map_process_aarch64_vdso(uint64_t *at_sysinfo_ehdr_out) {
   *at_sysinfo_ehdr_out = 0;
   const char *path = getenv("POLY_AARCH64_VDSO_PATH");
@@ -4938,6 +5537,13 @@ static int build_process_stack(const struct poly_program *program,
       POLY_AARCH64_HWCAP_ASIMD |
       POLY_AARCH64_HWCAP_ATOMICS |
       POLY_AARCH64_HWCAP_CPUID;
+    int override = parse_u64_env("POLYEXEC_AARCH64_HWCAP", &hwcap);
+    if (override < 0) {
+      free(argv_ptrs);
+      free(env_ptrs);
+      munmap(stack, stack_size);
+      return -1;
+    }
   } else if (program->arch == POLY_ARCH_RISCV) {
     hwcap = POLY_RISCV_HWCAP_ISA_A |
       POLY_RISCV_HWCAP_ISA_C |
@@ -8618,10 +9224,14 @@ static int emit_and_run_exit_child(const struct poly_program *program,
     install_poly_trap_vector();
 
   if (WIFEXITED(status)) {
+    printf("POLYEXEC_PROCESS_CHILD_STATUS: path=%s raw=0x%x exit=%d\n",
+      program->path, status, WEXITSTATUS(status));
     *result = (uint64_t) WEXITSTATUS(status);
     return 0;
   }
   if (WIFSIGNALED(status)) {
+    printf("POLYEXEC_PROCESS_CHILD_STATUS: path=%s raw=0x%x signal=%d\n",
+      program->path, status, WTERMSIG(status));
     *result = (uint64_t) (128 + WTERMSIG(status));
     return 0;
   }
@@ -8635,6 +9245,9 @@ static int poly_process_uses_real_interpreter(const struct poly_program *program
     const struct poly_request *request, int extra_argc, char **extra_argv) {
   if (!program->has_interp || request->symbol[0])
     return 0;
+  const char *force_interpreter = getenv("POLY_PROCESS_REAL_INTERPRETER");
+  if (force_interpreter != NULL && strcmp(force_interpreter, "1") == 0)
+    return 1;
   const char *base = strrchr(program->path, '/');
   base = base ? base + 1 : program->path;
   if (strcmp(base, "aarch64-real-ls.elf") == 0 ||
@@ -8692,10 +9305,16 @@ static int emit_and_run_process_child(struct poly_program *program,
   }
 
   if (WIFEXITED(status)) {
+    fprintf(stderr, "POLYEXEC_PROCESS_CHILD_STATUS: path=%s raw=0x%x exit=%d\n",
+      program->path, status, WEXITSTATUS(status));
+    fflush(stderr);
     *result = (uint64_t) WEXITSTATUS(status);
     return 0;
   }
   if (WIFSIGNALED(status)) {
+    fprintf(stderr, "POLYEXEC_PROCESS_CHILD_STATUS: path=%s raw=0x%x signal=%d\n",
+      program->path, status, WTERMSIG(status));
+    fflush(stderr);
     *result = (uint64_t) (128 + WTERMSIG(status));
     return 0;
   }
@@ -8715,7 +9334,7 @@ static void *poly_thread_run_worker(void *arg) {
     return NULL;
   if (polyexec_use_auto_spill && install_poly_auto_spill() < 0)
     return NULL;
-  ctx->spill_buffer = (uint64_t) (uintptr_t) &poly_auto_spill_state;
+  ctx->spill_buffer = (uint64_t) (uintptr_t) poly_auto_spill_state;
   if (ctx->use_trap_vector)
     install_poly_trap_vector();
 
