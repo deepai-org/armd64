@@ -14,7 +14,9 @@
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#include <sys/ipc.h>
 #include <sys/resource.h>
+#include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/vfs.h>
@@ -227,8 +229,8 @@ extern char **environ;
 #define POLY_RISCV_HWPROBE_EXT_ZICNTR (1ULL << 50)
 #define POLY_RISCV_HWPROBE_KEY_CPUPERF_0 5
 
-#define POLY_AARCH64_O_DIRECTORY 040000ULL
-#define POLY_AARCH64_O_DIRECT 0200000ULL
+#define POLY_AARCH64_O_DIRECT 040000ULL
+#define POLY_AARCH64_O_DIRECTORY 0200000ULL
 #define POLY_RISCV_HWPROBE_KEY_ZICBOZ_BLOCK_SIZE 6
 #define POLY_RISCV_HWPROBE_KEY_HIGHEST_VIRT_ADDRESS 7
 #define POLY_RISCV_HWPROBE_KEY_TIME_CSR_FREQ 8
@@ -2776,6 +2778,21 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         return 0;
       *result = poly_dispatch_process_brk(arg0);
       return 1;
+    case 196: {
+      *result = (uint64_t) poly_x86_syscall6(SYS_shmat, arg0, arg1, arg2,
+        0, 0, 0);
+      if (poly_process_exit_finalizers.active && (int64_t) *result >= 0) {
+        struct shmid_ds shm_stat;
+        uint64_t prefault_length = 1;
+        if (poly_x86_syscall6(SYS_shmctl, arg0, IPC_STAT,
+              (uint64_t) (uintptr_t) &shm_stat, 0, 0, 0) == 0 &&
+            shm_stat.shm_segsz > 0)
+          prefault_length = (uint64_t) shm_stat.shm_segsz;
+        poly_prefault_range(*result, prefault_length,
+          (arg2 & SHM_RDONLY) == 0);
+      }
+      return 1;
+    }
     case 216:
       if (!poly_process_exit_finalizers.active)
         return 0;
@@ -2971,19 +2988,36 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 177: *x86_number = SYS_getegid; return 1;
     case 178: *x86_number = SYS_gettid; return 1;
     case 179: *x86_number = SYS_sysinfo; return 1;
-    case 180: *x86_number = SYS_socket; return 1;
-    case 181: *x86_number = SYS_socketpair; return 1;
-    case 182: *x86_number = SYS_bind; return 1;
-    case 183: *x86_number = SYS_listen; return 1;
-    case 184: *x86_number = SYS_accept; return 1;
-    case 185: *x86_number = SYS_connect; return 1;
-    case 186: *x86_number = SYS_getsockname; return 1;
-    case 187: *x86_number = SYS_getpeername; return 1;
-    case 188: *x86_number = SYS_sendto; return 1;
-    case 189: *x86_number = SYS_recvfrom; return 1;
-    case 190: *x86_number = SYS_setsockopt; return 1;
-    case 191: *x86_number = SYS_getsockopt; return 1;
-    case 192: *x86_number = SYS_shutdown; return 1;
+#ifdef SYS_mq_open
+    case 180: *x86_number = SYS_mq_open; return 1;
+#endif
+#ifdef SYS_mq_unlink
+    case 181: *x86_number = SYS_mq_unlink; return 1;
+#endif
+#ifdef SYS_mq_timedsend
+    case 182: *x86_number = SYS_mq_timedsend; return 1;
+#endif
+#ifdef SYS_mq_timedreceive
+    case 183: *x86_number = SYS_mq_timedreceive; return 1;
+#endif
+#ifdef SYS_mq_notify
+    case 184: *x86_number = SYS_mq_notify; return 1;
+#endif
+#ifdef SYS_mq_getsetattr
+    case 185: *x86_number = SYS_mq_getsetattr; return 1;
+#endif
+    case 186: *x86_number = SYS_msgget; return 1;
+    case 187: *x86_number = SYS_msgctl; return 1;
+    case 188: *x86_number = SYS_msgrcv; return 1;
+    case 189: *x86_number = SYS_msgsnd; return 1;
+    case 190: *x86_number = SYS_semget; return 1;
+    case 191: *x86_number = SYS_semctl; return 1;
+    case 192: *x86_number = SYS_semtimedop; return 1;
+    case 193: *x86_number = SYS_semop; return 1;
+    case 194: *x86_number = SYS_shmget; return 1;
+    case 195: *x86_number = SYS_shmctl; return 1;
+    case 196: *x86_number = SYS_shmat; return 1;
+    case 197: *x86_number = SYS_shmdt; return 1;
     case 198: *x86_number = SYS_socket; return 1;
     case 199: *x86_number = SYS_socketpair; return 1;
     case 200: *x86_number = SYS_bind; return 1;

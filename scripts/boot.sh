@@ -12459,6 +12459,10 @@ EOF
           sleep 1
           continue
         fi
+        if [[ "$(grep -c "POLY_SYSV_IPC_OK: shm=1 sem=1 fcntl=1" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=25 process=1 path=/usr/lib/polyapps/aarch64-process-import-trap-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue

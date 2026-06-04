@@ -34,6 +34,12 @@ enum {
   POLY_F_SETFD = 2,
   POLY_FD_CLOEXEC = 1,
   POLY_FIONREAD = 0x541b,
+  POLY_IPC_PRIVATE = 0,
+  POLY_IPC_CREAT = 01000,
+  POLY_IPC_RMID = 0,
+  POLY_SHM_ATTACH_HINT = 0x600000000000ULL,
+  POLY_SEM_GETVAL = 12,
+  POLY_SEM_SETVAL = 16,
   POLY_LOCK_EX = 2,
   POLY_LOCK_NB = 4,
   POLY_LOCK_UN = 8,
@@ -185,6 +191,14 @@ enum {
   POLY_SYS_GETGID = 176,
   POLY_SYS_GETEGID = 177,
   POLY_SYS_GETTID = 178,
+  POLY_SYS_SEMGET = 190,
+  POLY_SYS_SEMCTL = 191,
+  POLY_SYS_SEMTIMEDOP = 192,
+  POLY_SYS_SEMOP = 193,
+  POLY_SYS_SHMGET = 194,
+  POLY_SYS_SHMCTL = 195,
+  POLY_SYS_SHMAT = 196,
+  POLY_SYS_SHMDT = 197,
   POLY_SYS_SOCKET = 198,
   POLY_SYS_SOCKETPAIR = 199,
   POLY_SYS_BIND = 200,
@@ -287,6 +301,12 @@ struct poly_futex_waitv {
   uint64_t uaddr;
   uint32_t flags;
   uint32_t reserved;
+};
+
+struct poly_sembuf {
+  uint16_t num;
+  int16_t op;
+  int16_t flags;
 };
 
 struct poly_sockaddr_un {
@@ -976,6 +996,71 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   long cloexec_flags = poly_syscall3(POLY_SYS_FCNTL, fd, POLY_F_GETFD, 0);
   if ((cloexec_flags & POLY_FD_CLOEXEC) == 0)
     return 93;
+
+  long shm_id = poly_syscall3(POLY_SYS_SHMGET, POLY_IPC_PRIVATE, 4096,
+    POLY_IPC_CREAT | 0600);
+  if (shm_id < 0)
+    return 381;
+  long shm_addr_value = poly_syscall3(POLY_SYS_SHMAT, shm_id,
+    POLY_SHM_ATTACH_HINT, 0);
+  if (shm_addr_value < 0 && shm_addr_value > -4096) {
+    poly_syscall3(POLY_SYS_SHMCTL, shm_id, POLY_IPC_RMID, 0);
+    return 382;
+  }
+  volatile unsigned char *shm_bytes =
+    (volatile unsigned char *) (uintptr_t) shm_addr_value;
+  shm_bytes[0] = 0x51;
+  shm_bytes[4095] = 0xa7;
+  if (shm_bytes[0] != 0x51 || shm_bytes[4095] != 0xa7) {
+    poly_syscall2(POLY_SYS_SHMDT, shm_addr_value, 0);
+    poly_syscall3(POLY_SYS_SHMCTL, shm_id, POLY_IPC_RMID, 0);
+    return 383;
+  }
+  if (poly_syscall3(POLY_SYS_SHMCTL, shm_id, POLY_IPC_RMID, 0) != 0) {
+    poly_syscall2(POLY_SYS_SHMDT, shm_addr_value, 0);
+    return 384;
+  }
+  if (poly_syscall2(POLY_SYS_SHMDT, shm_addr_value, 0) != 0)
+    return 385;
+
+  long sem_id = poly_syscall3(POLY_SYS_SEMGET, POLY_IPC_PRIVATE, 1,
+    POLY_IPC_CREAT | 0600);
+  if (sem_id < 0)
+    return 386;
+  if (poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_SEM_SETVAL, 1) != 0) {
+    poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_IPC_RMID, 0);
+    return 387;
+  }
+  if (poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_SEM_GETVAL, 0) != 1) {
+    poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_IPC_RMID, 0);
+    return 388;
+  }
+  struct poly_sembuf sem_wait = { 0, -1, 0 };
+  if (poly_syscall4(POLY_SYS_SEMTIMEDOP, sem_id, (long) &sem_wait, 1,
+        0) != 0) {
+    poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_IPC_RMID, 0);
+    return 389;
+  }
+  if (poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_SEM_GETVAL, 0) != 0) {
+    poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_IPC_RMID, 0);
+    return 390;
+  }
+  struct poly_sembuf sem_post = { 0, 1, 0 };
+  if (poly_syscall3(POLY_SYS_SEMOP, sem_id, (long) &sem_post, 1) != 0) {
+    poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_IPC_RMID, 0);
+    return 391;
+  }
+  if (poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_SEM_GETVAL, 0) != 1) {
+    poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_IPC_RMID, 0);
+    return 392;
+  }
+  if (poly_syscall4(POLY_SYS_SEMCTL, sem_id, 0, POLY_IPC_RMID, 0) != 0)
+    return 393;
+  static const char sysv_ok[] =
+    "POLY_SYSV_IPC_OK: shm=1 sem=1 fcntl=1\n";
+  if (poly_syscall3(POLY_SYS_WRITE, 1, (long) sysv_ok,
+        sizeof(sysv_ok) - 1) != (long) sizeof(sysv_ok) - 1)
+    return 394;
 
   struct poly_statx statx_result;
   if (poly_syscall6(POLY_SYS_STATX, POLY_AT_FDCWD,

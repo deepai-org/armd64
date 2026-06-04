@@ -26,6 +26,7 @@ POLYEXEC_FPU_TORTURE_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_fpu_torture
 POLYEXEC_JIT_SELFMOD_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_jit_selfmod_real.c"
 POLYEXEC_PROCESS_EXCEPTION_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
+POLYEXEC_PROCESS_SYSCALL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_syscall_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
 POLYEXEC_PROCESS_VDSO_TIME_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_vdso_time_real.c"
 POLYEXEC_AARCH64_VDSO_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.S"
@@ -647,6 +648,22 @@ assert_contains "aarch64-process-setjmp-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the AArch64 setjmp/longjmp fixture"
 assert_contains "aarch64-process-signal-mask-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the AArch64 signal mask edge fixture"
+assert_contains "case 190: \\*x86_number = SYS_semget" "$POLYEXEC" \
+  "generic Linux syscall 190 must translate to semget for PostgreSQL-style SysV IPC"
+assert_contains "case 192: \\*x86_number = SYS_semtimedop" "$POLYEXEC" \
+  "generic Linux syscall 192 must translate to semtimedop for semaphore waits"
+assert_contains "case 194: \\*x86_number = SYS_shmget" "$POLYEXEC" \
+  "generic Linux syscall 194 must translate to shmget for shared-memory workloads"
+assert_contains "case 196: \\*x86_number = SYS_shmat" "$POLYEXEC" \
+  "generic Linux syscall 196 must translate to shmat for shared-memory attaches"
+assert_contains "#define POLY_AARCH64_O_DIRECT 040000ULL" "$POLYEXEC" \
+  "AArch64/generic O_DIRECT must not be confused with O_DIRECTORY"
+assert_contains "#define POLY_AARCH64_O_DIRECTORY 0200000ULL" "$POLYEXEC" \
+  "AArch64/generic O_DIRECTORY must translate directory opens correctly"
+assert_contains "POLY_SYSV_IPC_OK: shm=1 sem=1 fcntl=1" "$POLYEXEC_PROCESS_SYSCALL_SRC" \
+  "process syscall fixture must prove SysV shm/semaphore and fcntl coverage"
+assert_contains "POLY_SYSV_IPC_OK: shm=1 sem=1 fcntl=1" "$BOOT_SCRIPT" \
+  "boot validation must gate the SysV IPC process syscall marker"
 assert_contains "aarch64-process-vdso-time-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the AArch64 vDSO time fixture"
 assert_contains "aarch64-polyexec-vdso\\.so" "$BOOT_SCRIPT" \
