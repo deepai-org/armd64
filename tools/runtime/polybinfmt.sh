@@ -115,6 +115,7 @@ case "$path" in
   */aarch64-process-dt-fini-needed-real.elf) expected=42; process_mode=1 ;;
   */aarch64-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */aarch64-smp-atomic-real.so) expected=42; entry="#poly_entry" ;;
+  */aarch64-fpu-torture-real.so) expected=6147; entry="#poly_entry" ;;
   */aarch64-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
   */aarch64-pcall-relr.elf) expected=123; entry="#poly_entry" ;;
@@ -396,6 +397,7 @@ case "$path" in
   */riscv-polyexec-gnu-hash-real.so) expected=45; entry="#poly_entry" ;;
   */riscv-polyexec-gnu-hash-rv64gc.so) expected=45; entry="#poly_entry" ;;
   */riscv-smp-atomic-real.so) expected=42; entry="#poly_entry" ;;
+  */riscv-fpu-torture-real.so) expected=6147; entry="#poly_entry" ;;
   */riscv-pcall-dynrel.elf) expected=123; entry="#poly_entry" ;;
   */riscv-pcall-rel.elf) expected=123; entry="#poly_entry" ;;
   */riscv-pcall-relr.elf) expected=123; entry="#poly_entry" ;;

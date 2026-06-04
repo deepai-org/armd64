@@ -22,6 +22,7 @@ POLY_PREEMPT_STRESS="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_THREAD_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
 POLYEXEC_SMP_ATOMIC_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_smp_atomic_real.c"
+POLYEXEC_FPU_TORTURE_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_fpu_torture_real.c"
 POLYEXEC_PROCESS_EXCEPTION_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
@@ -565,6 +566,40 @@ assert_contains "dmb ish" "$POLYEXEC_SMP_ATOMIC_SRC" \
   "AArch64 SMP fixture must execute a memory barrier"
 assert_contains "fence rw,rw" "$POLYEXEC_SMP_ATOMIC_SRC" \
   "RISC-V SMP fixture must execute a memory fence"
+assert_contains "RUN_POLY_FPU_TORTURE" "$BOOT_SCRIPT" \
+  "boot image must expose a dedicated FPU torture proof mode"
+assert_contains "aarch64-fpu-torture-real\\.so#poly_entry=6147" "$BOOT_SCRIPT" \
+  "boot image must run the AArch64 FPU torture fixture"
+assert_contains "riscv-fpu-torture-real\\.so#poly_entry=6147" "$BOOT_SCRIPT" \
+  "boot image must run the RISC-V FPU torture fixture"
+assert_contains "POLY_FPU_TORTURE_OK" "$BOOT_SCRIPT" \
+  "boot validation must gate FPU torture completion"
+assert_contains "POLYEXEC_RESULT: arch=aarch64 value=6147 path=/usr/lib/polyapps/aarch64-fpu-torture-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 FPU torture result"
+assert_contains "POLYEXEC_RESULT: arch=riscv value=6147 path=/usr/lib/polyapps/riscv-fpu-torture-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V FPU torture result"
+assert_contains "bx_poly_riscv_canonicalize_fp64_nan" "$BOCHS_CPU" \
+  "RISC-V FPU decoder must canonicalize NaN results for guest semantics"
+assert_contains "msr fpcr" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "AArch64 FPU torture fixture must write FPCR rounding mode"
+assert_contains "mrs %x0, fpsr" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "AArch64 FPU torture fixture must read FPSR status flags"
+assert_contains "csrw fcsr" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "RISC-V FPU torture fixture must write fcsr/frm state"
+assert_contains "csrr %0, fflags" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "RISC-V FPU torture fixture must read fflags status"
+assert_contains "qnan_payload" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "FPU torture fixture must check quiet-NaN payload propagation"
+assert_contains "snan_payload" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "FPU torture fixture must check signaling-NaN invalid exceptions"
+assert_contains "is_subnormal64" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "FPU torture fixture must check subnormal/underflow results"
+assert_contains "fpsr_ixc" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "AArch64 FPU torture fixture must check inexact FPSR status"
+assert_contains "fflag_nx" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "RISC-V FPU torture fixture must check inexact fflags status"
+assert_contains "0x3ff0000000000001" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "FPU torture fixture must check rounding-mode-sensitive results"
 assert_contains "aarch64-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \
   "boot image must build and run an AArch64 dynamically linked process fixture"
 assert_contains "riscv-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \

@@ -62,6 +62,7 @@ POLYEXEC_LARGE_IMAGE_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_large_
 POLYEXEC_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_THREAD_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
 POLYEXEC_SMP_ATOMIC_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_smp_atomic_real.c"
+POLYEXEC_FPU_TORTURE_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_fpu_torture_real.c"
 POLYEXEC_PROCESS_EXCEPTION_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
@@ -377,6 +378,7 @@ RUN_POLY_EXEC_FOCUSED="${RUN_POLY_EXEC_FOCUSED:-0}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_PREEMPT_STRESS="${RUN_POLY_PREEMPT_STRESS:-0}"
 RUN_POLY_SMP_STRESS="${RUN_POLY_SMP_STRESS:-0}"
+RUN_POLY_FPU_TORTURE="${RUN_POLY_FPU_TORTURE:-0}"
 RUN_POLY_PAGEFAULT_SELFTEST="${RUN_POLY_PAGEFAULT_SELFTEST:-0}"
 POLY_PREEMPT_STRESS_JOBS="${POLY_PREEMPT_STRESS_JOBS:-4}"
 POLY_PREEMPT_STRESS_ITERATIONS="${POLY_PREEMPT_STRESS_ITERATIONS:-2}"
@@ -747,6 +749,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_SMP_ATOMIC_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-smp-atomic-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_FPU_TORTURE_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-fpu-torture-real.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -4064,6 +4070,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_SMP_ATOMIC_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-smp-atomic-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64gc -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_FPU_TORTURE_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-fpu-torture-real.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -7672,6 +7683,7 @@ RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_EXEC_FOCUSED="$RUN_POLY_EXEC_FOCUSED"
 RUN_POLY_PREEMPT_STRESS="$RUN_POLY_PREEMPT_STRESS"
 RUN_POLY_SMP_STRESS="$RUN_POLY_SMP_STRESS"
+RUN_POLY_FPU_TORTURE="$RUN_POLY_FPU_TORTURE"
 RUN_POLY_PAGEFAULT_SELFTEST="$RUN_POLY_PAGEFAULT_SELFTEST"
 POLY_PREEMPT_STRESS_JOBS="$POLY_PREEMPT_STRESS_JOBS"
 POLY_PREEMPT_STRESS_ITERATIONS="$POLY_PREEMPT_STRESS_ITERATIONS"
@@ -8550,6 +8562,16 @@ if [ "$RUN_POLY_SMP_STRESS" = "1" ]; then
       /usr/lib/polyapps/riscv-smp-atomic-real.so#poly_entry=42 \
       >/dev/ttyS0 2>&1
     echo "POLY_SMP_STRESS_OK" >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_FPU_TORTURE" = "1" ]; then
+    /usr/bin/polyexec \
+      /usr/lib/polyapps/aarch64-fpu-torture-real.so#poly_entry=6147 \
+      >/dev/ttyS0 2>&1
+    /usr/bin/polyexec \
+      /usr/lib/polyapps/riscv-fpu-torture-real.so#poly_entry=6147 \
+      >/dev/ttyS0 2>&1
+    echo "POLY_FPU_TORTURE_OK" >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_PAGEFAULT_SELFTEST" = "1" ]; then
@@ -11999,6 +12021,7 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_ARCH_TRAP_EXEC" "POLY_ARCH_TRAP_EXEC_OK" || return 1
   required_section_complete "$RUN_POLY_PREEMPT_STRESS" "POLY_PREEMPT_STRESS_OK" || return 1
   required_section_complete "$RUN_POLY_SMP_STRESS" "POLY_SMP_STRESS_OK" || return 1
+  required_section_complete "$RUN_POLY_FPU_TORTURE" "POLY_FPU_TORTURE_OK" || return 1
   required_section_complete "$RUN_POLY_PAGEFAULT_SELFTEST" "POLY_PAGEFAULT_SELFTEST_OK" || return 1
   required_section_complete "$RUN_POLY_CALL" "POLYCALL_OK" || return 1
   required_section_complete "$RUN_POLY_THREAD" "POLYTHREAD_OK" || return 1
@@ -12669,6 +12692,20 @@ EOF
           continue
         fi
         if [[ "$(grep -Ec "POLYEXEC_AUTO_SPILL_STATUS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_FPU_TORTURE" == "1" ]]; then
+        if ! grep -q "POLY_FPU_TORTURE_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=6147 path=/usr/lib/polyapps/aarch64-fpu-torture-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=6147 path=/usr/lib/polyapps/riscv-fpu-torture-real\\.so" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
