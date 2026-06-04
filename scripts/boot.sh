@@ -36,6 +36,7 @@ POLY_CPUID_CONTRACT_CHECK="$ROOT_DIR/scripts/checks/check_poly_cpuid_contract.sh
 POLY_APP_SRC="$ROOT_DIR/tools/programs/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/runtime/polyexec.c"
+POLY_EXEC_ABI_LEGACY_BRIDGE_SRC="$ROOT_DIR/tools/runtime/abi/poly_abi_legacy_bridge.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
 POLY_CALL_SRC="$ROOT_DIR/tools/runtime/polycall.c"
 POLY_CALL_X86_HELPERS_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_x86_helpers.c"
@@ -446,6 +447,10 @@ compile_poly_tool() {
   local bin="$2"
   local requested_compiler="$3"
   local link_mode="${4:-static}"
+  local -a extra_srcs=()
+  if (($# > 4)); then
+    extra_srcs=("${@:5}")
+  fi
 
   local compiler=""
   for candidate in "$requested_compiler" x86_64-linux-gnu-gcc gcc-x86-64-linux-gnu cc gcc; do
@@ -463,7 +468,19 @@ compile_poly_tool() {
     exit 1
   fi
 
-  if [[ -x "$bin" && "$bin" -nt "$src" && "$bin" -nt "$POLY_CPUID_HEADER" ]]; then
+  local rebuild=0
+  if [[ ! -x "$bin" || ! "$bin" -nt "$src" ||
+      ! "$bin" -nt "$POLY_CPUID_HEADER" ]]; then
+    rebuild=1
+  fi
+  for extra_src in "${extra_srcs[@]}"; do
+    if [[ ! -x "$bin" || ! "$bin" -nt "$extra_src" ]]; then
+      rebuild=1
+      break
+    fi
+  done
+
+  if [[ "$rebuild" == "0" ]]; then
     if [[ "$link_mode" != "static-pie" ]] ||
         readelf -h "$bin" 2>/dev/null | grep -q 'Type:[[:space:]]*DYN'; then
       return
@@ -482,7 +499,7 @@ compile_poly_tool() {
   if [[ "$compiler" == x86_64-linux-gnu-gcc || "$compiler" == gcc-x86-64-linux-gnu ]]; then
     compiler_args+=(--sysroot=/usr/x86_64-linux-gnu)
   fi
-  "$compiler" "${compiler_args[@]}" "$src" -o "$bin"
+  "$compiler" "${compiler_args[@]}" "$src" "${extra_srcs[@]}" -o "$bin"
 }
 
 build_poly_probe() {
@@ -494,7 +511,8 @@ build_poly_app() {
 }
 
 build_poly_exec() {
-  compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}" static-pie
+  compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}" \
+    static-pie "$POLY_EXEC_ABI_LEGACY_BRIDGE_SRC"
 }
 
 build_poly_call() {
