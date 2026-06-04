@@ -871,6 +871,10 @@ assert_contains "riscv-to-aarch64" "$POLYBENCH" \
   "polybench must cover RISC-V-to-AArch64 mixed execution"
 assert_contains "POLYBENCH_CROSS_CALL_RESULT" "$POLYBENCH" \
   "polybench must cover native cross-frontend call/return"
+assert_contains "POLYBENCH_TRAP_DENSITY_RESULT" "$POLYBENCH" \
+  "polybench must report monitor traps per million foreign instructions"
+assert_contains "traps_per_million" "$BOOT_SCRIPT" \
+  "boot validation must gate the trap-density performance metric"
 
 if grep -R -I -n -E "BXPN_POLY_COMPAT_TRAPS|poly_compat_traps|compat_traps" "$BOCHS_DIR" \
     > "$TMP_DIR/compat-uses"; then

@@ -157,6 +157,11 @@ static struct polybench_trap_counts polybench_trap_counts_snapshot(void) {
   return counts;
 }
 
+static uint64_t polybench_trap_counts_total(
+    struct polybench_trap_counts counts) {
+  return counts.syscalls + counts.breaks + counts.imports;
+}
+
 static int polybench_check_no_trap_delta(const char *name,
     struct polybench_trap_counts before) {
   struct polybench_trap_counts after = polybench_trap_counts_snapshot();
@@ -1341,7 +1346,7 @@ static uint64_t call_code_sret5(const uint8_t *code) {
 }
 
 static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
-    uint64_t *switch_delta) {
+    uint64_t *switch_delta, uint64_t *trap_delta) {
   const size_t code_size = 4 + 8 + 4 * 4 + 1;
   uint8_t *code = mmap(NULL, code_size, PROT_READ | PROT_WRITE | PROT_EXEC,
     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -1385,11 +1390,15 @@ static int run_loop_program(int arch, uint64_t *result, uint64_t *insn_delta,
 
   uint64_t before = poly_foreign_insn_count_status_value();
   uint64_t switches_before = poly_switch_count_status_value();
+  struct polybench_trap_counts traps_before = polybench_trap_counts_snapshot();
   *result = call_code_no_args(code);
   poly_mode_x86();
   uint64_t after = poly_foreign_insn_count_status_value();
+  struct polybench_trap_counts traps_after = polybench_trap_counts_snapshot();
   *insn_delta = after - before;
   *switch_delta = poly_switch_count_status_value() - switches_before;
+  *trap_delta = polybench_trap_counts_total(traps_after) -
+    polybench_trap_counts_total(traps_before);
 
   munmap(code, code_size);
   return 0;
@@ -7589,13 +7598,20 @@ static int check_loop(const char *name, int arch) {
   uint64_t result = 0;
   uint64_t delta = 0;
   uint64_t switch_delta = 0;
-  if (run_loop_program(arch, &result, &delta, &switch_delta) < 0)
+  uint64_t trap_delta = 0;
+  if (run_loop_program(arch, &result, &delta, &switch_delta,
+        &trap_delta) < 0)
     return -1;
 
   const uint64_t min_expected_delta = 1 + (uint64_t) LOOP_ITERS * 2 + 1;
+  const uint64_t traps_per_million =
+    delta == 0 ? UINT64_MAX : (trap_delta * 1000000ULL) / delta;
   printf("POLYBENCH_RESULT: arch=%s result=%llu raw_insn_delta=%llu switch_delta=%llu\n",
     name, (unsigned long long) result, (unsigned long long) delta,
     (unsigned long long) switch_delta);
+  printf("POLYBENCH_TRAP_DENSITY_RESULT: arch=%s raw_insn_delta=%llu monitor_traps=%llu traps_per_million=%llu\n",
+    name, (unsigned long long) delta, (unsigned long long) trap_delta,
+    (unsigned long long) traps_per_million);
 
   if (result != 0) {
     fprintf(stderr, "POLYBENCH_FAIL: %s loop result expected 0 got %llu\n",
@@ -7616,6 +7632,11 @@ static int check_loop(const char *name, int arch) {
     fprintf(stderr, "POLYBENCH_FAIL: %s loop switch delta expected exactly %u got %llu\n",
       name, POLYBENCH_LOOP_EXPECTED_SWITCH_DELTA,
       (unsigned long long) switch_delta);
+    return -1;
+  }
+  if (trap_delta != 0) {
+    fprintf(stderr, "POLYBENCH_FAIL: %s loop monitor trap delta expected 0 got %llu\n",
+      name, (unsigned long long) trap_delta);
     return -1;
   }
   return 0;
