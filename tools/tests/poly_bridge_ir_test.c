@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
+#include "../runtime/abi/poly_abi_legacy_bridge.h"
 #include "../runtime/bridge/poly_bridge_plan.h"
 #include "../runtime/bridge/poly_process_bridge_kind.h"
 
@@ -167,6 +169,125 @@ static int check_legacy_stack_arg_plan(void) {
       });
 }
 
+static char trace_code(enum poly_bridge_move_kind kind) {
+  switch (kind) {
+    case POLY_BRIDGE_MOVE_REG_TO_REG: return 'R';
+    case POLY_BRIDGE_MOVE_REG_TO_STACK: return 'D';
+    case POLY_BRIDGE_MOVE_STACK_TO_REG: return 'U';
+    case POLY_BRIDGE_MOVE_STACK_TO_STACK: return 'S';
+    case POLY_BRIDGE_MOVE_LOAD_IMM: return 'I';
+    case POLY_BRIDGE_MOVE_SAVE_CALLER_REG: return 'V';
+    case POLY_BRIDGE_MOVE_RESTORE_CALLER_REG: return 'W';
+    case POLY_BRIDGE_MOVE_SET_STATE_KEY: return 'K';
+    case POLY_BRIDGE_MOVE_SET_SIGNATURE_SLOT: return 'T';
+    case POLY_BRIDGE_MOVE_PCALL: return 'P';
+    default: return '?';
+  }
+}
+
+static int expect_plan_trace(int bridge_kind, enum poly_abi_arch caller,
+    enum poly_abi_arch callee, const char *expected) {
+  struct poly_bridge_plan plan;
+  char actual[POLY_BRIDGE_PLAN_MAX_OPS + 1];
+  if (poly_bridge_plan_from_legacy_kind(caller, callee, bridge_kind,
+        POLY_BRIDGE_PLAN_NO_SIGNATURE_SLOT, 0, &plan) != 0) {
+    fprintf(stderr, "bridge plan trace failed kind=%d caller=%d callee=%d\n",
+      bridge_kind, caller, callee);
+    return 1;
+  }
+  for (size_t n = 0; n < plan.op_count; n++)
+    actual[n] = trace_code(plan.ops[n].kind);
+  actual[plan.op_count] = '\0';
+  if (strcmp(actual, expected) != 0) {
+    fprintf(stderr,
+      "bridge plan trace mismatch kind=%d caller=%d callee=%d expected=%s actual=%s\n",
+      bridge_kind, caller, callee, expected, actual);
+    return 1;
+  }
+  return 0;
+}
+
+static int check_representative_plan_traces(void) {
+  if (expect_plan_trace(POLY_PROCESS_BRIDGE_U64_STACK9,
+        POLY_ABI_ARCH_X86, POLY_ABI_ARCH_AARCH64, "RRRRRRUUSPR") != 0)
+    return 1;
+  if (expect_plan_trace(POLY_PROCESS_BRIDGE_AARCH64_HFA3_F64_RET,
+        POLY_ABI_ARCH_AARCH64, POLY_ABI_ARCH_RISCV, "RRRPRRR") != 0)
+    return 1;
+  if (expect_plan_trace(POLY_PROCESS_BRIDGE_FPAIR64_RET,
+        POLY_ABI_ARCH_X86, POLY_ABI_ARCH_AARCH64, "RRRPRR") != 0)
+    return 1;
+  return 0;
+}
+
+struct legacy_plan_expect {
+  uint8_t ok;
+  uint8_t op_count;
+};
+
+static int check_legacy_plan_matrix(void) {
+  const enum poly_abi_arch archs[] = {
+    POLY_ABI_ARCH_X86,
+    POLY_ABI_ARCH_AARCH64,
+    POLY_ABI_ARCH_RISCV
+  };
+  const struct legacy_plan_expect expected[POLY_PROCESS_BRIDGE_KIND_COUNT][6] = {
+    { { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 } },
+    { { 1, 4 }, { 1, 4 }, { 1, 4 }, { 1, 4 }, { 1, 4 }, { 1, 4 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 4 }, { 0, 0 }, { 1, 4 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 4 }, { 0, 0 }, { 1, 4 } },
+    { { 1, 11 }, { 1, 11 }, { 1, 11 }, { 1, 11 }, { 1, 11 }, { 1, 11 } },
+    { { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 } },
+    { { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 7 }, { 0, 0 }, { 1, 7 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 9 }, { 0, 0 }, { 1, 9 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 4 }, { 0, 0 }, { 1, 4 } },
+    { { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 5 }, { 0, 0 }, { 1, 5 } },
+    { { 1, 6 }, { 1, 6 }, { 1, 6 }, { 1, 6 }, { 1, 6 }, { 1, 6 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 6 }, { 0, 0 }, { 1, 6 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 7 }, { 0, 0 }, { 1, 7 } },
+    { { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 } },
+    { { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 }, { 1, 5 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 7 }, { 0, 0 }, { 1, 7 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 9 }, { 0, 0 }, { 1, 9 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 6 }, { 0, 0 }, { 1, 6 } },
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 7 }, { 0, 0 }, { 1, 7 } }
+  };
+
+  for (int kind = 0; kind < POLY_PROCESS_BRIDGE_KIND_COUNT; kind++) {
+    size_t pair = 0;
+    for (size_t caller = 0; caller < sizeof(archs) / sizeof(archs[0]);
+        caller++) {
+      for (size_t callee = 0; callee < sizeof(archs) / sizeof(archs[0]);
+          callee++) {
+        if (caller == callee)
+          continue;
+        struct poly_bridge_plan plan;
+        const int rc = poly_bridge_plan_from_legacy_kind(archs[caller],
+          archs[callee], kind, POLY_BRIDGE_PLAN_NO_SIGNATURE_SLOT, 0, &plan);
+        const struct legacy_plan_expect want = expected[kind][pair++];
+        if (want.ok) {
+          if (rc != 0 || plan.op_count != want.op_count) {
+            fprintf(stderr,
+              "legacy plan matrix mismatch kind=%d name=%s caller=%d callee=%d expected_ok=1 expected_ops=%u rc=%d actual_ops=%zu\n",
+              kind, poly_legacy_bridge_kind_name(kind), archs[caller],
+              archs[callee], want.op_count, rc, rc == 0 ? plan.op_count : 0);
+            return 1;
+          }
+        } else if (rc == 0) {
+          fprintf(stderr,
+            "legacy plan matrix mismatch kind=%d name=%s caller=%d callee=%d expected_ok=0 actual_ops=%zu\n",
+            kind, poly_legacy_bridge_kind_name(kind), archs[caller],
+            archs[callee], plan.op_count);
+          return 1;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 int main(void) {
   if (expect_ok(check_layout_helpers(), "layout helper check") != 0)
     return 1;
@@ -178,6 +299,12 @@ int main(void) {
     return 1;
   if (expect_ok(check_legacy_stack_arg_plan(),
         "legacy stack arg plan check") != 0)
+    return 1;
+  if (expect_ok(check_representative_plan_traces(),
+        "representative bridge plan trace check") != 0)
+    return 1;
+  if (expect_ok(check_legacy_plan_matrix(),
+        "legacy bridge plan matrix check") != 0)
     return 1;
   return 0;
 }
