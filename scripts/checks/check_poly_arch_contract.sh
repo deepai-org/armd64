@@ -21,6 +21,7 @@ RTL_FRONTEND_CORE="$ROOT_DIR/rtl/poly_frontend_core.sv"
 POLY_PREEMPT_STRESS="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_THREAD_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
+POLYEXEC_SMP_ATOMIC_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_smp_atomic_real.c"
 POLYEXEC_PROCESS_EXCEPTION_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
@@ -516,6 +517,54 @@ assert_contains "POLYEXEC_THREADS_OK: threads=4 path=/usr/lib/polyapps/aarch64-t
   "boot validation must gate the AArch64 pthread auto-spill stress result"
 assert_contains "POLYEXEC_THREADS_OK: threads=4 path=/usr/lib/polyapps/riscv-thread-preempt-stress-real" "$BOOT_SCRIPT" \
   "boot validation must gate the RISC-V pthread auto-spill stress result"
+assert_contains "--atomic-threads" "$POLYEXEC" \
+  "userspace monitor must expose an SMP shared-counter pthread stress mode"
+assert_contains "SYS_sched_setaffinity" "$POLYEXEC" \
+  "SMP stress mode must churn host thread affinity to force cross-core migration"
+assert_contains "POLYEXEC_ATOMIC_THREADS_OK" "$POLYEXEC" \
+  "SMP stress mode must report shared-counter atomic success"
+assert_contains "POLYEXEC_AFFINITY_CHURN_OK" "$POLYEXEC" \
+  "SMP stress mode must report affinity pin/unpin churn"
+assert_contains "RUN_POLY_SMP_STRESS" "$BOOT_SCRIPT" \
+  "boot image must expose an SMP polyexec stress proof mode"
+assert_contains "BOCHS_CPU_COUNT" "$BOOT_SCRIPT" \
+  "boot image must make Bochs CPU count configurable"
+assert_contains "kernel_smp_flags=\"noapic nolapic acpi=off\"" "$BOOT_SCRIPT" \
+  "non-SMP boot mode must keep the legacy APIC-disabling flags"
+assert_contains 'kernel_smp_flags="lapic possible_cpus=\$BOCHS_CPU_COUNT nr_cpus=\$BOCHS_CPU_COUNT"' "$BOOT_SCRIPT" \
+  "SMP boot mode must enable APIC startup and advertise all requested CPUs"
+assert_contains 'cpu: count=\$BOCHS_CPU_COUNT, ips=\$BOCHS_IPS, poly_enabled=\$POLY_ENABLED' "$BOOT_SCRIPT" \
+  "bochsrc generation must request SMP CPUs while preserving Poly enablement"
+assert_contains "grep -c '\\^processor\\[\\[:space:\\]\\]\\*:' /proc/cpuinfo" "$BOOT_SCRIPT" \
+  "boot guest must derive the Linux-visible CPU count from procfs"
+assert_contains 'POLY_SMP_NPROC: count=\\\$cpu_count' "$BOOT_SCRIPT" \
+  "boot guest must report the Linux-visible CPU count"
+assert_contains "aarch64-smp-atomic-real\\.so#poly_entry=42" "$BOOT_SCRIPT" \
+  "boot image must run the AArch64 SMP atomic fixture"
+assert_contains "riscv-smp-atomic-real\\.so#poly_entry=42" "$BOOT_SCRIPT" \
+  "boot image must run the RISC-V SMP atomic fixture"
+assert_contains 'POLYEXEC_ATOMIC_THREADS_OK: threads=\$POLY_SMP_THREADS iterations=\$POLY_SMP_ATOMIC_ITERATIONS counter=\$expected_counter path=/usr/lib/polyapps/aarch64-smp-atomic-real' "$BOOT_SCRIPT" \
+  "boot validation must gate the AArch64 SMP atomic result"
+assert_contains 'POLYEXEC_ATOMIC_THREADS_OK: threads=\$POLY_SMP_THREADS iterations=\$POLY_SMP_ATOMIC_ITERATIONS counter=\$expected_counter path=/usr/lib/polyapps/riscv-smp-atomic-real' "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V SMP atomic result"
+assert_contains 'POLYEXEC_AFFINITY_CHURN_OK: cpus=\$BOCHS_CPU_COUNT migrations=\[1-9\]\[0-9\]\* threads=\$POLY_SMP_THREADS path=/usr/lib/polyapps/aarch64-smp-atomic-real' "$BOOT_SCRIPT" \
+  "boot validation must gate AArch64 cross-core affinity churn"
+assert_contains 'POLYEXEC_AFFINITY_CHURN_OK: cpus=\$BOCHS_CPU_COUNT migrations=\[1-9\]\[0-9\]\* threads=\$POLY_SMP_THREADS path=/usr/lib/polyapps/riscv-smp-atomic-real' "$BOOT_SCRIPT" \
+  "boot validation must gate RISC-V cross-core affinity churn"
+assert_contains "POLYEXEC_AUTO_SPILL_STATUS: count=\\[1-9\\]\\[0-9\\]\\*" "$BOOT_SCRIPT" \
+  "boot validation must require nonzero auto-spill under SMP migration pressure"
+assert_contains "ldxr" "$POLYEXEC_SMP_ATOMIC_SRC" \
+  "AArch64 SMP fixture must use native load-linked"
+assert_contains "stxr" "$POLYEXEC_SMP_ATOMIC_SRC" \
+  "AArch64 SMP fixture must use native store-conditional"
+assert_contains "lr\\.d" "$POLYEXEC_SMP_ATOMIC_SRC" \
+  "RISC-V SMP fixture must use native load-reserved"
+assert_contains "sc\\.d" "$POLYEXEC_SMP_ATOMIC_SRC" \
+  "RISC-V SMP fixture must use native store-conditional"
+assert_contains "dmb ish" "$POLYEXEC_SMP_ATOMIC_SRC" \
+  "AArch64 SMP fixture must execute a memory barrier"
+assert_contains "fence rw,rw" "$POLYEXEC_SMP_ATOMIC_SRC" \
+  "RISC-V SMP fixture must execute a memory fence"
 assert_contains "aarch64-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \
   "boot image must build and run an AArch64 dynamically linked process fixture"
 assert_contains "riscv-process-dynamic-libc-real\\.elf" "$BOOT_SCRIPT" \

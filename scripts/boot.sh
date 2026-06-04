@@ -61,6 +61,7 @@ POLYEXEC_PROCESS_IMPORT_TRAP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexe
 POLYEXEC_LARGE_IMAGE_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_large_image_real.c"
 POLYEXEC_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_THREAD_PREEMPT_STRESS_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
+POLYEXEC_SMP_ATOMIC_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_smp_atomic_real.c"
 POLYEXEC_PROCESS_EXCEPTION_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
 POLYEXEC_PROCESS_SETJMP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
@@ -375,9 +376,17 @@ RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_EXEC_FOCUSED="${RUN_POLY_EXEC_FOCUSED:-0}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_PREEMPT_STRESS="${RUN_POLY_PREEMPT_STRESS:-0}"
+RUN_POLY_SMP_STRESS="${RUN_POLY_SMP_STRESS:-0}"
 RUN_POLY_PAGEFAULT_SELFTEST="${RUN_POLY_PAGEFAULT_SELFTEST:-0}"
 POLY_PREEMPT_STRESS_JOBS="${POLY_PREEMPT_STRESS_JOBS:-4}"
 POLY_PREEMPT_STRESS_ITERATIONS="${POLY_PREEMPT_STRESS_ITERATIONS:-2}"
+POLY_SMP_THREADS="${POLY_SMP_THREADS:-4}"
+POLY_SMP_ATOMIC_ITERATIONS="${POLY_SMP_ATOMIC_ITERATIONS:-4096}"
+BOCHS_CPU_COUNT="${BOCHS_CPU_COUNT:-1}"
+if [[ "$RUN_POLY_SMP_STRESS" == "1" && "$BOCHS_CPU_COUNT" == "1" ]]; then
+  BOCHS_CPU_COUNT=4
+fi
+BOCHS_IPS="${BOCHS_IPS:-50000000}"
 RUN_POLY_CALL="${RUN_POLY_CALL:-$RUN_POLY_APPS}"
 RUN_POLY_THREAD="${RUN_POLY_THREAD:-$RUN_POLY_CALL}"
 RUN_POLY_SIGNAL="${RUN_POLY_SIGNAL:-$RUN_POLY_THREAD}"
@@ -734,6 +743,10 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_THREAD_PREEMPT_STRESS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-thread-preempt-stress-real.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_SMP_ATOMIC_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-smp-atomic-real.so"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -4046,6 +4059,11 @@ build_poly_elf_payloads() {
     -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_THREAD_PREEMPT_STRESS_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-thread-preempt-stress-real.so"
+  riscv64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -march=rv64gc -mabi=lp64d \
+    -Wl,-e,poly_entry -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_SMP_ATOMIC_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-smp-atomic-real.so"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -7653,9 +7671,12 @@ RUN_POLY_EXEC_SYSCALL="$RUN_POLY_EXEC_SYSCALL"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_EXEC_FOCUSED="$RUN_POLY_EXEC_FOCUSED"
 RUN_POLY_PREEMPT_STRESS="$RUN_POLY_PREEMPT_STRESS"
+RUN_POLY_SMP_STRESS="$RUN_POLY_SMP_STRESS"
 RUN_POLY_PAGEFAULT_SELFTEST="$RUN_POLY_PAGEFAULT_SELFTEST"
 POLY_PREEMPT_STRESS_JOBS="$POLY_PREEMPT_STRESS_JOBS"
 POLY_PREEMPT_STRESS_ITERATIONS="$POLY_PREEMPT_STRESS_ITERATIONS"
+POLY_SMP_THREADS="$POLY_SMP_THREADS"
+POLY_SMP_ATOMIC_ITERATIONS="$POLY_SMP_ATOMIC_ITERATIONS"
 RUN_POLY_CALL="$RUN_POLY_CALL"
 RUN_POLY_THREAD="$RUN_POLY_THREAD"
 RUN_POLY_SIGNAL="$RUN_POLY_SIGNAL"
@@ -8511,6 +8532,24 @@ if [ "$RUN_POLY_PREEMPT_STRESS" = "1" ]; then
       --expected 42 --jobs "$POLY_PREEMPT_STRESS_JOBS" \
       --iterations "$POLY_PREEMPT_STRESS_ITERATIONS" >/dev/ttyS0 2>&1
     echo "POLY_PREEMPT_STRESS_OK" >/dev/ttyS0 2>&1
+fi
+
+if [ "$RUN_POLY_SMP_STRESS" = "1" ]; then
+    cpu_count="\$(grep -c '^processor[[:space:]]*:' /proc/cpuinfo || true)"
+    echo "POLY_SMP_NPROC: count=\$cpu_count" >/dev/ttyS0 2>&1
+    if [ "\$cpu_count" -lt "$POLY_SMP_THREADS" ]; then
+        echo "POLY_SMP_FAIL: expected_cpus=$POLY_SMP_THREADS got=\$cpu_count" >/dev/ttyS0 2>&1
+        exit 1
+    fi
+    /usr/bin/polyexec --atomic-threads "$POLY_SMP_THREADS" \
+      "$POLY_SMP_ATOMIC_ITERATIONS" \
+      /usr/lib/polyapps/aarch64-smp-atomic-real.so#poly_entry=42 \
+      >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --atomic-threads "$POLY_SMP_THREADS" \
+      "$POLY_SMP_ATOMIC_ITERATIONS" \
+      /usr/lib/polyapps/riscv-smp-atomic-real.so#poly_entry=42 \
+      >/dev/ttyS0 2>&1
+    echo "POLY_SMP_STRESS_OK" >/dev/ttyS0 2>&1
 fi
 
 if [ "$RUN_POLY_PAGEFAULT_SELFTEST" = "1" ]; then
@@ -11861,14 +11900,18 @@ build_iso() {
   fi
   cp "$isolinux_bin" "$ISO_ROOT/isolinux/isolinux.bin"
   cp "$ldlinux_c32" "$ISO_ROOT/isolinux/ldlinux.c32"
-  cat > "$ISO_ROOT/isolinux/isolinux.cfg" <<'EOF'
+  local kernel_smp_flags="noapic nolapic acpi=off"
+  if [[ "$RUN_POLY_SMP_STRESS" == "1" ]]; then
+    kernel_smp_flags="lapic possible_cpus=$BOCHS_CPU_COUNT nr_cpus=$BOCHS_CPU_COUNT"
+  fi
+  cat > "$ISO_ROOT/isolinux/isolinux.cfg" <<EOF
 DEFAULT linux
 TIMEOUT 0
 PROMPT 0
 
 LABEL linux
   KERNEL /boot/vmlinuz-virt
-  APPEND initrd=/boot/initramfs.cpio.gz rdinit=/init init=/init console=ttyS0 console=tty0 loglevel=7 panic=1 noapic nolapic acpi=off
+  APPEND initrd=/boot/initramfs.cpio.gz rdinit=/init init=/init console=ttyS0 console=tty0 loglevel=7 panic=1 $kernel_smp_flags
 EOF
   xorriso -as mkisofs \
     -o "$ISO_IMAGE" \
@@ -11914,7 +11957,7 @@ vgaromimage: file=$vga_romimage
 boot: cdrom
 ata0-master: type=cdrom, path="$ISO_IMAGE", status=inserted
 com1: enabled=1, mode=file, dev="$SERIAL_LOG"
-cpu: poly_enabled=$POLY_ENABLED
+cpu: count=$BOCHS_CPU_COUNT, ips=$BOCHS_IPS, poly_enabled=$POLY_ENABLED
 log: "$BOCHS_LOG"
 panic: action=report
 error: action=report
@@ -11955,6 +11998,7 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_EXEC_FOCUSED" "POLY_EXEC_FOCUSED_OK" || return 1
   required_section_complete "$RUN_POLY_ARCH_TRAP_EXEC" "POLY_ARCH_TRAP_EXEC_OK" || return 1
   required_section_complete "$RUN_POLY_PREEMPT_STRESS" "POLY_PREEMPT_STRESS_OK" || return 1
+  required_section_complete "$RUN_POLY_SMP_STRESS" "POLY_SMP_STRESS_OK" || return 1
   required_section_complete "$RUN_POLY_PAGEFAULT_SELFTEST" "POLY_PAGEFAULT_SELFTEST_OK" || return 1
   required_section_complete "$RUN_POLY_CALL" "POLYCALL_OK" || return 1
   required_section_complete "$RUN_POLY_THREAD" "POLYTHREAD_OK" || return 1
@@ -12593,6 +12637,38 @@ EOF
           continue
         fi
         if [[ "$(grep -Ec "POLY_STRESS_OK: jobs=$POLY_PREEMPT_STRESS_JOBS iterations=$POLY_PREEMPT_STRESS_ITERATIONS payload=/usr/lib/polyapps/(aarch64|riscv)-process-preempt-stress-real\\.elf expected=42" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
+      fi
+      if [[ "$RUN_POLY_SMP_STRESS" == "1" ]]; then
+        local expected_counter
+        expected_counter=$((POLY_SMP_THREADS * POLY_SMP_ATOMIC_ITERATIONS))
+        if ! grep -q "POLY_SMP_STRESS_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLY_SMP_NPROC: count=$BOCHS_CPU_COUNT" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_ATOMIC_THREADS_OK: threads=$POLY_SMP_THREADS iterations=$POLY_SMP_ATOMIC_ITERATIONS counter=$expected_counter path=/usr/lib/polyapps/aarch64-smp-atomic-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_ATOMIC_THREADS_OK: threads=$POLY_SMP_THREADS iterations=$POLY_SMP_ATOMIC_ITERATIONS counter=$expected_counter path=/usr/lib/polyapps/riscv-smp-atomic-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_AFFINITY_CHURN_OK: cpus=$BOCHS_CPU_COUNT migrations=[1-9][0-9]* threads=$POLY_SMP_THREADS path=/usr/lib/polyapps/aarch64-smp-atomic-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_AFFINITY_CHURN_OK: cpus=$BOCHS_CPU_COUNT migrations=[1-9][0-9]* threads=$POLY_SMP_THREADS path=/usr/lib/polyapps/riscv-smp-atomic-real\\.so" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -Ec "POLYEXEC_AUTO_SPILL_STATUS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 2 ]]; then
           sleep 1
           continue
         fi

@@ -445,6 +445,10 @@ struct poly_auto_spill_resume_info {
 };
 static __thread volatile struct poly_auto_spill_resume_info
   poly_auto_spill_resume_info;
+static __thread volatile uint64_t *poly_thread_atomic_counter;
+static __thread uint64_t poly_thread_atomic_iterations;
+static __thread uint64_t poly_thread_atomic_index;
+static __thread uint64_t poly_thread_atomic_count;
 
 struct poly_request {
   char path[160];
@@ -457,9 +461,24 @@ struct poly_thread_run_context {
   struct poly_request request;
   volatile int *start_flag;
   int use_trap_vector;
+  int atomic_mode;
   uintptr_t index;
+  size_t thread_count;
+  uint64_t atomic_iterations;
+  volatile uint64_t *atomic_counter;
+  volatile long native_tid;
   uint64_t result;
   uint64_t spill_buffer;
+  int status;
+};
+
+struct poly_atomic_migrator_context {
+  struct poly_thread_run_context *contexts;
+  size_t thread_count;
+  volatile int *done_flag;
+  unsigned long allowed_mask;
+  unsigned int cpu_count;
+  uint64_t migrations;
   int status;
 };
 
@@ -7914,6 +7933,19 @@ static int emit_and_run(const struct poly_program *program, uint64_t *result,
     munmap(mapping, mapping_size);
     return -1;
   }
+  if (poly_thread_atomic_counter != NULL) {
+    if (scratch_size < 4 * sizeof(uint64_t)) {
+      fprintf(stderr, "POLYEXEC_FAIL: atomic scratch page is too small\n");
+      munmap(scratch, scratch_size);
+      munmap(mapping, mapping_size);
+      return -1;
+    }
+    uint64_t *scratch_words = (uint64_t *) (void *) scratch;
+    scratch_words[0] = (uint64_t) (uintptr_t) poly_thread_atomic_counter;
+    scratch_words[1] = poly_thread_atomic_iterations;
+    scratch_words[2] = poly_thread_atomic_index;
+    scratch_words[3] = poly_thread_atomic_count;
+  }
   char cwd[4096];
   int have_cwd = getcwd(cwd, sizeof(cwd)) != NULL;
   *result = run_poly_entry(code, scratch);
@@ -8624,6 +8656,7 @@ static void *poly_thread_run_worker(void *arg) {
   struct poly_thread_run_context *ctx =
     (struct poly_thread_run_context *) arg;
   ctx->status = -1;
+  ctx->native_tid = (long) syscall(SYS_gettid);
 
   if (install_poly_thread_state_key() < 0)
     return NULL;
@@ -8642,6 +8675,13 @@ static void *poly_thread_run_worker(void *arg) {
     return NULL;
   }
 
+  if (ctx->atomic_mode) {
+    poly_thread_atomic_counter = ctx->atomic_counter;
+    poly_thread_atomic_iterations = ctx->atomic_iterations;
+    poly_thread_atomic_index = (uint64_t) ctx->index;
+    poly_thread_atomic_count = (uint64_t) ctx->thread_count;
+  }
+
   uint64_t result = 0;
   if (emit_and_run(&program, &result, 0) == 0) {
     ctx->result = result;
@@ -8655,11 +8695,91 @@ static void *poly_thread_run_worker(void *arg) {
         (unsigned long long) result);
   }
 
+  poly_thread_atomic_counter = NULL;
+  poly_thread_atomic_iterations = 0;
+  poly_thread_atomic_index = 0;
+  poly_thread_atomic_count = 0;
   free_program(&program);
   poly_mode_x86();
   if (ctx->use_trap_vector)
     clear_poly_trap_vector();
   clear_poly_auto_spill();
+  return NULL;
+}
+
+static unsigned long poly_affinity_mask(void) {
+  unsigned long mask = 0;
+  if (syscall(SYS_sched_getaffinity, 0, sizeof(mask), &mask) < 0 || mask == 0)
+    return 1;
+  return mask;
+}
+
+static unsigned int poly_count_affinity_cpus(unsigned long mask) {
+  unsigned int count = 0;
+  for (unsigned int bit = 0; bit < sizeof(mask) * 8; bit++) {
+    if ((mask & (1UL << bit)) != 0)
+      count++;
+  }
+  return count;
+}
+
+static unsigned long poly_affinity_cpu_bit(unsigned long mask,
+    uint64_t ordinal) {
+  unsigned int count = poly_count_affinity_cpus(mask);
+  if (count == 0)
+    return 1;
+  unsigned int wanted = (unsigned int) (ordinal % count);
+  for (unsigned int bit = 0; bit < sizeof(mask) * 8; bit++) {
+    if ((mask & (1UL << bit)) == 0)
+      continue;
+    if (wanted == 0)
+      return 1UL << bit;
+    wanted--;
+  }
+  return mask & (~mask + 1);
+}
+
+static int poly_set_tid_affinity(long tid, unsigned long mask) {
+  if (tid <= 0 || mask == 0)
+    return -1;
+  return (int) syscall(SYS_sched_setaffinity, tid, sizeof(mask), &mask);
+}
+
+static void *poly_atomic_affinity_migrator(void *arg) {
+  struct poly_atomic_migrator_context *ctx =
+    (struct poly_atomic_migrator_context *) arg;
+  uint64_t round = 0;
+  ctx->status = 0;
+
+  while (!*ctx->done_flag) {
+    for (size_t n = 0; n < ctx->thread_count; n++) {
+      long tid = ctx->contexts[n].native_tid;
+      if (tid <= 0)
+        continue;
+      unsigned long mask = poly_affinity_cpu_bit(ctx->allowed_mask,
+        round + n);
+      if (poly_set_tid_affinity(tid, mask) == 0)
+        ctx->migrations++;
+      else if (errno != ESRCH)
+        ctx->status = -1;
+    }
+    if ((round & 3) == 3) {
+      for (size_t n = 0; n < ctx->thread_count; n++) {
+        long tid = ctx->contexts[n].native_tid;
+        if (tid > 0 && poly_set_tid_affinity(tid, ctx->allowed_mask) < 0 &&
+            errno != ESRCH)
+          ctx->status = -1;
+      }
+    }
+    round++;
+    sched_yield();
+  }
+
+  for (size_t n = 0; n < ctx->thread_count; n++) {
+    long tid = ctx->contexts[n].native_tid;
+    if (tid > 0)
+      (void) poly_set_tid_affinity(tid, ctx->allowed_mask);
+  }
   return NULL;
 }
 
@@ -8736,6 +8856,157 @@ static int run_poly_thread_stress(const struct poly_request *request,
   return failed ? -1 : 0;
 }
 
+static int run_poly_atomic_thread_stress(const struct poly_request *request,
+    size_t thread_count, uint64_t iterations, int use_trap_vector) {
+  if (thread_count == 0 || thread_count > 64) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: --atomic-threads count must be between 1 and 64\n");
+    return -1;
+  }
+  if (iterations == 0) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: --atomic-threads iterations must be nonzero\n");
+    return -1;
+  }
+
+  unsigned long allowed_mask = poly_affinity_mask();
+  unsigned int cpu_count = poly_count_affinity_cpus(allowed_mask);
+  if (cpu_count < 2) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: --atomic-threads requires at least 2 runnable CPUs, got %u\n",
+      cpu_count);
+    return -1;
+  }
+
+  volatile uint64_t *counter = mmap(NULL, 4096, PROT_READ | PROT_WRITE,
+    MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  if (counter == MAP_FAILED) {
+    fprintf(stderr, "POLYEXEC_FAIL: atomic counter mmap failed: %s\n",
+      strerror(errno));
+    return -1;
+  }
+  *counter = 0;
+
+  pthread_t *threads = calloc(thread_count, sizeof(*threads));
+  struct poly_thread_run_context *contexts =
+    calloc(thread_count, sizeof(*contexts));
+  if (threads == NULL || contexts == NULL) {
+    fprintf(stderr, "POLYEXEC_FAIL: atomic pthread allocation failed\n");
+    free(threads);
+    free(contexts);
+    munmap((void *) counter, 4096);
+    return -1;
+  }
+
+  int failed = 0;
+  volatile int start_flag = 0;
+  volatile int done_flag = 0;
+  size_t created = 0;
+  for (size_t n = 0; n < thread_count; n++) {
+    contexts[n].request = *request;
+    contexts[n].start_flag = &start_flag;
+    contexts[n].use_trap_vector = use_trap_vector;
+    contexts[n].atomic_mode = 1;
+    contexts[n].index = n;
+    contexts[n].thread_count = thread_count;
+    contexts[n].atomic_iterations = iterations;
+    contexts[n].atomic_counter = counter;
+    contexts[n].status = -1;
+    if (pthread_create(&threads[n], NULL, poly_thread_run_worker,
+          &contexts[n]) != 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: atomic pthread_create failed index=%zu\n",
+        n);
+      failed = 1;
+      break;
+    }
+    created++;
+  }
+
+  for (;;) {
+    size_t ready = 0;
+    for (size_t n = 0; n < created; n++) {
+      if (contexts[n].native_tid > 0)
+        ready++;
+    }
+    if (ready == created)
+      break;
+    sched_yield();
+  }
+
+  struct poly_atomic_migrator_context migrator = {
+    .contexts = contexts,
+    .thread_count = created,
+    .done_flag = &done_flag,
+    .allowed_mask = allowed_mask,
+    .cpu_count = cpu_count,
+    .migrations = 0,
+    .status = 0,
+  };
+  pthread_t migrator_thread;
+  int have_migrator =
+    pthread_create(&migrator_thread, NULL, poly_atomic_affinity_migrator,
+      &migrator) == 0;
+  if (!have_migrator) {
+    fprintf(stderr, "POLYEXEC_FAIL: atomic affinity migrator create failed\n");
+    failed = 1;
+  }
+
+  start_flag = 1;
+  for (size_t n = 0; n < created; n++) {
+    if (pthread_join(threads[n], NULL) != 0) {
+      fprintf(stderr, "POLYEXEC_FAIL: atomic pthread_join failed index=%zu\n",
+        n);
+      failed = 1;
+      continue;
+    }
+    if (contexts[n].status != 0)
+      failed = 1;
+  }
+  done_flag = 1;
+  if (have_migrator && pthread_join(migrator_thread, NULL) != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: atomic migrator join failed\n");
+    failed = 1;
+  }
+  if (migrator.status != 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: atomic affinity churn failed\n");
+    failed = 1;
+  }
+
+  const uint64_t expected_counter = (uint64_t) thread_count * iterations;
+  const uint64_t actual_counter = *counter;
+  if (actual_counter != expected_counter) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: atomic shared counter expected=%llu got=%llu path=%s\n",
+      (unsigned long long) expected_counter,
+      (unsigned long long) actual_counter, request->path);
+    failed = 1;
+  }
+  if (migrator.migrations == 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: atomic affinity churn made no migrations\n");
+    failed = 1;
+  }
+
+  for (size_t n = 0; n < created; n++) {
+    printf("POLYEXEC_THREAD_RESULT: index=%zu value=%llu spill_buffer=0x%llx path=%s\n",
+      n, (unsigned long long) contexts[n].result,
+      (unsigned long long) contexts[n].spill_buffer, request->path);
+  }
+
+  if (!failed) {
+    printf("POLYEXEC_AFFINITY_CHURN_OK: cpus=%u migrations=%llu threads=%zu path=%s\n",
+      migrator.cpu_count, (unsigned long long) migrator.migrations,
+      thread_count, request->path);
+    printf("POLYEXEC_ATOMIC_THREADS_OK: threads=%zu iterations=%llu counter=%llu path=%s\n",
+      thread_count, (unsigned long long) iterations,
+      (unsigned long long) actual_counter, request->path);
+  }
+
+  free(threads);
+  free(contexts);
+  munmap((void *) counter, 4096);
+  return failed ? -1 : 0;
+}
+
 static void free_program(struct poly_program *program) {
   unmap_process_dependencies(program);
   for (size_t d = 0; d < program->dep_count; d++) {
@@ -8761,7 +9032,7 @@ int main(int argc, char **argv) {
   }
 
   if (argc < 2) {
-    fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...] | --threads N foreign.elf[=expected] | --selftest-pagefault\n",
+    fprintf(stderr, "usage: %s foreign.elf[=expected]... | --process foreign.elf[=expected] [arg...] | --threads N foreign.elf[=expected] | --atomic-threads N ITERATIONS foreign.elf[=expected] | --selftest-pagefault\n",
       argv[0]);
     return 2;
   }
@@ -8788,6 +9059,45 @@ int main(int argc, char **argv) {
     if (run_poly_page_fault_selftest() < 0)
       return 1;
     return 1;
+  }
+
+  if (strcmp(argv[1], "--atomic-threads") == 0) {
+    if (argc != 5) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: --atomic-threads requires a count, iteration count, and a foreign ELF\n");
+      return 2;
+    }
+    char *end = NULL;
+    errno = 0;
+    unsigned long count = strtoul(argv[2], &end, 10);
+    if (errno != 0 || end == argv[2] || *end != '\0' ||
+        count == 0 || count > 64) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: --atomic-threads count must be between 1 and 64\n");
+      return 2;
+    }
+    end = NULL;
+    errno = 0;
+    unsigned long long iterations = strtoull(argv[3], &end, 10);
+    if (errno != 0 || end == argv[3] || *end != '\0' ||
+        iterations == 0) {
+      fprintf(stderr,
+        "POLYEXEC_FAIL: --atomic-threads iterations must be nonzero\n");
+      return 2;
+    }
+
+    struct poly_request request;
+    if (parse_request(argv[4], &request) < 0)
+      return 1;
+    if (run_poly_atomic_thread_stress(&request, (size_t) count,
+          (uint64_t) iterations, use_trap_vector) < 0)
+      return 1;
+    report_poly_monitor_packets();
+    report_poly_auto_spill_status();
+    clear_poly_trap_vector();
+    clear_poly_auto_spill();
+    puts("POLYEXEC_OK");
+    return 0;
   }
 
   if (strcmp(argv[1], "--threads") == 0) {
