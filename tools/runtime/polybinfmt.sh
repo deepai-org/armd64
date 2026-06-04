@@ -36,6 +36,7 @@ case "$path" in
   */aarch64-pauth-ret.elf) expected=27 ;;
   */aarch64-mem.elf) expected=77 ;;
   */aarch64-memwidth.elf) expected=0x100001324 ;;
+  */aarch64-scaled-mem.elf) expected=0x125c ;;
   */aarch64-pair-frame.elf) expected=35 ;;
   */aarch64-casp.elf) expected=66 ;;
   */aarch64-ldxp.elf) expected=37 ;;

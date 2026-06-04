@@ -7081,6 +7081,7 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pcall-import-x86-sum6.elf" --dyn-import-func64 poly_import_x86_sum6 0xa9bf7bfd 0xd0000008 0x91000108 0xf9400108 0xd63f0100 0xa8c17bfd 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-mem.elf" 0xd28009a0 0xf9000020 0xd2800000 0xf9400020
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-memwidth.elf" 0x928001a5 0x39000025 0x39400026 0x92800025 0xb9000425 0xb9400427 0xd2824685 0x79001025 0x79401028 0x8b0700c0 0x8b080000
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-scaled-mem.elf" 0xd10403ff 0x910003f4 0xf9004fff 0x52800157 0xb9009bf7 0x390273ff 0x52824685 0x790143e5 0x39426283 0xf9404e97 0xb9409a88 0xb9809a89 0x7941428a 0x8b170060 0x8b080000 0x8b090000 0x8b0a0000 0x910403ff 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-pair-frame.elf" 0xd2800360 0xd2800101 0xa9bf07e0 0xd2800000 0xd2800001 0xa8c107e0 0x8b010000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-casp.elf" 0xd10043ff 0xd2800020 0xd2800041 0xa90007e0 0xd2800162 0xd28002c3 0x910003e4 0x4860fc82 0xd2800020 0xd2800041 0xd2800422 0xd2800583 0x4860fc82 0xa9401be5 0x910043ff 0x8b010000 0x8b050000 0x8b060000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-ldxp.elf" 0xd10043ff 0xd2800020 0xd2800041 0xa90007e0 0x910003e4 0xc87f8480 0xd2800162 0xd28002c3 0xc8258c82 0xd2800422 0xd2800583 0xc8268c82 0xa94023e7 0x910043ff 0x8b010000 0x8b050000 0x8b060000 0x8b070000 0x8b080000 0xd65f03c0
@@ -8338,6 +8339,7 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-pauth-ret.elf=27 \
     /usr/lib/polyapps/aarch64-mem.elf=77 \
     /usr/lib/polyapps/aarch64-memwidth.elf=0x100001324 \
+    /usr/lib/polyapps/aarch64-scaled-mem.elf=0x125c \
     /usr/lib/polyapps/aarch64-pair-frame.elf=35 \
     /usr/lib/polyapps/aarch64-casp.elf=66 \
     /usr/lib/polyapps/aarch64-ldxp.elf=37 \
@@ -10144,6 +10146,7 @@ if [ "$RUN_POLY_CALL" = "1" ]; then
     fp32:/usr/lib/polyapps/riscv-pcall-fp32-mem-real.so#poly_entry=0x3f400000 \
     /usr/lib/polyapps/aarch64-pcall-frame.elf=45 \
     /usr/lib/polyapps/aarch64-pcall-native-frame.elf=3 \
+    /usr/lib/polyapps/aarch64-scaled-mem.elf=0x125c \
     /usr/lib/polyapps/aarch64-pair-frame.elf=35 \
     /usr/lib/polyapps/aarch64-casp.elf=66 \
     /usr/lib/polyapps/aarch64-ldxp.elf=37 \
@@ -11389,6 +11392,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-pauth-ret.elf \
       /usr/lib/polyapps/aarch64-mem.elf \
       /usr/lib/polyapps/aarch64-memwidth.elf \
+      /usr/lib/polyapps/aarch64-scaled-mem.elf \
       /usr/lib/polyapps/aarch64-pair-frame.elf \
       /usr/lib/polyapps/aarch64-casp.elf \
       /usr/lib/polyapps/aarch64-ldxp.elf \
@@ -11788,6 +11792,7 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-pauth-ret.elf \
     /usr/lib/polyapps/aarch64-mem.elf \
     /usr/lib/polyapps/aarch64-memwidth.elf \
+    /usr/lib/polyapps/aarch64-scaled-mem.elf \
     /usr/lib/polyapps/aarch64-pair-frame.elf \
     /usr/lib/polyapps/aarch64-casp.elf \
     /usr/lib/polyapps/aarch64-ldxp.elf \

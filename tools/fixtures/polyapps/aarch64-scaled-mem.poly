@@ -1,0 +1,7 @@
+# poly payload v1
+arch=aarch64
+elf=/usr/lib/polyapps/aarch64-scaled-mem.elf
+expected=0x125c
+syscall_expected=1
+break_id=0
+break_expected=0x4c000100
