@@ -14,6 +14,8 @@ ALPINE_X86_64_MAIN_URL="${ALPINE_X86_64_MAIN_URL:-https://dl-cdn.alpinelinux.org
 ALPINE_AARCH64_RELEASES_URL="${ALPINE_AARCH64_RELEASES_URL:-http://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64}"
 ALPINE_AARCH64_MAIN_URL="${ALPINE_AARCH64_MAIN_URL:-http://dl-cdn.alpinelinux.org/alpine/latest-stable/main}"
 ALPINE_AARCH64_COMMUNITY_URL="${ALPINE_AARCH64_COMMUNITY_URL:-http://dl-cdn.alpinelinux.org/alpine/latest-stable/community}"
+POLY_OCI_ALPINE_REPO="${POLY_OCI_ALPINE_REPO:-library/alpine}"
+POLY_OCI_ALPINE_TAG="${POLY_OCI_ALPINE_TAG:-latest}"
 KERNEL_URL="${KERNEL_URL:-$ALPINE_BASE_URL/vmlinuz-virt}"
 
 mkdir -p "$CACHE_DIR" "$OUT_DIR" "$TMP_DIR"
@@ -54,6 +56,8 @@ POLY_BENCH_BIN="$OUT_DIR/polybench"
 POLY_BINFMT_SRC="$ROOT_DIR/tools/runtime/polybinfmt.sh"
 POLY_BINFMT_EXEC_SRC="$ROOT_DIR/tools/programs/polybinfmt_exec.c"
 POLY_BINFMT_EXEC_BIN="$OUT_DIR/polybinfmt-exec"
+POLY_CONTAINER_RUN_SRC="$ROOT_DIR/tools/programs/polycontainer_run.c"
+POLY_CONTAINER_RUN_BIN="$OUT_DIR/polycontainer-run"
 POLY_APK_TRIGGER_MIMIC_SRC="$ROOT_DIR/tools/programs/aarch64_apk_trigger_mimic.c"
 POLY_APK_TRIGGER_MIMIC_BIN="$OUT_DIR/aarch64-apk-trigger-mimic"
 NATIVE_CHECK_SRC="$ROOT_DIR/tools/programs/nativecheck.c"
@@ -407,6 +411,7 @@ RUN_POLY_BENCH="${RUN_POLY_BENCH:-0}"
 RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
 RUN_POLY_ALPINE_BINFMT_SMOKE="${RUN_POLY_ALPINE_BINFMT_SMOKE:-0}"
+RUN_POLY_ALPINE_CONTAINER_SMOKE="${RUN_POLY_ALPINE_CONTAINER_SMOKE:-0}"
 POLY_ALPINE_TRACE_SYSCALLS="${POLY_ALPINE_TRACE_SYSCALLS:-0}"
 POLY_ALPINE_TRACE_TRAP_RETURNS="${POLY_ALPINE_TRACE_TRAP_RETURNS:-0}"
 POLY_ALPINE_AARCH64_HWCAP="${POLY_ALPINE_AARCH64_HWCAP:-}"
@@ -416,7 +421,8 @@ POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC="${POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC:-0}"
 RUN_GUEST_NETWORK="${RUN_GUEST_NETWORK:-0}"
 RUN_GUEST_NETWORK_SMOKE="${RUN_GUEST_NETWORK_SMOKE:-0}"
 if [[ "$RUN_GUEST_NETWORK_SMOKE" == "1" ||
-      "$RUN_POLY_ALPINE_BINFMT_SMOKE" == "1" ]]; then
+      "$RUN_POLY_ALPINE_BINFMT_SMOKE" == "1" ||
+      "$RUN_POLY_ALPINE_CONTAINER_SMOKE" == "1" ]]; then
   RUN_GUEST_NETWORK=1
 fi
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
@@ -556,6 +562,11 @@ build_poly_exec() {
 build_poly_binfmt_exec() {
   compile_poly_tool "$POLY_BINFMT_EXEC_SRC" "$POLY_BINFMT_EXEC_BIN" \
     "${POLY_BINFMT_EXEC_CC:-}"
+}
+
+build_poly_container_run() {
+  compile_poly_tool "$POLY_CONTAINER_RUN_SRC" "$POLY_CONTAINER_RUN_BIN" \
+    "${POLY_CONTAINER_RUN_CC:-}"
 }
 
 build_poly_apk_trigger_mimic() {
@@ -7637,7 +7648,8 @@ build_poly_elf_payloads() {
 
 build_binfmt_module() {
   if [[ "$RUN_POLY_BINFMT" != "1" &&
-      "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" ]]; then
+      "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_CONTAINER_SMOKE" != "1" ]]; then
     return
   fi
 
@@ -7815,6 +7827,111 @@ POLY_LD_LIBRARY_PATH=/lib:/usr/lib
 EOF
 }
 
+build_oci_alpine_aarch64_rootfs() {
+  if [[ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" != "1" ]]; then
+    return
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 is required to pull the OCI Alpine arm64 image." >&2
+    exit 1
+  fi
+
+  local rootfs_dir="$TMP_DIR/initramfs-root/oci-alpine-arm64"
+  local registry="https://registry-1.docker.io"
+  local token_file="$CACHE_DIR/oci-alpine-token.json"
+  local index_file="$CACHE_DIR/oci-alpine-${POLY_OCI_ALPINE_TAG}-index.json"
+  local manifest_file="$CACHE_DIR/oci-alpine-${POLY_OCI_ALPINE_TAG}-arm64-manifest.json"
+  local token
+  local manifest_digest
+
+  curl -fsSL \
+    "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${POLY_OCI_ALPINE_REPO}:pull" \
+    -o "$token_file"
+  token="$(python3 -c '
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    print(json.load(f).get("token", ""))
+' "$token_file")"
+  if [[ -z "$token" || "$token" == "null" ]]; then
+    echo "Unable to acquire Docker Hub token for $POLY_OCI_ALPINE_REPO." >&2
+    exit 1
+  fi
+
+  curl -fsSL \
+    -H "Authorization: Bearer $token" \
+    -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
+    "$registry/v2/$POLY_OCI_ALPINE_REPO/manifests/$POLY_OCI_ALPINE_TAG" \
+    -o "$index_file"
+
+  if python3 -c '
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    sys.exit(0 if "manifests" in json.load(f) else 1)
+' "$index_file"; then
+    manifest_digest="$(python3 -c '
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    index = json.load(f)
+for manifest in index.get("manifests", []):
+    platform = manifest.get("platform", {})
+    if platform.get("os") == "linux" and platform.get("architecture") == "arm64":
+        print(manifest.get("digest", ""))
+        break
+' "$index_file")"
+    if [[ -z "$manifest_digest" || "$manifest_digest" == "null" ]]; then
+      echo "Unable to find linux/arm64 manifest in $POLY_OCI_ALPINE_REPO:$POLY_OCI_ALPINE_TAG." >&2
+      exit 1
+    fi
+    curl -fsSL \
+      -H "Authorization: Bearer $token" \
+      -H "Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
+      "$registry/v2/$POLY_OCI_ALPINE_REPO/manifests/$manifest_digest" \
+      -o "$manifest_file"
+  else
+    cp "$index_file" "$manifest_file"
+  fi
+
+  rm -rf "$rootfs_dir"
+  mkdir -p "$rootfs_dir"
+
+  while IFS= read -r layer_digest; do
+    [[ -n "$layer_digest" && "$layer_digest" != "null" ]] || continue
+    local layer_file="$CACHE_DIR/oci-alpine-layer-${layer_digest//[:\/]/_}.tar.gz"
+    if [[ ! -s "$layer_file" ]]; then
+      curl -fsSL \
+        -H "Authorization: Bearer $token" \
+        "$registry/v2/$POLY_OCI_ALPINE_REPO/blobs/$layer_digest" \
+        -o "$layer_file"
+    fi
+    tar -xzf "$layer_file" -C "$rootfs_dir"
+  done < <(python3 -c '
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    manifest = json.load(f)
+for layer in manifest.get("layers", []):
+    media_type = layer.get("mediaType", "")
+    if "gzip" in media_type or "tar+gzip" in media_type:
+        print(layer.get("digest", ""))
+' "$manifest_file")
+
+  mkdir -p "$rootfs_dir"/{dev,proc,sys,tmp,usr/bin,etc/apk}
+  chmod 1777 "$rootfs_dir/tmp"
+  cp "$POLY_EXEC_BIN" "$rootfs_dir/usr/bin/polyexec"
+  cp "$POLY_BINFMT_EXEC_BIN" "$rootfs_dir/usr/bin/polybinfmt-exec"
+  cat > "$rootfs_dir/etc/apk/repositories" <<EOF
+$ALPINE_AARCH64_MAIN_URL
+$ALPINE_AARCH64_COMMUNITY_URL
+EOF
+  cat > "$rootfs_dir/etc/polyexec-binfmt.env" <<EOF
+POLYEXEC_TRACE_SYSCALLS=$POLY_ALPINE_TRACE_SYSCALLS
+POLYEXEC_TRACE_TRAP_RETURNS=$POLY_ALPINE_TRACE_TRAP_RETURNS
+POLYEXEC_AARCH64_HWCAP=$POLY_ALPINE_AARCH64_HWCAP
+POLYEXEC_DUMP_MAPS_ON_FAULT=$POLY_ALPINE_DUMP_MAPS_ON_FAULT
+POLYEXEC_PROTECT_RUNTIME_SIGNALS=$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS
+POLY_LD_LIBRARY_PATH=/lib:/usr/lib
+EOF
+}
+
 build_initramfs() {
   rm -rf "$TMP_DIR/initramfs-root"
   mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin,usr/lib/polyapps}
@@ -7822,6 +7939,7 @@ build_initramfs() {
   build_poly_app
   build_poly_exec
   build_poly_binfmt_exec
+  build_poly_container_run
   build_poly_apk_trigger_mimic
   build_poly_call
   build_poly_thread
@@ -7866,6 +7984,7 @@ build_initramfs() {
   cp "$POLY_APP_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyapp"
   cp "$POLY_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polyexec"
   cp "$POLY_BINFMT_EXEC_BIN" "$TMP_DIR/initramfs-root/usr/bin/polybinfmt-exec"
+  cp "$POLY_CONTAINER_RUN_BIN" "$TMP_DIR/initramfs-root/usr/bin/polycontainer-run"
   cp "$POLY_CALL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polycall"
   cp "$POLY_THREAD_BIN" "$TMP_DIR/initramfs-root/usr/bin/polythread"
   cp "$POLY_SIGNAL_BIN" "$TMP_DIR/initramfs-root/usr/bin/polysignal"
@@ -7881,6 +8000,7 @@ build_initramfs() {
   build_binfmt_module
   build_network_modules
   build_alpine_aarch64_rootfs
+  build_oci_alpine_aarch64_rootfs
   if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" && -f "$POLY_XCR0_MODULE" ]]; then
     mkdir -p "$TMP_DIR/initramfs-root/lib/modules/poly"
     cp "$POLY_XCR0_MODULE" "$TMP_DIR/initramfs-root/lib/modules/poly/poly_xcr0.ko"
@@ -7912,10 +8032,12 @@ RUN_POLY_BENCH="$RUN_POLY_BENCH"
 RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 RUN_POLY_BINFMT_ARCH_TRAPS="$RUN_POLY_BINFMT_ARCH_TRAPS"
 RUN_POLY_ALPINE_BINFMT_SMOKE="$RUN_POLY_ALPINE_BINFMT_SMOKE"
+RUN_POLY_ALPINE_CONTAINER_SMOKE="$RUN_POLY_ALPINE_CONTAINER_SMOKE"
 POLY_ALPINE_TRACE_SYSCALLS="$POLY_ALPINE_TRACE_SYSCALLS"
 POLY_ALPINE_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS"
 POLY_ALPINE_AARCH64_HWCAP="$POLY_ALPINE_AARCH64_HWCAP"
 POLY_ALPINE_DUMP_MAPS_ON_FAULT="$POLY_ALPINE_DUMP_MAPS_ON_FAULT"
+POLY_ALPINE_PROTECT_RUNTIME_SIGNALS="$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS"
 RUN_GUEST_NETWORK="$RUN_GUEST_NETWORK"
 RUN_GUEST_NETWORK_SMOKE="$RUN_GUEST_NETWORK_SMOKE"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
@@ -12373,6 +12495,60 @@ if [ "$RUN_POLY_ALPINE_BINFMT_SMOKE" = "1" ]; then
   echo "POLY_ALPINE_BINFMT_SMOKE_OK" >/dev/ttyS0
 fi
 
+if [ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" = "1" ]; then
+  echo "POLY_ALPINE_CONTAINER_SMOKE_START" >/dev/ttyS0
+  if [ -f /lib/modules/poly/binfmt_misc.ko ]; then
+    insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
+  fi
+  mkdir -p /proc/sys/fs/binfmt_misc || {
+    echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: mkdir binfmt_misc" >/dev/ttyS0
+    exit 1
+  }
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
+    echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: binfmt_misc unavailable" >/dev/ttyS0
+    exit 1
+  fi
+  if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
+    echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
+  fi
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+    > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: register aarch64" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_CONTAINER_BINFMT_REGISTERED" >/dev/ttyS0
+
+  cp /etc/resolv.conf /oci-alpine-arm64/etc/resolv.conf 2>/dev/null || true
+  if [ ! -s /oci-alpine-arm64/etc/resolv.conf ]; then
+    echo "nameserver 10.0.2.3" > /oci-alpine-arm64/etc/resolv.conf
+  fi
+  echo "POLY_ALPINE_CONTAINER_RESOLV_CONF_BEGIN" >/dev/ttyS0
+  cat /oci-alpine-arm64/etc/resolv.conf >/dev/ttyS0 2>&1 || true
+  echo "POLY_ALPINE_CONTAINER_RESOLV_CONF_END" >/dev/ttyS0
+  /bin/busybox wget -q -O /tmp/poly-alpine-container-native-example.html \
+    http://example.com/ >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: native dns http" >/dev/ttyS0
+    exit 1
+  }
+  grep -qi "Example Domain" /tmp/poly-alpine-container-native-example.html || {
+    echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: native http content" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_CONTAINER_NATIVE_HTTP_OK" >/dev/ttyS0
+
+  echo "POLY_ALPINE_CONTAINER_SMOKE_CMD: apk add curl && curl http://example.com" \
+    >/dev/ttyS0
+  /bin/busybox timeout 240 \
+    /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c \
+      'apk --allow-untrusted add curl && curl http://example.com/ -o /tmp/example.html && grep -qi "Example Domain" /tmp/example.html' \
+    >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: apk curl" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_CONTAINER_SMOKE_OK" >/dev/ttyS0
+fi
+
 sleep 1
 poweroff -f || halt -f
 EOF
@@ -12510,6 +12686,8 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_BINFMT" "POLYBINFMT_OK" || return 1
   required_section_complete "$RUN_POLY_ALPINE_BINFMT_SMOKE" \
     "POLY_ALPINE_BINFMT_SMOKE_OK" || return 1
+  required_section_complete "$RUN_POLY_ALPINE_CONTAINER_SMOKE" \
+    "POLY_ALPINE_CONTAINER_SMOKE_OK" || return 1
   required_section_complete "$RUN_GUEST_NETWORK_SMOKE" "POLY_GUEST_NETWORK_HTTP_OK" || return 1
 
   if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
