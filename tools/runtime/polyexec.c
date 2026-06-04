@@ -9187,7 +9187,7 @@ int main(int argc, char **argv) {
     clear_poly_auto_spill();
     clear_poly_trap_vector();
     puts("POLYEXEC_OK");
-    return 0;
+    return request.check_expected ? 0 : (int) (result & 0xff);
   }
 
   for (int n = 1; n < argc; n++) {
