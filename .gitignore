@@ -4,6 +4,7 @@ out*/
 tmp/
 tmp*/
 *.log
+user.poly
 bochs-bisect/
 bochs-prepoly-src/
 bochs-src/

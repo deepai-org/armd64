@@ -3,7 +3,8 @@
 Bochs prototype for running existing precompiled x86_64, AArch64, and RISC-V64
 user code in one x86_64 virtual address space. Design rationale lives in
 [`poly-isa-design-directions.md`](poly-isa-design-directions.md). The frozen v1
-contract lives in [`poly-isa-v1.md`](poly-isa-v1.md).
+contract lives in [`poly-isa-v1.md`](poly-isa-v1.md). The proposed v2 state and
+event primitives are drafted in [`poly-isa-v2-draft.md`](poly-isa-v2-draft.md).
 
 ```bash
 make image
