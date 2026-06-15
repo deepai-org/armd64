@@ -138,6 +138,12 @@
 #define POLY_X86_CTRL_LANDING_POLICY_GET_ASM POLY_X86_CTRL_ASM_BYTE(0x6e)
 #define POLY_X86_CTRL_SPILL_PTR_SET_ASM POLY_X86_CTRL_ASM_BYTE(0x6f)
 #define POLY_X86_CTRL_PRESTORE_ASM POLY_X86_CTRL_ASM_BYTE(0x70)
+#define POLY_X86_CTRL_EVENT_PTR_SET_ASM POLY_X86_CTRL_ASM_BYTE(0x71)
+#define POLY_X86_CTRL_SPILL_DESC_SET_ASM POLY_X86_CTRL_ASM_BYTE(0x72)
+#define POLY_X86_CTRL_DUMP_STATE_ASM POLY_X86_CTRL_ASM_BYTE(0x73)
+#define POLY_X86_CTRL_MEM_PROBE_RANGE_ASM POLY_X86_CTRL_ASM_BYTE(0x74)
+#define POLY_X86_CTRL_DERIVE_STATE_ASM POLY_X86_CTRL_ASM_BYTE(0x75)
+#define POLY_X86_CTRL_FENCE_ASM POLY_X86_CTRL_ASM_BYTE(0x76)
 #define POLY_X86_CTRL_PCALL_SIG_IMM(slot) \
   (POLY_X86_CTRL_PCALL_SIG_IMM_BASE + ((uint32_t) (slot)))
 
@@ -158,8 +164,9 @@ enum {
   POLY_SPILL_REASON_PAGE_FAULT = 2,
   POLY_SPILL_REASON_FAULT = 3,
   POLY_CPUID_BASE = 0x40000000,
-  POLY_CPUID_MAX = 0x40000009,
+  POLY_CPUID_MAX = 0x4000000a,
   POLY_CPUID_ABI_VERSION = 1,
+  POLY_CPUID_V2_ABI_VERSION = 2,
   POLY_AARCH64_CTRL_SUBOP_CALL_SIG_IMM_BASE = 0x50,
   POLY_AARCH64_CTRL_SUBOP_TRAP_VECTOR_SET = 0x68,
   POLY_AARCH64_CTRL_SUBOP_TRAP_VECTOR_GET = 0x69,
@@ -251,6 +258,12 @@ enum {
   POLY_X86_CTRL_LANDING_POLICY_GET = 0x6e,
   POLY_X86_CTRL_SPILL_PTR_SET = 0x6f,
   POLY_X86_CTRL_PRESTORE = 0x70,
+  POLY_X86_CTRL_EVENT_PTR_SET = 0x71,
+  POLY_X86_CTRL_SPILL_DESC_SET = 0x72,
+  POLY_X86_CTRL_DUMP_STATE = 0x73,
+  POLY_X86_CTRL_MEM_PROBE_RANGE = 0x74,
+  POLY_X86_CTRL_DERIVE_STATE = 0x75,
+  POLY_X86_CTRL_FENCE = 0x76,
   POLY_CPUID_FEATURE_RAW_AARCH64 = (1U << 0),
   POLY_CPUID_FEATURE_RAW_RISCV = (1U << 1),
   POLY_CPUID_FEATURE_NEUTRAL_SWITCH = (1U << 2),
@@ -303,6 +316,16 @@ enum {
   POLY_CPUID_STATE_USER_SPILL = (1U << 21),
   POLY_CPUID_STATE_MONITOR_TRAMPOLINE = (1U << 22),
   POLY_CPUID_STATE_OS_XSAVE_NOT_REQUIRED = (1U << 23),
+  POLY_CPUID_V2_FEATURE_EVENT_FRAME = (1U << 0),
+  POLY_CPUID_V2_FEATURE_SPILL_DESCRIPTOR = (1U << 1),
+  POLY_CPUID_V2_FEATURE_DEBUG_NOTE_EXPORT = (1U << 2),
+  POLY_CPUID_V2_FEATURE_MEMORY_PROBE = (1U << 3),
+  POLY_CPUID_V2_FEATURE_STATE_DERIVE = (1U << 4),
+  POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE = (1U << 5),
+  POLY_CPUID_V2_FEATURE_POLICY_PREFLIGHT = (1U << 6),
+  POLY_CPUID_V2_FEATURE_ABI_DESCRIPTORS = (1U << 7),
+  POLY_CPUID_V2_FEATURE_DIAGNOSTIC_COUNTERS = (1U << 8),
+  POLY_CPUID_V2_REQUIRED_FEATURES = POLY_CPUID_V2_FEATURE_EVENT_FRAME | POLY_CPUID_V2_FEATURE_SPILL_DESCRIPTOR | POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE,
   POLY_STATE_XSAVE_MAGIC = 0x31594c50, /* "PLY1" */
   POLY_STATE_XSAVE_COMPONENT_NONE = 0,
   POLY_STATE_XSAVE_BYTES_NONE = 0,
@@ -427,6 +450,45 @@ enum {
     POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS |
     POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY |
     POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS,
+  POLY_V2_EVENT_MAGIC_LO = 0x594c4f50, /* low dword of "POLYEVT2" */
+  POLY_V2_EVENT_MAGIC_HI = 0x32545645, /* high dword of "POLYEVT2" */
+  POLY_V2_EVENT_VERSION = 2,
+  POLY_V2_EVENT_BYTES = 512,
+  POLY_V2_EVENT_ALIGN = 64,
+  POLY_V2_EVENT_HEADER_BYTES = 16,
+  POLY_V2_EVENT_ARG_COUNT = 8,
+  POLY_V2_EVENT_KIND_NONE = 0,
+  POLY_V2_EVENT_KIND_SYSCALL = 1,
+  POLY_V2_EVENT_KIND_BREAK = 2,
+  POLY_V2_EVENT_KIND_IMPORT = 3,
+  POLY_V2_EVENT_KIND_ILLEGAL = 4,
+  POLY_V2_EVENT_KIND_ASYNC_SPILL = 5,
+  POLY_V2_EVENT_KIND_FAULT = 6,
+  POLY_V2_EVENT_COMPLETION_NOT_EXECUTED = 0,
+  POLY_V2_EVENT_COMPLETION_NO_ARCH_COMMIT = 1,
+  POLY_V2_EVENT_COMPLETION_COMPLETED = 2,
+  POLY_V2_EVENT_COMPLETION_INTERRUPT_BOUNDARY = 3,
+  POLY_V2_EVENT_RESUME_USE_RESUME_PC = 0,
+  POLY_V2_EVENT_RESUME_MONITOR_DECIDES = 1,
+  POLY_V2_EVENT_SIDE_EFFECT_NONE = 0,
+  POLY_V2_EVENT_SIDE_EFFECT_SYSCALL_LIKE = 1,
+  POLY_V2_EVENT_SIDE_EFFECT_BLOCKING_WAIT = 2,
+  POLY_V2_EVENT_SIDE_EFFECT_MEMORY_SHARING = 3,
+  POLY_V2_EVENT_SIDE_EFFECT_THREAD_BIRTH = 4,
+  POLY_V2_SPILL_DESC_MAGIC_LO = 0x594c4f50, /* low dword of "POLYSPD2" */
+  POLY_V2_SPILL_DESC_MAGIC_HI = 0x32445053, /* high dword of "POLYSPD2" */
+  POLY_V2_SPILL_DESC_VERSION = 2,
+  POLY_V2_SPILL_DESC_BYTES = 256,
+  POLY_V2_SPILL_DESC_ALIGN = 64,
+  POLY_V2_SPILL_DESC_HEADER_BYTES = 16,
+  POLY_V2_SPILL_DESC_FLAG_ENABLE = (1U << 0),
+  POLY_V2_SPILL_DESC_FLAG_EVENT_FRAME = (1U << 1),
+  POLY_V2_SPILL_DESC_FLAG_RESUME_STACK = (1U << 2),
+  POLY_V2_SPILL_DESC_FLAG_STATE_IMAGE = (1U << 3),
+  POLY_V2_SPILL_DESC_VALID_STATE_ADDR = (1U << 0),
+  POLY_V2_SPILL_DESC_VALID_EVENT_ADDR = (1U << 1),
+  POLY_V2_SPILL_DESC_VALID_RESUME_RIP = (1U << 2),
+  POLY_V2_SPILL_DESC_VALID_RESUME_STACK = (1U << 3),
   POLY_INTERRUPT_ABI_VERSION = 1,
   POLY_INTERRUPT_FLAG_RAW_CPL3_ONLY = (1U << 0),
   POLY_INTERRUPT_FLAG_STANDARD_X86_ENTRY = (1U << 1),
@@ -879,10 +941,98 @@ struct poly_xsave_state {
   uint8_t reserved[POLY_STATE_XSAVE_RESERVED_BYTES];
 };
 
+struct poly_v2_event_frame {
+  uint64_t magic;
+  uint32_t bytes;
+  uint16_t version;
+  uint16_t header_bytes;
+  uint64_t sequence;
+  uint32_t frontend;
+  uint16_t event_kind;
+  uint16_t event_subkind;
+  uint64_t flags;
+  uint32_t completion;
+  uint16_t resume_policy;
+  uint16_t arg_count;
+  uint64_t insn_pc;
+  uint64_t resume_pc;
+  uint64_t fallthrough_pc;
+  uint64_t target_pc;
+  uint64_t foreign_sp;
+  uint64_t foreign_tls;
+  uint64_t frontend_status0;
+  uint64_t frontend_status1;
+  uint64_t selector;
+  uint64_t args[POLY_V2_EVENT_ARG_COUNT];
+  uint64_t fault_address;
+  uint64_t fault_status;
+  uint64_t raw_syndrome;
+  uint64_t host_error_code;
+  uint64_t side_effect_class;
+  uint64_t memory_order_class;
+  uint64_t result_register;
+  uint64_t error_convention;
+  uint64_t spill_descriptor;
+  uint64_t spill_generation;
+  uint64_t monitor_cookie;
+  uint64_t state_key;
+  uint64_t arch_private[16];
+  uint8_t reserved[104];
+};
+
+struct poly_v2_spill_descriptor {
+  uint64_t magic;
+  uint32_t bytes;
+  uint16_t version;
+  uint16_t header_bytes;
+  uint64_t flags;
+  uint64_t owner_cookie;
+  uint64_t generation;
+  uint64_t valid_mask;
+  uint64_t state_addr;
+  uint32_t state_bytes;
+  uint16_t state_align;
+  uint16_t state_layout_version;
+  uint64_t event_addr;
+  uint32_t event_bytes;
+  uint32_t event_flags;
+  uint64_t resume_rip;
+  uint64_t resume_stack_base;
+  uint64_t resume_stack_bytes;
+  uint64_t resume_stack_top;
+  uint64_t monitor_packet_addr;
+  uint64_t monitor_packet_bytes;
+  uint64_t state_key;
+  uint64_t frontend_mask;
+  uint64_t last_event_sequence;
+  uint64_t last_spill_reason;
+  uint64_t last_spill_cycles;
+  uint64_t last_spill_bytes;
+  uint64_t debug_note_addr;
+  uint64_t debug_note_bytes;
+  uint64_t policy_hook_addr;
+  uint64_t policy_hook_bytes;
+  uint8_t reserved[48];
+};
+
 #define POLY_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
 
 POLY_STATIC_ASSERT(sizeof(struct poly_u128) == 16,
   "poly_u128 must be 16 bytes");
+POLY_STATIC_ASSERT(
+  (((uint64_t) POLY_V2_EVENT_MAGIC_HI << 32) | POLY_V2_EVENT_MAGIC_LO) ==
+    0x32545645594c4f50ULL,
+  "poly v2 event magic must match POLYEVT2");
+POLY_STATIC_ASSERT(
+  (((uint64_t) POLY_V2_SPILL_DESC_MAGIC_HI << 32) |
+    POLY_V2_SPILL_DESC_MAGIC_LO) == 0x32445053594c4f50ULL,
+  "poly v2 spill descriptor magic must match POLYSPD2");
+POLY_STATIC_ASSERT(sizeof(struct poly_v2_event_frame) ==
+  POLY_V2_EVENT_BYTES,
+  "poly v2 event frame size must match draft contract");
+POLY_STATIC_ASSERT(sizeof(struct poly_v2_spill_descriptor) ==
+  POLY_V2_SPILL_DESC_BYTES,
+  "poly v2 spill descriptor size must match draft contract");
 POLY_STATIC_ASSERT(sizeof(struct poly_xsave_header) ==
   POLY_STATE_XSAVE_HEADER_BYTES,
   "poly XSAVE header size must match CPUID contract");
@@ -1733,6 +1883,24 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_abi_bridge_leaf(void) {
     (POLY_ABI_BRIDGE_FP_ARG_COUNT << 8) |
     (POLY_ABI_BRIDGE_STACK_ALIGN << 16);
   regs.edx = 0;
+  return regs;
+}
+
+static inline struct poly_cpuid_regs poly_cpuid_expected_v2_leaf(void) {
+  struct poly_cpuid_regs regs;
+  regs.eax = POLY_CPUID_V2_ABI_VERSION;
+  regs.ebx = POLY_CPUID_V2_FEATURE_EVENT_FRAME |
+    POLY_CPUID_V2_FEATURE_SPILL_DESCRIPTOR |
+    POLY_CPUID_V2_FEATURE_DEBUG_NOTE_EXPORT |
+    POLY_CPUID_V2_FEATURE_MEMORY_PROBE |
+    POLY_CPUID_V2_FEATURE_STATE_DERIVE |
+    POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE |
+    POLY_CPUID_V2_FEATURE_POLICY_PREFLIGHT |
+    POLY_CPUID_V2_FEATURE_ABI_DESCRIPTORS |
+    POLY_CPUID_V2_FEATURE_DIAGNOSTIC_COUNTERS;
+  regs.ecx = POLY_CPUID_V2_REQUIRED_FEATURES;
+  regs.edx = POLY_V2_EVENT_BYTES |
+    (POLY_V2_SPILL_DESC_BYTES << 16);
   return regs;
 }
 

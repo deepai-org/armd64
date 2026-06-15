@@ -14,7 +14,7 @@ module poly_cpuid_rom (
     output logic [31:0] edx_o
 );
   localparam logic [31:0] POLY_CPUID_BASE = 32'h40000000;
-  localparam logic [31:0] POLY_CPUID_MAX  = 32'h40000009;
+  localparam logic [31:0] POLY_CPUID_MAX  = 32'h4000000a;
 
   localparam logic [31:0] POLY_VENDOR_EBX = 32'h796c6f50; // "Poly"
   localparam logic [31:0] POLY_VENDOR_EDX = 32'h746f6c67; // "glot"
@@ -104,6 +104,13 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_ABI_BRIDGE_ABI_VERSION = 32'd1;
   localparam logic [31:0] POLY_ABI_BRIDGE_FLAGS = 32'h00007e9f;
   localparam logic [31:0] POLY_ABI_BRIDGE_COUNTS_ALIGN = 32'h00100808;
+
+  localparam logic [31:0] POLY_CPUID_V2_ABI_VERSION = 32'd2;
+  localparam logic [31:0] POLY_CPUID_V2_FEATURES = 32'h000001ff;
+  localparam logic [31:0] POLY_CPUID_V2_REQUIRED_FEATURES = 32'h00000023;
+  localparam logic [31:0] POLY_V2_EVENT_BYTES = 32'd512;
+  localparam logic [31:0] POLY_V2_SPILL_DESC_BYTES = 32'd256;
+  localparam logic [31:0] POLY_V2_SIZE_EDX = 32'h01000200;
 
   localparam logic [31:0] POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS = 32'h00000044;
   localparam logic [31:0] POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS = 32'h00000045;
@@ -390,6 +397,13 @@ module poly_cpuid_rom (
           ebx_o = POLY_ABI_BRIDGE_FLAGS;
           ecx_o = POLY_ABI_BRIDGE_COUNTS_ALIGN;
           edx_o = 32'd0;
+        end
+        POLY_CPUID_BASE + 32'd10: begin
+          hit_o = 1'b1;
+          eax_o = POLY_CPUID_V2_ABI_VERSION;
+          ebx_o = POLY_CPUID_V2_FEATURES;
+          ecx_o = POLY_CPUID_V2_REQUIRED_FEATURES;
+          edx_o = POLY_V2_SIZE_EDX;
         end
         default: begin
           hit_o = 1'b0;

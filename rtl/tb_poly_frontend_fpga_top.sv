@@ -8,7 +8,7 @@ module tb_poly_frontend_fpga_top;
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_MODE = 7'h2d;
   localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
   localparam logic [31:0] POLY_CPUID_BASE = 32'h40000000;
-  localparam logic [31:0] POLY_CPUID_MAX = 32'h40000009;
+  localparam logic [31:0] POLY_CPUID_MAX = 32'h4000000a;
   localparam logic [31:0] POLY_TRAP_BREAK = 32'd2;
   localparam logic [31:0] POLY_MODE_RAW_AARCH64 = 32'd1;
   localparam logic [31:0] POLY_MODE_RAW_RISCV = 32'd2;
@@ -666,6 +666,14 @@ module tb_poly_frontend_fpga_top;
       "fpga top exposes x86 opcode contract cpuid leaf");
 
     cpuid_leaf_i = POLY_CPUID_BASE + 32'd10;
+    cpuid_subleaf_i = 32'd0;
+    #1;
+    check(cpuid_hit_o && cpuid_eax_o == 32'd2 &&
+      cpuid_ebx_o == 32'h000001ff && cpuid_ecx_o == 32'h00000023 &&
+      cpuid_edx_o == 32'h01000200,
+      "fpga top exposes v2 abi cpuid leaf");
+
+    cpuid_leaf_i = POLY_CPUID_BASE + 32'd11;
     cpuid_subleaf_i = 32'd0;
     #1;
     check(!cpuid_hit_o && cpuid_eax_o == 32'd0 && cpuid_ebx_o == 32'd0 &&

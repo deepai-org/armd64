@@ -9,7 +9,7 @@ module tb_poly_frontend_core;
   localparam logic [6:0] POLY_X86_CTRL_PCALL_SIG_IMM_BASE = 7'h30;
   localparam logic [6:0] POLY_X86_CTRL_TRAP_RETURN = 7'h62;
   localparam logic [31:0] POLY_CPUID_BASE = 32'h40000000;
-  localparam logic [31:0] POLY_CPUID_MAX = 32'h40000009;
+  localparam logic [31:0] POLY_CPUID_MAX = 32'h4000000a;
   localparam logic [31:0] POLY_TRAP_IMPORT = 32'd3;
   localparam logic [31:0] POLY_MODE_RAW_RISCV = 32'd2;
 
@@ -547,7 +547,11 @@ module tb_poly_frontend_core;
       32'd1, 32'h0000003f, 32'd1, 32'd0,
       "core exposes x86 opcode contract cpuid leaf");
 
-    cpuid_leaf_i = POLY_CPUID_BASE + 32'd10;
+    check_cpuid(POLY_CPUID_BASE + 32'd10, 32'd0,
+      32'd2, 32'h000001ff, 32'h00000023, 32'h01000200,
+      "core exposes v2 abi cpuid leaf");
+
+    cpuid_leaf_i = POLY_CPUID_BASE + 32'd11;
     cpuid_subleaf_i = 32'd0;
     #1;
     check(!cpuid_hit_o && cpuid_eax_o == 32'd0 && cpuid_ebx_o == 32'd0 &&

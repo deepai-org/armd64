@@ -99,6 +99,8 @@ extern char **environ;
   POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS_ASM
 #define POLY_OP_SPILL_PTR_SET POLY_X86_CTRL_SPILL_PTR_SET_ASM
 #define POLY_OP_PRESTORE POLY_X86_CTRL_PRESTORE_ASM
+#define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
+#define POLY_OP_SPILL_DESC_SET POLY_X86_CTRL_SPILL_DESC_SET_ASM
 
 #define POLYEXEC_SYSCALL_SUMMARY_MAX 512
 #define POLY_AUTO_SPILL_RESUME_STACK_SIZE (64U * 1024U)
@@ -107,6 +109,11 @@ extern char **environ;
 #define POLY_TRAP_VECTOR_STACK_COUNT 8U
 #define POLY_AUTO_SPILL_RESUME_STACK_PTR_OFFSET \
   POLY_STATE_XSAVE_RESERVED_OFFSET
+#define POLY_V2_EVENT_MAGIC \
+  ((((uint64_t) POLY_V2_EVENT_MAGIC_HI) << 32) | POLY_V2_EVENT_MAGIC_LO)
+#define POLY_V2_SPILL_DESC_MAGIC \
+  ((((uint64_t) POLY_V2_SPILL_DESC_MAGIC_HI) << 32) | \
+    POLY_V2_SPILL_DESC_MAGIC_LO)
 
 #ifndef TIOCGWINSZ
 #define TIOCGWINSZ 0x5413
@@ -484,6 +491,11 @@ static __thread uint64_t poly_mode_x86_saved_rsp;
 static __thread struct poly_xsave_state poly_auto_spill_state
   __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
 static __thread struct poly_xsave_state *poly_auto_spill_state_active;
+static __thread struct poly_v2_event_frame poly_auto_spill_event_frame
+  __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
+static __thread struct poly_v2_spill_descriptor poly_auto_spill_descriptor
+  __attribute__((aligned(POLY_V2_SPILL_DESC_ALIGN)));
+static __thread uint64_t poly_v2_last_event_sequence;
 static __thread volatile sig_atomic_t poly_auto_spill_installed;
 static __thread volatile sig_atomic_t poly_auto_spill_signal_signo;
 static __thread volatile sig_atomic_t poly_auto_spill_signal_code;
@@ -592,6 +604,9 @@ static __thread uint64_t poly_aarch64_active_signal_frame;
 static __thread uint64_t poly_aarch64_guest_sigaltstack_sp;
 static __thread uint64_t poly_aarch64_guest_sigaltstack_size;
 static __thread int32_t poly_aarch64_guest_sigaltstack_flags = 2;
+static __thread uint64_t poly_riscv_guest_sigaltstack_sp;
+static __thread uint64_t poly_riscv_guest_sigaltstack_size;
+static __thread int32_t poly_riscv_guest_sigaltstack_flags = 2;
 static __thread struct poly_xsave_state poly_trap_return_state
   __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
 static uint64_t poly_syscall_summary_aarch64[POLYEXEC_SYSCALL_SUMMARY_MAX];
@@ -884,9 +899,72 @@ static uint64_t poly_spill_ptr_set(uint64_t buffer, uint64_t resume_rip) {
   return buffer;
 }
 
+static uint64_t poly_event_ptr_set(uint64_t frame, uint64_t bytes) {
+  asm volatile(POLY_OP_EVENT_PTR_SET
+    : "+a"(frame), "+d"(bytes)
+    :
+    : "memory");
+  return frame;
+}
+
+static uint64_t poly_spill_desc_set(uint64_t descriptor, uint64_t bytes) {
+  asm volatile(POLY_OP_SPILL_DESC_SET
+    : "+a"(descriptor), "+d"(bytes)
+    :
+    : "memory");
+  return descriptor;
+}
+
 static struct poly_xsave_state *poly_auto_spill_active_state(void) {
   return poly_auto_spill_state_active != NULL ?
     poly_auto_spill_state_active : &poly_auto_spill_state;
+}
+
+static void populate_poly_v2_spill_descriptor(uint64_t buffer,
+    uint64_t resume) {
+  uint64_t generation = poly_auto_spill_descriptor.generation + 1;
+  if (generation == 0)
+    generation = 1;
+  memset(&poly_auto_spill_descriptor, 0, sizeof(poly_auto_spill_descriptor));
+  memset(&poly_auto_spill_event_frame, 0, sizeof(poly_auto_spill_event_frame));
+  poly_auto_spill_descriptor.magic = POLY_V2_SPILL_DESC_MAGIC;
+  poly_auto_spill_descriptor.bytes = POLY_V2_SPILL_DESC_BYTES;
+  poly_auto_spill_descriptor.version = POLY_V2_SPILL_DESC_VERSION;
+  poly_auto_spill_descriptor.header_bytes = POLY_V2_SPILL_DESC_HEADER_BYTES;
+  poly_auto_spill_descriptor.flags = POLY_V2_SPILL_DESC_FLAG_ENABLE |
+    POLY_V2_SPILL_DESC_FLAG_EVENT_FRAME |
+    POLY_V2_SPILL_DESC_FLAG_RESUME_STACK |
+    POLY_V2_SPILL_DESC_FLAG_STATE_IMAGE;
+  poly_auto_spill_descriptor.owner_cookie =
+    (uint64_t) (uintptr_t) &poly_auto_spill_descriptor;
+  poly_auto_spill_descriptor.generation = generation;
+  poly_auto_spill_descriptor.valid_mask =
+    POLY_V2_SPILL_DESC_VALID_STATE_ADDR |
+    POLY_V2_SPILL_DESC_VALID_EVENT_ADDR |
+    POLY_V2_SPILL_DESC_VALID_RESUME_RIP |
+    POLY_V2_SPILL_DESC_VALID_RESUME_STACK;
+  poly_auto_spill_descriptor.state_addr = buffer;
+  poly_auto_spill_descriptor.state_bytes = POLY_STATE_XSAVE_BYTES_ARCH;
+  poly_auto_spill_descriptor.state_align = POLY_STATE_XSAVE_ALIGN_ARCH;
+  poly_auto_spill_descriptor.state_layout_version =
+    POLY_STATE_XSAVE_LAYOUT_VERSION;
+  poly_auto_spill_descriptor.event_addr =
+    (uint64_t) (uintptr_t) &poly_auto_spill_event_frame;
+  poly_auto_spill_descriptor.event_bytes = POLY_V2_EVENT_BYTES;
+  poly_auto_spill_descriptor.resume_rip = resume;
+  poly_auto_spill_descriptor.resume_stack_base =
+    (uint64_t) (uintptr_t) poly_auto_spill_resume_stack;
+  poly_auto_spill_descriptor.resume_stack_bytes =
+    POLY_AUTO_SPILL_RESUME_STACK_SIZE;
+  poly_auto_spill_descriptor.resume_stack_top =
+    (uint64_t) (uintptr_t) (poly_auto_spill_resume_stack +
+      POLY_AUTO_SPILL_RESUME_STACK_SIZE);
+  poly_auto_spill_descriptor.monitor_packet_addr =
+    (uint64_t) (uintptr_t) poly_monitor_packet;
+  poly_auto_spill_descriptor.monitor_packet_bytes =
+    sizeof(poly_monitor_packet);
+  poly_auto_spill_descriptor.frontend_mask =
+    (1ULL << POLY_MODE_RAW_AARCH64) | (1ULL << POLY_MODE_RAW_RISCV);
 }
 
 static int refresh_poly_auto_spill(void) {
@@ -896,13 +974,15 @@ static int refresh_poly_auto_spill(void) {
     (uint64_t) (uintptr_t) poly_auto_spill_active_state();
   const uint64_t resume = (uint64_t) (uintptr_t)
     poly_auto_spill_resume_trampoline;
-  volatile uint64_t *resume_stack =
-    (volatile uint64_t *) (uintptr_t)
-      (buffer + POLY_AUTO_SPILL_RESUME_STACK_PTR_OFFSET);
-  *resume_stack =
-    (uint64_t) (uintptr_t) (poly_auto_spill_resume_stack +
-      POLY_AUTO_SPILL_RESUME_STACK_SIZE);
-  return poly_spill_ptr_set(buffer, resume) == 0 ? 0 : -1;
+  populate_poly_v2_spill_descriptor(buffer, resume);
+  if (poly_event_ptr_set((uint64_t) (uintptr_t) &poly_auto_spill_event_frame,
+        POLY_V2_EVENT_BYTES) != 0)
+    return -1;
+  if (poly_spill_desc_set(
+        (uint64_t) (uintptr_t) &poly_auto_spill_descriptor,
+        POLY_V2_SPILL_DESC_BYTES) != 0)
+    return -1;
+  return 0;
 }
 
 static int prefault_poly_auto_spill(void) {
@@ -1962,12 +2042,18 @@ static int install_poly_auto_spill(void) {
   }
   printf("POLYEXEC_AUTO_SPILL: buffer=0x%llx resume=0x%llx\n",
     (unsigned long long) buffer, (unsigned long long) resume);
+  printf("POLYEXEC_V2_AUTO_SPILL: descriptor=0x%llx event=0x%llx generation=%llu\n",
+    (unsigned long long) (uintptr_t) &poly_auto_spill_descriptor,
+    (unsigned long long) (uintptr_t) &poly_auto_spill_event_frame,
+    (unsigned long long) poly_auto_spill_descriptor.generation);
   return 0;
 }
 
 static void clear_poly_auto_spill(void) {
   if (!poly_auto_spill_installed)
     return;
+  (void) poly_spill_desc_set(0, 0);
+  (void) poly_event_ptr_set(0, 0);
   (void) poly_spill_ptr_set(0, 0);
   poly_auto_spill_installed = 0;
 }
@@ -3948,18 +4034,27 @@ static int poly_guest_signal_mask_blocks(uint64_t signum) {
     (1ULL << (uint64_t) (signum - 1))) != 0;
 }
 
-static int64_t poly_dispatch_aarch64_sigaltstack(uint64_t new_stack_addr,
-    uint64_t old_stack_addr) {
+static int64_t poly_dispatch_guest_sigaltstack(uint64_t mode,
+    uint64_t new_stack_addr, uint64_t old_stack_addr) {
+  uint64_t *guest_sp = mode == POLY_MODE_RAW_RISCV ?
+    &poly_riscv_guest_sigaltstack_sp : &poly_aarch64_guest_sigaltstack_sp;
+  uint64_t *guest_size = mode == POLY_MODE_RAW_RISCV ?
+    &poly_riscv_guest_sigaltstack_size : &poly_aarch64_guest_sigaltstack_size;
+  int32_t *guest_flags = mode == POLY_MODE_RAW_RISCV ?
+    &poly_riscv_guest_sigaltstack_flags : &poly_aarch64_guest_sigaltstack_flags;
+  const int on_signal_stack = mode == POLY_MODE_RAW_AARCH64 &&
+    poly_aarch64_active_signal_frame != 0;
+
   if (old_stack_addr != 0) {
     if (!poly_guest_range_is_mapped(old_stack_addr,
           sizeof(struct poly_linux_stack_t), 1))
       return -EFAULT;
     struct poly_linux_stack_t old_stack;
     memset(&old_stack, 0, sizeof(old_stack));
-    old_stack.sp = poly_aarch64_guest_sigaltstack_sp;
-    old_stack.size = poly_aarch64_guest_sigaltstack_size;
-    old_stack.flags = poly_aarch64_guest_sigaltstack_flags;
-    if (poly_aarch64_active_signal_frame != 0 &&
+    old_stack.sp = *guest_sp;
+    old_stack.size = *guest_size;
+    old_stack.flags = *guest_flags;
+    if (on_signal_stack &&
         (old_stack.flags & POLY_LINUX_SS_DISABLE) == 0)
       old_stack.flags |= POLY_LINUX_SS_ONSTACK;
     memcpy((void *) (uintptr_t) old_stack_addr, &old_stack,
@@ -3968,7 +4063,7 @@ static int64_t poly_dispatch_aarch64_sigaltstack(uint64_t new_stack_addr,
 
   if (new_stack_addr == 0)
     return 0;
-  if (poly_aarch64_active_signal_frame != 0)
+  if (on_signal_stack)
     return -EPERM;
   if (!poly_guest_range_is_mapped(new_stack_addr,
         sizeof(struct poly_linux_stack_t), 0))
@@ -3981,9 +4076,9 @@ static int64_t poly_dispatch_aarch64_sigaltstack(uint64_t new_stack_addr,
   if ((new_stack.flags & ~supported_flags) != 0)
     return -EINVAL;
   if ((new_stack.flags & POLY_LINUX_SS_DISABLE) != 0) {
-    poly_aarch64_guest_sigaltstack_sp = 0;
-    poly_aarch64_guest_sigaltstack_size = 0;
-    poly_aarch64_guest_sigaltstack_flags = POLY_LINUX_SS_DISABLE;
+    *guest_sp = 0;
+    *guest_size = 0;
+    *guest_flags = POLY_LINUX_SS_DISABLE;
     return 0;
   }
   if (new_stack.size < POLY_AARCH64_MINSIGSTKSZ)
@@ -3998,9 +4093,9 @@ static int64_t poly_dispatch_aarch64_sigaltstack(uint64_t new_stack_addr,
     }
     return -EFAULT;
   }
-  poly_aarch64_guest_sigaltstack_sp = new_stack.sp;
-  poly_aarch64_guest_sigaltstack_size = new_stack.size;
-  poly_aarch64_guest_sigaltstack_flags = 0;
+  *guest_sp = new_stack.sp;
+  *guest_size = new_stack.size;
+  *guest_flags = 0;
   if (poly_trace_protected_signal_waits_enabled()) {
     poly_write_literal_stderr("POLYEXEC_GUEST_SIGALTSTACK: sp=0x");
     poly_write_hex64_stderr(new_stack.sp);
@@ -4503,7 +4598,17 @@ static uint64_t poly_dispatch_rt_sigsuspend(uint64_t set,
   return (uint64_t) status;
 }
 
-static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode) {
+static int poly_open_target_is_directory(uint64_t dirfd, uint64_t path) {
+  if (path == 0)
+    return 0;
+  struct stat stat_result;
+  long status = poly_x86_syscall6(SYS_newfstatat, dirfd, path,
+    (uint64_t) (uintptr_t) &stat_result, AT_SYMLINK_NOFOLLOW, 0, 0);
+  return status == 0 && S_ISDIR(stat_result.st_mode);
+}
+
+static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode,
+    uint64_t dirfd, uint64_t path) {
   if (mode != POLY_MODE_RAW_AARCH64)
     return flags;
 
@@ -4515,8 +4620,12 @@ static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode) {
   uint64_t translated = flags & ~translated_mask;
   if ((flags & POLY_AARCH64_O_DIRECTORY) != 0)
     translated |= O_DIRECTORY;
-  if ((flags & POLY_AARCH64_O_DIRECT) != 0)
-    translated |= O_DIRECT;
+  if ((flags & POLY_AARCH64_O_DIRECT) != 0) {
+    if (poly_open_target_is_directory(dirfd, path))
+      translated |= O_DIRECTORY;
+    else
+      translated |= O_DIRECT;
+  }
   if ((flags & POLY_AARCH64_O_LARGEFILE) != 0)
     translated |= O_LARGEFILE;
   if ((flags & POLY_AARCH64_O_NOFOLLOW) != 0)
@@ -4811,7 +4920,7 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
 	      *result = (uint64_t) status;
 	      return 1;
     case 56: {
-      uint64_t flags = poly_translate_open_flags(arg2, mode);
+      uint64_t flags = poly_translate_open_flags(arg2, mode, arg0, arg1);
       status = poly_x86_syscall6(SYS_openat, arg0, arg1, flags, arg3, 0, 0);
       *result = (uint64_t) status;
       return 1;
@@ -4884,8 +4993,8 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
       }
       return 0;
     case 132:
-      if (mode == POLY_MODE_RAW_AARCH64) {
-        *result = (uint64_t) poly_dispatch_aarch64_sigaltstack(arg0, arg1);
+      if (mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV) {
+        *result = (uint64_t) poly_dispatch_guest_sigaltstack(mode, arg0, arg1);
         return 1;
       }
       return 0;
@@ -5419,6 +5528,60 @@ static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
     return -1;
   }
 
+  return 0;
+}
+
+static int read_poly_v2_event_frame(struct poly_v2_event_frame *event) {
+  const volatile struct poly_v2_event_frame *src =
+    &poly_auto_spill_event_frame;
+  if (src->magic == 0)
+    return 0;
+  memcpy(event, (const void *) src, sizeof(*event));
+  if (event->magic != POLY_V2_EVENT_MAGIC ||
+      event->bytes != POLY_V2_EVENT_BYTES ||
+      event->version != POLY_V2_EVENT_VERSION ||
+      event->header_bytes != POLY_V2_EVENT_HEADER_BYTES ||
+      event->arg_count != POLY_V2_EVENT_ARG_COUNT)
+    return -1;
+  return 1;
+}
+
+static int poly_v2_event_kind_matches_packet(uint16_t event_kind,
+    uint64_t packet_reason) {
+  switch (event_kind) {
+    case POLY_V2_EVENT_KIND_SYSCALL:
+      return packet_reason == POLY_TRAP_SYSCALL;
+    case POLY_V2_EVENT_KIND_BREAK:
+      return packet_reason == POLY_TRAP_BREAK;
+    case POLY_V2_EVENT_KIND_IMPORT:
+      return packet_reason == POLY_TRAP_IMPORT;
+    case POLY_V2_EVENT_KIND_ILLEGAL:
+      return packet_reason == POLY_TRAP_ILLEGAL;
+    default:
+      return 0;
+  }
+}
+
+static int apply_poly_v2_event_to_packet(
+    const struct poly_v2_event_frame *event,
+    struct poly_runtime_trap_packet *packet) {
+  if (event->sequence == 0 || event->sequence == poly_v2_last_event_sequence)
+    return 0;
+  if (!poly_v2_event_kind_matches_packet(event->event_kind,
+        packet->reason) ||
+      event->frontend != packet->mode ||
+      event->selector != packet->number ||
+      event->insn_pc != packet->pc ||
+      event->resume_pc == 0) {
+    return 0;
+  }
+
+  poly_v2_last_event_sequence = event->sequence;
+  packet->pc = event->insn_pc;
+  packet->next_pc = event->resume_pc;
+  packet->number = event->selector;
+  for (size_t n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
+    packet->args[n] = event->args[n];
   return 0;
 }
 
@@ -6068,7 +6231,8 @@ static void poly_trace_syscall_result(
   if (packet->number == 56 && packet->args[1] != 0) {
     open_path = (const char *) (uintptr_t) packet->args[1];
     translated_open_flags =
-      poly_translate_open_flags(packet->args[2], packet->mode);
+      poly_translate_open_flags(packet->args[2], packet->mode,
+        packet->args[0], packet->args[1]);
   }
   if (packet->number == 79 && packet->args[1] != 0)
     stat_path = (const char *) (uintptr_t) packet->args[1];
@@ -6668,10 +6832,18 @@ static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
 __attribute__((noinline, used))
 uint64_t poly_trap_vector_dispatch(void) {
   struct poly_runtime_trap_packet packet;
+  struct poly_v2_event_frame event;
   struct poly_xsave_state trap_state __attribute__((aligned(64)));
   int has_trap_state = 0;
+  int has_v2_event = 0;
 
   if (read_poly_monitor_packet(&packet) < 0)
+    return (uint64_t) -EIO;
+  has_v2_event = read_poly_v2_event_frame(&event);
+  if (has_v2_event < 0)
+    return (uint64_t) -EIO;
+  if (has_v2_event > 0 &&
+      apply_poly_v2_event_to_packet(&event, &packet) < 0)
     return (uint64_t) -EIO;
   if ((packet.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) != 0) {
     poly_state_export(&trap_state);
@@ -6816,9 +6988,12 @@ uint64_t poly_trap_vector_dispatch(void) {
     if (x86_number == SYS_clone3 &&
         (packet.mode == POLY_MODE_RAW_AARCH64 ||
          packet.mode == POLY_MODE_RAW_RISCV)) {
+      uint64_t clone3_result = (uint64_t) -ENOSYS;
+      if (args[1] > 4096)
+        clone3_result = (uint64_t) -E2BIG;
       poly_trace_syscall_result(&packet, "raw-clone3-disabled", x86_number,
-        (uint64_t) -ENOSYS);
-      return poly_trap_vector_return_result((uint64_t) -ENOSYS,
+        clone3_result);
+      return poly_trap_vector_return_result(clone3_result,
         &packet, &trap_state, has_trap_state);
     }
     if (x86_number == SYS_clone &&

@@ -2,7 +2,7 @@
 
 module tb_poly_cpuid_rom;
   localparam logic [31:0] POLY_CPUID_BASE = 32'h40000000;
-  localparam logic [31:0] POLY_CPUID_MAX = 32'h40000009;
+  localparam logic [31:0] POLY_CPUID_MAX = 32'h4000000a;
 
   logic valid_i;
   logic [31:0] leaf;
@@ -153,6 +153,10 @@ module tb_poly_cpuid_rom;
       "abi bridge leaf");
 
     set_query(POLY_CPUID_BASE + 32'd10, 32'd0);
+    check_regs(32'd2, 32'h000001ff, 32'h00000023, 32'h01000200,
+      "v2 abi leaf");
+
+    set_query(POLY_CPUID_BASE + 32'd11, 32'd0);
     check(!hit && eax == 32'd0 && ebx == 32'd0 && ecx == 32'd0 && edx == 32'd0,
       "unsupported leaf misses");
 

@@ -220,6 +220,17 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         POLY_ABI_BRIDGE_FLAG_NATIVE_I128_SIGNATURES
         POLY_ABI_BRIDGE_FLAG_REGISTER_MAP_SIGNATURES
     """)
+    v2_features = mask(c, """
+        POLY_CPUID_V2_FEATURE_EVENT_FRAME
+        POLY_CPUID_V2_FEATURE_SPILL_DESCRIPTOR
+        POLY_CPUID_V2_FEATURE_DEBUG_NOTE_EXPORT
+        POLY_CPUID_V2_FEATURE_MEMORY_PROBE
+        POLY_CPUID_V2_FEATURE_STATE_DERIVE
+        POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE
+        POLY_CPUID_V2_FEATURE_POLICY_PREFLIGHT
+        POLY_CPUID_V2_FEATURE_ABI_DESCRIPTORS
+        POLY_CPUID_V2_FEATURE_DIAGNOSTIC_COUNTERS
+    """)
 
     if leaf == base:
         ebx, ecx, edx = vendor_regs()
@@ -444,6 +455,17 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
             (c["POLY_ABI_BRIDGE_STACK_ALIGN"] << 16)
         )
         return (True, c["POLY_ABI_BRIDGE_ABI_VERSION"], abi_flags, counts_align, 0)
+    if leaf == base + 10:
+        size_edx = c["POLY_V2_EVENT_BYTES"] | (
+            c["POLY_V2_SPILL_DESC_BYTES"] << 16
+        )
+        return (
+            True,
+            c["POLY_CPUID_V2_ABI_VERSION"],
+            v2_features,
+            c["POLY_CPUID_V2_REQUIRED_FEATURES"],
+            size_edx,
+        )
     return (False, 0, 0, 0, 0)
 
 
@@ -503,6 +525,13 @@ def main() -> int:
         "POLY_ABI_BRIDGE_ABI_VERSION": c["POLY_ABI_BRIDGE_ABI_VERSION"],
         "POLY_ABI_BRIDGE_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 9, 0, c)[2],
         "POLY_ABI_BRIDGE_COUNTS_ALIGN": rom_model(c["POLY_CPUID_BASE"] + 9, 0, c)[3],
+        "POLY_CPUID_V2_ABI_VERSION": c["POLY_CPUID_V2_ABI_VERSION"],
+        "POLY_CPUID_V2_FEATURES": rom_model(c["POLY_CPUID_BASE"] + 10, 0, c)[2],
+        "POLY_CPUID_V2_REQUIRED_FEATURES":
+            c["POLY_CPUID_V2_REQUIRED_FEATURES"],
+        "POLY_V2_EVENT_BYTES": c["POLY_V2_EVENT_BYTES"],
+        "POLY_V2_SPILL_DESC_BYTES": c["POLY_V2_SPILL_DESC_BYTES"],
+        "POLY_V2_SIZE_EDX": rom_model(c["POLY_CPUID_BASE"] + 10, 0, c)[4],
         "POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS":
             c["POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS"],
         "POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS":
@@ -548,6 +577,7 @@ def main() -> int:
         (c["POLY_CPUID_BASE"] + 7, 0),
         *[(c["POLY_CPUID_BASE"] + 8, subleaf) for subleaf in range(6)],
         (c["POLY_CPUID_BASE"] + 9, 0),
+        (c["POLY_CPUID_BASE"] + 10, 0),
     ]
     for leaf, subleaf in cases:
         assert rom_model(leaf, subleaf, c)[0], f"expected hit for {leaf:#x}.{subleaf}"
@@ -570,7 +600,7 @@ def main() -> int:
         (c["POLY_CPUID_BASE"] + 2, 0),
         (c["POLY_CPUID_BASE"] + 4, 16),
         (c["POLY_CPUID_BASE"] + 8, 6),
-        (c["POLY_CPUID_BASE"] + 10, 0),
+        (c["POLY_CPUID_BASE"] + 11, 0),
     ]
     for leaf, subleaf in negative_cases:
         assert rom_model(leaf, subleaf, c) == (False, 0, 0, 0, 0)
