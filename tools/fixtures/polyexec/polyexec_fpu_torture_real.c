@@ -69,6 +69,90 @@ static uint64_t a64_fsqrt64(uint64_t value) {
   return out;
 }
 
+static uint64_t a64_simd_ucvtf64(uint64_t value) {
+  uint64_t out;
+  __asm__ volatile(
+    "fmov d31, %x1\n"
+    "ucvtf d31, d31\n"
+    "fmov %x0, d31\n"
+    : "=r"(out)
+    : "r"(value)
+    : "v31", "memory");
+  return out;
+}
+
+static uint64_t a64_frintm64(uint64_t value) {
+  uint64_t out;
+  __asm__ volatile(
+    "fmov d31, %x1\n"
+    "frintm d31, d31\n"
+    "fmov %x0, d31\n"
+    : "=r"(out)
+    : "r"(value)
+    : "v31", "memory");
+  return out;
+}
+
+static uint64_t a64_fcvtzu64(uint64_t value) {
+  uint64_t out;
+  __asm__ volatile(
+    "fmov d29, %x1\n"
+    "fcvtzu %x0, d29\n"
+    : "=r"(out)
+    : "r"(value)
+    : "v29", "memory");
+  return out;
+}
+
+static uint64_t a64_fcvtmu64(uint64_t value) {
+  uint64_t out;
+  __asm__ volatile(
+    "fmov d30, %x1\n"
+    "fcvtmu %x0, d30\n"
+    : "=r"(out)
+    : "r"(value)
+    : "v30", "memory");
+  return out;
+}
+
+static uint64_t a64_rehash_small_probe(void) {
+  uint64_t branch_taken = 0;
+  uint64_t selected = 0;
+  uint64_t converted = 0;
+
+  __asm__ volatile(
+    "mov x1, #1\n"
+    "mov x2, #1\n"
+    "fmov d31, #11.0\n"
+    "fmov s30, #1.0\n"
+    "ucvtf d0, x1\n"
+    "fcvt d30, s30\n"
+    "fdiv d31, d31, d30\n"
+    "fcmpe d0, d31\n"
+    "b.ls 1f\n"
+    "mov %x[branch], #0\n"
+    "b 2f\n"
+    "1:\n"
+    "mov %x[branch], #1\n"
+    "frintm d31, d31\n"
+    "fmov d29, #1.0\n"
+    "lsl x1, x1, #1\n"
+    "fadd d29, d31, d29\n"
+    "fcvtzu x2, d29\n"
+    "cmp x2, x1\n"
+    "csel x1, x2, x1, cs\n"
+    "2:\n"
+    "mov %x[selected], x1\n"
+    "mov %x[converted], x2\n"
+    : [branch] "=r"(branch_taken),
+      [selected] "=r"(selected),
+      [converted] "=r"(converted)
+    :
+    : "x1", "x2", "v0", "v29", "v30", "v31", "cc", "memory");
+
+  return (branch_taken << 32) | (selected << 16) | converted;
+}
+
 static uint64_t run_aarch64_fpu_torture(void) {
   const uint64_t fpsr_ioc = UINT64_C(1) << 0;
   const uint64_t fpsr_ufc = UINT64_C(1) << 3;
@@ -124,6 +208,28 @@ static uint64_t run_aarch64_fpu_torture(void) {
   if (rdn != UINT64_C(0xbff0000000000001) ||
       (a64_read_fpsr() & fpsr_ixc) == 0)
     return 16;
+
+  a64_write_fpcr(0);
+  a64_write_fpsr(0);
+  if (a64_simd_ucvtf64(13) != UINT64_C(0x402a000000000000))
+    return 17;
+
+  a64_write_fpsr(0);
+  if (a64_frintm64(UINT64_C(0x4027800000000000)) !=
+      UINT64_C(0x4026000000000000))
+    return 18;
+
+  a64_write_fpsr(0);
+  if (a64_fcvtzu64(UINT64_C(0x4028000000000000)) != 12)
+    return 19;
+
+  a64_write_fpsr(0);
+  if (a64_fcvtmu64(UINT64_C(0x402a000000000000)) != 13)
+    return 27;
+
+  a64_write_fpsr(0);
+  if (a64_rehash_small_probe() != UINT64_C(0x00000001000c000c))
+    return 28;
 
   a64_write_fpcr(0);
   a64_write_fpsr(0);

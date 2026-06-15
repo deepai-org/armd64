@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -68,7 +69,21 @@ static int prepare_mounts(const char *rootfs) {
   return 0;
 }
 
-static int run_container_init(const char *rootfs, char **cmd_argv) {
+static int parse_id(const char *value, uid_t *id_out) {
+  char *end = NULL;
+  errno = 0;
+  unsigned long id = strtoul(value, &end, 10);
+  if (errno != 0 || end == value || *end != '\0' || id > 65535UL) {
+    fprintf(stderr, "POLYCONTAINER_FAIL: invalid id: %s\n", value);
+    return -1;
+  }
+  *id_out = (uid_t) id;
+  return 0;
+}
+
+static int run_container_init(const char *rootfs, char **cmd_argv,
+    const char *cwd,
+    uid_t run_uid, gid_t run_gid, int has_uid, int has_gid) {
   if (sethostname("poly-alpine", strlen("poly-alpine")) != 0)
     fprintf(stderr, "POLYCONTAINER_WARN: sethostname: %s\n", strerror(errno));
 
@@ -79,8 +94,25 @@ static int run_container_init(const char *rootfs, char **cmd_argv) {
       strerror(errno));
     _exit(125);
   }
-  if (chdir("/") != 0) {
-    fprintf(stderr, "POLYCONTAINER_FAIL: chdir /: %s\n", strerror(errno));
+  if (chdir(cwd) != 0) {
+    fprintf(stderr, "POLYCONTAINER_FAIL: chdir %s: %s\n", cwd,
+      strerror(errno));
+    _exit(125);
+  }
+
+  if (has_gid) {
+    if (setgroups(0, NULL) != 0)
+      fprintf(stderr, "POLYCONTAINER_WARN: clear groups: %s\n",
+        strerror(errno));
+    if (setgid(run_gid) != 0) {
+      fprintf(stderr, "POLYCONTAINER_FAIL: setgid %lu: %s\n",
+        (unsigned long) run_gid, strerror(errno));
+      _exit(125);
+    }
+  }
+  if (has_uid && setuid(run_uid) != 0) {
+    fprintf(stderr, "POLYCONTAINER_FAIL: setuid %lu: %s\n",
+      (unsigned long) run_uid, strerror(errno));
     _exit(125);
   }
 
@@ -116,17 +148,60 @@ static int wait_for_child(pid_t pid) {
 int main(int argc, char **argv) {
   if (argc < 3) {
     fprintf(stderr,
-      "usage: %s ROOTFS COMMAND [ARG...]\n", argv[0] ? argv[0] :
+      "usage: %s [--uid UID] [--gid GID] [--cwd DIR] ROOTFS COMMAND [ARG...]\n",
+      argv[0] ? argv[0] :
       "polycontainer-run");
     return 2;
   }
 
-  const char *rootfs = argv[1];
-  char **cmd_argv = &argv[2];
+  const char *cwd = "/";
+  uid_t run_uid = 0;
+  gid_t run_gid = 0;
+  int has_uid = 0;
+  int has_gid = 0;
+  int argi = 1;
+  while (argi < argc && strncmp(argv[argi], "--", 2) == 0) {
+    if (strcmp(argv[argi], "--uid") == 0 && argi + 1 < argc) {
+      uid_t parsed = 0;
+      if (parse_id(argv[argi + 1], &parsed) != 0)
+        return 2;
+      run_uid = parsed;
+      has_uid = 1;
+      argi += 2;
+      continue;
+    }
+    if (strcmp(argv[argi], "--gid") == 0 && argi + 1 < argc) {
+      uid_t parsed = 0;
+      if (parse_id(argv[argi + 1], &parsed) != 0)
+        return 2;
+      run_gid = (gid_t) parsed;
+      has_gid = 1;
+      argi += 2;
+      continue;
+    }
+    if (strcmp(argv[argi], "--cwd") == 0 && argi + 1 < argc) {
+      cwd = argv[argi + 1];
+      argi += 2;
+      continue;
+    }
+    fprintf(stderr, "POLYCONTAINER_FAIL: unknown option: %s\n", argv[argi]);
+    return 2;
+  }
+  if (argc - argi < 2) {
+    fprintf(stderr,
+      "usage: %s [--uid UID] [--gid GID] [--cwd DIR] ROOTFS COMMAND [ARG...]\n",
+      argv[0] ? argv[0] : "polycontainer-run");
+    return 2;
+  }
+
+  const char *rootfs = argv[argi];
+  char **cmd_argv = &argv[argi + 1];
 
   fprintf(stderr,
-    "POLYCONTAINER_START: rootfs=%s namespaces=mount,pid,uts,ipc\n",
-    rootfs);
+    "POLYCONTAINER_START: rootfs=%s namespaces=mount,pid,uts,ipc cwd=%s uid=%s%lu gid=%s%lu\n",
+    rootfs, cwd,
+    has_uid ? "" : "default:", (unsigned long) run_uid,
+    has_gid ? "" : "default:", (unsigned long) run_gid);
   pid_t supervisor = fork();
   if (supervisor < 0) {
     fprintf(stderr, "POLYCONTAINER_FAIL: fork supervisor: %s\n",
@@ -149,7 +224,8 @@ int main(int argc, char **argv) {
     _exit(125);
   }
   if (init == 0)
-    run_container_init(rootfs, cmd_argv);
+    run_container_init(rootfs, cmd_argv, cwd, run_uid, run_gid, has_uid,
+      has_gid);
 
   _exit(wait_for_child(init));
 }

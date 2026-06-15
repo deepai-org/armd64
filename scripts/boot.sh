@@ -78,11 +78,14 @@ POLYEXEC_SMP_ATOMIC_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_smp_ato
 POLYEXEC_FPU_TORTURE_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_fpu_torture_real.c"
 POLYEXEC_JIT_SELFMOD_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_jit_selfmod_real.c"
 POLYEXEC_PROCESS_EXCEPTION_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_exception_real.cc"
+POLYEXEC_PROCESS_THREAD_HASH_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_thread_hash_real.cc"
 POLYEXEC_PROCESS_SETJMP_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
+POLYEXEC_PROCESS_SIGNAL_HANDLER_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_handler_real.c"
 POLYEXEC_PROCESS_VDSO_TIME_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_vdso_time_real.c"
 POLYEXEC_AARCH64_VDSO_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.S"
 POLYEXEC_AARCH64_VDSO_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.map"
+POLYEXEC_AARCH64_NO_TTY_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_no_tty.c"
 POLYEXEC_AARCH64_VDSO_LD="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.ld"
 POLYEXEC_PYTHON_EPOLL_SERVER_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_python_epoll_server.py"
 POLY_RISCV_PYTHON_PACKAGES="${POLY_RISCV_PYTHON_PACKAGES:-python3.12-minimal libpython3.12-minimal libpython3.12-stdlib libc6 libexpat1 zlib1g libssl3t64 libsqlite3-0 liblzma5 libbz2-1.0 libcrypt1 libdb5.3t64 libffi8 libncursesw6 libreadline8t64 libtinfo6}"
@@ -389,6 +392,7 @@ RUN_POLY_EXEC_CROSS="${RUN_POLY_EXEC_CROSS:-0}"
 RUN_POLY_EXEC_SYSCALL="${RUN_POLY_EXEC_SYSCALL:-0}"
 RUN_POLY_EXEC="${RUN_POLY_EXEC:-$RUN_POLY_APPS}"
 RUN_POLY_EXEC_FOCUSED="${RUN_POLY_EXEC_FOCUSED:-0}"
+RUN_POLY_EXEC_THREAD_HASH_FOCUSED="${RUN_POLY_EXEC_THREAD_HASH_FOCUSED:-0}"
 RUN_POLY_ARCH_TRAP_EXEC="${RUN_POLY_ARCH_TRAP_EXEC:-0}"
 RUN_POLY_PREEMPT_STRESS="${RUN_POLY_PREEMPT_STRESS:-0}"
 RUN_POLY_SMP_STRESS="${RUN_POLY_SMP_STRESS:-0}"
@@ -412,17 +416,56 @@ RUN_POLY_BINFMT="${RUN_POLY_BINFMT:-0}"
 RUN_POLY_BINFMT_ARCH_TRAPS="${RUN_POLY_BINFMT_ARCH_TRAPS:-0}"
 RUN_POLY_ALPINE_BINFMT_SMOKE="${RUN_POLY_ALPINE_BINFMT_SMOKE:-0}"
 RUN_POLY_ALPINE_CONTAINER_SMOKE="${RUN_POLY_ALPINE_CONTAINER_SMOKE:-0}"
+RUN_POLY_ALPINE_PODMAN_SMOKE="${RUN_POLY_ALPINE_PODMAN_SMOKE:-0}"
+RUN_POLY_ALPINE_NODE_SMOKE="${RUN_POLY_ALPINE_NODE_SMOKE:-0}"
+RUN_POLY_ALPINE_POSTGRES_SMOKE="${RUN_POLY_ALPINE_POSTGRES_SMOKE:-0}"
 POLY_ALPINE_TRACE_SYSCALLS="${POLY_ALPINE_TRACE_SYSCALLS:-0}"
+POLY_ALPINE_TRACE_POSTGRES_SYSCALLS="${POLY_ALPINE_TRACE_POSTGRES_SYSCALLS:-0}"
 POLY_ALPINE_TRACE_TRAP_RETURNS="${POLY_ALPINE_TRACE_TRAP_RETURNS:-0}"
+POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS="${POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS:-0}"
 POLY_ALPINE_AARCH64_HWCAP="${POLY_ALPINE_AARCH64_HWCAP:-}"
+POLY_ALPINE_DISABLE_ASLR="${POLY_ALPINE_DISABLE_ASLR:-0}"
 POLY_ALPINE_DUMP_MAPS_ON_FAULT="${POLY_ALPINE_DUMP_MAPS_ON_FAULT:-0}"
-POLY_ALPINE_PROTECT_RUNTIME_SIGNALS="${POLY_ALPINE_PROTECT_RUNTIME_SIGNALS:-0}"
+POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT="${POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT:-0}"
+if [[ -z "${POLY_ALPINE_PROTECT_RUNTIME_SIGNALS+x}" ]]; then
+  POLY_ALPINE_PROTECT_RUNTIME_SIGNALS=0
+  if [[ "$RUN_POLY_ALPINE_POSTGRES_SMOKE" == "1" ]]; then
+    POLY_ALPINE_PROTECT_RUNTIME_SIGNALS=1
+  fi
+fi
+POLY_ALPINE_POLYEXEC_AUTO_SPILL="${POLY_ALPINE_POLYEXEC_AUTO_SPILL:-}"
+POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY="${POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY:-}"
+POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS="${POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS:-0}"
+POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY="${POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY:-0}"
+POLY_THREAD_HASH_DEFAULT_STACKS="${POLY_THREAD_HASH_DEFAULT_STACKS:-0}"
+POLY_THREAD_HASH_THREADS="${POLY_THREAD_HASH_THREADS:-}"
+POLYEXEC_CLONE_NATIVE_TLS="${POLYEXEC_CLONE_NATIVE_TLS:-}"
+POLY_ALPINE_NODE_EXTRA_FLAGS="${POLY_ALPINE_NODE_EXTRA_FLAGS:---single-threaded --no-concurrent-recompilation --no-concurrent-sparkplug}"
+RUN_POLY_ALPINE_NODE_JIT="${RUN_POLY_ALPINE_NODE_JIT:-1}"
+POLY_ALPINE_NODE_UV_USE_IO_URING="${POLY_ALPINE_NODE_UV_USE_IO_URING:-0}"
+POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING="${POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING:-1}"
+POLY_ALPINE_NODE_POLYEXEC_DISABLE_RSEQ="${POLY_ALPINE_NODE_POLYEXEC_DISABLE_RSEQ:-1}"
+POLY_ALPINE_POSTGRES_RUN_TIMEOUT="${POLY_ALPINE_POSTGRES_RUN_TIMEOUT:-3300}"
+POLY_ALPINE_POSTGRES_INITDB_TIMEOUT="${POLY_ALPINE_POSTGRES_INITDB_TIMEOUT:-0}"
+POLY_ALPINE_POSTGRES_READY_ATTEMPTS="${POLY_ALPINE_POSTGRES_READY_ATTEMPTS:-600}"
+POLY_ALPINE_POSTGRES_READY_DELAY="${POLY_ALPINE_POSTGRES_READY_DELAY:-15}"
+POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS="${POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS:-}"
+POLY_ALPINE_POSTGRES_NOFILE="${POLY_ALPINE_POSTGRES_NOFILE:-256}"
+POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS="${POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS:-64}"
+POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS="${POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS:-0}"
+POLY_ALPINE_POSTGRES_PGBENCH_SCALE="${POLY_ALPINE_POSTGRES_PGBENCH_SCALE:-1}"
+POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS="${POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS:-dtg}"
+POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS="${POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS:-10}"
+POLY_ALPINE_PODMAN_RUN_TIMEOUT="${POLY_ALPINE_PODMAN_RUN_TIMEOUT:-1200}"
 POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC="${POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC:-0}"
 RUN_GUEST_NETWORK="${RUN_GUEST_NETWORK:-0}"
 RUN_GUEST_NETWORK_SMOKE="${RUN_GUEST_NETWORK_SMOKE:-0}"
 if [[ "$RUN_GUEST_NETWORK_SMOKE" == "1" ||
       "$RUN_POLY_ALPINE_BINFMT_SMOKE" == "1" ||
-      "$RUN_POLY_ALPINE_CONTAINER_SMOKE" == "1" ]]; then
+      "$RUN_POLY_ALPINE_CONTAINER_SMOKE" == "1" ||
+      "$RUN_POLY_ALPINE_PODMAN_SMOKE" == "1" ||
+      "$RUN_POLY_ALPINE_NODE_SMOKE" == "1" ||
+      "$RUN_POLY_ALPINE_POSTGRES_SMOKE" == "1" ]]; then
   RUN_GUEST_NETWORK=1
 fi
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
@@ -874,11 +917,20 @@ build_poly_elf_payloads() {
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/aarch64/libc.so.6"
   cp /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 \
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/aarch64/ld-linux-aarch64.so.1"
+  cp /usr/lib/aarch64-linux-gnu/libstdc++.so.6 \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/aarch64/libstdc++.so.6"
+  cp /usr/lib/aarch64-linux-gnu/libgcc_s.so.1 \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/aarch64/libgcc_s.so.1"
+  cp /usr/lib/aarch64-linux-gnu/libm.so.6 \
+    "$TMP_DIR/initramfs-root/usr/lib/polyapps/processdeps/aarch64/libm.so.6"
   cp /bin/ls \
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-real-ls.elf"
   aarch64-linux-gnu-g++ -O2 -fno-stack-protector \
     "$POLYEXEC_PROCESS_EXCEPTION_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-exception-real.elf"
+  aarch64-linux-gnu-g++ -O2 -fno-stack-protector -pthread \
+    "$POLYEXEC_PROCESS_THREAD_HASH_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-thread-hash-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-stack-protector \
     "$POLYEXEC_PROCESS_SETJMP_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-setjmp-real.elf"
@@ -890,6 +942,11 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_SIGNAL_MASK_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-signal-mask-real.elf"
+  aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_SIGNAL_HANDLER_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-signal-handler-real.elf"
   cp /usr/bin/python3.12 \
     "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-real-python3.elf"
   cp "$POLYEXEC_PYTHON_EPOLL_SERVER_SRC" \
@@ -7046,6 +7103,11 @@ build_poly_elf_payloads() {
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-tbl.elf" 0xd2802001 0xf2a06041 0xf2c0a081 0xf2e0e0c1 0x4e080c21 0x4f01e402 0x0f00e4a3 0x0e030024 0x4f00e523 0x4e030025 0x0f00e663 0x0e032026 0x0f02e5a7 0x0f03e463 0x0e031027 0x4f02e708 0x4f00e483 0x4e031028 0x4f00e54a 0x4f00e68b 0x4f00e7cc 0x4f01e50d 0x4f01e44e 0x4e0e614f 0x0e013c80 0x0e013ca9 0x8b090000 0x0e013cc9 0x8b090000 0x0e013ce9 0x8b090000 0x0e013d09 0x8b090000 0x0e013de9 0x8b090000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-rev.elf" 0xd2802001 0xf2a06041 0xf2c0a081 0xf2e0e0c1 0x4e080c21 0x0e201822 0x2e200823 0x0e200824 0x4e201825 0x6e200826 0x4e200827 0x2e600828 0x0e600829 0x0ea0082a 0x0e013c40 0x0e013c6b 0x8b0b0000 0x0e013c8b 0x8b0b0000 0x0e113cab 0x8b0b0000 0x0e113ccb 0x8b0b0000 0x0e113ceb 0x8b0b0000 0x0e023d0b 0x8b0b0000 0x0e023d2b 0x8b0b0000 0x0e043d4b 0x8b0b0000 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-reduce.elf" 0xd2900001 0xf2afffe1 0xf2dfffe1 0xf2e00021 0x4e080c21 0x4e30a822 0x6e30a823 0x4e31a824 0x6e31a825 0x4e70a826 0x6e70a827 0x4e71a828 0x6e71a829 0xd280000a 0xf2b0000a 0xf2dfffea 0xf2efffea 0x4e080d4a 0x4eb0a94c 0x6eb0a94d 0x4eb1a94e 0x6eb1a94f 0x0e013c40 0x0e013c6b 0x8b0b0000 0x0e013c8b 0x8b0b0000 0x0e013cab 0x8b0b0000 0x0e023ccb 0x8b0b0000 0x0e023ceb 0x8b0b0000 0x0e023d0b 0x8b0b0000 0x0e023d2b 0x8b0b0000 0x0e043d8b 0x8b0b0000 0x0e043dab 0x8b0b0000 0x0e043dcb 0x8b0b0000 0x0e043deb 0x8b0b0000 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-postgres.elf" 0xd10083ff 0xd2800041 0xf2a00081 0xf2c00101 0xf2e00201 0x9e670037 0x4f00047c 0x0f0084bd 0x4f00043a 0x4f01041b 0x910003e3 0x0f10a6f6 0x0e771399 0x0e7d36f8 0x0e773fb5 0x4eb68f39 0x6ea04ad6 0x0e612b39 0x6eb68776 0x0e381f38 0x4eb64756 0x0e612ad6 0x2ef81ef6 0x2eb51fb6 0x7c006476 0x0d004876 0x910033e3 0x0d005076 0x91004be3 0x0d005876 0x794003e0 0x79400fe1 0x0b010000 0x79401be1 0x0b010000 0x794027e1 0x0b010000 0x910083ff 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-scalar-shl.elf" 0xd2800061 0x9e67003d 0x5f4a57bc 0x9e660380 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-scalar-fcmgt.elf" 0x52a7f001 0x52a80002 0x1e27005f 0x1e27003e 0x7ebee7ff 0x1e2603e0 0x6b1f001f 0x1a9f07e0 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-pairwise-long.elf" 0x4f07e7fe 0x4e205bde 0x6e202bde 0x6e602bde 0x6f00e41b 0x6ea06bdb 0x4e083f60 0xd65f03c0
+  "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-simd-podman-go.elf" 0xd10083ff 0x52802041 0xb90003e1 0x52806081 0xb90007e1 0x5280a0c1 0xb9000be1 0x5280e101 0xb9000fe1 0x4d40cbec 0x4d60ebe0 0x4dffebe4 0x4ee6bcc6 0x2e303800 0x0e023c00 0x4e083cc1 0x8b010000 0x910043ff 0xd65f03c0
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-regmix.elf" 0xd2800140 0xd28000a1 0xd2800062 0x8b020020 0xca020000 0xaa010000 0x8a020000 0x9b017c00 0xcb020000
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-branch.elf" 0xd2800520 0x14000002 0xd2800020 0x91000400
   "$POLY_ELF_GEN_BIN" aarch64 "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-condbranch.elf" 0xd2800000 0xb5000040 0x91000400 0xd2800000 0xb4000040 0xd2800c60 0x91000c00 0xb4000040 0x91001400 0xb5000040 0xd2800c60 0x91014c00
@@ -7650,7 +7712,10 @@ build_poly_elf_payloads() {
 build_binfmt_module() {
   if [[ "$RUN_POLY_BINFMT" != "1" &&
       "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" &&
-      "$RUN_POLY_ALPINE_CONTAINER_SMOKE" != "1" ]]; then
+      "$RUN_POLY_ALPINE_CONTAINER_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_PODMAN_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_NODE_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_POSTGRES_SMOKE" != "1" ]]; then
     return
   fi
 
@@ -7779,7 +7844,8 @@ build_network_modules() {
 }
 
 build_alpine_aarch64_rootfs() {
-  if [[ "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" ]]; then
+  if [[ "$RUN_POLY_ALPINE_BINFMT_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_PODMAN_SMOKE" != "1" ]]; then
     return
   fi
 
@@ -7798,7 +7864,7 @@ build_alpine_aarch64_rootfs() {
   rm -rf "$rootfs_dir"
   mkdir -p "$rootfs_dir"
   tar -xzf "$rootfs_archive" -C "$rootfs_dir"
-  mkdir -p "$rootfs_dir"/{dev,proc,sys,tmp,usr/bin}
+  mkdir -p "$rootfs_dir"/{dev,proc,sys,tmp,usr/bin,usr/lib/polyapps}
   chmod 1777 "$rootfs_dir/tmp"
   mkdir -p "$rootfs_dir/tmp/poly-apk-scripts"
   tar -xzf "$rootfs_dir/lib/apk/db/scripts.tar.gz" \
@@ -7812,6 +7878,12 @@ build_alpine_aarch64_rootfs() {
   fi
   cp "$busybox_trigger" "$rootfs_dir/tmp/poly-apk-scripts/busybox.trigger"
   cp "$POLY_EXEC_BIN" "$rootfs_dir/usr/bin/polyexec"
+  cp "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-polyexec-vdso.so" \
+    "$rootfs_dir/usr/lib/polyapps/aarch64-polyexec-vdso.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_AARCH64_NO_TTY_SRC" \
+    -o "$rootfs_dir/usr/lib/polyapps/aarch64-no-tty.so"
   cp "$POLY_APK_TRIGGER_MIMIC_BIN" \
     "$rootfs_dir/usr/bin/poly-apk-trigger-mimic"
   cat > "$rootfs_dir/etc/apk/repositories" <<EOF
@@ -7820,16 +7892,116 @@ $ALPINE_AARCH64_COMMUNITY_URL
 EOF
   cat > "$rootfs_dir/etc/polyexec-binfmt.env" <<EOF
 POLYEXEC_TRACE_SYSCALLS=$POLY_ALPINE_TRACE_SYSCALLS
+POLYEXEC_TRACE_POSTGRES_SYSCALLS=$POLY_ALPINE_TRACE_POSTGRES_SYSCALLS
 POLYEXEC_TRACE_TRAP_RETURNS=$POLY_ALPINE_TRACE_TRAP_RETURNS
+POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS=$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS
 POLYEXEC_AARCH64_HWCAP=$POLY_ALPINE_AARCH64_HWCAP
 POLYEXEC_DUMP_MAPS_ON_FAULT=$POLY_ALPINE_DUMP_MAPS_ON_FAULT
+POLYEXEC_DUMP_AARCH64_NODE_CHAIN_ON_FAULT=$POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT
 POLYEXEC_PROTECT_RUNTIME_SIGNALS=$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS
+POLYEXEC_AUTO_SPILL=$POLY_ALPINE_POLYEXEC_AUTO_SPILL
+POLYEXEC_USE_EXPLICIT_STATE_KEY=$POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY
+POLYEXEC_WATCHDOG_SECONDS=$POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS
+POLYEXEC_SYSCALL_SUMMARY=$POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY
+POLYEXEC_PREFAULT_GUEST_MMAPS=$POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS
 POLY_LD_LIBRARY_PATH=/lib:/usr/lib
 EOF
+
+  if [[ "$RUN_POLY_ALPINE_NODE_SMOKE" == "1" ]]; then
+    local main_index="$CACHE_DIR/apkindex-aarch64-main.tar.gz"
+    local community_index="$CACHE_DIR/apkindex-aarch64-community.tar.gz"
+    local node_pkg_list="$CACHE_DIR/oci-alpine-nodejs-aarch64-packages.txt"
+    download "$ALPINE_AARCH64_MAIN_URL/aarch64/APKINDEX.tar.gz" "$main_index"
+    download "$ALPINE_AARCH64_COMMUNITY_URL/aarch64/APKINDEX.tar.gz" \
+      "$community_index"
+    python3 - "$main_index" "$ALPINE_AARCH64_MAIN_URL/aarch64" \
+      "$community_index" "$ALPINE_AARCH64_COMMUNITY_URL/aarch64" \
+      "$node_pkg_list" <<'PY'
+import re
+import sys
+import tarfile
+from collections import deque
+
+index_specs = [(sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])]
+out_path = sys.argv[5]
+packages = {}
+providers = {}
+
+def add_field(pkg, key, value):
+    if key in pkg:
+        pkg[key] += " " + value
+    else:
+        pkg[key] = value
+
+for index_path, repo_url in index_specs:
+    with tarfile.open(index_path, "r:gz") as tf:
+        data = tf.extractfile("APKINDEX").read().decode("utf-8")
+    current = {}
+    for line in data.splitlines() + [""]:
+        if not line:
+            name = current.get("P")
+            if name:
+                current["repo"] = repo_url
+                packages[name] = current
+                providers[name] = name
+                for provided in current.get("p", "").split():
+                    providers[provided.split("=", 1)[0]] = name
+            current = {}
+            continue
+        if len(line) >= 2 and line[1] == ":":
+            add_field(current, line[0], line[2:])
+
+def dep_key(dep):
+    dep = re.split(r"[<>=~]", dep, 1)[0]
+    if not dep or dep.startswith("/"):
+        return None
+    if dep == "so:libc.musl-aarch64.so.1":
+        return None
+    return dep
+
+wanted = []
+seen = set()
+queue = deque(["nodejs"])
+while queue:
+    dep = queue.popleft()
+    key = dep_key(dep)
+    if not key:
+        continue
+    name = packages.get(key, {}).get("P") or providers.get(key)
+    if not name:
+        raise SystemExit(f"Unable to resolve Alpine aarch64 dependency: {dep}")
+    if name in seen:
+        continue
+    pkg = packages[name]
+    seen.add(name)
+    wanted.append(name)
+    for child in pkg.get("D", "").split():
+        queue.append(child)
+
+with open(out_path, "w", encoding="utf-8") as f:
+    for name in wanted:
+        pkg = packages[name]
+        f.write(f"{name} {pkg['repo']}/{name}-{pkg['V']}.apk\n")
+PY
+    while read -r pkg_name pkg_url; do
+      [[ -n "$pkg_name" && -n "$pkg_url" ]] || continue
+      local pkg_file="$CACHE_DIR/apk-aarch64-${pkg_url##*/}"
+      download "$pkg_url" "$pkg_file"
+      tar --warning=no-unknown-keyword -xzf "$pkg_file" -C "$rootfs_dir" \
+        --exclude='.PKGINFO' \
+        --exclude='.SIGN.*' \
+        --exclude='.DESCRIPTION' \
+        --exclude='.INSTALL' \
+        --exclude='*.trigger'
+    done < "$node_pkg_list"
+  fi
 }
 
 build_oci_alpine_aarch64_rootfs() {
-  if [[ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" != "1" ]]; then
+  if [[ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_PODMAN_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_NODE_SMOKE" != "1" &&
+      "$RUN_POLY_ALPINE_POSTGRES_SMOKE" != "1" ]]; then
     return
   fi
   if ! command -v python3 >/dev/null 2>&1; then
@@ -7915,26 +8087,497 @@ for layer in manifest.get("layers", []):
         print(layer.get("digest", ""))
 ' "$manifest_file")
 
-  mkdir -p "$rootfs_dir"/{dev,proc,sys,tmp,usr/bin,etc/apk}
+  mkdir -p "$rootfs_dir"/{dev,proc,sys,tmp,usr/bin,usr/lib/polyapps,etc/apk}
   chmod 1777 "$rootfs_dir/tmp"
   cp "$POLY_EXEC_BIN" "$rootfs_dir/usr/bin/polyexec"
+  cp "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-polyexec-vdso.so" \
+    "$rootfs_dir/usr/lib/polyapps/aarch64-polyexec-vdso.so"
+  aarch64-linux-gnu-gcc -O2 -fPIC -shared -nostdlib -nodefaultlibs \
+    -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_AARCH64_NO_TTY_SRC" \
+    -o "$rootfs_dir/usr/lib/polyapps/aarch64-no-tty.so"
   cp "$POLY_BINFMT_EXEC_BIN" "$rootfs_dir/usr/bin/polybinfmt-exec"
-  cat > "$rootfs_dir/etc/apk/repositories" <<EOF
+  if [[ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" == "1" ]]; then
+    : > "$rootfs_dir/etc/apk/repositories"
+  else
+    cat > "$rootfs_dir/etc/apk/repositories" <<EOF
 $ALPINE_AARCH64_MAIN_URL
 $ALPINE_AARCH64_COMMUNITY_URL
 EOF
+  fi
   cat > "$rootfs_dir/etc/polyexec-binfmt.env" <<EOF
 POLYEXEC_TRACE_SYSCALLS=$POLY_ALPINE_TRACE_SYSCALLS
+POLYEXEC_TRACE_POSTGRES_SYSCALLS=$POLY_ALPINE_TRACE_POSTGRES_SYSCALLS
 POLYEXEC_TRACE_TRAP_RETURNS=$POLY_ALPINE_TRACE_TRAP_RETURNS
+POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS=$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS
 POLYEXEC_AARCH64_HWCAP=$POLY_ALPINE_AARCH64_HWCAP
 POLYEXEC_DUMP_MAPS_ON_FAULT=$POLY_ALPINE_DUMP_MAPS_ON_FAULT
+POLYEXEC_DUMP_AARCH64_NODE_CHAIN_ON_FAULT=$POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT
 POLYEXEC_PROTECT_RUNTIME_SIGNALS=$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS
+POLYEXEC_AUTO_SPILL=$POLY_ALPINE_POLYEXEC_AUTO_SPILL
+POLYEXEC_USE_EXPLICIT_STATE_KEY=$POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY
+POLYEXEC_WATCHDOG_SECONDS=$POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS
+POLYEXEC_SYSCALL_SUMMARY=$POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY
+POLYEXEC_PREFAULT_GUEST_MMAPS=$POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS
 POLY_LD_LIBRARY_PATH=/lib:/usr/lib
 EOF
+
+  if [[ "$RUN_POLY_ALPINE_PODMAN_SMOKE" == "1" ]]; then
+    local main_index="$CACHE_DIR/apkindex-aarch64-main.tar.gz"
+    local community_index="$CACHE_DIR/apkindex-aarch64-community.tar.gz"
+    local podman_pkg_list="$CACHE_DIR/oci-alpine-podman-aarch64-packages.txt"
+    download "$ALPINE_AARCH64_MAIN_URL/aarch64/APKINDEX.tar.gz" "$main_index"
+    download "$ALPINE_AARCH64_COMMUNITY_URL/aarch64/APKINDEX.tar.gz" \
+      "$community_index"
+    python3 - "$main_index" "$ALPINE_AARCH64_MAIN_URL/aarch64" \
+      "$community_index" "$ALPINE_AARCH64_COMMUNITY_URL/aarch64" \
+      "$podman_pkg_list" <<'PY'
+import re
+import sys
+import tarfile
+from collections import deque
+
+index_specs = [(sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])]
+out_path = sys.argv[5]
+packages = {}
+providers = {}
+
+def add_field(pkg, key, value):
+    if key in pkg:
+        pkg[key] += " " + value
+    else:
+        pkg[key] = value
+
+for index_path, repo_url in index_specs:
+    with tarfile.open(index_path, "r:gz") as tf:
+        data = tf.extractfile("APKINDEX").read().decode("utf-8")
+    current = {}
+    for line in data.splitlines() + [""]:
+        if not line:
+            name = current.get("P")
+            if name:
+                current["repo"] = repo_url
+                packages[name] = current
+                providers[name] = name
+                for provided in current.get("p", "").split():
+                    providers[provided.split("=", 1)[0]] = name
+            current = {}
+            continue
+        if len(line) >= 2 and line[1] == ":":
+            add_field(current, line[0], line[2:])
+
+def dep_key(dep):
+    dep = re.split(r"[<>=~]", dep, 1)[0]
+    if not dep or dep.startswith("/"):
+        return None
+    if dep == "so:libc.musl-aarch64.so.1":
+        return None
+    return dep
+
+wanted = []
+seen = set()
+queue = deque(["podman"])
+while queue:
+    dep = queue.popleft()
+    key = dep_key(dep)
+    if not key:
+        continue
+    name = packages.get(key, {}).get("P") or providers.get(key)
+    if not name:
+        raise SystemExit(f"Unable to resolve Alpine aarch64 dependency: {dep}")
+    if name in seen:
+        continue
+    pkg = packages[name]
+    seen.add(name)
+    wanted.append(name)
+    for child in pkg.get("D", "").split():
+        queue.append(child)
+
+with open(out_path, "w", encoding="utf-8") as f:
+    for name in wanted:
+        pkg = packages[name]
+        f.write(f"{name} {pkg['repo']}/{name}-{pkg['V']}.apk\n")
+PY
+    while read -r pkg_name pkg_url; do
+      [[ -n "$pkg_name" && -n "$pkg_url" ]] || continue
+      local pkg_file="$CACHE_DIR/apk-aarch64-${pkg_url##*/}"
+      download "$pkg_url" "$pkg_file"
+      tar --warning=no-unknown-keyword -xzf "$pkg_file" -C "$rootfs_dir" \
+        --exclude='.PKGINFO' \
+        --exclude='.SIGN.*' \
+        --exclude='.DESCRIPTION' \
+        --exclude='.INSTALL' \
+        --exclude='*.trigger'
+    done < "$podman_pkg_list"
+  fi
+
+  if [[ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" == "1" ]]; then
+    local main_index="$CACHE_DIR/apkindex-aarch64-main.tar.gz"
+    local community_index="$CACHE_DIR/apkindex-aarch64-community.tar.gz"
+    local curl_pkg_list="$CACHE_DIR/oci-alpine-curl-aarch64-packages.txt"
+    local local_main_repo="$rootfs_dir/var/lib/poly-apk-local/main/aarch64"
+    local local_community_repo="$rootfs_dir/var/lib/poly-apk-local/community/aarch64"
+    download "$ALPINE_AARCH64_MAIN_URL/aarch64/APKINDEX.tar.gz" "$main_index"
+    download "$ALPINE_AARCH64_COMMUNITY_URL/aarch64/APKINDEX.tar.gz" \
+      "$community_index"
+    mkdir -p "$local_main_repo" "$local_community_repo"
+    cp "$main_index" "$local_main_repo/APKINDEX.tar.gz"
+    cp "$community_index" "$local_community_repo/APKINDEX.tar.gz"
+    python3 - "$main_index" "$ALPINE_AARCH64_MAIN_URL/aarch64" \
+      "$community_index" "$ALPINE_AARCH64_COMMUNITY_URL/aarch64" \
+      "$curl_pkg_list" <<'PY'
+import re
+import sys
+import tarfile
+from collections import deque
+
+index_specs = [(sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])]
+out_path = sys.argv[5]
+packages = {}
+providers = {}
+
+def add_field(pkg, key, value):
+    if key in pkg:
+        pkg[key] += " " + value
+    else:
+        pkg[key] = value
+
+for index_path, repo_url in index_specs:
+    with tarfile.open(index_path, "r:gz") as tf:
+        data = tf.extractfile("APKINDEX").read().decode("utf-8")
+    current = {}
+    for line in data.splitlines() + [""]:
+        if not line:
+            name = current.get("P")
+            if name:
+                current["repo"] = repo_url
+                packages[name] = current
+                providers[name] = name
+                for provided in current.get("p", "").split():
+                    providers[provided.split("=", 1)[0]] = name
+            current = {}
+            continue
+        if len(line) >= 2 and line[1] == ":":
+            add_field(current, line[0], line[2:])
+
+def dep_key(dep):
+    dep = re.split(r"[<>=~]", dep, 1)[0]
+    if not dep or dep.startswith("/"):
+        return None
+    if dep == "so:libc.musl-aarch64.so.1":
+        return None
+    return dep
+
+wanted = []
+seen = set()
+queue = deque(["curl"])
+while queue:
+    dep = queue.popleft()
+    key = dep_key(dep)
+    if not key:
+        continue
+    name = packages.get(key, {}).get("P") or providers.get(key)
+    if not name:
+        raise SystemExit(f"Unable to resolve Alpine aarch64 dependency: {dep}")
+    if name in seen:
+        continue
+    pkg = packages[name]
+    seen.add(name)
+    wanted.append(name)
+    for child in pkg.get("D", "").split():
+        queue.append(child)
+
+with open(out_path, "w", encoding="utf-8") as f:
+    for name in wanted:
+        pkg = packages[name]
+        f.write(f"{name} {pkg['repo']}/{name}-{pkg['V']}.apk\n")
+PY
+    while read -r pkg_name pkg_url; do
+      [[ -n "$pkg_name" && -n "$pkg_url" ]] || continue
+      local pkg_file="$CACHE_DIR/apk-aarch64-${pkg_url##*/}"
+      local repo_dir="$local_main_repo"
+      download "$pkg_url" "$pkg_file"
+      case "$pkg_url" in
+        */community/aarch64/*) repo_dir="$local_community_repo" ;;
+      esac
+      cp "$pkg_file" "$repo_dir/${pkg_url##*/}"
+      tar --warning=no-unknown-keyword -xzf "$pkg_file" -C "$rootfs_dir" \
+        --exclude='.PKGINFO' \
+        --exclude='.SIGN.*' \
+        --exclude='.DESCRIPTION' \
+        --exclude='.INSTALL' \
+        --exclude='*.trigger'
+    done < "$curl_pkg_list"
+  fi
+
+  if [[ "$RUN_POLY_ALPINE_POSTGRES_SMOKE" == "1" ]]; then
+    local main_index="$CACHE_DIR/apkindex-aarch64-main.tar.gz"
+    local community_index="$CACHE_DIR/apkindex-aarch64-community.tar.gz"
+    local pg_pkg_list="$CACHE_DIR/oci-alpine-postgres-aarch64-packages.txt"
+    download "$ALPINE_AARCH64_MAIN_URL/aarch64/APKINDEX.tar.gz" "$main_index"
+    download "$ALPINE_AARCH64_COMMUNITY_URL/aarch64/APKINDEX.tar.gz" \
+      "$community_index"
+    python3 - "$main_index" "$ALPINE_AARCH64_MAIN_URL/aarch64" \
+      "$community_index" "$ALPINE_AARCH64_COMMUNITY_URL/aarch64" \
+      "$pg_pkg_list" <<'PY'
+import re
+import sys
+import tarfile
+from collections import deque
+
+index_specs = [(sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])]
+out_path = sys.argv[5]
+packages = {}
+providers = {}
+
+def add_field(pkg, key, value):
+    if key in pkg:
+        pkg[key] += " " + value
+    else:
+        pkg[key] = value
+
+for index_path, repo_url in index_specs:
+    with tarfile.open(index_path, "r:gz") as tf:
+        data = tf.extractfile("APKINDEX").read().decode("utf-8")
+    current = {}
+    for line in data.splitlines() + [""]:
+        if not line:
+            name = current.get("P")
+            if name:
+                current["repo"] = repo_url
+                packages[name] = current
+                providers[name] = name
+                for provided in current.get("p", "").split():
+                    providers[provided.split("=", 1)[0]] = name
+            current = {}
+            continue
+        if len(line) >= 2 and line[1] == ":":
+            add_field(current, line[0], line[2:])
+
+def dep_key(dep):
+    dep = re.split(r"[<>=~]", dep, 1)[0]
+    if not dep or dep.startswith("/"):
+        return None
+    if dep == "so:libc.musl-aarch64.so.1":
+        return None
+    return dep
+
+wanted = []
+seen = set()
+queue = deque(["postgresql18", "postgresql18-contrib"])
+while queue:
+    dep = queue.popleft()
+    key = dep_key(dep)
+    if not key:
+        continue
+    name = packages.get(key, {}).get("P") or providers.get(key)
+    if not name:
+        raise SystemExit(f"Unable to resolve Alpine aarch64 dependency: {dep}")
+    if name in seen:
+        continue
+    pkg = packages[name]
+    seen.add(name)
+    wanted.append(name)
+    for child in pkg.get("D", "").split():
+        queue.append(child)
+
+with open(out_path, "w", encoding="utf-8") as f:
+    for name in wanted:
+        pkg = packages[name]
+        f.write(f"{name} {pkg['repo']}/{name}-{pkg['V']}.apk\n")
+PY
+    while read -r pkg_name pkg_url; do
+      [[ -n "$pkg_name" && -n "$pkg_url" ]] || continue
+      local pkg_file="$CACHE_DIR/apk-aarch64-${pkg_url##*/}"
+      download "$pkg_url" "$pkg_file"
+      tar --warning=no-unknown-keyword -xzf "$pkg_file" -C "$rootfs_dir" \
+        --exclude='.PKGINFO' \
+        --exclude='.SIGN.*' \
+        --exclude='.DESCRIPTION' \
+        --exclude='.INSTALL' \
+        --exclude='*.trigger'
+    done < "$pg_pkg_list"
+    local postgres_bin="$rootfs_dir/usr/libexec/postgresql18/postgres"
+    if [[ -x "$postgres_bin" ]]; then
+      mv "$postgres_bin" "$postgres_bin.polyreal"
+      cat > "$postgres_bin" <<'EOF'
+#!/bin/sh
+if [ -n "${LD_PRELOAD:-}" ]; then
+  export LD_PRELOAD="/usr/lib/polyapps/aarch64-no-tty.so:$LD_PRELOAD"
+else
+  export LD_PRELOAD="/usr/lib/polyapps/aarch64-no-tty.so"
+fi
+if [ -n "${POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS:-}" ]; then
+  echo "POLY_ALPINE_POSTGRES_CHILD_START watchdog=${POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS} args=$*" >&2
+  export POLYEXEC_WATCHDOG_SECONDS="$POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS"
+fi
+exec /usr/libexec/postgresql18/postgres.polyreal "$@"
+EOF
+      chmod 755 "$postgres_bin"
+    fi
+  fi
+
+  if [[ "$RUN_POLY_ALPINE_NODE_SMOKE" == "1" ]]; then
+    local main_index="$CACHE_DIR/apkindex-aarch64-main.tar.gz"
+    local community_index="$CACHE_DIR/apkindex-aarch64-community.tar.gz"
+    local node_pkg_list="$CACHE_DIR/oci-alpine-nodejs-aarch64-packages.txt"
+    download "$ALPINE_AARCH64_MAIN_URL/aarch64/APKINDEX.tar.gz" "$main_index"
+    download "$ALPINE_AARCH64_COMMUNITY_URL/aarch64/APKINDEX.tar.gz" \
+      "$community_index"
+    python3 - "$main_index" "$ALPINE_AARCH64_MAIN_URL/aarch64" \
+      "$community_index" "$ALPINE_AARCH64_COMMUNITY_URL/aarch64" \
+      "$node_pkg_list" <<'PY'
+import re
+import sys
+import tarfile
+from collections import deque
+
+index_specs = [(sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])]
+out_path = sys.argv[5]
+packages = {}
+providers = {}
+
+def add_field(pkg, key, value):
+    if key in pkg:
+        pkg[key] += " " + value
+    else:
+        pkg[key] = value
+
+for index_path, repo_url in index_specs:
+    with tarfile.open(index_path, "r:gz") as tf:
+        data = tf.extractfile("APKINDEX").read().decode("utf-8")
+    current = {}
+    for line in data.splitlines() + [""]:
+        if not line:
+            name = current.get("P")
+            if name:
+                current["repo"] = repo_url
+                packages[name] = current
+                providers[name] = name
+                for provided in current.get("p", "").split():
+                    providers[provided.split("=", 1)[0]] = name
+            current = {}
+            continue
+        if len(line) >= 2 and line[1] == ":":
+            add_field(current, line[0], line[2:])
+
+def dep_key(dep):
+    dep = re.split(r"[<>=~]", dep, 1)[0]
+    if not dep or dep.startswith("/"):
+        return None
+    if dep == "so:libc.musl-aarch64.so.1":
+        return None
+    return dep
+
+wanted = []
+seen = set()
+queue = deque(["nodejs"])
+while queue:
+    dep = queue.popleft()
+    key = dep_key(dep)
+    if not key:
+        continue
+    name = packages.get(key, {}).get("P") or providers.get(key)
+    if not name:
+        raise SystemExit(f"Unable to resolve Alpine aarch64 dependency: {dep}")
+    if name in seen:
+        continue
+    pkg = packages[name]
+    seen.add(name)
+    wanted.append(name)
+    for child in pkg.get("D", "").split():
+        queue.append(child)
+
+with open(out_path, "w", encoding="utf-8") as f:
+    for name in wanted:
+        pkg = packages[name]
+        f.write(f"{name} {pkg['repo']}/{name}-{pkg['V']}.apk\n")
+PY
+    while read -r pkg_name pkg_url; do
+      [[ -n "$pkg_name" && -n "$pkg_url" ]] || continue
+      local pkg_file="$CACHE_DIR/apk-aarch64-${pkg_url##*/}"
+      download "$pkg_url" "$pkg_file"
+      tar --warning=no-unknown-keyword -xzf "$pkg_file" -C "$rootfs_dir" \
+        --exclude='.PKGINFO' \
+        --exclude='.SIGN.*' \
+        --exclude='.DESCRIPTION' \
+        --exclude='.INSTALL' \
+        --exclude='*.trigger'
+    done < "$node_pkg_list"
+  fi
+}
+
+stage_podman_alpine_image_rootfs() {
+  if [[ "$RUN_POLY_ALPINE_PODMAN_SMOKE" != "1" ]]; then
+    return
+  fi
+
+  local source_dir="$TMP_DIR/initramfs-root/alpine-aarch64"
+  local oci_root="$TMP_DIR/initramfs-root/oci-alpine-arm64"
+  local storage_dir="$oci_root/var/lib/containers/storage"
+  local seed_runroot="$TMP_DIR/podman-seed-run"
+  local seed_tar="$TMP_DIR/podman-alpine-rootfs.tar"
+  local target_dir="$TMP_DIR/initramfs-root/oci-alpine-arm64/poly-image/alpine-aarch64"
+
+  rm -f "$seed_tar"
+  tar -C "$source_dir" -cf "$seed_tar" .
+
+  if command -v podman >/dev/null 2>&1 &&
+      command -v sudo >/dev/null 2>&1 &&
+      sudo -n true >/dev/null 2>&1; then
+    sudo rm -rf "$storage_dir" "$seed_runroot"
+    sudo mkdir -p "$storage_dir" "$seed_runroot"
+    sudo podman --root "$storage_dir" --runroot "$seed_runroot" \
+      --storage-driver vfs import --arch arm64 --os linux \
+      "$seed_tar" alpine:latest >/dev/null
+    sudo python3 - "$storage_dir/db.sql" <<'PY'
+import sqlite3
+import sys
+
+db_path = sys.argv[1]
+con = sqlite3.connect(db_path)
+con.execute(
+    """update DBConfig
+       set StaticDir = ?,
+           TmpDir = ?,
+           GraphRoot = ?,
+           RunRoot = ?,
+           VolumeDir = ?
+       where ID = 1""",
+    (
+        "/var/lib/containers/storage/libpod",
+        "/run/libpod",
+        "/var/lib/containers/storage",
+        "/run/containers/storage",
+        "/var/lib/containers/storage/volumes",
+    ),
+)
+con.commit()
+con.close()
+PY
+    sudo chmod -R u+rwX,go+rX "$storage_dir"
+    sudo rm -rf "$seed_runroot"
+    rm -rf "$target_dir"
+    mkdir -p "$(dirname "$target_dir")"
+    cp -a "$source_dir" "$target_dir"
+    return
+  fi
+
+  rm -rf "$target_dir"
+  mkdir -p "$(dirname "$target_dir")"
+  cp -a "$source_dir" "$target_dir"
 }
 
 build_initramfs() {
-  rm -rf "$TMP_DIR/initramfs-root"
+  rm -rf "$TMP_DIR/initramfs-root" 2>/dev/null || {
+    if command -v sudo >/dev/null 2>&1 &&
+        sudo -n true >/dev/null 2>&1; then
+      sudo rm -rf "$TMP_DIR/initramfs-root"
+    else
+      echo "Unable to remove $TMP_DIR/initramfs-root; root-owned Podman seed files may remain." >&2
+      exit 1
+    fi
+  }
   mkdir -p "$TMP_DIR/initramfs-root"/{bin,sbin,etc,proc,sys,dev,usr/bin,usr/sbin,usr/lib/polyapps}
   build_poly_probe
   build_poly_app
@@ -8002,6 +8645,7 @@ build_initramfs() {
   build_network_modules
   build_alpine_aarch64_rootfs
   build_oci_alpine_aarch64_rootfs
+  stage_podman_alpine_image_rootfs
   if [[ "$REQUIRE_POLY_REAL_XSAVE" == "1" && -f "$POLY_XCR0_MODULE" ]]; then
     mkdir -p "$TMP_DIR/initramfs-root/lib/modules/poly"
     cp "$POLY_XCR0_MODULE" "$TMP_DIR/initramfs-root/lib/modules/poly/poly_xcr0.ko"
@@ -8017,6 +8661,7 @@ RUN_POLY_EXEC_CROSS="$RUN_POLY_EXEC_CROSS"
 RUN_POLY_EXEC_SYSCALL="$RUN_POLY_EXEC_SYSCALL"
 RUN_POLY_EXEC="$RUN_POLY_EXEC"
 RUN_POLY_EXEC_FOCUSED="$RUN_POLY_EXEC_FOCUSED"
+RUN_POLY_EXEC_THREAD_HASH_FOCUSED="$RUN_POLY_EXEC_THREAD_HASH_FOCUSED"
 RUN_POLY_PREEMPT_STRESS="$RUN_POLY_PREEMPT_STRESS"
 RUN_POLY_SMP_STRESS="$RUN_POLY_SMP_STRESS"
 RUN_POLY_FPU_TORTURE="$RUN_POLY_FPU_TORTURE"
@@ -8034,11 +8679,55 @@ RUN_POLY_BINFMT="$RUN_POLY_BINFMT"
 RUN_POLY_BINFMT_ARCH_TRAPS="$RUN_POLY_BINFMT_ARCH_TRAPS"
 RUN_POLY_ALPINE_BINFMT_SMOKE="$RUN_POLY_ALPINE_BINFMT_SMOKE"
 RUN_POLY_ALPINE_CONTAINER_SMOKE="$RUN_POLY_ALPINE_CONTAINER_SMOKE"
+RUN_POLY_ALPINE_PODMAN_SMOKE="$RUN_POLY_ALPINE_PODMAN_SMOKE"
+RUN_POLY_ALPINE_NODE_SMOKE="$RUN_POLY_ALPINE_NODE_SMOKE"
+RUN_POLY_ALPINE_POSTGRES_SMOKE="$RUN_POLY_ALPINE_POSTGRES_SMOKE"
 POLY_ALPINE_TRACE_SYSCALLS="$POLY_ALPINE_TRACE_SYSCALLS"
+POLY_ALPINE_TRACE_POSTGRES_SYSCALLS="$POLY_ALPINE_TRACE_POSTGRES_SYSCALLS"
 POLY_ALPINE_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS"
+POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS="$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS"
 POLY_ALPINE_AARCH64_HWCAP="$POLY_ALPINE_AARCH64_HWCAP"
+POLY_ALPINE_DISABLE_ASLR="$POLY_ALPINE_DISABLE_ASLR"
 POLY_ALPINE_DUMP_MAPS_ON_FAULT="$POLY_ALPINE_DUMP_MAPS_ON_FAULT"
+POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT="$POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT"
 POLY_ALPINE_PROTECT_RUNTIME_SIGNALS="$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS"
+POLY_ALPINE_POLYEXEC_AUTO_SPILL="$POLY_ALPINE_POLYEXEC_AUTO_SPILL"
+POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY="$POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY"
+POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS="$POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS"
+POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY="$POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY"
+POLY_ALPINE_NODE_EXTRA_FLAGS="$POLY_ALPINE_NODE_EXTRA_FLAGS"
+RUN_POLY_ALPINE_NODE_JIT="$RUN_POLY_ALPINE_NODE_JIT"
+POLY_ALPINE_NODE_UV_USE_IO_URING="$POLY_ALPINE_NODE_UV_USE_IO_URING"
+POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING="$POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING"
+POLY_ALPINE_NODE_POLYEXEC_DISABLE_RSEQ="$POLY_ALPINE_NODE_POLYEXEC_DISABLE_RSEQ"
+POLY_ALPINE_POSTGRES_RUN_TIMEOUT="$POLY_ALPINE_POSTGRES_RUN_TIMEOUT"
+POLY_ALPINE_POSTGRES_INITDB_TIMEOUT="$POLY_ALPINE_POSTGRES_INITDB_TIMEOUT"
+POLY_ALPINE_POSTGRES_READY_ATTEMPTS="$POLY_ALPINE_POSTGRES_READY_ATTEMPTS"
+POLY_ALPINE_POSTGRES_READY_DELAY="$POLY_ALPINE_POSTGRES_READY_DELAY"
+POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS="$POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS"
+POLY_ALPINE_POSTGRES_NOFILE="$POLY_ALPINE_POSTGRES_NOFILE"
+POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS="$POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS"
+POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS="$POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS"
+POLY_ALPINE_POSTGRES_PGBENCH_SCALE="$POLY_ALPINE_POSTGRES_PGBENCH_SCALE"
+POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS="$POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS"
+POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS="$POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS"
+POLY_ALPINE_PODMAN_RUN_TIMEOUT="$POLY_ALPINE_PODMAN_RUN_TIMEOUT"
+export POLY_ALPINE_NODE_EXTRA_FLAGS
+export POLY_ALPINE_NODE_UV_USE_IO_URING
+export POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING
+export POLY_ALPINE_NODE_POLYEXEC_DISABLE_RSEQ
+export POLY_ALPINE_POSTGRES_RUN_TIMEOUT
+export POLY_ALPINE_POSTGRES_INITDB_TIMEOUT
+export POLY_ALPINE_POSTGRES_READY_ATTEMPTS
+export POLY_ALPINE_POSTGRES_READY_DELAY
+export POLY_ALPINE_POSTGRES_CHILD_WATCHDOG_SECONDS
+export POLY_ALPINE_POSTGRES_NOFILE
+export POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS
+export POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS
+export POLY_ALPINE_POSTGRES_PGBENCH_SCALE
+export POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS
+export POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS
+export POLY_ALPINE_PODMAN_RUN_TIMEOUT
 RUN_GUEST_NETWORK="$RUN_GUEST_NETWORK"
 RUN_GUEST_NETWORK_SMOKE="$RUN_GUEST_NETWORK_SMOKE"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
@@ -8331,6 +9020,11 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     /usr/lib/polyapps/aarch64-simd-tbl.elf=149 \
     /usr/lib/polyapps/aarch64-simd-rev.elf=117837602 \
     /usr/lib/polyapps/aarch64-simd-reduce.elf=8590066171 \
+    /usr/lib/polyapps/aarch64-simd-postgres.elf=58 \
+    /usr/lib/polyapps/aarch64-simd-scalar-shl.elf=3072 \
+    /usr/lib/polyapps/aarch64-simd-scalar-fcmgt.elf=1 \
+    /usr/lib/polyapps/aarch64-simd-pairwise-long.elf=64 \
+    /usr/lib/polyapps/aarch64-simd-podman-go.elf=0xa0c00000a12 \
     /usr/lib/polyapps/aarch64-regmix.elf=12 \
     /usr/lib/polyapps/aarch64-branch.elf=42 \
     /usr/lib/polyapps/aarch64-condbranch.elf=91 \
@@ -8882,6 +9576,24 @@ if [ "$RUN_POLY_EXEC" = "1" ]; then
     echo "POLY_EXEC_BLOCK_OK" >/dev/ttyS0 2>&1
 fi
 
+if [ "$RUN_POLY_EXEC_THREAD_HASH_FOCUSED" = "1" ]; then
+    POLYEXEC_TRACE_SYSCALLS="$POLY_ALPINE_TRACE_SYSCALLS" \
+      POLYEXEC_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS" \
+      POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS="$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS" \
+      POLYEXEC_DUMP_MAPS_ON_FAULT="$POLY_ALPINE_DUMP_MAPS_ON_FAULT" \
+      POLYEXEC_AUTO_SPILL="$POLY_ALPINE_POLYEXEC_AUTO_SPILL" \
+      POLYEXEC_USE_EXPLICIT_STATE_KEY="$POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY" \
+      POLYEXEC_WATCHDOG_SECONDS="$POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS" \
+      POLYEXEC_SYSCALL_SUMMARY="$POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY" \
+      POLY_THREAD_HASH_DEFAULT_STACKS="$POLY_THREAD_HASH_DEFAULT_STACKS" \
+      POLY_THREAD_HASH_THREADS="$POLY_THREAD_HASH_THREADS" \
+      POLYEXEC_CLONE_NATIVE_TLS="$POLYEXEC_CLONE_NATIVE_TLS" \
+      /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-thread-hash-real.elf=42 \
+      thread-hash >/dev/ttyS0 2>&1
+    echo "POLY_EXEC_THREAD_HASH_FOCUSED_OK" >/dev/ttyS0 2>&1
+fi
+
 if [ "$RUN_POLY_EXEC_FOCUSED" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/aarch64-process-large-image-real.elf=42 \
@@ -8911,6 +9623,9 @@ if [ "$RUN_POLY_EXEC_FOCUSED" = "1" ]; then
 	      /usr/lib/polyapps/aarch64-process-exception-real.elf=42 \
 	      exception >/dev/ttyS0 2>&1
 	    /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-process-thread-hash-real.elf=42 \
+	      thread-hash >/dev/ttyS0 2>&1
+	    /usr/bin/polyexec --process \
 	      /usr/lib/polyapps/aarch64-process-setjmp-real.elf=42 \
 	      setjmp >/dev/ttyS0 2>&1
 	    /usr/bin/polyexec --process \
@@ -8919,6 +9634,11 @@ if [ "$RUN_POLY_EXEC_FOCUSED" = "1" ]; then
 	    /usr/bin/polyexec --process \
 	      /usr/lib/polyapps/aarch64-process-signal-mask-real.elf=42 \
 	      mask-edge >/dev/ttyS0 2>&1
+	    POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS="$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS" \
+	      POLYEXEC_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS" \
+	      POLYEXEC_PROTECT_RUNTIME_SIGNALS=1 /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/aarch64-process-signal-handler-real.elf=42 \
+	      handler-return >/dev/ttyS0 2>&1
 		    /bin/busybox ip link set lo up >/dev/ttyS0 2>&1 || \
 	      /bin/busybox ifconfig lo up >/dev/ttyS0 2>&1
 		    PYTHONHOME=/usr PYTHONPATH=/usr/lib/python3.12 \
@@ -11384,6 +12104,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
       /usr/lib/polyapps/aarch64-simd-tbl.elf \
       /usr/lib/polyapps/aarch64-simd-rev.elf \
       /usr/lib/polyapps/aarch64-simd-reduce.elf \
+      /usr/lib/polyapps/aarch64-simd-postgres.elf \
+      /usr/lib/polyapps/aarch64-simd-scalar-shl.elf \
+      /usr/lib/polyapps/aarch64-simd-scalar-fcmgt.elf \
+      /usr/lib/polyapps/aarch64-simd-pairwise-long.elf \
+      /usr/lib/polyapps/aarch64-simd-podman-go.elf \
       /usr/lib/polyapps/aarch64-regmix.elf \
       /usr/lib/polyapps/aarch64-branch.elf \
       /usr/lib/polyapps/aarch64-condbranch.elf \
@@ -11784,6 +12509,11 @@ if [ "$RUN_POLY_BINFMT" = "1" ]; then
     /usr/lib/polyapps/aarch64-simd-tbl.elf \
     /usr/lib/polyapps/aarch64-simd-rev.elf \
     /usr/lib/polyapps/aarch64-simd-reduce.elf \
+    /usr/lib/polyapps/aarch64-simd-postgres.elf \
+    /usr/lib/polyapps/aarch64-simd-scalar-shl.elf \
+    /usr/lib/polyapps/aarch64-simd-scalar-fcmgt.elf \
+    /usr/lib/polyapps/aarch64-simd-pairwise-long.elf \
+    /usr/lib/polyapps/aarch64-simd-podman-go.elf \
     /usr/lib/polyapps/aarch64-regmix.elf \
     /usr/lib/polyapps/aarch64-branch.elf \
     /usr/lib/polyapps/aarch64-condbranch.elf \
@@ -12381,8 +13111,13 @@ if [ "$RUN_POLY_ALPINE_BINFMT_SMOKE" = "1" ]; then
     echo "POLY_ALPINE_BINFMT_SMOKE_CMD: \$label" >/dev/ttyS0
     POLYEXEC_TRACE_SYSCALLS="\$POLY_ALPINE_TRACE_SYSCALLS" \
       POLYEXEC_TRACE_TRAP_RETURNS="\$POLY_ALPINE_TRACE_TRAP_RETURNS" \
+      POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS="\$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS" \
       POLYEXEC_AARCH64_HWCAP="\$POLY_ALPINE_AARCH64_HWCAP" \
       POLYEXEC_DUMP_MAPS_ON_FAULT="\$POLY_ALPINE_DUMP_MAPS_ON_FAULT" \
+      POLYEXEC_AUTO_SPILL="\$POLY_ALPINE_POLYEXEC_AUTO_SPILL" \
+      POLYEXEC_USE_EXPLICIT_STATE_KEY="\$POLY_ALPINE_POLYEXEC_USE_EXPLICIT_STATE_KEY" \
+      POLYEXEC_WATCHDOG_SECONDS="\$POLY_ALPINE_POLYEXEC_WATCHDOG_SECONDS" \
+      POLYEXEC_SYSCALL_SUMMARY="\$POLY_ALPINE_POLYEXEC_SYSCALL_SUMMARY" \
       POLY_LD_LIBRARY_PATH=/lib:/usr/lib \
       /bin/busybox timeout "\$timeout_seconds" \
       /bin/busybox chroot /alpine-aarch64 "\$@" >/dev/ttyS0 2>&1
@@ -12546,12 +13281,383 @@ if [ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" = "1" ]; then
     >/dev/ttyS0
   /bin/busybox timeout 240 \
     /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c \
-      'apk --allow-untrusted add curl && curl http://example.com/ -o /tmp/example.html && grep -qi "Example Domain" /tmp/example.html' \
+      'apk --simulate --no-network --allow-untrusted --force-non-repository add /var/lib/poly-apk-local/main/aarch64/*.apk && curl http://example.com/ -o /tmp/example.html && grep -qi "Example Domain" /tmp/example.html' \
     >/dev/ttyS0 2>&1 || {
     echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: apk curl" >/dev/ttyS0
     exit 1
   }
   echo "POLY_ALPINE_CONTAINER_SMOKE_OK" >/dev/ttyS0
+fi
+
+if [ "$RUN_POLY_ALPINE_PODMAN_SMOKE" = "1" ]; then
+  echo "POLY_ALPINE_PODMAN_SMOKE_START" >/dev/ttyS0
+  if [ -f /lib/modules/poly/binfmt_misc.ko ]; then
+    insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
+  fi
+  mkdir -p /proc/sys/fs/binfmt_misc || {
+    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: mkdir binfmt_misc" >/dev/ttyS0
+    exit 1
+  }
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
+    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: binfmt_misc unavailable" >/dev/ttyS0
+    exit 1
+  fi
+  if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
+    echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
+  fi
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+    > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: register aarch64" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_PODMAN_BINFMT_REGISTERED" >/dev/ttyS0
+
+  cp /etc/resolv.conf /oci-alpine-arm64/etc/resolv.conf 2>/dev/null || true
+  if [ ! -s /oci-alpine-arm64/etc/resolv.conf ]; then
+    echo "nameserver 10.0.2.3" > /oci-alpine-arm64/etc/resolv.conf
+  fi
+  echo "POLY_ALPINE_PODMAN_SMOKE_CMD: podman run --arch=arm64 alpine sh -c \"apk add curl && curl http://example.com\"" \
+    >/dev/ttyS0
+  /bin/busybox timeout "\$POLY_ALPINE_PODMAN_RUN_TIMEOUT" \
+    /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c '
+      set -eu
+      export HOME=/root
+      export XDG_RUNTIME_DIR=/run/user/0
+      export TMPDIR=/tmp
+      export GODEBUG=asyncpreemptoff=1
+      export GOTRACEBACK=system
+      export GOMAXPROCS=1
+      PATH=/usr/bin:/bin:/usr/sbin:/sbin
+      mkdir -p /etc/containers /run/user/0 \
+        /run/containers/storage /var/lib/containers/storage /dev/shm \
+        /sys/fs/cgroup
+      chmod 700 /run/user/0
+      chmod 1777 /dev/shm
+      mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
+      cat > /etc/containers/storage.conf <<'\''PODMAN_STORAGE'\''
+[storage]
+driver = "vfs"
+runroot = "/run/containers/storage"
+graphroot = "/var/lib/containers/storage"
+PODMAN_STORAGE
+      cat > /etc/containers/containers.conf <<'\''PODMAN_CONTAINERS'\''
+[engine]
+cgroup_manager = "cgroupfs"
+events_logger = "file"
+runtime = "runc"
+
+[containers]
+netns = "host"
+PODMAN_CONTAINERS
+      podman --version
+      if ! podman image exists alpine:latest; then
+        cp /etc/resolv.conf /poly-image/alpine-aarch64/etc/resolv.conf 2>/dev/null || true
+        if [ ! -s /poly-image/alpine-aarch64/etc/resolv.conf ]; then
+          echo "nameserver 10.0.2.3" > /poly-image/alpine-aarch64/etc/resolv.conf
+        fi
+        rm -f /run/poly-podman-alpine-rootfs.tar
+        tar -C /poly-image/alpine-aarch64 -cf /run/poly-podman-alpine-rootfs.tar .
+        podman import --arch arm64 --os linux \
+          /run/poly-podman-alpine-rootfs.tar alpine:latest >/dev/null
+      fi
+      echo POLY_ALPINE_PODMAN_LOCAL_IMAGE_OK
+      podman run --arch=arm64 alpine sh -c "apk add curl >/dev/null && curl -fsSL http://example.com/" \
+        > /tmp/poly-podman-example.html
+      cat /tmp/poly-podman-example.html || true
+      if [ ! -s /tmp/poly-podman-example.html ]; then
+        echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_BODY_EMPTY
+      elif grep -qi "Example Domain" /tmp/poly-podman-example.html; then
+        echo POLY_ALPINE_PODMAN_CONTAINER_EXAMPLE_DOMAIN_OK
+      else
+        echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_BODY_OK
+      fi
+      echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_OK
+    ' >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: podman run" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_PODMAN_SMOKE_OK" >/dev/ttyS0
+fi
+
+if [ "$RUN_POLY_ALPINE_POSTGRES_SMOKE" = "1" ]; then
+  echo "POLY_ALPINE_POSTGRES_SMOKE_START" >/dev/ttyS0
+  if [ -f /lib/modules/poly/binfmt_misc.ko ]; then
+    insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
+  fi
+  mkdir -p /proc/sys/fs/binfmt_misc || {
+    echo "POLY_ALPINE_POSTGRES_SMOKE_FAIL: mkdir binfmt_misc" >/dev/ttyS0
+    exit 1
+  }
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
+    echo "POLY_ALPINE_POSTGRES_SMOKE_FAIL: binfmt_misc unavailable" >/dev/ttyS0
+    exit 1
+  fi
+  if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
+    echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
+  fi
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+    > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLY_ALPINE_POSTGRES_SMOKE_FAIL: register aarch64" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_POSTGRES_BINFMT_REGISTERED" >/dev/ttyS0
+
+  echo "POLY_ALPINE_POSTGRES_SMOKE_CMD: initdb postgres pgbench" \
+    >/dev/ttyS0
+  /bin/busybox timeout 120 \
+    /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c '
+      set -eu
+      PATH=/usr/libexec/postgresql18:/usr/bin:/bin:/usr/sbin:/sbin
+      addgroup -S -g 70 postgres 2>/dev/null || true
+      adduser -S -D -H -u 70 -h /tmp/postgres -s /bin/sh -G postgres postgres 2>/dev/null || true
+      mkdir -p /tmp/postgres /tmp/pgdata /tmp/pgrun
+      chown -R postgres:postgres /tmp/postgres /tmp/pgdata /tmp/pgrun
+      : > /tmp/postgres/user.poly
+      chmod 666 /tmp/postgres/user.poly
+    ' >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_POSTGRES_SMOKE_FAIL: postgres setup" >/dev/ttyS0
+    exit 1
+  }
+  /bin/busybox timeout "\$POLY_ALPINE_POSTGRES_RUN_TIMEOUT" \
+    /bin/busybox env HOME=/tmp/postgres USER=postgres LOGNAME=postgres TZ=UTC PGTZ=UTC \
+    /usr/bin/polycontainer-run --cwd /tmp/postgres --uid 70 --gid 70 \
+      /oci-alpine-arm64 /bin/sh -c '
+      set -eu
+      export LD_PRELOAD=/usr/lib/polyapps/aarch64-no-tty.so
+      export POLYEXEC_RLIMIT_NOFILE="\${POLY_ALPINE_POSTGRES_NOFILE:-256}"
+      export POLYEXEC_PREFAULT_GUEST_MMAPS="\${POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS:-0}"
+      export TZ=UTC PGTZ=UTC
+      PATH=/usr/libexec/postgresql18:/usr/bin:/bin:/usr/sbin:/sbin
+      cd /tmp/postgres
+      ulimit -n "\${POLY_ALPINE_POSTGRES_NOFILE:-256}" || true
+      echo "POLY_ALPINE_POSTGRES_NOFILE_EFFECTIVE=\$(ulimit -n)"
+      echo "POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS=\$POLYEXEC_PREFAULT_GUEST_MMAPS"
+      dump_postgres_state() {
+        echo POLY_ALPINE_POSTGRES_LOG_HEAD_BEGIN
+        if [ -f /tmp/postgres.log ]; then
+          head -n 120 /tmp/postgres.log || true
+        else
+          echo "postgres log missing"
+        fi
+        echo POLY_ALPINE_POSTGRES_LOG_HEAD_END
+        echo POLY_ALPINE_POSTGRES_LOG_SIGNAL_BEGIN
+        if [ -f /tmp/postgres.log ]; then
+          grep -E "LOG:|FATAL:|PANIC:|ERROR:|WARNING:|database system|redo|checkpoint|ready|startup|starting up" /tmp/postgres.log | tail -n 240 || true
+        else
+          echo "postgres log missing"
+        fi
+        echo POLY_ALPINE_POSTGRES_LOG_SIGNAL_END
+        echo POLY_ALPINE_POSTGRES_LOG_TAIL_BEGIN
+        if [ -f /tmp/postgres.log ]; then
+          tail -n 240 /tmp/postgres.log || true
+        else
+          echo "postgres log missing"
+        fi
+        echo POLY_ALPINE_POSTGRES_LOG_TAIL_END
+        echo POLY_ALPINE_POSTGRES_PS_BEGIN
+        ps w || ps || true
+        echo POLY_ALPINE_POSTGRES_PS_END
+        echo POLY_ALPINE_POSTGRES_PROC_BEGIN
+        for p in /proc/[0-9]*; do
+          [ -r "\$p/status" ] || continue
+          pid="\${p##*/}"
+          printf "PID=%s " "\$pid"
+          sed -n "1,12p" "\$p/status" | tr "\n" " " || true
+          printf "CMD="
+          tr "\000" " " < "\$p/cmdline" 2>/dev/null || true
+          echo
+        done
+        echo POLY_ALPINE_POSTGRES_PROC_END
+      }
+      run_initdb() {
+        /usr/libexec/postgresql18/initdb -D /tmp/pgdata --auth=trust \
+          --no-locale --no-data-checksums --no-sync --no-sync-data-files \
+          -c max_connections=20 -c shared_buffers=16MB \
+          -c max_files_per_process="\${POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS:-64}" \
+          -c timezone=UTC -c log_timezone=UTC
+      }
+      if [ "\${POLY_ALPINE_POSTGRES_INITDB_TIMEOUT:-0}" != "0" ]; then
+        echo "POLY_ALPINE_POSTGRES_INITDB_WATCHDOG_START seconds=\$POLY_ALPINE_POSTGRES_INITDB_TIMEOUT"
+        run_initdb &
+        initdb_pid="\$!"
+        (
+          sleep "\$POLY_ALPINE_POSTGRES_INITDB_TIMEOUT"
+          if kill -0 "\$initdb_pid" 2>/dev/null; then
+            echo POLY_ALPINE_POSTGRES_INITDB_TIMEOUT
+            dump_postgres_state
+            : > /tmp/postgres-initdb-timeout
+            kill "\$initdb_pid" 2>/dev/null || true
+          fi
+        ) &
+        initdb_watchdog_pid="\$!"
+        initdb_status=0
+        wait "\$initdb_pid" || initdb_status="\$?"
+        kill "\$initdb_watchdog_pid" 2>/dev/null || true
+        wait "\$initdb_watchdog_pid" 2>/dev/null || true
+        if [ "\$initdb_status" != "0" ]; then
+          if [ ! -f /tmp/postgres-initdb-timeout ]; then
+            echo POLY_ALPINE_POSTGRES_INITDB_FAIL
+            dump_postgres_state
+          fi
+          exit 1
+        fi
+      else
+        run_initdb
+      fi
+      if [ "${POLY_ALPINE_POSTGRES_TRACE_SIGCHLD:-0}" = "1" ]; then
+        POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS=1 POLYEXEC_VIRTUAL_SIGCHLD=1 /usr/libexec/postgresql18/postgres -D /tmp/pgdata -k /tmp/pgrun -h '\'''\'' -p 55432 -c max_files_per_process="\${POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS:-64}" > /tmp/postgres.log 2>&1 & echo \$! > /tmp/postgres.pid
+      else
+        POLYEXEC_VIRTUAL_SIGCHLD=1 /usr/libexec/postgresql18/postgres -D /tmp/pgdata -k /tmp/pgrun -h '\'''\'' -p 55432 -c max_files_per_process="\${POLY_ALPINE_POSTGRES_MAX_FILES_PER_PROCESS:-64}" > /tmp/postgres.log 2>&1 & echo \$! > /tmp/postgres.pid
+      fi
+      sleep "\$POLY_ALPINE_POSTGRES_READY_DELAY"
+      postgres_ready=0
+      i=0
+      while [ "\$i" -lt "\$POLY_ALPINE_POSTGRES_READY_ATTEMPTS" ]; do
+        i=\$((i + 1))
+        if pg_isready -h /tmp/pgrun -p 55432; then
+          postgres_ready=1
+          break
+        fi
+        sleep 1
+      done
+      if [ "\$postgres_ready" != "1" ]; then
+        echo POLY_ALPINE_POSTGRES_READY_TIMEOUT
+        dump_postgres_state
+        exit 1
+      fi
+      createdb -h /tmp/pgrun -p 55432 bench || {
+        dump_postgres_state
+        exit 1
+      }
+      pgbench -h /tmp/pgrun -p 55432 -i \
+        -I "\${POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS:-dtg}" \
+        -s "\${POLY_ALPINE_POSTGRES_PGBENCH_SCALE:-1}" bench || {
+        dump_postgres_state
+        exit 1
+      }
+      printf "SELECT 1;\\n" > /tmp/pgbench-smoke.sql
+      pgbench -h /tmp/pgrun -p 55432 -n -c 1 \
+        -t "\${POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS:-10}" \
+        -f /tmp/pgbench-smoke.sql bench || {
+        dump_postgres_state
+        exit 1
+      }
+      kill "\$(cat /tmp/postgres.pid)"
+      echo POLY_ALPINE_POSTGRES_PGBENCH_OK
+    ' >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_POSTGRES_SMOKE_FAIL: postgres pgbench" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_POSTGRES_SMOKE_OK" >/dev/ttyS0
+fi
+
+if [ "$RUN_POLY_ALPINE_NODE_SMOKE" = "1" ]; then
+  echo "POLY_ALPINE_NODE_SMOKE_START" >/dev/ttyS0
+  if [ "$POLY_ALPINE_DISABLE_ASLR" = "1" ] &&
+      [ -w /proc/sys/kernel/randomize_va_space ]; then
+    echo 0 > /proc/sys/kernel/randomize_va_space
+    echo "POLY_ALPINE_ASLR_DISABLED" >/dev/ttyS0
+  fi
+  if [ -f /lib/modules/poly/binfmt_misc.ko ]; then
+    insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
+  fi
+  mkdir -p /proc/sys/fs/binfmt_misc || {
+    echo "POLY_ALPINE_NODE_SMOKE_FAIL: mkdir binfmt_misc" >/dev/ttyS0
+    exit 1
+  }
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
+    echo "POLY_ALPINE_NODE_SMOKE_FAIL: binfmt_misc unavailable" >/dev/ttyS0
+    exit 1
+  fi
+  if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
+    echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
+  fi
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+    > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLY_ALPINE_NODE_SMOKE_FAIL: register aarch64" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_NODE_BINFMT_REGISTERED" >/dev/ttyS0
+
+  cp /etc/resolv.conf /oci-alpine-arm64/etc/resolv.conf 2>/dev/null || true
+  if [ ! -s /oci-alpine-arm64/etc/resolv.conf ]; then
+    echo "nameserver 10.0.2.3" > /oci-alpine-arm64/etc/resolv.conf
+  fi
+  cat > /oci-alpine-arm64/tmp/poly-node-jit.js <<'POLY_NODE_JS'
+'use strict';
+function hot(seed, n) {
+  let x = seed | 0;
+  for (let i = 0; i < n; i++) {
+    x = (Math.imul(x ^ i, 1664525) + 1013904223) | 0;
+  }
+  return x >>> 0;
+}
+%PrepareFunctionForOptimization(hot);
+hot(1, 8);
+hot(2, 16);
+%OptimizeFunctionOnNextCall(hot);
+const probe = hot(3, 1024);
+let total = probe;
+for (let round = 0; round < 4; round++) {
+  for (let k = 0; k < 16; k++) {
+    total = (total + hot(k + 1 + round * 17, 5000)) >>> 0;
+  }
+}
+if (probe !== 491696131 || total !== 1227657347) {
+  console.error('POLY_ALPINE_NODE_JIT_FAIL: probe=' + probe +
+    ' total=' + total);
+  process.exit(1);
+}
+console.log('POLY_ALPINE_NODE_JIT_RESULT: probe=' + probe +
+  ' total=' + total + ' v8=' + process.versions.v8);
+POLY_NODE_JS
+
+  if [ ! -x /oci-alpine-arm64/usr/bin/node ]; then
+    echo "POLY_ALPINE_NODE_SMOKE_FAIL: staged node missing" >/dev/ttyS0
+    exit 1
+  fi
+  node_terminal_flags=0
+  for node_flag in $POLY_ALPINE_NODE_EXTRA_FLAGS; do
+    case "\$node_flag" in
+      --version|-v|--help|-h|--v8-options)
+        node_terminal_flags=1
+        ;;
+    esac
+  done
+  if [ "$RUN_POLY_ALPINE_NODE_JIT" = "1" ] &&
+      [ "\$node_terminal_flags" = "1" ]; then
+    echo "POLY_ALPINE_NODE_SMOKE_FAIL: terminal node flags require RUN_POLY_ALPINE_NODE_JIT=0" \
+      >/dev/ttyS0
+    exit 1
+  fi
+
+  echo "POLY_ALPINE_NODE_BASIC_CMD: node startup flags=$POLY_ALPINE_NODE_EXTRA_FLAGS" \
+    >/dev/ttyS0
+  /bin/busybox timeout 300 \
+    /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c \
+      "UV_USE_IO_URING=$POLY_ALPINE_NODE_UV_USE_IO_URING POLYEXEC_DISABLE_IO_URING=$POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING POLYEXEC_DISABLE_RSEQ=$POLY_ALPINE_NODE_POLYEXEC_DISABLE_RSEQ node --disable-wasm-trap-handler $POLY_ALPINE_NODE_EXTRA_FLAGS -e 'console.log(\"POLY_ALPINE_NODE_BASIC_OK v8=\" + process.versions.v8)'" \
+    >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_NODE_SMOKE_FAIL: node startup" >/dev/ttyS0
+    exit 1
+  }
+
+  if [ "$RUN_POLY_ALPINE_NODE_JIT" = "1" ]; then
+    echo "POLY_ALPINE_NODE_SMOKE_CMD: node $POLY_ALPINE_NODE_EXTRA_FLAGS --allow-natives-syntax jit benchmark" \
+      >/dev/ttyS0
+    /bin/busybox timeout 600 \
+      /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c \
+        "UV_USE_IO_URING=$POLY_ALPINE_NODE_UV_USE_IO_URING POLYEXEC_DISABLE_IO_URING=$POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING POLYEXEC_DISABLE_RSEQ=$POLY_ALPINE_NODE_POLYEXEC_DISABLE_RSEQ node --disable-wasm-trap-handler $POLY_ALPINE_NODE_EXTRA_FLAGS --allow-natives-syntax /tmp/poly-node-jit.js" \
+      >/dev/ttyS0 2>&1 || {
+      echo "POLY_ALPINE_NODE_SMOKE_FAIL: node jit benchmark" >/dev/ttyS0
+      exit 1
+    }
+  else
+    echo "POLY_ALPINE_NODE_JIT_SKIPPED" >/dev/ttyS0
+  fi
+  echo "POLY_ALPINE_NODE_SMOKE_OK" >/dev/ttyS0
 fi
 
 sleep 1
@@ -12651,10 +13757,25 @@ EOF
 
 fatal_logs_present() {
   local pattern="$1"
-  grep -Eiq "$pattern" "$SERIAL_LOG" 2>/dev/null && return 0
+  local exclude_pattern="${2:-}"
+  if [[ -n "$exclude_pattern" ]]; then
+    if grep -Eai "$pattern" "$SERIAL_LOG" 2>/dev/null |
+        grep -Eavi "$exclude_pattern" | grep -q .; then
+      return 0
+    fi
+  elif grep -Eiq "$pattern" "$SERIAL_LOG" 2>/dev/null; then
+    return 0
+  fi
   # Bochs keeps appending IPS lines after a guest halt; scan only the tail so
   # the smoke-test harness cannot chase a growing log indefinitely.
-  tail -n 500 "$BOCHS_LOG" 2>/dev/null | grep -Eiq "$pattern" && return 0
+  if [[ -n "$exclude_pattern" ]]; then
+    if tail -n 500 "$BOCHS_LOG" 2>/dev/null | grep -Eai "$pattern" |
+        grep -Eavi "$exclude_pattern" | grep -q .; then
+      return 0
+    fi
+  elif tail -n 500 "$BOCHS_LOG" 2>/dev/null | grep -Eiq "$pattern"; then
+    return 0
+  fi
   return 1
 }
 
@@ -12678,6 +13799,7 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_EXEC_SYSCALL" "POLY_EXEC_SYSCALL_OK" || return 1
   required_section_complete "$RUN_POLY_EXEC" "POLY_EXEC_BLOCK_OK" || return 1
   required_section_complete "$RUN_POLY_EXEC_FOCUSED" "POLY_EXEC_FOCUSED_OK" || return 1
+  required_section_complete "$RUN_POLY_EXEC_THREAD_HASH_FOCUSED" "POLY_EXEC_THREAD_HASH_FOCUSED_OK" || return 1
   required_section_complete "$RUN_POLY_ARCH_TRAP_EXEC" "POLY_ARCH_TRAP_EXEC_OK" || return 1
   required_section_complete "$RUN_POLY_PREEMPT_STRESS" "POLY_PREEMPT_STRESS_OK" || return 1
   required_section_complete "$RUN_POLY_SMP_STRESS" "POLY_SMP_STRESS_OK" || return 1
@@ -12693,6 +13815,12 @@ boot_sections_complete() {
     "POLY_ALPINE_BINFMT_SMOKE_OK" || return 1
   required_section_complete "$RUN_POLY_ALPINE_CONTAINER_SMOKE" \
     "POLY_ALPINE_CONTAINER_SMOKE_OK" || return 1
+  required_section_complete "$RUN_POLY_ALPINE_PODMAN_SMOKE" \
+    "POLY_ALPINE_PODMAN_SMOKE_OK" || return 1
+  required_section_complete "$RUN_POLY_ALPINE_POSTGRES_SMOKE" \
+    "POLY_ALPINE_POSTGRES_SMOKE_OK" || return 1
+  required_section_complete "$RUN_POLY_ALPINE_NODE_SMOKE" \
+    "POLY_ALPINE_NODE_SMOKE_OK" || return 1
   required_section_complete "$RUN_GUEST_NETWORK_SMOKE" "POLY_GUEST_NETWORK_HTTP_OK" || return 1
 
   if [[ "$RUN_NATIVE_CHECK" == "1" ]]; then
@@ -12744,8 +13872,12 @@ EOF
   local deadline=$((SECONDS + BOOT_TIMEOUT_SECONDS))
   local success=0
   local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|NATIVE_CHECK_FAIL|POLY[A-Z_]*_FAIL|POLYEXEC_MONITOR_PACKETS: .*illegal=[1-9][0-9]*|POLYEXEC_MONITOR_PACKETS: .*other=[1-9][0-9]*'
+  local fatal_exclude_pattern=
+  if [[ "$RUN_POLY_ALPINE_PODMAN_SMOKE" == "1" ]]; then
+    fatal_exclude_pattern='POLYEXEC_MONITOR_PACKETS: .*illegal=[1-9][0-9]*.*path=/usr/bin/podman'
+  fi
   while true; do
-    if fatal_logs_present "$fatal_pattern"; then
+    if fatal_logs_present "$fatal_pattern" "$fatal_exclude_pattern"; then
       success=-1
       break
     fi
@@ -13260,6 +14392,18 @@ EOF
 	          continue
 	        fi
 	        if ! grep -q "POLY_SIGNAL_MASK_EDGE_OK iterations=8" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-signal-handler-real\\.elf" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -q "POLY_SIGNAL_HANDLER_OK signum=10 count=1 x19=restored" "$SERIAL_LOG"; then
+	          sleep 1
+	          continue
+	        fi
+	        if ! grep -q "POLY_SIGNAL_HANDLER_MASK_OK blocked=1 delivered_after_unblock=1" "$SERIAL_LOG"; then
 	          sleep 1
 	          continue
 	        fi

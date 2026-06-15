@@ -28,6 +28,7 @@ POLYEXEC_PROCESS_EXCEPTION_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_proce
 POLYEXEC_PROCESS_SETJMP_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_setjmp_real.c"
 POLYEXEC_PROCESS_SYSCALL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_syscall_real.c"
 POLYEXEC_PROCESS_SIGNAL_MASK_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_mask_real.c"
+POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_signal_handler_real.c"
 POLYEXEC_PROCESS_VDSO_TIME_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_vdso_time_real.c"
 POLYEXEC_AARCH64_VDSO_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.S"
 POLYEXEC_AARCH64_VDSO_MAP="$ROOT_DIR/tools/fixtures/polyexec/polyexec_aarch64_vdso.map"
@@ -648,6 +649,10 @@ assert_contains "aarch64-process-setjmp-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the AArch64 setjmp/longjmp fixture"
 assert_contains "aarch64-process-signal-mask-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the AArch64 signal mask edge fixture"
+assert_contains "aarch64-process-signal-handler-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the AArch64 signal handler/rt_sigreturn fixture"
+assert_contains "POLYEXEC_PROTECT_RUNTIME_SIGNALS=1 /usr/bin/polyexec --process" "$BOOT_SCRIPT" \
+  "signal handler fixture must opt into protected runtime signal delivery"
 assert_contains "case 190: \\*x86_number = SYS_semget" "$POLYEXEC" \
   "generic Linux syscall 190 must translate to semget for PostgreSQL-style SysV IPC"
 assert_contains "case 192: \\*x86_number = SYS_semtimedop" "$POLYEXEC" \
@@ -720,6 +725,18 @@ assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/
   "boot validation must gate the setjmp/longjmp process result"
 assert_contains "POLY_SIGNAL_MASK_EDGE_OK iterations=8" "$BOOT_SCRIPT" \
   "boot validation must gate the signal mask queue/drain success marker"
+assert_contains "POLY_SIGNAL_HANDLER_OK signum=10 count=1 x19=restored" "$BOOT_SCRIPT" \
+  "boot validation must gate the signal handler/rt_sigreturn success marker"
+assert_contains "POLY_SIGNAL_HANDLER_MASK_OK blocked=1 delivered_after_unblock=1" "$BOOT_SCRIPT" \
+  "boot validation must gate masked virtual signal delivery"
+assert_contains "poly_rt_sigreturn_restorer" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
+  "signal handler fixture must provide an AArch64 rt_sigreturn restorer"
+assert_contains "POLY_SYS_RT_SIGPROCMASK" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
+  "signal handler fixture must verify guest signal masks"
+assert_contains "POLY_SYS_RT_SIGACTION" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
+  "signal handler fixture must install the handler through rt_sigaction"
+assert_contains "POLY_SYS_KILL" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
+  "signal handler fixture must raise a protected runtime signal"
 assert_contains "POLY_VDSO_TIME_OK iterations=64" "$BOOT_SCRIPT" \
   "boot validation must gate the AArch64 vDSO time fixture marker"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-vdso-time-real" "$BOOT_SCRIPT" \
@@ -911,6 +928,14 @@ assert_contains "POLYBENCH_TRAP_DENSITY_RESULT" "$POLYBENCH" \
   "polybench must report monitor traps per million foreign instructions"
 assert_contains "traps_per_million" "$BOOT_SCRIPT" \
   "boot validation must gate the trap-density performance metric"
+assert_contains "POLY_ALPINE_POSTGRES_INITDB_TIMEOUT" "$BOOT_SCRIPT" \
+  "PostgreSQL smoke must expose an initdb diagnostic timeout"
+assert_contains "POLY_ALPINE_POSTGRES_INITDB_TIMEOUT" "$BOOT_SCRIPT" \
+  "PostgreSQL smoke must dump state when initdb stalls"
+assert_contains "POLY_ALPINE_POSTGRES_INITDB_WATCHDOG_START" "$BOOT_SCRIPT" \
+  "PostgreSQL smoke must report when the initdb watchdog is active"
+assert_contains "POLYEXEC_TRACE_POSTGRES_SYSCALLS" "$BOOT_SCRIPT" \
+  "PostgreSQL smoke must support targeted postgres syscall tracing"
 
 if grep -R -I -n -E "BXPN_POLY_COMPAT_TRAPS|poly_compat_traps|compat_traps" "$BOCHS_DIR" \
     > "$TMP_DIR/compat-uses"; then
