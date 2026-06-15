@@ -38,7 +38,10 @@ make check-poly-contracts
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
 Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
-`PLANDING`, `PTRAPRET`, `PSET_SPILL_PTR`, and `PRESTORE`. ABI signature setup
+`PLANDING`, `PTRAPRET`, `PSET_EVENT_PTR`, `PSET_SPILL_DESC`, and `PRESTORE`.
+The v1 `PSET_SPILL_PTR` control remains documented in
+[`poly-isa-v1.md`](poly-isa-v1.md) for frozen compatibility, but new monitor
+code must use the v2 event frame and spill descriptor. ABI signature setup
 writes a register-only signature slot as `kind | (register_map << 32)`. Query
 returns the same encoded value, so runtimes and hardware can verify the exact
 RAT/register-map policy instead of inferring it from the kind alone.
@@ -75,16 +78,19 @@ implement the architecture below without inheriting emulator or runtime policy:
   those slots in rename/RAT logic; stack arguments, aggregates, variadics,
   lazy binding, syscall translation, libcalls, debugger policy, and helper
   imports remain userspace runtime policy.
-- Foreign architectural state is an explicit 8KB user-owned spill/import image
-  with fixed offsets, size, alignment, and feature leaves. The OS is not in the
-  Poly state-management loop.
-- `PSET_SPILL_PTR` registers the per-thread spill image and x86 monitor
-  trampoline. On raw-mode interrupt or fault, hardware writes the 8KB image,
-  records the Poly PC and spill reason, switches back to x86, and makes the OS
-  see the trampoline RIP. `PRESTORE` imports the image before `PENTER` resumes
-  raw Poly code.
-- Recoverable exits publish OS-neutral trap packets before monitor-vector
-  redirect. Failed packet writes or invalid packet addresses prevent the
+- Foreign architectural state is an explicit user-owned spill/import image,
+  registered through a versioned v2 spill descriptor. The descriptor names the
+  state image, canonical event frame, resume RIP, resume stack, monitor packet,
+  owner cookie, and generation. The OS is not in the Poly state-management
+  loop.
+- `PSET_EVENT_PTR` registers the per-thread canonical event frame and
+  `PSET_SPILL_DESC` registers the per-thread spill/resume descriptor. On
+  raw-mode interrupt or fault, hardware writes the state image, publishes the
+  event frame, switches back to x86, and makes the OS see the descriptor's
+  trampoline RIP. `PRESTORE` imports the descriptor-selected image before
+  `PENTER` resumes raw Poly code.
+- Recoverable exits publish OS-neutral v2 event frames before monitor-vector
+  redirect. Failed event-frame writes or invalid event addresses prevent the
   redirect and report precise faults.
 - Native returns use ordinary frontend return instructions and a hardware
   transition-stack return cookie; same-ISA returns remain normal.
@@ -94,10 +100,11 @@ implement the architecture below without inheriting emulator or runtime policy:
 - Foreign barriers/fences are explicit x86-TSO no-ops, and foreign memory
   operations cannot expose weak reordering in the shared x86 address space.
 
-Final opcode ownership, reserved-bit policy, CPUID leaves, spill-image layout,
-trap packet format, error precedence, zero-kernel OS contract, and conformance
-evidence are frozen in `docs/poly-isa-v1.md`. This boundary deliberately says nothing about
-FPGA fabric, Verilog structure, or timing closure. Those are implementation and
-productization tasks. The ISA readiness requirement is that the hardware
-contract is explicit, discoverable, fixed-latency where required, and free of
-OS/libc/runtime policy.
+Frozen v1 opcode ownership, reserved-bit policy, CPUID leaves, spill-image
+layout, trap packet format, error precedence, zero-kernel OS contract, and
+conformance evidence remain in `docs/poly-isa-v1.md`. Active v2 migration work
+is defined by `docs/poly-isa-v2-draft.md`. This boundary deliberately says
+nothing about FPGA fabric, Verilog structure, or timing closure. Those are
+implementation and productization tasks. The ISA readiness requirement is that
+the hardware contract is explicit, discoverable, fixed-latency where required,
+and free of OS/libc/runtime policy.

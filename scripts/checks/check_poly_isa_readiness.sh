@@ -51,14 +51,16 @@ assert_contains "register-only ABI signature slots" "$ISA_DOC" \
   "ISA boundary must keep fast PCALL signatures register-only"
 assert_contains "runtime policy" "$ISA_DOC" \
   "ISA boundary must leave complex ABI/syscall/helper policy to userspace"
-assert_contains "8KB user-owned spill/import image" "$ISA_DOC" \
-  "ISA boundary must require explicit user-owned spill state"
-assert_contains "PSET_SPILL_PTR" "$ISA_DOC" \
-  "ISA boundary must include auto-spill setup"
+assert_contains "versioned v2 spill descriptor" "$ISA_DOC" \
+  "ISA boundary must require descriptor-owned spill state"
+assert_contains "PSET_EVENT_PTR" "$ISA_DOC" \
+  "ISA boundary must include v2 event-frame setup"
+assert_contains "PSET_SPILL_DESC" "$ISA_DOC" \
+  "ISA boundary must include v2 spill descriptor setup"
 assert_contains "trampoline RIP" "$ISA_DOC" \
   "ISA boundary must route OS-visible interrupts through the monitor trampoline"
-assert_contains "OS-neutral trap packets" "$ISA_DOC" \
-  "ISA boundary must require OS-neutral trap packets"
+assert_contains "OS-neutral v2 event frames" "$ISA_DOC" \
+  "ISA boundary must require OS-neutral v2 event frames"
 assert_contains "transition-stack return cookie" "$ISA_DOC" \
   "ISA boundary must specify native return-cookie recovery"
 assert_contains "rejected before mutating architectural frontend/PC state" "$ISA_DOC" \

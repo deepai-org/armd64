@@ -419,8 +419,14 @@ assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip"
   "PENTER after PRESTORE must resume at the spilled foreign PC"
 assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
   "userspace monitor must install a SIGSEGV handler for Poly fault translation"
-assert_contains "POLY_OP_SPILL_PTR_SET" "$POLYEXEC" \
-  "userspace monitor must register an auto-spill buffer"
+assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYEXEC" \
+  "userspace monitor must not use legacy raw spill pointer setup"
+assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYEXEC" \
+  "userspace monitor must register a v2 canonical event frame"
+assert_contains "POLY_OP_SPILL_DESC_SET" "$POLYEXEC" \
+  "userspace monitor must register a v2 spill descriptor"
+assert_contains "populate_poly_v2_spill_descriptor" "$POLYEXEC" \
+  "userspace monitor must populate the v2 spill descriptor"
 assert_contains "__thread struct poly_xsave_state poly_auto_spill_state" "$POLYEXEC" \
   "userspace monitor must allocate a unique auto-spill state image per thread"
 assert_contains "__thread volatile uint64_t poly_monitor_packet" "$POLYEXEC" \

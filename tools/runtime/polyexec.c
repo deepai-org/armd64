@@ -97,7 +97,6 @@ extern char **environ;
   POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS_ASM
 #define POLY_OP_AUTO_SPILL_CYCLES_STATUS \
   POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS_ASM
-#define POLY_OP_SPILL_PTR_SET POLY_X86_CTRL_SPILL_PTR_SET_ASM
 #define POLY_OP_PRESTORE POLY_X86_CTRL_PRESTORE_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_SPILL_DESC_SET POLY_X86_CTRL_SPILL_DESC_SET_ASM
@@ -889,14 +888,6 @@ static uint64_t poly_abi_signature_set_with_flags(uint64_t slot, uint64_t kind,
     :
     : "memory");
   return rax;
-}
-
-static uint64_t poly_spill_ptr_set(uint64_t buffer, uint64_t resume_rip) {
-  asm volatile(POLY_OP_SPILL_PTR_SET
-    : "+a"(buffer), "+d"(resume_rip)
-    :
-    : "memory");
-  return buffer;
 }
 
 static uint64_t poly_event_ptr_set(uint64_t frame, uint64_t bytes) {
@@ -2054,7 +2045,6 @@ static void clear_poly_auto_spill(void) {
     return;
   (void) poly_spill_desc_set(0, 0);
   (void) poly_event_ptr_set(0, 0);
-  (void) poly_spill_ptr_set(0, 0);
   poly_auto_spill_installed = 0;
 }
 
