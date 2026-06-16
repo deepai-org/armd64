@@ -18,7 +18,6 @@
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
-#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_SPILL_DESC_SET POLY_X86_CTRL_SPILL_DESC_SET_ASM
 
@@ -90,8 +89,6 @@ static void clear_poly_cpu_state(void) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET : "+a"(value) :: "memory");
   value = 0;
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET : "+a"(value) :: "memory");
-  value = 0;
-  asm volatile(POLY_OP_MONITOR_PACKET_SET : "+a"(value) :: "memory");
   value = 0;
   asm volatile(POLY_OP_STATE_KEY_SET : "+a"(value) :: "memory");
 

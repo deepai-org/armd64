@@ -505,6 +505,8 @@ assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must clear the v2 canonical event frame registration"
 assert_contains "POLY_OP_SPILL_DESC_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must clear the v2 spill descriptor registration"
+assert_not_contains "POLY_OP_MONITOR_PACKET_SET" "$POLYBINFMT_EXEC" \
+  "binfmt helper must not use legacy monitor-packet control"
 assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYEXEC" \
   "userspace monitor must register a v2 canonical event frame"
 assert_contains "POLY_OP_SPILL_DESC_SET" "$POLYEXEC" \
