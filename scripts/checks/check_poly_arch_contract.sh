@@ -536,6 +536,8 @@ assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYPROBE" \
   "polyprobe must register a v2 canonical event frame"
 assert_contains "POLY_PROBE_EVENT_FRAMES_OK" "$POLYPROBE" \
   "polyprobe must report v2 event-frame trap-vector coverage"
+assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|monitor_packet" "$POLYPROBE" \
+  "polyprobe must not depend on legacy monitor-packet controls"
 assert_contains "POLY_PROBE_EVENT_FRAMES_OK" "$BOOT_SCRIPT" \
   "polyprobe boot assertions must wait for v2 event-frame coverage"
 assert_contains "polythread_event_frame_to_packet" "$POLYTHREAD" \

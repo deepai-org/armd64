@@ -61,8 +61,6 @@
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
-#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
-#define POLY_OP_MONITOR_PACKET_GET POLY_X86_CTRL_MONITOR_PACKET_GET_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_LANDING_POLICY_SET POLY_X86_CTRL_LANDING_POLICY_SET_ASM
 #define POLY_OP_LANDING_POLICY_GET POLY_X86_CTRL_LANDING_POLICY_GET_ASM
@@ -245,21 +243,6 @@ static inline uint64_t poly_trap_vector_mode_set_status(uint64_t value) {
 static inline uint64_t poly_trap_vector_mode_get(void) {
   uint64_t value;
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_GET : "=a"(value) :: "memory");
-  return value;
-}
-
-static inline void poly_monitor_packet_set_value(uint64_t value) {
-  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
-}
-
-static inline uint64_t poly_monitor_packet_set_status(uint64_t value) {
-  asm volatile(POLY_OP_MONITOR_PACKET_SET : "+a"(value) :: "memory");
-  return value;
-}
-
-static inline uint64_t poly_monitor_packet_get(void) {
-  uint64_t value;
-  asm volatile(POLY_OP_MONITOR_PACKET_GET : "=a"(value) :: "memory");
   return value;
 }
 
@@ -1174,22 +1157,18 @@ static inline uint64_t riscv_state_key_control_probe(uint64_t key) {
   return rax;
 }
 
-static inline uint64_t aarch64_foreign_control_plane_probe(uint64_t vector,
-    uint64_t packet) {
+static inline uint64_t aarch64_foreign_control_plane_probe(uint64_t vector) {
   uint64_t rax = vector;
-  uint64_t rdx = packet;
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd5032d1f\n" // aarch64 trap vector set, x0=vector
     ".long 0xd2800040\n" // movz x0,#2 (RISC-V mode)
     ".long 0xd5032d5f\n" // aarch64 trap vector mode set
-    ".long 0xaa0103e0\n" // mov x0,x1 (packet)
-    ".long 0xd5032d9f\n" // aarch64 monitor packet set
     ".long 0xd5032d3f\n" // aarch64 trap vector get
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(rax), "+d"(rdx)
+    : "+a"(rax)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
   return rax;
 }
 
@@ -1199,19 +1178,6 @@ static inline uint64_t aarch64_foreign_trap_vector_invalid_probe(
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd5032d1f\n" // aarch64 trap vector set
-    ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
-    : "+a"(rax)
-    :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
-  return rax;
-}
-
-static inline uint64_t aarch64_foreign_monitor_packet_invalid_probe(
-    uint64_t value) {
-  uint64_t rax = value;
-  asm volatile(
-    POLY_OP_ENTER_A64
-    ".long 0xd5032d9f\n" // aarch64 monitor packet set
     ".long 0xd5032e1f\n" // aarch64 polyctrl x86 escape
     : "+a"(rax)
     :
@@ -1232,22 +1198,18 @@ static inline uint64_t aarch64_foreign_trap_vector_mode_invalid_probe(
   return rax;
 }
 
-static inline uint64_t riscv_foreign_control_plane_probe(uint64_t vector,
-    uint64_t packet) {
+static inline uint64_t riscv_foreign_control_plane_probe(uint64_t vector) {
   uint64_t rax = vector;
-  uint64_t rdx = packet;
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x3000700b\n" // riscv trap vector set, a0=vector
     ".long 0x00100513\n" // addi a0,zero,1 (AArch64 mode)
     ".long 0x3400700b\n" // riscv trap vector mode set
-    ".long 0x00058513\n" // mv a0,a1 (packet)
-    ".long 0x3800700b\n" // riscv monitor packet set
     ".long 0x3200700b\n" // riscv trap vector get
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(rax), "+d"(rdx)
+    : "+a"(rax)
     :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX_RDX, "memory");
+    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
   return rax;
 }
 
@@ -1257,19 +1219,6 @@ static inline uint64_t riscv_foreign_trap_vector_invalid_probe(
   asm volatile(
     POLY_OP_ENTER_RV64
     ".long 0x3000700b\n" // riscv trap vector set
-    ".long 0x0000700b\n" // riscv polyctrl x86 escape
-    : "+a"(rax)
-    :
-    : POLY_ABI_GPR_CLOBBERS_NO_RAX, "memory");
-  return rax;
-}
-
-static inline uint64_t riscv_foreign_monitor_packet_invalid_probe(
-    uint64_t value) {
-  uint64_t rax = value;
-  asm volatile(
-    POLY_OP_ENTER_RV64
-    ".long 0x3800700b\n" // riscv monitor packet set
     ".long 0x0000700b\n" // riscv polyctrl x86 escape
     : "+a"(rax)
     :
@@ -3852,7 +3801,6 @@ int main(void) {
   const uint64_t invalid_control_address = 0x0100000000000000ULL;
   uint64_t x86_vector =
     (uint64_t) (uintptr_t) polyprobe_trap_vector_handler;
-  uint64_t x86_packet = (uint64_t) (uintptr_t) &polyprobe_state;
   if (poly_trap_vector_set_status(x86_vector) != x86_vector ||
       poly_trap_vector_get() != x86_vector) {
     fprintf(stderr, "POLY_PROBE_FAIL: x86 trap-vector control mismatch\n");
@@ -3878,37 +3826,20 @@ int main(void) {
       "POLY_PROBE_FAIL: x86 invalid trap-vector mode control mismatch\n");
     return 1;
   }
-  if (poly_monitor_packet_set_status(x86_packet) != x86_packet ||
-      poly_monitor_packet_get() != x86_packet) {
-    fprintf(stderr, "POLY_PROBE_FAIL: x86 monitor-packet control mismatch\n");
-    return 1;
-  }
-  if (poly_monitor_packet_set_status(invalid_control_address) !=
-        POLY_ERR_INVAL ||
-      poly_monitor_packet_get() != x86_packet) {
-    fprintf(stderr,
-      "POLY_PROBE_FAIL: x86 invalid monitor-packet control mismatch\n");
-    return 1;
-  }
-
   uint64_t aarch64_vector = x86_vector;
-  uint64_t aarch64_packet = (uint64_t) (uintptr_t) &polyprobe_state;
-  if (aarch64_foreign_control_plane_probe(aarch64_vector, aarch64_packet) !=
+  if (aarch64_foreign_control_plane_probe(aarch64_vector) !=
       aarch64_vector ||
       poly_trap_vector_get() != aarch64_vector ||
-      poly_trap_vector_mode_get() != POLY_MODE_RAW_RISCV ||
-      poly_monitor_packet_get() != aarch64_packet) {
+      poly_trap_vector_mode_get() != POLY_MODE_RAW_RISCV) {
     fprintf(stderr, "POLY_PROBE_FAIL: aarch64 foreign control-plane mismatch\n");
     return 1;
   }
 
   uint64_t riscv_vector = aarch64_vector + 16;
-  uint64_t riscv_packet = aarch64_packet + 64;
-  if (riscv_foreign_control_plane_probe(riscv_vector, riscv_packet) !=
+  if (riscv_foreign_control_plane_probe(riscv_vector) !=
       riscv_vector ||
       poly_trap_vector_get() != riscv_vector ||
-      poly_trap_vector_mode_get() != POLY_MODE_RAW_AARCH64 ||
-      poly_monitor_packet_get() != riscv_packet) {
+      poly_trap_vector_mode_get() != POLY_MODE_RAW_AARCH64) {
     fprintf(stderr, "POLY_PROBE_FAIL: riscv foreign control-plane mismatch\n");
     return 1;
   }
@@ -3926,18 +3857,6 @@ int main(void) {
       "POLY_PROBE_FAIL: aarch64 invalid trap-vector mode control mismatch\n");
     return 1;
   }
-  uint64_t aarch64_invalid_packet_status =
-    aarch64_foreign_monitor_packet_invalid_probe(invalid_control_address);
-  uint64_t aarch64_packet_after_invalid = poly_monitor_packet_get();
-  if (aarch64_invalid_packet_status != POLY_ERR_INVAL ||
-      aarch64_packet_after_invalid != riscv_packet) {
-    fprintf(stderr,
-      "POLY_PROBE_FAIL: aarch64 invalid monitor-packet control mismatch status=0x%llx packet=0x%llx expected=0x%llx\n",
-      (unsigned long long) aarch64_invalid_packet_status,
-      (unsigned long long) aarch64_packet_after_invalid,
-      (unsigned long long) riscv_packet);
-    return 1;
-  }
   if (riscv_foreign_trap_vector_invalid_probe(
         invalid_control_address) != POLY_ERR_INVAL ||
       poly_trap_vector_get() != riscv_vector) {
@@ -3952,40 +3871,6 @@ int main(void) {
       "POLY_PROBE_FAIL: riscv invalid trap-vector mode control mismatch\n");
     return 1;
   }
-  if (riscv_foreign_monitor_packet_invalid_probe(
-        invalid_control_address) != POLY_ERR_INVAL ||
-      poly_monitor_packet_get() != riscv_packet) {
-    fprintf(stderr,
-      "POLY_PROBE_FAIL: riscv invalid monitor-packet control mismatch\n");
-    return 1;
-  }
-  memset(&polyprobe_state, 0xa5, sizeof(polyprobe_state));
-  poly_state_export(&polyprobe_state);
-  if (polyprobe_state.header.trap_vector_pc != riscv_vector ||
-      polyprobe_state.header.trap_vector_mode != POLY_MODE_RAW_AARCH64 ||
-      polyprobe_state.header.monitor_packet_addr != riscv_packet) {
-    fprintf(stderr,
-      "POLY_PROBE_FAIL: control-plane XSAVE export mismatch vector=0x%llx mode=%u packet=0x%llx\n",
-      (unsigned long long) polyprobe_state.header.trap_vector_pc,
-      polyprobe_state.header.trap_vector_mode,
-      (unsigned long long) polyprobe_state.header.monitor_packet_addr);
-    return 1;
-  }
-  polyprobe_state.header.trap_vector_pc = x86_vector;
-  polyprobe_state.header.trap_vector_mode = POLY_MODE_X86;
-  polyprobe_state.header.monitor_packet_addr = x86_packet;
-  poly_state_import(&polyprobe_state);
-  if (poly_trap_vector_get() != x86_vector ||
-      poly_trap_vector_mode_get() != POLY_MODE_X86 ||
-      poly_monitor_packet_get() != x86_packet) {
-    fprintf(stderr,
-      "POLY_PROBE_FAIL: control-plane XSAVE import mismatch vector=0x%llx mode=%llu packet=0x%llx\n",
-      (unsigned long long) poly_trap_vector_get(),
-      (unsigned long long) poly_trap_vector_mode_get(),
-      (unsigned long long) poly_monitor_packet_get());
-    return 1;
-  }
-  poly_monitor_packet_set_value(0);
   install_polyprobe_trap_vector();
 
   stage("POLY_STAGE: foreign-trap-vectors");
