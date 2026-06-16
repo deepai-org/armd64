@@ -855,7 +855,7 @@ struct poly_aarch64_virtual_signal_frame {
   struct poly_aarch64_siginfo siginfo;
   struct poly_aarch64_ucontext ucontext;
   struct poly_trap_packet saved_trap;
-  uint64_t saved_trap_args[POLY_TRAP_PACKET_ARG_COUNT];
+  uint64_t saved_trap_args[POLY_V2_EVENT_ARG_COUNT];
   struct poly_trap_restore_state saved_trap_restore;
   struct poly_native_return_state saved_native_return;
   uint64_t aarch64_gpr[32];
@@ -7499,7 +7499,7 @@ static void poly_set_clone_child_trap_packet_state(
   trap_state->trap.flags = packet->flags;
   trap_state->trap.reserved[0] = 0;
   trap_state->trap.reserved[1] = 0;
-  for (size_t n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++)
+  for (size_t n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
     trap_state->trap_args[n] = packet->args[n];
 }
 

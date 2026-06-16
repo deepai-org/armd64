@@ -74,8 +74,8 @@ module tb_poly_cpuid_rom;
       "feature leaf");
 
     set_query(POLY_CPUID_BASE + 32'd2, 32'd31);
-    check_regs(32'h00000044, 32'h00000045, 32'h0000006f, 32'h00000070,
-      "x86 monitor control leaf");
+    check_regs(32'h00000044, 32'h00000045, 32'h00000071, 32'h00000072,
+      "x86 v2 event/spill control leaf");
 
     set_query(POLY_CPUID_BASE + 32'd2, 32'd32);
     check_regs(32'h00fc3a0f, 32'd3, 32'd4, 32'd3,

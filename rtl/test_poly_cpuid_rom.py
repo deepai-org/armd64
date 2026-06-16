@@ -16,7 +16,19 @@ def parse_c_enum_constants(path: Path) -> dict[str, int]:
     pending: list[tuple[str, str]] = []
     for name, expr in re.findall(r"\b(POLY_[A-Z0-9_]+)\s*=\s*([^,\n]+)", text):
         expr = re.sub(r"/\*.*?\*/", "", expr.strip().replace("(uint32_t) ", ""))
-        shift = re.search(r"(\d+)U?(?:LL)?\s*<<\s*(\d+)", expr)
+        or_shift_parts = [part.strip().strip("()") for part in expr.split("|")]
+        if len(or_shift_parts) > 1 and all(
+            re.fullmatch(r"\d+U?(?:LL)?\s*<<\s*\d+", part)
+            for part in or_shift_parts
+        ):
+            value = 0
+            for part in or_shift_parts:
+                shift = re.fullmatch(r"(\d+)U?(?:LL)?\s*<<\s*(\d+)", part)
+                assert shift is not None
+                value |= int(shift.group(1), 0) << int(shift.group(2), 0)
+            constants[name] = value
+            continue
+        shift = re.fullmatch(r"\(?(\d+)U?(?:LL)?\s*<<\s*(\d+)\)?", expr)
         if shift:
             constants[name] = int(shift.group(1), 0) << int(shift.group(2), 0)
             continue
@@ -255,8 +267,8 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
             31: (
                 c["POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS"],
                 c["POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS"],
-                c["POLY_X86_CTRL_SPILL_PTR_SET"],
-                c["POLY_X86_CTRL_PRESTORE"],
+                c["POLY_X86_CTRL_EVENT_PTR_SET"],
+                c["POLY_X86_CTRL_SPILL_DESC_SET"],
             ),
             32: (
                 x86_opcode_geometry,
@@ -393,7 +405,7 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         return (
             True, c["POLY_TRAP_PACKET_LAYOUT_VERSION"],
             c["POLY_TRAP_PACKET_HEADER_BYTES"],
-            c["POLY_TRAP_PACKET_ARG_COUNT"],
+            c["POLY_V2_EVENT_ARG_COUNT"],
             trap_flags,
         )
     if leaf == base + 6:
@@ -507,7 +519,7 @@ def main() -> int:
         "POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES":
             c["POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES"],
         "POLY_TRAP_PACKET_LAYOUT_VERSION": c["POLY_TRAP_PACKET_LAYOUT_VERSION"],
-        "POLY_TRAP_PACKET_ARG_COUNT": c["POLY_TRAP_PACKET_ARG_COUNT"],
+        "POLY_TRAP_PACKET_ARG_COUNT": c["POLY_V2_EVENT_ARG_COUNT"],
         "POLY_TRAP_PACKET_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 5, 0, c)[4],
         "POLY_INTERRUPT_ABI_VERSION": c["POLY_INTERRUPT_ABI_VERSION"],
         "POLY_INTERRUPT_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 6, 0, c)[2],
@@ -542,7 +554,7 @@ def main() -> int:
             c["POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS"],
         "POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS":
             c["POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS"],
-        "POLY_X86_CTRL_SPILL_PTR_SET": c["POLY_X86_CTRL_SPILL_PTR_SET"],
+        "POLY_X86_CTRL_SPILL_DESC_SET": c["POLY_X86_CTRL_SPILL_DESC_SET"],
         "POLY_X86_CTRL_PRESTORE": c["POLY_X86_CTRL_PRESTORE"],
         "POLY_X86_OPCODE_GEOMETRY_EAX": rom_model(c["POLY_CPUID_BASE"] + 2, 32, c)[1],
         "POLY_X86_CTRL_PREFIX_BYTES": c["POLY_X86_CTRL_PREFIX_BYTES"],

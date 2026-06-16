@@ -169,7 +169,7 @@ def main() -> int:
     assert "packet_delivered_o =" in text
     assert "packet_mem_fault_o =" in text
 
-    args = [0x100 + n for n in range(c["POLY_TRAP_PACKET_ARG_COUNT"])]
+    args = [0x100 + n for n in range(c["POLY_V2_EVENT_ARG_COUNT"])]
 
     idle = stage(
         False, True, 0x457000, c["POLY_TRAP_SYSCALL"],

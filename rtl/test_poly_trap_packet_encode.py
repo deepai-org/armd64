@@ -157,7 +157,7 @@ def main() -> int:
     assert sv["POLY_MONITOR_PACKET_ALIGN"] == 8
     assert sv["POLY_TRAP_PACKET_REQUIRED_FLAGS"] == trap_flags(c)
 
-    args = [0x100 + n for n in range(c["POLY_TRAP_PACKET_ARG_COUNT"])]
+    args = [0x100 + n for n in range(c["POLY_V2_EVENT_ARG_COUNT"])]
     ok = encode(
         True, True, 0x0000000000457000, c["POLY_TRAP_SYSCALL"],
         c["POLY_MODE_RAW_AARCH64"], 172, 7, 0x4000, 0x4004, args, c

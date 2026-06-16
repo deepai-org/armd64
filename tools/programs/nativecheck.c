@@ -142,7 +142,7 @@ static void poly_unexpected_trap_vector_exit_handler(void);
 
 struct nativecheck_monitor_packet {
   struct poly_trap_packet trap;
-  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+  uint64_t args[POLY_V2_EVENT_ARG_COUNT];
 };
 
 struct nativecheck_event_packet {
@@ -5303,13 +5303,13 @@ static int run_poly_trap_vector_probe(void) {
       NATIVECHECK_IMPORT_UNKNOWN_SELECTOR, POLY_IMPORT_SELECTOR_COUNT);
     return 1;
   }
-  const uint64_t import_args_77_99[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t import_args_77_99[POLY_V2_EVENT_ARG_COUNT] = {
     77, 78, 79, 80, 81, 82, 88, 99
   };
-  const uint64_t import_args_riscv_ext[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t import_args_riscv_ext[POLY_V2_EVENT_ARG_COUNT] = {
     21, 22, 23, 24, 25, 26, 27, 5
   };
-  const uint64_t import_args_aarch64_ext[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t import_args_aarch64_ext[POLY_V2_EVENT_ARG_COUNT] = {
     11, 12, 13, 14, 15, 16, 17, 18
   };
   memset(&monitor_packet, 0, sizeof(monitor_packet));
@@ -5793,7 +5793,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result, (unsigned long long) expected_pid);
     return 1;
   }
-  const uint64_t aarch64_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t aarch64_syscall_args[POLY_V2_EVENT_ARG_COUNT] = {
     31, 32, 33, 34, 35, 36, 37, 38
   };
   if (expect_event_packet_args("aarch64 syscall", &event_frame,
@@ -5805,7 +5805,7 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
-  const uint64_t zero_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {0};
+  const uint64_t zero_trap_args[POLY_V2_EVENT_ARG_COUNT] = {0};
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800000\n" // movz x0,#0
@@ -5939,7 +5939,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result, (unsigned long long) expected_pid);
     return 1;
   }
-  const uint64_t riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t riscv_syscall_args[POLY_V2_EVENT_ARG_COUNT] = {
     31, 32, 33, 34, 35, 36, 37, 172
   };
   if (expect_event_packet_args("riscv syscall", &event_frame,
@@ -5973,7 +5973,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  const uint64_t wide_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t wide_riscv_syscall_args[POLY_V2_EVENT_ARG_COUNT] = {
     0, 0, 0, 0, 0, 0, 0, 0x100000000ULL
   };
   if (expect_event_packet_args("riscv wide syscall",
@@ -6244,7 +6244,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  const uint64_t aarch64_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t aarch64_break_args[POLY_V2_EVENT_ARG_COUNT] = {
     11, 12, 13, 14, 15, 16, 17, 18
   };
   if (expect_event_packet_args("aarch64 break", &event_frame,
@@ -6310,7 +6310,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  const uint64_t riscv_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t riscv_break_args[POLY_V2_EVENT_ARG_COUNT] = {
     21, 22, 23, 24, 25, 26, 27, 5
   };
   if (expect_event_packet_args("riscv break", &event_frame,
@@ -6749,7 +6749,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  const uint64_t riscv_syscall_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t riscv_syscall_vector_args[POLY_V2_EVENT_ARG_COUNT] = {
     1, 2, 3, 4, 5, 6, 7, 172
   };
   if (expect_event_packet_args("riscv-to-aarch64 syscall vector",
@@ -6781,7 +6781,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  const uint64_t aarch64_syscall_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t aarch64_syscall_vector_args[POLY_V2_EVENT_ARG_COUNT] = {
     1, 2, 3, 4, 5, 6, 7, 8
   };
   if (expect_event_packet_args("aarch64-to-riscv syscall vector",
@@ -6814,7 +6814,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  const uint64_t riscv_header_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t riscv_header_vector_args[POLY_V2_EVENT_ARG_COUNT] = {
     1, 2, 3, 4, 5, 6, 0, 172
   };
   if (expect_event_packet_args("riscv-to-aarch64 syscall header vector",
@@ -6848,7 +6848,7 @@ static int run_poly_trap_vector_probe(void) {
       (unsigned long long) result);
     return 1;
   }
-  const uint64_t aarch64_header_vector_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t aarch64_header_vector_args[POLY_V2_EVENT_ARG_COUNT] = {
     1, 2, 3, 4, 5, 6, 0, 0
   };
   if (expect_event_packet_args("aarch64-to-riscv syscall header vector",
@@ -8616,7 +8616,7 @@ static int run_poly_state_save_restore_probe(void) {
   poly_landing_policy_set(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(trap_vector);
-  const uint64_t aarch64_syscall_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t aarch64_syscall_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
     10, 11, 12, 13, 14, 15, 27, 5
   };
   asm volatile(
@@ -8654,7 +8654,7 @@ static int run_poly_state_save_restore_probe(void) {
     return 1;
   }
 
-  const uint64_t riscv_syscall_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t riscv_syscall_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
     20, 21, 22, 23, 24, 25, 27, 172
   };
   asm volatile(
@@ -9260,7 +9260,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.trap.selector = 7;
   complex.trap.trap_pc = 0x0000000000457000ULL;
   complex.trap.resume_pc = 0x0000000000457004ULL;
-  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++)
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
     complex.trap_args[n] = 0x4567800045678000ULL + n;
   complex.state_key.flags = 1;
   complex.state_key.explicit_key = real_xsave_state_key;

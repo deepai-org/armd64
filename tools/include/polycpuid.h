@@ -449,7 +449,6 @@ enum {
   POLY_STATE_XSAVE_RESERVED_BYTES = 0x580,
   POLY_TRAP_PACKET_LAYOUT_VERSION = 2,
   POLY_TRAP_PACKET_HEADER_BYTES = 64,
-  POLY_TRAP_PACKET_ARG_COUNT = 8,
   POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY = (1U << 0),
   POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS = (1U << 1),
   POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE = (1U << 2),
@@ -959,7 +958,7 @@ struct poly_trap_restore_state {
 struct poly_xsave_state {
   struct poly_xsave_header header;
   struct poly_trap_packet trap;
-  uint64_t trap_args[POLY_TRAP_PACKET_ARG_COUNT];
+  uint64_t trap_args[POLY_V2_EVENT_ARG_COUNT];
   struct poly_xsave_transition_area transition;
   uint64_t aarch64_gpr[32];
   struct poly_u128 aarch64_fp[32];
