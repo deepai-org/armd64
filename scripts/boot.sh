@@ -13929,7 +13929,7 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -q "POLY_PROBE_MONITOR_PACKETS_OK" "$SERIAL_LOG"; then
+        if ! grep -q "POLY_PROBE_EVENT_FRAMES_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

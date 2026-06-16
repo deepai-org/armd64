@@ -530,6 +530,14 @@ assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYBENCH" \
   "polybench must register a v2 canonical event frame"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polybench_monitor_packet" "$POLYBENCH" \
   "polybench must not depend on legacy monitor-packet publication"
+assert_contains "polyprobe_event_frame_to_packet" "$POLYPROBE" \
+  "polyprobe trap-vector dispatch must consume v2 event frames"
+assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYPROBE" \
+  "polyprobe must register a v2 canonical event frame"
+assert_contains "POLY_PROBE_EVENT_FRAMES_OK" "$POLYPROBE" \
+  "polyprobe must report v2 event-frame trap-vector coverage"
+assert_contains "POLY_PROBE_EVENT_FRAMES_OK" "$BOOT_SCRIPT" \
+  "polyprobe boot assertions must wait for v2 event-frame coverage"
 assert_contains "polythread_event_frame_to_packet" "$POLYTHREAD" \
   "polythread trap-vector dispatch must consume v2 event frames"
 assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYTHREAD" \

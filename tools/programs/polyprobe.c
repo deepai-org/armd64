@@ -63,6 +63,7 @@
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
 #define POLY_OP_MONITOR_PACKET_GET POLY_X86_CTRL_MONITOR_PACKET_GET_ASM
+#define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_LANDING_POLICY_SET POLY_X86_CTRL_LANDING_POLICY_SET_ASM
 #define POLY_OP_LANDING_POLICY_GET POLY_X86_CTRL_LANDING_POLICY_GET_ASM
 #define POLY_ABI_GPR_CLOBBERS \
@@ -89,6 +90,8 @@
 #define POLYPROBE_RISCV_PCALL_VEC128_SLOT_INSN 0x4a00700bULL
 #define POLYPROBE_RISCV_PCALL_FP64_SLOT_INSN 0x5000700bULL
 #define POLYPROBE_RISCV_PCALL_GENERIC_INSN 0x1200700bULL
+#define POLYPROBE_V2_EVENT_MAGIC \
+  ((((uint64_t) POLY_V2_EVENT_MAGIC_HI) << 32) | POLY_V2_EVENT_MAGIC_LO)
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
 static uint32_t polyprobe_native_signature_slot =
@@ -96,17 +99,22 @@ static uint32_t polyprobe_native_signature_slot =
 static uint32_t polyprobe_fp64_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS_FP64;
 
-struct polyprobe_monitor_packet {
-  struct poly_trap_packet trap;
-  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+struct polyprobe_event_packet {
+  uint64_t reason;
+  uint64_t mode;
+  uint64_t number;
+  uint64_t selector;
+  uint64_t pc;
+  uint64_t resume_pc;
+  uint64_t args[POLY_V2_EVENT_ARG_COUNT];
 };
 
-static const struct polyprobe_monitor_packet *polyprobe_current_monitor_packet;
-static const uint64_t polyprobe_aarch64_trap_args[POLY_TRAP_PACKET_ARG_COUNT] =
+static const struct poly_v2_event_frame *polyprobe_current_event_frame;
+static const uint64_t polyprobe_aarch64_trap_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 99};
-static const uint64_t polyprobe_riscv_import_trap_args[POLY_TRAP_PACKET_ARG_COUNT] =
+static const uint64_t polyprobe_riscv_import_trap_args[POLY_V2_EVENT_ARG_COUNT] =
   {177, 178, 179, 180, 181, 182, 183, 184};
-static const uint64_t polyprobe_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] =
+static const uint64_t polyprobe_riscv_syscall_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 172};
 
 static int polyprobe_check_cpuid_regs(const char *label, uint32_t leaf,
@@ -122,23 +130,23 @@ static int polyprobe_check_cpuid_regs(const char *label, uint32_t leaf,
   return 0;
 }
 
-static int polyprobe_trap_args_equal(
-    const uint64_t got[POLY_TRAP_PACKET_ARG_COUNT],
-    const uint64_t expected[POLY_TRAP_PACKET_ARG_COUNT]) {
-  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++) {
+static int polyprobe_event_args_equal(
+    const uint64_t got[POLY_V2_EVENT_ARG_COUNT],
+    const uint64_t expected[POLY_V2_EVENT_ARG_COUNT]) {
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++) {
     if (got[n] != expected[n])
       return 0;
   }
   return 1;
 }
 
-static int expect_monitor_packet_args(const char *label,
-    const struct polyprobe_monitor_packet *packet,
-    const uint64_t expected[POLY_TRAP_PACKET_ARG_COUNT]) {
-  if (polyprobe_trap_args_equal(packet->args, expected))
+static int expect_event_packet_args(const char *label,
+    const struct polyprobe_event_packet *packet,
+    const uint64_t expected[POLY_V2_EVENT_ARG_COUNT]) {
+  if (polyprobe_event_args_equal(packet->args, expected))
     return 0;
   fprintf(stderr,
-    "POLY_PROBE_FAIL: monitor packet %s args mismatch got=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu] expected=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu]\n",
+    "POLY_PROBE_FAIL: event frame %s args mismatch got=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu] expected=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu]\n",
     label,
     (unsigned long long) packet->args[0],
     (unsigned long long) packet->args[1],
@@ -253,6 +261,13 @@ static inline uint64_t poly_monitor_packet_get(void) {
   uint64_t value;
   asm volatile(POLY_OP_MONITOR_PACKET_GET : "=a"(value) :: "memory");
   return value;
+}
+
+static inline void poly_event_ptr_set_value(uint64_t frame, uint64_t bytes) {
+  asm volatile(POLY_OP_EVENT_PTR_SET
+      : "+a"(frame), "+d"(bytes)
+      :
+      : "memory");
 }
 
 static inline uint64_t poly_state_key_set_status(uint64_t value) {
@@ -416,44 +431,89 @@ static int poly_is_raw_foreign_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
 }
 
-static int expect_monitor_packet_header(const char *label,
-    const struct polyprobe_monitor_packet *packet, uint32_t reason,
-    uint32_t source_mode, uint64_t number, uint64_t selector,
-    int require_linear_resume) {
-  if (packet->trap.reason != reason ||
-      packet->trap.source_mode != source_mode ||
-      packet->trap.number != number ||
-      packet->trap.selector != selector ||
-      packet->trap.trap_pc == 0 ||
-      packet->trap.resume_pc == 0 ||
-      packet->trap.reserved[0] != 0 ||
-      packet->trap.reserved[1] != 0 ||
-      (require_linear_resume &&
-       packet->trap.resume_pc != packet->trap.trap_pc + 4) ||
-      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
-        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
-    fprintf(stderr,
-      "POLY_PROBE_FAIL: monitor packet %s mismatch reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx reserved=(0x%llx,0x%llx)\n",
-      label, packet->trap.reason, packet->trap.source_mode,
-      (unsigned long long) packet->trap.number,
-      (unsigned long long) packet->trap.selector,
-      (unsigned long long) packet->trap.trap_pc,
-      (unsigned long long) packet->trap.resume_pc,
-      (unsigned long long) packet->trap.flags,
-      (unsigned long long) packet->trap.reserved[0],
-      (unsigned long long) packet->trap.reserved[1]);
-    return 1;
+static int polyprobe_event_reason(uint16_t event_kind, uint64_t *reason) {
+  switch (event_kind) {
+    case POLY_V2_EVENT_KIND_SYSCALL:
+      *reason = POLY_TRAP_SYSCALL;
+      return 0;
+    case POLY_V2_EVENT_KIND_BREAK:
+      *reason = POLY_TRAP_BREAK;
+      return 0;
+    case POLY_V2_EVENT_KIND_IMPORT:
+      *reason = POLY_TRAP_IMPORT;
+      return 0;
+    case POLY_V2_EVENT_KIND_ILLEGAL:
+      *reason = POLY_TRAP_ILLEGAL;
+      return 0;
+    default:
+      return -1;
   }
+}
+
+static int polyprobe_event_frame_to_packet(
+    const struct poly_v2_event_frame *event,
+    struct polyprobe_event_packet *packet) {
+  uint64_t reason = 0;
+  if (event == 0 || packet == 0 ||
+      event->magic != POLYPROBE_V2_EVENT_MAGIC ||
+      event->bytes != POLY_V2_EVENT_BYTES ||
+      event->version != POLY_V2_EVENT_VERSION ||
+      event->header_bytes != POLY_V2_EVENT_HEADER_BYTES ||
+      event->arg_count != POLY_V2_EVENT_ARG_COUNT ||
+      event->sequence == 0 ||
+      event->insn_pc == 0 ||
+      event->resume_pc == 0 ||
+      !poly_is_raw_foreign_mode(event->frontend) ||
+      polyprobe_event_reason(event->event_kind, &reason) != 0)
+    return -1;
+
+  memset(packet, 0, sizeof(*packet));
+  packet->reason = reason;
+  packet->mode = event->frontend;
+  packet->number = event->selector;
+  packet->selector = event->fault_status;
+  packet->pc = event->insn_pc;
+  packet->resume_pc = event->resume_pc;
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
+    packet->args[n] = event->args[n];
   return 0;
 }
 
-static int polyprobe_monitor_packet_contract_valid(
-    const struct polyprobe_monitor_packet *packet) {
-  return packet->trap.resume_pc != 0 &&
-    packet->trap.reserved[0] == 0 &&
-    packet->trap.reserved[1] == 0 &&
-    (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) ==
-      POLY_TRAP_PACKET_REQUIRED_FLAGS;
+static int expect_event_packet_header(const char *label,
+    const struct poly_v2_event_frame *event, uint32_t reason,
+    uint32_t source_mode, uint64_t number, uint64_t selector,
+    int require_linear_resume) {
+  struct polyprobe_event_packet packet;
+  if (polyprobe_event_frame_to_packet(event, &packet) != 0) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: event frame %s invalid kind=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx sequence=%llu\n",
+      label, event != 0 ? event->event_kind : 0,
+      event != 0 ? event->frontend : 0,
+      (unsigned long long) (event != 0 ? event->selector : 0),
+      (unsigned long long) (event != 0 ? event->fault_status : 0),
+      (unsigned long long) (event != 0 ? event->insn_pc : 0),
+      (unsigned long long) (event != 0 ? event->resume_pc : 0),
+      (unsigned long long) (event != 0 ? event->sequence : 0));
+    return 1;
+  }
+  if (packet.reason != reason ||
+      packet.mode != source_mode ||
+      packet.number != number ||
+      packet.selector != selector ||
+      packet.pc == 0 ||
+      packet.resume_pc == 0 ||
+      (require_linear_resume && packet.resume_pc != packet.pc + 4)) {
+    fprintf(stderr,
+      "POLY_PROBE_FAIL: event frame %s mismatch reason=%llu mode=%llu number=%llu selector=%llu pc=0x%llx resume=0x%llx\n",
+      label, (unsigned long long) packet.reason,
+      (unsigned long long) packet.mode,
+      (unsigned long long) packet.number,
+      (unsigned long long) packet.selector,
+      (unsigned long long) packet.pc,
+      (unsigned long long) packet.resume_pc);
+    return 1;
+  }
+  return 0;
 }
 
 static inline void polyprobe_clobber_aarch64_trap_state(void) {
@@ -494,16 +554,14 @@ static inline void polyprobe_clobber_riscv_trap_fp_state(void) {
 
 __attribute__((noinline, used))
 uint64_t polyprobe_trap_vector_dispatch(void) {
-  const struct polyprobe_monitor_packet *monitor_packet =
-    polyprobe_current_monitor_packet;
-  if (monitor_packet == 0)
+  struct polyprobe_event_packet packet;
+  if (polyprobe_event_frame_to_packet(polyprobe_current_event_frame,
+      &packet) != 0)
     return (uint64_t) -38;
-  if (!polyprobe_monitor_packet_contract_valid(monitor_packet))
-    return (uint64_t) -38;
-  const uint64_t reason = monitor_packet->trap.reason;
-  const uint64_t mode = monitor_packet->trap.source_mode;
-  const uint64_t number = monitor_packet->trap.number;
-  const uint64_t selector = monitor_packet->trap.selector;
+  const uint64_t reason = packet.reason;
+  const uint64_t mode = packet.mode;
+  const uint64_t number = packet.number;
+  const uint64_t selector = packet.selector;
 
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -38;
@@ -529,31 +587,31 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
   }
   if (reason == POLY_TRAP_SYSCALL && number == 172 &&
       ((mode == POLY_MODE_RAW_AARCH64 &&
-        polyprobe_trap_args_equal(monitor_packet->args,
+        polyprobe_event_args_equal(packet.args,
           polyprobe_aarch64_trap_args)) ||
        (mode == POLY_MODE_RAW_RISCV &&
-        polyprobe_trap_args_equal(monitor_packet->args,
+        polyprobe_event_args_equal(packet.args,
           polyprobe_riscv_syscall_args))))
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
   if (reason == POLY_TRAP_IMPORT && number == 8 &&
       mode == POLY_MODE_RAW_AARCH64 &&
-      polyprobe_trap_args_equal(monitor_packet->args,
+      polyprobe_event_args_equal(packet.args,
         polyprobe_aarch64_trap_args))
     return 5555;
   if (reason == POLY_TRAP_IMPORT && number == 8 &&
       mode == POLY_MODE_RAW_RISCV &&
-      polyprobe_trap_args_equal(monitor_packet->args,
+      polyprobe_event_args_equal(packet.args,
         polyprobe_riscv_import_trap_args))
     return 5555;
   if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
       mode == POLY_MODE_RAW_AARCH64 && number == 0xd61f0200ULL &&
-      monitor_packet->args[0] == POLYPROBE_INVALID_AARCH64_BRANCH_TARGET)
+      packet.args[0] == POLYPROBE_INVALID_AARCH64_BRANCH_TARGET)
     return 7777;
   if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
       mode == POLY_MODE_RAW_RISCV && number == 0x00050067ULL &&
-      monitor_packet->args[0] == POLYPROBE_INVALID_RISCV_BRANCH_TARGET)
+      packet.args[0] == POLYPROBE_INVALID_RISCV_BRANCH_TARGET)
     return 7777;
   if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
       mode == POLY_MODE_RAW_AARCH64 &&
@@ -4131,70 +4189,77 @@ int main(void) {
   stage("POLY_STAGE: raw-break");
   const char break_string[] = "polyglot";
   volatile uint64_t break_arg = (uint64_t) (uintptr_t) break_string;
-  struct polyprobe_monitor_packet monitor_packet __attribute__((aligned(64)));
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
-  polyprobe_current_monitor_packet = &monitor_packet;
-  poly_monitor_packet_set_value((uint64_t) (uintptr_t) &monitor_packet);
+  struct poly_v2_event_frame event_frame
+    __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
+  memset(&event_frame, 0, sizeof(event_frame));
+  polyprobe_current_event_frame = &event_frame;
+  poly_event_ptr_set_value((uint64_t) (uintptr_t) &event_frame,
+    POLY_V2_EVENT_BYTES);
   raw_aarch64_break_probe(break_arg);
   if (read_rax() != (0x4c000001ULL | ((uint64_t) POLY_MODE_RAW_AARCH64 << 8))) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 break trap vector mismatch\n");
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 break", &monitor_packet,
+  if (expect_event_packet_header("aarch64 break", &event_frame,
         POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 1, 1, 1) != 0)
     return 1;
-  const uint64_t aarch64_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  struct polyprobe_event_packet event_packet;
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  const uint64_t aarch64_break_args[POLY_V2_EVENT_ARG_COUNT] = {
     break_arg, 12, 13, 14, 15, 16, 17, 18
   };
-  if (expect_monitor_packet_args("aarch64 break", &monitor_packet,
+  if (expect_event_packet_args("aarch64 break", &event_packet,
       aarch64_break_args) != 0)
     return 1;
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_break_probe(break_arg);
   if (read_rax() != (0x4c000001ULL | ((uint64_t) POLY_MODE_RAW_RISCV << 8))) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv break trap vector mismatch\n");
     return 1;
   }
-  if (expect_monitor_packet_header("riscv break", &monitor_packet,
+  if (expect_event_packet_header("riscv break", &event_frame,
         POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 1, 0, 1) != 0)
     return 1;
-  const uint64_t riscv_break_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  const uint64_t riscv_break_args[POLY_V2_EVENT_ARG_COUNT] = {
     break_arg, 22, 23, 24, 25, 26, 27, 1
   };
-  if (expect_monitor_packet_args("riscv break", &monitor_packet,
+  if (expect_event_packet_args("riscv break", &event_packet,
       riscv_break_args) != 0)
     return 1;
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   if (raw_aarch64_trap_restore_probe() != 51) {
     fprintf(stderr,
       "POLY_PROBE_FAIL: aarch64 trap return state restore mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 restore break", &monitor_packet,
+  if (expect_event_packet_header("aarch64 restore break", &event_frame,
         POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 2, 2, 1) != 0)
     return 1;
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   if (raw_riscv_trap_restore_probe() != 51) {
     fprintf(stderr,
       "POLY_PROBE_FAIL: riscv trap return state restore mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("riscv restore break", &monitor_packet,
+  if (expect_event_packet_header("riscv restore break", &event_frame,
         POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 2, 0, 1) != 0)
     return 1;
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   if (raw_aarch64_trap_fp_restore_probe() != 0x1234) {
     fprintf(stderr,
       "POLY_PROBE_FAIL: aarch64 trap return FP restore mismatch got=0x%llx\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 restore fp break",
-        &monitor_packet, POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 3, 3, 1) != 0)
+  if (expect_event_packet_header("aarch64 restore fp break",
+        &event_frame, POLY_TRAP_BREAK, POLY_MODE_RAW_AARCH64, 3, 3, 1) != 0)
     return 1;
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_trap_fp_restore_probe();
   if (read_xmm0_u64() != 0x1234) {
     fprintf(stderr,
@@ -4202,173 +4267,185 @@ int main(void) {
       (unsigned long long) read_xmm0_u64());
     return 1;
   }
-  if (expect_monitor_packet_header("riscv restore fp break", &monitor_packet,
+  if (expect_event_packet_header("riscv restore fp break", &event_frame,
         POLY_TRAP_BREAK, POLY_MODE_RAW_RISCV, 3, 0, 1) != 0)
     return 1;
 
   stage("POLY_STAGE: raw-syscall");
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_aarch64_getpid_probe();
   if (read_rax() != 4242) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 syscall mismatch\n");
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 syscall", &monitor_packet,
+  if (expect_event_packet_header("aarch64 syscall", &event_frame,
         POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64, 172, 0, 1) != 0)
     return 1;
-  if (expect_monitor_packet_args("aarch64 syscall", &monitor_packet,
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  if (expect_event_packet_args("aarch64 syscall", &event_packet,
         polyprobe_aarch64_trap_args) != 0)
     return 1;
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_getpid_probe();
   if (read_rax() != 4242) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv syscall mismatch\n");
     return 1;
   }
-  if (expect_monitor_packet_header("riscv syscall", &monitor_packet,
+  if (expect_event_packet_header("riscv syscall", &event_frame,
         POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, 172, 0, 1) != 0)
     return 1;
-  if (expect_monitor_packet_args("riscv syscall", &monitor_packet,
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  if (expect_event_packet_args("riscv syscall", &event_packet,
         polyprobe_riscv_syscall_args) != 0)
     return 1;
 
   stage("POLY_STAGE: raw-import");
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_aarch64_import_probe();
   if (read_rax() != 5555) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 import trap vector mismatch\n");
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 import", &monitor_packet,
+  if (expect_event_packet_header("aarch64 import", &event_frame,
         POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, 8, 0, 0) != 0)
     return 1;
-  if (expect_monitor_packet_args("aarch64 import", &monitor_packet,
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  if (expect_event_packet_args("aarch64 import", &event_packet,
         polyprobe_aarch64_trap_args) != 0)
     return 1;
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_import_probe();
   if (read_rax() != 5555) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv import trap vector mismatch\n");
     return 1;
   }
-  if (expect_monitor_packet_header("riscv import", &monitor_packet,
+  if (expect_event_packet_header("riscv import", &event_frame,
         POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, 8, 0, 0) != 0)
     return 1;
-  if (expect_monitor_packet_args("riscv import", &monitor_packet,
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  if (expect_event_packet_args("riscv import", &event_packet,
         polyprobe_riscv_import_trap_args) != 0)
     return 1;
 
   stage("POLY_STAGE: raw-illegal");
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_aarch64_illegal_probe();
   if (read_rax() != 6666) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 illegal trap vector mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 illegal", &monitor_packet,
+  if (expect_event_packet_header("aarch64 illegal", &event_frame,
         POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xffffffffULL, 4, 1) != 0)
     return 1;
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_illegal_probe();
   if (read_rax() != 6666) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv illegal trap vector mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("riscv illegal", &monitor_packet,
+  if (expect_event_packet_header("riscv illegal", &event_frame,
         POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4, 1) != 0)
     return 1;
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_aarch64_invalid_branch_probe();
   if (read_rax() != 7777) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 invalid branch trap mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 invalid branch", &monitor_packet,
+  if (expect_event_packet_header("aarch64 invalid branch", &event_frame,
         POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xd61f0200ULL, 4, 1) != 0)
     return 1;
-  if (monitor_packet.args[0] != POLYPROBE_INVALID_AARCH64_BRANCH_TARGET) {
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  if (event_packet.args[0] != POLYPROBE_INVALID_AARCH64_BRANCH_TARGET) {
     fprintf(stderr,
-      "POLY_PROBE_FAIL: monitor packet aarch64 invalid branch target mismatch got=0x%llx expected=0x%llx\n",
-      (unsigned long long) monitor_packet.args[0],
+      "POLY_PROBE_FAIL: event frame aarch64 invalid branch target mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) event_packet.args[0],
       (unsigned long long) POLYPROBE_INVALID_AARCH64_BRANCH_TARGET);
     return 1;
   }
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_invalid_branch_probe();
   if (read_rax() != 7777) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv invalid branch trap mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("riscv invalid branch", &monitor_packet,
+  if (expect_event_packet_header("riscv invalid branch", &event_frame,
         POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0x00050067ULL, 4, 1) != 0)
     return 1;
-  if (monitor_packet.args[0] != POLYPROBE_INVALID_RISCV_BRANCH_TARGET) {
+  if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
+    return 1;
+  if (event_packet.args[0] != POLYPROBE_INVALID_RISCV_BRANCH_TARGET) {
     fprintf(stderr,
-      "POLY_PROBE_FAIL: monitor packet riscv invalid branch target mismatch got=0x%llx expected=0x%llx\n",
-      (unsigned long long) monitor_packet.args[0],
+      "POLY_PROBE_FAIL: event frame riscv invalid branch target mismatch got=0x%llx expected=0x%llx\n",
+      (unsigned long long) event_packet.args[0],
       (unsigned long long) POLYPROBE_INVALID_RISCV_BRANCH_TARGET);
     return 1;
   }
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_aarch64_invalid_x86_call_return_probe();
   if (read_rax() != 8888) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 invalid x86 call return trap mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 invalid x86 call return",
-        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
+  if (expect_event_packet_header("aarch64 invalid x86 call return",
+        &event_frame, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
         POLYPROBE_AARCH64_PCALL_SLOT3_INSN, 4, 1) != 0)
     return 1;
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_invalid_x86_call_return_probe();
   if (read_rax() != 8888) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv invalid x86 call return trap mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("riscv invalid x86 call return",
-        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
+  if (expect_event_packet_header("riscv invalid x86 call return",
+        &event_frame, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
         POLYPROBE_RISCV_PCALL_SLOT3_INSN, 4, 1) != 0)
     return 1;
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_aarch64_invalid_cross_call_return_probe();
   if (read_rax() != 8888) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw aarch64 invalid cross call return trap mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("aarch64 invalid cross call return",
-        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
+  if (expect_event_packet_header("aarch64 invalid cross call return",
+        &event_frame, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64,
         POLYPROBE_AARCH64_PCALL_GENERIC_INSN, 4, 1) != 0)
     return 1;
 
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   raw_riscv_invalid_cross_call_return_probe();
   if (read_rax() != 8888) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw riscv invalid cross call return trap mismatch got=%llu\n",
       (unsigned long long) read_rax());
     return 1;
   }
-  if (expect_monitor_packet_header("riscv invalid cross call return",
-        &monitor_packet, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
+  if (expect_event_packet_header("riscv invalid cross call return",
+        &event_frame, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
         POLYPROBE_RISCV_PCALL_GENERIC_INSN, 4, 1) != 0)
     return 1;
-  puts("POLY_PROBE_MONITOR_PACKETS_OK");
-  poly_monitor_packet_set_value(0);
-  polyprobe_current_monitor_packet = 0;
+  puts("POLY_PROBE_EVENT_FRAMES_OK");
+  poly_event_ptr_set_value(0, 0);
+  polyprobe_current_event_frame = 0;
 
   stage("POLY_STAGE: counters");
   uint64_t insns_before = poly_foreign_insn_count_status();
