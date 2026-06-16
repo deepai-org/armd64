@@ -15,6 +15,7 @@ POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
 POLYPROBE="$ROOT_DIR/tools/programs/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
 POLYAPP="$ROOT_DIR/tools/programs/polyapp.c"
+POLYTHREAD="$ROOT_DIR/tools/programs/polythread.c"
 NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
 POLYBINFMT_EXEC="$ROOT_DIR/tools/programs/polybinfmt_exec.c"
 POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
@@ -529,6 +530,12 @@ assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYBENCH" \
   "polybench must register a v2 canonical event frame"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polybench_monitor_packet" "$POLYBENCH" \
   "polybench must not depend on legacy monitor-packet publication"
+assert_contains "polythread_event_frame_to_packet" "$POLYTHREAD" \
+  "polythread trap-vector dispatch must consume v2 event frames"
+assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYTHREAD" \
+  "polythread must register a v2 canonical event frame"
+assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polythread_monitor_packet" "$POLYTHREAD" \
+  "polythread must not depend on legacy monitor-packet publication"
 assert_contains "poly_auto_spill_descriptor\\.monitor_packet_addr[[:space:]]*=[[:space:]]*0" "$POLYEXEC" \
   "v2 spill descriptors must not require monitor-packet publication"
 assert_contains "poly_monitor_packet_set_value\\(polyexec_use_auto_spill \\? 0" "$POLYEXEC" \

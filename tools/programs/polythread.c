@@ -28,7 +28,7 @@
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
-#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
+#define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_PCALL_SIG_IMM_NATIVE \
   POLY_X86_CTRL_PCALL_SIG_IMM_NATIVE_REGS_ASM \
   ".balign 4, 0x90\n"
@@ -68,6 +68,9 @@
 #define POLY_RISCV_PCALL_SIG_IMM_NATIVE ".long 0x4600700b\n"
 #define POLY_RISCV_PCALL_SIG_IMM_FP64 ".long 0x5000700b\n"
 
+#define POLYTHREAD_V2_EVENT_MAGIC \
+  ((((uint64_t) POLY_V2_EVENT_MAGIC_HI) << 32) | POLY_V2_EVENT_MAGIC_LO)
+
 enum {
   POLYTHREAD_THREADS = 4,
   POLYTHREAD_ROUNDS = 12,
@@ -81,13 +84,17 @@ static uint64_t mixed_atomic_counter __attribute__((aligned(8)));
 static uint64_t explicit_state_key_counter __attribute__((aligned(8)));
 static uint64_t real_xsave_context_counter __attribute__((aligned(8)));
 static uint64_t real_xsave_no_key_counter __attribute__((aligned(8)));
-struct polythread_monitor_packet {
-  struct poly_trap_packet trap;
-  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+struct polythread_event_packet {
+  uint64_t reason;
+  uint64_t mode;
+  uint64_t number;
+  uint64_t selector;
+  uint64_t resume_pc;
+  uint64_t args[POLY_V2_EVENT_ARG_COUNT];
 };
 
-static __thread const struct polythread_monitor_packet
-  *polythread_current_monitor_packet;
+static __thread const struct poly_v2_event_frame
+  *polythread_current_event_frame;
 static __thread uint8_t polythread_state_key_anchor;
 
 static inline uint64_t poly_abi_signature_set(uint64_t slot, uint64_t kind) {
@@ -404,43 +411,98 @@ static inline void poly_trap_vector_mode_set(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
 }
 
-static inline void poly_monitor_packet_set(uint64_t value) {
-  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
+static inline void poly_event_ptr_set(uint64_t frame, uint64_t bytes) {
+  asm volatile(POLY_OP_EVENT_PTR_SET
+    : "+a"(frame), "+d"(bytes)
+    :
+    : "memory");
 }
 
-static int expect_monitor_packet(uintptr_t worker_id, const char *label,
-    const struct polythread_monitor_packet *packet, uint32_t reason,
+static int polythread_event_reason(uint16_t event_kind, uint64_t *reason) {
+  switch (event_kind) {
+    case POLY_V2_EVENT_KIND_SYSCALL:
+      *reason = POLY_TRAP_SYSCALL;
+      return 0;
+    case POLY_V2_EVENT_KIND_IMPORT:
+      *reason = POLY_TRAP_IMPORT;
+      return 0;
+    default:
+      return -1;
+  }
+}
+
+static int polythread_event_frame_to_packet(
+    const struct poly_v2_event_frame *event,
+    struct polythread_event_packet *packet) {
+  uint64_t reason = 0;
+  if (event == 0 || packet == 0 ||
+      event->magic != POLYTHREAD_V2_EVENT_MAGIC ||
+      event->bytes != POLY_V2_EVENT_BYTES ||
+      event->version != POLY_V2_EVENT_VERSION ||
+      event->header_bytes != POLY_V2_EVENT_HEADER_BYTES ||
+      event->arg_count != POLY_V2_EVENT_ARG_COUNT ||
+      event->sequence == 0 ||
+      event->resume_pc == 0 ||
+      (event->frontend != POLY_MODE_RAW_AARCH64 &&
+        event->frontend != POLY_MODE_RAW_RISCV) ||
+      polythread_event_reason(event->event_kind, &reason) != 0)
+    return -1;
+
+  memset(packet, 0, sizeof(*packet));
+  packet->reason = reason;
+  packet->mode = event->frontend;
+  packet->number = event->selector;
+  packet->selector = event->fault_status;
+  packet->resume_pc = event->resume_pc;
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
+    packet->args[n] = event->args[n];
+  return 0;
+}
+
+static int expect_event_packet(uintptr_t worker_id, const char *label,
+    const struct poly_v2_event_frame *event, uint32_t reason,
     uint32_t mode, uint64_t number, uint64_t selector,
-    const uint64_t expected_args[POLY_TRAP_PACKET_ARG_COUNT]) {
+    const uint64_t expected_args[POLY_V2_EVENT_ARG_COUNT]) {
+  struct polythread_event_packet packet;
+  if (polythread_event_frame_to_packet(event, &packet) != 0) {
+    fprintf(stderr,
+      "POLYTHREAD_FAIL: worker=%lu %s event frame invalid kind=%u mode=%u number=%llu selector=%llu resume=0x%llx sequence=%llu\n",
+      (unsigned long) worker_id, label,
+      event != 0 ? event->event_kind : 0,
+      event != 0 ? event->frontend : 0,
+      (unsigned long long) (event != 0 ? event->selector : 0),
+      (unsigned long long) (event != 0 ? event->fault_status : 0),
+      (unsigned long long) (event != 0 ? event->resume_pc : 0),
+      (unsigned long long) (event != 0 ? event->sequence : 0));
+    return -1;
+  }
+
   int args_match = 1;
-  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++) {
-    if (packet->args[n] != expected_args[n])
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++) {
+    if (packet.args[n] != expected_args[n])
       args_match = 0;
   }
-  if (packet->trap.reason != reason ||
-      packet->trap.source_mode != mode ||
-      packet->trap.number != number ||
-      packet->trap.selector != selector ||
-      packet->trap.resume_pc == 0 ||
-      packet->trap.reserved[0] != 0 ||
-      packet->trap.reserved[1] != 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
-        POLY_TRAP_PACKET_REQUIRED_FLAGS ||
+  if (packet.reason != reason ||
+      packet.mode != mode ||
+      packet.number != number ||
+      packet.selector != selector ||
+      packet.resume_pc == 0 ||
       !args_match) {
     fprintf(stderr,
-      "POLYTHREAD_FAIL: worker=%lu %s monitor packet reason=%u mode=%u number=%llu selector=%llu args=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu] expected=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu] resume=0x%llx flags=0x%llx\n",
+      "POLYTHREAD_FAIL: worker=%lu %s event frame reason=%llu mode=%llu number=%llu selector=%llu args=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu] expected=[%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu] resume=0x%llx\n",
       (unsigned long) worker_id, label,
-      packet->trap.reason, packet->trap.source_mode,
-      (unsigned long long) packet->trap.number,
-      (unsigned long long) packet->trap.selector,
-      (unsigned long long) packet->args[0],
-      (unsigned long long) packet->args[1],
-      (unsigned long long) packet->args[2],
-      (unsigned long long) packet->args[3],
-      (unsigned long long) packet->args[4],
-      (unsigned long long) packet->args[5],
-      (unsigned long long) packet->args[6],
-      (unsigned long long) packet->args[7],
+      (unsigned long long) packet.reason,
+      (unsigned long long) packet.mode,
+      (unsigned long long) packet.number,
+      (unsigned long long) packet.selector,
+      (unsigned long long) packet.args[0],
+      (unsigned long long) packet.args[1],
+      (unsigned long long) packet.args[2],
+      (unsigned long long) packet.args[3],
+      (unsigned long long) packet.args[4],
+      (unsigned long long) packet.args[5],
+      (unsigned long long) packet.args[6],
+      (unsigned long long) packet.args[7],
       (unsigned long long) expected_args[0],
       (unsigned long long) expected_args[1],
       (unsigned long long) expected_args[2],
@@ -449,43 +511,31 @@ static int expect_monitor_packet(uintptr_t worker_id, const char *label,
       (unsigned long long) expected_args[5],
       (unsigned long long) expected_args[6],
       (unsigned long long) expected_args[7],
-      (unsigned long long) packet->trap.resume_pc,
-      (unsigned long long) packet->trap.flags);
+      (unsigned long long) packet.resume_pc);
     return -1;
   }
 
   return 0;
 }
 
-static int polythread_monitor_packet_contract_valid(
-    const struct polythread_monitor_packet *packet) {
-  return packet->trap.resume_pc != 0 &&
-    packet->trap.reserved[0] == 0 &&
-    packet->trap.reserved[1] == 0 &&
-    (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) ==
-      POLY_TRAP_PACKET_REQUIRED_FLAGS;
-}
-
 static uint64_t polythread_trap_vector_result(uint64_t number,
-    const uint64_t args[POLY_TRAP_PACKET_ARG_COUNT]) {
+    const uint64_t args[POLY_V2_EVENT_ARG_COUNT]) {
   uint64_t result = number;
-  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++)
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
     result += args[n];
   return result;
 }
 
 __attribute__((noinline, used))
 uint64_t polythread_trap_vector_dispatch(void) {
-  const struct polythread_monitor_packet *packet =
-    polythread_current_monitor_packet;
-  if (packet == 0)
+  struct polythread_event_packet packet;
+  if (polythread_event_frame_to_packet(polythread_current_event_frame,
+      &packet) != 0)
     return (uint64_t) -1;
-  if (!polythread_monitor_packet_contract_valid(packet))
+  if (packet.reason != POLY_TRAP_SYSCALL &&
+      packet.reason != POLY_TRAP_IMPORT)
     return (uint64_t) -1;
-  if (packet->trap.reason != POLY_TRAP_SYSCALL &&
-      packet->trap.reason != POLY_TRAP_IMPORT)
-    return (uint64_t) -1;
-  return polythread_trap_vector_result(packet->trap.number, packet->args);
+  return polythread_trap_vector_result(packet.number, packet.args);
 }
 
 __attribute__((naked, noinline, used))
@@ -1909,21 +1959,23 @@ static void *worker_main(void *arg) {
   poly_trap_vector_mode_set(POLY_MODE_X86);
   poly_trap_vector_set(
     (uint64_t) (uintptr_t) polythread_trap_vector_handler);
-  struct polythread_monitor_packet monitor_packet __attribute__((aligned(64)));
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
-  polythread_current_monitor_packet = &monitor_packet;
-  poly_monitor_packet_set((uint64_t) (uintptr_t) &monitor_packet);
+  struct poly_v2_event_frame event_frame
+    __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
+  memset(&event_frame, 0, sizeof(event_frame));
+  polythread_current_event_frame = &event_frame;
+  poly_event_ptr_set((uint64_t) (uintptr_t) &event_frame,
+    POLY_V2_EVENT_BYTES);
 
   uint64_t aarch64_trap_number = 200 + worker_id;
   uint64_t aarch64_trap_arg6 = base + 0x40000ULL;
   uint64_t aarch64_trap_arg7 = base + 0x50000ULL;
-  const uint64_t aarch64_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t aarch64_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
     aarch64_trap_number, aarch64_trap_number + 1,
     aarch64_trap_number + 2, aarch64_trap_number + 3,
     aarch64_trap_number + 4, aarch64_trap_number + 5,
     aarch64_trap_arg6, aarch64_trap_arg7
   };
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   uint64_t aarch64_trap_result = trap_aarch64_syscall(aarch64_trap_number,
     aarch64_trap_arg6, aarch64_trap_arg7);
   uint64_t aarch64_trap_expected =
@@ -1940,19 +1992,19 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (expect_monitor_packet(worker_id, "default aarch64 trap",
-      &monitor_packet, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64,
+  if (expect_event_packet(worker_id, "default aarch64 trap",
+      &event_frame, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64,
       aarch64_trap_number, 7, aarch64_trap_args) != 0)
     return (void *) 1;
 
   uint64_t riscv_trap_number = 300 + worker_id;
   uint64_t riscv_trap_arg6 = base + 0x60000ULL;
-  const uint64_t riscv_trap_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t riscv_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
     riscv_trap_number, riscv_trap_number + 1, riscv_trap_number + 2,
     riscv_trap_number + 3, riscv_trap_number + 4, riscv_trap_number + 5,
     riscv_trap_arg6, riscv_trap_number
   };
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   uint64_t riscv_trap_result =
     trap_riscv_syscall(riscv_trap_number, riscv_trap_arg6);
   uint64_t riscv_trap_expected =
@@ -1969,7 +2021,7 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (expect_monitor_packet(worker_id, "default riscv trap", &monitor_packet,
+  if (expect_event_packet(worker_id, "default riscv trap", &event_frame,
       POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, riscv_trap_number, 0,
       riscv_trap_args) != 0)
     return (void *) 1;
@@ -1978,12 +2030,12 @@ static void *worker_main(void *arg) {
   uint64_t aarch64_import_arg6 = base + 0x70000ULL;
   uint64_t aarch64_import_arg7 = base + 0x80000ULL;
   uint64_t aarch64_import_arg0 = base + 0x90000ULL;
-  const uint64_t aarch64_import_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t aarch64_import_args[POLY_V2_EVENT_ARG_COUNT] = {
     aarch64_import_arg0, aarch64_import_arg0 + 1, aarch64_import_arg0 + 2,
     aarch64_import_arg0 + 3, aarch64_import_arg0 + 4,
     aarch64_import_arg0 + 5, aarch64_import_arg6, aarch64_import_arg7
   };
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   uint64_t aarch64_import_result = trap_aarch64_import(
     aarch64_import_arg0, aarch64_import_arg6, aarch64_import_arg7);
   uint64_t aarch64_import_expected =
@@ -2000,20 +2052,20 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (expect_monitor_packet(worker_id, "default aarch64 import",
-      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, import_id,
+  if (expect_event_packet(worker_id, "default aarch64 import",
+      &event_frame, POLY_TRAP_IMPORT, POLY_MODE_RAW_AARCH64, import_id,
       0, aarch64_import_args) != 0)
     return (void *) 1;
 
   uint64_t riscv_import_arg6 = base + 0xa0000ULL;
   uint64_t riscv_import_arg7 = base + 0xb0000ULL;
   uint64_t riscv_import_arg0 = base + 0xc0000ULL;
-  const uint64_t riscv_import_args[POLY_TRAP_PACKET_ARG_COUNT] = {
+  const uint64_t riscv_import_args[POLY_V2_EVENT_ARG_COUNT] = {
     riscv_import_arg0, riscv_import_arg0 + 1, riscv_import_arg0 + 2,
     riscv_import_arg0 + 3, riscv_import_arg0 + 4, riscv_import_arg0 + 5,
     riscv_import_arg6, riscv_import_arg7
   };
-  memset(&monitor_packet, 0, sizeof(monitor_packet));
+  memset(&event_frame, 0, sizeof(event_frame));
   uint64_t riscv_import_result = trap_riscv_import(riscv_import_arg0,
     riscv_import_arg6, riscv_import_arg7);
   uint64_t riscv_import_expected =
@@ -2030,12 +2082,12 @@ static void *worker_main(void *arg) {
     return (void *) 1;
   for (unsigned n = 0; n < POLYTHREAD_YIELDS; n++)
     sched_yield();
-  if (expect_monitor_packet(worker_id, "default riscv import",
-      &monitor_packet, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, import_id, 0,
+  if (expect_event_packet(worker_id, "default riscv import",
+      &event_frame, POLY_TRAP_IMPORT, POLY_MODE_RAW_RISCV, import_id, 0,
       riscv_import_args) != 0)
     return (void *) 1;
-  poly_monitor_packet_set(0);
-  polythread_current_monitor_packet = 0;
+  poly_event_ptr_set(0, 0);
+  polythread_current_event_frame = 0;
 
   if (wait_for_workers(worker_id, "default-hidden-checked") != 0)
     return (void *) 1;
