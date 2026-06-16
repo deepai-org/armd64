@@ -479,6 +479,10 @@ assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_DERIVE_STATE" "$BO
   "Bochs must implement the v2 state-derivation control"
 assert_contains "derive_poly_v2_state" "$BOCHS_CPU" \
   "Bochs must derive child frontend state through a dedicated helper"
+assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_COMPLETE_EVENT" "$BOCHS_CPU" \
+  "Bochs must implement the v2 event-completion control"
+assert_contains "complete_poly_v2_event" "$BOCHS_CPU" \
+  "Bochs must complete frontend events through a dedicated helper"
 assert_contains "BX_POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$BOCHS_CPU" \
   "Bochs v2 CPUID must advertise only implemented v2 features"
 assert_not_contains "BX_POLY_CPUID_V2_FEATURES" "$BOCHS_CPU" \
@@ -497,6 +501,8 @@ assert_contains "run_poly_v2_mem_probe_range_probe" "$NATIVECHECK" \
   "nativecheck must exercise PMEM_PROBE_RANGE before the memory-probe bit is advertised"
 assert_contains "run_poly_v2_derive_state_probe" "$NATIVECHECK" \
   "nativecheck must exercise PDERIVE_STATE before the derive bit is advertised"
+assert_contains "run_poly_v2_complete_event_probe" "$NATIVECHECK" \
+  "nativecheck must exercise PCOMPLETE_EVENT before the completion bit is advertised"
 assert_contains "poly_seccomp_preflight_syscall" "$POLYEXEC" \
   "userspace monitor must evaluate guest seccomp policy before host syscall dispatch"
 assert_contains "poly_seccomp_dispatch_control" "$POLYEXEC" \
@@ -589,6 +595,10 @@ assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
   "userspace monitor must provide an x86 auto-spill resume trampoline"
 assert_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
   "userspace monitor must PRESTORE before resuming a raw frontend"
+assert_contains "POLY_OP_COMPLETE_EVENT" "$POLYEXEC" \
+  "userspace monitor must use v2 event completion for trap-return result state"
+assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
+  "userspace monitor must use v2 memory probing for guest range validation"
 assert_contains "POLY_SPILL_REASON_PAGE_FAULT" "$POLYEXEC" \
   "userspace monitor must classify auto-spilled page faults"
 assert_contains "event_args\\[3\\]" "$POLYEXEC" \

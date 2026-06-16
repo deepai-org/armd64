@@ -83,6 +83,7 @@ Names are draft mnemonics. Final opcode allocation remains CPUID-discovered.
 | `PDUMP_STATE dst, bytes, selector` | Export a dense debug/register-note blob for one live or spilled frontend context. |
 | `PMEM_PROBE_RANGE addr, len, flags` | Probe current-process virtual-memory accessibility without delivering a host signal to the monitor. |
 | `PDERIVE_STATE dst, src, desc` | Derive a child frontend state from a parent state using explicit SP/TLS/result parameters. |
+| `PCOMPLETE_EVENT state, desc` | Atomically apply monitor-selected result registers and resume metadata to a frontend state image. |
 | `PFENCE scope` | Make foreign and x86 shared-memory ordering points explicit for monitor/syscall/ring handoff. |
 
 All operations are OS-neutral. They do not issue host syscalls, parse ELF, run
@@ -532,9 +533,10 @@ become required for correctness.
 5. Add `PDUMP_STATE` and build userspace ELF core-note synthesis on top of it.
 6. Add `PMEM_PROBE_RANGE` and remove `/proc/self/maps` probes from hot paths.
 7. Add `PDERIVE_STATE` for clone/thread handoff.
-8. Strengthen `PFENCE`/shared-memory ordering tests before enabling io_uring
+8. Add `PCOMPLETE_EVENT` for trap-return result and resume-state completion.
+9. Strengthen `PFENCE`/shared-memory ordering tests before enabling io_uring
    pass-through experiments.
-9. Keep ABI descriptor work in userspace. Only advertise hardware descriptor
+10. Keep ABI descriptor work in userspace. Only advertise hardware descriptor
    caching after a descriptor proves it is a pure register-alias fast path and
    has emulator/runtime tests.
 

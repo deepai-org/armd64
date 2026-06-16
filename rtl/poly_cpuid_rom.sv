@@ -106,7 +106,7 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_ABI_BRIDGE_COUNTS_ALIGN = 32'h00100808;
 
   localparam logic [31:0] POLY_CPUID_V2_ABI_VERSION = 32'd2;
-  localparam logic [31:0] POLY_CPUID_V2_FEATURES = 32'h000001ff;
+  localparam logic [31:0] POLY_CPUID_V2_FEATURES = 32'h0000027f;
   localparam logic [31:0] POLY_CPUID_V2_REQUIRED_FEATURES = 32'h00000023;
   localparam logic [31:0] POLY_V2_EVENT_BYTES = 32'd512;
   localparam logic [31:0] POLY_V2_SPILL_DESC_BYTES = 32'd256;

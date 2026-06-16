@@ -55,6 +55,7 @@
 #define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
 #define POLY_OP_MEM_PROBE_RANGE POLY_X86_CTRL_MEM_PROBE_RANGE_ASM
 #define POLY_OP_DERIVE_STATE POLY_X86_CTRL_DERIVE_STATE_ASM
+#define POLY_OP_COMPLETE_EVENT POLY_X86_CTRL_COMPLETE_EVENT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
@@ -802,6 +803,16 @@ static inline uint64_t poly_derive_state(struct poly_xsave_state *dst,
     : "d"((uint64_t) (uintptr_t) src),
       "c"((uint64_t) (uintptr_t) descriptor)
     : "r15", "memory");
+  return result;
+}
+
+static inline uint64_t poly_complete_event(struct poly_xsave_state *state,
+    const struct poly_v2_complete_descriptor *descriptor) {
+  uint64_t result = (uint64_t) (uintptr_t) state;
+  asm volatile(POLY_OP_COMPLETE_EVENT
+    : "+a"(result)
+    : "d"((uint64_t) (uintptr_t) descriptor)
+    : "rcx", "r15", "memory");
   return result;
 }
 
@@ -7012,6 +7023,104 @@ static int run_poly_v2_derive_state_probe(void) {
   return 0;
 }
 
+static int run_poly_v2_complete_event_probe(void) {
+  static struct poly_xsave_state state
+    __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
+  static struct poly_v2_complete_descriptor desc
+    __attribute__((aligned(POLY_V2_COMPLETE_DESC_ALIGN)));
+  const uint64_t complete_magic =
+    ((uint64_t) POLY_V2_COMPLETE_DESC_MAGIC_HI << 32) |
+    POLY_V2_COMPLETE_DESC_MAGIC_LO;
+
+  memset(&state, 0, sizeof(state));
+  memset(&desc, 0, sizeof(desc));
+  poly_state_export(&state);
+  state.header.current_mode = POLY_MODE_RAW_AARCH64;
+  state.header.foreign_pc = 0x400000;
+  state.event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  state.event_record.trap_pc = 0x400000;
+  state.event_record.resume_pc = 0x400004;
+  state.aarch64_gpr[0] = 0x1111;
+  state.aarch64_gpr[1] = 0x2222;
+  state.trap_restore.flags = POLY_TRAP_RESTORE_FLAG_VALID |
+    POLY_TRAP_RESTORE_FLAG_AARCH64_STATE_VALID;
+  state.trap_restore.mode = POLY_MODE_RAW_AARCH64;
+  desc.magic = complete_magic;
+  desc.bytes = POLY_V2_COMPLETE_DESC_BYTES;
+  desc.version = POLY_V2_COMPLETE_DESC_VERSION;
+  desc.header_bytes = POLY_V2_COMPLETE_DESC_HEADER_BYTES;
+  desc.flags = POLY_V2_COMPLETE_FLAG_SET_RESUME_PC |
+    POLY_V2_COMPLETE_FLAG_SET_RESULT0 |
+    POLY_V2_COMPLETE_FLAG_SET_RESULT1;
+  desc.frontend = POLY_MODE_RAW_AARCH64;
+  desc.resume_pc = 0x400008;
+  desc.result0 = 0xffffffffffffffdaULL;
+  desc.result1 = 0x9876543210ULL;
+  if (poly_complete_event(&state, &desc) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 complete AArch64 failed\n", stderr);
+    return 1;
+  }
+  if (state.header.foreign_pc != desc.resume_pc ||
+      state.event_record.resume_pc != desc.resume_pc ||
+      state.aarch64_gpr[0] != desc.result0 ||
+      state.aarch64_gpr[1] != desc.result1 ||
+      state.trap_restore.aarch64_gpr[0] != desc.result0 ||
+      state.trap_restore.aarch64_gpr[1] != desc.result1) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 complete AArch64 mismatch pc=0x%llx resume=0x%llx x0=0x%llx x1=0x%llx restore_x0=0x%llx restore_x1=0x%llx\n",
+      (unsigned long long) state.header.foreign_pc,
+      (unsigned long long) state.event_record.resume_pc,
+      (unsigned long long) state.aarch64_gpr[0],
+      (unsigned long long) state.aarch64_gpr[1],
+      (unsigned long long) state.trap_restore.aarch64_gpr[0],
+      (unsigned long long) state.trap_restore.aarch64_gpr[1]);
+    return 1;
+  }
+
+  poly_state_export(&state);
+  state.header.current_mode = POLY_MODE_RAW_RISCV;
+  state.header.foreign_pc = 0x500000;
+  state.event_record.source_mode = POLY_MODE_RAW_RISCV;
+  state.event_record.trap_pc = 0x500000;
+  state.event_record.resume_pc = 0x500004;
+  state.trap_restore.flags = POLY_TRAP_RESTORE_FLAG_VALID |
+    POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID;
+  state.trap_restore.mode = POLY_MODE_RAW_RISCV;
+  memset(&desc, 0, sizeof(desc));
+  desc.magic = complete_magic;
+  desc.bytes = POLY_V2_COMPLETE_DESC_BYTES;
+  desc.version = POLY_V2_COMPLETE_DESC_VERSION;
+  desc.header_bytes = POLY_V2_COMPLETE_DESC_HEADER_BYTES;
+  desc.flags = POLY_V2_COMPLETE_FLAG_USE_EVENT_RESUME_PC |
+    POLY_V2_COMPLETE_FLAG_SET_RESULT0;
+  desc.frontend = POLY_MODE_RAW_RISCV;
+  desc.result0 = 0x1122334455667788ULL;
+  if (poly_complete_event(&state, &desc) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 complete RISC-V failed\n", stderr);
+    return 1;
+  }
+  if (state.header.foreign_pc != state.event_record.resume_pc ||
+      state.riscv_gpr[10] != desc.result0 ||
+      state.trap_restore.riscv_gpr[10] != desc.result0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 complete RISC-V mismatch pc=0x%llx resume=0x%llx a0=0x%llx restore_a0=0x%llx\n",
+      (unsigned long long) state.header.foreign_pc,
+      (unsigned long long) state.event_record.resume_pc,
+      (unsigned long long) state.riscv_gpr[10],
+      (unsigned long long) state.trap_restore.riscv_gpr[10]);
+    return 1;
+  }
+
+  desc.bytes = POLY_V2_COMPLETE_DESC_BYTES - 8;
+  if (poly_complete_event(&state, &desc) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 complete rejected malformed descriptor\n",
+      stderr);
+    return 1;
+  }
+  puts("NATIVE_POLY_V2_COMPLETE_EVENT_OK");
+  return 0;
+}
+
 static int run_poly_state_key_probe(void) {
   const uint64_t key_a = 0x53544154454b4101ULL;
   const uint64_t key_b = 0x53544154454b4202ULL;
@@ -12130,6 +12239,8 @@ int main(void) {
     if (run_poly_v2_mem_probe_range_probe() != 0)
       return 1;
     if (run_poly_v2_derive_state_probe() != 0)
+      return 1;
+    if (run_poly_v2_complete_event_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;

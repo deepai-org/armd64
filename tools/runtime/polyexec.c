@@ -100,6 +100,8 @@ extern char **environ;
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_SPILL_DESC_SET POLY_X86_CTRL_SPILL_DESC_SET_ASM
 #define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
+#define POLY_OP_MEM_PROBE_RANGE POLY_X86_CTRL_MEM_PROBE_RANGE_ASM
+#define POLY_OP_COMPLETE_EVENT POLY_X86_CTRL_COMPLETE_EVENT_ASM
 
 #define POLYEXEC_SYSCALL_SUMMARY_MAX 512
 #define POLY_AUTO_SPILL_RESUME_STACK_SIZE (64U * 1024U)
@@ -116,6 +118,9 @@ extern char **environ;
 #define POLY_V2_DEBUG_NOTE_MAGIC \
   ((((uint64_t) POLY_V2_DEBUG_NOTE_MAGIC_HI) << 32) | \
     POLY_V2_DEBUG_NOTE_MAGIC_LO)
+#define POLY_V2_COMPLETE_DESC_MAGIC \
+  ((((uint64_t) POLY_V2_COMPLETE_DESC_MAGIC_HI) << 32) | \
+    POLY_V2_COMPLETE_DESC_MAGIC_LO)
 #define POLYEXEC_ELF_NOTE_NAME "POLY"
 #define POLYEXEC_ELF_NOTE_NAMESZ 5U
 #define POLYEXEC_ELF_NOTE_TYPE_V2_DEBUG 0x32564744U
@@ -982,6 +987,33 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
 
 static inline void poly_state_import(const struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "r15", "memory");
+}
+
+static inline uint64_t poly_complete_event_value(struct poly_xsave_state *state,
+    const struct poly_v2_complete_descriptor *descriptor) {
+  uint64_t result = (uint64_t) (uintptr_t) state;
+  asm volatile(POLY_OP_COMPLETE_EVENT
+    : "+a"(result)
+    : "d"((uint64_t) (uintptr_t) descriptor)
+    : "rcx", "r15", "memory");
+  return result;
+}
+
+static inline uint64_t poly_mem_probe_range_value(uint64_t address,
+    uint64_t length, uint64_t flags, uint64_t *failure_out,
+    uint64_t *metadata_out) {
+  uint64_t status = address;
+  uint64_t failure = length;
+  uint64_t metadata = flags;
+  asm volatile(POLY_OP_MEM_PROBE_RANGE
+    : "+a"(status), "+d"(failure), "+c"(metadata)
+    :
+    : "r15", "memory");
+  if (failure_out != NULL)
+    *failure_out = failure;
+  if (metadata_out != NULL)
+    *metadata_out = metadata;
+  return status;
 }
 
 static int install_poly_thread_state_key(void) {
@@ -4343,53 +4375,18 @@ static int poly_guest_range_is_mapped(uint64_t address, size_t length,
     return 1;
   if (address == 0 || address > UINT64_MAX - (uint64_t) length)
     return 0;
-
-  int fd = (int) poly_x86_syscall6(SYS_openat, AT_FDCWD,
-    (uint64_t) (uintptr_t) "/proc/self/maps", O_RDONLY | O_CLOEXEC,
-    0, 0, 0);
-  if (fd < 0)
-    return 0;
-
-  const uint64_t end_address = address + (uint64_t) length;
-  char buffer[8192];
-  char line[512];
-  size_t line_len = 0;
-  int mapped = 0;
-  for (;;) {
-    long count = poly_x86_syscall6(SYS_read, fd,
-      (uint64_t) (uintptr_t) buffer, sizeof(buffer), 0, 0, 0);
-    if (count <= 0)
-      break;
-    for (long n = 0; n < count; n++) {
-      if (buffer[n] == '\n') {
-        line[line_len] = '\0';
-        char *parse_end = NULL;
-        const uint64_t start = polyexec_strtoull_c(line, &parse_end, 16);
-        if (parse_end != line && *parse_end == '-') {
-          const char *stop_text = parse_end + 1;
-          const uint64_t stop = polyexec_strtoull_c(stop_text, &parse_end, 16);
-          if (parse_end != stop_text) {
-            while (*parse_end == ' ')
-              parse_end++;
-            if (parse_end[0] == 'r' &&
-                (!writable || parse_end[1] == 'w') &&
-                start <= address && end_address <= stop) {
-              mapped = 1;
-              break;
-            }
-          }
-        }
-        line_len = 0;
-      }
-      else if (line_len + 1 < sizeof(line)) {
-        line[line_len++] = buffer[n];
-      }
-    }
-    if (mapped)
-      break;
-  }
-  (void) poly_x86_syscall6(SYS_close, fd, 0, 0, 0, 0, 0);
-  return mapped;
+  const uint64_t flags = writable ? POLY_V2_MEM_PROBE_FLAG_WRITE :
+    POLY_V2_MEM_PROBE_FLAG_READ;
+  uint64_t failure = 0;
+  uint64_t metadata = 0;
+  const uint64_t status = poly_mem_probe_range_value(address,
+    (uint64_t) length, flags, &failure, &metadata);
+  (void) failure;
+  return status == 0 &&
+    (metadata & POLY_V2_MEM_PROBE_RESULT_PRESENT) != 0 &&
+    (writable ?
+      (metadata & POLY_V2_MEM_PROBE_RESULT_WRITABLE) != 0 :
+      (metadata & POLY_V2_MEM_PROBE_RESULT_READABLE) != 0);
 }
 
 static int poly_guest_read_u64(uint64_t address, uint64_t *out) {
@@ -7380,13 +7377,30 @@ static int poly_aarch64_rt_sigreturn_packet(
     packet->mode == POLY_MODE_RAW_AARCH64 && packet->number == 139;
 }
 
+static int poly_complete_event_result_registers(struct poly_xsave_state *state,
+    uint64_t mode, uint64_t result) {
+  if (state == NULL ||
+      (mode != POLY_MODE_RAW_AARCH64 && mode != POLY_MODE_RAW_RISCV))
+    return 0;
+  struct poly_v2_complete_descriptor desc
+    __attribute__((aligned(POLY_V2_COMPLETE_DESC_ALIGN)));
+  memset(&desc, 0, sizeof(desc));
+  desc.magic = POLY_V2_COMPLETE_DESC_MAGIC;
+  desc.bytes = POLY_V2_COMPLETE_DESC_BYTES;
+  desc.version = POLY_V2_COMPLETE_DESC_VERSION;
+  desc.header_bytes = POLY_V2_COMPLETE_DESC_HEADER_BYTES;
+  desc.flags = POLY_V2_COMPLETE_FLAG_SET_RESULT0;
+  desc.frontend = (uint32_t) mode;
+  desc.result0 = result;
+  return poly_complete_event_value(state, &desc) == 0;
+}
+
 static uint64_t poly_trap_vector_return_result(uint64_t result,
     const struct poly_runtime_event_record *packet,
     const struct poly_xsave_state *trap_state, int has_trap_state) {
   volatile uint64_t saved_result = result;
   struct poly_xsave_state *return_state = &poly_trap_return_state;
   const struct poly_xsave_state *import_state = trap_state;
-  int delivered_guest_signal = 0;
   if (has_trap_state && trap_state != NULL) {
     const int deliver_guest_illegal =
       packet->reason == POLY_TRAP_ILLEGAL &&
@@ -7412,11 +7426,16 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
         return_state->header.foreign_pc = foreign_pc;
       }
     }
-    if (packet->mode == POLY_MODE_RAW_AARCH64 && !deliver_guest_illegal) {
+    const int completed_result =
+      !deliver_guest_illegal &&
+      poly_complete_event_result_registers(return_state, packet->mode,
+        result);
+    if (!completed_result &&
+        packet->mode == POLY_MODE_RAW_AARCH64 && !deliver_guest_illegal) {
       return_state->aarch64_gpr[0] = result;
       return_state->trap_restore.aarch64_gpr[0] = result;
     }
-    else if (packet->mode == POLY_MODE_RAW_RISCV) {
+    else if (!completed_result && packet->mode == POLY_MODE_RAW_RISCV) {
       return_state->riscv_gpr[10] = result;
       return_state->trap_restore.riscv_gpr[10] = result;
     }
@@ -7424,12 +7443,10 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
     if (deliver_guest_illegal &&
         poly_try_deliver_aarch64_signal(return_state, SIGILL, packet->pc,
           ILL_ILLOPC)) {
-      delivered_guest_signal = 1;
       saved_result = return_state->trap_restore.aarch64_gpr[0];
     }
     else if (packet->mode == POLY_MODE_RAW_AARCH64 &&
         poly_try_deliver_aarch64_signal(return_state, 0, 0, 0)) {
-      delivered_guest_signal = 1;
       saved_result = return_state->trap_restore.aarch64_gpr[0];
     }
   }
