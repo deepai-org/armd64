@@ -1,4 +1,4 @@
-# poly payload v1
+# poly raw payload
 arch=aarch64
 expected=0x53032101
 syscall_expected=1

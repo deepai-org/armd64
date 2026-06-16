@@ -1,4 +1,4 @@
-# poly payload v1
+# poly raw payload
 arch=riscv
 final_arch=aarch64
 expected=42

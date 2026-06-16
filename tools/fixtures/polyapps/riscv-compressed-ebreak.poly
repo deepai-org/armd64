@@ -1,4 +1,4 @@
-# poly payload v1
+# poly raw payload
 arch=riscv
 elf=/usr/lib/polyapps/riscv-compressed-ebreak.elf
 expected=0x4c000205

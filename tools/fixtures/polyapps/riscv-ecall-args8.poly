@@ -1,4 +1,4 @@
-# poly payload v1
+# poly raw payload
 arch=riscv
 expected=0x53012302
 syscall_expected=2

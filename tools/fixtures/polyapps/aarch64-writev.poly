@@ -1,4 +1,4 @@
-# poly payload v1
+# poly raw payload
 arch=aarch64
 elf=/usr/lib/polyapps/aarch64-writev.elf
 expected=5

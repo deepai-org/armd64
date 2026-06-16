@@ -1,4 +1,4 @@
-# poly payload v1
+# poly raw payload
 arch=riscv
 elf=/usr/lib/polyapps/riscv-ecall.elf
 expected=0x5303ff02

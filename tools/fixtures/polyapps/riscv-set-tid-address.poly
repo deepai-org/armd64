@@ -1,4 +1,4 @@
-# poly payload v1
+# poly raw payload
 arch=riscv
 elf=/usr/lib/polyapps/riscv-set-tid-address.elf
 expected=0
