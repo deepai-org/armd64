@@ -82,7 +82,7 @@ module poly_cpuid_rom (
 
   localparam logic [31:0] POLY_TRAP_PACKET_LAYOUT_VERSION = 32'd2;
   localparam logic [31:0] POLY_TRAP_PACKET_ARG_COUNT = 32'd8;
-  localparam logic [31:0] POLY_TRAP_PACKET_FLAGS = 32'h0000007f;
+  localparam logic [31:0] POLY_TRAP_PACKET_FLAGS = 32'h0000005f;
 
   localparam logic [31:0] POLY_INTERRUPT_ABI_VERSION = 32'd1;
   localparam logic [31:0] POLY_INTERRUPT_FLAGS = 32'h0000001f;

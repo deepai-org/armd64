@@ -169,9 +169,9 @@ ARCH_TRAP_FUNC="$TMP_DIR/deliver_poly_architectural_trap.cc"
 extract_function "deliver_poly_architectural_trap" "$ARCH_TRAP_FUNC"
 assert_contains "bx_poly_write_v2_event_frame" "$ARCH_TRAP_FUNC" \
   "architectural trap delivery must publish the canonical v2 event frame"
-assert_line_order "bx_poly_write_v2_event_frame" "if \\(bx_poly_monitor_packet_addr != 0\\)" \
+assert_not_contains "bx_poly_monitor_packet_addr|POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY|write_virtual_qword" \
   "$ARCH_TRAP_FUNC" \
-  "v2 event-frame publication must precede any legacy monitor-packet compatibility write"
+  "architectural trap delivery must not retain legacy monitor-packet compatibility writes"
 
 IMPORT_CALL_FUNC="$TMP_DIR/handle_poly_import_call.cc"
 extract_function "handle_poly_import_call" "$IMPORT_CALL_FUNC"

@@ -283,6 +283,8 @@ assert_not_contains "POLY_CPUID_STATE_MONITOR_PACKET_XSAVE" "$HEADER" \
   "public header must not expose retired monitor-packet XSAVE state constants"
 assert_not_contains "POLY_STATE_XSAVE_FLAG_MONITOR_PACKET" "$HEADER" \
   "public header must not expose retired monitor-packet XSAVE flag constants"
+assert_not_contains "POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY" "$HEADER" \
+  "public header must not expose retired monitor-packet trap flag constants"
 assert_not_contains "POLY_CPUID_STATE_MONITOR_PACKET_XSAVE[[:space:]]*\\|" "$HEADER" \
   "public CPUID state leaf must not advertise retired monitor-packet XSAVE state"
 assert_not_contains "POLY_STATE_XSAVE_FLAG_MONITOR_PACKET[[:space:]]*\\|" "$HEADER" \
@@ -295,6 +297,8 @@ assert_not_contains "BX_POLY_CPUID_STATE_MONITOR_PACKET_XSAVE" "$BOCHS_CPU" \
   "Bochs must not retain retired monitor-packet XSAVE state constants"
 assert_not_contains "BX_POLY_STATE_XSAVE_FLAG_MONITOR_PACKET" "$BOCHS_CPU" \
   "Bochs must not retain retired monitor-packet XSAVE flag constants"
+assert_not_contains "BX_POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY[[:space:]]*\\|" "$BOCHS_CPU" \
+  "Bochs CPUID trap leaf must not advertise retired monitor-packet trap flags"
 assert_not_contains "BX_POLY_CPUID_STATE_MONITOR_PACKET_XSAVE[[:space:]]*\\|" "$BOCHS_CPU" \
   "Bochs CPUID state leaf must not advertise retired monitor-packet XSAVE state"
 assert_not_contains "BX_POLY_STATE_XSAVE_FLAG_MONITOR_PACKET[[:space:]]*\\|" "$BOCHS_CPU" \

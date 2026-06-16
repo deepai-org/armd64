@@ -55,7 +55,7 @@ static void clear_poly_xsave_state(void) {
   state.header.trap_vector_pc = 0;
   state.header.trap_vector_mode = POLY_MODE_X86;
   state.header.spill_reason = 0;
-  state.header.monitor_packet_addr = 0;
+  state.header.reserved0 = 0;
 
   state.import_return.depth = POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH;
   state.abi_signature.slot_count = POLY_ABI_SIGNATURE_SLOT_COUNT;

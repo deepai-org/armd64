@@ -122,7 +122,7 @@ module tb_poly_cpuid_rom;
       "invalid xsave subleaf misses");
 
     set_query(POLY_CPUID_BASE + 32'd5, 32'd0);
-    check_regs(32'd2, 32'h00000040, 32'd8, 32'h0000007f,
+    check_regs(32'd2, 32'h00000040, 32'd8, 32'h0000005f,
       "trap packet leaf");
 
     set_query(POLY_CPUID_BASE + 32'd6, 32'd0);

@@ -70,7 +70,7 @@ def trap_flags(c: dict[str, int]) -> int:
         c["POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE"] |
         c["POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS"] |
         c["POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS"] |
-        c["POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY"] |
+        (1 << 5) |
         c["POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS"]
     )
 

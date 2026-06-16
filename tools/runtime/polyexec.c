@@ -7276,13 +7276,11 @@ static void poly_sanitize_trap_state_for_import(struct poly_xsave_state *state) 
       POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE |
       POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS |
       POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS |
-      POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS |
-      POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY;
+      POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS;
     state->trap.flags &= supported_trap_flags;
     if (state->header.trap_vector_pc == 0)
       state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY;
-    if (state->header.monitor_packet_addr == 0)
-      state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY;
+    state->header.reserved0 = 0;
     if ((state->trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) == 0)
       state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
   }
@@ -7633,7 +7631,7 @@ static int poly_prepare_clone_child_handoff(
   }
   if (packet->mode == POLY_MODE_RAW_AARCH64)
     handoff->state.header.foreign_tls_base = foreign_tls;
-  handoff->state.header.monitor_packet_addr = 0;
+  handoff->state.header.reserved0 = 0;
   if (polyexec_use_explicit_state_key) {
     handoff->state.state_key.flags = POLY_STATE_KEY_FLAG_EXPLICIT;
     handoff->state.state_key.explicit_key =

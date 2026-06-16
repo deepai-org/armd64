@@ -179,7 +179,6 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE
         POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS
         POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS
-        POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY
         POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS
     """)
     interrupt_flags = mask(c, """

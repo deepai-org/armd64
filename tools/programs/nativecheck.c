@@ -3722,6 +3722,16 @@ static void child_expect_bad_trap_vector_pc_xsave_signal(void) {
 }
 
 __attribute__((noreturn, noinline))
+static void child_expect_bad_header_reserved_xsave_signal(void) {
+  struct poly_xsave_state bad __attribute__((aligned(64)));
+  memset(&bad, 0, sizeof(bad));
+  poly_state_export(&bad);
+  bad.header.reserved0 = 1;
+  poly_state_import(&bad);
+  _exit(99);
+}
+
+__attribute__((noreturn, noinline))
 static void child_expect_bad_aarch64_trap_vector_alignment_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
@@ -7257,7 +7267,7 @@ static int run_poly_invalid_import_no_mutation_probe(void) {
   memcpy(&bad, &before, sizeof(bad));
   bad.header.trap_vector_pc = 0;
   bad.header.trap_vector_mode = POLY_MODE_X86;
-  bad.header.monitor_packet_addr = 0;
+  bad.header.reserved0 = 0;
   bad.landing_policy.flags = 0;
   bad.transition.active.return_pc = 0x1111222233334444ULL;
   bad.transition.active.caller_mode = POLY_MODE_RAW_RISCV;
@@ -7346,7 +7356,7 @@ static int nativecheck_poly_state_control_equal(
       after->header.flags != before->header.flags ||
       after->header.trap_vector_pc != before->header.trap_vector_pc ||
       after->header.trap_vector_mode != before->header.trap_vector_mode ||
-      after->header.monitor_packet_addr != before->header.monitor_packet_addr ||
+      after->header.reserved0 != before->header.reserved0 ||
       memcmp(&after->import_return, &before->import_return,
         sizeof(after->import_return)) != 0 ||
       memcmp(&after->abi_signature, &before->abi_signature,
@@ -7988,6 +7998,9 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad trap-vector pc xstate", SIGILL,
         child_expect_bad_trap_vector_pc_xsave_signal) != 0)
     return 1;
+  if (expect_child_signal("poly bad header reserved xstate", SIGILL,
+        child_expect_bad_header_reserved_xsave_signal) != 0)
+    return 1;
   if (expect_child_signal("poly bad aarch64 trap-vector alignment xstate",
         SIGILL, child_expect_bad_aarch64_trap_vector_alignment_xsave_signal) != 0)
     return 1;
@@ -8110,11 +8123,11 @@ static int run_poly_state_save_restore_probe(void) {
   }
   if (snapshot.header.trap_vector_pc != trap_vector ||
       snapshot.header.trap_vector_mode != POLY_MODE_RAW_RISCV ||
-      snapshot.header.monitor_packet_addr != 0) {
+      snapshot.header.reserved0 != 0) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly state export trap vector mismatch pc=0x%llx mode=%u packet=0x%llx\n",
       (unsigned long long) snapshot.header.trap_vector_pc,
       snapshot.header.trap_vector_mode,
-      (unsigned long long) snapshot.header.monitor_packet_addr);
+      (unsigned long long) snapshot.header.reserved0);
     return 1;
   }
   if (snapshot.import_return.top > POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH ||
@@ -8455,7 +8468,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->header.total_bytes != POLY_STATE_XSAVE_BYTES_ARCH ||
       saved->header.trap_vector_pc != trap_vector ||
       saved->header.trap_vector_mode != POLY_MODE_RAW_RISCV ||
-      saved->header.monitor_packet_addr != 0) {
+      saved->header.reserved0 != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: real XSAVE poly state mismatch magic=0x%x version=%u bytes=%u pc=0x%llx mode=%u packet=0x%llx\n",
       saved->header.magic,
@@ -8463,7 +8476,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->header.total_bytes,
       (unsigned long long) saved->header.trap_vector_pc,
       saved->header.trap_vector_mode,
-      (unsigned long long) saved->header.monitor_packet_addr);
+      (unsigned long long) saved->header.reserved0);
     return 1;
   }
   if (saved->abi_signature.slot_count != POLY_ABI_SIGNATURE_SLOT_COUNT ||
@@ -8837,7 +8850,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.frontend_tls.riscv_tls_base = 0x00007fff20002000ULL;
   complex.header.trap_vector_pc = 0x0000123450001000ULL;
   complex.header.trap_vector_mode = POLY_MODE_RAW_RISCV;
-  complex.header.monitor_packet_addr = 0;
+  complex.header.reserved0 = 0;
   complex.trap.reason = POLY_TRAP_SYSCALL;
   complex.trap.source_mode = POLY_MODE_RAW_AARCH64;
   complex.trap.number = 172;
@@ -8895,8 +8908,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
         complex.frontend_tls.riscv_tls_base ||
       saved->header.trap_vector_pc != complex.header.trap_vector_pc ||
       saved->header.trap_vector_mode != complex.header.trap_vector_mode ||
-      saved->header.monitor_packet_addr !=
-        complex.header.monitor_packet_addr ||
+      saved->header.reserved0 != complex.header.reserved0 ||
       saved->trap.reason != complex.trap.reason ||
       saved->trap.source_mode != complex.trap.source_mode ||
       saved->trap.number != complex.trap.number ||
@@ -8957,8 +8969,7 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
         complex.frontend_tls.riscv_tls_base ||
       roundtrip.header.trap_vector_pc != complex.header.trap_vector_pc ||
       roundtrip.header.trap_vector_mode != complex.header.trap_vector_mode ||
-      roundtrip.header.monitor_packet_addr !=
-        complex.header.monitor_packet_addr ||
+      roundtrip.header.reserved0 != complex.header.reserved0 ||
       roundtrip.trap.reason != complex.trap.reason ||
       roundtrip.trap.source_mode != complex.trap.source_mode ||
       roundtrip.trap.number != complex.trap.number ||
