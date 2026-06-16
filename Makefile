@@ -17,6 +17,8 @@ POLY_RTL_SV = \
 	rtl/poly_abi_signature_slots.sv \
 	rtl/poly_cpuid_rom.sv \
 	rtl/poly_ctrl_decode.sv \
+	rtl/poly_event_frame_encode.sv \
+	rtl/poly_event_frame_stage.sv \
 	rtl/poly_frontend_core.sv \
 	rtl/poly_frontend_decode_dispatch.sv \
 	rtl/poly_frontend_fetch_decode_pipeline.sv \
@@ -41,8 +43,6 @@ POLY_RTL_SV = \
 	rtl/poly_return_cookie_recover.sv \
 	rtl/poly_transition_cycle_budget.sv \
 	rtl/poly_transition_stack.sv \
-	rtl/poly_trap_packet_encode.sv \
-	rtl/poly_trap_packet_stage.sv \
 	rtl/poly_x86_fetch_stage.sv
 
 .PHONY: image poly-xcr0-module poly-rtl-fpga-artifacts check-poly-import-ids check-poly-isa-readiness check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-abi-descriptor check-poly-abi-classify check-poly-bridge-ir check-poly-contracts check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-fpga-artifacts check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-network-smoke boot-poly-alpine-binfmt-network-smoke boot-poly-alpine-container-smoke boot-poly-alpine-node-smoke boot-poly-alpine-postgres-smoke boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
@@ -145,8 +145,8 @@ check-poly-rtl:
 	python3 rtl/test_poly_raw_fetch_plan.py
 	python3 rtl/test_poly_return_cookie_recover.py
 	python3 rtl/test_poly_transition_cycle_budget.py
-	python3 rtl/test_poly_trap_packet_encode.py
-	python3 rtl/test_poly_trap_packet_stage.py
+	python3 rtl/test_poly_event_frame_encode.py
+	python3 rtl/test_poly_event_frame_stage.py
 	$(MAKE) check-poly-rtl-formal
 	$(MAKE) check-poly-rtl-sim
 
@@ -216,8 +216,8 @@ check-poly-rtl-sim:
 		rtl/poly_frontend_fetch_decode_pipeline.sv \
 		rtl/poly_frontend_handoff.sv rtl/poly_frontend_predecoded_retire.sv \
 		rtl/poly_frontend_memory_retire.sv rtl/poly_memory_order.sv \
-		rtl/poly_interrupt_boundary.sv rtl/poly_trap_packet_encode.sv \
-		rtl/poly_trap_packet_stage.sv rtl/poly_abi_signature_slots.sv \
+		rtl/poly_interrupt_boundary.sv rtl/poly_event_frame_encode.sv \
+		rtl/poly_event_frame_stage.sv rtl/poly_abi_signature_slots.sv \
 		rtl/poly_cpuid_rom.sv rtl/poly_transition_cycle_budget.sv \
 		rtl/poly_transition_stack.sv rtl/poly_return_cookie_recover.sv \
 		rtl/poly_frontend_core.sv rtl/tb_poly_frontend_core.sv; \
@@ -231,8 +231,8 @@ check-poly-rtl-sim:
 		rtl/poly_frontend_fetch_decode_pipeline.sv \
 		rtl/poly_frontend_handoff.sv rtl/poly_frontend_predecoded_retire.sv \
 		rtl/poly_frontend_memory_retire.sv rtl/poly_memory_order.sv \
-		rtl/poly_interrupt_boundary.sv rtl/poly_trap_packet_encode.sv \
-		rtl/poly_trap_packet_stage.sv rtl/poly_abi_signature_slots.sv \
+		rtl/poly_interrupt_boundary.sv rtl/poly_event_frame_encode.sv \
+		rtl/poly_event_frame_stage.sv rtl/poly_abi_signature_slots.sv \
 		rtl/poly_cpuid_rom.sv rtl/poly_transition_cycle_budget.sv \
 		rtl/poly_transition_stack.sv rtl/poly_return_cookie_recover.sv \
 		rtl/poly_frontend_core.sv rtl/poly_frontend_state.sv \
@@ -248,8 +248,8 @@ check-poly-rtl-sim:
 		rtl/poly_frontend_fetch_decode_pipeline.sv \
 		rtl/poly_frontend_handoff.sv rtl/poly_frontend_predecoded_retire.sv \
 		rtl/poly_frontend_memory_retire.sv rtl/poly_memory_order.sv \
-		rtl/poly_interrupt_boundary.sv rtl/poly_trap_packet_encode.sv \
-		rtl/poly_trap_packet_stage.sv rtl/poly_abi_signature_slots.sv \
+		rtl/poly_interrupt_boundary.sv rtl/poly_event_frame_encode.sv \
+		rtl/poly_event_frame_stage.sv rtl/poly_abi_signature_slots.sv \
 		rtl/poly_cpuid_rom.sv rtl/poly_transition_cycle_budget.sv \
 		rtl/poly_transition_stack.sv rtl/poly_return_cookie_recover.sv \
 		rtl/poly_frontend_core.sv rtl/poly_frontend_state.sv \
@@ -273,10 +273,10 @@ check-poly-rtl-sim:
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_return_cookie_recover" \
 		rtl/poly_return_cookie_recover.sv rtl/tb_poly_return_cookie_recover.sv; \
 	vvp "$$tmp_dir/tb_poly_return_cookie_recover"; \
-	iverilog -g2012 -o "$$tmp_dir/tb_poly_trap_packet_stage" \
-		rtl/poly_trap_packet_encode.sv rtl/poly_trap_packet_stage.sv \
-		rtl/tb_poly_trap_packet_stage.sv; \
-	vvp "$$tmp_dir/tb_poly_trap_packet_stage"; \
+	iverilog -g2012 -o "$$tmp_dir/tb_poly_event_frame_stage" \
+		rtl/poly_event_frame_encode.sv rtl/poly_event_frame_stage.sv \
+		rtl/tb_poly_event_frame_stage.sv; \
+	vvp "$$tmp_dir/tb_poly_event_frame_stage"; \
 	iverilog -g2012 -o "$$tmp_dir/tb_poly_memory_order" \
 		rtl/poly_memory_order.sv rtl/tb_poly_memory_order.sv; \
 	vvp "$$tmp_dir/tb_poly_memory_order"

@@ -32,7 +32,7 @@ def budget(
     register_only: bool,
     signature_valid: bool,
     stack_ready: bool,
-    packet_ready: bool,
+    event_frame_ready: bool,
     memory_cycles: int,
     c: dict[str, int],
 ) -> dict[str, int | bool]:
@@ -40,30 +40,30 @@ def budget(
         c["POLY_CYCLE_OP_PSWITCH"],
         c["POLY_CYCLE_OP_PCALL_REG"],
         c["POLY_CYCLE_OP_RETURN_COOKIE"],
-        c["POLY_CYCLE_OP_TRAP_PACKET"],
+        c["POLY_CYCLE_OP_EVENT_FRAME"],
     }
     requires_signature = op == c["POLY_CYCLE_OP_PCALL_REG"]
     requires_stack = op in {
         c["POLY_CYCLE_OP_PCALL_REG"],
         c["POLY_CYCLE_OP_RETURN_COOKIE"],
     }
-    requires_packet = op == c["POLY_CYCLE_OP_TRAP_PACKET"]
+    requires_event_frame = op == c["POLY_CYCLE_OP_EVENT_FRAME"]
     invalid = valid and not supported
     unsupported = valid and requires_signature and not register_only
     blocked = (
         valid and supported and not unsupported and (
             (requires_signature and not signature_valid) or
             (requires_stack and not stack_ready) or
-            (requires_packet and not packet_ready)
+            (requires_event_frame and not event_frame_ready)
         )
     )
     fixed = {
         c["POLY_CYCLE_OP_PSWITCH"]: 3,
         c["POLY_CYCLE_OP_PCALL_REG"]: 4,
         c["POLY_CYCLE_OP_RETURN_COOKIE"]: 3,
-        c["POLY_CYCLE_OP_TRAP_PACKET"]: 2,
+        c["POLY_CYCLE_OP_EVENT_FRAME"]: 2,
     }.get(op, 0)
-    waits_for_memory = valid and op == c["POLY_CYCLE_OP_TRAP_PACKET"] and not invalid
+    waits_for_memory = valid and op == c["POLY_CYCLE_OP_EVENT_FRAME"] and not invalid
     variable = memory_cycles if waits_for_memory else 0
     budget_valid = valid and supported and not unsupported and not blocked
     few_cycle = (
@@ -126,27 +126,27 @@ def main() -> int:
     assert ret_cookie["valid"] and ret_cookie["fixed"] == 3
     assert ret_cookie["few_cycle"]
 
-    trap_fast_memory = budget(
-        True, c["POLY_CYCLE_OP_TRAP_PACKET"], True, True, True, True, 1, c
+    event_fast_memory = budget(
+        True, c["POLY_CYCLE_OP_EVENT_FRAME"], True, True, True, True, 1, c
     )
-    assert trap_fast_memory["valid"]
-    assert trap_fast_memory["fixed"] == 2
-    assert trap_fast_memory["variable"] == 1
-    assert trap_fast_memory["total"] == 3
-    assert trap_fast_memory["waits_for_memory"]
-    assert not trap_fast_memory["few_cycle"]
+    assert event_fast_memory["valid"]
+    assert event_fast_memory["fixed"] == 2
+    assert event_fast_memory["variable"] == 1
+    assert event_fast_memory["total"] == 3
+    assert event_fast_memory["waits_for_memory"]
+    assert not event_fast_memory["few_cycle"]
 
-    trap_slow_memory = budget(
-        True, c["POLY_CYCLE_OP_TRAP_PACKET"], True, True, True, True, 17, c
+    event_slow_memory = budget(
+        True, c["POLY_CYCLE_OP_EVENT_FRAME"], True, True, True, True, 17, c
     )
-    assert trap_slow_memory["valid"]
-    assert trap_slow_memory["total"] == 19
-    assert trap_slow_memory["waits_for_memory"]
+    assert event_slow_memory["valid"]
+    assert event_slow_memory["total"] == 19
+    assert event_slow_memory["waits_for_memory"]
 
-    packet_not_ready = budget(
-        True, c["POLY_CYCLE_OP_TRAP_PACKET"], True, True, True, False, 0, c
+    event_frame_not_ready = budget(
+        True, c["POLY_CYCLE_OP_EVENT_FRAME"], True, True, True, False, 0, c
     )
-    assert packet_not_ready["blocked"] and not packet_not_ready["valid"]
+    assert event_frame_not_ready["blocked"] and not event_frame_not_ready["valid"]
 
     invalid = budget(True, 7, True, True, True, True, 0, c)
     assert invalid["invalid"] and not invalid["valid"]

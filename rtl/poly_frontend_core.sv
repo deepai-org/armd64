@@ -176,23 +176,8 @@ module poly_frontend_core (
 
     output logic        trap_mem_write_valid_o,
     output logic [63:0] trap_mem_write_addr_o,
-    output logic [7:0]  trap_mem_write_bytes_o,
-    output logic [63:0] trap_mem_write_qword0_o,
-    output logic [63:0] trap_mem_write_qword1_o,
-    output logic [63:0] trap_mem_write_qword2_o,
-    output logic [63:0] trap_mem_write_qword3_o,
-    output logic [63:0] trap_mem_write_qword4_o,
-    output logic [63:0] trap_mem_write_qword5_o,
-    output logic [63:0] trap_mem_write_qword6_o,
-    output logic [63:0] trap_mem_write_qword7_o,
-    output logic [63:0] trap_mem_write_qword8_o,
-    output logic [63:0] trap_mem_write_qword9_o,
-    output logic [63:0] trap_mem_write_qword10_o,
-    output logic [63:0] trap_mem_write_qword11_o,
-    output logic [63:0] trap_mem_write_qword12_o,
-    output logic [63:0] trap_mem_write_qword13_o,
-    output logic [63:0] trap_mem_write_qword14_o,
-    output logic [63:0] trap_mem_write_qword15_o,
+    output logic [9:0]  trap_mem_write_bytes_o,
+    output logic [4095:0] trap_mem_write_data_o,
     output logic        trap_wait_response_o,
     output logic        trap_packet_delivered_o,
     output logic        trap_fault_o,
@@ -341,7 +326,7 @@ module poly_frontend_core (
   localparam logic [2:0] POLY_CYCLE_OP_PSWITCH = 3'd1;
   localparam logic [2:0] POLY_CYCLE_OP_PCALL_REG = 3'd2;
   localparam logic [2:0] POLY_CYCLE_OP_RETURN_COOKIE = 3'd3;
-  localparam logic [2:0] POLY_CYCLE_OP_TRAP_PACKET = 3'd4;
+  localparam logic [2:0] POLY_CYCLE_OP_EVENT_FRAME = 3'd4;
 
   function automatic logic canonical64(input logic [63:0] addr);
     begin
@@ -418,7 +403,7 @@ module poly_frontend_core (
     commit_transition_o || return_recover_pop_o ||
     (trap_mem_write_valid_o && !trap_fault_o);
   assign cycle_op =
-    (trap_mem_write_valid_o && !trap_fault_o) ? POLY_CYCLE_OP_TRAP_PACKET :
+    (trap_mem_write_valid_o && !trap_fault_o) ? POLY_CYCLE_OP_EVENT_FRAME :
     return_recover_pop_o ? POLY_CYCLE_OP_RETURN_COOKIE :
     commit_push_transition_o ? POLY_CYCLE_OP_PCALL_REG :
     commit_transition_o ? POLY_CYCLE_OP_PSWITCH :
@@ -616,15 +601,15 @@ module poly_frontend_core (
     .invalid_interrupted_pc_o(interrupt_invalid_interrupted_pc_o)
   );
 
-  poly_trap_packet_stage trap_packet_stage (
+  poly_event_frame_stage event_frame_stage (
     .valid_i(trap_valid_i),
-    .monitor_enabled_i(trap_monitor_enabled_i),
-    .monitor_packet_addr_i(trap_monitor_packet_addr_i),
-    .reason_i(trap_reason_i),
-    .source_mode_i(trap_source_mode_i),
+    .event_enabled_i(trap_monitor_enabled_i),
+    .event_frame_addr_i(trap_monitor_packet_addr_i),
+    .event_kind_i(trap_reason_i),
+    .source_frontend_i(trap_source_mode_i),
     .number_i(trap_number_i),
     .selector_i(trap_selector_i),
-    .trap_pc_i(trap_pc_i),
+    .insn_pc_i(trap_pc_i),
     .resume_pc_i(trap_resume_pc_i),
     .arg0_i(trap_arg0_i),
     .arg1_i(trap_arg1_i),
@@ -639,33 +624,18 @@ module poly_frontend_core (
     .mem_write_valid_o(trap_mem_write_valid_o),
     .mem_write_addr_o(trap_mem_write_addr_o),
     .mem_write_bytes_o(trap_mem_write_bytes_o),
-    .mem_write_qword0_o(trap_mem_write_qword0_o),
-    .mem_write_qword1_o(trap_mem_write_qword1_o),
-    .mem_write_qword2_o(trap_mem_write_qword2_o),
-    .mem_write_qword3_o(trap_mem_write_qword3_o),
-    .mem_write_qword4_o(trap_mem_write_qword4_o),
-    .mem_write_qword5_o(trap_mem_write_qword5_o),
-    .mem_write_qword6_o(trap_mem_write_qword6_o),
-    .mem_write_qword7_o(trap_mem_write_qword7_o),
-    .mem_write_qword8_o(trap_mem_write_qword8_o),
-    .mem_write_qword9_o(trap_mem_write_qword9_o),
-    .mem_write_qword10_o(trap_mem_write_qword10_o),
-    .mem_write_qword11_o(trap_mem_write_qword11_o),
-    .mem_write_qword12_o(trap_mem_write_qword12_o),
-    .mem_write_qword13_o(trap_mem_write_qword13_o),
-    .mem_write_qword14_o(trap_mem_write_qword14_o),
-    .mem_write_qword15_o(trap_mem_write_qword15_o),
+    .mem_write_data_o(trap_mem_write_data_o),
     .wait_response_o(trap_wait_response_o),
-    .packet_delivered_o(trap_packet_delivered_o),
+    .frame_delivered_o(trap_packet_delivered_o),
     .fault_o(trap_fault_o),
     .encode_error_o(trap_encode_error_o),
-    .packet_mem_fault_o(trap_packet_mem_fault_o),
-    .monitor_disabled_o(trap_monitor_disabled_o),
-    .noncanonical_packet_o(trap_noncanonical_packet_o),
-    .packet_align_fault_o(trap_packet_align_fault_o),
-    .packet_range_fault_o(trap_packet_range_fault_o),
-    .invalid_reason_o(trap_invalid_reason_o),
-    .invalid_source_mode_o(trap_invalid_source_mode_o)
+    .frame_mem_fault_o(trap_packet_mem_fault_o),
+    .event_disabled_o(trap_monitor_disabled_o),
+    .noncanonical_frame_o(trap_noncanonical_packet_o),
+    .frame_align_fault_o(trap_packet_align_fault_o),
+    .frame_range_fault_o(trap_packet_range_fault_o),
+    .invalid_event_kind_o(trap_invalid_reason_o),
+    .invalid_source_frontend_o(trap_invalid_source_mode_o)
   );
 
   poly_abi_signature_slots abi_signature_slots (
@@ -701,7 +671,7 @@ module poly_frontend_core (
     .register_only_signature_i(abi_signature_valid_o),
     .signature_slot_valid_i(abi_signature_valid_o),
     .transition_stack_ready_i(cycle_transition_stack_ready),
-    .monitor_packet_ready_i(trap_mem_write_valid_o),
+    .event_frame_ready_i(trap_mem_write_valid_o),
     .memory_response_cycles_i(cycle_memory_response_cycles_i),
     .budget_valid_o(cycle_budget_valid_o),
     .fixed_cycles_o(cycle_fixed_o),

@@ -32,7 +32,7 @@ silicon prototype.
 - `poly_frontend_core.sv`: frontend core wrapper that connects fetch-to-retire
   commits, TSO memory-order backpressure, raw data-memory op metadata,
   completion/fault gating, raw branch execute sidebands, raw interrupt
-  save/restore, trap-packet delivery, ABI signature lookup, CPUID discovery,
+  save/restore, event-frame delivery, ABI signature lookup, CPUID discovery,
   and native return-cookie recovery to the hardware transition stack, with
   fast-path cycle-budget reporting for integrated transition events.
 - `poly_frontend_state.sv`: architectural frontend/PC state register that
@@ -50,8 +50,8 @@ silicon prototype.
   converts split x86/raw fetch ports into one tagged instruction-memory bus
   while exposing raw data-memory op metadata and validated raw data-memory
   request/response/fault sidebands, TSO memory-order retirement/backpressure
-  diagnostics, fetch/decode fault diagnostics, trap-packet write envelope and
-  payload qwords, state validation/error sidebands, raw interrupt
+  diagnostics, fetch/decode fault diagnostics, event-frame write envelope and
+  4096-bit payload, state validation/error sidebands, raw interrupt
   entry/restore diagnostics,
   transition-stack pop/error and return-cookie recovery diagnostics, ABI
   signature programming/apply metadata, CPUID discovery outputs, and transition
@@ -67,12 +67,12 @@ silicon prototype.
 - `poly_transition_stack_return_formal.sv`: formal harness proving
   transition-stack depth/error behavior and return-cookie resume ordering.
 - `poly_transition_cycle_budget.sv`: cycle-budget model for fixed-latency
-  `PSWITCH`, register-only `PCALL`, return-cookie recovery, and trap delivery.
+  `PSWITCH`, register-only `PCALL`, return-cookie recovery, and event delivery.
 - `poly_abi_signature_slots.sv`: cached register-only ABI signature slots for
   hardware register aliasing.
 - `poly_cpuid_rom.sv`: Poly vendor CPUID discovery ROM for feature bits, x86
-  opcode geometry/contract leaves, XSAVE geometry, trap packets, transitions,
-  and ABI signatures.
+  opcode geometry/contract leaves, XSAVE geometry, compatibility trap-state
+  geometry, transitions, and ABI signatures.
 - `poly_memory_order.sv`: x86 TSO memory-order retirement policy for all Poly
   frontends, including foreign barrier/fence no-op handling.
 - `poly_memory_order_formal.sv`: formal harness with assertions for the TSO
@@ -100,10 +100,10 @@ silicon prototype.
   instruction retirement on request errors or memory faults.
 - `poly_return_cookie_recover.sv`: native return-cookie detector that requests
   transition-stack recovery for ordinary native returns to the Poly cookie.
-- `poly_trap_packet_encode.sv`: OS-neutral trap-packet encoder for recoverable
-  foreign exits and monitor-packet address validation.
-- `poly_trap_packet_stage.sv`: trap-packet write/delivery stage that waits for
-  memory completion and reports monitor-packet page/write faults.
+- `poly_event_frame_encode.sv`: OS-neutral v2 event-frame encoder for
+  recoverable foreign exits and event-frame address/layout validation.
+- `poly_event_frame_stage.sv`: event-frame write/delivery stage that waits for
+  memory completion and reports event-frame page/write faults.
 - `test_poly_ctrl_decode.py`: static and behavioral consistency test against
   `tools/include/polycpuid.h`.
 - `test_poly_frontend_handoff.py`: transition fault-ordering checks against
@@ -128,7 +128,7 @@ silicon prototype.
 - `test_poly_frontend_core.py`: frontend/transition-stack integration checks
   for PCALL push, stack-full blocking, TSO memory-order backpressure, raw
   data-memory metadata and completion/fault gating, raw branch execute
-  sidebands, raw interrupt save/restore, trap-packet wait/deliver/fault
+  sidebands, raw interrupt save/restore, event-frame wait/deliver/fault
   handling, ABI signature lookup, CPUID discovery, return-cookie recovery,
   transition cycle-budget reporting, and return-pop conflict avoidance.
 - `test_poly_frontend_state.py`: architectural frontend/PC state checks for
@@ -143,7 +143,7 @@ silicon prototype.
   tagged instruction-memory interface, raw branch/data execute inputs,
   raw branch metadata outputs, raw data-memory metadata/request/response
   outputs, TSO memory-order outputs, fetch/decode fault outputs, state
-  validation/error outputs, trap-packet payload and validation/error outputs,
+  validation/error outputs, event-frame payload and validation/error outputs,
   raw interrupt entry/restore outputs, transition-stack and return-cookie
   recovery outputs, ABI signature sideband outputs, CPUID discovery outputs,
   transition cycle-budget outputs, and absence of OS/runtime policy.
@@ -159,7 +159,7 @@ silicon prototype.
 - `test_poly_transition_stack.py`: behavioral transition-stack checks against
   `tools/include/polycpuid.h`.
 - `test_poly_transition_cycle_budget.py`: cycle-budget checks for the
-  hardware fast paths and trap-packet memory response accounting.
+  hardware fast paths and event-frame memory response accounting.
 - `test_poly_abi_signature_slots.py`: signature-slot checks against
   `tools/include/polycpuid.h`.
 - `test_poly_cpuid_rom.py`: CPUID ROM checks against
@@ -193,10 +193,10 @@ silicon prototype.
   integration checks.
 - `test_poly_return_cookie_recover.py`: native return-cookie recovery checks
   against `tools/include/polycpuid.h` and Bochs cookie constants.
-- `test_poly_trap_packet_encode.py`: trap-packet layout and monitor-address
+- `test_poly_event_frame_encode.py`: v2 event-frame layout and event-address
   validation checks against `tools/include/polycpuid.h`.
-- `test_poly_trap_packet_stage.py`: trap-packet delivery ordering checks for
-  write completion and monitor-packet memory faults.
+- `test_poly_event_frame_stage.py`: event-frame delivery ordering checks for
+  write completion and event-frame memory faults.
 
 ## Run
 
@@ -229,8 +229,8 @@ python3 rtl/test_poly_raw_fetch_stage.py
 python3 rtl/test_poly_raw_fetch_plan.py
 python3 rtl/test_poly_return_cookie_recover.py
 python3 rtl/test_poly_transition_cycle_budget.py
-python3 rtl/test_poly_trap_packet_encode.py
-python3 rtl/test_poly_trap_packet_stage.py
+python3 rtl/test_poly_event_frame_encode.py
+python3 rtl/test_poly_event_frame_stage.py
 ```
 
 Run HDL frontend lint, Yosys process/check, generic synthesis, and an

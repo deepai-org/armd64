@@ -72,18 +72,6 @@ def aligned(frontend: int, pc: int, c: dict[str, int]) -> bool:
     return True
 
 
-def trap_flags(c: dict[str, int]) -> int:
-    return (
-        c["POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY"] |
-        c["POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS"] |
-        c["POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE"] |
-        c["POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS"] |
-        c["POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS"] |
-        (1 << 5) |
-        c["POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS"]
-    )
-
-
 def mask(c: dict[str, int], names: str) -> int:
     value = 0
     for name in names.split():
@@ -331,7 +319,7 @@ def core_step(
         return_candidate and not interrupt_error and
         user_return_pc == interrupt_state.pc
     )
-    trap_last = (trap_monitor_packet_addr + 127) & 0xFFFFFFFFFFFFFFFF
+    trap_last = (trap_monitor_packet_addr + 511) & 0xFFFFFFFFFFFFFFFF
     trap_range_wrap = trap_last < trap_monitor_packet_addr
     trap_monitor_disabled = trap_valid and not trap_monitor_enabled
     trap_noncanonical = (
@@ -340,7 +328,7 @@ def core_step(
     )
     trap_align_fault = (
         trap_valid and trap_monitor_enabled and
-        (trap_monitor_packet_addr & 0x7) != 0
+        (trap_monitor_packet_addr & 0x3F) != 0
     )
     trap_range_fault = trap_valid and trap_monitor_enabled and trap_range_wrap
     trap_invalid_reason = (
@@ -566,8 +554,7 @@ def core_step(
         "interrupt_state_frontend": interrupt_state.frontend,
         "interrupt_state_pc": interrupt_state.pc,
         "trap_mem_write_valid": trap_packet_valid,
-        "trap_mem_write_bytes": 128,
-        "trap_required_flags": trap_flags(c),
+        "trap_mem_write_bytes": 512,
         "trap_wait": trap_wait,
         "trap_delivered": trap_delivered,
         "trap_fault": trap_fault,
@@ -686,7 +673,7 @@ def require_structural_wiring() -> None:
         ".spill_full_state_o(interrupt_spill_full_state)",
         ".spill_header_only_o(interrupt_spill_header_only)",
         ".clear_state_dirty_o(interrupt_clear_state_dirty)",
-        "poly_trap_packet_stage trap_packet_stage",
+        "poly_event_frame_stage event_frame_stage",
         "input  logic        trap_vector_valid_i",
         "input  logic [1:0]  trap_vector_frontend_i",
         "input  logic [63:0] trap_vector_pc_i",
@@ -704,7 +691,7 @@ def require_structural_wiring() -> None:
         ".interrupted_valid_i(interrupted_valid_q)",
         ".enter_x86_interrupt_o(interrupt_enter_x86_o)",
         ".wait_response_o(trap_wait_response_o)",
-        ".packet_delivered_o(trap_packet_delivered_o)",
+        ".frame_delivered_o(trap_packet_delivered_o)",
         "poly_abi_signature_slots abi_signature_slots",
         ".select_slot_i(commit_signature_slot_o[3:0])",
         "assign abi_signature_apply_o = commit_push_transition_o;",
@@ -1439,7 +1426,7 @@ def main() -> int:
     )
     assert trap_delivered["trap_delivered"] and trap_delivered["wait_retire"]
     assert not trap_delivered["trap_vector_apply"]
-    assert trap_delivered["trap_required_flags"] == 0x7F
+    assert trap_delivered["trap_mem_write_bytes"] == 512
     assert not trap_delivered["retire"] and not trap_delivered["execute_fault"]
     assert trap_delivered["cycle_valid"] and trap_delivered["cycle_total"] == 3
     assert trap_delivered["cycle_waits_memory"] and not trap_delivered["cycle_few"]
