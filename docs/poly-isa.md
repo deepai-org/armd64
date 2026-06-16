@@ -2,9 +2,10 @@
 
 Bochs prototype for running existing precompiled x86_64, AArch64, and RISC-V64
 user code in one x86_64 virtual address space. Design rationale lives in
-[`poly-isa-design-directions.md`](poly-isa-design-directions.md). The frozen v1
-contract lives in [`poly-isa-v1.md`](poly-isa-v1.md). The proposed v2 state and
-event primitives are drafted in [`poly-isa-v2-draft.md`](poly-isa-v2-draft.md).
+[`poly-isa-design-directions.md`](poly-isa-design-directions.md). The active
+state, event, and monitor contract is the v2 draft in
+[`poly-isa-v2-draft.md`](poly-isa-v2-draft.md). The older v1 writeup is
+historical migration context, not an active implementation target.
 
 ```bash
 make image
@@ -116,11 +117,10 @@ implement the architecture below without inheriting emulator or runtime policy:
 - Foreign barriers/fences are explicit x86-TSO no-ops, and foreign memory
   operations cannot expose weak reordering in the shared x86 address space.
 
-Frozen v1 opcode ownership, reserved-bit policy, CPUID leaves, spill-image
-layout, trap packet format, error precedence, zero-kernel OS contract, and
-conformance evidence remain in `docs/poly-isa-v1.md`. Active v2 migration work
-is defined by `docs/poly-isa-v2-draft.md`. This boundary deliberately says
-nothing about FPGA fabric, Verilog structure, or timing closure. Those are
-implementation and productization tasks. The ISA readiness requirement is that
-the hardware contract is explicit, discoverable, fixed-latency where required,
-and free of OS/libc/runtime policy.
+Opcode ownership, reserved-bit policy, CPUID leaves, spill-image layout,
+canonical event frames, error precedence, zero-kernel OS contract, and
+conformance evidence are now carried by `docs/poly-isa-v2-draft.md`. This
+boundary deliberately says nothing about FPGA fabric, Verilog structure, or
+timing closure. Those are implementation and productization tasks. The ISA
+readiness requirement is that the hardware contract is explicit, discoverable,
+fixed-latency where required, and free of OS/libc/runtime policy.

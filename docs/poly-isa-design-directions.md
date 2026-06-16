@@ -95,8 +95,8 @@ Same-ISA returns stay normal.
 
 ## State And Traps
 
-The Poly spill image contains frontend state, interrupted PC, trap packet,
-hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD state,
+The Poly spill image contains frontend state, interrupted PC, the latest v2
+event metadata, hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD state,
 RISC-V GPR/FP state, per-frontend TLS bases, user monitor addresses, and
 landing-pad policy. The OS does not save or restore it; hardware writes it to
 user memory before an OS-visible interrupt/fault boundary, and the Ring 3
@@ -115,27 +115,26 @@ the event frame and state header; timer exits restore and re-enter Poly, while
 page-fault exits are translated into Poly-context exceptions in
 userspace.
 
-Hardware emits precise trap packets for foreign `svc`/`ecall`, breakpoints,
-illegal or unsupported instructions, unresolved imports, and recoverable
-frontend exits. Recoverable events may enter a registered Ring 3 Poly monitor;
+Hardware emits precise canonical event frames for foreign `svc`/`ecall`,
+breakpoints, illegal or unsupported instructions, unresolved imports, and
+recoverable frontend exits. Recoverable events may enter a registered Ring 3 Poly monitor;
 the monitor owns syscall translation, lazy binding, helper calls, and debugger
 policy. The kernel still owns page tables, signal delivery, scheduling,
 interrupts, and real syscalls issued by the monitor, but it never owns Poly
 register state.
 
-If a monitor vector is enabled, hardware must publish the monitor packet before
-redirecting the frontend to the vector PC. A failed packet write or invalid
-packet address prevents the redirect and reports a precise fault instead. This
-keeps monitor entry replayable and avoids hidden side effects before the
-runtime can inspect the trap record.
+If a monitor vector is enabled, hardware must publish the canonical event frame before redirecting the frontend to the vector PC.
+A failed event-frame write or invalid event address prevents the redirect and
+reports a precise fault instead. This keeps monitor entry replayable and avoids
+hidden side effects before the runtime can inspect the event record.
 
-Trap-vector and monitor-packet addresses are architectural control addresses.
-Non-canonical values, invalid frontend alignment, unaligned monitor packets,
-and packet ranges that cross the canonical boundary are rejected by the control
-instruction or `PRESTORE` before mutating state. The CPU does not pre-walk or
-pin monitor-packet pages; packet delivery writes through normal virtual-memory
-semantics, so missing permissions or unmapped pages fault at the packet write
-like a hardware store.
+Trap-vector, event-frame, and descriptor addresses are architectural control
+addresses. Non-canonical values, invalid frontend alignment, unaligned event
+frames, and event/descriptor ranges that cross the canonical boundary are
+rejected by the control instruction or `PRESTORE` before mutating state. The
+CPU does not pre-walk or pin event pages; event delivery writes through normal
+virtual-memory semantics, so missing permissions or unmapped pages fault at the
+event write like a hardware store.
 
 Frontend transition targets and `PCALL` return addresses follow the same rule:
 non-canonical control-flow addresses are rejected before changing frontend,
@@ -156,7 +155,7 @@ fallthrough PC is not committed for that instruction.
 4. Make the auto-spill image and monitor trampoline the only asynchronous
    context-switch contract.
 5. Support native return-cookie recovery through the hardware transition stack.
-6. Deliver recoverable exits through OS-neutral trap packets and a Ring 3
+6. Deliver recoverable exits through OS-neutral v2 event frames and a Ring 3
    monitor.
 7. Track auto-spill count, spilled bytes, and estimated spill cycles so
    preemption stress tests can measure the cost of the 8KB spill path.

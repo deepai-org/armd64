@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
-FROZEN_ISA_DOC="$ROOT_DIR/docs/poly-isa-v1.md"
+V2_ISA_DOC="$ROOT_DIR/docs/poly-isa-v2-draft.md"
 DESIGN_DOC="$ROOT_DIR/docs/poly-isa-design-directions.md"
 HEADER="$ROOT_DIR/tools/include/polycpuid.h"
 MAKEFILE="$ROOT_DIR/Makefile"
@@ -74,89 +74,83 @@ assert_contains "timing closure" "$ISA_DOC" \
 assert_not_contains "PSET_SPILL_PTR" "$ISA_DOC" \
   "active ISA quick reference must not advertise the retired raw spill pointer control"
 
-assert_contains "^# Poly Frozen ISA v1" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 document must exist"
-assert_contains "## Opcode Ownership" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover production opcode ownership"
-assert_contains "vendor-owned architectural extension page" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must require a vendor-owned production opcode page"
-assert_contains "POLY_X86_OPCODE_FLAG_VENDOR_PROTOTYPE" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must distinguish prototype opcode ownership"
-assert_contains "POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must keep prototype opcode family reassignable"
-assert_contains "## Frontends" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must define frontend IDs"
-assert_contains "3\\.\\.255.*Reserved" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must reserve invalid frontend IDs"
-assert_contains "defined baseline plus precise traps" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must choose the AArch64/RISC-V extension baseline policy"
-assert_contains "## Control Encodings" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover control op encodings"
-assert_contains "0xd503201f" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must include the AArch64 control encoding"
-assert_contains "0x0000700b" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must include the RISC-V control encoding"
-assert_contains "## CPUID Leaves" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover CPUID leaves and subleaves"
-assert_contains "subleafs 32 and 33" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover x86 opcode CPUID discovery subleafs"
-assert_contains "POLY_CPUID_BASE \\+ 4.*1\\.\\.15" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must document spill-image layout CPUID subleaves"
-assert_contains "## User Spill State Image" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover the user spill state image"
-assert_contains "POLY_STATE_XSAVE_BYTES_ARCH" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must name the 8KB Poly state image"
-assert_contains "reserved bytes and reserved flags are write-zero/read-zero" \
-  "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must define reserved state behavior"
-assert_contains "## Auto-Spill And Monitor Trampoline" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must document the auto-spill trampoline"
-assert_contains "PSET_SPILL_PTR\\(buffer_addr, resume_rip\\)" "$FROZEN_ISA_DOC" \
-  "historical ISA v1 document must preserve the retired spill pointer setup"
-assert_contains "PRESTORE" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must define state restore from the spill image"
-assert_contains "## Zero-Kernel-Change OS Contract" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must document the zero-kernel OS contract"
-assert_contains "not required to" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must state that the OS is not required to manage Poly state"
-assert_contains "Poly XCR0 bit" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must explicitly avoid requiring an OS Poly XCR0 bit"
-assert_contains "XSAVE/XRSTOR" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must explicitly avoid requiring OS XSAVE/XRSTOR"
-assert_contains "unmodified OS" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must define unmodified-OS behavior"
-assert_contains "## Trap Packet" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover the trap packet format"
-assert_contains "POLY_TRAP_PACKET_ARG_COUNT" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must include trap packet argument count"
-assert_contains "eight native ABI argument lanes" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must keep trap packet argument ordering visible"
-assert_contains "## Error Precedence" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover error precedence"
-assert_contains "before frontend/PC mutation" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must require pre-mutation validation"
-assert_contains "## Forward Compatibility" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover forward-compatibility rules"
-assert_contains "Reserved frontend IDs, subops, CPUID bits, state flags, packet flags" \
-  "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must cover reserved bits and fields"
-assert_contains "## Conformance Matrix" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must include a conformance matrix"
+assert_contains "^# Poly ISA v2 Draft" "$V2_ISA_DOC" \
+  "active ISA v2 draft document must exist"
+assert_contains "## Opcode Ownership And Discovery" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover production opcode ownership"
+assert_contains "vendor-owned architectural extension page" "$V2_ISA_DOC" \
+  "active ISA v2 draft must require a vendor-owned production opcode page"
+assert_contains "POLY_X86_OPCODE_FLAG_VENDOR_PROTOTYPE" "$V2_ISA_DOC" \
+  "active ISA v2 draft must distinguish prototype opcode ownership"
+assert_contains "POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE" "$V2_ISA_DOC" \
+  "active ISA v2 draft must keep prototype opcode family reassignable"
+assert_contains "3\\.\\.255.*Reserved" "$V2_ISA_DOC" \
+  "active ISA v2 draft must reserve invalid frontend IDs"
+assert_contains "defined baseline plus precise traps" "$V2_ISA_DOC" \
+  "active ISA v2 draft must choose the AArch64/RISC-V extension baseline policy"
+assert_contains "## New Control Operations" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover control operations"
+assert_contains "PSET_EVENT_PTR" "$V2_ISA_DOC" \
+  "active ISA v2 draft must include event-frame registration"
+assert_contains "PSET_SPILL_DESC" "$V2_ISA_DOC" \
+  "active ISA v2 draft must include spill-descriptor registration"
+assert_contains "## CPUID And Compatibility" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover CPUID leaves and compatibility"
+assert_contains "control geometry" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover opcode CPUID discovery"
+assert_contains "event-frame layout" "$V2_ISA_DOC" \
+  "active ISA v2 draft must document v2 layout CPUID coverage"
+assert_contains "## Spill/Resume Descriptor" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover descriptor-owned spill state"
+assert_contains "struct poly_v2_spill_descriptor" "$V2_ISA_DOC" \
+  "active ISA v2 draft must define the spill descriptor layout"
+assert_contains "reserved-zero/read-zero" "$V2_ISA_DOC" \
+  "active ISA v2 draft must define reserved state behavior"
+assert_contains "## Canonical Event Frame" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover canonical event frames"
+assert_contains "struct poly_v2_event_frame" "$V2_ISA_DOC" \
+  "active ISA v2 draft must define canonical event-frame layout"
+assert_contains "PRESTORE" "$V2_ISA_DOC" \
+  "active ISA v2 draft must define state restore from descriptor-selected images"
+assert_contains "zero-kernel-change contract" "$V2_ISA_DOC" \
+  "active ISA v2 draft must document the zero-kernel OS contract"
+assert_contains "unmodified OS" "$V2_ISA_DOC" \
+  "active ISA v2 draft must define unmodified-OS behavior"
+assert_contains "debug-note layout" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover OS-neutral debug-note export"
+assert_contains "## Error Precedence" "$V2_ISA_DOC" \
+  "active ISA v2 draft must cover error precedence"
+assert_contains "before mutating architectural" "$V2_ISA_DOC" \
+  "active ISA v2 draft must require pre-mutation validation"
+for reserved_category in \
+  "Reserved frontend IDs" \
+  "subops" \
+  "CPUID bits" \
+  "state flags" \
+  "event-frame fields" \
+  "descriptor fields"; do
+  assert_contains "$reserved_category" "$V2_ISA_DOC" \
+    "active ISA v2 draft must cover reserved category ${reserved_category}"
+done
+assert_contains "## Conformance Matrix" "$V2_ISA_DOC" \
+  "active ISA v2 draft must include a conformance matrix"
+assert_contains "PSET_SPILL_PTR\\(buffer_addr, resume_rip\\).*not part of the v2 active surface" "$V2_ISA_DOC" \
+  "active ISA v2 draft must explicitly retire raw spill pointer setup"
 
 for matrix_rule in \
   "x86 opcode family" \
   "Invalid frontend IDs" \
   "Canonical and frontend alignment faults" \
   "ABI signature slot" \
-  "Trap packet ordering" \
+  "v2 event-frame ordering" \
   "Return-cookie recovery" \
   "TSO barriers/fences" \
   "User spill import/export" \
   "Auto-spill trampoline" \
   "CPUID discovery" \
   "Zero-kernel-change"; do
-  assert_contains "$matrix_rule" "$FROZEN_ISA_DOC" \
-    "frozen ISA v1 conformance matrix must cover ${matrix_rule}"
+  assert_contains "$matrix_rule" "$V2_ISA_DOC" \
+    "active ISA v2 conformance matrix must cover ${matrix_rule}"
 done
 
 assert_contains "Hardware must not implement Linux, libc, libgcc, libatomic, dynamic-linker" \
@@ -178,9 +172,9 @@ assert_contains "PSET_SPILL_DESC" "$DESIGN_DOC" \
   "design directions must include the v2 spill descriptor setup control"
 assert_contains "unmodified OS" "$DESIGN_DOC" \
   "design directions must keep the OS out of Poly state management"
-assert_contains "If a monitor vector is enabled, hardware must publish the monitor packet before" \
+assert_contains "If a monitor vector is enabled, hardware must publish the canonical event frame before" \
   "$DESIGN_DOC" \
-  "design directions must order trap packet writes before monitor redirects"
+  "design directions must order event-frame writes before monitor redirects"
 
 for symbol in \
   POLY_CPUID_FEATURE_RAW_AARCH64 \

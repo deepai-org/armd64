@@ -24,6 +24,54 @@ container policy.
 - v2 must preserve the zero-kernel-change contract: an unmodified OS sees
   ordinary x86 user state.
 
+## Opcode Ownership And Discovery
+
+The current x86 prototype encoding, `0f 3a fc <subop>`, is a
+vendor/prototype dedicated decode page, not a production x86 allocation.
+Production silicon must advertise a vendor-owned architectural extension page,
+or a compatible vendor-owned production page, through Poly CPUID before runtime
+code uses it. Software must treat opcode geometry as CPUID-discovered, not as
+hard-coded documentation.
+
+The active prototype reports `POLY_X86_OPCODE_FLAG_VENDOR_PROTOTYPE` and
+`POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE` so runtimes know that the
+encoding can move behind the same discovery contract. Production
+implementations must not rely on `#UD` trap envelopes for ordinary Poly
+switching.
+
+Frontend IDs remain:
+
+| ID | Frontend |
+| --- | --- |
+| `0` | x86_64 system frontend |
+| `1` | raw AArch64 user frontend |
+| `2` | raw RISC-V64 user frontend |
+| `3..255` | Reserved, must be rejected before frontend/PC mutation |
+
+AArch64 and RISC-V64 support is a defined baseline plus precise traps for
+unsupported, illegal, unavailable, or implementation-reserved foreign
+instructions. v2 does not require every optional extension before the hardware
+contract is useful.
+
+## CPUID And Compatibility
+
+CPUID remains the compatibility contract for control geometry, frontend
+features, v2 feature bits, state layout, event-frame layout, spill-descriptor
+layout, debug-note layout, memory-probe result bits, derivation descriptors,
+and opcode ownership flags. Reserved frontend IDs, subops, CPUID bits, state
+flags, event-frame fields, descriptor fields, and packet compatibility flags
+are write-zero/read-zero or must fault before mutation, depending on whether
+they are memory records or control inputs.
+
+The retired v1 `PSET_SPILL_PTR(buffer_addr, resume_rip)` control is not part of the v2 active surface.
+Implementations may keep legacy monitor-packet controls behind compatibility
+probes while software is being migrated, but active monitors must use
+`PSET_EVENT_PTR` and `PSET_SPILL_DESC`.
+
+Reserved frontend IDs, subops, CPUID bits, state flags, event-frame fields,
+descriptor fields, and packet compatibility flags are all part of the v2
+forward-compatibility contract.
+
 ## New Control Operations
 
 Names are draft mnemonics. Final opcode allocation remains CPUID-discovered.
@@ -142,6 +190,20 @@ Required semantics:
 This frame is the first v2 primitive to implement. It removes monitor-side
 instruction-length guessing, syscall-specific resume whitelists, and ad hoc
 fault metadata reconstruction.
+
+## Error Precedence
+
+All control operations validate inputs before mutating architectural
+frontend/PC state, transition-stack state, registered monitor state, spill
+descriptor state, or event-frame publication state. Validation order is:
+unsupported subop, unsupported frontend, malformed width/version/header,
+nonzero reserved input bits, non-canonical addresses, frontend alignment,
+range crossing, permission or memory-write failure, then semantic conflicts
+such as transition-stack overflow/underflow or stale descriptor generation.
+
+If validation fails, hardware returns the documented error value or raises the
+documented precise fault while preserving the prior active frontend/PC and
+monitor registration.
 
 ## Spill/Resume Descriptor
 
@@ -481,3 +543,19 @@ The first breaking change should be the event frame. Once the monitor consumes
 that cleanly, signals, core dumps, seccomp mediation, clone handoff, and
 shared-memory I/O become smaller follow-on changes instead of more special
 cases in `polyexec`.
+
+## Conformance Matrix
+
+| Rule | Evidence |
+| --- | --- |
+| x86 opcode family is CPUID-discovered and prototype-owned | CPUID opcode geometry and opcode ownership leaves; `POLY_X86_OPCODE_FLAG_VENDOR_PROTOTYPE`; readiness check |
+| Invalid frontend IDs are rejected before mutation | Bochs control validation; nativecheck invalid frontend probes |
+| Canonical and frontend alignment faults are pre-mutation | Bochs target validation; nativecheck noncanonical/alignment probes |
+| ABI signature slot fast path remains register-only | `polycpuid.h` signature-slot masks; nativecheck signature probes; ABI descriptor tests |
+| v2 event-frame ordering precedes monitor redirect | Bochs `PSET_EVENT_PTR` publication; polyexec/nativecheck event-frame dispatch; architecture contract check |
+| Return-cookie recovery remains native-return based | Bochs/nativecheck return-cookie probes; RTL transition-stack tests |
+| TSO barriers/fences preserve x86 shared-memory ordering | memory-order CPUID bit; RTL memory-order tests |
+| User spill import/export uses the 8KB explicit state image | `poly_xsave_state` layout; `polylayout --check`; state import/export tests |
+| Auto-spill trampoline uses descriptor-backed v2 state | `PSET_SPILL_DESC`, `PRESTORE`, page-fault/preemption gates |
+| CPUID discovery covers v2 sizes and implemented features | `POLY_CPUID_BASE + 10`; CPUID contract check |
+| Zero-kernel-change OS behavior remains intact | unmodified Bochs/Linux boot gates; polyexec page-fault and nativecheck gates |
