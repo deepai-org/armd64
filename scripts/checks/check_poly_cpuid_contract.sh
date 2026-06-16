@@ -279,8 +279,16 @@ assert_not_contains "regs\\.(eax|ebx|ecx|edx)[[:space:]]*=[[:space:]]*POLY_.*MON
   "public CPUID escape helpers must not advertise retired monitor-packet controls"
 assert_not_contains "POLY_(AARCH64|RISCV|X86)_CTRL_(SUBOP_)?MONITOR_PACKET" "$HEADER" \
   "public header must not expose retired monitor-packet control opcodes"
+assert_not_contains "POLY_CPUID_STATE_MONITOR_PACKET_XSAVE[[:space:]]*\\|" "$HEADER" \
+  "public CPUID state leaf must not advertise retired monitor-packet XSAVE state"
+assert_not_contains "POLY_STATE_XSAVE_FLAG_MONITOR_PACKET[[:space:]]*\\|" "$HEADER" \
+  "public XSAVE arch-state leaf must not advertise retired monitor-packet state"
 assert_not_contains "\\b[RE][ABCD]X[[:space:]]*=[[:space:]]*BX_POLY_.*MONITOR_PACKET" "$BOCHS_CPU" \
   "Bochs CPUID leaves must not advertise retired monitor-packet controls"
+assert_not_contains "BX_POLY_CPUID_STATE_MONITOR_PACKET_XSAVE[[:space:]]*\\|" "$BOCHS_CPU" \
+  "Bochs CPUID state leaf must not advertise retired monitor-packet XSAVE state"
+assert_not_contains "BX_POLY_STATE_XSAVE_FLAG_MONITOR_PACKET[[:space:]]*\\|" "$BOCHS_CPU" \
+  "Bochs XSAVE arch-state leaf must not advertise retired monitor-packet state"
 compare_const BX_POLY_STATE_XSAVE_MAGIC POLY_STATE_XSAVE_MAGIC
 compare_const BX_POLY_STATE_XSAVE_COMPONENT_ARCH POLY_STATE_XSAVE_COMPONENT_ARCH
 compare_const BX_POLY_STATE_XSAVE_BYTES_ARCH POLY_STATE_XSAVE_BYTES_ARCH

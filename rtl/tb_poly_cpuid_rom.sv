@@ -94,11 +94,11 @@ module tb_poly_cpuid_rom;
       "invalid escape subleaf misses");
 
     set_query(POLY_CPUID_BASE + 32'd3, 32'd0);
-    check_regs(32'h00ffff61, 32'd0, 32'd20, 32'h00002000,
+    check_regs(32'h00ffbf61, 32'd0, 32'd20, 32'h00002000,
       "state leaf");
 
     set_query(POLY_CPUID_BASE + 32'd4, 32'd0);
-    check_regs(32'd20, 32'h00002000, 32'h0040000c, 32'h0001fffc,
+    check_regs(32'd20, 32'h00002000, 32'h0040000c, 32'h0001ff7c,
       "arch xsave leaf");
 
     set_query(POLY_CPUID_BASE + 32'd4, 32'd1);

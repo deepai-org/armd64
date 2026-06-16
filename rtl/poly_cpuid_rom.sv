@@ -21,7 +21,7 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_VENDOR_ECX = 32'h21555043; // "CPU!"
 
   localparam logic [31:0] POLY_FEATURE_MASK = 32'hbe3fffff;
-  localparam logic [31:0] POLY_STATE_MASK = 32'h00ffff61;
+  localparam logic [31:0] POLY_STATE_MASK = 32'h00ffbf61;
   localparam logic [31:0] POLY_MODE_MASK = 32'h00000007;
   localparam logic [31:0] POLY_RAW_MODE_MASK = 32'h00000006;
   localparam logic [31:0] POLY_FRONTEND_MASK = 32'h00000007;
@@ -31,7 +31,7 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_STATE_XSAVE_LAYOUT_VERSION = 32'd12;
   localparam logic [31:0] POLY_STATE_XSAVE_ALIGN_ARCH = 32'd64;
   localparam logic [31:0] POLY_STATE_XSAVE_LAYOUT_ECX = 32'h0040000c;
-  localparam logic [31:0] POLY_STATE_XSAVE_FLAGS = 32'h0001fffc;
+  localparam logic [31:0] POLY_STATE_XSAVE_FLAGS = 32'h0001ff7c;
 
   localparam logic [31:0] POLY_STATE_XSAVE_HEADER_OFFSET = 32'h00000000;
   localparam logic [31:0] POLY_STATE_XSAVE_HEADER_BYTES = 32'h00000040;
