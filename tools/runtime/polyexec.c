@@ -1156,22 +1156,6 @@ static int refresh_poly_trap_event_frame(void) {
     POLY_V2_EVENT_BYTES) == 0 ? 0 : -1;
 }
 
-static int prefault_poly_auto_spill(void) {
-  if (!poly_auto_spill_installed)
-    return 0;
-
-  struct poly_xsave_state *state = poly_auto_spill_active_state();
-  volatile uint8_t *bytes = (volatile uint8_t *) state;
-  const size_t size = sizeof(*state);
-  for (size_t offset = 0; offset < size; offset += 4096) {
-    uint8_t value = bytes[offset];
-    bytes[offset] = value;
-  }
-  uint8_t value = bytes[size - 1];
-  bytes[size - 1] = value;
-  return refresh_poly_auto_spill();
-}
-
 static uint64_t poly_auto_spill_count_status(void) {
   uint64_t rax;
   asm volatile(POLY_OP_AUTO_SPILL_COUNT_STATUS : "=a"(rax) ::
@@ -5185,106 +5169,6 @@ static void poly_prefault_writable_range(uint64_t address, uint64_t length) {
   poly_prefault_range(address, length, 1);
 }
 
-static void poly_prefault_writable_mapping_line(const char *line) {
-  char *end = NULL;
-  const uint64_t start = polyexec_strtoull_c(line, &end, 16);
-  if (end == line || *end != '-')
-    return;
-  const char *stop_text = end + 1;
-  const uint64_t stop = polyexec_strtoull_c(stop_text, &end, 16);
-  if (end == stop_text || start >= stop)
-    return;
-  while (*end == ' ')
-    end++;
-  if (end[0] == '\0' || end[1] != 'w')
-    return;
-  poly_prefault_writable_range(start, stop - start);
-}
-
-static void poly_prefault_executable_mapping_line(const char *line) {
-  char *end = NULL;
-  const uint64_t start = polyexec_strtoull_c(line, &end, 16);
-  if (end == line || *end != '-')
-    return;
-  const char *stop_text = end + 1;
-  const uint64_t stop = polyexec_strtoull_c(stop_text, &end, 16);
-  if (end == stop_text || start >= stop)
-    return;
-  while (*end == ' ')
-    end++;
-  if (end[0] != 'r' || end[2] != 'x')
-    return;
-  poly_prefault_range(start, stop - start, 0);
-}
-
-static void poly_prefault_writable_mappings(void) {
-  int fd = (int) poly_x86_syscall6(SYS_openat, AT_FDCWD,
-    (uint64_t) (uintptr_t) "/proc/self/maps", O_RDONLY | O_CLOEXEC,
-    0, 0, 0);
-  if (fd < 0)
-    return;
-
-  char buffer[8192];
-  char line[512];
-  size_t line_len = 0;
-  for (;;) {
-    long count = poly_x86_syscall6(SYS_read, fd,
-      (uint64_t) (uintptr_t) buffer, sizeof(buffer), 0, 0, 0);
-    if (count <= 0)
-      break;
-    for (long n = 0; n < count; n++) {
-      char ch = buffer[n];
-      if (ch == '\n') {
-        line[line_len] = '\0';
-        poly_prefault_writable_mapping_line(line);
-        line_len = 0;
-        continue;
-      }
-      if (line_len + 1 < sizeof(line))
-        line[line_len++] = ch;
-    }
-  }
-  if (line_len != 0) {
-    line[line_len] = '\0';
-    poly_prefault_writable_mapping_line(line);
-  }
-  (void) poly_x86_syscall6(SYS_close, fd, 0, 0, 0, 0, 0);
-}
-
-static void poly_prefault_executable_mappings(void) {
-  int fd = (int) poly_x86_syscall6(SYS_openat, AT_FDCWD,
-    (uint64_t) (uintptr_t) "/proc/self/maps", O_RDONLY | O_CLOEXEC,
-    0, 0, 0);
-  if (fd < 0)
-    return;
-
-  char buffer[8192];
-  char line[512];
-  size_t line_len = 0;
-  for (;;) {
-    long count = poly_x86_syscall6(SYS_read, fd,
-      (uint64_t) (uintptr_t) buffer, sizeof(buffer), 0, 0, 0);
-    if (count <= 0)
-      break;
-    for (long n = 0; n < count; n++) {
-      char ch = buffer[n];
-      if (ch == '\n') {
-        line[line_len] = '\0';
-        poly_prefault_executable_mapping_line(line);
-        line_len = 0;
-        continue;
-      }
-      if (line_len + 1 < sizeof(line))
-        line[line_len++] = ch;
-    }
-  }
-  if (line_len != 0) {
-    line[line_len] = '\0';
-    poly_prefault_executable_mapping_line(line);
-  }
-  (void) poly_x86_syscall6(SYS_close, fd, 0, 0, 0, 0, 0);
-}
-
 static void poly_trap_vector_handler(void);
 
 static int poly_handle_structured_foreign_syscall(uint64_t number,
@@ -8110,12 +7994,8 @@ uint64_t poly_trap_vector_dispatch(void) {
         args[3], args[4], args[5]);
     (void) clone_handoff;
     if ((x86_number == SYS_clone || x86_number == SYS_clone3) &&
-        (int64_t) syscall_result >= 0) {
-      poly_prefault_executable_mappings();
-      poly_prefault_writable_mappings();
-      if (prefault_poly_auto_spill() < 0)
-        syscall_result = (uint64_t) -EFAULT;
-    }
+        (int64_t) syscall_result >= 0 && refresh_poly_auto_spill() < 0)
+      syscall_result = (uint64_t) -EFAULT;
     poly_trace_syscall_result(&packet, "generic", x86_number,
       syscall_result);
     return poly_trap_vector_return_result(syscall_result,

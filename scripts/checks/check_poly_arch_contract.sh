@@ -599,6 +599,8 @@ assert_contains "POLY_OP_COMPLETE_EVENT" "$POLYEXEC" \
   "userspace monitor must use v2 event completion for trap-return result state"
 assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
   "userspace monitor must use v2 memory probing for guest range validation"
+assert_not_contains "poly_prefault_(executable|writable)_mappings|poly_prefault_(executable|writable)_mapping_line" "$POLYEXEC" \
+  "userspace monitor must not retain broad /proc/self/maps prefault walkers"
 assert_contains "POLY_SPILL_REASON_PAGE_FAULT" "$POLYEXEC" \
   "userspace monitor must classify auto-spilled page faults"
 assert_contains "event_args\\[3\\]" "$POLYEXEC" \
