@@ -95,9 +95,8 @@ implement the architecture below without inheriting emulator or runtime policy:
   imports remain userspace runtime policy.
 - Foreign architectural state is an explicit user-owned spill/import image,
   registered through a versioned v2 spill descriptor. The descriptor names the
-  state image, canonical event frame, resume RIP, resume stack, monitor packet,
-  owner cookie, and generation. The OS is not in the Poly state-management
-  loop.
+  state image, canonical event frame, resume RIP, resume stack, owner cookie,
+  and generation. The OS is not in the Poly state-management loop.
 - `PSET_EVENT_PTR` registers the per-thread canonical event frame and
   `PSET_SPILL_DESC` registers the per-thread spill/resume descriptor. On
   raw-mode interrupt or fault, hardware writes the state image, publishes the
@@ -105,8 +104,10 @@ implement the architecture below without inheriting emulator or runtime policy:
   trampoline RIP. `PRESTORE` imports the descriptor-selected image before
   `PENTER` resumes raw Poly code.
 - Recoverable exits publish OS-neutral v2 event frames before monitor-vector
-  redirect. Failed event-frame writes or invalid event addresses prevent the
-  redirect and report precise faults.
+  redirect. The default `polyexec` trap-vector path consumes that v2 event
+  frame directly; the older 16-qword monitor packet is only a compatibility
+  fallback for no-auto-spill/probe paths. Failed event-frame writes or invalid
+  event addresses prevent the redirect and report precise faults.
 - Native returns use ordinary frontend return instructions and a hardware
   transition-stack return cookie; same-ISA returns remain normal.
 - Invalid frontend IDs, non-canonical targets, frontend alignment violations,

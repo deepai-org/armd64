@@ -512,8 +512,14 @@ assert_contains "populate_poly_v2_spill_descriptor" "$POLYEXEC" \
   "userspace monitor must populate the v2 spill descriptor"
 assert_contains "__thread struct poly_xsave_state poly_auto_spill_state" "$POLYEXEC" \
   "userspace monitor must allocate a unique auto-spill state image per thread"
+assert_contains "poly_v2_event_to_runtime_packet" "$POLYEXEC" \
+  "userspace monitor must consume the v2 event frame as the default trap dispatch payload"
+assert_contains "poly_auto_spill_descriptor\\.monitor_packet_addr[[:space:]]*=[[:space:]]*0" "$POLYEXEC" \
+  "v2 spill descriptors must not require monitor-packet publication"
+assert_contains "poly_monitor_packet_set_value\\(polyexec_use_auto_spill \\? 0" "$POLYEXEC" \
+  "userspace monitor must disable monitor packets on the v2 auto-spill path"
 assert_contains "__thread volatile uint64_t poly_monitor_packet" "$POLYEXEC" \
-  "userspace monitor must allocate a unique trap packet per thread"
+  "userspace monitor may retain a per-thread compatibility monitor packet for no-auto-spill paths"
 assert_contains "poly_auto_spill_resume_info" "$POLYEXEC" \
   "userspace monitor auto-spill resume handoff must be per-thread"
 assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
