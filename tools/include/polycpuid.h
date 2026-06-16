@@ -323,7 +323,7 @@ enum {
   POLY_CPUID_V2_FEATURE_POLICY_PREFLIGHT = (1U << 6),
   POLY_CPUID_V2_FEATURE_ABI_DESCRIPTORS = (1U << 7),
   POLY_CPUID_V2_FEATURE_DIAGNOSTIC_COUNTERS = (1U << 8),
-  POLY_CPUID_V2_IMPLEMENTED_FEATURES = (1U << 0) | (1U << 1) | (1U << 2) | (1U << 5),
+  POLY_CPUID_V2_IMPLEMENTED_FEATURES = (1U << 0) | (1U << 1) | (1U << 2) | (1U << 4) | (1U << 5),
   POLY_CPUID_V2_REQUIRED_FEATURES = (1U << 0) | (1U << 1) | (1U << 5),
   POLY_STATE_XSAVE_MAGIC = 0x31594c50, /* "PLY1" */
   POLY_STATE_XSAVE_COMPONENT_NONE = 0,
@@ -501,6 +501,19 @@ enum {
   POLY_V2_DEBUG_NOTE_FLAG_HAS_EVENT = (1U << 0),
   POLY_V2_DEBUG_NOTE_FLAG_HAS_XSAVE = (1U << 1),
   POLY_V2_DEBUG_NOTE_FLAG_SPILLED = (1U << 2),
+  POLY_V2_DERIVE_DESC_MAGIC_LO = 0x594c4f50, /* low dword of "POLYDRV2" */
+  POLY_V2_DERIVE_DESC_MAGIC_HI = 0x32565244, /* high dword of "POLYDRV2" */
+  POLY_V2_DERIVE_DESC_VERSION = 2,
+  POLY_V2_DERIVE_DESC_BYTES = 128,
+  POLY_V2_DERIVE_DESC_ALIGN = 64,
+  POLY_V2_DERIVE_DESC_HEADER_BYTES = 16,
+  POLY_V2_DERIVE_FLAG_CHILD_SP = (1U << 0),
+  POLY_V2_DERIVE_FLAG_CHILD_TLS = (1U << 1),
+  POLY_V2_DERIVE_FLAG_CHILD_RETURN = (1U << 2),
+  POLY_V2_DERIVE_FLAG_PARENT_RETURN = (1U << 3),
+  POLY_V2_DERIVE_FLAG_CLEAR_EVENT_STATE = (1U << 4),
+  POLY_V2_DERIVE_FLAG_REPLACE_STATE_KEY = (1U << 5),
+  POLY_V2_DERIVE_FLAGS_SUPPORTED = (1U << 0) | (1U << 1) | (1U << 2) | (1U << 3) | (1U << 4) | (1U << 5),
   POLY_INTERRUPT_ABI_VERSION = 1,
   POLY_INTERRUPT_FLAG_RAW_CPL3_ONLY = (1U << 0),
   POLY_INTERRUPT_FLAG_STANDARD_X86_ENTRY = (1U << 1),
@@ -1063,6 +1076,22 @@ struct poly_v2_debug_note {
   struct poly_xsave_state state;
 };
 
+struct poly_v2_derive_descriptor {
+  uint64_t magic;
+  uint32_t bytes;
+  uint16_t version;
+  uint16_t header_bytes;
+  uint64_t flags;
+  uint32_t frontend;
+  uint32_t reserved0;
+  uint64_t child_sp;
+  uint64_t child_tls;
+  uint64_t child_return_value;
+  uint64_t parent_return_value;
+  uint64_t state_key;
+  uint64_t reserved[7];
+};
+
 #define POLY_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
 
 POLY_STATIC_ASSERT(sizeof(struct poly_u128) == 16,
@@ -1079,6 +1108,10 @@ POLY_STATIC_ASSERT(
   (((uint64_t) POLY_V2_DEBUG_NOTE_MAGIC_HI << 32) |
     POLY_V2_DEBUG_NOTE_MAGIC_LO) == 0x32474244594c4f50ULL,
   "poly v2 debug note magic must match POLYDBG2");
+POLY_STATIC_ASSERT(
+  (((uint64_t) POLY_V2_DERIVE_DESC_MAGIC_HI << 32) |
+    POLY_V2_DERIVE_DESC_MAGIC_LO) == 0x32565244594c4f50ULL,
+  "poly v2 derive descriptor magic must match POLYDRV2");
 POLY_STATIC_ASSERT(sizeof(struct poly_v2_event_frame) ==
   POLY_V2_EVENT_BYTES,
   "poly v2 event frame size must match draft contract");
@@ -1088,6 +1121,9 @@ POLY_STATIC_ASSERT(sizeof(struct poly_v2_spill_descriptor) ==
 POLY_STATIC_ASSERT(sizeof(struct poly_v2_debug_note) ==
   POLY_V2_DEBUG_NOTE_BYTES,
   "poly v2 debug note size must match draft contract");
+POLY_STATIC_ASSERT(sizeof(struct poly_v2_derive_descriptor) ==
+  POLY_V2_DERIVE_DESC_BYTES,
+  "poly v2 derive descriptor size must match draft contract");
 POLY_STATIC_ASSERT(offsetof(struct poly_v2_debug_note, event) ==
   POLY_V2_DEBUG_NOTE_EVENT_OFFSET,
   "poly v2 debug note event offset must match draft contract");

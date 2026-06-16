@@ -53,6 +53,7 @@
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
+#define POLY_OP_DERIVE_STATE POLY_X86_CTRL_DERIVE_STATE_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
@@ -777,6 +778,18 @@ static inline uint64_t poly_dump_state(struct poly_v2_debug_note *note,
   asm volatile(POLY_OP_DUMP_STATE
     : "+a"(result)
     : "d"(bytes), "c"(selector)
+    : "r15", "memory");
+  return result;
+}
+
+static inline uint64_t poly_derive_state(struct poly_xsave_state *dst,
+    struct poly_xsave_state *src,
+    const struct poly_v2_derive_descriptor *descriptor) {
+  uint64_t result = (uint64_t) (uintptr_t) dst;
+  asm volatile(POLY_OP_DERIVE_STATE
+    : "+a"(result)
+    : "d"((uint64_t) (uintptr_t) src),
+      "c"((uint64_t) (uintptr_t) descriptor)
     : "r15", "memory");
   return result;
 }
@@ -6981,6 +6994,121 @@ static int run_poly_v2_debug_note_probe(void) {
   return 0;
 }
 
+static int run_poly_v2_derive_state_probe(void) {
+  static struct poly_xsave_state parent
+    __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
+  static struct poly_xsave_state child
+    __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
+  static struct poly_v2_derive_descriptor desc
+    __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+  const uint64_t derive_magic =
+    ((uint64_t) POLY_V2_DERIVE_DESC_MAGIC_HI << 32) |
+    POLY_V2_DERIVE_DESC_MAGIC_LO;
+
+  memset(&parent, 0, sizeof(parent));
+  memset(&child, 0xa5, sizeof(child));
+  memset(&desc, 0, sizeof(desc));
+  poly_state_export(&parent);
+  parent.aarch64_gpr[0] = 0x1111;
+  parent.aarch64_gpr[31] = 0x2222;
+  parent.frontend_tls.aarch64_tls_base = 0x3333;
+  parent.trap.reason = 7;
+  parent.trap_args[0] = 8;
+  parent.import_return.top = 1;
+  desc.magic = derive_magic;
+  desc.bytes = POLY_V2_DERIVE_DESC_BYTES;
+  desc.version = POLY_V2_DERIVE_DESC_VERSION;
+  desc.header_bytes = POLY_V2_DERIVE_DESC_HEADER_BYTES;
+  desc.flags = POLY_V2_DERIVE_FLAG_CHILD_SP |
+    POLY_V2_DERIVE_FLAG_CHILD_TLS |
+    POLY_V2_DERIVE_FLAG_CHILD_RETURN |
+    POLY_V2_DERIVE_FLAG_PARENT_RETURN |
+    POLY_V2_DERIVE_FLAG_CLEAR_EVENT_STATE |
+    POLY_V2_DERIVE_FLAG_REPLACE_STATE_KEY;
+  desc.frontend = POLY_MODE_RAW_AARCH64;
+  desc.child_sp = 0x00007fff12345000ULL;
+  desc.child_tls = 0x00007fff23456000ULL;
+  desc.child_return_value = 0;
+  desc.parent_return_value = 0x1234;
+  desc.state_key = 0x00007fff34567000ULL;
+  if (poly_derive_state(&child, &parent, &desc) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 derive AArch64 failed\n", stderr);
+    return 1;
+  }
+  if (child.aarch64_gpr[31] != desc.child_sp ||
+      child.aarch64_gpr[0] != desc.child_return_value ||
+      parent.aarch64_gpr[0] != desc.parent_return_value ||
+      child.frontend_tls.active_mode != POLY_MODE_RAW_AARCH64 ||
+      child.frontend_tls.aarch64_tls_base != desc.child_tls ||
+      child.header.foreign_tls_base != desc.child_tls ||
+      child.state_key.flags != POLY_STATE_KEY_FLAG_EXPLICIT ||
+      child.state_key.explicit_key != desc.state_key ||
+      child.trap.reason != 0 ||
+      child.trap_args[0] != 0 ||
+      child.import_return.top != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 derive AArch64 mismatch child_sp=0x%llx child_ret=0x%llx parent_ret=0x%llx tls=0x%llx/0x%llx key=0x%llx trap=%u arg0=0x%llx import_top=%llu\n",
+      (unsigned long long) child.aarch64_gpr[31],
+      (unsigned long long) child.aarch64_gpr[0],
+      (unsigned long long) parent.aarch64_gpr[0],
+      (unsigned long long) child.frontend_tls.aarch64_tls_base,
+      (unsigned long long) child.header.foreign_tls_base,
+      (unsigned long long) child.state_key.explicit_key, child.trap.reason,
+      (unsigned long long) child.trap_args[0],
+      (unsigned long long) child.import_return.top);
+    return 1;
+  }
+
+  poly_state_export(&parent);
+  parent.riscv_gpr[10] = 0x4444;
+  parent.riscv_gpr[2] = 0x5555;
+  memset(&child, 0xa5, sizeof(child));
+  desc.frontend = POLY_MODE_RAW_RISCV;
+  desc.child_sp = 0x00007fff45678000ULL;
+  desc.child_tls = 0x00007fff56789000ULL;
+  desc.child_return_value = 0;
+  desc.parent_return_value = 0x5678;
+  desc.state_key = 0x00007fff6789a000ULL;
+  if (poly_derive_state(&child, &parent, &desc) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 derive RISC-V failed\n", stderr);
+    return 1;
+  }
+  if (child.riscv_gpr[2] != desc.child_sp ||
+      child.riscv_gpr[10] != desc.child_return_value ||
+      parent.riscv_gpr[10] != desc.parent_return_value ||
+      child.frontend_tls.active_mode != POLY_MODE_RAW_RISCV ||
+      child.frontend_tls.riscv_tls_base != desc.child_tls ||
+      child.header.foreign_tls_base != desc.child_tls ||
+      child.state_key.explicit_key != desc.state_key) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 derive RISC-V mismatch child_sp=0x%llx child_ret=0x%llx parent_ret=0x%llx tls=0x%llx/0x%llx key=0x%llx\n",
+      (unsigned long long) child.riscv_gpr[2],
+      (unsigned long long) child.riscv_gpr[10],
+      (unsigned long long) parent.riscv_gpr[10],
+      (unsigned long long) child.frontend_tls.riscv_tls_base,
+      (unsigned long long) child.header.foreign_tls_base,
+      (unsigned long long) child.state_key.explicit_key);
+    return 1;
+  }
+
+  desc.bytes = POLY_V2_DERIVE_DESC_BYTES - 8;
+  if (poly_derive_state(&child, &parent, &desc) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 derive rejected malformed descriptor\n",
+      stderr);
+    return 1;
+  }
+  desc.bytes = POLY_V2_DERIVE_DESC_BYTES;
+  desc.frontend = POLY_MODE_X86;
+  if (poly_derive_state(&child, &parent, &desc) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 derive rejected unsupported frontend\n",
+      stderr);
+    return 1;
+  }
+
+  puts("NATIVE_POLY_V2_DERIVE_STATE_OK");
+  return 0;
+}
+
 static int run_poly_state_key_probe(void) {
   const uint64_t key_a = 0x53544154454b4101ULL;
   const uint64_t key_b = 0x53544154454b4202ULL;
@@ -12155,6 +12283,8 @@ int main(void) {
     if (run_poly_memory_ordering_probe() != 0)
       return 1;
     if (run_poly_v2_debug_note_probe() != 0)
+      return 1;
+    if (run_poly_v2_derive_state_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;

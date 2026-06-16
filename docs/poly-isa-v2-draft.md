@@ -335,6 +335,36 @@ Poly architectural state after userspace has an OS thread or process in which
 to run it. This accelerates clone/fork/vfork-style runtimes without naming
 those OS calls in the ISA.
 
+Exact v2 descriptor layout:
+
+```c
+struct poly_v2_derive_descriptor {
+  uint64_t magic;              // "POLYDRV2"
+  uint32_t bytes;              // 128
+  uint16_t version;            // 2
+  uint16_t header_bytes;       // 16
+  uint64_t flags;
+  uint32_t frontend;           // AArch64 or RISC-V raw frontend
+  uint32_t reserved0;
+  uint64_t child_sp;
+  uint64_t child_tls;
+  uint64_t child_return_value;
+  uint64_t parent_return_value;
+  uint64_t state_key;
+  uint64_t reserved[7];
+};
+```
+
+`flags` may request child SP, child TLS, child return-value, parent
+return-value, event-state clearing, and state-key replacement. Hardware copies
+the parent `poly_xsave_state` to the child image, applies child register/TLS
+updates for the selected frontend, optionally writes the parent return-value
+register back into the parent image, and optionally clears trap/event,
+transition, import-return, cross-return, trap-restore, and native-return state
+in the child image. Unsupported frontends, nonzero reserved bits, malformed
+headers, bad state images, and non-canonical descriptor-controlled addresses are
+rejected before mutation.
+
 ## Policy Preflight For Seccomp-Like Filters
 
 v2 does not implement BPF. Instead, every OS-bound event exposes the canonical

@@ -424,6 +424,10 @@ assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_DUMP_STATE" "$BOCH
   "Bochs must implement the v2 debug-note export control"
 assert_contains "export_poly_v2_debug_note" "$BOCHS_CPU" \
   "Bochs must export the v2 debug-note blob through a dedicated helper"
+assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_DERIVE_STATE" "$BOCHS_CPU" \
+  "Bochs must implement the v2 state-derivation control"
+assert_contains "derive_poly_v2_state" "$BOCHS_CPU" \
+  "Bochs must derive child frontend state through a dedicated helper"
 assert_contains "BX_POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$BOCHS_CPU" \
   "Bochs v2 CPUID must advertise only implemented v2 features"
 assert_not_contains "BX_POLY_CPUID_V2_FEATURES" "$BOCHS_CPU" \
@@ -438,6 +442,8 @@ assert_contains "poly_cpuid_expected_v2_leaf" "$NATIVECHECK" \
   "nativecheck must validate the v2 CPUID discovery leaf"
 assert_contains "run_poly_v2_debug_note_probe" "$NATIVECHECK" \
   "nativecheck must exercise PDUMP_STATE before the debug-note bit is advertised"
+assert_contains "run_poly_v2_derive_state_probe" "$NATIVECHECK" \
+  "nativecheck must exercise PDERIVE_STATE before the derive bit is advertised"
 assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
   "PRESTORE must arm a pending raw frontend resume target"
 assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip" "$BOCHS_CPU" \
