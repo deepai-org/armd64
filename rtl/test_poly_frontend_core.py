@@ -267,7 +267,7 @@ def core_step(
     user_return_pc: int = 0,
     trap_valid: bool = False,
     trap_monitor_enabled: bool = True,
-    trap_monitor_packet_addr: int = 0x457000,
+    trap_event_frame_addr: int = 0x457000,
     trap_vector_valid: bool = False,
     trap_vector_frontend: int = 0,
     trap_vector_pc: int = 0,
@@ -319,16 +319,16 @@ def core_step(
         return_candidate and not interrupt_error and
         user_return_pc == interrupt_state.pc
     )
-    trap_last = (trap_monitor_packet_addr + 511) & 0xFFFFFFFFFFFFFFFF
-    trap_range_wrap = trap_last < trap_monitor_packet_addr
+    trap_last = (trap_event_frame_addr + 511) & 0xFFFFFFFFFFFFFFFF
+    trap_range_wrap = trap_last < trap_event_frame_addr
     trap_monitor_disabled = trap_valid and not trap_monitor_enabled
     trap_noncanonical = (
         trap_valid and trap_monitor_enabled and
-        (not canonical(trap_monitor_packet_addr) or not canonical(trap_last))
+        (not canonical(trap_event_frame_addr) or not canonical(trap_last))
     )
     trap_align_fault = (
         trap_valid and trap_monitor_enabled and
-        (trap_monitor_packet_addr & 0x3F) != 0
+        (trap_event_frame_addr & 0x3F) != 0
     )
     trap_range_fault = trap_valid and trap_monitor_enabled and trap_range_wrap
     trap_invalid_reason = (
@@ -348,17 +348,17 @@ def core_step(
         trap_monitor_disabled or trap_noncanonical or trap_align_fault or
         trap_range_fault or trap_invalid_reason or trap_invalid_source
     )
-    trap_packet_valid = trap_valid and not trap_encode_error
-    trap_wait = trap_packet_valid and not trap_mem_write_resp_valid
+    trap_event_frame_valid = trap_valid and not trap_encode_error
+    trap_wait = trap_event_frame_valid and not trap_mem_write_resp_valid
     trap_delivered = (
-        trap_packet_valid and trap_mem_write_resp_valid and
+        trap_event_frame_valid and trap_mem_write_resp_valid and
         not trap_mem_write_fault
     )
-    trap_packet_mem_fault = (
-        trap_packet_valid and trap_mem_write_resp_valid and
+    trap_event_frame_mem_fault = (
+        trap_event_frame_valid and trap_mem_write_resp_valid and
         trap_mem_write_fault
     )
-    trap_fault = trap_encode_error or trap_packet_mem_fault
+    trap_fault = trap_encode_error or trap_event_frame_mem_fault
     trap_vector_apply = (
         trap_delivered and trap_vector_valid and not trap_fault
     )
@@ -462,7 +462,7 @@ def core_step(
     abi_valid, abi_kind, abi_map, abi_tls = abi_slot(pcall_slot, c)
     abi_signature_valid = commit_push and abi_valid
     cycle_op = 0
-    if trap_packet_valid and not trap_fault:
+    if trap_event_frame_valid and not trap_fault:
         cycle_op = 4
     elif return_pop:
         cycle_op = 3
@@ -473,19 +473,19 @@ def core_step(
     cycle_supported = cycle_op in {1, 2, 3, 4}
     cycle_requires_signature = cycle_op == 2
     cycle_requires_stack = cycle_op in {2, 3}
-    cycle_requires_packet = cycle_op == 4
+    cycle_requires_event_frame = cycle_op == 4
     cycle_stack_ready = (
         (cycle_op == 2 and not stack_unavailable) or
         (cycle_op == 3 and return_pop) or
         cycle_op not in {2, 3}
     )
-    cycle_packet_ready = not cycle_requires_packet or trap_packet_valid
+    cycle_event_frame_ready = not cycle_requires_event_frame or trap_event_frame_valid
     cycle_unsupported = cycle_requires_signature and not abi_signature_valid
     cycle_blocked = (
         cycle_supported and not cycle_unsupported and (
             (cycle_requires_signature and not abi_signature_valid) or
             (cycle_requires_stack and not cycle_stack_ready) or
-            (cycle_requires_packet and not cycle_packet_ready)
+            (cycle_requires_event_frame and not cycle_event_frame_ready)
         )
     )
     cycle_fixed = {1: 3, 2: 4, 3: 3, 4: 2}.get(cycle_op, 0)
@@ -553,13 +553,13 @@ def core_step(
         "interrupt_state_valid": interrupt_state.valid,
         "interrupt_state_frontend": interrupt_state.frontend,
         "interrupt_state_pc": interrupt_state.pc,
-        "trap_mem_write_valid": trap_packet_valid,
+        "trap_mem_write_valid": trap_event_frame_valid,
         "trap_mem_write_bytes": 512,
         "trap_wait": trap_wait,
         "trap_delivered": trap_delivered,
         "trap_fault": trap_fault,
         "trap_encode_error": trap_encode_error,
-        "trap_packet_mem_fault": trap_packet_mem_fault,
+        "trap_event_frame_mem_fault": trap_event_frame_mem_fault,
         "trap_vector_apply": trap_vector_apply,
         "trap_vector_frontend": (
             trap_vector_frontend if trap_vector_apply else frontend
@@ -681,17 +681,17 @@ def require_structural_wiring() -> None:
         "output logic [1:0]  trap_vector_frontend_o",
         "output logic [63:0] trap_vector_pc_o",
         "assign trap_vector_apply_o =",
-        "trap_packet_delivered_o && trap_vector_valid_i && !trap_fault_o;",
+        "trap_event_frame_delivered_o && trap_vector_valid_i && !trap_fault_o;",
         "trap_vector_apply_o ? trap_vector_frontend_i : frontend_i;",
         "trap_vector_apply_o ? trap_vector_pc_i : pc_i;",
         "interrupted_valid_q",
-        "trap_wait_response_o || trap_packet_delivered_o",
+        "trap_wait_response_o || trap_event_frame_delivered_o",
         "assign execute_fault =",
         "trap_fault_o",
         ".interrupted_valid_i(interrupted_valid_q)",
         ".enter_x86_interrupt_o(interrupt_enter_x86_o)",
         ".wait_response_o(trap_wait_response_o)",
-        ".frame_delivered_o(trap_packet_delivered_o)",
+        ".frame_delivered_o(trap_event_frame_delivered_o)",
         "poly_abi_signature_slots abi_signature_slots",
         ".select_slot_i(commit_signature_slot_o[3:0])",
         "assign abi_signature_apply_o = commit_push_transition_o;",
@@ -1462,7 +1462,7 @@ def main() -> int:
     assert trap_vector_delivered["trap_vector_frontend"] == c["POLY_FRONTEND_X86"]
     assert trap_vector_delivered["trap_vector_pc"] == 0x1800
 
-    trap_packet_fault = core_step(
+    trap_event_frame_fault = core_step(
         TransitionStack(depth),
         valid=True,
         frontend=c["POLY_FRONTEND_AARCH64"],
@@ -1486,11 +1486,11 @@ def main() -> int:
         trap_mem_write_fault=True,
         c=c,
     )
-    assert trap_packet_fault["trap_fault"]
-    assert trap_packet_fault["trap_packet_mem_fault"]
-    assert trap_packet_fault["execute_fault"]
-    assert not trap_packet_fault["wait_retire"] and not trap_packet_fault["retire"]
-    assert not trap_packet_fault["cycle_valid"]
+    assert trap_event_frame_fault["trap_fault"]
+    assert trap_event_frame_fault["trap_event_frame_mem_fault"]
+    assert trap_event_frame_fault["execute_fault"]
+    assert not trap_event_frame_fault["wait_retire"] and not trap_event_frame_fault["retire"]
+    assert not trap_event_frame_fault["cycle_valid"]
 
     trap_encode_fault = core_step(
         TransitionStack(depth),

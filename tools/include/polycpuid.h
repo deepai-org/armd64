@@ -385,10 +385,10 @@ enum {
   POLY_NATIVE_RETURN_KIND_MAX = POLY_NATIVE_RETURN_KIND_FPAIR64,
   POLY_STATE_XSAVE_HEADER_OFFSET = 0x000,
   POLY_STATE_XSAVE_HEADER_BYTES = 0x040,
-  POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 0x040,
-  POLY_STATE_XSAVE_TRAP_PACKET_BYTES = 0x040,
-  POLY_STATE_XSAVE_TRAP_ARGS_OFFSET = 0x080,
-  POLY_STATE_XSAVE_TRAP_ARGS_BYTES = 0x040,
+  POLY_STATE_XSAVE_EVENT_RECORD_OFFSET = 0x040,
+  POLY_STATE_XSAVE_EVENT_RECORD_BYTES = 0x040,
+  POLY_STATE_XSAVE_EVENT_ARGS_OFFSET = 0x080,
+  POLY_STATE_XSAVE_EVENT_ARGS_BYTES = 0x040,
   POLY_STATE_XSAVE_TRANSITION_OFFSET = 0x0c0,
   POLY_STATE_XSAVE_TRANSITION_BYTES = 0x040,
   POLY_STATE_XSAVE_AARCH64_GPR_OFFSET = 0x100,
@@ -429,21 +429,21 @@ enum {
   POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES = 0x40,
   POLY_STATE_XSAVE_RESERVED_OFFSET = 0x1a80,
   POLY_STATE_XSAVE_RESERVED_BYTES = 0x580,
-  POLY_TRAP_PACKET_LAYOUT_VERSION = 2,
-  POLY_TRAP_PACKET_HEADER_BYTES = 64,
-  POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY = (1U << 0),
-  POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS = (1U << 1),
-  POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE = (1U << 2),
-  POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS = (1U << 3),
-  POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS = (1U << 4),
-  POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS = (1U << 6),
-  POLY_TRAP_PACKET_REQUIRED_FLAGS =
-    POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY |
-    POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS |
-    POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE |
-    POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS |
-    POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS |
-    POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS,
+  POLY_EVENT_RECORD_LAYOUT_VERSION = 2,
+  POLY_EVENT_RECORD_HEADER_BYTES = 64,
+  POLY_EVENT_RECORD_FLAG_VECTOR_DELIVERY = (1U << 0),
+  POLY_EVENT_RECORD_FLAG_NO_VECTOR_X86_EXCEPTIONS = (1U << 1),
+  POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE = (1U << 2),
+  POLY_EVENT_RECORD_FLAG_ALL_FRONTEND_HANDLERS = (1U << 3),
+  POLY_EVENT_RECORD_FLAG_OPAQUE_SYSCALLS = (1U << 4),
+  POLY_EVENT_RECORD_FLAG_OPAQUE_IMPORTS = (1U << 6),
+  POLY_EVENT_RECORD_REQUIRED_FLAGS =
+    POLY_EVENT_RECORD_FLAG_VECTOR_DELIVERY |
+    POLY_EVENT_RECORD_FLAG_NO_VECTOR_X86_EXCEPTIONS |
+    POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE |
+    POLY_EVENT_RECORD_FLAG_ALL_FRONTEND_HANDLERS |
+    POLY_EVENT_RECORD_FLAG_OPAQUE_SYSCALLS |
+    POLY_EVENT_RECORD_FLAG_OPAQUE_IMPORTS,
   POLY_V2_EVENT_MAGIC_LO = 0x594c4f50, /* low dword of "POLYEVT2" */
   POLY_V2_EVENT_MAGIC_HI = 0x32545645, /* high dword of "POLYEVT2" */
   POLY_V2_EVENT_VERSION = 2,
@@ -767,7 +767,7 @@ struct poly_xsave_header {
   uint64_t reserved0;
 };
 
-struct poly_trap_packet {
+struct poly_event_record {
   uint32_t reason;
   uint32_t source_mode;
   uint64_t number;
@@ -937,8 +937,8 @@ struct poly_trap_restore_state {
 
 struct poly_xsave_state {
   struct poly_xsave_header header;
-  struct poly_trap_packet trap;
-  uint64_t trap_args[POLY_V2_EVENT_ARG_COUNT];
+  struct poly_event_record event_record;
+  uint64_t event_args[POLY_V2_EVENT_ARG_COUNT];
   struct poly_xsave_transition_area transition;
   uint64_t aarch64_gpr[32];
   struct poly_u128 aarch64_fp[32];
@@ -1127,9 +1127,9 @@ POLY_STATIC_ASSERT(offsetof(struct poly_v2_debug_note, state) ==
 POLY_STATIC_ASSERT(sizeof(struct poly_xsave_header) ==
   POLY_STATE_XSAVE_HEADER_BYTES,
   "poly XSAVE header size must match CPUID contract");
-POLY_STATIC_ASSERT(sizeof(struct poly_trap_packet) ==
-  POLY_STATE_XSAVE_TRAP_PACKET_BYTES,
-  "poly trap packet size must match CPUID contract");
+POLY_STATIC_ASSERT(sizeof(struct poly_event_record) ==
+  POLY_STATE_XSAVE_EVENT_RECORD_BYTES,
+  "poly event record size must match CPUID contract");
 POLY_STATIC_ASSERT(sizeof(struct poly_transition_frame) == 32,
   "poly transition frame must remain 32 bytes");
 POLY_STATIC_ASSERT(sizeof(struct poly_xsave_transition_area) ==
@@ -1177,12 +1177,12 @@ POLY_STATIC_ASSERT(sizeof(struct poly_native_return_state) ==
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, header) ==
   POLY_STATE_XSAVE_HEADER_OFFSET,
   "poly XSAVE header offset drifted");
-POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, trap) ==
-  POLY_STATE_XSAVE_TRAP_PACKET_OFFSET,
-  "poly trap packet offset drifted");
-POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, trap_args) ==
-  POLY_STATE_XSAVE_TRAP_ARGS_OFFSET,
-  "poly trap args offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, event_record) ==
+  POLY_STATE_XSAVE_EVENT_RECORD_OFFSET,
+  "poly event record offset drifted");
+POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, event_args) ==
+  POLY_STATE_XSAVE_EVENT_ARGS_OFFSET,
+  "poly event args offset drifted");
 POLY_STATIC_ASSERT(offsetof(struct poly_xsave_state, transition) ==
   POLY_STATE_XSAVE_TRANSITION_OFFSET,
   "poly transition area offset drifted");
@@ -1701,12 +1701,12 @@ poly_cpuid_expected_arch_state_header_leaf(void) {
 }
 
 static inline struct poly_cpuid_regs
-poly_cpuid_expected_arch_state_trap_leaf(void) {
+poly_cpuid_expected_arch_state_event_leaf(void) {
   struct poly_cpuid_regs regs;
-  regs.eax = POLY_STATE_XSAVE_TRAP_PACKET_OFFSET;
-  regs.ebx = POLY_STATE_XSAVE_TRAP_PACKET_BYTES;
-  regs.ecx = POLY_STATE_XSAVE_TRAP_ARGS_OFFSET;
-  regs.edx = POLY_STATE_XSAVE_TRAP_ARGS_BYTES;
+  regs.eax = POLY_STATE_XSAVE_EVENT_RECORD_OFFSET;
+  regs.ebx = POLY_STATE_XSAVE_EVENT_RECORD_BYTES;
+  regs.ecx = POLY_STATE_XSAVE_EVENT_ARGS_OFFSET;
+  regs.edx = POLY_STATE_XSAVE_EVENT_ARGS_BYTES;
   return regs;
 }
 
@@ -1842,13 +1842,13 @@ poly_cpuid_expected_arch_state_reserved_leaf(void) {
   return regs;
 }
 
-static inline struct poly_cpuid_regs poly_cpuid_expected_trap_leaf(void) {
+static inline struct poly_cpuid_regs poly_cpuid_expected_event_record_leaf(void) {
   struct poly_cpuid_regs regs;
-  regs.eax = POLY_TRAP_PACKET_LAYOUT_VERSION;
-  regs.ebx = (uint32_t) sizeof(struct poly_trap_packet);
-  regs.ecx = (uint32_t) (sizeof(((struct poly_xsave_state *) 0)->trap_args) /
-    sizeof(((struct poly_xsave_state *) 0)->trap_args[0]));
-  regs.edx = POLY_TRAP_PACKET_REQUIRED_FLAGS;
+  regs.eax = POLY_EVENT_RECORD_LAYOUT_VERSION;
+  regs.ebx = (uint32_t) sizeof(struct poly_event_record);
+  regs.ecx = (uint32_t) (sizeof(((struct poly_xsave_state *) 0)->event_args) /
+    sizeof(((struct poly_xsave_state *) 0)->event_args[0]));
+  regs.edx = POLY_EVENT_RECORD_REQUIRED_FLAGS;
   return regs;
 }
 
@@ -2028,10 +2028,10 @@ static inline int poly_cpuid_arch_state_contract_check(size_t index,
     check->expected = poly_cpuid_expected_arch_state_header_leaf();
     return 1;
   case 3:
-    check->name = "poly XSAVE trap layout";
+    check->name = "poly XSAVE event layout";
     check->leaf = POLY_CPUID_BASE + 4;
     check->subleaf = 2;
-    check->expected = poly_cpuid_expected_arch_state_trap_leaf();
+    check->expected = poly_cpuid_expected_arch_state_event_leaf();
     return 1;
   case 4:
     check->name = "poly AArch64 GPR layout";

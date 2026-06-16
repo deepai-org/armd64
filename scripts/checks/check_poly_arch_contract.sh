@@ -169,7 +169,7 @@ ARCH_TRAP_FUNC="$TMP_DIR/deliver_poly_architectural_trap.cc"
 extract_function "deliver_poly_architectural_trap" "$ARCH_TRAP_FUNC"
 assert_contains "bx_poly_write_v2_event_frame" "$ARCH_TRAP_FUNC" \
   "architectural trap delivery must publish the canonical v2 event frame"
-assert_not_contains "bx_poly_monitor_packet_addr|POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY|write_virtual_qword" \
+assert_not_contains "bx_poly_monitor_packet_addr|POLY_EVENT_RECORD_FLAG_MONITOR_MEMORY|write_virtual_qword" \
   "$ARCH_TRAP_FUNC" \
   "architectural trap delivery must not retain legacy monitor-packet compatibility writes"
 
@@ -591,7 +591,7 @@ assert_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
   "userspace monitor must PRESTORE before resuming a raw frontend"
 assert_contains "POLY_SPILL_REASON_PAGE_FAULT" "$POLYEXEC" \
   "userspace monitor must classify auto-spilled page faults"
-assert_contains "trap_args\\[3\\]" "$POLYEXEC" \
+assert_contains "event_args\\[3\\]" "$POLYEXEC" \
   "userspace monitor must read the spilled CR2 fault address"
 assert_contains "header\\.foreign_pc" "$POLYEXEC" \
   "userspace monitor must read the spilled Poly PC"

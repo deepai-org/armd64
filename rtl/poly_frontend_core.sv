@@ -54,7 +54,7 @@ module poly_frontend_core (
 
     input  logic        trap_valid_i,
     input  logic        trap_monitor_enabled_i,
-    input  logic [63:0] trap_monitor_packet_addr_i,
+    input  logic [63:0] trap_event_frame_addr_i,
     input  logic        trap_vector_valid_i,
     input  logic [1:0]  trap_vector_frontend_i,
     input  logic [63:0] trap_vector_pc_i,
@@ -179,14 +179,14 @@ module poly_frontend_core (
     output logic [9:0]  trap_mem_write_bytes_o,
     output logic [4095:0] trap_mem_write_data_o,
     output logic        trap_wait_response_o,
-    output logic        trap_packet_delivered_o,
+    output logic        trap_event_frame_delivered_o,
     output logic        trap_fault_o,
     output logic        trap_encode_error_o,
-    output logic        trap_packet_mem_fault_o,
+    output logic        trap_event_frame_mem_fault_o,
     output logic        trap_monitor_disabled_o,
-    output logic        trap_noncanonical_packet_o,
-    output logic        trap_packet_align_fault_o,
-    output logic        trap_packet_range_fault_o,
+    output logic        trap_noncanonical_event_frame_o,
+    output logic        trap_event_frame_align_fault_o,
+    output logic        trap_event_frame_range_fault_o,
     output logic        trap_invalid_reason_o,
     output logic        trap_invalid_source_mode_o,
     output logic        trap_vector_apply_o,
@@ -387,7 +387,7 @@ module poly_frontend_core (
     raw_branch_target_valid_o ? raw_commit_branch_target : 64'd0;
   assign block_retire =
     interrupt_enter_x86_o || interrupt_restore_raw_o ||
-    trap_wait_response_o || trap_packet_delivered_o;
+    trap_wait_response_o || trap_event_frame_delivered_o;
   assign abi_signature_apply_o = commit_push_transition_o;
   assign abi_signature_valid_o = commit_push_transition_o && abi_select_valid;
   assign abi_signature_kind_o =
@@ -460,7 +460,7 @@ module poly_frontend_core (
   assign raw_data_mem_wait_o = raw_memory_execute_wait;
   assign raw_data_mem_fault_o = raw_memory_execute_fault;
   assign trap_vector_apply_o =
-    trap_packet_delivered_o && trap_vector_valid_i && !trap_fault_o;
+    trap_event_frame_delivered_o && trap_vector_valid_i && !trap_fault_o;
   assign trap_vector_frontend_o =
     trap_vector_apply_o ? trap_vector_frontend_i : frontend_i;
   assign trap_vector_pc_o = trap_vector_apply_o ? trap_vector_pc_i : pc_i;
@@ -604,7 +604,7 @@ module poly_frontend_core (
   poly_event_frame_stage event_frame_stage (
     .valid_i(trap_valid_i),
     .event_enabled_i(trap_monitor_enabled_i),
-    .event_frame_addr_i(trap_monitor_packet_addr_i),
+    .event_frame_addr_i(trap_event_frame_addr_i),
     .event_kind_i(trap_reason_i),
     .source_frontend_i(trap_source_mode_i),
     .number_i(trap_number_i),
@@ -626,14 +626,14 @@ module poly_frontend_core (
     .mem_write_bytes_o(trap_mem_write_bytes_o),
     .mem_write_data_o(trap_mem_write_data_o),
     .wait_response_o(trap_wait_response_o),
-    .frame_delivered_o(trap_packet_delivered_o),
+    .frame_delivered_o(trap_event_frame_delivered_o),
     .fault_o(trap_fault_o),
     .encode_error_o(trap_encode_error_o),
-    .frame_mem_fault_o(trap_packet_mem_fault_o),
+    .frame_mem_fault_o(trap_event_frame_mem_fault_o),
     .event_disabled_o(trap_monitor_disabled_o),
-    .noncanonical_frame_o(trap_noncanonical_packet_o),
-    .frame_align_fault_o(trap_packet_align_fault_o),
-    .frame_range_fault_o(trap_packet_range_fault_o),
+    .noncanonical_frame_o(trap_noncanonical_event_frame_o),
+    .frame_align_fault_o(trap_event_frame_align_fault_o),
+    .frame_range_fault_o(trap_event_frame_range_fault_o),
     .invalid_event_kind_o(trap_invalid_reason_o),
     .invalid_source_frontend_o(trap_invalid_source_mode_o)
   );

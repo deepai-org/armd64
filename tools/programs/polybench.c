@@ -96,7 +96,7 @@ struct polybench_event_packet {
 
 static struct poly_v2_event_frame polybench_event_frame
   __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
-static const uint64_t polybench_aarch64_trap_args[POLY_V2_EVENT_ARG_COUNT] =
+static const uint64_t polybench_aarch64_event_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 99};
 static const uint64_t polybench_riscv_syscall_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 172};
@@ -769,7 +769,7 @@ static int polybench_event_frame_to_packet(
   return 0;
 }
 
-static int polybench_trap_args_equal(
+static int polybench_event_args_equal(
     const uint64_t got[POLY_V2_EVENT_ARG_COUNT],
     const uint64_t expected[POLY_V2_EVENT_ARG_COUNT]) {
   for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++) {
@@ -793,16 +793,16 @@ uint64_t polybench_trap_vector_dispatch(void) {
     return (uint64_t) -38;
   if (reason == POLY_TRAP_SYSCALL && number == 172 &&
       ((mode == POLY_MODE_RAW_AARCH64 &&
-        polybench_trap_args_equal(packet.args,
-          polybench_aarch64_trap_args)) ||
+        polybench_event_args_equal(packet.args,
+          polybench_aarch64_event_args)) ||
        (mode == POLY_MODE_RAW_RISCV &&
-        polybench_trap_args_equal(packet.args,
+        polybench_event_args_equal(packet.args,
           polybench_riscv_syscall_args))))
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
   if (reason == POLY_TRAP_IMPORT && number == 8 &&
-      polybench_trap_args_equal(packet.args, polybench_aarch64_trap_args))
+      polybench_event_args_equal(packet.args, polybench_aarch64_event_args))
     return 5555;
   return (uint64_t) -38;
 }

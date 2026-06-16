@@ -667,7 +667,7 @@ static int poly_prefault_guest_mmaps_enabled(void);
 #define POLY_SECCOMP_MAX_FILTERS 16
 #define POLY_SECCOMP_MAX_INSNS 4096
 
-struct poly_runtime_trap_packet {
+struct poly_runtime_event_record {
   uint64_t reason;
   uint64_t mode;
   uint64_t number;
@@ -709,7 +709,7 @@ static struct poly_seccomp_program
   poly_seccomp_filters[POLY_SECCOMP_MAX_FILTERS];
 
 struct poly_clone_child_handoff {
-  struct poly_runtime_trap_packet packet;
+  struct poly_runtime_event_record packet;
   struct poly_xsave_state state
     __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
   uint8_t state_key_anchor;
@@ -854,8 +854,8 @@ struct poly_aarch64_virtual_signal_frame {
   uint64_t handler_args[4];
   struct poly_aarch64_siginfo siginfo;
   struct poly_aarch64_ucontext ucontext;
-  struct poly_trap_packet saved_trap;
-  uint64_t saved_trap_args[POLY_V2_EVENT_ARG_COUNT];
+  struct poly_event_record saved_event_record;
+  uint64_t saved_event_args[POLY_V2_EVENT_ARG_COUNT];
   struct poly_trap_restore_state saved_trap_restore;
   struct poly_native_return_state saved_native_return;
   uint64_t aarch64_gpr[32];
@@ -902,7 +902,7 @@ static void poly_trap_vector_handler(void);
 static void clear_poly_trap_vector(void);
 static uint64_t get_x86_fs_base(void);
 static uint64_t poly_trap_vector_return_result(uint64_t result,
-    const struct poly_runtime_trap_packet *packet,
+    const struct poly_runtime_event_record *packet,
     const struct poly_xsave_state *trap_state, int has_trap_state);
 static void poly_clear_native_return_state(struct poly_xsave_state *state);
 static void poly_clear_return_transition_state(struct poly_xsave_state *state);
@@ -1881,9 +1881,9 @@ static int poly_populate_fatal_debug_note_from_spill(
     note->fault_address = note->event.fault_address;
     note->raw_syndrome = note->event.raw_syndrome;
   } else {
-    note->event_kind = state->trap.reason;
-    note->fault_address = state->trap_args[3];
-    note->raw_syndrome = state->trap_args[2];
+    note->event_kind = state->event_record.reason;
+    note->fault_address = state->event_args[3];
+    note->raw_syndrome = state->event_args[2];
   }
 
   memcpy(&note->state, state, sizeof(note->state));
@@ -1945,7 +1945,7 @@ static void poly_write_fatal_debug_note(int signum, const char *reason) {
 
 static void report_poly_spill_page_fault(void) {
   struct poly_xsave_state *spill_state = poly_auto_spill_active_state();
-  const uint64_t cr2 = spill_state->trap_args[3];
+  const uint64_t cr2 = spill_state->event_args[3];
   poly_write_literal_stderr("Poly Page Fault at Address 0x");
   poly_write_hex64_stderr(cr2);
   poly_write_literal_stderr(" PC 0x");
@@ -2084,7 +2084,7 @@ static void poly_auto_spill_signal(int signo, siginfo_t *info,
         poly_write_literal_stderr(" foreign_pc=0x");
         poly_write_hex64_stderr(spill_state->header.foreign_pc);
         poly_write_literal_stderr(" fault=0x");
-        poly_write_hex64_stderr(spill_state->trap_args[3]);
+        poly_write_hex64_stderr(spill_state->event_args[3]);
         poly_write_literal_stderr("\n");
       }
       return;
@@ -2100,17 +2100,17 @@ static void poly_auto_spill_signal(int signo, siginfo_t *info,
     poly_write_literal_stderr(" foreign_pc=0x");
     poly_write_hex64_stderr(spill_state->header.foreign_pc);
     poly_write_literal_stderr(" trap_pc=0x");
-    poly_write_hex64_stderr(spill_state->trap.trap_pc);
+    poly_write_hex64_stderr(spill_state->event_record.trap_pc);
     poly_write_literal_stderr(" trap_resume=0x");
-    poly_write_hex64_stderr(spill_state->trap.resume_pc);
+    poly_write_hex64_stderr(spill_state->event_record.resume_pc);
     poly_write_literal_stderr(" trap_arg0=0x");
-    poly_write_hex64_stderr(spill_state->trap_args[0]);
+    poly_write_hex64_stderr(spill_state->event_args[0]);
     poly_write_literal_stderr(" trap_arg1=0x");
-    poly_write_hex64_stderr(spill_state->trap_args[1]);
+    poly_write_hex64_stderr(spill_state->event_args[1]);
     poly_write_literal_stderr(" trap_arg2=0x");
-    poly_write_hex64_stderr(spill_state->trap_args[2]);
+    poly_write_hex64_stderr(spill_state->event_args[2]);
     poly_write_literal_stderr(" trap_arg3=0x");
-    poly_write_hex64_stderr(spill_state->trap_args[3]);
+    poly_write_hex64_stderr(spill_state->event_args[3]);
     if (spill_state->header.current_mode == POLY_MODE_RAW_AARCH64) {
       poly_write_literal_stderr("\n");
       poly_dump_aarch64_gprs_stderr("POLYEXEC_SPILL_AARCH64_REGS: ",
@@ -2290,8 +2290,8 @@ static void poly_auto_spill_resume_dispatch(
 
   const uint32_t reason = spill_state->header.spill_reason;
   if (reason == POLY_SPILL_REASON_INTERRUPT) {
-    memset(&spill_state->trap, 0, sizeof(spill_state->trap));
-    memset(spill_state->trap_args, 0, sizeof(spill_state->trap_args));
+    memset(&spill_state->event_record, 0, sizeof(spill_state->event_record));
+    memset(spill_state->event_args, 0, sizeof(spill_state->event_args));
     memset(&spill_state->trap_restore, 0, sizeof(spill_state->trap_restore));
     if (refresh_poly_auto_spill() < 0) {
       poly_write_literal_stderr(
@@ -2304,15 +2304,15 @@ static void poly_auto_spill_resume_dispatch(
   }
 
   if (reason == POLY_SPILL_REASON_PAGE_FAULT) {
-    const uint64_t fault_address = spill_state->trap_args[3];
-    const int fault_is_write = (spill_state->trap_args[2] & 0x2ULL) != 0;
+    const uint64_t fault_address = spill_state->event_args[3];
+    const int fault_is_write = (spill_state->event_args[2] & 0x2ULL) != 0;
     if (spill_state->header.current_mode == POLY_MODE_RAW_AARCH64 &&
         fault_address != 0 &&
         poly_guest_range_is_mapped(fault_address, 1, fault_is_write)) {
       poly_prefault_range(fault_address, 1, fault_is_write);
       spill_state->header.spill_reason = 0;
-      memset(&spill_state->trap, 0, sizeof(spill_state->trap));
-      memset(spill_state->trap_args, 0, sizeof(spill_state->trap_args));
+      memset(&spill_state->event_record, 0, sizeof(spill_state->event_record));
+      memset(spill_state->event_args, 0, sizeof(spill_state->event_args));
       memset(&spill_state->trap_restore, 0, sizeof(spill_state->trap_restore));
       if (refresh_poly_auto_spill() < 0) {
         poly_write_literal_stderr(
@@ -2335,7 +2335,7 @@ static void poly_auto_spill_resume_dispatch(
     if (spill_state->header.current_mode == POLY_MODE_RAW_AARCH64 &&
         poly_try_deliver_aarch64_signal(spill_state, SIGSEGV,
           fault_address,
-          (spill_state->trap_args[2] & 0x1ULL) != 0 ?
+          (spill_state->event_args[2] & 0x1ULL) != 0 ?
             SEGV_ACCERR : SEGV_MAPERR)) {
       spill_state->header.spill_reason = 0;
       if (refresh_poly_auto_spill() < 0) {
@@ -4553,7 +4553,7 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
     signum = forced_signum;
   } else {
     if (poly_pending_virtual_signal_mask == 0 ||
-        state->trap.source_mode != POLY_MODE_RAW_AARCH64)
+        state->event_record.source_mode != POLY_MODE_RAW_AARCH64)
       return 0;
     for (uint64_t candidate = 1; candidate <= 31; candidate++) {
       const sig_atomic_t bit =
@@ -4602,13 +4602,13 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   const uint64_t sp = saved_gpr[31];
   uint64_t interrupted_pc = state->header.foreign_pc;
   if (forced_signum == 0 &&
-      state->trap.source_mode == POLY_MODE_RAW_AARCH64 &&
-      state->trap.resume_pc != 0)
-    interrupted_pc = state->trap.resume_pc;
-  if (interrupted_pc == 0 && state->trap.resume_pc != 0)
-    interrupted_pc = state->trap.resume_pc;
-  if (interrupted_pc == 0 && state->trap.trap_pc != 0)
-    interrupted_pc = state->trap.trap_pc;
+      state->event_record.source_mode == POLY_MODE_RAW_AARCH64 &&
+      state->event_record.resume_pc != 0)
+    interrupted_pc = state->event_record.resume_pc;
+  if (interrupted_pc == 0 && state->event_record.resume_pc != 0)
+    interrupted_pc = state->event_record.resume_pc;
+  if (interrupted_pc == 0 && state->event_record.trap_pc != 0)
+    interrupted_pc = state->event_record.trap_pc;
   if (interrupted_pc == 0 && state->aarch64_gpr[30] != 0 &&
       poly_guest_range_is_mapped(state->aarch64_gpr[30], 4, 0))
     interrupted_pc = state->aarch64_gpr[30];
@@ -4679,11 +4679,11 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   if (use_altstack)
     frame.ucontext.stack_flags |= POLY_LINUX_SS_ONSTACK;
   frame.ucontext.stack_size = poly_aarch64_guest_sigaltstack_size;
-  frame.saved_trap = state->trap;
-  memcpy(frame.saved_trap_args, state->trap_args, sizeof(frame.saved_trap_args));
+  frame.saved_event_record = state->event_record;
+  memcpy(frame.saved_event_args, state->event_args, sizeof(frame.saved_event_args));
   frame.saved_trap_restore = state->trap_restore;
-  if (frame.saved_trap.reason == 0)
-    memset(frame.saved_trap_args, 0, sizeof(frame.saved_trap_args));
+  if (frame.saved_event_record.reason == 0)
+    memset(frame.saved_event_args, 0, sizeof(frame.saved_event_args));
   if (frame.saved_trap_restore.x86_gpr[15] == 0)
     frame.saved_trap_restore.x86_gpr[15] = poly_current_x86_rsp();
   frame.saved_native_return = state->native_return;
@@ -4713,13 +4713,13 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   poly_aarch64_active_signal_frame = frame_sp;
   state->header.current_mode = POLY_MODE_RAW_AARCH64;
   state->header.foreign_pc = handler;
-  memset(&state->trap, 0, sizeof(state->trap));
-  state->trap.source_mode = POLY_MODE_RAW_AARCH64;
-  state->trap.reason = POLY_TRAP_BREAK;
-  state->trap.trap_pc = interrupted_pc != 0 ? interrupted_pc : handler;
-  state->trap.resume_pc = handler;
-  state->trap.flags = POLY_TRAP_PACKET_REQUIRED_FLAGS |
-    POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+  memset(&state->event_record, 0, sizeof(state->event_record));
+  state->event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  state->event_record.reason = POLY_TRAP_BREAK;
+  state->event_record.trap_pc = interrupted_pc != 0 ? interrupted_pc : handler;
+  state->event_record.resume_pc = handler;
+  state->event_record.flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+    POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
   state->aarch64_gpr[0] = signum;
   state->aarch64_gpr[1] = frame.handler_args[2];
   state->aarch64_gpr[2] = frame.handler_args[3];
@@ -4764,9 +4764,9 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
     poly_write_literal_stderr(" altstack=0x");
     poly_write_hex64_stderr((uint64_t) use_altstack);
     poly_write_literal_stderr(" saved_pc=0x");
-    poly_write_hex64_stderr(frame.saved_trap.trap_pc);
+    poly_write_hex64_stderr(frame.saved_event_record.trap_pc);
     poly_write_literal_stderr(" saved_resume=0x");
-    poly_write_hex64_stderr(frame.saved_trap.resume_pc);
+    poly_write_hex64_stderr(frame.saved_event_record.resume_pc);
     poly_write_literal_stderr(" saved_rsp=0x");
     poly_write_hex64_stderr(frame.saved_trap_restore.x86_gpr[15]);
     poly_write_literal_stderr(" saved_x0=0x");
@@ -4829,8 +4829,8 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
   }
 
   const uint64_t native_return_sp = state->aarch64_gpr[31];
-  state->trap = frame.saved_trap;
-  memcpy(state->trap_args, frame.saved_trap_args, sizeof(state->trap_args));
+  state->event_record = frame.saved_event_record;
+  memcpy(state->event_args, frame.saved_event_args, sizeof(state->event_args));
   state->native_return = frame.saved_native_return;
   if (frame.signum == SIGCHLD)
     poly_clear_native_return_state(state);
@@ -4842,10 +4842,10 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
   state->aarch64_gpr[31] = monitor_sp;
   uint64_t restored_pc = frame.ucontext.mcontext.pc;
   if (restored_pc == 0) {
-    if (frame.saved_trap.resume_pc != 0)
-      restored_pc = frame.saved_trap.resume_pc;
-    else if (frame.saved_trap.trap_pc != 0)
-      restored_pc = frame.saved_trap.trap_pc;
+    if (frame.saved_event_record.resume_pc != 0)
+      restored_pc = frame.saved_event_record.resume_pc;
+    else if (frame.saved_event_record.trap_pc != 0)
+      restored_pc = frame.saved_event_record.trap_pc;
   }
   const int redirected_context =
     (frame.interrupted_pc != 0 && restored_pc != frame.interrupted_pc) ||
@@ -4859,10 +4859,10 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
   state->aarch64_status.nzcv = frame.aarch64_nzcv;
   state->aarch64_status.fpcr = frame.aarch64_fpcr;
   state->aarch64_status.fpsr = frame.aarch64_fpsr;
-  if (state->trap.reason != 0) {
-    state->trap.resume_pc = restored_pc;
-    state->trap.flags |= POLY_TRAP_PACKET_REQUIRED_FLAGS |
-      POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+  if (state->event_record.reason != 0) {
+    state->event_record.resume_pc = restored_pc;
+    state->event_record.flags |= POLY_EVENT_RECORD_REQUIRED_FLAGS |
+      POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
     state->trap_restore = frame.saved_trap_restore;
     state->trap_restore.flags = POLY_TRAP_RESTORE_FLAG_VALID |
       POLY_TRAP_RESTORE_FLAG_AARCH64_STATE_VALID;
@@ -4883,14 +4883,14 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
      */
     state->trap_restore.x86_gpr[15] = restored_sp;
   } else {
-    memset(&state->trap, 0, sizeof(state->trap));
-    memset(state->trap_args, 0, sizeof(state->trap_args));
-    state->trap.source_mode = POLY_MODE_RAW_AARCH64;
-    state->trap.reason = POLY_TRAP_BREAK;
-    state->trap.trap_pc = restored_pc;
-    state->trap.resume_pc = restored_pc;
-    state->trap.flags = POLY_TRAP_PACKET_REQUIRED_FLAGS |
-      POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+    memset(&state->event_record, 0, sizeof(state->event_record));
+    memset(state->event_args, 0, sizeof(state->event_args));
+    state->event_record.source_mode = POLY_MODE_RAW_AARCH64;
+    state->event_record.reason = POLY_TRAP_BREAK;
+    state->event_record.trap_pc = restored_pc;
+    state->event_record.resume_pc = restored_pc;
+    state->event_record.flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+      POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
     memset(&state->trap_restore, 0, sizeof(state->trap_restore));
     state->trap_restore.flags = POLY_TRAP_RESTORE_FLAG_VALID |
       POLY_TRAP_RESTORE_FLAG_AARCH64_STATE_VALID;
@@ -4919,7 +4919,7 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     poly_write_literal_stderr(" frame=0x");
     poly_write_hex64_stderr(frame_addr);
     poly_write_literal_stderr(" resume=0x");
-    poly_write_hex64_stderr(frame.saved_trap.resume_pc);
+    poly_write_hex64_stderr(frame.saved_event_record.resume_pc);
 	    poly_write_literal_stderr(" restore_rsp=0x");
 	    poly_write_hex64_stderr(frame.saved_trap_restore.x86_gpr[15]);
 	    poly_write_literal_stderr(" monitor_sp=0x");
@@ -5558,7 +5558,7 @@ static void poly_clear_stdin_tiocgwinsz_cache(void) {
 }
 
 static void poly_note_syscall_fd_effect(
-    const struct poly_runtime_trap_packet *packet, long x86_number,
+    const struct poly_runtime_event_record *packet, long x86_number,
     uint64_t result) {
   if (!poly_tiocgwinsz_stdin_enotty_cached || packet == NULL ||
       (int64_t) result < 0)
@@ -5934,7 +5934,7 @@ static int poly_v2_event_reason(uint16_t event_kind, uint64_t *reason) {
 
 static int poly_v2_event_to_runtime_packet(
     const struct poly_v2_event_frame *event,
-    struct poly_runtime_trap_packet *packet) {
+    struct poly_runtime_event_record *packet) {
   uint64_t reason = 0;
   if (event == NULL || packet == NULL ||
       poly_v2_event_reason(event->event_kind, &reason) < 0 ||
@@ -5949,8 +5949,8 @@ static int poly_v2_event_to_runtime_packet(
   packet->selector = event->fault_status;
   packet->pc = event->insn_pc;
   packet->next_pc = event->resume_pc;
-  packet->flags = POLY_TRAP_PACKET_REQUIRED_FLAGS |
-    POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+  packet->flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+    POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
   for (size_t n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
     packet->args[n] = event->args[n];
   poly_v2_last_event_sequence = event->sequence;
@@ -6280,7 +6280,7 @@ static int poly_seccomp_action_supported(uint32_t action) {
 }
 
 static int poly_seccomp_dispatch_control(
-    const struct poly_runtime_trap_packet *packet, long x86_number,
+    const struct poly_runtime_event_record *packet, long x86_number,
     uint64_t *result_out) {
   if (packet == NULL || result_out == NULL)
     return 0;
@@ -6375,7 +6375,7 @@ static int poly_seccomp_dispatch_control(
 }
 
 static int poly_seccomp_strict_allows(
-    const struct poly_runtime_trap_packet *packet) {
+    const struct poly_runtime_event_record *packet) {
   if (packet->number == 63 || packet->number == 64 ||
       packet->number == 93 || packet->number == 94 ||
       packet->number == 139)
@@ -6384,7 +6384,7 @@ static int poly_seccomp_strict_allows(
 }
 
 static int poly_seccomp_preflight_syscall(
-    const struct poly_runtime_trap_packet *packet, uint64_t *result_out) {
+    const struct poly_runtime_event_record *packet, uint64_t *result_out) {
   if (packet == NULL || result_out == NULL)
     return 0;
 
@@ -7027,7 +7027,7 @@ static const char *poly_aarch64_syscall_name(uint64_t number) {
 }
 
 static void poly_record_syscall_result(
-    const struct poly_runtime_trap_packet *packet, long x86_number,
+    const struct poly_runtime_event_record *packet, long x86_number,
     uint64_t result) {
   if (!poly_syscall_summary_enabled() || packet == NULL ||
       packet->reason != POLY_TRAP_SYSCALL)
@@ -7048,7 +7048,7 @@ static void poly_record_syscall_result(
 }
 
 static int poly_trace_protected_signal_wait_syscall(
-    const struct poly_runtime_trap_packet *packet, long x86_number) {
+    const struct poly_runtime_event_record *packet, long x86_number) {
   if (!poly_protect_runtime_signals_enabled() ||
       !poly_trace_protected_signal_waits_enabled() ||
       packet->mode != POLY_MODE_RAW_AARCH64)
@@ -7085,7 +7085,7 @@ static int poly_trace_protected_signal_wait_syscall(
 }
 
 static void poly_trace_syscall_result(
-    const struct poly_runtime_trap_packet *packet, const char *path,
+    const struct poly_runtime_event_record *packet, const char *path,
     long x86_number, uint64_t result) {
   poly_record_syscall_result(packet, x86_number, result);
   poly_note_syscall_fd_effect(packet, x86_number, result);
@@ -7221,7 +7221,7 @@ static int poly_handle_raw_aarch64_execve(uint64_t path_addr,
 }
 
 static void poly_trace_trap_return_result(
-    const struct poly_runtime_trap_packet *packet,
+    const struct poly_runtime_event_record *packet,
     const struct poly_xsave_state *trap_state, int has_trap_state,
     uint64_t result) {
   if (!poly_trace_trap_returns_enabled())
@@ -7264,25 +7264,25 @@ static void poly_trace_trap_return_result(
 }
 
 static void poly_sanitize_trap_state_for_import(struct poly_xsave_state *state) {
-  state->trap.reserved[0] = 0;
-  state->trap.reserved[1] = 0;
-  if (state->trap.reason == 0) {
-    state->trap.flags = 0;
-    memset(state->trap_args, 0, sizeof(state->trap_args));
+  state->event_record.reserved[0] = 0;
+  state->event_record.reserved[1] = 0;
+  if (state->event_record.reason == 0) {
+    state->event_record.flags = 0;
+    memset(state->event_args, 0, sizeof(state->event_args));
   } else {
     const uint64_t supported_trap_flags =
-      POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY |
-      POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS |
-      POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE |
-      POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS |
-      POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS |
-      POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS;
-    state->trap.flags &= supported_trap_flags;
+      POLY_EVENT_RECORD_FLAG_VECTOR_DELIVERY |
+      POLY_EVENT_RECORD_FLAG_NO_VECTOR_X86_EXCEPTIONS |
+      POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE |
+      POLY_EVENT_RECORD_FLAG_ALL_FRONTEND_HANDLERS |
+      POLY_EVENT_RECORD_FLAG_OPAQUE_SYSCALLS |
+      POLY_EVENT_RECORD_FLAG_OPAQUE_IMPORTS;
+    state->event_record.flags &= supported_trap_flags;
     if (state->header.trap_vector_pc == 0)
-      state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY;
+      state->event_record.flags &= ~POLY_EVENT_RECORD_FLAG_VECTOR_DELIVERY;
     state->header.reserved0 = 0;
     if ((state->trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) == 0)
-      state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+      state->event_record.flags &= ~POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
   }
   memset(state->pre_trap_restore_reserved, 0,
     sizeof(state->pre_trap_restore_reserved));
@@ -7350,12 +7350,12 @@ static void poly_sanitize_trap_state_for_import(struct poly_xsave_state *state) 
     poly_sanitize_riscv_trap_restore_payload(&state->trap_restore);
 }
 
-static void poly_set_clone_child_trap_packet_state(
-    const struct poly_runtime_trap_packet *packet,
+static void poly_set_clone_child_event_record_state(
+    const struct poly_runtime_event_record *packet,
     struct poly_xsave_state *trap_state);
 
 static int poly_aarch64_signal_delivery_uses_packet_resume_pc(
-    const struct poly_runtime_trap_packet *packet) {
+    const struct poly_runtime_event_record *packet) {
   if (packet == NULL || packet->reason != POLY_TRAP_SYSCALL ||
       packet->mode != POLY_MODE_RAW_AARCH64)
     return 0;
@@ -7375,13 +7375,13 @@ static int poly_aarch64_signal_delivery_uses_packet_resume_pc(
 }
 
 static int poly_aarch64_rt_sigreturn_packet(
-    const struct poly_runtime_trap_packet *packet) {
+    const struct poly_runtime_event_record *packet) {
   return packet != NULL && packet->reason == POLY_TRAP_SYSCALL &&
     packet->mode == POLY_MODE_RAW_AARCH64 && packet->number == 139;
 }
 
 static uint64_t poly_trap_vector_return_result(uint64_t result,
-    const struct poly_runtime_trap_packet *packet,
+    const struct poly_runtime_event_record *packet,
     const struct poly_xsave_state *trap_state, int has_trap_state) {
   volatile uint64_t saved_result = result;
   struct poly_xsave_state *return_state = &poly_trap_return_state;
@@ -7395,13 +7395,13 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
       poly_aarch64_rt_sigreturn_packet(packet);
     uint64_t rt_sigreturn_resume_pc = 0;
     if (aarch64_rt_sigreturn)
-      rt_sigreturn_resume_pc = trap_state->trap.resume_pc != 0 ?
-        trap_state->trap.resume_pc : trap_state->header.foreign_pc;
+      rt_sigreturn_resume_pc = trap_state->event_record.resume_pc != 0 ?
+        trap_state->event_record.resume_pc : trap_state->header.foreign_pc;
     memcpy(return_state, trap_state, sizeof(*return_state));
-    poly_set_clone_child_trap_packet_state(packet, return_state);
+    poly_set_clone_child_event_record_state(packet, return_state);
     if (aarch64_rt_sigreturn && rt_sigreturn_resume_pc != 0) {
-      return_state->trap.trap_pc = rt_sigreturn_resume_pc;
-      return_state->trap.resume_pc = rt_sigreturn_resume_pc;
+      return_state->event_record.trap_pc = rt_sigreturn_resume_pc;
+      return_state->event_record.resume_pc = rt_sigreturn_resume_pc;
       return_state->header.foreign_pc = rt_sigreturn_resume_pc;
     }
     if (packet->mode == POLY_MODE_RAW_AARCH64) {
@@ -7485,20 +7485,20 @@ static void poly_set_clone_child_frontend_state(uint64_t mode,
   }
 }
 
-static void poly_set_clone_child_trap_packet_state(
-    const struct poly_runtime_trap_packet *packet,
+static void poly_set_clone_child_event_record_state(
+    const struct poly_runtime_event_record *packet,
     struct poly_xsave_state *trap_state) {
-  trap_state->trap.reason = (uint32_t) packet->reason;
-  trap_state->trap.source_mode = (uint32_t) packet->mode;
-  trap_state->trap.number = packet->number;
-  trap_state->trap.selector = packet->selector;
-  trap_state->trap.trap_pc = packet->pc;
-  trap_state->trap.resume_pc = packet->next_pc;
-  trap_state->trap.flags = packet->flags;
-  trap_state->trap.reserved[0] = 0;
-  trap_state->trap.reserved[1] = 0;
+  trap_state->event_record.reason = (uint32_t) packet->reason;
+  trap_state->event_record.source_mode = (uint32_t) packet->mode;
+  trap_state->event_record.number = packet->number;
+  trap_state->event_record.selector = packet->selector;
+  trap_state->event_record.trap_pc = packet->pc;
+  trap_state->event_record.resume_pc = packet->next_pc;
+  trap_state->event_record.flags = packet->flags;
+  trap_state->event_record.reserved[0] = 0;
+  trap_state->event_record.reserved[1] = 0;
   for (size_t n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
-    trap_state->trap_args[n] = packet->args[n];
+    trap_state->event_args[n] = packet->args[n];
 }
 
 static void poly_clear_native_return_state(
@@ -7595,7 +7595,7 @@ static int poly_prepare_clone_native_tls(
 }
 
 static int poly_prepare_clone_child_handoff(
-    const struct poly_runtime_trap_packet *packet,
+    const struct poly_runtime_event_record *packet,
     const struct poly_xsave_state *trap_state,
     uint64_t foreign_stack, uint64_t foreign_tls,
     struct poly_clone_child_handoff **handoff_out,
@@ -7617,7 +7617,7 @@ static int poly_prepare_clone_child_handoff(
   }
   handoff->packet = *packet;
   memcpy(&handoff->state, trap_state, sizeof(handoff->state));
-  poly_set_clone_child_trap_packet_state(packet, &handoff->state);
+  poly_set_clone_child_event_record_state(packet, &handoff->state);
   poly_set_clone_child_frontend_state(packet->mode, foreign_stack,
     foreign_tls, &handoff->state, 1);
   handoff->state.header.current_mode = (uint32_t) packet->mode;
@@ -7717,7 +7717,7 @@ static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
 
 __attribute__((noinline, used))
 uint64_t poly_trap_vector_dispatch(void) {
-  struct poly_runtime_trap_packet packet;
+  struct poly_runtime_event_record packet;
   struct poly_v2_event_frame event;
   struct poly_xsave_state trap_state __attribute__((aligned(64)));
   int has_trap_state = 0;
@@ -7729,7 +7729,7 @@ uint64_t poly_trap_vector_dispatch(void) {
   if (has_v2_event <= 0 ||
       poly_v2_event_to_runtime_packet(&event, &packet) < 0)
     return (uint64_t) -EIO;
-  if ((packet.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) != 0) {
+  if ((packet.flags & POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE) != 0) {
     poly_state_export(&trap_state);
     has_trap_state = 1;
   }

@@ -56,7 +56,7 @@ module tb_poly_frontend_core;
   logic [63:0] user_return_pc_i;
   logic trap_valid_i;
   logic trap_monitor_enabled_i;
-  logic [63:0] trap_monitor_packet_addr_i;
+  logic [63:0] trap_event_frame_addr_i;
   logic trap_vector_valid_i;
   logic [1:0] trap_vector_frontend_i;
   logic [63:0] trap_vector_pc_i;
@@ -207,7 +207,7 @@ module tb_poly_frontend_core;
     .user_return_pc_i(user_return_pc_i),
     .trap_valid_i(trap_valid_i),
     .trap_monitor_enabled_i(trap_monitor_enabled_i),
-    .trap_monitor_packet_addr_i(trap_monitor_packet_addr_i),
+    .trap_event_frame_addr_i(trap_event_frame_addr_i),
     .trap_vector_valid_i(trap_vector_valid_i),
     .trap_vector_frontend_i(trap_vector_frontend_i),
     .trap_vector_pc_i(trap_vector_pc_i),
@@ -321,14 +321,14 @@ module tb_poly_frontend_core;
     .trap_mem_write_bytes_o(),
     .trap_mem_write_data_o(),
     .trap_wait_response_o(),
-    .trap_packet_delivered_o(),
+    .trap_event_frame_delivered_o(),
     .trap_fault_o(),
     .trap_encode_error_o(),
-    .trap_packet_mem_fault_o(),
+    .trap_event_frame_mem_fault_o(),
     .trap_monitor_disabled_o(),
-    .trap_noncanonical_packet_o(),
-    .trap_packet_align_fault_o(),
-    .trap_packet_range_fault_o(),
+    .trap_noncanonical_event_frame_o(),
+    .trap_event_frame_align_fault_o(),
+    .trap_event_frame_range_fault_o(),
     .trap_invalid_reason_o(),
     .trap_invalid_source_mode_o(),
     .trap_vector_apply_o(trap_vector_apply_o),
@@ -435,7 +435,7 @@ module tb_poly_frontend_core;
       user_return_pc_i = 64'd0;
       trap_valid_i = 1'b0;
       trap_monitor_enabled_i = 1'b0;
-      trap_monitor_packet_addr_i = 64'd0;
+      trap_event_frame_addr_i = 64'd0;
       trap_vector_valid_i = 1'b0;
       trap_vector_frontend_i = POLY_FRONTEND_X86;
       trap_vector_pc_i = 64'd0;
@@ -768,7 +768,7 @@ module tb_poly_frontend_core;
     pc_i = 64'h8000;
     trap_valid_i = 1'b1;
     trap_monitor_enabled_i = 1'b1;
-    trap_monitor_packet_addr_i = 64'h457000;
+    trap_event_frame_addr_i = 64'h457000;
     trap_vector_valid_i = 1'b1;
     trap_vector_frontend_i = POLY_FRONTEND_X86;
     trap_vector_pc_i = 64'h1800;

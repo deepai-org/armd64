@@ -36,10 +36,10 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_STATE_XSAVE_HEADER_OFFSET = 32'h00000000;
   localparam logic [31:0] POLY_STATE_XSAVE_HEADER_BYTES = 32'h00000040;
   localparam logic [31:0] POLY_STATE_XSAVE_MAGIC = 32'h31594c50;
-  localparam logic [31:0] POLY_STATE_XSAVE_TRAP_PACKET_OFFSET = 32'h00000040;
-  localparam logic [31:0] POLY_STATE_XSAVE_TRAP_PACKET_BYTES = 32'h00000040;
-  localparam logic [31:0] POLY_STATE_XSAVE_TRAP_ARGS_OFFSET = 32'h00000080;
-  localparam logic [31:0] POLY_STATE_XSAVE_TRAP_ARGS_BYTES = 32'h00000040;
+  localparam logic [31:0] POLY_STATE_XSAVE_EVENT_RECORD_OFFSET = 32'h00000040;
+  localparam logic [31:0] POLY_STATE_XSAVE_EVENT_RECORD_BYTES = 32'h00000040;
+  localparam logic [31:0] POLY_STATE_XSAVE_EVENT_ARGS_OFFSET = 32'h00000080;
+  localparam logic [31:0] POLY_STATE_XSAVE_EVENT_ARGS_BYTES = 32'h00000040;
   localparam logic [31:0] POLY_STATE_XSAVE_TRANSITION_OFFSET = 32'h000000c0;
   localparam logic [31:0] POLY_STATE_XSAVE_TRANSITION_BYTES = 32'h00000040;
   localparam logic [31:0] POLY_STATE_XSAVE_AARCH64_GPR_OFFSET = 32'h00000100;
@@ -80,9 +80,9 @@ module poly_cpuid_rom (
   localparam logic [31:0] POLY_STATE_XSAVE_RESERVED_OFFSET = 32'h00001a80;
   localparam logic [31:0] POLY_STATE_XSAVE_RESERVED_BYTES = 32'h00000580;
 
-  localparam logic [31:0] POLY_TRAP_PACKET_LAYOUT_VERSION = 32'd2;
-  localparam logic [31:0] POLY_TRAP_PACKET_ARG_COUNT = 32'd8;
-  localparam logic [31:0] POLY_TRAP_PACKET_FLAGS = 32'h0000005f;
+  localparam logic [31:0] POLY_EVENT_RECORD_LAYOUT_VERSION = 32'd2;
+  localparam logic [31:0] POLY_EVENT_RECORD_ARG_COUNT = 32'd8;
+  localparam logic [31:0] POLY_EVENT_RECORD_FLAGS = 32'h0000005f;
 
   localparam logic [31:0] POLY_INTERRUPT_ABI_VERSION = 32'd1;
   localparam logic [31:0] POLY_INTERRUPT_FLAGS = 32'h0000001f;
@@ -221,10 +221,10 @@ module poly_cpuid_rom (
             end
             32'd2: begin
               hit_o = 1'b1;
-              eax_o = POLY_STATE_XSAVE_TRAP_PACKET_OFFSET;
-              ebx_o = POLY_STATE_XSAVE_TRAP_PACKET_BYTES;
-              ecx_o = POLY_STATE_XSAVE_TRAP_ARGS_OFFSET;
-              edx_o = POLY_STATE_XSAVE_TRAP_ARGS_BYTES;
+              eax_o = POLY_STATE_XSAVE_EVENT_RECORD_OFFSET;
+              ebx_o = POLY_STATE_XSAVE_EVENT_RECORD_BYTES;
+              ecx_o = POLY_STATE_XSAVE_EVENT_ARGS_OFFSET;
+              edx_o = POLY_STATE_XSAVE_EVENT_ARGS_BYTES;
             end
             32'd3: begin
               hit_o = 1'b1;
@@ -324,10 +324,10 @@ module poly_cpuid_rom (
         end
         POLY_CPUID_BASE + 32'd5: begin
           hit_o = 1'b1;
-          eax_o = POLY_TRAP_PACKET_LAYOUT_VERSION;
-          ebx_o = POLY_STATE_XSAVE_TRAP_PACKET_BYTES;
-          ecx_o = POLY_TRAP_PACKET_ARG_COUNT;
-          edx_o = POLY_TRAP_PACKET_FLAGS;
+          eax_o = POLY_EVENT_RECORD_LAYOUT_VERSION;
+          ebx_o = POLY_STATE_XSAVE_EVENT_RECORD_BYTES;
+          ecx_o = POLY_EVENT_RECORD_ARG_COUNT;
+          edx_o = POLY_EVENT_RECORD_FLAGS;
         end
         POLY_CPUID_BASE + 32'd6: begin
           hit_o = 1'b1;

@@ -174,12 +174,12 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         POLY_STATE_XSAVE_FLAG_OS_XSAVE_NOT_REQUIRED
     """)
     trap_flags = mask(c, """
-        POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY
-        POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS
-        POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE
-        POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS
-        POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS
-        POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS
+        POLY_EVENT_RECORD_FLAG_VECTOR_DELIVERY
+        POLY_EVENT_RECORD_FLAG_NO_VECTOR_X86_EXCEPTIONS
+        POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE
+        POLY_EVENT_RECORD_FLAG_ALL_FRONTEND_HANDLERS
+        POLY_EVENT_RECORD_FLAG_OPAQUE_SYSCALLS
+        POLY_EVENT_RECORD_FLAG_OPAQUE_IMPORTS
     """)
     interrupt_flags = mask(c, """
         POLY_INTERRUPT_FLAG_RAW_CPL3_ONLY
@@ -310,10 +310,10 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
                 c["POLY_STATE_XSAVE_LAYOUT_VERSION"],
             ),
             2: (
-                c["POLY_STATE_XSAVE_TRAP_PACKET_OFFSET"],
-                c["POLY_STATE_XSAVE_TRAP_PACKET_BYTES"],
-                c["POLY_STATE_XSAVE_TRAP_ARGS_OFFSET"],
-                c["POLY_STATE_XSAVE_TRAP_ARGS_BYTES"],
+                c["POLY_STATE_XSAVE_EVENT_RECORD_OFFSET"],
+                c["POLY_STATE_XSAVE_EVENT_RECORD_BYTES"],
+                c["POLY_STATE_XSAVE_EVENT_ARGS_OFFSET"],
+                c["POLY_STATE_XSAVE_EVENT_ARGS_BYTES"],
             ),
             3: (
                 c["POLY_STATE_XSAVE_AARCH64_GPR_OFFSET"],
@@ -400,8 +400,8 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         return (True, *arch[subleaf]) if subleaf in arch else (False, 0, 0, 0, 0)
     if leaf == base + 5:
         return (
-            True, c["POLY_TRAP_PACKET_LAYOUT_VERSION"],
-            c["POLY_TRAP_PACKET_HEADER_BYTES"],
+            True, c["POLY_EVENT_RECORD_LAYOUT_VERSION"],
+            c["POLY_EVENT_RECORD_HEADER_BYTES"],
             c["POLY_V2_EVENT_ARG_COUNT"],
             trap_flags,
         )
@@ -497,7 +497,7 @@ def main() -> int:
         "POLY_STATE_XSAVE_LAYOUT_ECX": rom_model(c["POLY_CPUID_BASE"] + 4, 0, c)[3],
         "POLY_STATE_XSAVE_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 4, 0, c)[4],
         "POLY_STATE_XSAVE_HEADER_OFFSET": c["POLY_STATE_XSAVE_HEADER_OFFSET"],
-        "POLY_STATE_XSAVE_TRAP_PACKET_OFFSET": c["POLY_STATE_XSAVE_TRAP_PACKET_OFFSET"],
+        "POLY_STATE_XSAVE_EVENT_RECORD_OFFSET": c["POLY_STATE_XSAVE_EVENT_RECORD_OFFSET"],
         "POLY_STATE_XSAVE_TRANSITION_OFFSET": c["POLY_STATE_XSAVE_TRANSITION_OFFSET"],
         "POLY_STATE_XSAVE_AARCH64_GPR_OFFSET": c["POLY_STATE_XSAVE_AARCH64_GPR_OFFSET"],
         "POLY_STATE_XSAVE_AARCH64_FP_OFFSET": c["POLY_STATE_XSAVE_AARCH64_FP_OFFSET"],
@@ -515,9 +515,9 @@ def main() -> int:
         "POLY_ABI_SIGNATURE_SLOT_COUNT": c["POLY_ABI_SIGNATURE_SLOT_COUNT"],
         "POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES":
             c["POLY_STATE_XSAVE_NATIVE_RETURN_FRAME_BYTES"],
-        "POLY_TRAP_PACKET_LAYOUT_VERSION": c["POLY_TRAP_PACKET_LAYOUT_VERSION"],
-        "POLY_TRAP_PACKET_ARG_COUNT": c["POLY_V2_EVENT_ARG_COUNT"],
-        "POLY_TRAP_PACKET_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 5, 0, c)[4],
+        "POLY_EVENT_RECORD_LAYOUT_VERSION": c["POLY_EVENT_RECORD_LAYOUT_VERSION"],
+        "POLY_EVENT_RECORD_ARG_COUNT": c["POLY_V2_EVENT_ARG_COUNT"],
+        "POLY_EVENT_RECORD_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 5, 0, c)[4],
         "POLY_INTERRUPT_ABI_VERSION": c["POLY_INTERRUPT_ABI_VERSION"],
         "POLY_INTERRUPT_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 6, 0, c)[2],
         "POLY_INTERRUPT_RETURN_FLAGS": rom_model(c["POLY_CPUID_BASE"] + 6, 0, c)[3],

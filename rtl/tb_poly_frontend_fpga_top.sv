@@ -66,7 +66,7 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] user_return_pc_i;
   logic trap_valid_i;
   logic trap_monitor_enabled_i;
-  logic [63:0] trap_monitor_packet_addr_i;
+  logic [63:0] trap_event_frame_addr_i;
   logic trap_vector_valid_i;
   logic [1:0] trap_vector_frontend_i;
   logic [63:0] trap_vector_pc_i;
@@ -236,14 +236,14 @@ module tb_poly_frontend_fpga_top;
   logic [63:0] trap_mem_write_addr_o;
   logic [9:0] trap_mem_write_bytes_o;
   logic [4095:0] trap_mem_write_data_o;
-  logic trap_packet_delivered_o;
+  logic trap_event_frame_delivered_o;
   logic trap_fault_o;
   logic trap_encode_error_o;
-  logic trap_packet_mem_fault_o;
+  logic trap_event_frame_mem_fault_o;
   logic trap_monitor_disabled_o;
-  logic trap_noncanonical_packet_o;
-  logic trap_packet_align_fault_o;
-  logic trap_packet_range_fault_o;
+  logic trap_noncanonical_event_frame_o;
+  logic trap_event_frame_align_fault_o;
+  logic trap_event_frame_range_fault_o;
   logic trap_invalid_reason_o;
   logic trap_invalid_source_mode_o;
   logic trap_vector_apply_o;
@@ -302,7 +302,7 @@ module tb_poly_frontend_fpga_top;
     .user_return_pc_i(user_return_pc_i),
     .trap_valid_i(trap_valid_i),
     .trap_monitor_enabled_i(trap_monitor_enabled_i),
-    .trap_monitor_packet_addr_i(trap_monitor_packet_addr_i),
+    .trap_event_frame_addr_i(trap_event_frame_addr_i),
     .trap_vector_valid_i(trap_vector_valid_i),
     .trap_vector_frontend_i(trap_vector_frontend_i),
     .trap_vector_pc_i(trap_vector_pc_i),
@@ -440,14 +440,14 @@ module tb_poly_frontend_fpga_top;
     .trap_mem_write_bytes_o(trap_mem_write_bytes_o),
     .trap_mem_write_data_o(trap_mem_write_data_o),
     .trap_wait_response_o(),
-    .trap_packet_delivered_o(trap_packet_delivered_o),
+    .trap_event_frame_delivered_o(trap_event_frame_delivered_o),
     .trap_fault_o(trap_fault_o),
     .trap_encode_error_o(trap_encode_error_o),
-    .trap_packet_mem_fault_o(trap_packet_mem_fault_o),
+    .trap_event_frame_mem_fault_o(trap_event_frame_mem_fault_o),
     .trap_monitor_disabled_o(trap_monitor_disabled_o),
-    .trap_noncanonical_packet_o(trap_noncanonical_packet_o),
-    .trap_packet_align_fault_o(trap_packet_align_fault_o),
-    .trap_packet_range_fault_o(trap_packet_range_fault_o),
+    .trap_noncanonical_event_frame_o(trap_noncanonical_event_frame_o),
+    .trap_event_frame_align_fault_o(trap_event_frame_align_fault_o),
+    .trap_event_frame_range_fault_o(trap_event_frame_range_fault_o),
     .trap_invalid_reason_o(trap_invalid_reason_o),
     .trap_invalid_source_mode_o(trap_invalid_source_mode_o),
     .trap_vector_apply_o(trap_vector_apply_o),
@@ -552,7 +552,7 @@ module tb_poly_frontend_fpga_top;
       user_return_pc_i = 64'd0;
       trap_valid_i = 1'b0;
       trap_monitor_enabled_i = 1'b0;
-      trap_monitor_packet_addr_i = 64'd0;
+      trap_event_frame_addr_i = 64'd0;
       trap_vector_valid_i = 1'b0;
       trap_vector_frontend_i = POLY_FRONTEND_X86;
       trap_vector_pc_i = 64'd0;
@@ -999,7 +999,7 @@ module tb_poly_frontend_fpga_top;
     valid_i = 1'b1;
     trap_valid_i = 1'b1;
     trap_monitor_enabled_i = 1'b1;
-    trap_monitor_packet_addr_i = 64'h457000;
+    trap_event_frame_addr_i = 64'h457000;
     trap_vector_valid_i = 1'b1;
     trap_vector_frontend_i = POLY_FRONTEND_RISCV;
     trap_vector_pc_i = 64'h8000;
@@ -1069,7 +1069,7 @@ module tb_poly_frontend_fpga_top;
     valid_i = 1'b1;
     trap_valid_i = 1'b1;
     trap_monitor_enabled_i = 1'b0;
-    trap_monitor_packet_addr_i = 64'h457000;
+    trap_event_frame_addr_i = 64'h457000;
     trap_vector_valid_i = 1'b1;
     trap_vector_frontend_i = POLY_FRONTEND_RISCV;
     trap_vector_pc_i = 64'h8000;
@@ -1078,11 +1078,11 @@ module tb_poly_frontend_fpga_top;
     #1;
     check(trap_fault_o && trap_encode_error_o && trap_monitor_disabled_o,
       "fpga top exposes monitor-disabled trap encode fault");
-    check(!trap_packet_mem_fault_o && !trap_noncanonical_packet_o &&
-      !trap_packet_align_fault_o && !trap_packet_range_fault_o &&
+    check(!trap_event_frame_mem_fault_o && !trap_noncanonical_event_frame_o &&
+      !trap_event_frame_align_fault_o && !trap_event_frame_range_fault_o &&
       !trap_invalid_reason_o && !trap_invalid_source_mode_o,
       "fpga top exposes precise trap encode fault cause");
-    check(!trap_mem_write_valid_o && !trap_packet_delivered_o &&
+    check(!trap_mem_write_valid_o && !trap_event_frame_delivered_o &&
       !trap_vector_apply_o && !state_update_o,
       "fpga top suppresses invalid trap delivery and redirect");
     tick();

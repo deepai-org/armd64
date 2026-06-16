@@ -108,9 +108,9 @@ struct polyprobe_event_packet {
 };
 
 static const struct poly_v2_event_frame *polyprobe_current_event_frame;
-static const uint64_t polyprobe_aarch64_trap_args[POLY_V2_EVENT_ARG_COUNT] =
+static const uint64_t polyprobe_aarch64_event_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 99};
-static const uint64_t polyprobe_riscv_import_trap_args[POLY_V2_EVENT_ARG_COUNT] =
+static const uint64_t polyprobe_riscv_import_event_args[POLY_V2_EVENT_ARG_COUNT] =
   {177, 178, 179, 180, 181, 182, 183, 184};
 static const uint64_t polyprobe_riscv_syscall_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 172};
@@ -571,7 +571,7 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
   if (reason == POLY_TRAP_SYSCALL && number == 172 &&
       ((mode == POLY_MODE_RAW_AARCH64 &&
         polyprobe_event_args_equal(packet.args,
-          polyprobe_aarch64_trap_args)) ||
+          polyprobe_aarch64_event_args)) ||
        (mode == POLY_MODE_RAW_RISCV &&
         polyprobe_event_args_equal(packet.args,
           polyprobe_riscv_syscall_args))))
@@ -581,12 +581,12 @@ uint64_t polyprobe_trap_vector_dispatch(void) {
   if (reason == POLY_TRAP_IMPORT && number == 8 &&
       mode == POLY_MODE_RAW_AARCH64 &&
       polyprobe_event_args_equal(packet.args,
-        polyprobe_aarch64_trap_args))
+        polyprobe_aarch64_event_args))
     return 5555;
   if (reason == POLY_TRAP_IMPORT && number == 8 &&
       mode == POLY_MODE_RAW_RISCV &&
       polyprobe_event_args_equal(packet.args,
-        polyprobe_riscv_import_trap_args))
+        polyprobe_riscv_import_event_args))
     return 5555;
   if (reason == POLY_TRAP_ILLEGAL && selector == 4 &&
       mode == POLY_MODE_RAW_AARCH64 && number == 0xd61f0200ULL &&
@@ -3004,16 +3004,17 @@ int main(void) {
       state_failure.expected.ecx, state_failure.expected.edx);
     return 1;
   }
-  struct poly_cpuid_regs expected_trap =
-    poly_cpuid_expected_trap_leaf();
-  struct poly_cpuid_regs poly_trap =
+  struct poly_cpuid_regs expected_event_record =
+    poly_cpuid_expected_event_record_leaf();
+  struct poly_cpuid_regs poly_event_record =
     poly_read_cpuid(POLY_CPUID_BASE + 5, 0);
-  if (poly_trap.eax != expected_trap.eax ||
-      poly_trap.ebx != expected_trap.ebx ||
-      poly_trap.ecx != expected_trap.ecx ||
-      poly_trap.edx != expected_trap.edx) {
-    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID trap leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-      poly_trap.eax, poly_trap.ebx, poly_trap.ecx, poly_trap.edx);
+  if (poly_event_record.eax != expected_event_record.eax ||
+      poly_event_record.ebx != expected_event_record.ebx ||
+      poly_event_record.ecx != expected_event_record.ecx ||
+      poly_event_record.edx != expected_event_record.edx) {
+    fprintf(stderr, "POLY_PROBE_FAIL: poly CPUID event-record leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+      poly_event_record.eax, poly_event_record.ebx,
+      poly_event_record.ecx, poly_event_record.edx);
     return 1;
   }
   struct poly_cpuid_regs expected_frontends =
@@ -4169,7 +4170,7 @@ int main(void) {
   if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
     return 1;
   if (expect_event_packet_args("aarch64 syscall", &event_packet,
-        polyprobe_aarch64_trap_args) != 0)
+        polyprobe_aarch64_event_args) != 0)
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
@@ -4200,7 +4201,7 @@ int main(void) {
   if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
     return 1;
   if (expect_event_packet_args("aarch64 import", &event_packet,
-        polyprobe_aarch64_trap_args) != 0)
+        polyprobe_aarch64_event_args) != 0)
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
@@ -4215,7 +4216,7 @@ int main(void) {
   if (polyprobe_event_frame_to_packet(&event_frame, &event_packet) != 0)
     return 1;
   if (expect_event_packet_args("riscv import", &event_packet,
-        polyprobe_riscv_import_trap_args) != 0)
+        polyprobe_riscv_import_event_args) != 0)
     return 1;
 
   stage("POLY_STAGE: raw-illegal");

@@ -32,8 +32,8 @@ static void clear_poly_xsave_state(void) {
       state.header.layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION)
     return;
 
-  memset(&state.trap, 0, sizeof(state.trap));
-  memset(state.trap_args, 0, sizeof(state.trap_args));
+  memset(&state.event_record, 0, sizeof(state.event_record));
+  memset(state.event_args, 0, sizeof(state.event_args));
   memset(&state.transition, 0, sizeof(state.transition));
   memset(state.aarch64_gpr, 0, sizeof(state.aarch64_gpr));
   memset(state.aarch64_fp, 0, sizeof(state.aarch64_fp));

@@ -1969,7 +1969,7 @@ static void *worker_main(void *arg) {
   uint64_t aarch64_trap_number = 200 + worker_id;
   uint64_t aarch64_trap_arg6 = base + 0x40000ULL;
   uint64_t aarch64_trap_arg7 = base + 0x50000ULL;
-  const uint64_t aarch64_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
+  const uint64_t aarch64_event_args[POLY_V2_EVENT_ARG_COUNT] = {
     aarch64_trap_number, aarch64_trap_number + 1,
     aarch64_trap_number + 2, aarch64_trap_number + 3,
     aarch64_trap_number + 4, aarch64_trap_number + 5,
@@ -1979,7 +1979,7 @@ static void *worker_main(void *arg) {
   uint64_t aarch64_trap_result = trap_aarch64_syscall(aarch64_trap_number,
     aarch64_trap_arg6, aarch64_trap_arg7);
   uint64_t aarch64_trap_expected =
-    polythread_trap_vector_result(aarch64_trap_number, aarch64_trap_args);
+    polythread_trap_vector_result(aarch64_trap_number, aarch64_event_args);
   if (aarch64_trap_result != aarch64_trap_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default aarch64 trap result got=%llu expected=%llu\n",
@@ -1994,12 +1994,12 @@ static void *worker_main(void *arg) {
     sched_yield();
   if (expect_event_packet(worker_id, "default aarch64 trap",
       &event_frame, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64,
-      aarch64_trap_number, 7, aarch64_trap_args) != 0)
+      aarch64_trap_number, 7, aarch64_event_args) != 0)
     return (void *) 1;
 
   uint64_t riscv_trap_number = 300 + worker_id;
   uint64_t riscv_trap_arg6 = base + 0x60000ULL;
-  const uint64_t riscv_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
+  const uint64_t riscv_event_args[POLY_V2_EVENT_ARG_COUNT] = {
     riscv_trap_number, riscv_trap_number + 1, riscv_trap_number + 2,
     riscv_trap_number + 3, riscv_trap_number + 4, riscv_trap_number + 5,
     riscv_trap_arg6, riscv_trap_number
@@ -2008,7 +2008,7 @@ static void *worker_main(void *arg) {
   uint64_t riscv_trap_result =
     trap_riscv_syscall(riscv_trap_number, riscv_trap_arg6);
   uint64_t riscv_trap_expected =
-    polythread_trap_vector_result(riscv_trap_number, riscv_trap_args);
+    polythread_trap_vector_result(riscv_trap_number, riscv_event_args);
   if (riscv_trap_result != riscv_trap_expected) {
     fprintf(stderr,
       "POLYTHREAD_FAIL: worker=%lu default riscv trap result got=%llu expected=%llu\n",
@@ -2023,7 +2023,7 @@ static void *worker_main(void *arg) {
     sched_yield();
   if (expect_event_packet(worker_id, "default riscv trap", &event_frame,
       POLY_TRAP_SYSCALL, POLY_MODE_RAW_RISCV, riscv_trap_number, 0,
-      riscv_trap_args) != 0)
+      riscv_event_args) != 0)
     return (void *) 1;
 
   uint64_t import_id = 8;

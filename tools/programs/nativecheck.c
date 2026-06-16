@@ -3758,8 +3758,8 @@ static void child_expect_bad_trap_reason_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = 99;
-  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.event_record.reason = 99;
+  bad.event_record.source_mode = POLY_MODE_RAW_AARCH64;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3769,40 +3769,40 @@ static void child_expect_bad_trap_source_mode_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = POLY_TRAP_SYSCALL;
-  bad.trap.source_mode = POLY_MODE_X86;
+  bad.event_record.reason = POLY_TRAP_SYSCALL;
+  bad.event_record.source_mode = POLY_MODE_X86;
   poly_state_import(&bad);
   _exit(99);
 }
 
-static int nativecheck_expect_wide_trap_packet_xsave_roundtrip(void) {
+static int nativecheck_expect_wide_event_record_xsave_roundtrip(void) {
   struct poly_xsave_state before __attribute__((aligned(64)));
   struct poly_xsave_state wide __attribute__((aligned(64)));
   struct poly_xsave_state roundtrip __attribute__((aligned(64)));
   poly_state_export(&before);
   memcpy(&wide, &before, sizeof(wide));
-  wide.trap.reason = POLY_TRAP_SYSCALL;
-  wide.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  wide.trap.number = 0x100000000ULL;
-  wide.trap.selector = 0x100000001ULL;
-  wide.trap.trap_pc = 0x0000000000457000ULL;
-  wide.trap.resume_pc = 0x0000000000457004ULL;
+  wide.event_record.reason = POLY_TRAP_SYSCALL;
+  wide.event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  wide.event_record.number = 0x100000000ULL;
+  wide.event_record.selector = 0x100000001ULL;
+  wide.event_record.trap_pc = 0x0000000000457000ULL;
+  wide.event_record.resume_pc = 0x0000000000457004ULL;
   poly_state_import(&wide);
   poly_state_export(&roundtrip);
   poly_state_import(&before);
-  if (roundtrip.trap.reason != POLY_TRAP_SYSCALL ||
-      roundtrip.trap.source_mode != POLY_MODE_RAW_AARCH64 ||
-      roundtrip.trap.number != wide.trap.number ||
-      roundtrip.trap.selector != wide.trap.selector ||
-      roundtrip.trap.trap_pc != wide.trap.trap_pc ||
-      roundtrip.trap.resume_pc != wide.trap.resume_pc) {
+  if (roundtrip.event_record.reason != POLY_TRAP_SYSCALL ||
+      roundtrip.event_record.source_mode != POLY_MODE_RAW_AARCH64 ||
+      roundtrip.event_record.number != wide.event_record.number ||
+      roundtrip.event_record.selector != wide.event_record.selector ||
+      roundtrip.event_record.trap_pc != wide.event_record.trap_pc ||
+      roundtrip.event_record.resume_pc != wide.event_record.resume_pc) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly wide trap packet xsave roundtrip mismatch reason=%u mode=%u number=0x%llx selector=0x%llx pc=0x%llx resume=0x%llx\n",
-      roundtrip.trap.reason, roundtrip.trap.source_mode,
-      (unsigned long long) roundtrip.trap.number,
-      (unsigned long long) roundtrip.trap.selector,
-      (unsigned long long) roundtrip.trap.trap_pc,
-      (unsigned long long) roundtrip.trap.resume_pc);
+      roundtrip.event_record.reason, roundtrip.event_record.source_mode,
+      (unsigned long long) roundtrip.event_record.number,
+      (unsigned long long) roundtrip.event_record.selector,
+      (unsigned long long) roundtrip.event_record.trap_pc,
+      (unsigned long long) roundtrip.event_record.resume_pc);
     return 1;
   }
   return 0;
@@ -3813,10 +3813,10 @@ static void child_expect_bad_trap_pc_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = POLY_TRAP_SYSCALL;
-  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  bad.trap.trap_pc = NATIVECHECK_NONCANONICAL_ADDR;
-  bad.trap.resume_pc = 0x0000000000457004ULL;
+  bad.event_record.reason = POLY_TRAP_SYSCALL;
+  bad.event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.event_record.trap_pc = NATIVECHECK_NONCANONICAL_ADDR;
+  bad.event_record.resume_pc = 0x0000000000457004ULL;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3826,10 +3826,10 @@ static void child_expect_bad_trap_resume_pc_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = POLY_TRAP_SYSCALL;
-  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  bad.trap.trap_pc = 0x0000000000457000ULL;
-  bad.trap.resume_pc = NATIVECHECK_NONCANONICAL_ADDR;
+  bad.event_record.reason = POLY_TRAP_SYSCALL;
+  bad.event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.event_record.trap_pc = 0x0000000000457000ULL;
+  bad.event_record.resume_pc = NATIVECHECK_NONCANONICAL_ADDR;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3839,11 +3839,11 @@ static void child_expect_bad_trap_flags_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = POLY_TRAP_SYSCALL;
-  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  bad.trap.trap_pc = 0x0000000000457000ULL;
-  bad.trap.resume_pc = 0x0000000000457004ULL;
-  bad.trap.flags = 1ULL << 63;
+  bad.event_record.reason = POLY_TRAP_SYSCALL;
+  bad.event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.event_record.trap_pc = 0x0000000000457000ULL;
+  bad.event_record.resume_pc = 0x0000000000457004ULL;
+  bad.event_record.flags = 1ULL << 63;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3853,11 +3853,11 @@ static void child_expect_trap_restore_flag_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = POLY_TRAP_SYSCALL;
-  bad.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  bad.trap.trap_pc = 0x0000000000457000ULL;
-  bad.trap.resume_pc = 0x0000000000457004ULL;
-  bad.trap.flags = POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+  bad.event_record.reason = POLY_TRAP_SYSCALL;
+  bad.event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  bad.event_record.trap_pc = 0x0000000000457000ULL;
+  bad.event_record.resume_pc = 0x0000000000457004ULL;
+  bad.event_record.flags = POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -3867,27 +3867,27 @@ static void child_expect_inactive_trap_payload_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = 0;
-  bad.trap.source_mode = POLY_MODE_X86;
-  bad.trap.number = 0;
-  bad.trap.selector = 0;
-  bad.trap.resume_pc = 0;
-  bad.trap.flags = 0;
-  bad.trap.reserved[0] = 0;
-  bad.trap.reserved[1] = 0;
-  bad.trap.trap_pc = 0x0000000000457000ULL;
+  bad.event_record.reason = 0;
+  bad.event_record.source_mode = POLY_MODE_X86;
+  bad.event_record.number = 0;
+  bad.event_record.selector = 0;
+  bad.event_record.resume_pc = 0;
+  bad.event_record.flags = 0;
+  bad.event_record.reserved[0] = 0;
+  bad.event_record.reserved[1] = 0;
+  bad.event_record.trap_pc = 0x0000000000457000ULL;
   poly_state_import(&bad);
   _exit(99);
 }
 
 __attribute__((noreturn, noinline))
-static void child_expect_inactive_trap_args_xsave_signal(void) {
+static void child_expect_inactive_event_args_xsave_signal(void) {
   struct poly_xsave_state bad __attribute__((aligned(64)));
   memset(&bad, 0, sizeof(bad));
   poly_state_export(&bad);
-  bad.trap.reason = 0;
-  bad.trap.source_mode = POLY_MODE_X86;
-  bad.trap_args[3] = 0x1234;
+  bad.event_record.reason = 0;
+  bad.event_record.source_mode = POLY_MODE_X86;
+  bad.event_args[3] = 0x1234;
   poly_state_import(&bad);
   _exit(99);
 }
@@ -5461,7 +5461,7 @@ static int run_poly_trap_vector_probe(void) {
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
-  const uint64_t zero_trap_args[POLY_V2_EVENT_ARG_COUNT] = {0};
+  const uint64_t zero_event_args[POLY_V2_EVENT_ARG_COUNT] = {0};
   asm volatile(
     POLY_OP_ENTER_A64
     ".long 0xd2800000\n" // movz x0,#0
@@ -5486,7 +5486,7 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_event_packet_args("aarch64 wide syscall",
       &event_frame, POLY_TRAP_SYSCALL, POLY_MODE_RAW_AARCH64,
-      0x100000000ULL, 7, zero_trap_args) != 0)
+      0x100000000ULL, 7, zero_event_args) != 0)
     return 1;
 
   uint64_t saved_r13 = 0;
@@ -5529,39 +5529,39 @@ static int run_poly_trap_vector_probe(void) {
 
   pid_t trap_child = fork();
   if (trap_child < 0) {
-    fputs("NATIVE_CHECK_FAIL: poly trap packet fork failed\n", stderr);
+    fputs("NATIVE_CHECK_FAIL: poly event record fork failed\n", stderr);
     return 1;
   }
   if (trap_child == 0) {
     struct poly_xsave_state fork_snapshot __attribute__((aligned(64)));
     poly_state_export(&fork_snapshot);
-    if (fork_snapshot.trap.reason != 0)
+    if (fork_snapshot.event_record.reason != 0)
       _exit(21);
-    if (fork_snapshot.trap.number != 0)
+    if (fork_snapshot.event_record.number != 0)
       _exit(22);
-    if (fork_snapshot.trap.source_mode != POLY_MODE_X86)
+    if (fork_snapshot.event_record.source_mode != POLY_MODE_X86)
       _exit(23);
     _exit(0);
   }
   status = 0;
   if (waitpid(trap_child, &status, 0) != trap_child || !WIFEXITED(status) ||
       WEXITSTATUS(status) != 0) {
-    fprintf(stderr, "NATIVE_CHECK_FAIL: poly trap packet leaked across address space status=0x%x\n",
+    fprintf(stderr, "NATIVE_CHECK_FAIL: poly event record leaked across address space status=0x%x\n",
       status);
     return 1;
   }
   struct poly_xsave_state fork_parent_snapshot __attribute__((aligned(64)));
   poly_state_export(&fork_parent_snapshot);
-  if (fork_parent_snapshot.trap.reason != POLY_TRAP_SYSCALL) {
+  if (fork_parent_snapshot.event_record.reason != POLY_TRAP_SYSCALL) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent trap packet lost after fork got=%u\n",
-      fork_parent_snapshot.trap.reason);
+      fork_parent_snapshot.event_record.reason);
     return 1;
   }
-  if (fork_parent_snapshot.trap.number != 172 ||
-      fork_parent_snapshot.trap.source_mode != POLY_MODE_RAW_AARCH64) {
+  if (fork_parent_snapshot.event_record.number != 172 ||
+      fork_parent_snapshot.event_record.source_mode != POLY_MODE_RAW_AARCH64) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent syscall packet lost after fork number=%llu mode=%u\n",
-      (unsigned long long) fork_parent_snapshot.trap.number,
-      fork_parent_snapshot.trap.source_mode);
+      (unsigned long long) fork_parent_snapshot.event_record.number,
+      fork_parent_snapshot.event_record.source_mode);
     return 1;
   }
 
@@ -5719,10 +5719,10 @@ static int run_poly_trap_vector_probe(void) {
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 20 ||
-      nativecheck_trap_restore_roundtrip_state.trap.source_mode !=
+      nativecheck_trap_restore_roundtrip_state.event_record.source_mode !=
         POLY_MODE_RAW_AARCH64 ||
-      (nativecheck_trap_restore_roundtrip_state.trap.flags &
-        POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0 ||
+      (nativecheck_trap_restore_roundtrip_state.event_record.flags &
+        POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE) == 0 ||
       nativecheck_trap_restore_roundtrip_state.trap_restore.mode !=
         POLY_MODE_RAW_AARCH64 ||
       nativecheck_trap_restore_roundtrip_state.trap_restore.flags !=
@@ -5734,8 +5734,8 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly aarch64 XSAVE trap restore roundtrip result=%llu mode=%u flags=0x%llx restore_mode=%u restore_flags=0x%llx x1=%llu x5=%llu rvmask=0x%llx\n",
       (unsigned long long) result,
-      nativecheck_trap_restore_roundtrip_state.trap.source_mode,
-      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap.flags,
+      nativecheck_trap_restore_roundtrip_state.event_record.source_mode,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.event_record.flags,
       nativecheck_trap_restore_roundtrip_state.trap_restore.mode,
       (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.flags,
       (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.aarch64_gpr[1],
@@ -5792,10 +5792,10 @@ static int run_poly_trap_vector_probe(void) {
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   result = read_rax();
   if (result != 20 ||
-      nativecheck_trap_restore_roundtrip_state.trap.source_mode !=
+      nativecheck_trap_restore_roundtrip_state.event_record.source_mode !=
         POLY_MODE_RAW_RISCV ||
-      (nativecheck_trap_restore_roundtrip_state.trap.flags &
-        POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) == 0 ||
+      (nativecheck_trap_restore_roundtrip_state.event_record.flags &
+        POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE) == 0 ||
       nativecheck_trap_restore_roundtrip_state.trap_restore.mode !=
         POLY_MODE_RAW_RISCV ||
       nativecheck_trap_restore_roundtrip_state.trap_restore.flags !=
@@ -5807,8 +5807,8 @@ static int run_poly_trap_vector_probe(void) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly riscv XSAVE trap restore roundtrip result=%llu mode=%u flags=0x%llx restore_mode=%u restore_flags=0x%llx a1=%llu a5=%llu a64mask=0x%llx\n",
       (unsigned long long) result,
-      nativecheck_trap_restore_roundtrip_state.trap.source_mode,
-      (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap.flags,
+      nativecheck_trap_restore_roundtrip_state.event_record.source_mode,
+      (unsigned long long) nativecheck_trap_restore_roundtrip_state.event_record.flags,
       nativecheck_trap_restore_roundtrip_state.trap_restore.mode,
       (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.flags,
       (unsigned long long) nativecheck_trap_restore_roundtrip_state.trap_restore.riscv_gpr[11],
@@ -5915,11 +5915,11 @@ static int run_poly_trap_vector_probe(void) {
   if (break_child == 0) {
     struct poly_xsave_state break_fork_snapshot __attribute__((aligned(64)));
     poly_state_export(&break_fork_snapshot);
-    if (break_fork_snapshot.trap.reason != 0)
+    if (break_fork_snapshot.event_record.reason != 0)
       _exit(31);
-    if (break_fork_snapshot.trap.number != 0)
+    if (break_fork_snapshot.event_record.number != 0)
       _exit(32);
-    if (break_fork_snapshot.trap.source_mode != POLY_MODE_X86)
+    if (break_fork_snapshot.event_record.source_mode != POLY_MODE_X86)
       _exit(33);
     _exit(0);
   }
@@ -5932,16 +5932,16 @@ static int run_poly_trap_vector_probe(void) {
   }
   struct poly_xsave_state break_parent_snapshot __attribute__((aligned(64)));
   poly_state_export(&break_parent_snapshot);
-  if (break_parent_snapshot.trap.reason != POLY_TRAP_BREAK) {
+  if (break_parent_snapshot.event_record.reason != POLY_TRAP_BREAK) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet lost after fork got=%u\n",
-      break_parent_snapshot.trap.reason);
+      break_parent_snapshot.event_record.reason);
     return 1;
   }
-  if (break_parent_snapshot.trap.number != 5 ||
-      break_parent_snapshot.trap.source_mode != POLY_MODE_RAW_AARCH64) {
+  if (break_parent_snapshot.event_record.number != 5 ||
+      break_parent_snapshot.event_record.source_mode != POLY_MODE_RAW_AARCH64) {
     fprintf(stderr, "NATIVE_CHECK_FAIL: poly parent break packet lost after fork number=%llu mode=%u\n",
-      (unsigned long long) break_parent_snapshot.trap.number,
-      break_parent_snapshot.trap.source_mode);
+      (unsigned long long) break_parent_snapshot.event_record.number,
+      break_parent_snapshot.event_record.source_mode);
     return 1;
   }
 
@@ -5999,7 +5999,7 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_event_packet_args("riscv wide break",
       &event_frame, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV,
-      0xffffffffULL, 4, zero_trap_args) != 0)
+      0xffffffffULL, 4, zero_event_args) != 0)
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
@@ -6053,7 +6053,7 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_event_packet_args("riscv wide compressed break",
       &event_frame, POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0, 2,
-      zero_trap_args) != 0)
+      zero_event_args) != 0)
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
@@ -6327,7 +6327,7 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_event_packet_args("aarch64 illegal", &event_frame,
       POLY_TRAP_ILLEGAL, POLY_MODE_RAW_AARCH64, 0xffffffffULL, 4,
-      zero_trap_args) != 0)
+      zero_event_args) != 0)
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
@@ -6353,7 +6353,7 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_event_packet_args("riscv illegal", &event_frame,
       POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0xffffffffULL, 4,
-      zero_trap_args) != 0)
+      zero_event_args) != 0)
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
@@ -6379,7 +6379,7 @@ static int run_poly_trap_vector_probe(void) {
   }
   if (expect_event_packet_args("riscv compressed illegal", &event_frame,
       POLY_TRAP_ILLEGAL, POLY_MODE_RAW_RISCV, 0, 2,
-      zero_trap_args) != 0)
+      zero_event_args) != 0)
     return 1;
 
   memset(&event_frame, 0, sizeof(event_frame));
@@ -6915,8 +6915,8 @@ static int run_poly_v2_derive_state_probe(void) {
   parent.aarch64_gpr[0] = 0x1111;
   parent.aarch64_gpr[31] = 0x2222;
   parent.frontend_tls.aarch64_tls_base = 0x3333;
-  parent.trap.reason = 7;
-  parent.trap_args[0] = 8;
+  parent.event_record.reason = 7;
+  parent.event_args[0] = 8;
   parent.import_return.top = 1;
   desc.magic = derive_magic;
   desc.bytes = POLY_V2_DERIVE_DESC_BYTES;
@@ -6946,8 +6946,8 @@ static int run_poly_v2_derive_state_probe(void) {
       child.header.foreign_tls_base != desc.child_tls ||
       child.state_key.flags != POLY_STATE_KEY_FLAG_EXPLICIT ||
       child.state_key.explicit_key != desc.state_key ||
-      child.trap.reason != 0 ||
-      child.trap_args[0] != 0 ||
+      child.event_record.reason != 0 ||
+      child.event_args[0] != 0 ||
       child.import_return.top != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly v2 derive AArch64 mismatch child_sp=0x%llx child_ret=0x%llx parent_ret=0x%llx tls=0x%llx/0x%llx key=0x%llx trap=%u arg0=0x%llx import_top=%llu\n",
@@ -6956,8 +6956,8 @@ static int run_poly_v2_derive_state_probe(void) {
       (unsigned long long) parent.aarch64_gpr[0],
       (unsigned long long) child.frontend_tls.aarch64_tls_base,
       (unsigned long long) child.header.foreign_tls_base,
-      (unsigned long long) child.state_key.explicit_key, child.trap.reason,
-      (unsigned long long) child.trap_args[0],
+      (unsigned long long) child.state_key.explicit_key, child.event_record.reason,
+      (unsigned long long) child.event_args[0],
       (unsigned long long) child.import_return.top);
     return 1;
   }
@@ -8013,7 +8013,7 @@ static int run_poly_state_save_restore_probe(void) {
   if (expect_child_signal("poly bad trap source mode xstate", SIGILL,
         child_expect_bad_trap_source_mode_xsave_signal) != 0)
     return 1;
-  if (nativecheck_expect_wide_trap_packet_xsave_roundtrip() != 0)
+  if (nativecheck_expect_wide_event_record_xsave_roundtrip() != 0)
     return 1;
   if (expect_child_signal("poly bad trap pc xstate", SIGILL,
         child_expect_bad_trap_pc_xsave_signal) != 0)
@@ -8031,7 +8031,7 @@ static int run_poly_state_save_restore_probe(void) {
         child_expect_inactive_trap_payload_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly inactive trap args xstate", SIGILL,
-        child_expect_inactive_trap_args_xsave_signal) != 0)
+        child_expect_inactive_event_args_xsave_signal) != 0)
     return 1;
   if (expect_child_signal("poly bad AArch64 NZCV xstate", SIGILL,
         child_expect_bad_aarch64_nzcv_xsave_signal) != 0)
@@ -8240,7 +8240,7 @@ static int run_poly_state_save_restore_probe(void) {
   poly_landing_policy_set(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value(trap_vector);
-  const uint64_t aarch64_syscall_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
+  const uint64_t aarch64_syscall_event_args[POLY_V2_EVENT_ARG_COUNT] = {
     10, 11, 12, 13, 14, 15, 27, 5
   };
   asm volatile(
@@ -8260,25 +8260,25 @@ static int run_poly_state_save_restore_probe(void) {
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   memset(&trap_snapshot, 0, sizeof(trap_snapshot));
   poly_state_export(&trap_snapshot);
-  if (trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
-      trap_snapshot.trap.source_mode != POLY_MODE_RAW_AARCH64 ||
-      trap_snapshot.trap.number != 172 ||
-      trap_snapshot.trap.selector != 7 ||
-      memcmp(trap_snapshot.trap_args, aarch64_syscall_trap_args,
-        sizeof(aarch64_syscall_trap_args)) != 0) {
+  if (trap_snapshot.event_record.reason != POLY_TRAP_SYSCALL ||
+      trap_snapshot.event_record.source_mode != POLY_MODE_RAW_AARCH64 ||
+      trap_snapshot.event_record.number != 172 ||
+      trap_snapshot.event_record.selector != 7 ||
+      memcmp(trap_snapshot.event_args, aarch64_syscall_event_args,
+        sizeof(aarch64_syscall_event_args)) != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state export aarch64 syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu\n",
-      trap_snapshot.trap.reason,
-      trap_snapshot.trap.source_mode,
-      (unsigned long long) trap_snapshot.trap.number,
-      (unsigned long long) trap_snapshot.trap.selector,
-      (unsigned long long) trap_snapshot.trap_args[0],
-      (unsigned long long) trap_snapshot.trap_args[6],
-      (unsigned long long) trap_snapshot.trap_args[7]);
+      trap_snapshot.event_record.reason,
+      trap_snapshot.event_record.source_mode,
+      (unsigned long long) trap_snapshot.event_record.number,
+      (unsigned long long) trap_snapshot.event_record.selector,
+      (unsigned long long) trap_snapshot.event_args[0],
+      (unsigned long long) trap_snapshot.event_args[6],
+      (unsigned long long) trap_snapshot.event_args[7]);
     return 1;
   }
 
-  const uint64_t riscv_syscall_trap_args[POLY_V2_EVENT_ARG_COUNT] = {
+  const uint64_t riscv_syscall_event_args[POLY_V2_EVENT_ARG_COUNT] = {
     20, 21, 22, 23, 24, 25, 27, 172
   };
   asm volatile(
@@ -8297,21 +8297,21 @@ static int run_poly_state_save_restore_probe(void) {
         "r8", "r9", "r10", "r11", "r13", "r14", "r15", "memory");
   memset(&trap_snapshot, 0, sizeof(trap_snapshot));
   poly_state_export(&trap_snapshot);
-  if (trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
-      trap_snapshot.trap.source_mode != POLY_MODE_RAW_RISCV ||
-      trap_snapshot.trap.number != 172 ||
-      trap_snapshot.trap.selector != 0 ||
-      memcmp(trap_snapshot.trap_args, riscv_syscall_trap_args,
-        sizeof(riscv_syscall_trap_args)) != 0) {
+  if (trap_snapshot.event_record.reason != POLY_TRAP_SYSCALL ||
+      trap_snapshot.event_record.source_mode != POLY_MODE_RAW_RISCV ||
+      trap_snapshot.event_record.number != 172 ||
+      trap_snapshot.event_record.selector != 0 ||
+      memcmp(trap_snapshot.event_args, riscv_syscall_event_args,
+        sizeof(riscv_syscall_event_args)) != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state export riscv syscall trap mismatch reason=%u mode=%u number=%llu selector=%llu arg0=%llu arg6=%llu arg7=%llu\n",
-      trap_snapshot.trap.reason,
-      trap_snapshot.trap.source_mode,
-      (unsigned long long) trap_snapshot.trap.number,
-      (unsigned long long) trap_snapshot.trap.selector,
-      (unsigned long long) trap_snapshot.trap_args[0],
-      (unsigned long long) trap_snapshot.trap_args[6],
-      (unsigned long long) trap_snapshot.trap_args[7]);
+      trap_snapshot.event_record.reason,
+      trap_snapshot.event_record.source_mode,
+      (unsigned long long) trap_snapshot.event_record.number,
+      (unsigned long long) trap_snapshot.event_record.selector,
+      (unsigned long long) trap_snapshot.event_args[0],
+      (unsigned long long) trap_snapshot.event_args[6],
+      (unsigned long long) trap_snapshot.event_args[7]);
     return 1;
   }
 
@@ -8376,21 +8376,21 @@ static int run_poly_state_save_restore_probe(void) {
   struct poly_xsave_state import_trap_snapshot __attribute__((aligned(64)));
   memset(&import_trap_snapshot, 0, sizeof(import_trap_snapshot));
   poly_state_export(&import_trap_snapshot);
-  if (import_trap_snapshot.trap.reason != POLY_TRAP_SYSCALL ||
-      import_trap_snapshot.trap.number != 172 ||
-      import_trap_snapshot.trap.source_mode != POLY_MODE_RAW_RISCV ||
-      import_trap_snapshot.trap.selector != 0 ||
-      memcmp(import_trap_snapshot.trap_args, riscv_syscall_trap_args,
-        sizeof(riscv_syscall_trap_args)) != 0) {
+  if (import_trap_snapshot.event_record.reason != POLY_TRAP_SYSCALL ||
+      import_trap_snapshot.event_record.number != 172 ||
+      import_trap_snapshot.event_record.source_mode != POLY_MODE_RAW_RISCV ||
+      import_trap_snapshot.event_record.selector != 0 ||
+      memcmp(import_trap_snapshot.event_args, riscv_syscall_event_args,
+        sizeof(riscv_syscall_event_args)) != 0) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly state import syscall trap mismatch reason=%u number=%llu mode=%u selector=%llu arg0=%llu arg6=%llu arg7=%llu\n",
-      import_trap_snapshot.trap.reason,
-      (unsigned long long) import_trap_snapshot.trap.number,
-      import_trap_snapshot.trap.source_mode,
-      (unsigned long long) import_trap_snapshot.trap.selector,
-      (unsigned long long) import_trap_snapshot.trap_args[0],
-      (unsigned long long) import_trap_snapshot.trap_args[6],
-      (unsigned long long) import_trap_snapshot.trap_args[7]);
+      import_trap_snapshot.event_record.reason,
+      (unsigned long long) import_trap_snapshot.event_record.number,
+      import_trap_snapshot.event_record.source_mode,
+      (unsigned long long) import_trap_snapshot.event_record.selector,
+      (unsigned long long) import_trap_snapshot.event_args[0],
+      (unsigned long long) import_trap_snapshot.event_args[6],
+      (unsigned long long) import_trap_snapshot.event_args[7]);
     return 1;
   }
 
@@ -8851,14 +8851,14 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
   complex.header.trap_vector_pc = 0x0000123450001000ULL;
   complex.header.trap_vector_mode = POLY_MODE_RAW_RISCV;
   complex.header.reserved0 = 0;
-  complex.trap.reason = POLY_TRAP_SYSCALL;
-  complex.trap.source_mode = POLY_MODE_RAW_AARCH64;
-  complex.trap.number = 172;
-  complex.trap.selector = 7;
-  complex.trap.trap_pc = 0x0000000000457000ULL;
-  complex.trap.resume_pc = 0x0000000000457004ULL;
+  complex.event_record.reason = POLY_TRAP_SYSCALL;
+  complex.event_record.source_mode = POLY_MODE_RAW_AARCH64;
+  complex.event_record.number = 172;
+  complex.event_record.selector = 7;
+  complex.event_record.trap_pc = 0x0000000000457000ULL;
+  complex.event_record.resume_pc = 0x0000000000457004ULL;
   for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
-    complex.trap_args[n] = 0x4567800045678000ULL + n;
+    complex.event_args[n] = 0x4567800045678000ULL + n;
   complex.state_key.flags = 1;
   complex.state_key.explicit_key = real_xsave_state_key;
   complex.state_key.supported_flags = 1;
@@ -8909,14 +8909,14 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->header.trap_vector_pc != complex.header.trap_vector_pc ||
       saved->header.trap_vector_mode != complex.header.trap_vector_mode ||
       saved->header.reserved0 != complex.header.reserved0 ||
-      saved->trap.reason != complex.trap.reason ||
-      saved->trap.source_mode != complex.trap.source_mode ||
-      saved->trap.number != complex.trap.number ||
-      saved->trap.selector != complex.trap.selector ||
-      saved->trap.trap_pc != complex.trap.trap_pc ||
-      saved->trap.resume_pc != complex.trap.resume_pc ||
-      memcmp(saved->trap_args, complex.trap_args,
-        sizeof(complex.trap_args)) != 0 ||
+      saved->event_record.reason != complex.event_record.reason ||
+      saved->event_record.source_mode != complex.event_record.source_mode ||
+      saved->event_record.number != complex.event_record.number ||
+      saved->event_record.selector != complex.event_record.selector ||
+      saved->event_record.trap_pc != complex.event_record.trap_pc ||
+      saved->event_record.resume_pc != complex.event_record.resume_pc ||
+      memcmp(saved->event_args, complex.event_args,
+        sizeof(complex.event_args)) != 0 ||
       saved->state_key.flags != 1 ||
       saved->state_key.explicit_key != real_xsave_state_key ||
       saved->state_key.supported_flags != 1 ||
@@ -8946,12 +8946,12 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       saved->transition.active.target_mode != POLY_MODE_RAW_RISCV ||
       saved->transition.active.abi_kind != POLY_CROSS_BRIDGE_DEFAULT) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XSAVE complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu native_top=%llu transition=0x%llx\n",
+      "NATIVE_CHECK_FAIL: real XSAVE complex state mismatch tls=0x%llx/0x%llx key=0x%llx event_args=0x%llx/0x%llx import_top=%llu cross_top=%llu native_top=%llu transition=0x%llx\n",
       (unsigned long long) saved->frontend_tls.aarch64_tls_base,
       (unsigned long long) saved->frontend_tls.riscv_tls_base,
       (unsigned long long) saved->state_key.explicit_key,
-      (unsigned long long) saved->trap_args[0],
-      (unsigned long long) saved->trap_args[7],
+      (unsigned long long) saved->event_args[0],
+      (unsigned long long) saved->event_args[7],
       (unsigned long long) saved->import_return.top,
       (unsigned long long) saved->cross_return.top,
       (unsigned long long) saved->native_return.top,
@@ -8970,14 +8970,14 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       roundtrip.header.trap_vector_pc != complex.header.trap_vector_pc ||
       roundtrip.header.trap_vector_mode != complex.header.trap_vector_mode ||
       roundtrip.header.reserved0 != complex.header.reserved0 ||
-      roundtrip.trap.reason != complex.trap.reason ||
-      roundtrip.trap.source_mode != complex.trap.source_mode ||
-      roundtrip.trap.number != complex.trap.number ||
-      roundtrip.trap.selector != complex.trap.selector ||
-      roundtrip.trap.trap_pc != complex.trap.trap_pc ||
-      roundtrip.trap.resume_pc != complex.trap.resume_pc ||
-      memcmp(roundtrip.trap_args, complex.trap_args,
-        sizeof(complex.trap_args)) != 0 ||
+      roundtrip.event_record.reason != complex.event_record.reason ||
+      roundtrip.event_record.source_mode != complex.event_record.source_mode ||
+      roundtrip.event_record.number != complex.event_record.number ||
+      roundtrip.event_record.selector != complex.event_record.selector ||
+      roundtrip.event_record.trap_pc != complex.event_record.trap_pc ||
+      roundtrip.event_record.resume_pc != complex.event_record.resume_pc ||
+      memcmp(roundtrip.event_args, complex.event_args,
+        sizeof(complex.event_args)) != 0 ||
       roundtrip.state_key.flags != 1 ||
       roundtrip.state_key.explicit_key != real_xsave_state_key ||
       roundtrip.import_return.top != 1 ||
@@ -9000,12 +9000,12 @@ static int run_poly_real_xsave_probe(uint64_t xcr0) {
       roundtrip.transition.active.cookie !=
         complex.cross_return.frames[0].return_sp) {
     fprintf(stderr,
-      "NATIVE_CHECK_FAIL: real XRSTOR complex state mismatch tls=0x%llx/0x%llx key=0x%llx trap_args=0x%llx/0x%llx import_top=%llu cross_top=%llu native_top=%llu transition=0x%llx\n",
+      "NATIVE_CHECK_FAIL: real XRSTOR complex state mismatch tls=0x%llx/0x%llx key=0x%llx event_args=0x%llx/0x%llx import_top=%llu cross_top=%llu native_top=%llu transition=0x%llx\n",
       (unsigned long long) roundtrip.frontend_tls.aarch64_tls_base,
       (unsigned long long) roundtrip.frontend_tls.riscv_tls_base,
       (unsigned long long) roundtrip.state_key.explicit_key,
-      (unsigned long long) roundtrip.trap_args[0],
-      (unsigned long long) roundtrip.trap_args[7],
+      (unsigned long long) roundtrip.event_args[0],
+      (unsigned long long) roundtrip.event_args[7],
       (unsigned long long) roundtrip.import_return.top,
       (unsigned long long) roundtrip.cross_return.top,
       (unsigned long long) roundtrip.native_return.top,
@@ -11868,7 +11868,7 @@ int main(void) {
           poly_cpuid_expected_arch_state_header_leaf()) != 0 ||
         nativecheck_cpuid_expect("poly CPUID arch state trap layout",
           POLY_CPUID_BASE + 4, 2,
-          poly_cpuid_expected_arch_state_trap_leaf()) != 0 ||
+          poly_cpuid_expected_arch_state_event_leaf()) != 0 ||
         nativecheck_cpuid_expect("poly CPUID AArch64 GPR layout",
           POLY_CPUID_BASE + 4, 3,
           poly_cpuid_expected_arch_state_aarch64_gpr_leaf()) != 0 ||
@@ -11937,16 +11937,17 @@ int main(void) {
     else
       puts("NATIVE_POLY_XSAVE_OS_DISABLED");
     request_poly_xsave_permission(&xcr0);
-    struct poly_cpuid_regs expected_trap =
-      poly_cpuid_expected_trap_leaf();
-    struct poly_cpuid_regs trap =
+    struct poly_cpuid_regs expected_event_record =
+      poly_cpuid_expected_event_record_leaf();
+    struct poly_cpuid_regs event_record =
       poly_read_cpuid(POLY_CPUID_BASE + 5, 0);
-    if (trap.eax != expected_trap.eax ||
-        trap.ebx != expected_trap.ebx ||
-        trap.ecx != expected_trap.ecx ||
-        trap.edx != expected_trap.edx) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID trap leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-        trap.eax, trap.ebx, trap.ecx, trap.edx);
+    if (event_record.eax != expected_event_record.eax ||
+        event_record.ebx != expected_event_record.ebx ||
+        event_record.ecx != expected_event_record.ecx ||
+        event_record.edx != expected_event_record.edx) {
+      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID event-record leaf mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
+        event_record.eax, event_record.ebx,
+        event_record.ecx, event_record.edx);
       return 1;
     }
     struct poly_cpuid_regs expected_interrupt =
