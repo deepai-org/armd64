@@ -53,6 +53,7 @@
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
+#define POLY_OP_MEM_PROBE_RANGE POLY_X86_CTRL_MEM_PROBE_RANGE_ASM
 #define POLY_OP_DERIVE_STATE POLY_X86_CTRL_DERIVE_STATE_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
@@ -778,6 +779,25 @@ static inline uint64_t poly_dump_state(struct poly_v2_debug_note *note,
   asm volatile(POLY_OP_DUMP_STATE
     : "+a"(result)
     : "d"(bytes), "c"(selector)
+    : "r15", "memory");
+  return result;
+}
+
+struct nativecheck_mem_probe_result {
+  uint64_t status;
+  uint64_t failure;
+  uint64_t metadata;
+};
+
+static inline struct nativecheck_mem_probe_result poly_mem_probe_range(
+    const void *addr, uint64_t len, uint64_t flags) {
+  struct nativecheck_mem_probe_result result;
+  result.status = (uint64_t) (uintptr_t) addr;
+  result.failure = len;
+  result.metadata = flags;
+  asm volatile(POLY_OP_MEM_PROBE_RANGE
+    : "+a"(result.status), "+d"(result.failure), "+c"(result.metadata)
+    :
     : "r15", "memory");
   return result;
 }
@@ -6994,6 +7014,147 @@ static int run_poly_v2_debug_note_probe(void) {
   return 0;
 }
 
+static int run_poly_v2_mem_probe_range_probe(void) {
+  long page_size_long = sysconf(_SC_PAGESIZE);
+  if (page_size_long <= 0) {
+    fputs("NATIVE_CHECK_FAIL: sysconf(_SC_PAGESIZE) failed\n", stderr);
+    return 1;
+  }
+  const size_t page_size = (size_t) page_size_long;
+  uint8_t *mapping = mmap(NULL, page_size * 3U, PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mapping == MAP_FAILED) {
+    perror("NATIVE_CHECK_FAIL: mmap for poly v2 mem probe");
+    return 1;
+  }
+
+  mapping[0] = 0x11;
+  mapping[page_size] = 0x22;
+  mapping[page_size * 2U] = 0x33;
+  if (mprotect(mapping + page_size, page_size, PROT_READ) != 0 ||
+      mprotect(mapping + page_size * 2U, page_size, PROT_NONE) != 0) {
+    perror("NATIVE_CHECK_FAIL: mprotect for poly v2 mem probe");
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  struct nativecheck_mem_probe_result rw =
+    poly_mem_probe_range(mapping, 16,
+      POLY_V2_MEM_PROBE_FLAG_READ | POLY_V2_MEM_PROBE_FLAG_WRITE);
+  if (rw.status != 0 ||
+      (rw.metadata & (POLY_V2_MEM_PROBE_RESULT_CANONICAL |
+        POLY_V2_MEM_PROBE_RESULT_PRESENT |
+        POLY_V2_MEM_PROBE_RESULT_READABLE |
+        POLY_V2_MEM_PROBE_RESULT_WRITABLE)) !=
+        (POLY_V2_MEM_PROBE_RESULT_CANONICAL |
+         POLY_V2_MEM_PROBE_RESULT_PRESENT |
+         POLY_V2_MEM_PROBE_RESULT_READABLE |
+         POLY_V2_MEM_PROBE_RESULT_WRITABLE)) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 mem probe RW mismatch status=0x%llx failure=0x%llx metadata=0x%llx\n",
+      (unsigned long long) rw.status, (unsigned long long) rw.failure,
+      (unsigned long long) rw.metadata);
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  struct nativecheck_mem_probe_result ro_read =
+    poly_mem_probe_range(mapping + page_size, 16,
+      POLY_V2_MEM_PROBE_FLAG_READ);
+  if (ro_read.status != 0 ||
+      (ro_read.metadata & POLY_V2_MEM_PROBE_RESULT_READABLE) == 0 ||
+      (ro_read.metadata & POLY_V2_MEM_PROBE_RESULT_WRITABLE) != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 mem probe read-only mismatch status=0x%llx failure=0x%llx metadata=0x%llx\n",
+      (unsigned long long) ro_read.status,
+      (unsigned long long) ro_read.failure,
+      (unsigned long long) ro_read.metadata);
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  struct nativecheck_mem_probe_result ro_write =
+    poly_mem_probe_range(mapping + page_size, 16,
+      POLY_V2_MEM_PROBE_FLAG_WRITE);
+  if (ro_write.status != (uint64_t) -EACCES ||
+      ro_write.failure != (uint64_t) (uintptr_t) (mapping + page_size) ||
+      (ro_write.metadata & POLY_V2_MEM_PROBE_RESULT_FAILURE_PERMISSION) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 mem probe write rejection mismatch status=0x%llx failure=0x%llx want_failure=0x%llx metadata=0x%llx\n",
+      (unsigned long long) ro_write.status,
+      (unsigned long long) ro_write.failure,
+      (unsigned long long) (uintptr_t) (mapping + page_size),
+      (unsigned long long) ro_write.metadata);
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  struct nativecheck_mem_probe_result cross =
+    poly_mem_probe_range(mapping + page_size - 8, 16,
+      POLY_V2_MEM_PROBE_FLAG_READ);
+  if (cross.status != 0 ||
+      (cross.metadata & POLY_V2_MEM_PROBE_RESULT_CROSSES_PAGE) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 mem probe cross-page mismatch status=0x%llx failure=0x%llx metadata=0x%llx\n",
+      (unsigned long long) cross.status,
+      (unsigned long long) cross.failure,
+      (unsigned long long) cross.metadata);
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  struct nativecheck_mem_probe_result none =
+    poly_mem_probe_range(mapping + page_size * 2U, 16,
+      POLY_V2_MEM_PROBE_FLAG_READ);
+  if (none.status == 0 ||
+      (none.metadata & (POLY_V2_MEM_PROBE_RESULT_FAILURE_UNMAPPED |
+        POLY_V2_MEM_PROBE_RESULT_FAILURE_PERMISSION)) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 mem probe PROT_NONE mismatch status=0x%llx failure=0x%llx metadata=0x%llx\n",
+      (unsigned long long) none.status, (unsigned long long) none.failure,
+      (unsigned long long) none.metadata);
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  struct nativecheck_mem_probe_result noncanonical =
+    poly_mem_probe_range((const void *) (uintptr_t) NATIVECHECK_NONCANONICAL_ADDR,
+      16, POLY_V2_MEM_PROBE_FLAG_READ);
+  if (noncanonical.status != (uint64_t) -EFAULT ||
+      (noncanonical.metadata & POLY_V2_MEM_PROBE_RESULT_FAILURE_NONCANONICAL) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 mem probe noncanonical mismatch status=0x%llx failure=0x%llx metadata=0x%llx\n",
+      (unsigned long long) noncanonical.status,
+      (unsigned long long) noncanonical.failure,
+      (unsigned long long) noncanonical.metadata);
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  struct nativecheck_mem_probe_result bad_flags =
+    poly_mem_probe_range(mapping, 16, 1ULL << 63);
+  if (bad_flags.status != (uint64_t) -EINVAL ||
+      (bad_flags.metadata & POLY_V2_MEM_PROBE_RESULT_FAILURE_UNSUPPORTED) == 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 mem probe bad-flags mismatch status=0x%llx failure=0x%llx metadata=0x%llx\n",
+      (unsigned long long) bad_flags.status,
+      (unsigned long long) bad_flags.failure,
+      (unsigned long long) bad_flags.metadata);
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+
+  if (mprotect(mapping + page_size * 2U, page_size, PROT_READ | PROT_WRITE) !=
+      0) {
+    perror("NATIVE_CHECK_FAIL: restore mprotect for poly v2 mem probe");
+    munmap(mapping, page_size * 3U);
+    return 1;
+  }
+  munmap(mapping, page_size * 3U);
+  puts("NATIVE_POLY_V2_MEM_PROBE_RANGE_OK");
+  return 0;
+}
+
 static int run_poly_v2_derive_state_probe(void) {
   static struct poly_xsave_state parent
     __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
@@ -12283,6 +12444,8 @@ int main(void) {
     if (run_poly_memory_ordering_probe() != 0)
       return 1;
     if (run_poly_v2_debug_note_probe() != 0)
+      return 1;
+    if (run_poly_v2_mem_probe_range_probe() != 0)
       return 1;
     if (run_poly_v2_derive_state_probe() != 0)
       return 1;

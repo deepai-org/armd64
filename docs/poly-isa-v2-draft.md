@@ -315,6 +315,23 @@ Return metadata:
 - permission-failure vs unmapped/translation-failure classification when the
   hardware can distinguish them
 
+Exact prototype register ABI:
+
+- input `RAX=addr`, `RDX=len`, `RCX=flags`
+- output `RAX=status`, `RDX=first_failure_addr`, `RCX=result_metadata`
+
+Supported request flags are `READ`, `WRITE`, and `EXECUTE`. A zero flag value
+probes canonicality, translation, and common range capabilities without
+requiring a specific access class. `status` is `0` when every page in the range
+is translated and satisfies the requested access classes. It is `-EINVAL` for
+unsupported flags, `-EFAULT` for noncanonical, overflowed, unmapped, or
+translation-failed ranges, and `-EACCES` for translated ranges that fail a
+requested permission. `result_metadata` reports canonical, present, readable,
+writable, executable, cross-page, page-aligned, unsupported, noncanonical,
+overflow, unmapped/translation-failed, and permission-failed bits. Hardware
+must not set accessed/dirty bits, allocate pages, invoke OS fault handlers, or
+deliver a host signal as part of this operation.
+
 This replaces monitor-side `/proc/self/maps` parsing and intentional host
 SIGSEGV probes in performance-sensitive paths.
 
