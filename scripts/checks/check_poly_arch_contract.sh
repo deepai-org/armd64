@@ -109,6 +109,21 @@ assert_file_exists() {
   fi
 }
 
+assert_line_order() {
+  local first_pattern="$1"
+  local second_pattern="$2"
+  local file="$3"
+  local description="$4"
+  local first_line
+  local second_line
+
+  first_line=$(grep -nE -- "$first_pattern" "$file" | head -n1 | cut -d: -f1 || true)
+  second_line=$(grep -nE -- "$second_pattern" "$file" | head -n1 | cut -d: -f1 || true)
+  if [[ -z "$first_line" || -z "$second_line" || "$first_line" -ge "$second_line" ]]; then
+    fail "$description"
+  fi
+}
+
 assert_file_not_exists() {
   local file="$1"
   local description="$2"
@@ -143,12 +158,20 @@ assert_not_contains "handle_poly_(opcode|ud)" "$UNDEFINED_FUNC" \
 SYSCALL_FUNC="$TMP_DIR/handle_poly_syscall_trap.cc"
 extract_function "handle_poly_syscall_trap" "$SYSCALL_FUNC"
 assert_contains "bx_poly_record_syscall_trap" "$SYSCALL_FUNC" \
-  "foreign syscalls must record an architectural trap packet"
+  "foreign syscalls must capture an OS-neutral architectural event"
 assert_contains "deliver_poly_architectural_trap" "$SYSCALL_FUNC" \
   "foreign syscalls must exit through the architectural trap path"
 assert_not_contains "write_poly_(aarch64|riscv)_reg|RAX[[:space:]]*=|read_virtual_|write_virtual_|switch[[:space:]]*\\(|case[[:space:]]" \
   "$SYSCALL_FUNC" \
   "foreign syscall handler must not synthesize guest results or decode Linux policy"
+
+ARCH_TRAP_FUNC="$TMP_DIR/deliver_poly_architectural_trap.cc"
+extract_function "deliver_poly_architectural_trap" "$ARCH_TRAP_FUNC"
+assert_contains "bx_poly_write_v2_event_frame" "$ARCH_TRAP_FUNC" \
+  "architectural trap delivery must publish the canonical v2 event frame"
+assert_line_order "bx_poly_write_v2_event_frame" "if \\(bx_poly_monitor_packet_addr != 0\\)" \
+  "$ARCH_TRAP_FUNC" \
+  "v2 event-frame publication must precede any legacy monitor-packet compatibility write"
 
 IMPORT_CALL_FUNC="$TMP_DIR/handle_poly_import_call.cc"
 extract_function "handle_poly_import_call" "$IMPORT_CALL_FUNC"
@@ -169,7 +192,7 @@ assert_contains "read_poly_riscv_reg\\(16, &arg6\\)" "$IMPORT_CALL_FUNC" \
 assert_contains "read_poly_riscv_reg\\(17, &arg7\\)" "$IMPORT_CALL_FUNC" \
   "RISC-V unresolved import traps must preserve native ABI argument lane a7"
 assert_contains "bx_poly_record_import_trap" "$IMPORT_CALL_FUNC" \
-  "unresolved descriptor imports must record an architectural import trap"
+  "unresolved descriptor imports must capture an architectural import event"
 assert_contains "arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7" "$IMPORT_CALL_FUNC" \
   "unresolved descriptor imports must record all eight native ABI argument lanes"
 assert_contains "deliver_poly_architectural_trap" "$IMPORT_CALL_FUNC" \
@@ -184,11 +207,13 @@ assert_contains 'expect_event_packet(_args)?\("riscv import"' "$NATIVECHECK" \
   "nativecheck must verify RISC-V unresolved import trap source mode from v2 event frames"
 assert_contains 'expect_event_packet(_args)?\("riscv compressed import"' "$NATIVECHECK" \
   "nativecheck must exercise RISC-V unresolved import trap argument lanes 6 and 7 from v2 event frames"
-assert_contains "POLY_TRAP_PACKET_ARG_COUNT[[:space:]]*=[[:space:]]*8" \
+assert_contains "POLY_V2_EVENT_ARG_COUNT[[:space:]]*=[[:space:]]*8" \
   "$ROOT_DIR/tools/include/polycpuid.h" \
-  "trap packet ABI must carry eight ABI argument lanes"
-assert_contains "OS-neutral trap records" "$README" \
-  "README must describe OS-neutral trap records"
+  "v2 event-frame ABI must carry eight ABI argument lanes"
+assert_contains "OS-neutral v2 event frames" "$README" \
+  "README must describe OS-neutral v2 event frames"
+assert_not_contains "monitor packet addresses" "$README" \
+  "README must not describe legacy monitor-packet address rules as active ISA"
 assert_not_contains "six[[:space:]]+ABI arguments" "$README" \
   "README must not describe the old six-argument POLYTRAP packet"
 assert_contains "pcall-needed-tls-external-real" "$ROOT_DIR/scripts/boot.sh" \

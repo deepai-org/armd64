@@ -50,7 +50,7 @@ specific subsystem.
   atomics, TLS, ELF relocation, dynamic linking, and import/syscall trap paths.
 - It is not a complete implementation of every AArch64/RISC-V extension or
   every possible precompiled binary. Unsupported foreign instructions produce
-  architectural trap records.
+  canonical v2 event frames.
 - Bochs is a functional ISA prototype. Few-cycle frontend switching is the
   hardware target, not something Bochs can prove cycle-accurately.
 - The hardware contract is the real XSAVE path. Bochs still keeps prototype
@@ -77,10 +77,10 @@ specific subsystem.
 - Foreign register state is explicit per-thread XSAVE-style architectural
   state. Bochs fallback banks are prototype machinery, not the architectural
   context-switch contract.
-- Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults produce
-  OS-neutral trap records for a runtime or OS handler.
-- Trap vectors are frontend-aligned control targets; monitor packet addresses
-  are canonical and qword-aligned.
+- Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults publish
+  OS-neutral v2 event frames for a runtime or OS handler.
+- Trap vectors are frontend-aligned control targets; event-frame addresses are
+  canonical and aligned.
 - AArch64 and RISC-V64 can switch or call each other directly without bouncing
   through x86_64.
 - RTL bring-up includes the architectural frontend/PC state block, integrated
