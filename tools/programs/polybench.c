@@ -12,7 +12,10 @@
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
-#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
+#define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
+
+#define POLYBENCH_V2_EVENT_MAGIC \
+  ((((uint64_t) POLY_V2_EVENT_MAGIC_HI) << 32) | POLY_V2_EVENT_MAGIC_LO)
 #define POLYBENCH_AARCH64_PCALL_SIG_IMM(slot) \
   POLY_AARCH64_CTRL_CALL_SIG_IMM(slot)
 #define POLYBENCH_RISCV_PCALL_SIG_IMM(slot) \
@@ -81,16 +84,21 @@ static uint32_t polybench_fp32_signature_slot =
 static uint32_t polybench_sret_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_SRET_X86_SYSV_REGS;
 
-struct polybench_monitor_packet {
-  struct poly_trap_packet trap;
-  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+struct polybench_event_packet {
+  uint64_t reason;
+  uint64_t mode;
+  uint64_t number;
+  uint64_t selector;
+  uint64_t pc;
+  uint64_t resume_pc;
+  uint64_t args[POLY_V2_EVENT_ARG_COUNT];
 };
 
-static struct polybench_monitor_packet polybench_monitor_packet
-  __attribute__((aligned(64)));
-static const uint64_t polybench_aarch64_trap_args[POLY_TRAP_PACKET_ARG_COUNT] =
+static struct poly_v2_event_frame polybench_event_frame
+  __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
+static const uint64_t polybench_aarch64_trap_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 99};
-static const uint64_t polybench_riscv_syscall_args[POLY_TRAP_PACKET_ARG_COUNT] =
+static const uint64_t polybench_riscv_syscall_args[POLY_V2_EVENT_ARG_COUNT] =
   {77, 78, 79, 80, 81, 82, 88, 172};
 
 static inline void poly_mode_x86(void) {
@@ -482,8 +490,11 @@ static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
 }
 
-static inline void poly_monitor_packet_set_value(uint64_t value) {
-  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
+static inline void poly_event_ptr_set_value(uint64_t frame, uint64_t bytes) {
+  asm volatile(POLY_OP_EVENT_PTR_SET
+      : "+a"(frame), "+d"(bytes)
+      :
+      : "memory");
 }
 
 static void emit_u16(uint8_t *code, size_t *offset, uint16_t value) {
@@ -705,30 +716,63 @@ static int poly_is_raw_foreign_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
 }
 
-static int polybench_monitor_packet_valid(
-    const struct polybench_monitor_packet *packet) {
-  if (packet->trap.resume_pc == 0 ||
-      packet->trap.reserved[0] != 0 ||
-      packet->trap.reserved[1] != 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
-        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
-    fprintf(stderr,
-      "POLYBENCH_FAIL: monitor packet invalid reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx\n",
-      packet->trap.reason, packet->trap.source_mode,
-      (unsigned long long) packet->trap.number,
-      (unsigned long long) packet->trap.selector,
-      (unsigned long long) packet->trap.trap_pc,
-      (unsigned long long) packet->trap.resume_pc,
-      (unsigned long long) packet->trap.flags);
-    return 0;
+static int polybench_event_reason(uint16_t event_kind, uint64_t *reason) {
+  switch (event_kind) {
+    case POLY_V2_EVENT_KIND_SYSCALL:
+      *reason = POLY_TRAP_SYSCALL;
+      return 0;
+    case POLY_V2_EVENT_KIND_BREAK:
+      *reason = POLY_TRAP_BREAK;
+      return 0;
+    case POLY_V2_EVENT_KIND_IMPORT:
+      *reason = POLY_TRAP_IMPORT;
+      return 0;
+    default:
+      return -1;
   }
-  return 1;
+}
+
+static int polybench_event_frame_to_packet(
+    const struct poly_v2_event_frame *event,
+    struct polybench_event_packet *packet) {
+  uint64_t reason = 0;
+  if (event == NULL || packet == NULL ||
+      event->magic != POLYBENCH_V2_EVENT_MAGIC ||
+      event->bytes != POLY_V2_EVENT_BYTES ||
+      event->version != POLY_V2_EVENT_VERSION ||
+      event->header_bytes != POLY_V2_EVENT_HEADER_BYTES ||
+      event->arg_count != POLY_V2_EVENT_ARG_COUNT ||
+      event->sequence == 0 ||
+      event->resume_pc == 0 ||
+      !poly_is_raw_foreign_mode(event->frontend) ||
+      polybench_event_reason(event->event_kind, &reason) < 0) {
+    fprintf(stderr,
+      "POLYBENCH_FAIL: event frame invalid kind=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx sequence=%llu\n",
+      event != NULL ? event->event_kind : 0,
+      event != NULL ? event->frontend : 0,
+      (unsigned long long) (event != NULL ? event->selector : 0),
+      (unsigned long long) (event != NULL ? event->fault_status : 0),
+      (unsigned long long) (event != NULL ? event->insn_pc : 0),
+      (unsigned long long) (event != NULL ? event->resume_pc : 0),
+      (unsigned long long) (event != NULL ? event->sequence : 0));
+    return -1;
+  }
+  memset(packet, 0, sizeof(*packet));
+  packet->reason = reason;
+  packet->mode = event->frontend;
+  packet->number = event->selector;
+  packet->selector = event->fault_status;
+  packet->pc = event->insn_pc;
+  packet->resume_pc = event->resume_pc;
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
+    packet->args[n] = event->args[n];
+  return 0;
 }
 
 static int polybench_trap_args_equal(
-    const uint64_t got[POLY_TRAP_PACKET_ARG_COUNT],
-    const uint64_t expected[POLY_TRAP_PACKET_ARG_COUNT]) {
-  for (unsigned n = 0; n < POLY_TRAP_PACKET_ARG_COUNT; n++) {
+    const uint64_t got[POLY_V2_EVENT_ARG_COUNT],
+    const uint64_t expected[POLY_V2_EVENT_ARG_COUNT]) {
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++) {
     if (got[n] != expected[n])
       return 0;
   }
@@ -737,27 +781,28 @@ static int polybench_trap_args_equal(
 
 __attribute__((noinline, used))
 uint64_t polybench_trap_vector_dispatch(void) {
-  const struct polybench_monitor_packet *packet = &polybench_monitor_packet;
-  const uint64_t reason = packet->trap.reason;
-  const uint64_t mode = packet->trap.source_mode;
-  const uint64_t number = packet->trap.number;
+  struct polybench_event_packet packet;
+  if (polybench_event_frame_to_packet(&polybench_event_frame, &packet) < 0)
+    return (uint64_t) -38;
+
+  const uint64_t reason = packet.reason;
+  const uint64_t mode = packet.mode;
+  const uint64_t number = packet.number;
 
   if (!poly_is_raw_foreign_mode(mode))
     return (uint64_t) -38;
-  if (!polybench_monitor_packet_valid(packet))
-    return (uint64_t) -38;
   if (reason == POLY_TRAP_SYSCALL && number == 172 &&
       ((mode == POLY_MODE_RAW_AARCH64 &&
-        polybench_trap_args_equal(packet->args,
+        polybench_trap_args_equal(packet.args,
           polybench_aarch64_trap_args)) ||
        (mode == POLY_MODE_RAW_RISCV &&
-        polybench_trap_args_equal(packet->args,
+        polybench_trap_args_equal(packet.args,
           polybench_riscv_syscall_args))))
     return 4242;
   if (reason == POLY_TRAP_BREAK)
     return 0x4c000000ULL | (mode << 8) | number;
   if (reason == POLY_TRAP_IMPORT && number == 8 &&
-      polybench_trap_args_equal(packet->args, polybench_aarch64_trap_args))
+      polybench_trap_args_equal(packet.args, polybench_aarch64_trap_args))
     return 5555;
   return (uint64_t) -38;
 }
@@ -803,9 +848,9 @@ static void polybench_trap_vector_handler(void) {
 }
 
 static void install_polybench_trap_vector(void) {
-  memset(&polybench_monitor_packet, 0, sizeof(polybench_monitor_packet));
-  poly_monitor_packet_set_value(
-    (uint64_t) (uintptr_t) &polybench_monitor_packet);
+  memset(&polybench_event_frame, 0, sizeof(polybench_event_frame));
+  poly_event_ptr_set_value((uint64_t) (uintptr_t) &polybench_event_frame,
+    POLY_V2_EVENT_BYTES);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) polybench_trap_vector_handler);
 }

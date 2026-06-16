@@ -521,6 +521,12 @@ assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYAPP" \
   "raw app harness must register a v2 canonical event frame"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polyapp_monitor_packet" "$POLYAPP" \
   "raw app harness must not depend on legacy monitor-packet publication"
+assert_contains "polybench_event_frame_to_packet" "$POLYBENCH" \
+  "polybench trap-vector dispatch must consume v2 event frames"
+assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYBENCH" \
+  "polybench must register a v2 canonical event frame"
+assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polybench_monitor_packet" "$POLYBENCH" \
+  "polybench must not depend on legacy monitor-packet publication"
 assert_contains "poly_auto_spill_descriptor\\.monitor_packet_addr[[:space:]]*=[[:space:]]*0" "$POLYEXEC" \
   "v2 spill descriptors must not require monitor-packet publication"
 assert_contains "poly_monitor_packet_set_value\\(polyexec_use_auto_spill \\? 0" "$POLYEXEC" \
