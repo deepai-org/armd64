@@ -415,6 +415,7 @@ boot-poly-alpine-postgres-smoke:
 		-e BOOT_TIMEOUT_SECONDS=3600 \
 		-e BOCHS_MEGS=1024 \
 		-e POLY_ENABLED=1 \
+		-e POLY_ALPINE_POSTGRES_PREFAULT_GUEST_MMAPS=1 \
 		-e RUN_POLY_ALPINE_POSTGRES_SMOKE=1 \
 		$(IMAGE) \
 		./scripts/boot.sh
