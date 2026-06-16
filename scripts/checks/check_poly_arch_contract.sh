@@ -14,6 +14,7 @@ README="$ROOT_DIR/README.md"
 POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
 POLYPROBE="$ROOT_DIR/tools/programs/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
+POLYAPP="$ROOT_DIR/tools/programs/polyapp.c"
 NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
 POLYBINFMT_EXEC="$ROOT_DIR/tools/programs/polybinfmt_exec.c"
 POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
@@ -514,6 +515,12 @@ assert_contains "__thread struct poly_xsave_state poly_auto_spill_state" "$POLYE
   "userspace monitor must allocate a unique auto-spill state image per thread"
 assert_contains "poly_v2_event_to_runtime_packet" "$POLYEXEC" \
   "userspace monitor must consume the v2 event frame as the default trap dispatch payload"
+assert_contains "polyapp_event_frame_to_packet" "$POLYAPP" \
+  "raw app harness must consume v2 event frames for trap-vector dispatch"
+assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYAPP" \
+  "raw app harness must register a v2 canonical event frame"
+assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polyapp_monitor_packet" "$POLYAPP" \
+  "raw app harness must not depend on legacy monitor-packet publication"
 assert_contains "poly_auto_spill_descriptor\\.monitor_packet_addr[[:space:]]*=[[:space:]]*0" "$POLYEXEC" \
   "v2 spill descriptors must not require monitor-packet publication"
 assert_contains "poly_monitor_packet_set_value\\(polyexec_use_auto_spill \\? 0" "$POLYEXEC" \
@@ -1047,7 +1054,7 @@ assert_not_contains "poly_cpuid_expected_feature_mask_for_compat" "$ROOT_DIR/too
   "CPUID checks must not carry compat-trap feature variants"
 assert_not_contains "POLY_CPUID_FEATURE_COMPAT_TRAPS" "$ROOT_DIR/tools/include/polycpuid.h" \
   "CPUID ABI must not retain a named compatibility-trap feature bit"
-assert_not_contains "libcall_(expected|number_expected|id)" "$ROOT_DIR/tools/programs/polyapp.c" \
+assert_not_contains "libcall_(expected|number_expected|id)" "$POLYAPP" \
   "polyapp manifests must use neutral break-trap keys, not legacy libcall aliases"
 
 echo "poly architecture contract OK"

@@ -13,7 +13,10 @@
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
 #define POLY_OP_TRAP_RETURN POLY_X86_CTRL_TRAP_RETURN_ASM
-#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
+#define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
+
+#define POLYAPP_V2_EVENT_MAGIC \
+  ((((uint64_t) POLY_V2_EVENT_MAGIC_HI) << 32) | POLY_V2_EVENT_MAGIC_LO)
 
 enum {
   POLY_ARCH_X86 = POLY_FRONTEND_X86,
@@ -36,10 +39,10 @@ struct payload {
   uint64_t syscall_expected;
   uint64_t syscall_number_expected;
   uint64_t syscall_selector_expected;
-  uint64_t syscall_arg_expected[POLY_TRAP_PACKET_ARG_COUNT];
+  uint64_t syscall_arg_expected[POLY_V2_EVENT_ARG_COUNT];
   uint64_t break_expected;
   uint64_t break_number_expected;
-  uint64_t break_arg_expected[POLY_TRAP_PACKET_ARG_COUNT];
+  uint64_t break_arg_expected[POLY_V2_EVENT_ARG_COUNT];
   char scratch_expected[SCRATCH_CHECK_SIZE + 1];
   char scratch_hex_expected[SCRATCH_CHECK_SIZE * 2 + 1];
   uint8_t *code_bytes;
@@ -58,20 +61,23 @@ struct payload {
   int use_elf;
 };
 
-struct polyapp_monitor_packet {
-  struct poly_trap_packet trap;
-  uint64_t args[POLY_TRAP_PACKET_ARG_COUNT];
+struct polyapp_event_packet {
+  uint64_t reason;
+  uint64_t mode;
+  uint64_t number;
+  uint64_t selector;
+  uint64_t pc;
+  uint64_t resume_pc;
+  uint64_t args[POLY_V2_EVENT_ARG_COUNT];
 };
 
 static jmp_buf polyapp_exit_env;
 static int polyapp_exit_env_valid;
 static uint64_t polyapp_exit_result;
-static struct polyapp_monitor_packet polyapp_monitor_packet
-  __attribute__((aligned(64)));
-static struct polyapp_monitor_packet polyapp_last_syscall_packet
-  __attribute__((aligned(64)));
-static struct polyapp_monitor_packet polyapp_last_break_packet
-  __attribute__((aligned(64)));
+static struct poly_v2_event_frame polyapp_event_frame
+  __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
+static struct polyapp_event_packet polyapp_last_syscall_packet;
+static struct polyapp_event_packet polyapp_last_break_packet;
 
 static inline void poly_mode_x86(void) {
   asm volatile(
@@ -99,8 +105,11 @@ static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
 }
 
-static inline void poly_monitor_packet_set_value(uint64_t value) {
-  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
+static inline void poly_event_ptr_set_value(uint64_t frame, uint64_t bytes) {
+  asm volatile(POLY_OP_EVENT_PTR_SET
+      : "+a"(frame), "+d"(bytes)
+      :
+      : "memory");
 }
 
 static void write_u16(void *addr, uint16_t value) {
@@ -156,24 +165,54 @@ static int polyapp_is_raw_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
 }
 
-static int polyapp_monitor_packet_valid(
-    const struct polyapp_monitor_packet *packet) {
-  if (packet->trap.resume_pc == 0 ||
-      packet->trap.reserved[0] != 0 ||
-      packet->trap.reserved[1] != 0 ||
-      (packet->trap.flags & POLY_TRAP_PACKET_REQUIRED_FLAGS) !=
-        POLY_TRAP_PACKET_REQUIRED_FLAGS) {
-    fprintf(stderr,
-      "POLYAPP_FAIL: monitor packet invalid reason=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx flags=0x%llx\n",
-      packet->trap.reason, packet->trap.source_mode,
-      (unsigned long long) packet->trap.number,
-      (unsigned long long) packet->trap.selector,
-      (unsigned long long) packet->trap.trap_pc,
-      (unsigned long long) packet->trap.resume_pc,
-      (unsigned long long) packet->trap.flags);
-    return 0;
+static int polyapp_event_reason(uint16_t event_kind, uint64_t *reason) {
+  switch (event_kind) {
+    case POLY_V2_EVENT_KIND_SYSCALL:
+      *reason = POLY_TRAP_SYSCALL;
+      return 0;
+    case POLY_V2_EVENT_KIND_BREAK:
+      *reason = POLY_TRAP_BREAK;
+      return 0;
+    default:
+      return -1;
   }
-  return 1;
+}
+
+static int polyapp_event_frame_to_packet(
+    const struct poly_v2_event_frame *event,
+    struct polyapp_event_packet *packet) {
+  uint64_t reason = 0;
+  if (event == NULL || packet == NULL ||
+      event->magic != POLYAPP_V2_EVENT_MAGIC ||
+      event->bytes != POLY_V2_EVENT_BYTES ||
+      event->version != POLY_V2_EVENT_VERSION ||
+      event->header_bytes != POLY_V2_EVENT_HEADER_BYTES ||
+      event->arg_count != POLY_V2_EVENT_ARG_COUNT ||
+      event->sequence == 0 ||
+      event->resume_pc == 0 ||
+      !polyapp_is_raw_mode(event->frontend) ||
+      polyapp_event_reason(event->event_kind, &reason) < 0) {
+    fprintf(stderr,
+      "POLYAPP_FAIL: event frame invalid kind=%u mode=%u number=%llu selector=%llu pc=0x%llx resume=0x%llx sequence=%llu\n",
+      event != NULL ? event->event_kind : 0,
+      event != NULL ? event->frontend : 0,
+      (unsigned long long) (event != NULL ? event->selector : 0),
+      (unsigned long long) (event != NULL ? event->fault_status : 0),
+      (unsigned long long) (event != NULL ? event->insn_pc : 0),
+      (unsigned long long) (event != NULL ? event->resume_pc : 0),
+      (unsigned long long) (event != NULL ? event->sequence : 0));
+    return -1;
+  }
+  memset(packet, 0, sizeof(*packet));
+  packet->reason = reason;
+  packet->mode = event->frontend;
+  packet->number = event->selector;
+  packet->selector = event->fault_status;
+  packet->pc = event->insn_pc;
+  packet->resume_pc = event->resume_pc;
+  for (unsigned n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
+    packet->args[n] = event->args[n];
+  return 0;
 }
 
 static uint64_t polyapp_unknown_syscall(uint64_t mode, uint64_t number) {
@@ -422,10 +461,13 @@ static uint64_t polyapp_process_syscall(uint64_t number, uint64_t arg0,
 
 __attribute__((noinline, used))
 uint64_t polyapp_trap_vector_dispatch(void) {
-  struct polyapp_monitor_packet packet = polyapp_monitor_packet;
-  const uint64_t reason = packet.trap.reason;
-  const uint64_t mode = packet.trap.source_mode;
-  const uint64_t number = packet.trap.number;
+  struct polyapp_event_packet packet;
+  if (polyapp_event_frame_to_packet(&polyapp_event_frame, &packet) < 0)
+    return (uint64_t) -38;
+
+  const uint64_t reason = packet.reason;
+  const uint64_t mode = packet.mode;
+  const uint64_t number = packet.number;
   const uint64_t arg0 = packet.args[0];
   const uint64_t arg1 = packet.args[1];
   const uint64_t arg2 = packet.args[2];
@@ -434,8 +476,6 @@ uint64_t polyapp_trap_vector_dispatch(void) {
   const uint64_t arg5 = packet.args[5];
 
   if (!polyapp_is_raw_mode(mode))
-    return (uint64_t) -38;
-  if (!polyapp_monitor_packet_valid(&packet))
     return (uint64_t) -38;
 
   if (reason == POLY_TRAP_BREAK) {
@@ -507,9 +547,9 @@ static void polyapp_trap_vector_handler(void) {
 }
 
 static void install_polyapp_trap_vector(void) {
-  memset(&polyapp_monitor_packet, 0, sizeof(polyapp_monitor_packet));
-  poly_monitor_packet_set_value(
-    (uint64_t) (uintptr_t) &polyapp_monitor_packet);
+  memset(&polyapp_event_frame, 0, sizeof(polyapp_event_frame));
+  poly_event_ptr_set_value((uint64_t) (uintptr_t) &polyapp_event_frame,
+    POLY_V2_EVENT_BYTES);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) polyapp_trap_vector_handler);
 }
@@ -751,7 +791,7 @@ static int payload_code_is_valid_for_arch(const struct payload *payload) {
 }
 
 static int parse_arg_expected_directive(const char *path, const char *line,
-    const char *prefix, uint64_t expected[POLY_TRAP_PACKET_ARG_COUNT],
+    const char *prefix, uint64_t expected[POLY_V2_EVENT_ARG_COUNT],
     unsigned *mask) {
   const size_t prefix_len = strlen(prefix);
   if (strncmp(line, prefix, prefix_len) != 0)
@@ -1161,7 +1201,7 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
   code[offset++] = 0xc3;
 
   char scratch[SCRATCH_SIZE] = "poly!";
-  memset(&polyapp_monitor_packet, 0, sizeof(polyapp_monitor_packet));
+  memset(&polyapp_event_frame, 0, sizeof(polyapp_event_frame));
   memset(&polyapp_last_syscall_packet, 0, sizeof(polyapp_last_syscall_packet));
   memset(&polyapp_last_break_packet, 0, sizeof(polyapp_last_break_packet));
   const uint64_t switches_before = poly_switch_count();
@@ -1179,16 +1219,16 @@ static int emit_and_run(const struct payload *payload, uint64_t *result,
     *syscall_result = raw_mode;
   }
   if (payload->check_syscall_number) {
-    *syscall_number_result = polyapp_last_syscall_packet.trap.number;
+    *syscall_number_result = polyapp_last_syscall_packet.number;
   }
   if (payload->check_syscall_selector) {
-    *syscall_selector_result = polyapp_last_syscall_packet.trap.selector;
+    *syscall_selector_result = polyapp_last_syscall_packet.selector;
   }
   if (payload->check_break) {
     *break_result = 0x4c000000ULL | (raw_mode << 8);
   }
   if (payload->check_break_number) {
-    *break_number_result = polyapp_last_break_packet.trap.number;
+    *break_number_result = polyapp_last_break_packet.number;
   }
   memcpy(scratch_result, scratch, SCRATCH_CHECK_SIZE);
   scratch_result[SCRATCH_CHECK_SIZE] = '\0';
@@ -1279,7 +1319,7 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
-    for (unsigned arg = 0; arg < POLY_TRAP_PACKET_ARG_COUNT; arg++) {
+    for (unsigned arg = 0; arg < POLY_V2_EVENT_ARG_COUNT; arg++) {
       if (!(payload.syscall_arg_mask & (1U << arg)))
         continue;
       const uint64_t got = polyapp_last_syscall_packet.args[arg];
@@ -1305,7 +1345,7 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
-    for (unsigned arg = 0; arg < POLY_TRAP_PACKET_ARG_COUNT; arg++) {
+    for (unsigned arg = 0; arg < POLY_V2_EVENT_ARG_COUNT; arg++) {
       if (!(payload.break_arg_mask & (1U << arg)))
         continue;
       const uint64_t got = polyapp_last_break_packet.args[arg];
