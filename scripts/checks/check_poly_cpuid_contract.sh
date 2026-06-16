@@ -277,6 +277,8 @@ compare_const BX_POLY_CPUID_STATE_MONITOR_TRAMPOLINE POLY_CPUID_STATE_MONITOR_TR
 compare_const BX_POLY_CPUID_STATE_OS_XSAVE_NOT_REQUIRED POLY_CPUID_STATE_OS_XSAVE_NOT_REQUIRED
 assert_not_contains "regs\\.(eax|ebx|ecx|edx)[[:space:]]*=[[:space:]]*POLY_.*MONITOR_PACKET" "$HEADER" \
   "public CPUID escape helpers must not advertise retired monitor-packet controls"
+assert_not_contains "POLY_(AARCH64|RISCV|X86)_CTRL_(SUBOP_)?MONITOR_PACKET" "$HEADER" \
+  "public header must not expose retired monitor-packet control opcodes"
 assert_not_contains "\\b[RE][ABCD]X[[:space:]]*=[[:space:]]*BX_POLY_.*MONITOR_PACKET" "$BOCHS_CPU" \
   "Bochs CPUID leaves must not advertise retired monitor-packet controls"
 compare_const BX_POLY_STATE_XSAVE_MAGIC POLY_STATE_XSAVE_MAGIC
