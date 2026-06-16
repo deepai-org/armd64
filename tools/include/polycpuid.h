@@ -1356,8 +1356,8 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf3(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_X86_CTRL_ABI_SIGNATURE_SET;
   regs.ebx = POLY_X86_CTRL_ABI_SIGNATURE_GET;
-  regs.ecx = POLY_X86_CTRL_MONITOR_PACKET_SET;
-  regs.edx = POLY_X86_CTRL_MONITOR_PACKET_GET;
+  regs.ecx = 0;
+  regs.edx = 0;
   return regs;
 }
 
@@ -1444,9 +1444,9 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf11(void) {
 static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf12(void) {
   struct poly_cpuid_regs regs;
   regs.eax = POLY_AARCH64_CTRL_TRAP_VECTOR_SET;
-  regs.ebx = POLY_AARCH64_CTRL_MONITOR_PACKET_SET;
+  regs.ebx = 0;
   regs.ecx = POLY_RISCV_CTRL_TRAP_VECTOR_SET;
-  regs.edx = POLY_RISCV_CTRL_MONITOR_PACKET_SET;
+  regs.edx = 0;
   return regs;
 }
 
@@ -1455,7 +1455,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf13(void) {
   regs.eax = POLY_AARCH64_CTRL_TRAP_VECTOR_GET;
   regs.ebx = POLY_AARCH64_CTRL_TRAP_VECTOR_MODE_SET;
   regs.ecx = POLY_AARCH64_CTRL_TRAP_VECTOR_MODE_GET;
-  regs.edx = POLY_AARCH64_CTRL_MONITOR_PACKET_GET;
+  regs.edx = 0;
   return regs;
 }
 
@@ -1464,7 +1464,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf14(void) {
   regs.eax = POLY_RISCV_CTRL_TRAP_VECTOR_GET;
   regs.ebx = POLY_RISCV_CTRL_TRAP_VECTOR_MODE_SET;
   regs.ecx = POLY_RISCV_CTRL_TRAP_VECTOR_MODE_GET;
-  regs.edx = POLY_RISCV_CTRL_MONITOR_PACKET_GET;
+  regs.edx = 0;
   return regs;
 }
 
