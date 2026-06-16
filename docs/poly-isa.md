@@ -59,6 +59,13 @@ vendor/prototype dedicated decode path, not a `#UD` trap envelope, and software
 must discover it through CPUID instead of hard-coding it as a production x86
 allocation.
 
+CPUID `POLY_CPUID_BASE + 10` reports the implemented v2 feature mask, not the
+entire v2 draft roadmap. The active mask currently covers canonical event
+frames, spill descriptors, and the shared-memory ordering contract. Draft
+features such as `PDUMP_STATE`, `PMEM_PROBE_RANGE`, `PDERIVE_STATE`, policy
+preflight, ABI descriptors, and diagnostic counters must not be advertised until
+their control paths and tests exist.
+
 ## FPGA/Silicon ISA Readiness Boundary
 
 The ISA contract is ready for FPGA or silicon implementation when hardware can

@@ -12033,6 +12033,20 @@ int main(void) {
         abi_bridge.edx, expected_abi_bridge.edx);
       return 1;
     }
+    struct poly_cpuid_regs expected_v2 = poly_cpuid_expected_v2_leaf();
+    struct poly_cpuid_regs v2 = poly_read_cpuid(POLY_CPUID_BASE + 10, 0);
+    if (v2.eax != expected_v2.eax ||
+        v2.ebx != expected_v2.ebx ||
+        v2.ecx != expected_v2.ecx ||
+        v2.edx != expected_v2.edx) {
+      fprintf(stderr,
+        "NATIVE_CHECK_FAIL: poly CPUID v2 leaf mismatch eax=0x%x/%x ebx=0x%x/%x ecx=0x%x/%x edx=0x%x/%x\n",
+        v2.eax, expected_v2.eax,
+        v2.ebx, expected_v2.ebx,
+        v2.ecx, expected_v2.ecx,
+        v2.edx, expected_v2.edx);
+      return 1;
+    }
     puts("NATIVE_CPUID_POLY_PRESENT");
     if (run_poly_generic_enter_probe() != 0)
       return 1;

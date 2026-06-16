@@ -420,6 +420,18 @@ assert_contains "BX_POLY_X86_CTRL_EVENT_PTR_SET" "$BOCHS_CPU" \
   "Bochs must implement the v2 event-frame control"
 assert_contains "BX_POLY_X86_CTRL_SPILL_DESC_SET" "$BOCHS_CPU" \
   "Bochs must implement the v2 spill descriptor control"
+assert_contains "BX_POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$BOCHS_CPU" \
+  "Bochs v2 CPUID must advertise only implemented v2 features"
+assert_not_contains "BX_POLY_CPUID_V2_FEATURES" "$BOCHS_CPU" \
+  "Bochs v2 CPUID must not advertise every draft v2 feature as implemented"
+assert_contains "POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$ROOT_DIR/tools/include/polycpuid.h" \
+  "public CPUID contract must expose an implemented v2 feature mask"
+assert_contains "regs\\.ebx[[:space:]]*=[[:space:]]*POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$ROOT_DIR/tools/include/polycpuid.h" \
+  "public v2 CPUID expectation must use the implemented feature mask"
+assert_contains "poly_cpuid_expected_v2_leaf" "$POLYEXEC" \
+  "userspace monitor must validate the v2 CPUID discovery leaf"
+assert_contains "poly_cpuid_expected_v2_leaf" "$NATIVECHECK" \
+  "nativecheck must validate the v2 CPUID discovery leaf"
 assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
   "PRESTORE must arm a pending raw frontend resume target"
 assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip" "$BOCHS_CPU" \

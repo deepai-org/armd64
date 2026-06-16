@@ -1080,6 +1080,19 @@ static int read_poly_base_contract(int require_trap_vector) {
     return -1;
   }
 
+  const struct poly_cpuid_regs v2 =
+    poly_read_cpuid(POLY_CPUID_BASE + 10, 0);
+  const struct poly_cpuid_regs expected_v2 =
+    poly_cpuid_expected_v2_leaf();
+  if (!poly_cpuid_regs_match(&v2, &expected_v2)) {
+    fprintf(stderr,
+      "POLYEXEC_FAIL: poly v2 CPUID mismatch v2=(%u,0x%x,0x%x,0x%x) expected=(%u,0x%x,0x%x,0x%x)\n",
+      v2.eax, v2.ebx, v2.ecx, v2.edx,
+      expected_v2.eax, expected_v2.ebx, expected_v2.ecx,
+      expected_v2.edx);
+    return -1;
+  }
+
   const struct poly_cpuid_regs x86_controls =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
   const struct poly_cpuid_regs expected_x86_controls =
