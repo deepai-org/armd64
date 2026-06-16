@@ -279,12 +279,20 @@ assert_not_contains "regs\\.(eax|ebx|ecx|edx)[[:space:]]*=[[:space:]]*POLY_.*MON
   "public CPUID escape helpers must not advertise retired monitor-packet controls"
 assert_not_contains "POLY_(AARCH64|RISCV|X86)_CTRL_(SUBOP_)?MONITOR_PACKET" "$HEADER" \
   "public header must not expose retired monitor-packet control opcodes"
+assert_not_contains "POLY_CPUID_STATE_MONITOR_PACKET_XSAVE" "$HEADER" \
+  "public header must not expose retired monitor-packet XSAVE state constants"
+assert_not_contains "POLY_STATE_XSAVE_FLAG_MONITOR_PACKET" "$HEADER" \
+  "public header must not expose retired monitor-packet XSAVE flag constants"
 assert_not_contains "POLY_CPUID_STATE_MONITOR_PACKET_XSAVE[[:space:]]*\\|" "$HEADER" \
   "public CPUID state leaf must not advertise retired monitor-packet XSAVE state"
 assert_not_contains "POLY_STATE_XSAVE_FLAG_MONITOR_PACKET[[:space:]]*\\|" "$HEADER" \
   "public XSAVE arch-state leaf must not advertise retired monitor-packet state"
 assert_not_contains "\\b[RE][ABCD]X[[:space:]]*=[[:space:]]*BX_POLY_.*MONITOR_PACKET" "$BOCHS_CPU" \
   "Bochs CPUID leaves must not advertise retired monitor-packet controls"
+assert_not_contains "BX_POLY_CPUID_STATE_MONITOR_PACKET_XSAVE" "$BOCHS_CPU" \
+  "Bochs must not retain retired monitor-packet XSAVE state constants"
+assert_not_contains "BX_POLY_STATE_XSAVE_FLAG_MONITOR_PACKET" "$BOCHS_CPU" \
+  "Bochs must not retain retired monitor-packet XSAVE flag constants"
 assert_not_contains "BX_POLY_CPUID_STATE_MONITOR_PACKET_XSAVE[[:space:]]*\\|" "$BOCHS_CPU" \
   "Bochs CPUID state leaf must not advertise retired monitor-packet XSAVE state"
 assert_not_contains "BX_POLY_STATE_XSAVE_FLAG_MONITOR_PACKET[[:space:]]*\\|" "$BOCHS_CPU" \
@@ -301,7 +309,6 @@ compare_const BX_POLY_STATE_XSAVE_FLAG_TRAP_STATE POLY_STATE_XSAVE_FLAG_TRAP_STA
 compare_const BX_POLY_STATE_XSAVE_FLAG_COMPLETE_BANK_EXPORT POLY_STATE_XSAVE_FLAG_COMPLETE_BANK_EXPORT
 compare_const BX_POLY_STATE_XSAVE_FLAG_IMPORT_RETURN POLY_STATE_XSAVE_FLAG_IMPORT_RETURN
 compare_const BX_POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES POLY_STATE_XSAVE_FLAG_ABI_SIGNATURES
-compare_const BX_POLY_STATE_XSAVE_FLAG_MONITOR_PACKET POLY_STATE_XSAVE_FLAG_MONITOR_PACKET
 compare_const BX_POLY_STATE_XSAVE_FLAG_CROSS_RETURN POLY_STATE_XSAVE_FLAG_CROSS_RETURN
 compare_const BX_POLY_STATE_XSAVE_FLAG_FRONTEND_TLS POLY_STATE_XSAVE_FLAG_FRONTEND_TLS
 compare_const BX_POLY_STATE_XSAVE_FLAG_LANDING_POLICY POLY_STATE_XSAVE_FLAG_LANDING_POLICY
