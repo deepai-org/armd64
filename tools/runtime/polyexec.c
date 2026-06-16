@@ -89,8 +89,6 @@ extern char **environ;
 #define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
-#define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
-#define POLY_OP_MONITOR_PACKET_GET POLY_X86_CTRL_MONITOR_PACKET_GET_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_AUTO_SPILL_COUNT_STATUS \
   POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS_ASM
@@ -550,7 +548,6 @@ static __thread uint8_t
   __attribute__((aligned(16)));
 static __thread int poly_runtime_signal_alt_stack_installed;
 static volatile uint32_t poly_auto_spill_resume_stack_lock;
-static volatile uint64_t poly_auto_spill_resume_mode;
 uint8_t poly_trap_vector_stacks[POLY_TRAP_VECTOR_STACK_COUNT]
   [POLY_TRAP_VECTOR_STACK_SIZE]
   __attribute__((used, aligned(16)));
@@ -610,8 +607,6 @@ static uint32_t process_vec128_signature_slot = 5;
 static uint32_t process_compact_u32_f32_signature_slot = 6;
 static uint32_t process_compact_f32_u32_signature_slot = 7;
 static __thread uint8_t poly_state_key_anchor;
-static __thread volatile uint64_t poly_monitor_packet[16]
-  __attribute__((aligned(64)));
 static volatile uint64_t poly_event_count;
 static volatile uint64_t poly_event_syscall_aarch64_count;
 static volatile uint64_t poly_event_syscall_riscv_count;
@@ -717,7 +712,6 @@ struct poly_clone_child_handoff {
   struct poly_runtime_trap_packet packet;
   struct poly_xsave_state state
     __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
-  volatile uint64_t monitor_packet[16] __attribute__((aligned(64)));
   uint8_t state_key_anchor;
   void *native_tls_mapping;
   size_t native_tls_mapping_size;
@@ -905,6 +899,7 @@ static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t *stub_addr);
 static void poly_auto_spill_resume_trampoline(void);
 static void poly_trap_vector_handler(void);
+static void clear_poly_trap_vector(void);
 static uint64_t get_x86_fs_base(void);
 static uint64_t poly_trap_vector_return_result(uint64_t result,
     const struct poly_runtime_trap_packet *packet,
@@ -1120,6 +1115,15 @@ static int refresh_poly_auto_spill(void) {
         POLY_V2_SPILL_DESC_BYTES) != 0)
     return -1;
   return 0;
+}
+
+static int refresh_poly_trap_event_frame(void) {
+  if (polyexec_use_auto_spill)
+    return refresh_poly_auto_spill();
+  memset(&poly_auto_spill_event_frame, 0, sizeof(poly_auto_spill_event_frame));
+  return poly_event_ptr_set(
+    (uint64_t) (uintptr_t) &poly_auto_spill_event_frame,
+    POLY_V2_EVENT_BYTES) == 0 ? 0 : -1;
 }
 
 static int prefault_poly_auto_spill(void) {
@@ -1468,16 +1472,6 @@ static inline void poly_trap_vector_set_value(uint64_t value) {
 
 static inline void poly_trap_vector_mode_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET :: "a"(value) : "memory");
-}
-
-static inline void poly_monitor_packet_set_value(uint64_t value) {
-  asm volatile(POLY_OP_MONITOR_PACKET_SET :: "a"(value) : "memory");
-}
-
-static inline uint64_t poly_monitor_packet_get_value(void) {
-  uint64_t value = 0;
-  asm volatile(POLY_OP_MONITOR_PACKET_GET : "=a"(value) :: "memory");
-  return value;
 }
 
 static inline uint64_t poly_dump_state_value(struct poly_v2_debug_note *note,
@@ -2442,12 +2436,10 @@ static void poly_auto_spill_resume_trampoline(void) {
     "popq %rdx\n"
     "popq %rcx\n"
     "popq %rbx\n"
-    "movq %r15, poly_auto_spill_resume_mode(%rip)\n"
     "movq %rdx, %rax\n"
-    POLY_OP_PRESTORE
-    "movl poly_auto_spill_resume_mode(%rip), %edi\n"
-    "movl %edi, %r15d\n"
     "movl $0, poly_auto_spill_resume_stack_lock(%rip)\n"
+    ".p2align 2\n"
+    POLY_OP_PRESTORE
     POLY_X86_CTRL_PENTER_MODE_ASM
     "ud2\n");
 }
@@ -2481,11 +2473,16 @@ static int install_poly_auto_spill(void) {
 }
 
 static void clear_poly_auto_spill(void) {
-  if (!poly_auto_spill_installed)
-    return;
   (void) poly_spill_desc_set(0, 0);
   (void) poly_event_ptr_set(0, 0);
   poly_auto_spill_installed = 0;
+}
+
+__attribute__((noreturn))
+static void poly_child_exit_now(int code) {
+  clear_poly_trap_vector();
+  clear_poly_auto_spill();
+  _exit(code);
 }
 
 struct poly_linux_generic_stat {
@@ -3829,6 +3826,10 @@ static long poly_x86_clone_monitor_child(uint64_t flags,
 
 __attribute__((noreturn))
 static void poly_x86_exit_group_now(uint64_t code) {
+  poly_trap_vector_set_value(0);
+  poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  (void) poly_spill_desc_set(0, 0);
+  (void) poly_event_ptr_set(0, 0);
   register long rax __asm__("rax") = SYS_exit_group;
   register long rdi __asm__("rdi") = (long) code;
   asm volatile("syscall"
@@ -5899,68 +5900,6 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
   }
 }
 
-static int read_poly_monitor_packet(struct poly_runtime_trap_packet *packet) {
-  const uint64_t required_flags = POLY_TRAP_PACKET_REQUIRED_FLAGS;
-  uint64_t packet_addr = poly_monitor_packet_get_value();
-  if (packet_addr != 0 &&
-      packet_addr != (uint64_t) (uintptr_t) poly_monitor_packet &&
-      !poly_guest_range_is_mapped(packet_addr, sizeof(poly_monitor_packet), 0))
-    return -1;
-  volatile uint64_t *monitor_packet =
-    packet_addr != 0 ? (volatile uint64_t *) (uintptr_t) packet_addr :
-      poly_monitor_packet;
-  const uint64_t header = monitor_packet[0];
-  packet->reason = header & 0xffffffffULL;
-  packet->mode = header >> 32;
-  packet->number = monitor_packet[1];
-  packet->selector = monitor_packet[2];
-  packet->pc = monitor_packet[3];
-  packet->next_pc = monitor_packet[4];
-  packet->flags = monitor_packet[5];
-  packet->reserved[0] = monitor_packet[6];
-  packet->reserved[1] = monitor_packet[7];
-  for (size_t n = 0; n < 8; n++)
-    packet->args[n] = monitor_packet[8 + n];
-
-  if (packet->next_pc == 0) {
-    fprintf(stderr,
-      "POLYEXEC_FAIL: monitor packet missing next_pc reason=%llu mode=%llu number=%llu selector=%llu pc=%llu flags=0x%llx\n",
-      (unsigned long long) packet->reason,
-      (unsigned long long) packet->mode,
-      (unsigned long long) packet->number,
-      (unsigned long long) packet->selector,
-      (unsigned long long) packet->pc,
-      (unsigned long long) packet->flags);
-    return -1;
-  }
-  if (packet->reserved[0] != 0 || packet->reserved[1] != 0) {
-    fprintf(stderr,
-      "POLYEXEC_FAIL: monitor packet reserved fields nonzero reason=%llu mode=%llu number=%llu selector=%llu pc=%llu reserved=(0x%llx,0x%llx)\n",
-      (unsigned long long) packet->reason,
-      (unsigned long long) packet->mode,
-      (unsigned long long) packet->number,
-      (unsigned long long) packet->selector,
-      (unsigned long long) packet->pc,
-      (unsigned long long) packet->reserved[0],
-      (unsigned long long) packet->reserved[1]);
-    return -1;
-  }
-  if ((packet->flags & required_flags) != required_flags) {
-    fprintf(stderr,
-      "POLYEXEC_FAIL: monitor packet missing flags reason=%llu mode=%llu number=%llu selector=%llu pc=%llu flags=0x%llx required=0x%llx\n",
-      (unsigned long long) packet->reason,
-      (unsigned long long) packet->mode,
-      (unsigned long long) packet->number,
-      (unsigned long long) packet->selector,
-      (unsigned long long) packet->pc,
-      (unsigned long long) packet->flags,
-      (unsigned long long) required_flags);
-    return -1;
-  }
-
-  return 0;
-}
-
 static int read_poly_v2_event_frame(struct poly_v2_event_frame *event) {
   const volatile struct poly_v2_event_frame *src =
     &poly_auto_spill_event_frame;
@@ -7502,8 +7441,7 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
   if (polyexec_use_auto_spill)
     (void) refresh_poly_auto_spill();
   if (poly_trap_vector_active) {
-    poly_monitor_packet_set_value(polyexec_use_auto_spill ? 0 :
-      (uint64_t) (uintptr_t) poly_monitor_packet);
+    (void) refresh_poly_trap_event_frame();
     poly_trap_vector_mode_set_value(POLY_MODE_X86);
     poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
   }
@@ -7697,8 +7635,7 @@ static int poly_prepare_clone_child_handoff(
   }
   if (packet->mode == POLY_MODE_RAW_AARCH64)
     handoff->state.header.foreign_tls_base = foreign_tls;
-  handoff->state.header.monitor_packet_addr =
-    (uint64_t) (uintptr_t) handoff->monitor_packet;
+  handoff->state.header.monitor_packet_addr = 0;
   if (polyexec_use_explicit_state_key) {
     handoff->state.state_key.flags = POLY_STATE_KEY_FLAG_EXPLICIT;
     handoff->state.state_key.explicit_key =
@@ -7754,8 +7691,7 @@ static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
       (unsigned long long) handoff->state.state_key.explicit_key,
       polyexec_use_auto_spill);
   }
-  poly_monitor_packet_set_value(polyexec_use_auto_spill ? 0 :
-    (uint64_t) (uintptr_t) handoff->monitor_packet);
+  (void) refresh_poly_trap_event_frame();
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
   if (handoff->packet.mode == POLY_MODE_RAW_AARCH64 &&
@@ -7794,13 +7730,9 @@ uint64_t poly_trap_vector_dispatch(void) {
   has_v2_event = read_poly_v2_event_frame(&event);
   if (has_v2_event < 0)
     return (uint64_t) -EIO;
-  if (has_v2_event > 0) {
-    if (poly_v2_event_to_runtime_packet(&event, &packet) < 0)
-      return (uint64_t) -EIO;
-  } else {
-    if (read_poly_monitor_packet(&packet) < 0)
-      return (uint64_t) -EIO;
-  }
+  if (has_v2_event <= 0 ||
+      poly_v2_event_to_runtime_packet(&event, &packet) < 0)
+    return (uint64_t) -EIO;
   if ((packet.flags & POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE) != 0) {
     poly_state_export(&trap_state);
     has_trap_state = 1;
@@ -8545,7 +8477,6 @@ static void poly_trap_vector_handler(void) {
 }
 
 static void install_poly_trap_vector(void) {
-  memset((void *) poly_monitor_packet, 0, sizeof(poly_monitor_packet));
   poly_event_count = 0;
   poly_event_syscall_aarch64_count = 0;
   poly_event_syscall_riscv_count = 0;
@@ -8554,8 +8485,7 @@ static void install_poly_trap_vector(void) {
   poly_event_import_count = 0;
   poly_event_illegal_count = 0;
   poly_event_other_count = 0;
-  poly_monitor_packet_set_value(polyexec_use_auto_spill ? 0 :
-    (uint64_t) (uintptr_t) poly_monitor_packet);
+  (void) refresh_poly_trap_event_frame();
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
   poly_trap_vector_active = 1;
@@ -8564,7 +8494,7 @@ static void install_poly_trap_vector(void) {
 static void clear_poly_trap_vector(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
-  poly_monitor_packet_set_value(0);
+  (void) poly_event_ptr_set(0, 0);
   poly_trap_vector_active = 0;
 }
 
@@ -9689,9 +9619,12 @@ static void run_poly_process_entry(const uint8_t *code,
       : "memory");
   }
   if (use_trap_vector) {
-    uint64_t value = polyexec_use_auto_spill ? 0 :
-      (uint64_t) (uintptr_t) poly_monitor_packet;
-    asm volatile(POLY_OP_MONITOR_PACKET_SET : "+a"(value) :: "memory");
+    uint64_t value = (uint64_t) (uintptr_t) &poly_auto_spill_event_frame;
+    uint64_t bytes = POLY_V2_EVENT_BYTES;
+    asm volatile(POLY_OP_EVENT_PTR_SET
+      : "+a"(value), "+d"(bytes)
+      :
+      : "memory");
     value = POLY_MODE_X86;
     asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET : "+a"(value) :: "memory");
     value = (uint64_t) (uintptr_t) poly_trap_vector_handler;
@@ -13758,16 +13691,16 @@ static int emit_and_run_exit_child(const struct poly_program *program,
     uint64_t child_result = 0;
     poly_restore_passthrough_stdout();
     if (polyexec_use_auto_spill && install_poly_auto_spill() < 0)
-      _exit(125);
+      poly_child_exit_now(125);
     if (use_trap_vector)
       install_poly_trap_vector();
     if (emit_and_run(program, &child_result, 1) < 0)
-      _exit(125);
+      poly_child_exit_now(125);
     report_poly_events();
     report_poly_syscall_summary();
     poly_report_seccomp_summary();
     fflush(NULL);
-    _exit((int) (child_result & 0xff));
+    poly_child_exit_now((int) (child_result & 0xff));
   }
 
   int status = 0;
@@ -13849,7 +13782,7 @@ static int emit_and_run_process_child(struct poly_program *program,
   if (pid == 0) {
     uint64_t child_result = 0;
     if (polyexec_use_auto_spill && install_poly_auto_spill() < 0)
-      _exit(125);
+      poly_child_exit_now(125);
     if (use_trap_vector)
       install_poly_trap_vector();
     const int use_interpreter = poly_process_uses_real_interpreter(program,
@@ -13859,13 +13792,13 @@ static int emit_and_run_process_child(struct poly_program *program,
             extra_argv, &child_result, use_trap_vector) :
           emit_and_run_process(program, request, extra_argc, extra_argv,
             &child_result, use_trap_vector)) < 0)
-      _exit(125);
+      poly_child_exit_now(125);
     poly_resume_stdout_diagnostics();
     report_poly_events();
     report_poly_syscall_summary();
     poly_report_seccomp_summary();
     fflush(NULL);
-    _exit((int) (child_result & 0xff));
+    poly_child_exit_now((int) (child_result & 0xff));
   }
 
   int status = 0;
