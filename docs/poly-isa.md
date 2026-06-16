@@ -39,12 +39,12 @@ make check-poly-contracts
 
 Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
 `PLANDING`, `PTRAPRET`, `PSET_EVENT_PTR`, `PSET_SPILL_DESC`, and `PRESTORE`.
-The v1 `PSET_SPILL_PTR` control remains documented in
-[`poly-isa-v1.md`](poly-isa-v1.md) for frozen compatibility, but new monitor
-code must use the v2 event frame and spill descriptor. ABI signature setup
-writes a register-only signature slot as `kind | (register_map << 32)`. Query
-returns the same encoded value, so runtimes and hardware can verify the exact
-RAT/register-map policy instead of inferring it from the kind alone.
+The retired v1 raw spill-pointer control is not part of the active control
+surface; monitor code uses the v2 event frame and spill descriptor. ABI
+signature setup writes a register-only signature slot as
+`kind | (register_map << 32)`. Query returns the same encoded value, so
+runtimes and hardware can verify the exact RAT/register-map policy instead of
+inferring it from the kind alone.
 
 These are fixed-latency decoded control operations: they do not read user
 descriptors, repack stacks, or enter exception delivery for normal frontend

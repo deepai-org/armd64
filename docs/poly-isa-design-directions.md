@@ -30,7 +30,8 @@ Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
 | `PCALL frontend, target, sig` | Call another frontend using ABI signature slot `sig`. |
 | `PTRAPRET` | Resume after a precise Poly trap. |
 | `PLANDING` | Validate an indirect cross-frontend target when enabled. |
-| `PSET_SPILL_PTR buffer, resume_rip` | Register the per-thread auto-spill image and x86 monitor trampoline. |
+| `PSET_EVENT_PTR addr, bytes` | Register the per-thread canonical event frame. |
+| `PSET_SPILL_DESC addr, bytes` | Register the per-thread spill image, event frame, resume stack, and x86 monitor trampoline through a versioned descriptor. |
 | `PRESTORE buffer` | Import an auto-spilled image before resuming Poly code. |
 
 These are decoded control instructions, not `#UD` envelopes.
@@ -102,14 +103,16 @@ user memory before an OS-visible interrupt/fault boundary, and the Ring 3
 monitor imports it with `PRESTORE`.
 
 For zero-kernel-change execution, the monitor allocates one aligned 8KB spill
-image per thread and registers it with `PSET_SPILL_PTR` before `PENTER`. If a
-timer interrupt, page fault, or other hardware exception arrives while a raw
-frontend is active, microcode exports the full image, records the current Poly
-PC and spill reason, switches the architectural frontend back to x86, replaces
-the interrupted x86 RIP with the registered trampoline, and only then vectors
-to the unmodified OS. The OS sees an ordinary x86 thread. On return or signal
-delivery, the monitor reads the header; timer exits restore and re-enter Poly,
-while page-fault exits are translated into Poly-context exceptions in
+image and one canonical event frame per thread, then registers them with
+`PSET_EVENT_PTR` and `PSET_SPILL_DESC` before `PENTER`. If a timer interrupt,
+page fault, or other hardware exception arrives while a raw frontend is active,
+microcode validates the descriptor generation, exports the full image, writes
+the event frame with the current Poly PC and spill reason, switches the
+architectural frontend back to x86, replaces the interrupted x86 RIP with the
+descriptor-selected trampoline, and only then vectors to the unmodified OS. The
+OS sees an ordinary x86 thread. On return or signal delivery, the monitor reads
+the event frame and state header; timer exits restore and re-enter Poly, while
+page-fault exits are translated into Poly-context exceptions in
 userspace.
 
 Hardware emits precise trap packets for foreign `svc`/`ecall`, breakpoints,

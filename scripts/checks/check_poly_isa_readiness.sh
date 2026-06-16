@@ -71,8 +71,8 @@ assert_contains "FPGA fabric, Verilog structure" "$ISA_DOC" \
   "ISA boundary must separate ISA readiness from RTL/FPGA implementation"
 assert_contains "timing closure" "$ISA_DOC" \
   "ISA boundary must not claim FPGA timing closure"
-assert_contains "poly-isa-v1.md" "$ISA_DOC" \
-  "ISA quick reference must link the frozen v1 spec"
+assert_not_contains "PSET_SPILL_PTR" "$ISA_DOC" \
+  "active ISA quick reference must not advertise the retired raw spill pointer control"
 
 assert_contains "^# Poly Frozen ISA v1" "$FROZEN_ISA_DOC" \
   "frozen ISA v1 document must exist"
@@ -112,7 +112,7 @@ assert_contains "reserved bytes and reserved flags are write-zero/read-zero" \
 assert_contains "## Auto-Spill And Monitor Trampoline" "$FROZEN_ISA_DOC" \
   "frozen ISA v1 must document the auto-spill trampoline"
 assert_contains "PSET_SPILL_PTR\\(buffer_addr, resume_rip\\)" "$FROZEN_ISA_DOC" \
-  "frozen ISA v1 must define spill pointer setup"
+  "historical ISA v1 document must preserve the retired spill pointer setup"
 assert_contains "PRESTORE" "$FROZEN_ISA_DOC" \
   "frozen ISA v1 must define state restore from the spill image"
 assert_contains "## Zero-Kernel-Change OS Contract" "$FROZEN_ISA_DOC" \
@@ -172,8 +172,10 @@ assert_contains "register_map << 32" "$DESIGN_DOC" \
   "design directions must include the ABI register-map encoding"
 assert_contains "Poly spill image" "$DESIGN_DOC" \
   "design directions must keep Poly state explicit and user-spilled"
-assert_contains "PSET_SPILL_PTR" "$DESIGN_DOC" \
-  "design directions must include the auto-spill setup control"
+assert_contains "PSET_EVENT_PTR" "$DESIGN_DOC" \
+  "design directions must include the v2 event-frame setup control"
+assert_contains "PSET_SPILL_DESC" "$DESIGN_DOC" \
+  "design directions must include the v2 spill descriptor setup control"
 assert_contains "unmodified OS" "$DESIGN_DOC" \
   "design directions must keep the OS out of Poly state management"
 assert_contains "If a monitor vector is enabled, hardware must publish the monitor packet before" \
@@ -196,8 +198,9 @@ for symbol in \
   POLY_STATE_XSAVE_FLAG_USER_SPILL \
   POLY_STATE_XSAVE_FLAG_MONITOR_TRAMPOLINE \
   POLY_STATE_XSAVE_FLAG_OS_XSAVE_NOT_REQUIRED \
-  POLY_X86_CTRL_SPILL_PTR_SET \
   POLY_X86_CTRL_PRESTORE \
+  POLY_X86_CTRL_EVENT_PTR_SET \
+  POLY_X86_CTRL_SPILL_DESC_SET \
   POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS \
   POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS \
   POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS \

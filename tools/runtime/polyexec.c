@@ -6384,8 +6384,26 @@ static void poly_trace_trap_return_result(
 static void poly_sanitize_trap_state_for_import(struct poly_xsave_state *state) {
   state->trap.reserved[0] = 0;
   state->trap.reserved[1] = 0;
-  if (state->trap.reason == 0)
+  if (state->trap.reason == 0) {
+    state->trap.flags = 0;
     memset(state->trap_args, 0, sizeof(state->trap_args));
+  } else {
+    const uint64_t supported_trap_flags =
+      POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY |
+      POLY_TRAP_PACKET_FLAG_NO_VECTOR_X86_EXCEPTIONS |
+      POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE |
+      POLY_TRAP_PACKET_FLAG_ALL_FRONTEND_HANDLERS |
+      POLY_TRAP_PACKET_FLAG_OPAQUE_SYSCALLS |
+      POLY_TRAP_PACKET_FLAG_OPAQUE_IMPORTS |
+      POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY;
+    state->trap.flags &= supported_trap_flags;
+    if (state->header.trap_vector_pc == 0)
+      state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_VECTOR_DELIVERY;
+    if (state->header.monitor_packet_addr == 0)
+      state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_MONITOR_MEMORY;
+    if ((state->trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) == 0)
+      state->trap.flags &= ~POLY_TRAP_PACKET_FLAG_TRAP_RETURN_RESTORE;
+  }
   memset(state->pre_trap_restore_reserved, 0,
     sizeof(state->pre_trap_restore_reserved));
   memset(state->reserved, 0, sizeof(state->reserved));

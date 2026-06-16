@@ -19,7 +19,8 @@
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
-#define POLY_OP_SPILL_PTR_SET POLY_X86_CTRL_SPILL_PTR_SET_ASM
+#define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
+#define POLY_OP_SPILL_DESC_SET POLY_X86_CTRL_SPILL_DESC_SET_ASM
 
 static void clear_poly_xsave_state(void) {
   struct poly_xsave_state state __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
@@ -103,10 +104,16 @@ static void clear_poly_cpu_state(void) {
       : "memory");
   }
 
-  uint64_t buffer = 0;
-  uint64_t resume = 0;
-  asm volatile(POLY_OP_SPILL_PTR_SET
-    : "+a"(buffer), "+d"(resume)
+  uint64_t address = 0;
+  uint64_t bytes = 0;
+  asm volatile(POLY_OP_EVENT_PTR_SET
+    : "+a"(address), "+d"(bytes)
+    :
+    : "memory");
+  address = 0;
+  bytes = 0;
+  asm volatile(POLY_OP_SPILL_DESC_SET
+    : "+a"(address), "+d"(bytes)
     :
     : "memory");
 }

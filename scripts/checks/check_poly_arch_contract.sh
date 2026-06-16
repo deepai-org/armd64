@@ -15,6 +15,7 @@ POLY_ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
 POLYPROBE="$ROOT_DIR/tools/programs/polyprobe.c"
 POLYBENCH="$ROOT_DIR/tools/programs/polybench.c"
 NATIVECHECK="$ROOT_DIR/tools/programs/nativecheck.c"
+POLYBINFMT_EXEC="$ROOT_DIR/tools/programs/polybinfmt_exec.c"
 POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
 RTL_INTERRUPT_BOUNDARY="$ROOT_DIR/rtl/poly_interrupt_boundary.sv"
 RTL_FRONTEND_CORE="$ROOT_DIR/rtl/poly_frontend_core.sv"
@@ -413,6 +414,12 @@ assert_contains "poly_state_dirty_q" "$RTL_FRONTEND_CORE" \
   "RTL frontend core must maintain an internal Poly state dirty bit"
 assert_contains "BX_POLY_X86_CTRL_PRESTORE" "$BOCHS_CPU" \
   "x86 control path must implement PRESTORE"
+assert_not_contains "BX_POLY_X86_CTRL_SPILL_PTR_SET" "$BOCHS_CPU" \
+  "Bochs must not implement the retired raw spill pointer control"
+assert_contains "BX_POLY_X86_CTRL_EVENT_PTR_SET" "$BOCHS_CPU" \
+  "Bochs must implement the v2 event-frame control"
+assert_contains "BX_POLY_X86_CTRL_SPILL_DESC_SET" "$BOCHS_CPU" \
+  "Bochs must implement the v2 spill descriptor control"
 assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
   "PRESTORE must arm a pending raw frontend resume target"
 assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip" "$BOCHS_CPU" \
@@ -421,6 +428,12 @@ assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
   "userspace monitor must install a SIGSEGV handler for Poly fault translation"
 assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYEXEC" \
   "userspace monitor must not use legacy raw spill pointer setup"
+assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYBINFMT_EXEC" \
+  "binfmt helper must not use legacy raw spill pointer setup"
+assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYBINFMT_EXEC" \
+  "binfmt helper must clear the v2 canonical event frame registration"
+assert_contains "POLY_OP_SPILL_DESC_SET" "$POLYBINFMT_EXEC" \
+  "binfmt helper must clear the v2 spill descriptor registration"
 assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYEXEC" \
   "userspace monitor must register a v2 canonical event frame"
 assert_contains "POLY_OP_SPILL_DESC_SET" "$POLYEXEC" \
