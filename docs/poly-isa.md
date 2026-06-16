@@ -4,8 +4,8 @@ Bochs prototype for running existing precompiled x86_64, AArch64, and RISC-V64
 user code in one x86_64 virtual address space. Design rationale lives in
 [`poly-isa-design-directions.md`](poly-isa-design-directions.md). The active
 state, event, and monitor contract is the v2 draft in
-[`poly-isa-v2-draft.md`](poly-isa-v2-draft.md). The older v1 writeup is
-historical migration context, not an active implementation target.
+[`poly-isa-v2-draft.md`](poly-isa-v2-draft.md). The older v1 writeup has been
+retired and is not an active implementation target.
 
 ```bash
 make image
