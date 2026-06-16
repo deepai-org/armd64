@@ -298,7 +298,14 @@ Minimum note contents:
 state image selected through a spill descriptor. Multi-thread core dumps remain
 userspace policy: the monitor enumerates threads, asks each thread or spill
 image for a note blob, then writes ELF notes, minidump streams, or another file
-format.
+format. The current Linux `polyexec` runtime uses this split directly: when
+`POLYEXEC_FATAL_DEBUG_NOTE_DIR` is set, an unhandled auto-spilled fatal fault
+writes an ELF64 `ET_CORE`/`PT_NOTE` container whose vendor `POLY` note payload
+uses this `poly_v2_debug_note` layout. The runtime asks `PDUMP_STATE` first and
+can synthesize the same layout directly from the validated spill descriptor's
+state/event pair when the fault context cannot execute a live dump control.
+Linux/GDB-specific `NT_PRSTATUS` register notes and stack-memory segments are
+intentionally a higher-level runtime compatibility layer, not part of the ISA.
 
 ## Memory Probe
 

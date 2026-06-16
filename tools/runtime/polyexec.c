@@ -101,6 +101,7 @@ extern char **environ;
 #define POLY_OP_PRESTORE POLY_X86_CTRL_PRESTORE_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_SPILL_DESC_SET POLY_X86_CTRL_SPILL_DESC_SET_ASM
+#define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
 
 #define POLYEXEC_SYSCALL_SUMMARY_MAX 512
 #define POLY_AUTO_SPILL_RESUME_STACK_SIZE (64U * 1024U)
@@ -114,6 +115,12 @@ extern char **environ;
 #define POLY_V2_SPILL_DESC_MAGIC \
   ((((uint64_t) POLY_V2_SPILL_DESC_MAGIC_HI) << 32) | \
     POLY_V2_SPILL_DESC_MAGIC_LO)
+#define POLY_V2_DEBUG_NOTE_MAGIC \
+  ((((uint64_t) POLY_V2_DEBUG_NOTE_MAGIC_HI) << 32) | \
+    POLY_V2_DEBUG_NOTE_MAGIC_LO)
+#define POLYEXEC_ELF_NOTE_NAME "POLY"
+#define POLYEXEC_ELF_NOTE_NAMESZ 5U
+#define POLYEXEC_ELF_NOTE_TYPE_V2_DEBUG 0x32564744U
 
 #ifndef TIOCGWINSZ
 #define TIOCGWINSZ 0x5413
@@ -253,6 +260,14 @@ extern char **environ;
 
 #ifndef DT_GNU_HASH
 #define DT_GNU_HASH 0x6ffffef5
+#endif
+
+#ifndef EM_AARCH64
+#define EM_AARCH64 183
+#endif
+
+#ifndef EM_RISCV
+#define EM_RISCV 243
 #endif
 
 #ifndef GRND_NONBLOCK
@@ -510,6 +525,7 @@ static int polyexec_use_auto_spill;
 static int polyexec_dump_maps_on_fault = -1;
 static int polyexec_dump_aarch64_node_chain_on_fault = -1;
 static int polyexec_protect_runtime_signals = -1;
+static const char *polyexec_fatal_debug_note_dir;
 static const char *process_cross_report_path;
 static __thread uint64_t poly_mode_x86_saved_rsp;
 static __thread struct poly_xsave_state poly_auto_spill_state
@@ -519,11 +535,14 @@ static __thread struct poly_v2_event_frame poly_auto_spill_event_frame
   __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
 static __thread struct poly_v2_spill_descriptor poly_auto_spill_descriptor
   __attribute__((aligned(POLY_V2_SPILL_DESC_ALIGN)));
+static __thread struct poly_v2_debug_note poly_fatal_debug_note
+  __attribute__((aligned(POLY_V2_DEBUG_NOTE_ALIGN)));
 static __thread uint64_t poly_v2_last_event_sequence;
 static __thread volatile sig_atomic_t poly_auto_spill_installed;
 static __thread volatile sig_atomic_t poly_auto_spill_signal_signo;
 static __thread volatile sig_atomic_t poly_auto_spill_signal_code;
 static __thread volatile uintptr_t poly_auto_spill_signal_addr;
+static __thread volatile sig_atomic_t poly_fatal_debug_note_written;
 uint8_t poly_auto_spill_resume_stack[POLY_AUTO_SPILL_RESUME_STACK_SIZE]
   __attribute__((used, aligned(16)));
 static __thread uint8_t
@@ -1463,6 +1482,16 @@ static inline uint64_t poly_monitor_packet_get_value(void) {
   return value;
 }
 
+static inline uint64_t poly_dump_state_value(struct poly_v2_debug_note *note,
+    uint64_t bytes, uint64_t selector) {
+  uint64_t result = (uint64_t) (uintptr_t) note;
+  asm volatile(POLY_OP_DUMP_STATE
+    : "+a"(result)
+    : "d"(bytes), "c"(selector)
+    : "r15", "memory");
+  return result;
+}
+
 static int poly_is_raw_foreign_mode(uint64_t mode) {
   return mode == POLY_MODE_RAW_AARCH64 || mode == POLY_MODE_RAW_RISCV;
 }
@@ -1657,6 +1686,273 @@ static void poly_dump_proc_maps_stderr(void) {
   close(fd);
 }
 
+static size_t poly_align4_size(size_t value) {
+  return (value + 3U) & ~(size_t) 3U;
+}
+
+static int poly_append_char(char *path, size_t path_size, size_t *pos,
+    char value) {
+  if (*pos + 1U >= path_size)
+    return -1;
+  path[*pos] = value;
+  *pos += 1U;
+  path[*pos] = '\0';
+  return 0;
+}
+
+static int poly_append_cstr(char *path, size_t path_size, size_t *pos,
+    const char *text) {
+  if (text == NULL)
+    return -1;
+  for (size_t n = 0; text[n] != '\0'; n++) {
+    if (poly_append_char(path, path_size, pos, text[n]) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int poly_append_u64_dec(char *path, size_t path_size, size_t *pos,
+    uint64_t value) {
+  char digits[20];
+  size_t used = 0;
+  do {
+    digits[used++] = (char) ('0' + (value % 10U));
+    value /= 10U;
+  } while (value != 0 && used < sizeof(digits));
+  while (used != 0) {
+    if (poly_append_char(path, path_size, pos, digits[--used]) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int poly_build_fatal_debug_note_path(char *path, size_t path_size,
+    int signum) {
+  size_t pos = 0;
+  if (path_size == 0 || polyexec_fatal_debug_note_dir == NULL ||
+      polyexec_fatal_debug_note_dir[0] == '\0')
+    return -1;
+  path[0] = '\0';
+  if (poly_append_cstr(path, path_size, &pos,
+        polyexec_fatal_debug_note_dir) < 0)
+    return -1;
+  if (pos != 0 && path[pos - 1U] != '/' &&
+      poly_append_char(path, path_size, &pos, '/') < 0)
+    return -1;
+  if (poly_append_cstr(path, path_size, &pos,
+        "polyexec-v2-fatal-note-") < 0 ||
+      poly_append_u64_dec(path, path_size, &pos, (uint64_t) getpid()) < 0 ||
+      poly_append_char(path, path_size, &pos, '-') < 0 ||
+      poly_append_u64_dec(path, path_size, &pos,
+        (uint64_t) syscall(SYS_gettid)) < 0 ||
+      poly_append_cstr(path, path_size, &pos, "-sig") < 0 ||
+      poly_append_u64_dec(path, path_size, &pos, (uint64_t) signum) < 0 ||
+      poly_append_cstr(path, path_size, &pos, ".core") < 0)
+    return -1;
+  return 0;
+}
+
+static int poly_write_all_fd(int fd, const void *data, size_t bytes) {
+  const uint8_t *cursor = (const uint8_t *) data;
+  while (bytes != 0) {
+    ssize_t written = write(fd, cursor, bytes);
+    if (written < 0) {
+      if (errno == EINTR)
+        continue;
+      return -1;
+    }
+    if (written == 0)
+      return -1;
+    cursor += (size_t) written;
+    bytes -= (size_t) written;
+  }
+  return 0;
+}
+
+static uint16_t poly_debug_note_elf_machine(uint32_t frontend) {
+  if (frontend == POLY_MODE_RAW_AARCH64)
+    return EM_AARCH64;
+  if (frontend == POLY_MODE_RAW_RISCV)
+    return EM_RISCV;
+  return EM_X86_64;
+}
+
+static int poly_write_fatal_debug_note_elf(const char *path,
+    const struct poly_v2_debug_note *note) {
+  const size_t note_name_size = poly_align4_size(POLYEXEC_ELF_NOTE_NAMESZ);
+  const size_t note_desc_size = poly_align4_size(sizeof(*note));
+  const size_t note_offset = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr);
+  const size_t note_filesz = sizeof(Elf64_Nhdr) + note_name_size +
+    note_desc_size;
+  const uint8_t zero_pad[4] = { 0, 0, 0, 0 };
+
+  Elf64_Ehdr ehdr;
+  memset(&ehdr, 0, sizeof(ehdr));
+  ehdr.e_ident[EI_MAG0] = ELFMAG0;
+  ehdr.e_ident[EI_MAG1] = ELFMAG1;
+  ehdr.e_ident[EI_MAG2] = ELFMAG2;
+  ehdr.e_ident[EI_MAG3] = ELFMAG3;
+  ehdr.e_ident[EI_CLASS] = ELFCLASS64;
+  ehdr.e_ident[EI_DATA] = ELFDATA2LSB;
+  ehdr.e_ident[EI_VERSION] = EV_CURRENT;
+  ehdr.e_ident[EI_OSABI] = ELFOSABI_SYSV;
+  ehdr.e_type = ET_CORE;
+  ehdr.e_machine = poly_debug_note_elf_machine(note->frontend);
+  ehdr.e_version = EV_CURRENT;
+  ehdr.e_ehsize = sizeof(ehdr);
+  ehdr.e_phoff = sizeof(ehdr);
+  ehdr.e_phentsize = sizeof(Elf64_Phdr);
+  ehdr.e_phnum = 1;
+
+  Elf64_Phdr phdr;
+  memset(&phdr, 0, sizeof(phdr));
+  phdr.p_type = PT_NOTE;
+  phdr.p_offset = note_offset;
+  phdr.p_filesz = note_filesz;
+  phdr.p_align = 4;
+
+  Elf64_Nhdr nhdr;
+  memset(&nhdr, 0, sizeof(nhdr));
+  nhdr.n_namesz = POLYEXEC_ELF_NOTE_NAMESZ;
+  nhdr.n_descsz = sizeof(*note);
+  nhdr.n_type = POLYEXEC_ELF_NOTE_TYPE_V2_DEBUG;
+
+  int fd = open(path, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
+  if (fd < 0)
+    return -1;
+  int status = 0;
+  if (poly_write_all_fd(fd, &ehdr, sizeof(ehdr)) < 0 ||
+      poly_write_all_fd(fd, &phdr, sizeof(phdr)) < 0 ||
+      poly_write_all_fd(fd, &nhdr, sizeof(nhdr)) < 0 ||
+      poly_write_all_fd(fd, POLYEXEC_ELF_NOTE_NAME,
+        POLYEXEC_ELF_NOTE_NAMESZ) < 0 ||
+      poly_write_all_fd(fd, zero_pad,
+        note_name_size - POLYEXEC_ELF_NOTE_NAMESZ) < 0 ||
+      poly_write_all_fd(fd, note, sizeof(*note)) < 0 ||
+      poly_write_all_fd(fd, zero_pad,
+        note_desc_size - sizeof(*note)) < 0)
+    status = -1;
+  if (close(fd) < 0)
+    status = -1;
+  return status;
+}
+
+static int poly_populate_fatal_debug_note_from_spill(
+    struct poly_v2_debug_note *note) {
+  struct poly_xsave_state *state = poly_auto_spill_active_state();
+  if (note == NULL || state->header.magic != POLY_STATE_XSAVE_MAGIC)
+    return -1;
+
+  memset(note, 0, sizeof(*note));
+  note->magic = POLY_V2_DEBUG_NOTE_MAGIC;
+  note->bytes = POLY_V2_DEBUG_NOTE_BYTES;
+  note->version = POLY_V2_DEBUG_NOTE_VERSION;
+  note->header_bytes = POLY_V2_DEBUG_NOTE_HEADER_BYTES;
+  note->selector = POLY_V2_DUMP_SELECTOR_SPILL_DESCRIPTOR;
+  note->flags = POLY_V2_DEBUG_NOTE_FLAG_HAS_XSAVE |
+    POLY_V2_DEBUG_NOTE_FLAG_SPILLED;
+  note->frontend = state->header.current_mode;
+  note->current_mode = state->header.current_mode;
+  note->state_layout_version = state->header.layout_version;
+  note->state_bytes = state->header.total_bytes;
+  note->pc = state->header.foreign_pc;
+  note->tls = state->header.foreign_tls_base;
+  note->event_offset = POLY_V2_DEBUG_NOTE_EVENT_OFFSET;
+  note->event_bytes = POLY_V2_EVENT_BYTES;
+  note->xsave_offset = POLY_V2_DEBUG_NOTE_XSAVE_OFFSET;
+  note->xsave_bytes = POLY_STATE_XSAVE_BYTES_ARCH;
+  note->spill_descriptor =
+    (uint64_t) (uintptr_t) &poly_auto_spill_descriptor;
+  note->spill_generation = poly_auto_spill_descriptor.generation;
+
+  if (state->header.current_mode == POLY_MODE_RAW_AARCH64) {
+    note->sp = state->aarch64_gpr[31];
+    note->tls = state->frontend_tls.aarch64_tls_base;
+    note->status0 = state->aarch64_status.nzcv;
+    note->status1 = state->aarch64_status.fpcr |
+      (state->aarch64_status.fpsr << 32);
+    note->gpr_valid_mask = POLY_AARCH64_GPR_VALID_MASK_FULL;
+    note->fp_valid_mask = UINT64_MAX;
+  } else if (state->header.current_mode == POLY_MODE_RAW_RISCV) {
+    note->sp = state->riscv_gpr[2];
+    note->tls = state->frontend_tls.riscv_tls_base;
+    note->status0 = state->riscv_status.fcsr;
+    note->gpr_valid_mask = UINT64_MAX;
+    note->fp_valid_mask = UINT64_MAX;
+  }
+
+  if (poly_auto_spill_event_frame.magic == POLY_V2_EVENT_MAGIC &&
+      poly_auto_spill_event_frame.bytes == POLY_V2_EVENT_BYTES) {
+    memcpy(&note->event, &poly_auto_spill_event_frame,
+      sizeof(note->event));
+    note->flags |= POLY_V2_DEBUG_NOTE_FLAG_HAS_EVENT;
+    note->event_sequence = note->event.sequence;
+    note->event_kind = note->event.event_kind;
+    note->fault_address = note->event.fault_address;
+    note->raw_syndrome = note->event.raw_syndrome;
+  } else {
+    note->event_kind = state->trap.reason;
+    note->fault_address = state->trap_args[3];
+    note->raw_syndrome = state->trap_args[2];
+  }
+
+  memcpy(&note->state, state, sizeof(note->state));
+  return 0;
+}
+
+static void poly_write_fatal_debug_note(int signum, const char *reason) {
+  if (polyexec_fatal_debug_note_dir == NULL ||
+      polyexec_fatal_debug_note_dir[0] == '\0')
+    return;
+  if (poly_fatal_debug_note_written)
+    return;
+  poly_fatal_debug_note_written = 1;
+  memset(&poly_fatal_debug_note, 0, sizeof(poly_fatal_debug_note));
+  uint64_t result = poly_dump_state_value(&poly_fatal_debug_note,
+    sizeof(poly_fatal_debug_note), POLY_V2_DUMP_SELECTOR_SPILL_DESCRIPTOR);
+  if (result != 0) {
+    memset(&poly_fatal_debug_note, 0, sizeof(poly_fatal_debug_note));
+    result = poly_dump_state_value(&poly_fatal_debug_note,
+      sizeof(poly_fatal_debug_note), POLY_V2_DUMP_SELECTOR_LIVE);
+  }
+  if (result != 0 ||
+      poly_fatal_debug_note.magic != POLY_V2_DEBUG_NOTE_MAGIC ||
+      poly_fatal_debug_note.bytes != POLY_V2_DEBUG_NOTE_BYTES) {
+    result = (uint64_t) -EINVAL;
+    if (poly_populate_fatal_debug_note_from_spill(
+          &poly_fatal_debug_note) == 0)
+      result = 0;
+  }
+  if (result != 0 ||
+      poly_fatal_debug_note.magic != POLY_V2_DEBUG_NOTE_MAGIC ||
+      poly_fatal_debug_note.bytes != POLY_V2_DEBUG_NOTE_BYTES) {
+    poly_write_literal_stderr("POLYEXEC_FATAL_DEBUG_NOTE_FAIL: dump=0x");
+    poly_write_hex64_stderr(result);
+    poly_write_literal_stderr("\n");
+    return;
+  }
+
+  char path[512];
+  if (poly_build_fatal_debug_note_path(path, sizeof(path), signum) < 0 ||
+      poly_write_fatal_debug_note_elf(path, &poly_fatal_debug_note) < 0) {
+    poly_write_literal_stderr("POLYEXEC_FATAL_DEBUG_NOTE_FAIL: write\n");
+    return;
+  }
+  poly_write_literal_stderr("POLYEXEC_FATAL_DEBUG_NOTE: path=");
+  poly_write_literal_stderr(path);
+  poly_write_literal_stderr(" reason=");
+  poly_write_literal_stderr(reason != NULL ? reason : "unknown");
+  poly_write_literal_stderr(" selector=0x");
+  poly_write_hex64_stderr(poly_fatal_debug_note.selector);
+  poly_write_literal_stderr(" frontend=0x");
+  poly_write_hex64_stderr(poly_fatal_debug_note.frontend);
+  poly_write_literal_stderr(" pc=0x");
+  poly_write_hex64_stderr(poly_fatal_debug_note.pc);
+  poly_write_literal_stderr(" event=0x");
+  poly_write_hex64_stderr(poly_fatal_debug_note.event_kind);
+  poly_write_literal_stderr("\n");
+}
+
 static void report_poly_spill_page_fault(void) {
   struct poly_xsave_state *spill_state = poly_auto_spill_active_state();
   const uint64_t cr2 = spill_state->trap_args[3];
@@ -1677,6 +1973,10 @@ static void report_poly_spill_page_fault(void) {
   }
   if (poly_dump_maps_on_fault_enabled())
     poly_dump_proc_maps_stderr();
+  int signum = (int) poly_auto_spill_signal_signo;
+  if (signum == 0)
+    signum = SIGSEGV;
+  poly_write_fatal_debug_note(signum, "unhandled-spill-fault");
 }
 
 static void poly_dump_native_signal_context_stderr(void *ucontext) {
@@ -14017,6 +14317,10 @@ int main(int argc, char **argv) {
   const char *auto_spill_env = getenv("POLYEXEC_AUTO_SPILL");
   polyexec_use_auto_spill =
     auto_spill_env == NULL || strcmp(auto_spill_env, "0") != 0;
+  const char *fatal_debug_note_env = getenv("POLYEXEC_FATAL_DEBUG_NOTE_DIR");
+  if (fatal_debug_note_env != NULL && fatal_debug_note_env[0] != '\0' &&
+      strcmp(fatal_debug_note_env, "0") != 0)
+    polyexec_fatal_debug_note_dir = fatal_debug_note_env;
   const char *watchdog_env = getenv("POLYEXEC_WATCHDOG_SECONDS");
   if (watchdog_env != NULL && watchdog_env[0] != '\0' &&
       strcmp(watchdog_env, "0") != 0) {

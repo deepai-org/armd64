@@ -9723,11 +9723,34 @@ if [ "$RUN_POLY_JIT_SELFTEST" = "1" ]; then
 fi
 
 if [ "$RUN_POLY_PAGEFAULT_SELFTEST" = "1" ]; then
+    rm -rf /tmp/poly-fatal-debug-notes
+    mkdir -p /tmp/poly-fatal-debug-notes
     set +e
-    /usr/bin/polyexec --selftest-pagefault >/dev/ttyS0 2>&1
+    POLYEXEC_FATAL_DEBUG_NOTE_DIR=/tmp/poly-fatal-debug-notes \
+      /usr/bin/polyexec --selftest-pagefault >/dev/ttyS0 2>&1
     pagefault_status="\$?"
     set -e
     if [ "\$pagefault_status" = "139" ]; then
+        fatal_note=""
+        for candidate in /tmp/poly-fatal-debug-notes/*.core; do
+            if [ -s "\$candidate" ]; then
+                fatal_note="\$candidate"
+                break
+            fi
+        done
+        if [ -z "\$fatal_note" ]; then
+            echo "POLY_PAGEFAULT_SELFTEST_FAIL: missing fatal debug note" >/dev/ttyS0 2>&1
+            exit 1
+        fi
+        fatal_note_magic="\$(/bin/busybox dd if="\$fatal_note" bs=1 count=4 2>/dev/null | /bin/busybox od -An -tx1)"
+        case "\$fatal_note_magic" in
+            *"7f 45 4c 46"*) ;;
+            *)
+                echo "POLY_PAGEFAULT_SELFTEST_FAIL: bad fatal debug note magic=\$fatal_note_magic" >/dev/ttyS0 2>&1
+                exit 1
+                ;;
+        esac
+        echo "POLY_FATAL_DEBUG_NOTE_ELF_OK: path=\$fatal_note" >/dev/ttyS0 2>&1
         echo "POLY_PAGEFAULT_SELFTEST_OK" >/dev/ttyS0 2>&1
     else
         echo "POLY_PAGEFAULT_SELFTEST_FAIL: status=\$pagefault_status" >/dev/ttyS0 2>&1
@@ -14563,6 +14586,14 @@ EOF
           continue
         fi
         if ! grep -q "Poly Page Fault at Address 0x" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "POLYEXEC_FATAL_DEBUG_NOTE: path=/tmp/poly-fatal-debug-notes/" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "POLY_FATAL_DEBUG_NOTE_ELF_OK" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

@@ -65,9 +65,12 @@ frames, spill descriptors, `PDUMP_STATE` debug-note export,
 `PMEM_PROBE_RANGE` non-faulting memory accessibility probes,
 `PDERIVE_STATE` thread-state derivation, the shared-memory ordering contract,
 and policy preflight for seccomp-style userspace mediation. Core-file or
-minidump wrapping remains userspace policy on top of the debug-note blob. Draft
-features such as ABI descriptors and diagnostic counters must not be advertised
-until their control paths and tests exist.
+minidump wrapping remains userspace policy on top of the debug-note blob;
+`polyexec` now has an opt-in fatal-fault path that writes a valid ELF
+`PT_NOTE` container carrying the v2 layout from `PDUMP_STATE` or, in a fatal
+post-spill context, from the validated spill state/event pair. Draft features
+such as ABI descriptors and diagnostic counters must not be advertised until
+their control paths and tests exist.
 
 ## FPGA/Silicon ISA Readiness Boundary
 

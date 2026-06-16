@@ -464,6 +464,12 @@ assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip"
   "PENTER after PRESTORE must resume at the spilled foreign PC"
 assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
   "userspace monitor must install a SIGSEGV handler for Poly fault translation"
+assert_contains "poly_write_fatal_debug_note" "$POLYEXEC" \
+  "userspace monitor must synthesize a v2 debug-note artifact on fatal Poly faults"
+assert_contains "PT_NOTE" "$POLYEXEC" \
+  "fatal Poly debug artifacts must be wrapped in an ELF note container"
+assert_contains "POLYEXEC_FATAL_DEBUG_NOTE_DIR" "$POLYEXEC" \
+  "fatal Poly debug-note output must be opt-in through a runtime directory"
 assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYEXEC" \
   "userspace monitor must not use legacy raw spill pointer setup"
 assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYBINFMT_EXEC" \
@@ -498,6 +504,8 @@ assert_contains "Poly Page Fault at Address" "$POLYEXEC" \
   "userspace monitor must print the Poly page-fault diagnostic"
 assert_contains "selftest-pagefault" "$POLYEXEC" \
   "userspace monitor must expose a deliberate Poly page-fault self-test"
+assert_contains "POLY_FATAL_DEBUG_NOTE_ELF_OK" "$BOOT_SCRIPT" \
+  "page-fault boot coverage must verify the fatal v2 debug-note ELF artifact"
 assert_contains "POLYEXEC_AUTO_SPILL_STATUS" "$POLYEXEC" \
   "userspace monitor must report auto-spill profiling counters"
 assert_contains "PT_INTERP" "$POLYEXEC" \
