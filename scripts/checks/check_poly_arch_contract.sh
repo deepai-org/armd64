@@ -838,8 +838,8 @@ assert_contains "POLY_VDSO_TIME_OK iterations=64" "$BOOT_SCRIPT" \
   "boot validation must gate the AArch64 vDSO time fixture marker"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-vdso-time-real" "$BOOT_SCRIPT" \
   "boot validation must gate the AArch64 vDSO time fixture result"
-assert_contains "POLYEXEC_MONITOR_PACKETS: count=\\(\\[1-9\\]\\|\\[1-4\\]\\[0-9\\]\\).*aarch64-process-vdso-time-real" "$BOOT_SCRIPT" \
-  "boot validation must prove the AArch64 vDSO time loop avoids one monitor trap per call"
+assert_contains "POLYEXEC_EVENTS: count=\\(\\[1-9\\]\\|\\[1-4\\]\\[0-9\\]\\).*aarch64-process-vdso-time-real" "$BOOT_SCRIPT" \
+  "boot validation must prove the AArch64 vDSO time loop avoids one event per call"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-signal-mask-real" "$BOOT_SCRIPT" \
   "boot validation must gate the AArch64 signal mask edge result"
 assert_contains "POLY_NONROOT_EXEC: uid=65534 euid=65534 gid=65534 egid=65534 command=/usr/bin/polyexec" "$BOOT_SCRIPT" \

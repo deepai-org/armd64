@@ -612,14 +612,14 @@ static uint32_t process_compact_f32_u32_signature_slot = 7;
 static __thread uint8_t poly_state_key_anchor;
 static __thread volatile uint64_t poly_monitor_packet[16]
   __attribute__((aligned(64)));
-static volatile uint64_t poly_monitor_packet_count;
-static volatile uint64_t poly_monitor_packet_syscall_aarch64_count;
-static volatile uint64_t poly_monitor_packet_syscall_riscv_count;
-static volatile uint64_t poly_monitor_packet_break_aarch64_count;
-static volatile uint64_t poly_monitor_packet_break_riscv_count;
-static volatile uint64_t poly_monitor_packet_import_count;
-static volatile uint64_t poly_monitor_packet_illegal_count;
-static volatile uint64_t poly_monitor_packet_other_count;
+static volatile uint64_t poly_event_count;
+static volatile uint64_t poly_event_syscall_aarch64_count;
+static volatile uint64_t poly_event_syscall_riscv_count;
+static volatile uint64_t poly_event_break_aarch64_count;
+static volatile uint64_t poly_event_break_riscv_count;
+static volatile uint64_t poly_event_import_count;
+static volatile uint64_t poly_event_illegal_count;
+static volatile uint64_t poly_event_other_count;
 static volatile uint64_t poly_process_terminal_exit_code;
 static uint8_t *process_brk_mapping;
 static size_t process_brk_mapping_size;
@@ -6873,7 +6873,7 @@ static uint64_t poly_handle_foreign_import(uint64_t number,
   }
 }
 
-static void report_poly_monitor_packets(void);
+static void report_poly_events(void);
 static void report_poly_syscall_summary(void);
 
 static int poly_trace_syscalls_enabled(void) {
@@ -7805,25 +7805,25 @@ uint64_t poly_trap_vector_dispatch(void) {
     poly_state_export(&trap_state);
     has_trap_state = 1;
   }
-  poly_monitor_packet_count++;
+  poly_event_count++;
   if (packet.reason == POLY_TRAP_SYSCALL &&
       packet.mode == POLY_MODE_RAW_AARCH64)
-    poly_monitor_packet_syscall_aarch64_count++;
+    poly_event_syscall_aarch64_count++;
   else if (packet.reason == POLY_TRAP_SYSCALL &&
       packet.mode == POLY_MODE_RAW_RISCV)
-    poly_monitor_packet_syscall_riscv_count++;
+    poly_event_syscall_riscv_count++;
   else if (packet.reason == POLY_TRAP_BREAK &&
       packet.mode == POLY_MODE_RAW_AARCH64)
-    poly_monitor_packet_break_aarch64_count++;
+    poly_event_break_aarch64_count++;
   else if (packet.reason == POLY_TRAP_BREAK &&
       packet.mode == POLY_MODE_RAW_RISCV)
-    poly_monitor_packet_break_riscv_count++;
+    poly_event_break_riscv_count++;
   else if (packet.reason == POLY_TRAP_IMPORT)
-    poly_monitor_packet_import_count++;
+    poly_event_import_count++;
   else if (packet.reason == POLY_TRAP_ILLEGAL)
-    poly_monitor_packet_illegal_count++;
+    poly_event_illegal_count++;
   else
-    poly_monitor_packet_other_count++;
+    poly_event_other_count++;
 
   if (!poly_is_raw_foreign_mode(packet.mode))
     return poly_trap_vector_return_result((uint64_t) -ENOSYS,
@@ -7910,7 +7910,7 @@ uint64_t poly_trap_vector_dispatch(void) {
       if (run_process_exit_finalizers() < 0)
         poly_process_terminal_exit_code = 125;
       poly_resume_stdout_diagnostics();
-      report_poly_monitor_packets();
+      report_poly_events();
       report_poly_syscall_summary();
       poly_report_seccomp_summary();
       if (poly_process_exit_finalizers.program != NULL) {
@@ -8546,14 +8546,14 @@ static void poly_trap_vector_handler(void) {
 
 static void install_poly_trap_vector(void) {
   memset((void *) poly_monitor_packet, 0, sizeof(poly_monitor_packet));
-  poly_monitor_packet_count = 0;
-  poly_monitor_packet_syscall_aarch64_count = 0;
-  poly_monitor_packet_syscall_riscv_count = 0;
-  poly_monitor_packet_break_aarch64_count = 0;
-  poly_monitor_packet_break_riscv_count = 0;
-  poly_monitor_packet_import_count = 0;
-  poly_monitor_packet_illegal_count = 0;
-  poly_monitor_packet_other_count = 0;
+  poly_event_count = 0;
+  poly_event_syscall_aarch64_count = 0;
+  poly_event_syscall_riscv_count = 0;
+  poly_event_break_aarch64_count = 0;
+  poly_event_break_riscv_count = 0;
+  poly_event_import_count = 0;
+  poly_event_illegal_count = 0;
+  poly_event_other_count = 0;
   poly_monitor_packet_set_value(polyexec_use_auto_spill ? 0 :
     (uint64_t) (uintptr_t) poly_monitor_packet);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
@@ -8568,17 +8568,17 @@ static void clear_poly_trap_vector(void) {
   poly_trap_vector_active = 0;
 }
 
-static void report_poly_monitor_packets(void) {
-  if (poly_monitor_packet_count != 0) {
-    printf("POLYEXEC_MONITOR_PACKETS: count=%llu syscall_a64=%llu syscall_rv=%llu break_a64=%llu break_rv=%llu import=%llu illegal=%llu other=%llu path=%s\n",
-      (unsigned long long) poly_monitor_packet_count,
-      (unsigned long long) poly_monitor_packet_syscall_aarch64_count,
-      (unsigned long long) poly_monitor_packet_syscall_riscv_count,
-      (unsigned long long) poly_monitor_packet_break_aarch64_count,
-      (unsigned long long) poly_monitor_packet_break_riscv_count,
-      (unsigned long long) poly_monitor_packet_import_count,
-      (unsigned long long) poly_monitor_packet_illegal_count,
-      (unsigned long long) poly_monitor_packet_other_count,
+static void report_poly_events(void) {
+  if (poly_event_count != 0) {
+    printf("POLYEXEC_EVENTS: count=%llu syscall_a64=%llu syscall_rv=%llu break_a64=%llu break_rv=%llu import=%llu illegal=%llu other=%llu path=%s\n",
+      (unsigned long long) poly_event_count,
+      (unsigned long long) poly_event_syscall_aarch64_count,
+      (unsigned long long) poly_event_syscall_riscv_count,
+      (unsigned long long) poly_event_break_aarch64_count,
+      (unsigned long long) poly_event_break_riscv_count,
+      (unsigned long long) poly_event_import_count,
+      (unsigned long long) poly_event_illegal_count,
+      (unsigned long long) poly_event_other_count,
       process_cross_report_path ? process_cross_report_path : "-");
   }
 }
@@ -13763,7 +13763,7 @@ static int emit_and_run_exit_child(const struct poly_program *program,
       install_poly_trap_vector();
     if (emit_and_run(program, &child_result, 1) < 0)
       _exit(125);
-    report_poly_monitor_packets();
+    report_poly_events();
     report_poly_syscall_summary();
     poly_report_seccomp_summary();
     fflush(NULL);
@@ -13861,7 +13861,7 @@ static int emit_and_run_process_child(struct poly_program *program,
             &child_result, use_trap_vector)) < 0)
       _exit(125);
     poly_resume_stdout_diagnostics();
-    report_poly_monitor_packets();
+    report_poly_events();
     report_poly_syscall_summary();
     poly_report_seccomp_summary();
     fflush(NULL);
@@ -14397,7 +14397,7 @@ int main(int argc, char **argv) {
     if (run_poly_atomic_thread_stress(&request, (size_t) count,
           (uint64_t) iterations, use_trap_vector) < 0)
       return 1;
-    report_poly_monitor_packets();
+    report_poly_events();
     report_poly_syscall_summary();
     poly_report_seccomp_summary();
     report_poly_auto_spill_status();
@@ -14429,7 +14429,7 @@ int main(int argc, char **argv) {
     if (run_poly_thread_stress(&request, (size_t) count,
           use_trap_vector) < 0)
       return 1;
-    report_poly_monitor_packets();
+    report_poly_events();
     report_poly_syscall_summary();
     poly_report_seccomp_summary();
     report_poly_auto_spill_status();
@@ -14490,7 +14490,7 @@ int main(int argc, char **argv) {
       }
     }
     free_program(&program);
-    report_poly_monitor_packets();
+    report_poly_events();
     report_poly_syscall_summary();
     poly_report_seccomp_summary();
     report_poly_auto_spill_status();
@@ -14540,7 +14540,7 @@ int main(int argc, char **argv) {
     free_program(&program);
   }
 
-  report_poly_monitor_packets();
+  report_poly_events();
   report_poly_syscall_summary();
   poly_report_seccomp_summary();
   report_poly_auto_spill_status();

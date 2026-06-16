@@ -13901,10 +13901,10 @@ EOF
   local bochs_pid=$!
   local deadline=$((SECONDS + BOOT_TIMEOUT_SECONDS))
   local success=0
-  local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|NATIVE_CHECK_FAIL|POLY[A-Z_]*_FAIL|POLYEXEC_MONITOR_PACKETS: .*illegal=[1-9][0-9]*|POLYEXEC_MONITOR_PACKETS: .*other=[1-9][0-9]*'
+  local fatal_pattern='Kernel panic|Segmentation fault|segfault|Oops|general protection|BUG:|poly_raw: unhandled|NATIVE_CHECK_FAIL|POLY[A-Z_]*_FAIL|POLYEXEC_EVENTS: .*illegal=[1-9][0-9]*|POLYEXEC_EVENTS: .*other=[1-9][0-9]*'
   local fatal_exclude_pattern=
   if [[ "$RUN_POLY_ALPINE_PODMAN_SMOKE" == "1" ]]; then
-    fatal_exclude_pattern='POLYEXEC_MONITOR_PACKETS: .*illegal=[1-9][0-9]*.*path=/usr/bin/podman'
+    fatal_exclude_pattern='POLYEXEC_EVENTS: .*illegal=[1-9][0-9]*.*path=/usr/bin/podman'
   fi
   while true; do
     if fatal_logs_present "$fatal_pattern" "$fatal_exclude_pattern"; then
@@ -14297,19 +14297,19 @@ EOF
           sleep 1
           continue
         fi
-        if [[ "$(grep -Ec "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 1 ]]; then
+        if [[ "$(grep -Ec "POLYEXEC_EVENTS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 1 ]]; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* .*import=[1-9][0-9]*" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]* .*import=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=0" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=0" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=0 syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]* syscall_a64=0 syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
@@ -14327,15 +14327,15 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=0" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]* syscall_a64=[1-9][0-9]* syscall_rv=0" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* syscall_a64=0 syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]* syscall_a64=0 syscall_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
@@ -14425,7 +14425,7 @@ EOF
 	          sleep 1
 	          continue
 	        fi
-	        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=([1-9]|[1-4][0-9]) syscall_a64=([1-9]|[1-4][0-9]) .*path=/usr/lib/polyapps/aarch64-process-vdso-time-real\\.elf" "$SERIAL_LOG"; then
+	        if ! grep -Eq "POLYEXEC_EVENTS: count=([1-9]|[1-4][0-9]) syscall_a64=([1-9]|[1-4][0-9]) .*path=/usr/lib/polyapps/aarch64-process-vdso-time-real\\.elf" "$SERIAL_LOG"; then
 	          sleep 1
 	          continue
 	        fi
@@ -15528,11 +15528,11 @@ EOF
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
-        if ! grep -Eq "POLYEXEC_MONITOR_PACKETS: count=[1-9][0-9]* .*break_a64=[1-9][0-9]* .*break_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
+        if ! grep -Eq "POLYEXEC_EVENTS: count=[1-9][0-9]* .*break_a64=[1-9][0-9]* .*break_rv=[1-9][0-9]*" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi
@@ -15860,8 +15860,8 @@ EOF
             "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-ebreak\\.elf .*expected=0x4c000205 .*process=0"
             "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-compressed-ebreak\\.elf .*expected=0x4c000205 .*process=0"
             "POLYBINFMT_EXEC: path=/usr/lib/polyapps/riscv-compressed-frame\\.elf .*expected=42 .*process=0"
-            "POLYEXEC_MONITOR_PACKETS: .*break_a64=[1-9][0-9]*"
-            "POLYEXEC_MONITOR_PACKETS: .*break_rv=[1-9][0-9]*"
+            "POLYEXEC_EVENTS: .*break_a64=[1-9][0-9]*"
+            "POLYEXEC_EVENTS: .*break_rv=[1-9][0-9]*"
           )
           for pattern in "${polybinfmt_arch_trap_patterns[@]}"; do
             if ! grep -Eq "$pattern" "$SERIAL_LOG"; then
