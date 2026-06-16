@@ -581,6 +581,8 @@ assert_contains "refresh_poly_trap_event_frame" "$POLYEXEC" \
   "userspace monitor must register v2 event frames even without auto-spill"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|poly_monitor_packet|read_poly_monitor_packet" "$POLYEXEC" \
   "userspace monitor must not retain the legacy monitor-packet trap dispatch fallback"
+assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|poly_monitor_packet_(set|get)" "$NATIVECHECK" \
+  "nativecheck must not exercise retired monitor-packet control opcodes"
 assert_contains "poly_auto_spill_resume_info" "$POLYEXEC" \
   "userspace monitor auto-spill resume handoff must be per-thread"
 assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
