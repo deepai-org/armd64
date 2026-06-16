@@ -275,6 +275,10 @@ compare_const BX_POLY_CPUID_STATE_XSAVE_ARCH_CONTRACT POLY_CPUID_STATE_XSAVE_ARC
 compare_const BX_POLY_CPUID_STATE_USER_SPILL POLY_CPUID_STATE_USER_SPILL
 compare_const BX_POLY_CPUID_STATE_MONITOR_TRAMPOLINE POLY_CPUID_STATE_MONITOR_TRAMPOLINE
 compare_const BX_POLY_CPUID_STATE_OS_XSAVE_NOT_REQUIRED POLY_CPUID_STATE_OS_XSAVE_NOT_REQUIRED
+assert_not_contains "regs\\.(eax|ebx|ecx|edx)[[:space:]]*=[[:space:]]*POLY_.*MONITOR_PACKET" "$HEADER" \
+  "public CPUID escape helpers must not advertise retired monitor-packet controls"
+assert_not_contains "\\b[RE][ABCD]X[[:space:]]*=[[:space:]]*BX_POLY_.*MONITOR_PACKET" "$BOCHS_CPU" \
+  "Bochs CPUID leaves must not advertise retired monitor-packet controls"
 compare_const BX_POLY_STATE_XSAVE_MAGIC POLY_STATE_XSAVE_MAGIC
 compare_const BX_POLY_STATE_XSAVE_COMPONENT_ARCH POLY_STATE_XSAVE_COMPONENT_ARCH
 compare_const BX_POLY_STATE_XSAVE_BYTES_ARCH POLY_STATE_XSAVE_BYTES_ARCH
