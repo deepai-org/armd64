@@ -67,6 +67,7 @@ RISCV64_POLYCALL_REAL_SRC="$ROOT_DIR/tools/fixtures/polycall/riscv64_polycall_re
 POLYEXEC_GNU_HASH_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_gnu_hash_real.c"
 POLYEXEC_PROCESS_START_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_start_real.c"
 POLYEXEC_PROCESS_SYSCALL_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_syscall_real.c"
+POLYEXEC_PROCESS_SECCOMP_POLICY_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_seccomp_policy_real.c"
 POLYEXEC_PROCESS_RELOC_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_reloc_real.c"
 POLYEXEC_PROCESS_NEEDED_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_needed_real.c"
 POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_libc_main_real.c"
@@ -901,6 +902,9 @@ build_poly_elf_payloads() {
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_SYSCALL_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-syscall-real.elf"
+  aarch64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
+    "$POLYEXEC_PROCESS_SECCOMP_POLICY_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-seccomp-policy-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -8988,6 +8992,9 @@ if [ "$RUN_POLY_EXEC_SYSCALL" = "1" ]; then
       /usr/lib/polyapps/aarch64-process-syscall-real.elf=42 \
       probe >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
+      /usr/lib/polyapps/aarch64-process-seccomp-policy-real.elf=42 \
+      seccomp-policy >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-syscall-real.elf=42 \
       probe >/dev/ttyS0 2>&1
     # Process mode observes Linux wait status, so the full fixture score
@@ -14236,6 +14243,18 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-syscall-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-seccomp-policy-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -q "POLY_SECCOMP_POLICY_OK" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_SECCOMP_STATUS: mode=2 filters=1 preflights=[1-9][0-9]* denied=[1-9][0-9]* no_new_privs=1" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

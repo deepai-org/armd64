@@ -27,6 +27,7 @@
 #include <ucontext.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -272,6 +273,30 @@ extern char **environ;
 
 #ifndef ARCH_GET_FS
 #define ARCH_GET_FS 0x1003
+#endif
+
+#ifndef PR_SET_SECCOMP
+#define PR_SET_SECCOMP 22
+#endif
+
+#ifndef PR_GET_SECCOMP
+#define PR_GET_SECCOMP 21
+#endif
+
+#ifndef PR_SET_NO_NEW_PRIVS
+#define PR_SET_NO_NEW_PRIVS 38
+#endif
+
+#ifndef PR_GET_NO_NEW_PRIVS
+#define PR_GET_NO_NEW_PRIVS 39
+#endif
+
+#ifndef SYS_seccomp
+#define SYS_seccomp 317
+#endif
+
+#ifndef SYS_bpf
+#define SYS_bpf 321
 #endif
 
 #define POLY_RISCV_SYS_HWPROBE 258
@@ -616,8 +641,17 @@ static uint64_t poly_syscall_summary_errors;
 static int poly_tiocgwinsz_stdin_enotty_cached;
 static uint64_t poly_tiocgwinsz_stdin_cache_hits;
 static uint64_t poly_tiocgwinsz_stdin_cache_misses;
+static pthread_mutex_t poly_seccomp_lock = PTHREAD_MUTEX_INITIALIZER;
+static int poly_seccomp_no_new_privs;
+static int poly_seccomp_mode;
+static size_t poly_seccomp_filter_count;
+static uint64_t poly_seccomp_preflight_count;
+static uint64_t poly_seccomp_denied_count;
 
 static int poly_prefault_guest_mmaps_enabled(void);
+
+#define POLY_SECCOMP_MAX_FILTERS 16
+#define POLY_SECCOMP_MAX_INSNS 4096
 
 struct poly_runtime_trap_packet {
   uint64_t reason;
@@ -630,6 +664,35 @@ struct poly_runtime_trap_packet {
   uint64_t reserved[2];
   uint64_t args[8];
 };
+
+struct poly_bpf_insn {
+  uint16_t code;
+  uint8_t jt;
+  uint8_t jf;
+  uint32_t k;
+};
+
+struct poly_seccomp_guest_fprog {
+  uint16_t len;
+  uint16_t pad0;
+  uint32_t pad1;
+  uint64_t filter;
+};
+
+struct poly_seccomp_program {
+  size_t len;
+  struct poly_bpf_insn insns[POLY_SECCOMP_MAX_INSNS];
+};
+
+struct poly_seccomp_data {
+  int32_t nr;
+  uint32_t arch;
+  uint64_t instruction_pointer;
+  uint64_t args[6];
+};
+
+static struct poly_seccomp_program
+  poly_seccomp_filters[POLY_SECCOMP_MAX_FILTERS];
 
 struct poly_clone_child_handoff {
   struct poly_runtime_trap_packet packet;
@@ -665,6 +728,72 @@ struct poly_linux_ksigaction {
 #define POLY_LINUX_SS_ONSTACK 1
 #define POLY_LINUX_SS_DISABLE 2
 #define POLY_AARCH64_MINSIGSTKSZ 2048U
+
+#define POLY_SECCOMP_MODE_DISABLED 0
+#define POLY_SECCOMP_MODE_STRICT 1
+#define POLY_SECCOMP_MODE_FILTER 2
+#define POLY_SECCOMP_SET_MODE_STRICT 0
+#define POLY_SECCOMP_SET_MODE_FILTER 1
+#define POLY_SECCOMP_GET_ACTION_AVAIL 2
+#define POLY_SECCOMP_FILTER_FLAG_TSYNC (1U << 0)
+#define POLY_SECCOMP_FILTER_FLAG_LOG (1U << 1)
+#define POLY_SECCOMP_FILTER_FLAG_SPEC_ALLOW (1U << 2)
+#define POLY_SECCOMP_RET_KILL_PROCESS 0x80000000U
+#define POLY_SECCOMP_RET_KILL_THREAD 0x00000000U
+#define POLY_SECCOMP_RET_TRAP 0x00030000U
+#define POLY_SECCOMP_RET_ERRNO 0x00050000U
+#define POLY_SECCOMP_RET_TRACE 0x7ff00000U
+#define POLY_SECCOMP_RET_LOG 0x7ffc0000U
+#define POLY_SECCOMP_RET_ALLOW 0x7fff0000U
+#define POLY_SECCOMP_RET_ACTION_FULL 0xffff0000U
+#define POLY_SECCOMP_RET_DATA 0x0000ffffU
+#define POLY_AUDIT_ARCH_AARCH64 0xc00000b7U
+#define POLY_AUDIT_ARCH_RISCV64 0xc00000f3U
+#define POLY_AUDIT_ARCH_X86_64 0xc000003eU
+#define POLY_BPF_CLASS(code) ((code) & 0x07)
+#define POLY_BPF_SIZE(code) ((code) & 0x18)
+#define POLY_BPF_MODE(code) ((code) & 0xe0)
+#define POLY_BPF_OP(code) ((code) & 0xf0)
+#define POLY_BPF_SRC(code) ((code) & 0x08)
+#define POLY_BPF_RVAL(code) ((code) & 0x18)
+#define POLY_BPF_MISCOP(code) ((code) & 0xf8)
+#define POLY_BPF_LD 0x00
+#define POLY_BPF_LDX 0x01
+#define POLY_BPF_ST 0x02
+#define POLY_BPF_STX 0x03
+#define POLY_BPF_ALU 0x04
+#define POLY_BPF_JMP 0x05
+#define POLY_BPF_RET 0x06
+#define POLY_BPF_MISC 0x07
+#define POLY_BPF_W 0x00
+#define POLY_BPF_H 0x08
+#define POLY_BPF_B 0x10
+#define POLY_BPF_IMM 0x00
+#define POLY_BPF_ABS 0x20
+#define POLY_BPF_MEM 0x60
+#define POLY_BPF_LEN 0x80
+#define POLY_BPF_ADD 0x00
+#define POLY_BPF_SUB 0x10
+#define POLY_BPF_MUL 0x20
+#define POLY_BPF_DIV 0x30
+#define POLY_BPF_OR 0x40
+#define POLY_BPF_AND 0x50
+#define POLY_BPF_LSH 0x60
+#define POLY_BPF_RSH 0x70
+#define POLY_BPF_NEG 0x80
+#define POLY_BPF_MOD 0x90
+#define POLY_BPF_XOR 0xa0
+#define POLY_BPF_JA 0x00
+#define POLY_BPF_JEQ 0x10
+#define POLY_BPF_JGT 0x20
+#define POLY_BPF_JGE 0x30
+#define POLY_BPF_JSET 0x40
+#define POLY_BPF_K 0x00
+#define POLY_BPF_X 0x08
+#define POLY_BPF_A 0x10
+#define POLY_BPF_TAX 0x00
+#define POLY_BPF_TXA 0x80
+#define POLY_SECCOMP_MEM_WORDS 16
 
 struct poly_aarch64_siginfo {
   int32_t si_signo;
@@ -5588,6 +5717,506 @@ static int apply_poly_v2_event_to_packet(
   return 0;
 }
 
+static uint32_t poly_seccomp_arch_for_mode(uint64_t mode) {
+  if (mode == POLY_MODE_RAW_AARCH64)
+    return POLY_AUDIT_ARCH_AARCH64;
+  if (mode == POLY_MODE_RAW_RISCV)
+    return POLY_AUDIT_ARCH_RISCV64;
+  return POLY_AUDIT_ARCH_X86_64;
+}
+
+static int poly_seccomp_action_rank(uint32_t action) {
+  switch (action & POLY_SECCOMP_RET_ACTION_FULL) {
+    case POLY_SECCOMP_RET_KILL_PROCESS: return 8;
+    case POLY_SECCOMP_RET_KILL_THREAD: return 7;
+    case POLY_SECCOMP_RET_TRAP: return 6;
+    case POLY_SECCOMP_RET_ERRNO: return 5;
+    case POLY_SECCOMP_RET_TRACE: return 3;
+    case POLY_SECCOMP_RET_LOG: return 2;
+    case POLY_SECCOMP_RET_ALLOW: return 1;
+    default: return 4;
+  }
+}
+
+static int poly_seccomp_load_data_word(
+    const struct poly_seccomp_data *data, uint32_t offset, uint16_t size,
+    uint32_t *out) {
+  const uint8_t *bytes = (const uint8_t *) (const void *) data;
+  const size_t data_size = sizeof(*data);
+  uint32_t value = 0;
+  size_t width = 0;
+
+  if (size == POLY_BPF_W)
+    width = 4;
+  else if (size == POLY_BPF_H)
+    width = 2;
+  else if (size == POLY_BPF_B)
+    width = 1;
+  else
+    return -1;
+  if (offset > data_size || width > data_size - offset)
+    return -1;
+  memcpy(&value, bytes + offset, width);
+  if (width == 1)
+    value &= 0xffU;
+  else if (width == 2)
+    value &= 0xffffU;
+  *out = value;
+  return 0;
+}
+
+static int poly_seccomp_validate_program(
+    const struct poly_seccomp_program *program) {
+  if (program == NULL || program->len == 0 ||
+      program->len > POLY_SECCOMP_MAX_INSNS)
+    return -EINVAL;
+
+  for (size_t pc = 0; pc < program->len; pc++) {
+    const struct poly_bpf_insn *insn = &program->insns[pc];
+    const uint16_t code = insn->code;
+    switch (POLY_BPF_CLASS(code)) {
+      case POLY_BPF_LD:
+      case POLY_BPF_LDX:
+        if (POLY_BPF_MODE(code) == POLY_BPF_ABS) {
+          size_t width = 0;
+          if (POLY_BPF_SIZE(code) == POLY_BPF_W)
+            width = 4;
+          else if (POLY_BPF_SIZE(code) == POLY_BPF_H)
+            width = 2;
+          else if (POLY_BPF_SIZE(code) == POLY_BPF_B)
+            width = 1;
+          else
+            return -EINVAL;
+          if (insn->k > sizeof(struct poly_seccomp_data) ||
+              width > sizeof(struct poly_seccomp_data) - insn->k)
+            return -EINVAL;
+        } else if (POLY_BPF_MODE(code) == POLY_BPF_MEM) {
+          if (insn->k >= POLY_SECCOMP_MEM_WORDS)
+            return -EINVAL;
+        } else if (POLY_BPF_MODE(code) != POLY_BPF_IMM &&
+            POLY_BPF_MODE(code) != POLY_BPF_LEN) {
+          return -EINVAL;
+        }
+        break;
+      case POLY_BPF_ST:
+      case POLY_BPF_STX:
+        if (insn->k >= POLY_SECCOMP_MEM_WORDS)
+          return -EINVAL;
+        break;
+      case POLY_BPF_ALU:
+        if (POLY_BPF_OP(code) == POLY_BPF_DIV ||
+            POLY_BPF_OP(code) == POLY_BPF_MOD) {
+          if (POLY_BPF_SRC(code) == POLY_BPF_K && insn->k == 0)
+            return -EINVAL;
+        }
+        switch (POLY_BPF_OP(code)) {
+          case POLY_BPF_ADD:
+          case POLY_BPF_SUB:
+          case POLY_BPF_MUL:
+          case POLY_BPF_DIV:
+          case POLY_BPF_OR:
+          case POLY_BPF_AND:
+          case POLY_BPF_LSH:
+          case POLY_BPF_RSH:
+          case POLY_BPF_NEG:
+          case POLY_BPF_MOD:
+          case POLY_BPF_XOR:
+            break;
+          default:
+            return -EINVAL;
+        }
+        break;
+      case POLY_BPF_JMP:
+        if (POLY_BPF_OP(code) == POLY_BPF_JA) {
+          if (insn->k >= program->len - pc)
+            return -EINVAL;
+        } else {
+          switch (POLY_BPF_OP(code)) {
+            case POLY_BPF_JEQ:
+            case POLY_BPF_JGT:
+            case POLY_BPF_JGE:
+            case POLY_BPF_JSET:
+              if ((size_t) insn->jt >= program->len - pc ||
+                  (size_t) insn->jf >= program->len - pc)
+                return -EINVAL;
+              break;
+            default:
+              return -EINVAL;
+          }
+        }
+        break;
+      case POLY_BPF_RET:
+        if (POLY_BPF_RVAL(code) != POLY_BPF_K &&
+            POLY_BPF_RVAL(code) != POLY_BPF_A)
+          return -EINVAL;
+        break;
+      case POLY_BPF_MISC:
+        if (POLY_BPF_MISCOP(code) != POLY_BPF_TAX &&
+            POLY_BPF_MISCOP(code) != POLY_BPF_TXA)
+          return -EINVAL;
+        break;
+      default:
+        return -EINVAL;
+    }
+  }
+  return 0;
+}
+
+static uint32_t poly_seccomp_eval_program(
+    const struct poly_seccomp_program *program,
+    const struct poly_seccomp_data *data) {
+  uint32_t a = 0;
+  uint32_t x = 0;
+  uint32_t mem[POLY_SECCOMP_MEM_WORDS] = {0};
+
+  for (size_t pc = 0; pc < program->len;) {
+    const struct poly_bpf_insn *insn = &program->insns[pc];
+    const uint16_t code = insn->code;
+    const uint32_t src =
+      POLY_BPF_SRC(code) == POLY_BPF_X ? x : insn->k;
+
+    switch (POLY_BPF_CLASS(code)) {
+      case POLY_BPF_LD:
+        if (POLY_BPF_MODE(code) == POLY_BPF_ABS) {
+          if (poly_seccomp_load_data_word(data, insn->k,
+                POLY_BPF_SIZE(code), &a) < 0)
+            return POLY_SECCOMP_RET_KILL_PROCESS;
+        } else if (POLY_BPF_MODE(code) == POLY_BPF_IMM) {
+          a = insn->k;
+        } else if (POLY_BPF_MODE(code) == POLY_BPF_MEM &&
+            insn->k < POLY_SECCOMP_MEM_WORDS) {
+          a = mem[insn->k];
+        } else if (POLY_BPF_MODE(code) == POLY_BPF_LEN) {
+          a = sizeof(*data);
+        } else {
+          return POLY_SECCOMP_RET_KILL_PROCESS;
+        }
+        pc++;
+        break;
+      case POLY_BPF_LDX:
+        if (POLY_BPF_MODE(code) == POLY_BPF_ABS) {
+          if (poly_seccomp_load_data_word(data, insn->k,
+                POLY_BPF_SIZE(code), &x) < 0)
+            return POLY_SECCOMP_RET_KILL_PROCESS;
+        } else if (POLY_BPF_MODE(code) == POLY_BPF_IMM) {
+          x = insn->k;
+        } else if (POLY_BPF_MODE(code) == POLY_BPF_MEM &&
+            insn->k < POLY_SECCOMP_MEM_WORDS) {
+          x = mem[insn->k];
+        } else if (POLY_BPF_MODE(code) == POLY_BPF_LEN) {
+          x = sizeof(*data);
+        } else {
+          return POLY_SECCOMP_RET_KILL_PROCESS;
+        }
+        pc++;
+        break;
+      case POLY_BPF_ST:
+        if (insn->k >= POLY_SECCOMP_MEM_WORDS)
+          return POLY_SECCOMP_RET_KILL_PROCESS;
+        mem[insn->k] = a;
+        pc++;
+        break;
+      case POLY_BPF_STX:
+        if (insn->k >= POLY_SECCOMP_MEM_WORDS)
+          return POLY_SECCOMP_RET_KILL_PROCESS;
+        mem[insn->k] = x;
+        pc++;
+        break;
+      case POLY_BPF_ALU:
+        switch (POLY_BPF_OP(code)) {
+          case POLY_BPF_ADD: a += src; break;
+          case POLY_BPF_SUB: a -= src; break;
+          case POLY_BPF_MUL: a *= src; break;
+          case POLY_BPF_DIV:
+            if (src == 0)
+              return POLY_SECCOMP_RET_KILL_PROCESS;
+            a /= src;
+            break;
+          case POLY_BPF_OR: a |= src; break;
+          case POLY_BPF_AND: a &= src; break;
+          case POLY_BPF_LSH: a <<= (src & 31U); break;
+          case POLY_BPF_RSH: a >>= (src & 31U); break;
+          case POLY_BPF_NEG: a = (uint32_t) -a; break;
+          case POLY_BPF_MOD:
+            if (src == 0)
+              return POLY_SECCOMP_RET_KILL_PROCESS;
+            a %= src;
+            break;
+          case POLY_BPF_XOR: a ^= src; break;
+          default:
+            return POLY_SECCOMP_RET_KILL_PROCESS;
+        }
+        pc++;
+        break;
+      case POLY_BPF_JMP:
+        if (POLY_BPF_OP(code) == POLY_BPF_JA) {
+          pc += (size_t) insn->k + 1;
+          break;
+        }
+        switch (POLY_BPF_OP(code)) {
+          case POLY_BPF_JEQ:
+            pc += (a == src ? insn->jt : insn->jf) + 1;
+            break;
+          case POLY_BPF_JGT:
+            pc += (a > src ? insn->jt : insn->jf) + 1;
+            break;
+          case POLY_BPF_JGE:
+            pc += (a >= src ? insn->jt : insn->jf) + 1;
+            break;
+          case POLY_BPF_JSET:
+            pc += ((a & src) != 0 ? insn->jt : insn->jf) + 1;
+            break;
+          default:
+            return POLY_SECCOMP_RET_KILL_PROCESS;
+        }
+        break;
+      case POLY_BPF_RET:
+        return POLY_BPF_RVAL(code) == POLY_BPF_A ? a : insn->k;
+      case POLY_BPF_MISC:
+        if (POLY_BPF_MISCOP(code) == POLY_BPF_TAX)
+          x = a;
+        else if (POLY_BPF_MISCOP(code) == POLY_BPF_TXA)
+          a = x;
+        else
+          return POLY_SECCOMP_RET_KILL_PROCESS;
+        pc++;
+        break;
+      default:
+        return POLY_SECCOMP_RET_KILL_PROCESS;
+    }
+    if (pc > program->len)
+      return POLY_SECCOMP_RET_KILL_PROCESS;
+  }
+  return POLY_SECCOMP_RET_KILL_PROCESS;
+}
+
+static uint64_t poly_seccomp_install_filter(uint64_t fprog_addr) {
+  struct poly_seccomp_guest_fprog guest_fprog;
+  struct poly_seccomp_program program;
+
+  if (fprog_addr == 0 ||
+      !poly_guest_range_is_mapped(fprog_addr, sizeof(guest_fprog), 0))
+    return (uint64_t) -EFAULT;
+  memcpy(&guest_fprog, (const void *) (uintptr_t) fprog_addr,
+    sizeof(guest_fprog));
+  if (guest_fprog.len == 0 || guest_fprog.len > POLY_SECCOMP_MAX_INSNS ||
+      guest_fprog.filter == 0)
+    return (uint64_t) -EINVAL;
+  const size_t filter_bytes =
+    (size_t) guest_fprog.len * sizeof(struct poly_bpf_insn);
+  if (!poly_guest_range_is_mapped(guest_fprog.filter, filter_bytes, 0))
+    return (uint64_t) -EFAULT;
+  memset(&program, 0, sizeof(program));
+  program.len = guest_fprog.len;
+  memcpy(program.insns, (const void *) (uintptr_t) guest_fprog.filter,
+    filter_bytes);
+  if (poly_seccomp_validate_program(&program) < 0)
+    return (uint64_t) -EINVAL;
+
+  pthread_mutex_lock(&poly_seccomp_lock);
+  if (poly_seccomp_filter_count >= POLY_SECCOMP_MAX_FILTERS) {
+    pthread_mutex_unlock(&poly_seccomp_lock);
+    return (uint64_t) -ENOMEM;
+  }
+  poly_seccomp_filters[poly_seccomp_filter_count++] = program;
+  poly_seccomp_mode = POLY_SECCOMP_MODE_FILTER;
+  pthread_mutex_unlock(&poly_seccomp_lock);
+  return 0;
+}
+
+static int poly_seccomp_action_supported(uint32_t action) {
+  switch (action & POLY_SECCOMP_RET_ACTION_FULL) {
+    case POLY_SECCOMP_RET_KILL_PROCESS:
+    case POLY_SECCOMP_RET_KILL_THREAD:
+    case POLY_SECCOMP_RET_TRAP:
+    case POLY_SECCOMP_RET_ERRNO:
+    case POLY_SECCOMP_RET_TRACE:
+    case POLY_SECCOMP_RET_LOG:
+    case POLY_SECCOMP_RET_ALLOW:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+static int poly_seccomp_dispatch_control(
+    const struct poly_runtime_trap_packet *packet, long x86_number,
+    uint64_t *result_out) {
+  if (packet == NULL || result_out == NULL)
+    return 0;
+
+  if (x86_number == SYS_prctl) {
+    const uint64_t option = packet->args[0];
+    if (option == PR_SET_NO_NEW_PRIVS) {
+      if (packet->args[1] != 1 || packet->args[2] != 0 ||
+          packet->args[3] != 0 || packet->args[4] != 0) {
+        *result_out = (uint64_t) -EINVAL;
+        return 1;
+      }
+      pthread_mutex_lock(&poly_seccomp_lock);
+      poly_seccomp_no_new_privs = 1;
+      pthread_mutex_unlock(&poly_seccomp_lock);
+      *result_out = 0;
+      return 1;
+    }
+    if (option == PR_GET_NO_NEW_PRIVS) {
+      pthread_mutex_lock(&poly_seccomp_lock);
+      *result_out = (uint64_t) poly_seccomp_no_new_privs;
+      pthread_mutex_unlock(&poly_seccomp_lock);
+      return 1;
+    }
+    if (option == PR_GET_SECCOMP) {
+      pthread_mutex_lock(&poly_seccomp_lock);
+      *result_out = (uint64_t) poly_seccomp_mode;
+      pthread_mutex_unlock(&poly_seccomp_lock);
+      return 1;
+    }
+    if (option == PR_SET_SECCOMP) {
+      if (packet->args[1] == POLY_SECCOMP_MODE_STRICT) {
+        pthread_mutex_lock(&poly_seccomp_lock);
+        poly_seccomp_mode = POLY_SECCOMP_MODE_STRICT;
+        pthread_mutex_unlock(&poly_seccomp_lock);
+        *result_out = 0;
+        return 1;
+      }
+      if (packet->args[1] == POLY_SECCOMP_MODE_FILTER) {
+        *result_out = poly_seccomp_install_filter(packet->args[2]);
+        return 1;
+      }
+      *result_out = (uint64_t) -EINVAL;
+      return 1;
+    }
+    return 0;
+  }
+
+  if (x86_number == SYS_seccomp) {
+    const uint64_t operation = packet->args[0];
+    const uint64_t flags = packet->args[1];
+    const uint64_t uargs = packet->args[2];
+    if (operation == POLY_SECCOMP_SET_MODE_STRICT) {
+      if (flags != 0) {
+        *result_out = (uint64_t) -EINVAL;
+        return 1;
+      }
+      pthread_mutex_lock(&poly_seccomp_lock);
+      poly_seccomp_mode = POLY_SECCOMP_MODE_STRICT;
+      pthread_mutex_unlock(&poly_seccomp_lock);
+      *result_out = 0;
+      return 1;
+    }
+    if (operation == POLY_SECCOMP_SET_MODE_FILTER) {
+      const uint64_t supported_flags =
+        POLY_SECCOMP_FILTER_FLAG_TSYNC |
+        POLY_SECCOMP_FILTER_FLAG_LOG |
+        POLY_SECCOMP_FILTER_FLAG_SPEC_ALLOW;
+      if ((flags & ~supported_flags) != 0) {
+        *result_out = (uint64_t) -EINVAL;
+        return 1;
+      }
+      *result_out = poly_seccomp_install_filter(uargs);
+      return 1;
+    }
+    if (operation == POLY_SECCOMP_GET_ACTION_AVAIL) {
+      uint32_t action = 0;
+      if (uargs == 0 || !poly_guest_range_is_mapped(uargs, sizeof(action), 0)) {
+        *result_out = (uint64_t) -EFAULT;
+        return 1;
+      }
+      memcpy(&action, (const void *) (uintptr_t) uargs, sizeof(action));
+      *result_out = poly_seccomp_action_supported(action) ?
+        0 : (uint64_t) -EOPNOTSUPP;
+      return 1;
+    }
+    *result_out = (uint64_t) -EINVAL;
+    return 1;
+  }
+
+  return 0;
+}
+
+static int poly_seccomp_strict_allows(
+    const struct poly_runtime_trap_packet *packet) {
+  if (packet->number == 63 || packet->number == 64 ||
+      packet->number == 93 || packet->number == 94 ||
+      packet->number == 139)
+    return 1;
+  return 0;
+}
+
+static int poly_seccomp_preflight_syscall(
+    const struct poly_runtime_trap_packet *packet, uint64_t *result_out) {
+  if (packet == NULL || result_out == NULL)
+    return 0;
+
+  pthread_mutex_lock(&poly_seccomp_lock);
+  const int mode = poly_seccomp_mode;
+  const size_t filter_count = poly_seccomp_filter_count;
+  pthread_mutex_unlock(&poly_seccomp_lock);
+  if (mode == POLY_SECCOMP_MODE_DISABLED || filter_count == 0) {
+    if (mode != POLY_SECCOMP_MODE_STRICT)
+      return 0;
+  }
+
+  __sync_fetch_and_add(&poly_seccomp_preflight_count, 1);
+  if (mode == POLY_SECCOMP_MODE_STRICT &&
+      !poly_seccomp_strict_allows(packet)) {
+    __sync_fetch_and_add(&poly_seccomp_denied_count, 1);
+    *result_out = (uint64_t) -EPERM;
+    return 1;
+  }
+  if (filter_count == 0)
+    return 0;
+
+  struct poly_seccomp_data data;
+  memset(&data, 0, sizeof(data));
+  data.nr = (int32_t) packet->number;
+  data.arch = poly_seccomp_arch_for_mode(packet->mode);
+  data.instruction_pointer = packet->pc;
+  for (size_t n = 0; n < 6; n++)
+    data.args[n] = packet->args[n];
+
+  uint32_t selected = POLY_SECCOMP_RET_ALLOW;
+  pthread_mutex_lock(&poly_seccomp_lock);
+  for (size_t n = 0; n < poly_seccomp_filter_count; n++) {
+    const uint32_t action =
+      poly_seccomp_eval_program(&poly_seccomp_filters[n], &data);
+    if (poly_seccomp_action_rank(action) >
+        poly_seccomp_action_rank(selected))
+      selected = action;
+  }
+  pthread_mutex_unlock(&poly_seccomp_lock);
+
+  switch (selected & POLY_SECCOMP_RET_ACTION_FULL) {
+    case POLY_SECCOMP_RET_ALLOW:
+    case POLY_SECCOMP_RET_LOG:
+      return 0;
+    case POLY_SECCOMP_RET_ERRNO: {
+      uint32_t error = selected & POLY_SECCOMP_RET_DATA;
+      if (error == 0)
+        error = EPERM;
+      __sync_fetch_and_add(&poly_seccomp_denied_count, 1);
+      *result_out = (uint64_t) -(int64_t) error;
+      return 1;
+    }
+    default:
+      __sync_fetch_and_add(&poly_seccomp_denied_count, 1);
+      *result_out = (uint64_t) -EPERM;
+      return 1;
+  }
+}
+
+static void poly_report_seccomp_summary(void) {
+  if (poly_seccomp_mode == POLY_SECCOMP_MODE_DISABLED &&
+      poly_seccomp_preflight_count == 0)
+    return;
+  printf("POLYEXEC_SECCOMP_STATUS: mode=%d filters=%zu preflights=%llu denied=%llu no_new_privs=%d\n",
+    poly_seccomp_mode,
+    poly_seccomp_filter_count,
+    (unsigned long long) poly_seccomp_preflight_count,
+    (unsigned long long) poly_seccomp_denied_count,
+    poly_seccomp_no_new_privs);
+}
+
 static char *polyexec_stpcpy(char *dest, const char *src) {
   while ((*dest = *src) != '\0') {
     dest++;
@@ -6895,6 +7524,14 @@ uint64_t poly_trap_vector_dispatch(void) {
       &packet, &trap_state, has_trap_state);
 
   if (packet.reason == POLY_TRAP_SYSCALL) {
+    uint64_t seccomp_result = 0;
+    if (poly_seccomp_preflight_syscall(&packet, &seccomp_result)) {
+      poly_trace_syscall_result(&packet, "seccomp-preflight", -1,
+        seccomp_result);
+      return poly_trap_vector_return_result(seccomp_result,
+        &packet, &trap_state, has_trap_state);
+    }
+
     if (packet.mode == POLY_MODE_RAW_AARCH64 && packet.number == 139) {
       uint64_t sigreturn_result = 0;
       if (poly_handle_aarch64_rt_sigreturn(&trap_state, has_trap_state,
@@ -6969,6 +7606,7 @@ uint64_t poly_trap_vector_dispatch(void) {
       poly_resume_stdout_diagnostics();
       report_poly_monitor_packets();
       report_poly_syscall_summary();
+      poly_report_seccomp_summary();
       if (poly_process_exit_finalizers.program != NULL) {
         printf("POLYEXEC_PROCESS_EXIT: arch=%s code=%llu path=%s\n",
           poly_process_exit_finalizers.program->arch_name,
@@ -6986,6 +7624,14 @@ uint64_t poly_trap_vector_dispatch(void) {
     uint64_t args[6];
     for (size_t n = 0; n < 6; n++)
       args[n] = packet.args[n];
+    uint64_t seccomp_control_result = 0;
+    if (poly_seccomp_dispatch_control(&packet, x86_number,
+          &seccomp_control_result)) {
+      poly_trace_syscall_result(&packet, "seccomp-control", x86_number,
+        seccomp_control_result);
+      return poly_trap_vector_return_result(seccomp_control_result,
+        &packet, &trap_state, has_trap_state);
+    }
     if (poly_disable_io_uring_enabled() &&
         (x86_number == SYS_io_uring_setup ||
          x86_number == SYS_io_uring_enter ||
@@ -12811,6 +13457,7 @@ static int emit_and_run_exit_child(const struct poly_program *program,
       _exit(125);
     report_poly_monitor_packets();
     report_poly_syscall_summary();
+    poly_report_seccomp_summary();
     fflush(NULL);
     _exit((int) (child_result & 0xff));
   }
@@ -12908,6 +13555,7 @@ static int emit_and_run_process_child(struct poly_program *program,
     poly_resume_stdout_diagnostics();
     report_poly_monitor_packets();
     report_poly_syscall_summary();
+    poly_report_seccomp_summary();
     fflush(NULL);
     _exit((int) (child_result & 0xff));
   }
@@ -13439,6 +14087,7 @@ int main(int argc, char **argv) {
       return 1;
     report_poly_monitor_packets();
     report_poly_syscall_summary();
+    poly_report_seccomp_summary();
     report_poly_auto_spill_status();
     clear_poly_trap_vector();
     clear_poly_auto_spill();
@@ -13470,6 +14119,7 @@ int main(int argc, char **argv) {
       return 1;
     report_poly_monitor_packets();
     report_poly_syscall_summary();
+    poly_report_seccomp_summary();
     report_poly_auto_spill_status();
     clear_poly_trap_vector();
     clear_poly_auto_spill();
@@ -13530,6 +14180,7 @@ int main(int argc, char **argv) {
     free_program(&program);
     report_poly_monitor_packets();
     report_poly_syscall_summary();
+    poly_report_seccomp_summary();
     report_poly_auto_spill_status();
     clear_poly_auto_spill();
     clear_poly_trap_vector();
@@ -13579,6 +14230,7 @@ int main(int argc, char **argv) {
 
   report_poly_monitor_packets();
   report_poly_syscall_summary();
+  poly_report_seccomp_summary();
   report_poly_auto_spill_status();
   clear_poly_trap_vector();
   clear_poly_auto_spill();

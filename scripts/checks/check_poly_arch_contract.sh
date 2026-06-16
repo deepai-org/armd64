@@ -450,6 +450,14 @@ assert_contains "run_poly_v2_mem_probe_range_probe" "$NATIVECHECK" \
   "nativecheck must exercise PMEM_PROBE_RANGE before the memory-probe bit is advertised"
 assert_contains "run_poly_v2_derive_state_probe" "$NATIVECHECK" \
   "nativecheck must exercise PDERIVE_STATE before the derive bit is advertised"
+assert_contains "poly_seccomp_preflight_syscall" "$POLYEXEC" \
+  "userspace monitor must evaluate guest seccomp policy before host syscall dispatch"
+assert_contains "poly_seccomp_dispatch_control" "$POLYEXEC" \
+  "userspace monitor must intercept guest seccomp filter installation"
+assert_contains "aarch64-process-seccomp-policy-real\\.elf" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must run an AArch64 seccomp policy fixture"
+assert_contains "POLY_SECCOMP_POLICY_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must require the seccomp policy fixture marker"
 assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
   "PRESTORE must arm a pending raw frontend resume target"
 assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip" "$BOCHS_CPU" \

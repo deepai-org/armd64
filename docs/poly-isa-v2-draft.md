@@ -395,6 +395,13 @@ The hardware contract is only:
 - identify the correct resume PC and completion state
 - never apply guest policy to host x86 syscalls by accident
 
+The current `polyexec` Linux runtime consumes that contract by intercepting
+guest `prctl(PR_SET_SECCOMP)` and `seccomp(SECCOMP_SET_MODE_FILTER)`, copying
+classic BPF filters into monitor-owned memory, evaluating them against guest
+syscall numbers and arguments before host syscall translation, and returning
+guest `ERRNO` decisions without installing the guest filter on the host x86
+thread.
+
 ## Shared-Memory Ring Ordering
 
 v2 does not add io_uring instructions. It strengthens the memory-order contract

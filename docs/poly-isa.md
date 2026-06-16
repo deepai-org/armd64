@@ -63,11 +63,11 @@ CPUID `POLY_CPUID_BASE + 10` reports the implemented v2 feature mask, not the
 entire v2 draft roadmap. The active mask currently covers canonical event
 frames, spill descriptors, `PDUMP_STATE` debug-note export,
 `PMEM_PROBE_RANGE` non-faulting memory accessibility probes,
-`PDERIVE_STATE` thread-state derivation, and the shared-memory ordering
-contract. Core-file or minidump wrapping remains userspace policy on top of the
-debug-note blob. Draft features such as policy preflight, ABI descriptors, and
-diagnostic counters must not be advertised until their control paths and tests
-exist.
+`PDERIVE_STATE` thread-state derivation, the shared-memory ordering contract,
+and policy preflight for seccomp-style userspace mediation. Core-file or
+minidump wrapping remains userspace policy on top of the debug-note blob. Draft
+features such as ABI descriptors and diagnostic counters must not be advertised
+until their control paths and tests exist.
 
 ## FPGA/Silicon ISA Readiness Boundary
 
