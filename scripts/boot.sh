@@ -42,7 +42,7 @@ POLY_CPUID_CONTRACT_CHECK="$ROOT_DIR/scripts/checks/check_poly_cpuid_contract.sh
 POLY_APP_SRC="$ROOT_DIR/tools/programs/polyapp.c"
 POLY_APP_BIN="$OUT_DIR/polyapp"
 POLY_EXEC_SRC="$ROOT_DIR/tools/runtime/polyexec.c"
-POLY_EXEC_ABI_LEGACY_BRIDGE_SRC="$ROOT_DIR/tools/runtime/abi/poly_abi_legacy_bridge.c"
+POLY_EXEC_ABI_DESCRIPTOR_SRC="$ROOT_DIR/tools/runtime/abi/poly_abi_descriptor.c"
 POLY_EXEC_BIN="$OUT_DIR/polyexec"
 POLY_CALL_SRC="$ROOT_DIR/tools/runtime/polycall.c"
 POLY_CALL_X86_HELPERS_SRC="$ROOT_DIR/tools/fixtures/polycall/polycall_x86_helpers.c"
@@ -600,7 +600,7 @@ build_poly_app() {
 
 build_poly_exec() {
   compile_poly_tool "$POLY_EXEC_SRC" "$POLY_EXEC_BIN" "${POLY_EXEC_CC:-}" \
-    static-pie "$POLY_EXEC_ABI_LEGACY_BRIDGE_SRC"
+    static-pie "$POLY_EXEC_ABI_DESCRIPTOR_SRC"
 }
 
 build_poly_binfmt_exec() {

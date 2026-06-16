@@ -98,6 +98,24 @@ assert_not_contains() {
   fi
 }
 
+assert_file_exists() {
+  local file="$1"
+  local description="$2"
+
+  if [[ ! -e "$file" ]]; then
+    fail "$description"
+  fi
+}
+
+assert_file_not_exists() {
+  local file="$1"
+  local description="$2"
+
+  if [[ -e "$file" ]]; then
+    fail "$description"
+  fi
+}
+
 assert_contains "BxOpcodeTable0F3AFC\\[\\].*BX_IA_POLYMODE" "$BOCHS_OPMAP" \
   "x86 poly opcode family must be decoded as BX_IA_POLYMODE, not #UD"
 assert_contains "0F 3A.*decoder32_modrm" "$BOCHS_FETCHDECODE32" \
@@ -470,6 +488,14 @@ assert_contains "PT_NOTE" "$POLYEXEC" \
   "fatal Poly debug artifacts must be wrapped in an ELF note container"
 assert_contains "POLYEXEC_FATAL_DEBUG_NOTE_DIR" "$POLYEXEC" \
   "fatal Poly debug-note output must be opt-in through a runtime directory"
+assert_contains "poly_abi_descriptor_signature_kind" "$POLYEXEC" \
+  "userspace monitor must use the v2 software-owned ABI descriptor API"
+assert_not_contains "poly_abi_legacy_bridge" "$POLYEXEC" \
+  "userspace monitor must not depend on the removed legacy ABI bridge API"
+assert_file_exists "$ROOT_DIR/tools/runtime/abi/poly_abi_descriptor.c" \
+  "v2 ABI descriptor decoder source must exist"
+assert_file_not_exists "$ROOT_DIR/tools/runtime/abi/poly_abi_legacy_bridge.c" \
+  "legacy ABI bridge decoder source must stay removed"
 assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYEXEC" \
   "userspace monitor must not use legacy raw spill pointer setup"
 assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYBINFMT_EXEC" \

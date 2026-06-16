@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../runtime/abi/poly_abi_legacy_bridge.h"
+#include "../runtime/abi/poly_abi_descriptor.h"
 #include "../runtime/bridge/poly_bridge_plan.h"
 #include "../runtime/bridge/poly_process_bridge_kind.h"
 
@@ -90,9 +90,9 @@ static int check_invalid_plan(void) {
   return poly_bridge_plan_validate(&plan);
 }
 
-static int check_legacy_fp64_plan(void) {
+static int check_descriptor_fp64_plan(void) {
   struct poly_bridge_plan plan;
-  if (poly_bridge_plan_from_legacy_kind(POLY_ABI_ARCH_X86,
+  if (poly_bridge_plan_from_descriptor_kind(POLY_ABI_ARCH_X86,
         POLY_ABI_ARCH_AARCH64, POLY_PROCESS_BRIDGE_FP64, 5, 1, &plan) != 0)
     return 1;
   if (plan.op_count != 4 ||
@@ -117,9 +117,9 @@ static int check_legacy_fp64_plan(void) {
       });
 }
 
-static int check_legacy_stack_arg_plan(void) {
+static int check_descriptor_stack_arg_plan(void) {
   struct poly_bridge_plan plan;
-  if (poly_bridge_plan_from_legacy_kind(POLY_ABI_ARCH_X86,
+  if (poly_bridge_plan_from_descriptor_kind(POLY_ABI_ARCH_X86,
         POLY_ABI_ARCH_AARCH64, POLY_PROCESS_BRIDGE_U64_STACK9,
         POLY_BRIDGE_PLAN_NO_SIGNATURE_SLOT, 0, &plan) != 0)
     return 1;
@@ -189,7 +189,7 @@ static int expect_plan_trace(int bridge_kind, enum poly_abi_arch caller,
     enum poly_abi_arch callee, const char *expected) {
   struct poly_bridge_plan plan;
   char actual[POLY_BRIDGE_PLAN_MAX_OPS + 1];
-  if (poly_bridge_plan_from_legacy_kind(caller, callee, bridge_kind,
+  if (poly_bridge_plan_from_descriptor_kind(caller, callee, bridge_kind,
         POLY_BRIDGE_PLAN_NO_SIGNATURE_SLOT, 0, &plan) != 0) {
     fprintf(stderr, "bridge plan trace failed kind=%d caller=%d callee=%d\n",
       bridge_kind, caller, callee);
@@ -220,18 +220,18 @@ static int check_representative_plan_traces(void) {
   return 0;
 }
 
-struct legacy_plan_expect {
+struct descriptor_plan_expect {
   uint8_t ok;
   uint8_t op_count;
 };
 
-static int check_legacy_plan_matrix(void) {
+static int check_descriptor_plan_matrix(void) {
   const enum poly_abi_arch archs[] = {
     POLY_ABI_ARCH_X86,
     POLY_ABI_ARCH_AARCH64,
     POLY_ABI_ARCH_RISCV
   };
-  const struct legacy_plan_expect expected[POLY_PROCESS_BRIDGE_KIND_COUNT][6] = {
+  const struct descriptor_plan_expect expected[POLY_PROCESS_BRIDGE_KIND_COUNT][6] = {
     { { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 }, { 1, 2 } },
     { { 1, 4 }, { 1, 4 }, { 1, 4 }, { 1, 4 }, { 1, 4 }, { 1, 4 } },
     { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 1, 4 }, { 0, 0 }, { 1, 4 } },
@@ -264,21 +264,21 @@ static int check_legacy_plan_matrix(void) {
         if (caller == callee)
           continue;
         struct poly_bridge_plan plan;
-        const int rc = poly_bridge_plan_from_legacy_kind(archs[caller],
+        const int rc = poly_bridge_plan_from_descriptor_kind(archs[caller],
           archs[callee], kind, POLY_BRIDGE_PLAN_NO_SIGNATURE_SLOT, 0, &plan);
-        const struct legacy_plan_expect want = expected[kind][pair++];
+        const struct descriptor_plan_expect want = expected[kind][pair++];
         if (want.ok) {
           if (rc != 0 || plan.op_count != want.op_count) {
             fprintf(stderr,
-              "legacy plan matrix mismatch kind=%d name=%s caller=%d callee=%d expected_ok=1 expected_ops=%u rc=%d actual_ops=%zu\n",
-              kind, poly_legacy_bridge_kind_name(kind), archs[caller],
+              "descriptor plan matrix mismatch kind=%d name=%s caller=%d callee=%d expected_ok=1 expected_ops=%u rc=%d actual_ops=%zu\n",
+              kind, poly_abi_descriptor_kind_name(kind), archs[caller],
               archs[callee], want.op_count, rc, rc == 0 ? plan.op_count : 0);
             return 1;
           }
         } else if (rc == 0) {
           fprintf(stderr,
-            "legacy plan matrix mismatch kind=%d name=%s caller=%d callee=%d expected_ok=0 actual_ops=%zu\n",
-            kind, poly_legacy_bridge_kind_name(kind), archs[caller],
+            "descriptor plan matrix mismatch kind=%d name=%s caller=%d callee=%d expected_ok=0 actual_ops=%zu\n",
+            kind, poly_abi_descriptor_kind_name(kind), archs[caller],
             archs[callee], plan.op_count);
           return 1;
         }
@@ -295,16 +295,16 @@ int main(void) {
     return 1;
   if (expect_fail(check_invalid_plan(), "invalid bridge plan check") != 0)
     return 1;
-  if (expect_ok(check_legacy_fp64_plan(), "legacy fp64 plan check") != 0)
+  if (expect_ok(check_descriptor_fp64_plan(), "descriptor fp64 plan check") != 0)
     return 1;
-  if (expect_ok(check_legacy_stack_arg_plan(),
-        "legacy stack arg plan check") != 0)
+  if (expect_ok(check_descriptor_stack_arg_plan(),
+        "descriptor stack arg plan check") != 0)
     return 1;
   if (expect_ok(check_representative_plan_traces(),
         "representative bridge plan trace check") != 0)
     return 1;
-  if (expect_ok(check_legacy_plan_matrix(),
-        "legacy bridge plan matrix check") != 0)
+  if (expect_ok(check_descriptor_plan_matrix(),
+        "ABI descriptor plan matrix check") != 0)
     return 1;
   return 0;
 }

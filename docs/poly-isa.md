@@ -69,8 +69,10 @@ minidump wrapping remains userspace policy on top of the debug-note blob;
 `polyexec` now has an opt-in fatal-fault path that writes a valid ELF
 `PT_NOTE` container carrying the v2 layout from `PDUMP_STATE` or, in a fatal
 post-spill context, from the validated spill state/event pair. Draft features
-such as ABI descriptors and diagnostic counters must not be advertised until
-their control paths and tests exist.
+such as hardware ABI-descriptor caching and diagnostic counters must not be
+advertised until their control paths and tests exist. The software-owned ABI
+descriptor decoder is runtime policy and does not require a hardware feature
+bit.
 
 ## FPGA/Silicon ISA Readiness Boundary
 

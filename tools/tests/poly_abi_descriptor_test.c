@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "../include/polycpuid.h"
-#include "../runtime/abi/poly_abi_legacy_bridge.h"
+#include "../runtime/abi/poly_abi_descriptor.h"
 #include "../runtime/bridge/poly_process_bridge_kind.h"
 
 static struct poly_abi_type aggregate2(enum poly_abi_type_kind first,
@@ -48,7 +48,7 @@ static void add_scalar_arg(struct poly_function_sig *sig,
 static struct poly_function_sig sig_default(void) {
   struct poly_function_sig sig = { 0 };
   sig.ret = poly_abi_scalar_type(POLY_ABI_TYPE_I64);
-  sig.flags = POLY_FUNCTION_SIG_FLAG_LEGACY_OPAQUE;
+  sig.flags = POLY_FUNCTION_SIG_FLAG_OPAQUE_DESCRIPTOR;
   return sig;
 }
 
@@ -137,13 +137,13 @@ struct bridge_case {
 
 static int check_case(const struct bridge_case *test_case) {
   struct poly_function_sig actual;
-  const char *actual_name = poly_legacy_bridge_kind_name(test_case->kind);
+  const char *actual_name = poly_abi_descriptor_kind_name(test_case->kind);
   if (actual_name == NULL || strcmp(actual_name, test_case->name) != 0) {
     fprintf(stderr, "bridge name mismatch kind=%d expected=%s actual=%s\n",
       test_case->kind, test_case->name, actual_name ? actual_name : "(null)");
     return 1;
   }
-  if (poly_decode_legacy_bridge_kind(test_case->kind, &actual) != 0) {
+  if (poly_abi_descriptor_decode_kind(test_case->kind, &actual) != 0) {
     fprintf(stderr, "bridge decode failed kind=%d name=%s\n",
       test_case->kind, test_case->name);
     return 1;
@@ -157,7 +157,7 @@ static int check_case(const struct bridge_case *test_case) {
     return 1;
   }
   const uint32_t actual_signature_kind =
-    poly_legacy_bridge_signature_kind(test_case->kind);
+    poly_abi_descriptor_signature_kind(test_case->kind);
   if (actual_signature_kind != test_case->signature_kind) {
     fprintf(stderr,
       "bridge signature kind mismatch kind=%d name=%s expected=%u actual=%u\n",
@@ -254,15 +254,15 @@ int main(void) {
     if (check_case(&cases[n]) != 0)
       return 1;
   }
-  if (poly_decode_legacy_bridge_kind(POLY_PROCESS_BRIDGE_KIND_COUNT,
+  if (poly_abi_descriptor_decode_kind(POLY_PROCESS_BRIDGE_KIND_COUNT,
         &(struct poly_function_sig) { 0 }) == 0) {
     fprintf(stderr, "invalid bridge kind decoded successfully\n");
     return 1;
   }
-  if (poly_legacy_bridge_kind_name(POLY_PROCESS_BRIDGE_KIND_COUNT) != NULL) {
+  if (poly_abi_descriptor_kind_name(POLY_PROCESS_BRIDGE_KIND_COUNT) != NULL) {
     fprintf(stderr, "invalid bridge kind returned a name\n");
     return 1;
   }
-  printf("poly ABI legacy bridge decoder OK\n");
+  printf("poly ABI descriptor decoder OK\n");
   return 0;
 }

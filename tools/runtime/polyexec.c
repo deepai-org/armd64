@@ -33,7 +33,7 @@
 
 #include "../include/polycpuid.h"
 #include "../include/polyruntime_imports.h"
-#include "abi/poly_abi_legacy_bridge.h"
+#include "abi/poly_abi_descriptor.h"
 #include "bridge/poly_process_bridge_kind.h"
 
 extern char **environ;
@@ -10493,7 +10493,7 @@ static uint32_t process_bridge_signature_kind(int bridge_kind) {
       bridge_kind == POLY_PROCESS_BRIDGE_FPAIR64_RET ||
       bridge_kind == POLY_PROCESS_BRIDGE_SRET_X86_SYSV ||
       bridge_kind == POLY_PROCESS_BRIDGE_NATIVE_SRET)
-    return poly_legacy_bridge_signature_kind(bridge_kind);
+    return poly_abi_descriptor_signature_kind(bridge_kind);
   return UINT32_MAX;
 }
 

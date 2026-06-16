@@ -1,7 +1,7 @@
 #include "poly_bridge_plan.h"
 
 #include "../abi/poly_abi_classify.h"
-#include "../abi/poly_abi_legacy_bridge.h"
+#include "../abi/poly_abi_descriptor.h"
 
 static int valid_arch(enum poly_abi_arch arch) {
   return arch == POLY_ABI_ARCH_X86 ||
@@ -160,13 +160,13 @@ int poly_bridge_plan_from_layouts(const struct poly_abi_layout *caller_layout,
   return poly_bridge_plan_validate(plan);
 }
 
-int poly_bridge_plan_from_legacy_kind(enum poly_abi_arch caller,
+int poly_bridge_plan_from_descriptor_kind(enum poly_abi_arch caller,
     enum poly_abi_arch callee, int bridge_kind, uint32_t signature_slot,
     int needs_state_key, struct poly_bridge_plan *plan) {
   struct poly_function_sig sig;
   struct poly_abi_layout caller_layout;
   struct poly_abi_layout callee_layout;
-  if (poly_decode_legacy_bridge_kind(bridge_kind, &sig) != 0 ||
+  if (poly_abi_descriptor_decode_kind(bridge_kind, &sig) != 0 ||
       poly_classify_call_abi(caller, &sig, &caller_layout) != 0 ||
       poly_classify_call_abi(callee, &sig, &callee_layout) != 0)
     return -1;

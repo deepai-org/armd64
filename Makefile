@@ -45,7 +45,7 @@ POLY_RTL_SV = \
 	rtl/poly_trap_packet_stage.sv \
 	rtl/poly_x86_fetch_stage.sv
 
-.PHONY: image poly-xcr0-module poly-rtl-fpga-artifacts check-poly-import-ids check-poly-isa-readiness check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-abi-legacy-bridge check-poly-abi-classify check-poly-bridge-ir check-poly-contracts check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-fpga-artifacts check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-network-smoke boot-poly-alpine-binfmt-network-smoke boot-poly-alpine-container-smoke boot-poly-alpine-node-smoke boot-poly-alpine-postgres-smoke boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
+.PHONY: image poly-xcr0-module poly-rtl-fpga-artifacts check-poly-import-ids check-poly-isa-readiness check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-abi-descriptor check-poly-abi-classify check-poly-bridge-ir check-poly-contracts check-poly-rtl check-poly-rtl-sim check-poly-rtl-formal check-poly-rtl-constraints check-poly-rtl-fpga-artifacts check-poly-rtl-verilator check-poly-rtl-yosys check-poly-rtl-synth check-poly-rtl-fpga check-poly-rtl-fpga-resources check-poly-rtl-hdl boot boot-poly boot-poly-network-smoke boot-poly-alpine-binfmt-network-smoke boot-poly-alpine-container-smoke boot-poly-alpine-node-smoke boot-poly-alpine-postgres-smoke boot-poly-arch-traps boot-poly-nativecheck-arch-traps boot-poly-real-xsave-arch-traps boot-poly-probe-arch-traps boot-poly-apps-arch-traps boot-poly-neutral-arch-traps boot-poly-exec-arch-traps boot-poly-exec-cross-arch-traps boot-poly-exec-syscall-arch-traps boot-poly-call-arch-traps boot-poly-call-real-xsave-arch-traps boot-poly-thread-arch-traps boot-poly-bench-arch-traps boot-poly-binfmt-arch-traps boot-poly-focused-validation boot-poly-full-arch-traps boot-poly-full-real-xsave-arch-traps boot-poly-full clean
 
 image:
 	docker build --platform=linux/arm64 -t $(IMAGE) .
@@ -74,15 +74,15 @@ check-poly-state-layout:
 		tools/programs/polylayout.c -o "$$tmp_dir/polylayout"; \
 	"$$tmp_dir/polylayout" --check
 
-check-poly-abi-legacy-bridge:
+check-poly-abi-descriptor:
 	tmp_dir=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp_dir"' EXIT; \
 	$(CC) -std=gnu11 -Wall -Wextra -Werror \
 		-Itools/include -Itools/runtime \
-		tools/tests/poly_abi_legacy_bridge_test.c \
-		tools/runtime/abi/poly_abi_legacy_bridge.c \
-		-o "$$tmp_dir/poly_abi_legacy_bridge_test"; \
-	"$$tmp_dir/poly_abi_legacy_bridge_test"
+		tools/tests/poly_abi_descriptor_test.c \
+		tools/runtime/abi/poly_abi_descriptor.c \
+		-o "$$tmp_dir/poly_abi_descriptor_test"; \
+	"$$tmp_dir/poly_abi_descriptor_test"
 
 check-poly-abi-classify:
 	tmp_dir=$$(mktemp -d); \
@@ -104,7 +104,7 @@ check-poly-bridge-ir:
 		-Itools/include -Itools/runtime \
 		tools/tests/poly_bridge_ir_test.c \
 		tools/runtime/bridge/poly_bridge_plan.c \
-		tools/runtime/abi/poly_abi_legacy_bridge.c \
+		tools/runtime/abi/poly_abi_descriptor.c \
 		tools/runtime/abi/poly_abi_classify.c \
 		tools/runtime/abi/poly_abi_x86_sysv.c \
 		tools/runtime/abi/poly_abi_aarch64.c \
@@ -112,7 +112,7 @@ check-poly-bridge-ir:
 		-o "$$tmp_dir/poly_bridge_ir_test"; \
 	"$$tmp_dir/poly_bridge_ir_test"
 
-check-poly-contracts: check-poly-import-ids check-poly-isa-readiness check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-abi-legacy-bridge check-poly-abi-classify check-poly-bridge-ir
+check-poly-contracts: check-poly-import-ids check-poly-isa-readiness check-poly-arch-contract check-poly-cpuid-contract check-poly-state-layout check-poly-abi-descriptor check-poly-abi-classify check-poly-bridge-ir
 
 check-poly-rtl:
 	python3 rtl/test_poly_ctrl_decode.py

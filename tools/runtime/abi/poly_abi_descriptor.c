@@ -1,4 +1,4 @@
-#include "poly_abi_legacy_bridge.h"
+#include "poly_abi_descriptor.h"
 
 #include <limits.h>
 #include <stddef.h>
@@ -92,7 +92,7 @@ static void set_sret(struct poly_function_sig *sig, uint32_t flags) {
   sig->flags |= flags;
 }
 
-int poly_decode_legacy_bridge_kind(int bridge_kind,
+int poly_abi_descriptor_decode_kind(int bridge_kind,
     struct poly_function_sig *sig) {
   if (sig == NULL)
     return -1;
@@ -101,7 +101,7 @@ int poly_decode_legacy_bridge_kind(int bridge_kind,
 
   switch (bridge_kind) {
     case POLY_PROCESS_BRIDGE_DEFAULT:
-      sig->flags |= POLY_FUNCTION_SIG_FLAG_LEGACY_OPAQUE;
+      sig->flags |= POLY_FUNCTION_SIG_FLAG_OPAQUE_DESCRIPTOR;
       set_scalar_ret(sig, POLY_ABI_TYPE_I64);
       return 0;
     case POLY_PROCESS_BRIDGE_VEC128_U32:
@@ -180,7 +180,7 @@ int poly_decode_legacy_bridge_kind(int bridge_kind,
   }
 }
 
-uint32_t poly_legacy_bridge_signature_kind(int bridge_kind) {
+uint32_t poly_abi_descriptor_signature_kind(int bridge_kind) {
   switch (bridge_kind) {
     case POLY_PROCESS_BRIDGE_VEC128_U32:
       return POLY_ABI_SIGNATURE_KIND_NATIVE_REGS_VEC128_U32;
@@ -224,7 +224,7 @@ uint32_t poly_legacy_bridge_signature_kind(int bridge_kind) {
   }
 }
 
-const char *poly_legacy_bridge_kind_name(int bridge_kind) {
+const char *poly_abi_descriptor_kind_name(int bridge_kind) {
   switch (bridge_kind) {
     case POLY_PROCESS_BRIDGE_DEFAULT: return "default";
     case POLY_PROCESS_BRIDGE_VEC128_U32: return "vec128_u32";

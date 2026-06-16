@@ -431,8 +431,11 @@ v1 rule: fast paths are register-only aliases, and complex memory-shaped ABI
 work remains userspace.
 
 The v2 improvement is a software-owned, versioned ABI descriptor format that
-the runtime can use to generate or cache trampoline JIT code. Hardware may
-cache only the register-alias subset after validation:
+the runtime can use to generate or cache trampoline JIT code. The current
+runtime layer uses `poly_abi_descriptor` to decode process bridge cases into
+typed function signatures and bridge plans; hardware does not interpret those
+descriptors. A future hardware cache may cache only the register-alias subset
+after validation:
 
 - source/target frontend
 - integer and vector register alias maps
@@ -470,8 +473,9 @@ become required for correctness.
 7. Add `PDERIVE_STATE` for clone/thread handoff.
 8. Strengthen `PFENCE`/shared-memory ordering tests before enabling io_uring
    pass-through experiments.
-9. Keep ABI descriptor work in userspace unless a descriptor proves it is a
-   pure register-alias fast path.
+9. Keep ABI descriptor work in userspace. Only advertise hardware descriptor
+   caching after a descriptor proves it is a pure register-alias fast path and
+   has emulator/runtime tests.
 
 The first breaking change should be the event frame. Once the monitor consumes
 that cleanly, signals, core dumps, seccomp mediation, clone handoff, and
