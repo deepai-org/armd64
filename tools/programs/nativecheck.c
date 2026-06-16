@@ -52,6 +52,7 @@
 #define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
 #define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
+#define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
 #define POLY_OP_MONITOR_PACKET_SET POLY_X86_CTRL_MONITOR_PACKET_SET_ASM
@@ -768,6 +769,16 @@ static inline uint64_t poly_state_key_get_value(void) {
   uint64_t value = 0;
   asm volatile(POLY_OP_STATE_KEY_GET : "=a"(value) :: "r15", "memory");
   return value;
+}
+
+static inline uint64_t poly_dump_state(struct poly_v2_debug_note *note,
+    uint64_t bytes, uint64_t selector) {
+  uint64_t result = (uint64_t) (uintptr_t) note;
+  asm volatile(POLY_OP_DUMP_STATE
+    : "+a"(result)
+    : "d"(bytes), "c"(selector)
+    : "r15", "memory");
+  return result;
 }
 
 static inline uint64_t poly_aarch64_state_key_set_get(uint64_t value) {
@@ -6901,6 +6912,75 @@ static int run_poly_trap_vector_probe(void) {
   return 0;
 }
 
+static int run_poly_v2_debug_note_probe(void) {
+  static struct poly_v2_debug_note note
+    __attribute__((aligned(POLY_V2_DEBUG_NOTE_ALIGN)));
+  const uint64_t debug_magic =
+    ((uint64_t) POLY_V2_DEBUG_NOTE_MAGIC_HI << 32) |
+    POLY_V2_DEBUG_NOTE_MAGIC_LO;
+  memset(&note, 0xa5, sizeof(note));
+  uint64_t result = poly_dump_state(&note, sizeof(note),
+    POLY_V2_DUMP_SELECTOR_LIVE);
+  if (result != 0) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 dump live failed result=0x%llx\n",
+      (unsigned long long) result);
+    return 1;
+  }
+  if (note.magic != debug_magic ||
+      note.bytes != POLY_V2_DEBUG_NOTE_BYTES ||
+      note.version != POLY_V2_DEBUG_NOTE_VERSION ||
+      note.header_bytes != POLY_V2_DEBUG_NOTE_HEADER_BYTES ||
+      note.selector != POLY_V2_DUMP_SELECTOR_LIVE ||
+      (note.flags & POLY_V2_DEBUG_NOTE_FLAG_HAS_XSAVE) == 0 ||
+      note.event_offset != POLY_V2_DEBUG_NOTE_EVENT_OFFSET ||
+      note.event_bytes != POLY_V2_EVENT_BYTES ||
+      note.xsave_offset != POLY_V2_DEBUG_NOTE_XSAVE_OFFSET ||
+      note.xsave_bytes != POLY_STATE_XSAVE_BYTES_ARCH) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 debug note header mismatch magic=0x%llx bytes=%u version=%u header=%u selector=0x%llx flags=0x%llx event=%llu/%llu xsave=%llu/%llu\n",
+      (unsigned long long) note.magic, note.bytes, note.version,
+      note.header_bytes, (unsigned long long) note.selector,
+      (unsigned long long) note.flags,
+      (unsigned long long) note.event_offset,
+      (unsigned long long) note.event_bytes,
+      (unsigned long long) note.xsave_offset,
+      (unsigned long long) note.xsave_bytes);
+    return 1;
+  }
+  if (note.state.header.magic != POLY_STATE_XSAVE_MAGIC ||
+      note.state.header.layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      note.state.header.total_bytes != POLY_STATE_XSAVE_BYTES_ARCH ||
+      note.state_layout_version != POLY_STATE_XSAVE_LAYOUT_VERSION ||
+      note.state_bytes != POLY_STATE_XSAVE_BYTES_ARCH ||
+      note.current_mode != note.state.header.current_mode ||
+      note.frontend != note.state.header.current_mode ||
+      note.pc != note.state.header.foreign_pc ||
+      note.tls != note.state.header.foreign_tls_base) {
+    fprintf(stderr,
+      "NATIVE_CHECK_FAIL: poly v2 debug note XSAVE mismatch state_magic=0x%x layout=%u bytes=%u mode=%u/%u pc=0x%llx/0x%llx tls=0x%llx/0x%llx\n",
+      note.state.header.magic, note.state.header.layout_version,
+      note.state.header.total_bytes, note.current_mode,
+      note.state.header.current_mode, (unsigned long long) note.pc,
+      (unsigned long long) note.state.header.foreign_pc,
+      (unsigned long long) note.tls,
+      (unsigned long long) note.state.header.foreign_tls_base);
+    return 1;
+  }
+  if (poly_dump_state(&note, POLY_V2_DEBUG_NOTE_BYTES - 64,
+        POLY_V2_DUMP_SELECTOR_LIVE) != (uint64_t) -EINVAL ||
+      poly_dump_state(&note, POLY_V2_DEBUG_NOTE_BYTES, 0xffff) !=
+        (uint64_t) -EINVAL ||
+      poly_dump_state(&note, POLY_V2_DEBUG_NOTE_BYTES,
+        POLY_V2_DUMP_SELECTOR_SPILL_DESCRIPTOR) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 debug note rejected-selector/size check failed\n",
+      stderr);
+    return 1;
+  }
+  puts("NATIVE_POLY_V2_DEBUG_NOTE_OK");
+  return 0;
+}
+
 static int run_poly_state_key_probe(void) {
   const uint64_t key_a = 0x53544154454b4101ULL;
   const uint64_t key_b = 0x53544154454b4202ULL;
@@ -12073,6 +12153,8 @@ int main(void) {
     if (run_poly_landing_policy_probe() != 0)
       return 1;
     if (run_poly_memory_ordering_probe() != 0)
+      return 1;
+    if (run_poly_v2_debug_note_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;

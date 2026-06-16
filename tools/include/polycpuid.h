@@ -323,7 +323,7 @@ enum {
   POLY_CPUID_V2_FEATURE_POLICY_PREFLIGHT = (1U << 6),
   POLY_CPUID_V2_FEATURE_ABI_DESCRIPTORS = (1U << 7),
   POLY_CPUID_V2_FEATURE_DIAGNOSTIC_COUNTERS = (1U << 8),
-  POLY_CPUID_V2_IMPLEMENTED_FEATURES = (1U << 0) | (1U << 1) | (1U << 5),
+  POLY_CPUID_V2_IMPLEMENTED_FEATURES = (1U << 0) | (1U << 1) | (1U << 2) | (1U << 5),
   POLY_CPUID_V2_REQUIRED_FEATURES = (1U << 0) | (1U << 1) | (1U << 5),
   POLY_STATE_XSAVE_MAGIC = 0x31594c50, /* "PLY1" */
   POLY_STATE_XSAVE_COMPONENT_NONE = 0,
@@ -488,6 +488,19 @@ enum {
   POLY_V2_SPILL_DESC_VALID_EVENT_ADDR = (1U << 1),
   POLY_V2_SPILL_DESC_VALID_RESUME_RIP = (1U << 2),
   POLY_V2_SPILL_DESC_VALID_RESUME_STACK = (1U << 3),
+  POLY_V2_DEBUG_NOTE_MAGIC_LO = 0x594c4f50, /* low dword of "POLYDBG2" */
+  POLY_V2_DEBUG_NOTE_MAGIC_HI = 0x32474244, /* high dword of "POLYDBG2" */
+  POLY_V2_DEBUG_NOTE_VERSION = 2,
+  POLY_V2_DEBUG_NOTE_BYTES = 9216,
+  POLY_V2_DEBUG_NOTE_ALIGN = 64,
+  POLY_V2_DEBUG_NOTE_HEADER_BYTES = 512,
+  POLY_V2_DEBUG_NOTE_EVENT_OFFSET = 512,
+  POLY_V2_DEBUG_NOTE_XSAVE_OFFSET = 1024,
+  POLY_V2_DUMP_SELECTOR_LIVE = 0,
+  POLY_V2_DUMP_SELECTOR_SPILL_DESCRIPTOR = 1,
+  POLY_V2_DEBUG_NOTE_FLAG_HAS_EVENT = (1U << 0),
+  POLY_V2_DEBUG_NOTE_FLAG_HAS_XSAVE = (1U << 1),
+  POLY_V2_DEBUG_NOTE_FLAG_SPILLED = (1U << 2),
   POLY_INTERRUPT_ABI_VERSION = 1,
   POLY_INTERRUPT_FLAG_RAW_CPL3_ONLY = (1U << 0),
   POLY_INTERRUPT_FLAG_STANDARD_X86_ENTRY = (1U << 1),
@@ -1014,6 +1027,42 @@ struct poly_v2_spill_descriptor {
   uint8_t reserved[48];
 };
 
+struct poly_v2_debug_note {
+  uint64_t magic;
+  uint32_t bytes;
+  uint16_t version;
+  uint16_t header_bytes;
+  uint64_t selector;
+  uint64_t flags;
+  uint32_t frontend;
+  uint32_t current_mode;
+  uint32_t state_layout_version;
+  uint32_t state_bytes;
+  uint64_t pc;
+  uint64_t sp;
+  uint64_t tls;
+  uint64_t status0;
+  uint64_t status1;
+  uint64_t event_sequence;
+  uint64_t event_kind;
+  uint64_t fault_address;
+  uint64_t raw_syndrome;
+  uint64_t gpr_valid_mask;
+  uint64_t fp_valid_mask;
+  uint64_t transition_depth;
+  uint64_t transition_top_cookie;
+  uint64_t state_key;
+  uint64_t spill_descriptor;
+  uint64_t spill_generation;
+  uint64_t event_offset;
+  uint64_t event_bytes;
+  uint64_t xsave_offset;
+  uint64_t xsave_bytes;
+  uint8_t reserved[POLY_V2_DEBUG_NOTE_HEADER_BYTES - 208];
+  struct poly_v2_event_frame event;
+  struct poly_xsave_state state;
+};
+
 #define POLY_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
 
 POLY_STATIC_ASSERT(sizeof(struct poly_u128) == 16,
@@ -1026,12 +1075,25 @@ POLY_STATIC_ASSERT(
   (((uint64_t) POLY_V2_SPILL_DESC_MAGIC_HI << 32) |
     POLY_V2_SPILL_DESC_MAGIC_LO) == 0x32445053594c4f50ULL,
   "poly v2 spill descriptor magic must match POLYSPD2");
+POLY_STATIC_ASSERT(
+  (((uint64_t) POLY_V2_DEBUG_NOTE_MAGIC_HI << 32) |
+    POLY_V2_DEBUG_NOTE_MAGIC_LO) == 0x32474244594c4f50ULL,
+  "poly v2 debug note magic must match POLYDBG2");
 POLY_STATIC_ASSERT(sizeof(struct poly_v2_event_frame) ==
   POLY_V2_EVENT_BYTES,
   "poly v2 event frame size must match draft contract");
 POLY_STATIC_ASSERT(sizeof(struct poly_v2_spill_descriptor) ==
   POLY_V2_SPILL_DESC_BYTES,
   "poly v2 spill descriptor size must match draft contract");
+POLY_STATIC_ASSERT(sizeof(struct poly_v2_debug_note) ==
+  POLY_V2_DEBUG_NOTE_BYTES,
+  "poly v2 debug note size must match draft contract");
+POLY_STATIC_ASSERT(offsetof(struct poly_v2_debug_note, event) ==
+  POLY_V2_DEBUG_NOTE_EVENT_OFFSET,
+  "poly v2 debug note event offset must match draft contract");
+POLY_STATIC_ASSERT(offsetof(struct poly_v2_debug_note, state) ==
+  POLY_V2_DEBUG_NOTE_XSAVE_OFFSET,
+  "poly v2 debug note XSAVE offset must match draft contract");
 POLY_STATIC_ASSERT(sizeof(struct poly_xsave_header) ==
   POLY_STATE_XSAVE_HEADER_BYTES,
   "poly XSAVE header size must match CPUID contract");

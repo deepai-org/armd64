@@ -234,6 +234,57 @@ pivot conventions with one hardware-validated per-thread record.
 ELF, Mach-O, minidump, ptrace, or DWARF. It is an architectural source record
 that userspace can wrap in any debugger/container format.
 
+The v2 debug note is a 9216-byte, 64-byte-aligned record. It contains a compact
+header, a copied canonical event frame, and an embedded `poly_xsave_state`
+register image. Selector `0` exports the live current thread. Selector `1`
+exports the state/event pair selected by the currently registered spill
+descriptor.
+
+```c
+#define POLY_V2_DEBUG_NOTE_MAGIC 0x32474244594c4f50ULL /* "POLYDBG2" */
+#define POLY_V2_DEBUG_NOTE_VERSION 2
+#define POLY_V2_DEBUG_NOTE_BYTES 9216
+#define POLY_V2_DEBUG_NOTE_HEADER_BYTES 512
+#define POLY_V2_DEBUG_NOTE_EVENT_OFFSET 512
+#define POLY_V2_DEBUG_NOTE_XSAVE_OFFSET 1024
+
+struct poly_v2_debug_note {
+  uint64_t magic;
+  uint32_t bytes;
+  uint16_t version;
+  uint16_t header_bytes;
+  uint64_t selector;
+  uint64_t flags;
+  uint32_t frontend;
+  uint32_t current_mode;
+  uint32_t state_layout_version;
+  uint32_t state_bytes;
+  uint64_t pc;
+  uint64_t sp;
+  uint64_t tls;
+  uint64_t status0;
+  uint64_t status1;
+  uint64_t event_sequence;
+  uint64_t event_kind;
+  uint64_t fault_address;
+  uint64_t raw_syndrome;
+  uint64_t gpr_valid_mask;
+  uint64_t fp_valid_mask;
+  uint64_t transition_depth;
+  uint64_t transition_top_cookie;
+  uint64_t state_key;
+  uint64_t spill_descriptor;
+  uint64_t spill_generation;
+  uint64_t event_offset;
+  uint64_t event_bytes;
+  uint64_t xsave_offset;
+  uint64_t xsave_bytes;
+  uint8_t reserved[304];
+  struct poly_v2_event_frame event;
+  struct poly_xsave_state state;
+};
+```
+
 Minimum note contents:
 
 - frontend ID and state layout version
