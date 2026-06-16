@@ -1041,8 +1041,7 @@ struct poly_v2_spill_descriptor {
   uint64_t resume_stack_base;
   uint64_t resume_stack_bytes;
   uint64_t resume_stack_top;
-  uint64_t monitor_packet_addr;
-  uint64_t monitor_packet_bytes;
+  uint64_t reserved_070[2];
   uint64_t state_key;
   uint64_t frontend_mask;
   uint64_t last_event_sequence;

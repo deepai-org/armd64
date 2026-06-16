@@ -1093,8 +1093,6 @@ static void populate_poly_v2_spill_descriptor(uint64_t buffer,
   poly_auto_spill_descriptor.resume_stack_top =
     (uint64_t) (uintptr_t) (poly_auto_spill_resume_stack +
       POLY_AUTO_SPILL_RESUME_STACK_SIZE);
-  poly_auto_spill_descriptor.monitor_packet_addr = 0;
-  poly_auto_spill_descriptor.monitor_packet_bytes = 0;
   poly_auto_spill_descriptor.frontend_mask =
     (1ULL << POLY_MODE_RAW_AARCH64) | (1ULL << POLY_MODE_RAW_RISCV);
 }

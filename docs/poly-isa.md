@@ -106,9 +106,8 @@ implement the architecture below without inheriting emulator or runtime policy:
   `PENTER` resumes raw Poly code.
 - Recoverable exits publish OS-neutral v2 event frames before monitor-vector
   redirect. The default `polyexec` trap-vector path consumes that v2 event
-  frame directly; the older 16-qword monitor packet is only a compatibility
-  fallback for no-auto-spill/probe paths. Failed event-frame writes or invalid
-  event addresses prevent the redirect and report precise faults.
+  frame directly. Failed event-frame writes or invalid event addresses prevent
+  the redirect and report precise faults.
 - Native returns use ordinary frontend return instructions and a hardware
   transition-stack return cookie; same-ISA returns remain normal.
 - Invalid frontend IDs, non-canonical targets, frontend alignment violations,

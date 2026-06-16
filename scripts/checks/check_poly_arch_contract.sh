@@ -573,8 +573,10 @@ assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYTHREAD" \
   "polythread must register a v2 canonical event frame"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polythread_monitor_packet" "$POLYTHREAD" \
   "polythread must not depend on legacy monitor-packet publication"
-assert_contains "poly_auto_spill_descriptor\\.monitor_packet_addr[[:space:]]*=[[:space:]]*0" "$POLYEXEC" \
-  "v2 spill descriptors must not require monitor-packet publication"
+assert_contains "reserved_070\\[2\\]" "$ROOT_DIR/tools/include/polycpuid.h" \
+  "v2 spill descriptors must reserve the retired monitor-packet descriptor slots"
+assert_not_contains "poly_auto_spill_descriptor\\.monitor_packet_" "$POLYEXEC" \
+  "v2 spill descriptors must not program monitor-packet descriptor fields"
 assert_contains "refresh_poly_trap_event_frame" "$POLYEXEC" \
   "userspace monitor must register v2 event frames even without auto-spill"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|poly_monitor_packet|read_poly_monitor_packet" "$POLYEXEC" \
