@@ -102,8 +102,8 @@ implement the architecture below without inheriting emulator or runtime policy:
 - Foreign architectural state is explicit and user-owned. Production v2 relies
   on canonical event frames plus OS-neutral state transforms such as
   `PDERIVE_STATE`, `PCOMPLETE_EVENT`, and `PDUMP_STATE`, not on a monitor-owned
-  interrupt-time trampoline. The legacy spill descriptor remains an opt-in
-  prototype control for preemption stress, but it is not required by CPUID.
+  interrupt-time trampoline. The descriptor-backed auto-spill prototype has
+  been retired and is not advertised through CPUID.
 - `PSET_EVENT_PTR` registers the per-thread canonical event frame. Recoverable
   traps, syscalls, and faults publish precise event/result metadata to that
   frame and return through the normal monitor-vector path.

@@ -197,25 +197,6 @@ static inline uint64_t poly_foreign_import_count_status(void) {
       "memory");
   return rax;
 }
-static inline uint64_t poly_auto_spill_count_status(void) {
-  uint64_t rax;
-  asm volatile(POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS_ASM : "=a"(rax) ::
-      "memory");
-  return rax;
-}
-static inline uint64_t poly_auto_spill_bytes_status(void) {
-  uint64_t rax;
-  asm volatile(POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS_ASM : "=a"(rax) ::
-      "memory");
-  return rax;
-}
-static inline uint64_t poly_auto_spill_cycles_status(void) {
-  uint64_t rax;
-  asm volatile(POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS_ASM : "=a"(rax) ::
-      "memory");
-  return rax;
-}
-
 static inline void poly_trap_vector_set_value(uint64_t value) {
   asm volatile(POLY_OP_TRAP_VECTOR_SET :: "a"(value) : "memory");
 }
@@ -4352,19 +4333,6 @@ int main(void) {
   raw_aarch64_break_probe(break_arg);
   if (poly_foreign_break_count_status() != breaks_before + 1) {
     fprintf(stderr, "POLY_PROBE_FAIL: raw foreign break count mismatch\n");
-    return 1;
-  }
-
-  uint64_t auto_spills = poly_auto_spill_count_status();
-  uint64_t auto_spill_bytes = poly_auto_spill_bytes_status();
-  uint64_t auto_spill_cycles = poly_auto_spill_cycles_status();
-  if (auto_spill_bytes < auto_spills * POLY_STATE_XSAVE_BYTES_ARCH ||
-      auto_spill_cycles < auto_spills) {
-    fprintf(stderr,
-      "POLY_PROBE_FAIL: auto-spill profiling counters inconsistent count=%llu bytes=%llu cycles=%llu\n",
-      (unsigned long long) auto_spills,
-      (unsigned long long) auto_spill_bytes,
-      (unsigned long long) auto_spill_cycles);
     return 1;
   }
 

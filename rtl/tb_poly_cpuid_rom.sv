@@ -74,8 +74,8 @@ module tb_poly_cpuid_rom;
       "feature leaf");
 
     set_query(POLY_CPUID_BASE + 32'd2, 32'd31);
-    check_regs(32'h00000044, 32'h00000045, 32'h00000071, 32'h00000072,
-      "x86 v2 event/spill control leaf");
+    check_regs(32'h00000044, 32'h00000045, 32'h00000071, 32'd0,
+      "x86 v2 event control leaf");
 
     set_query(POLY_CPUID_BASE + 32'd2, 32'd32);
     check_regs(32'h00fc3a0f, 32'd3, 32'd4, 32'd3,
@@ -84,10 +84,6 @@ module tb_poly_cpuid_rom;
     set_query(POLY_CPUID_BASE + 32'd2, 32'd33);
     check_regs(32'd1, 32'h0000003f, 32'd1, 32'd0,
       "x86 opcode contract leaf");
-
-    set_query(POLY_CPUID_BASE + 32'd2, 32'd34);
-    check_regs(32'h00000046, 32'h00000047, 32'h00000048, 32'd0,
-      "x86 auto-spill profiling leaf");
 
     set_query(POLY_CPUID_BASE + 32'd2, 32'd0);
     check(!hit && eax == 32'd0 && ebx == 32'd0 && ecx == 32'd0 && edx == 32'd0,
@@ -153,7 +149,7 @@ module tb_poly_cpuid_rom;
       "abi bridge leaf");
 
     set_query(POLY_CPUID_BASE + 32'd10, 32'd0);
-    check_regs(32'd2, 32'h000001ff, 32'h00000023, 32'h01000200,
+    check_regs(32'd2, 32'h0000005d, 32'h00000001, 32'h00000200,
       "v2 abi leaf");
 
     set_query(POLY_CPUID_BASE + 32'd11, 32'd0);

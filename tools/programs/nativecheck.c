@@ -6756,9 +6756,7 @@ static int run_poly_v2_debug_note_probe(void) {
   if (poly_dump_state(&note, POLY_V2_DEBUG_NOTE_BYTES - 64,
         POLY_V2_DUMP_SELECTOR_LIVE) != (uint64_t) -EINVAL ||
       poly_dump_state(&note, POLY_V2_DEBUG_NOTE_BYTES, 0xffff) !=
-        (uint64_t) -EINVAL ||
-      poly_dump_state(&note, POLY_V2_DEBUG_NOTE_BYTES,
-        POLY_V2_DUMP_SELECTOR_SPILL_DESCRIPTOR) != (uint64_t) -EINVAL) {
+        (uint64_t) -EINVAL) {
     fputs("NATIVE_CHECK_FAIL: poly v2 debug note rejected-selector/size check failed\n",
       stderr);
     return 1;
@@ -11747,10 +11745,6 @@ int main(void) {
       poly_cpuid_expected_escape_leaf33();
     struct poly_cpuid_regs x86_opcode_contract =
       poly_read_cpuid(POLY_CPUID_BASE + 2, 33);
-    struct poly_cpuid_regs expected_auto_spill_status_manifest =
-      poly_cpuid_expected_escape_leaf34();
-    struct poly_cpuid_regs auto_spill_status_manifest =
-      poly_read_cpuid(POLY_CPUID_BASE + 2, 34);
     if (fp64_signature_manifest.eax !=
           expected_fp64_signature_manifest.eax ||
         fp64_signature_manifest.ebx !=
@@ -11891,13 +11885,6 @@ int main(void) {
       fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID x86 opcode contract mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
         x86_opcode_contract.eax, x86_opcode_contract.ebx,
         x86_opcode_contract.ecx, x86_opcode_contract.edx);
-      return 1;
-    }
-    if (!poly_cpuid_regs_match(&auto_spill_status_manifest,
-          &expected_auto_spill_status_manifest)) {
-      fprintf(stderr, "NATIVE_CHECK_FAIL: poly CPUID auto-spill status manifest mismatch eax=0x%x ebx=0x%x ecx=0x%x edx=0x%x\n",
-        auto_spill_status_manifest.eax, auto_spill_status_manifest.ebx,
-        auto_spill_status_manifest.ecx, auto_spill_status_manifest.edx);
       return 1;
     }
     if (check_poly_abi_signature_slot_default(

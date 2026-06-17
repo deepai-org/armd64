@@ -3,9 +3,10 @@
 Status: historical. Production v2 direction now lives in
 `docs/poly-isa-userspace-offload-proposal.md`.
 
-The auto-spill descriptor/trampoline path described below remains useful
-context for legacy stress tests, but it is no longer the advertised production
-contract.
+The descriptor-backed auto-spill prototype has been retired. The notes below
+remain historical context for why production v2 moved the load into
+OS-neutral event frames, memory probes, state derivation/import, debug-note
+export, and shared-memory ordering.
 
 Poly is an OS-neutral multi-frontend CPU extension for running existing
 precompiled x86_64, AArch64, and RISC-V64 code in one virtual address space.
@@ -38,7 +39,6 @@ Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
 | `PTRAPRET` | Resume after a precise Poly trap. |
 | `PLANDING` | Validate an indirect cross-frontend target when enabled. |
 | `PSET_EVENT_PTR addr, bytes` | Register the per-thread canonical event frame. |
-| `PSET_SPILL_DESC addr, bytes` | Register the per-thread spill image, event frame, resume stack, and x86 monitor trampoline through a versioned descriptor. |
 | `PDERIVE_STATE ... ACTIVATE_DST` | Validate and activate an already-derived state image before resuming Poly code. |
 
 These are decoded control instructions, not `#UD` envelopes.
@@ -102,25 +102,21 @@ Same-ISA returns stay normal.
 
 ## State And Traps
 
-The Poly spill image contains frontend state, interrupted PC, the latest v2
-event metadata, hardware transition stack, ABI signature slots, AArch64 GPR/FP/SIMD state,
-RISC-V GPR/FP state, per-frontend TLS bases, user monitor addresses, and
-landing-pad policy. The OS does not save or restore it; hardware writes it to
-user memory before an OS-visible interrupt/fault boundary, and the Ring 3
-monitor imports it with `PDERIVE_STATE ACTIVATE_DST`.
+The explicit Poly state image contains frontend state, interrupted PC, the
+latest v2 event metadata, hardware transition stack, ABI signature slots,
+AArch64 GPR/FP/SIMD state, RISC-V GPR/FP state, per-frontend TLS bases, user
+monitor addresses, and landing-pad policy. The OS does not save or restore it;
+the Ring 3 monitor can derive or import state images with `PDERIVE_STATE`.
 
-For zero-kernel-change execution, the monitor allocates one aligned 8KB spill
-image and one canonical event frame per thread, then registers them with
-`PSET_EVENT_PTR` and `PSET_SPILL_DESC` before `PENTER`. If a timer interrupt,
-page fault, or other hardware exception arrives while a raw frontend is active,
-microcode validates the descriptor generation, exports the full image, writes
-the event frame with the current Poly PC and spill reason, switches the
-architectural frontend back to x86, replaces the interrupted x86 RIP with the
-descriptor-selected trampoline, and only then vectors to the unmodified OS. The
-OS sees an ordinary x86 thread. On return or signal delivery, the monitor reads
-the event frame and state header; timer exits restore and re-enter Poly, while
-page-fault exits are translated into Poly-context exceptions in
-userspace.
+For zero-kernel-change execution, the production monitor registers one
+canonical event frame per thread with `PSET_EVENT_PTR` before `PENTER`. If a
+timer interrupt, page fault, or other hardware exception arrives while a raw
+frontend is active, hardware publishes the event frame with the current Poly PC
+and event reason before returning to the monitor-vector path or the unmodified
+OS-visible x86 flow. The OS sees an ordinary x86 thread. On return or signal
+delivery, the monitor reads the event frame and state header; timer exits
+restore and re-enter Poly, while page-fault exits are translated into
+Poly-context exceptions in userspace.
 
 Hardware emits precise canonical event frames for foreign `svc`/`ecall`,
 breakpoints, illegal or unsupported instructions, unresolved imports, and
@@ -160,10 +156,10 @@ fallthrough PC is not committed for that instruction.
 1. Keep `PSWITCH` and `PCALL` fixed-latency with no descriptor parsing.
 2. Use register-only ABI signatures for fast native-ABI calls.
 3. Route complex ABI cases through loader/runtime thunks.
-4. Make the auto-spill image and monitor trampoline the only asynchronous
+4. Make canonical event frames and state-derive/import the asynchronous
    context-switch contract.
 5. Support native return-cookie recovery through the hardware transition stack.
 6. Deliver recoverable exits through OS-neutral v2 event frames and a Ring 3
    monitor.
-7. Track auto-spill count, spilled bytes, and estimated spill cycles so
-   preemption stress tests can measure the cost of the 8KB spill path.
+7. Keep diagnostic counters separate from the production ISA contract unless
+   they are advertised through an explicit CPUID feature bit.

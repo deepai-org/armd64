@@ -107,12 +107,6 @@
   POLY_X86_CTRL_ASM_BYTE(0x44)
 #define POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS_ASM \
   POLY_X86_CTRL_ASM_BYTE(0x45)
-#define POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS_ASM \
-  POLY_X86_CTRL_ASM_BYTE(0x46)
-#define POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS_ASM \
-  POLY_X86_CTRL_ASM_BYTE(0x47)
-#define POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS_ASM \
-  POLY_X86_CTRL_ASM_BYTE(0x48)
 #define POLY_X86_CTRL_TRAP_VECTOR_SET_ASM POLY_X86_CTRL_ASM_BYTE(0x60)
 #define POLY_X86_CTRL_TRAP_VECTOR_GET_ASM POLY_X86_CTRL_ASM_BYTE(0x61)
 #define POLY_X86_CTRL_TRAP_RETURN_ASM POLY_X86_CTRL_ASM_BYTE(0x62)
@@ -127,7 +121,6 @@
 #define POLY_X86_CTRL_LANDING_POLICY_SET_ASM POLY_X86_CTRL_ASM_BYTE(0x6d)
 #define POLY_X86_CTRL_LANDING_POLICY_GET_ASM POLY_X86_CTRL_ASM_BYTE(0x6e)
 #define POLY_X86_CTRL_EVENT_PTR_SET_ASM POLY_X86_CTRL_ASM_BYTE(0x71)
-#define POLY_X86_CTRL_SPILL_DESC_SET_ASM POLY_X86_CTRL_ASM_BYTE(0x72)
 #define POLY_X86_CTRL_DUMP_STATE_ASM POLY_X86_CTRL_ASM_BYTE(0x73)
 #define POLY_X86_CTRL_MEM_PROBE_RANGE_ASM POLY_X86_CTRL_ASM_BYTE(0x74)
 #define POLY_X86_CTRL_DERIVE_STATE_ASM POLY_X86_CTRL_ASM_BYTE(0x75)
@@ -223,9 +216,6 @@ enum {
   POLY_X86_CTRL_FOREIGN_SYSCALL_COUNT_STATUS = 0x43,
   POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS = 0x44,
   POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS = 0x45,
-  POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS = 0x46,
-  POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS = 0x47,
-  POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS = 0x48,
   POLY_X86_CTRL_TRAP_VECTOR_SET = 0x60,
   POLY_X86_CTRL_TRAP_VECTOR_GET = 0x61,
   POLY_X86_CTRL_TRAP_RETURN = 0x62,
@@ -240,7 +230,6 @@ enum {
   POLY_X86_CTRL_LANDING_POLICY_SET = 0x6d,
   POLY_X86_CTRL_LANDING_POLICY_GET = 0x6e,
   POLY_X86_CTRL_EVENT_PTR_SET = 0x71,
-  POLY_X86_CTRL_SPILL_DESC_SET = 0x72,
   POLY_X86_CTRL_DUMP_STATE = 0x73,
   POLY_X86_CTRL_MEM_PROBE_RANGE = 0x74,
   POLY_X86_CTRL_DERIVE_STATE = 0x75,
@@ -298,7 +287,6 @@ enum {
   POLY_CPUID_STATE_MONITOR_TRAMPOLINE = (1U << 22),
   POLY_CPUID_STATE_OS_XSAVE_NOT_REQUIRED = (1U << 23),
   POLY_CPUID_V2_FEATURE_EVENT_FRAME = (1U << 0),
-  POLY_CPUID_V2_FEATURE_SPILL_DESCRIPTOR = (1U << 1),
   POLY_CPUID_V2_FEATURE_DEBUG_NOTE_EXPORT = (1U << 2),
   POLY_CPUID_V2_FEATURE_MEMORY_PROBE = (1U << 3),
   POLY_CPUID_V2_FEATURE_STATE_DERIVE = (1U << 4),
@@ -470,20 +458,6 @@ enum {
   POLY_V2_EVENT_SIDE_EFFECT_BLOCKING_WAIT = 2,
   POLY_V2_EVENT_SIDE_EFFECT_MEMORY_SHARING = 3,
   POLY_V2_EVENT_SIDE_EFFECT_THREAD_BIRTH = 4,
-  POLY_V2_SPILL_DESC_MAGIC_LO = 0x594c4f50, /* low dword of "POLYSPD2" */
-  POLY_V2_SPILL_DESC_MAGIC_HI = 0x32445053, /* high dword of "POLYSPD2" */
-  POLY_V2_SPILL_DESC_VERSION = 2,
-  POLY_V2_SPILL_DESC_BYTES = 256,
-  POLY_V2_SPILL_DESC_ALIGN = 64,
-  POLY_V2_SPILL_DESC_HEADER_BYTES = 16,
-  POLY_V2_SPILL_DESC_FLAG_ENABLE = (1U << 0),
-  POLY_V2_SPILL_DESC_FLAG_EVENT_FRAME = (1U << 1),
-  POLY_V2_SPILL_DESC_FLAG_RESUME_STACK = (1U << 2),
-  POLY_V2_SPILL_DESC_FLAG_STATE_IMAGE = (1U << 3),
-  POLY_V2_SPILL_DESC_VALID_STATE_ADDR = (1U << 0),
-  POLY_V2_SPILL_DESC_VALID_EVENT_ADDR = (1U << 1),
-  POLY_V2_SPILL_DESC_VALID_RESUME_RIP = (1U << 2),
-  POLY_V2_SPILL_DESC_VALID_RESUME_STACK = (1U << 3),
   POLY_V2_DEBUG_NOTE_MAGIC_LO = 0x594c4f50, /* low dword of "POLYDBG2" */
   POLY_V2_DEBUG_NOTE_MAGIC_HI = 0x32474244, /* high dword of "POLYDBG2" */
   POLY_V2_DEBUG_NOTE_VERSION = 2,
@@ -493,7 +467,6 @@ enum {
   POLY_V2_DEBUG_NOTE_EVENT_OFFSET = 512,
   POLY_V2_DEBUG_NOTE_XSAVE_OFFSET = 1024,
   POLY_V2_DUMP_SELECTOR_LIVE = 0,
-  POLY_V2_DUMP_SELECTOR_SPILL_DESCRIPTOR = 1,
   POLY_V2_DEBUG_NOTE_FLAG_HAS_EVENT = (1U << 0),
   POLY_V2_DEBUG_NOTE_FLAG_HAS_XSAVE = (1U << 1),
   POLY_V2_DEBUG_NOTE_FLAG_SPILLED = (1U << 2),
@@ -1015,40 +988,6 @@ struct poly_v2_event_frame {
   uint8_t reserved[104];
 };
 
-struct poly_v2_spill_descriptor {
-  uint64_t magic;
-  uint32_t bytes;
-  uint16_t version;
-  uint16_t header_bytes;
-  uint64_t flags;
-  uint64_t owner_cookie;
-  uint64_t generation;
-  uint64_t valid_mask;
-  uint64_t state_addr;
-  uint32_t state_bytes;
-  uint16_t state_align;
-  uint16_t state_layout_version;
-  uint64_t event_addr;
-  uint32_t event_bytes;
-  uint32_t event_flags;
-  uint64_t resume_rip;
-  uint64_t resume_stack_base;
-  uint64_t resume_stack_bytes;
-  uint64_t resume_stack_top;
-  uint64_t reserved_070[2];
-  uint64_t state_key;
-  uint64_t frontend_mask;
-  uint64_t last_event_sequence;
-  uint64_t last_spill_reason;
-  uint64_t last_spill_cycles;
-  uint64_t last_spill_bytes;
-  uint64_t debug_note_addr;
-  uint64_t debug_note_bytes;
-  uint64_t policy_hook_addr;
-  uint64_t policy_hook_bytes;
-  uint8_t reserved[48];
-};
-
 struct poly_v2_debug_note {
   uint64_t magic;
   uint32_t bytes;
@@ -1126,10 +1065,6 @@ POLY_STATIC_ASSERT(
     0x32545645594c4f50ULL,
   "poly v2 event magic must match POLYEVT2");
 POLY_STATIC_ASSERT(
-  (((uint64_t) POLY_V2_SPILL_DESC_MAGIC_HI << 32) |
-    POLY_V2_SPILL_DESC_MAGIC_LO) == 0x32445053594c4f50ULL,
-  "poly v2 spill descriptor magic must match POLYSPD2");
-POLY_STATIC_ASSERT(
   (((uint64_t) POLY_V2_DEBUG_NOTE_MAGIC_HI << 32) |
     POLY_V2_DEBUG_NOTE_MAGIC_LO) == 0x32474244594c4f50ULL,
   "poly v2 debug note magic must match POLYDBG2");
@@ -1144,9 +1079,6 @@ POLY_STATIC_ASSERT(
 POLY_STATIC_ASSERT(sizeof(struct poly_v2_event_frame) ==
   POLY_V2_EVENT_BYTES,
   "poly v2 event frame size must match draft contract");
-POLY_STATIC_ASSERT(sizeof(struct poly_v2_spill_descriptor) ==
-  POLY_V2_SPILL_DESC_BYTES,
-  "poly v2 spill descriptor size must match draft contract");
 POLY_STATIC_ASSERT(sizeof(struct poly_v2_debug_note) ==
   POLY_V2_DEBUG_NOTE_BYTES,
   "poly v2 debug note size must match draft contract");
@@ -1641,15 +1573,6 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf31(void) {
   regs.eax = POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS;
   regs.ebx = POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS;
   regs.ecx = POLY_X86_CTRL_EVENT_PTR_SET;
-  regs.edx = POLY_X86_CTRL_SPILL_DESC_SET;
-  return regs;
-}
-
-static inline struct poly_cpuid_regs poly_cpuid_expected_escape_leaf34(void) {
-  struct poly_cpuid_regs regs;
-  regs.eax = POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS;
-  regs.ebx = POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS;
-  regs.ecx = POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS;
   regs.edx = 0;
   return regs;
 }
@@ -2018,8 +1941,7 @@ static inline struct poly_cpuid_regs poly_cpuid_expected_v2_leaf(void) {
   regs.eax = POLY_CPUID_V2_ABI_VERSION;
   regs.ebx = POLY_CPUID_V2_IMPLEMENTED_FEATURES;
   regs.ecx = POLY_CPUID_V2_REQUIRED_FEATURES;
-  regs.edx = POLY_V2_EVENT_BYTES |
-    (POLY_V2_SPILL_DESC_BYTES << 16);
+  regs.edx = POLY_V2_EVENT_BYTES;
   return regs;
 }
 

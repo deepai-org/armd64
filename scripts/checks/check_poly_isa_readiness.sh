@@ -56,10 +56,8 @@ assert_contains "canonical event frames plus OS-neutral state transforms" "$ISA_
   "ISA boundary must require canonical event frames and OS-neutral state transforms"
 assert_contains "PSET_EVENT_PTR" "$ISA_DOC" \
   "ISA boundary must include v2 event-frame setup"
-assert_contains "legacy spill descriptor remains an opt-in" "$ISA_DOC" \
-  "ISA boundary must mark descriptor auto-spill as an opt-in prototype path"
-assert_contains "not required by CPUID" "$ISA_DOC" \
-  "ISA boundary must not require the deprecated spill descriptor through CPUID"
+assert_contains "descriptor-backed auto-spill prototype has" "$ISA_DOC" \
+  "ISA boundary must mark descriptor auto-spill as retired"
 assert_contains "OS-neutral v2 event frames" "$ISA_DOC" \
   "ISA boundary must require OS-neutral v2 event frames"
 assert_contains "transition-stack return cookie" "$ISA_DOC" \
@@ -74,6 +72,8 @@ assert_contains "timing closure" "$ISA_DOC" \
   "ISA boundary must not claim FPGA timing closure"
 assert_not_contains "PSET_SPILL_PTR" "$ISA_DOC" \
   "active ISA quick reference must not advertise the retired raw spill pointer control"
+assert_not_contains "PSET_SPILL_DESC" "$ISA_DOC" \
+  "active ISA quick reference must not advertise the retired spill descriptor control"
 
 assert_contains "^# Poly ISA Userspace Offload Proposal" "$OFFLOAD_DOC" \
   "userspace offload proposal document must exist"
@@ -94,45 +94,17 @@ assert_contains "No ELF, DWARF, GDB, minidump, or core-file format in hardware" 
   "userspace offload proposal must keep debug file formats in userspace"
 
 assert_contains "^# Poly ISA v2 Draft" "$V2_ISA_DOC" \
-  "active ISA v2 draft document must exist"
-assert_contains "## Opcode Ownership And Discovery" "$V2_ISA_DOC" \
-  "active ISA v2 draft must cover production opcode ownership"
-assert_contains "vendor-owned architectural extension page" "$V2_ISA_DOC" \
-  "active ISA v2 draft must require a vendor-owned production opcode page"
-assert_contains "POLY_X86_OPCODE_FLAG_VENDOR_PROTOTYPE" "$V2_ISA_DOC" \
-  "active ISA v2 draft must distinguish prototype opcode ownership"
-assert_contains "POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE" "$V2_ISA_DOC" \
-  "active ISA v2 draft must keep prototype opcode family reassignable"
-assert_contains "3\\.\\.255.*Reserved" "$V2_ISA_DOC" \
-  "active ISA v2 draft must reserve invalid frontend IDs"
-assert_contains "defined baseline plus precise traps" "$V2_ISA_DOC" \
-  "active ISA v2 draft must choose the AArch64/RISC-V extension baseline policy"
-assert_contains "## New Control Operations" "$V2_ISA_DOC" \
-  "active ISA v2 draft must cover control operations"
-assert_contains "PSET_EVENT_PTR" "$V2_ISA_DOC" \
-  "active ISA v2 draft must include event-frame registration"
-assert_contains "PSET_SPILL_DESC" "$V2_ISA_DOC" \
-  "active ISA v2 draft must include spill-descriptor registration"
-assert_contains "## CPUID And Compatibility" "$V2_ISA_DOC" \
-  "active ISA v2 draft must cover CPUID leaves and compatibility"
-assert_contains "control geometry" "$V2_ISA_DOC" \
-  "active ISA v2 draft must cover opcode CPUID discovery"
-assert_contains "event-frame layout" "$V2_ISA_DOC" \
-  "active ISA v2 draft must document v2 layout CPUID coverage"
-assert_contains "## Spill/Resume Descriptor" "$V2_ISA_DOC" \
-  "active ISA v2 draft must cover descriptor-owned spill state"
-assert_contains "struct poly_v2_spill_descriptor" "$V2_ISA_DOC" \
-  "active ISA v2 draft must define the spill descriptor layout"
-assert_contains "reserved-zero/read-zero" "$V2_ISA_DOC" \
-  "active ISA v2 draft must define reserved state behavior"
-assert_contains "## Canonical Event Frame" "$V2_ISA_DOC" \
-  "active ISA v2 draft must cover canonical event frames"
-assert_contains "struct poly_v2_event_frame" "$V2_ISA_DOC" \
-  "active ISA v2 draft must define canonical event-frame layout"
-assert_not_contains "PRESTORE" "$V2_ISA_DOC" \
-  "active ISA v2 draft must not retain the deprecated PRESTORE opcode"
-assert_contains "ACTIVATE_DST" "$V2_ISA_DOC" \
-  "active ISA v2 draft must define v2 state activation for descriptor-selected images"
+  "historical ISA v2 draft document must exist"
+assert_contains "historical" "$V2_ISA_DOC" \
+  "v2 draft must be marked historical now that the active design lives in the offload proposal"
+assert_contains "small Poly ISA change set" "$OFFLOAD_DOC" \
+  "userspace offload proposal must carry active ISA changes"
+assert_contains "precise event frames" "$OFFLOAD_DOC" \
+  "active proposal must define canonical event-frame behavior"
+assert_contains "PDUMP_STATE" "$OFFLOAD_DOC" \
+  "active proposal must define debug-note export"
+assert_contains "Shared-memory ordering" "$OFFLOAD_DOC" \
+  "active proposal must define shared-memory ordering"
 assert_contains "zero-kernel-change contract" "$V2_ISA_DOC" \
   "active ISA v2 draft must document the zero-kernel OS contract"
 assert_contains "unmodified OS" "$V2_ISA_DOC" \
@@ -185,13 +157,13 @@ assert_contains "Signature slots are architectural" \
   "design directions must define exact ABI signature-slot encoding"
 assert_contains "register_map << 32" "$DESIGN_DOC" \
   "design directions must include the ABI register-map encoding"
-assert_contains "Poly spill image" "$DESIGN_DOC" \
+assert_contains "explicit Poly state image" "$DESIGN_DOC" \
   "design directions must keep Poly state explicit and user-spilled"
 assert_contains "PSET_EVENT_PTR" "$DESIGN_DOC" \
   "design directions must include the v2 event-frame setup control"
-assert_contains "PSET_SPILL_DESC" "$DESIGN_DOC" \
-  "design directions must include the v2 spill descriptor setup control"
-assert_contains "unmodified OS" "$DESIGN_DOC" \
+assert_contains "descriptor-backed auto-spill prototype has been retired" "$DESIGN_DOC" \
+  "design directions must mark the spill descriptor prototype as retired"
+assert_contains "OS does not save or restore it" "$DESIGN_DOC" \
   "design directions must keep the OS out of Poly state management"
 assert_contains "If a monitor vector is enabled, hardware must publish the canonical event frame before" \
   "$DESIGN_DOC" \
@@ -214,10 +186,6 @@ for symbol in \
   POLY_STATE_XSAVE_FLAG_MONITOR_TRAMPOLINE \
   POLY_STATE_XSAVE_FLAG_OS_XSAVE_NOT_REQUIRED \
   POLY_X86_CTRL_EVENT_PTR_SET \
-  POLY_X86_CTRL_SPILL_DESC_SET \
-  POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS \
-  POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS \
-  POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS \
   POLY_MEMORY_MODEL_X86_TSO \
   POLY_X86_OPCODE_FLAG_CPUID_DISCOVERED \
   POLY_X86_OPCODE_FLAG_DEDICATED_DECODE \
@@ -226,6 +194,17 @@ for symbol in \
   POLY_X86_OPCODE_FLAG_PRODUCTION_REASSIGNABLE; do
   assert_contains "\\b${symbol}\\b" "$HEADER" \
     "polycpuid.h must expose ISA readiness symbol ${symbol}"
+done
+
+for retired_symbol in \
+  POLY_X86_CTRL_SPILL_DESC_SET \
+  POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS \
+  POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS \
+  POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS \
+  POLY_CPUID_V2_FEATURE_SPILL_DESCRIPTOR \
+  POLY_V2_DUMP_SELECTOR_SPILL_DESCRIPTOR; do
+  assert_not_contains "\\b${retired_symbol}\\b" "$HEADER" \
+    "polycpuid.h must not expose retired auto-spill descriptor symbol ${retired_symbol}"
 done
 
 assert_contains "check-poly-isa-readiness" "$MAKEFILE" \

@@ -255,7 +255,7 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
                 c["POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS"],
                 c["POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS"],
                 c["POLY_X86_CTRL_EVENT_PTR_SET"],
-                c["POLY_X86_CTRL_SPILL_DESC_SET"],
+                0,
             ),
             32: (
                 x86_opcode_geometry,
@@ -267,12 +267,6 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
                 c["POLY_X86_OPCODE_CONTRACT_VERSION"],
                 x86_opcode_flags,
                 c["POLY_X86_OPCODE_FAMILY_VENDOR_PROTOTYPE"],
-                0,
-            ),
-            34: (
-                c["POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS"],
-                c["POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS"],
-                c["POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS"],
                 0,
             ),
         }
@@ -455,9 +449,7 @@ def rom_model(leaf: int, subleaf: int, c: dict[str, int]) -> tuple[bool, int, in
         )
         return (True, c["POLY_ABI_BRIDGE_ABI_VERSION"], abi_flags, counts_align, 0)
     if leaf == base + 10:
-        size_edx = c["POLY_V2_EVENT_BYTES"] | (
-            c["POLY_V2_SPILL_DESC_BYTES"] << 16
-        )
+        size_edx = c["POLY_V2_EVENT_BYTES"]
         return (
             True,
             c["POLY_CPUID_V2_ABI_VERSION"],
@@ -529,19 +521,11 @@ def main() -> int:
         "POLY_CPUID_V2_REQUIRED_FEATURES":
             c["POLY_CPUID_V2_REQUIRED_FEATURES"],
         "POLY_V2_EVENT_BYTES": c["POLY_V2_EVENT_BYTES"],
-        "POLY_V2_SPILL_DESC_BYTES": c["POLY_V2_SPILL_DESC_BYTES"],
         "POLY_V2_SIZE_EDX": rom_model(c["POLY_CPUID_BASE"] + 10, 0, c)[4],
         "POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS":
             c["POLY_X86_CTRL_FOREIGN_BREAK_COUNT_STATUS"],
         "POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS":
             c["POLY_X86_CTRL_FOREIGN_IMPORT_COUNT_STATUS"],
-        "POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS":
-            c["POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS"],
-        "POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS":
-            c["POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS"],
-        "POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS":
-            c["POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS"],
-        "POLY_X86_CTRL_SPILL_DESC_SET": c["POLY_X86_CTRL_SPILL_DESC_SET"],
         "POLY_X86_CTRL_PRESTORE": c["POLY_X86_CTRL_PRESTORE"],
         "POLY_X86_OPCODE_GEOMETRY_EAX": rom_model(c["POLY_CPUID_BASE"] + 2, 32, c)[1],
         "POLY_X86_CTRL_PREFIX_BYTES": c["POLY_X86_CTRL_PREFIX_BYTES"],

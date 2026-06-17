@@ -21,7 +21,6 @@ POLYBINFMT_EXEC="$ROOT_DIR/tools/programs/polybinfmt_exec.c"
 POLYEXEC="$ROOT_DIR/tools/runtime/polyexec.c"
 RTL_INTERRUPT_BOUNDARY="$ROOT_DIR/rtl/poly_interrupt_boundary.sv"
 RTL_FRONTEND_CORE="$ROOT_DIR/rtl/poly_frontend_core.sv"
-POLY_PREEMPT_STRESS="$ROOT_DIR/scripts/run_poly_preemption_stress.sh"
 POLYEXEC_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_preempt_stress_real.c"
 POLYEXEC_THREAD_PREEMPT_STRESS_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_thread_preempt_stress_real.c"
 POLYEXEC_SMP_ATOMIC_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_smp_atomic_real.c"
@@ -389,30 +388,10 @@ assert_contains "bx_poly_current_mode[[:space:]]*=[[:space:]]*BX_POLY_MODE_X86" 
   "raw interrupt capture must route interrupt handling through x86 decode"
 assert_contains "bx_poly_update_raw_owner" "$INTERRUPT_FUNC" \
   "raw interrupt capture must update the keyed raw owner state"
-assert_contains "bx_poly_spill_buffer[[:space:]]*!=[[:space:]]*0" "$INTERRUPT_FUNC" \
-  "raw interrupt capture must support the auto-spill trampoline path"
-assert_contains "export_poly_xsave_state" "$INTERRUPT_FUNC" \
-  "auto-spill must export the full Poly state image before x86 kernel entry"
-assert_contains "bx_poly_spill_resume_rip" "$INTERRUPT_FUNC" \
-  "auto-spill must redirect the x86 interrupted RIP to the monitor trampoline"
-assert_contains "BX_POLY_SPILL_REASON_PAGE_FAULT" "$INTERRUPT_FUNC" \
-  "auto-spill must distinguish page faults for userspace signal translation"
-assert_contains "BX_CPU_THIS_PTR cr2" "$INTERRUPT_FUNC" \
-  "auto-spill page-fault metadata must include the faulting address"
-assert_contains "bx_poly_auto_spill_count\\+\\+" "$INTERRUPT_FUNC" \
-  "auto-spill must count successful hardware spills for profiling"
-assert_contains "bx_poly_auto_spill_bytes[[:space:]]*\\+=[[:space:]]*BX_POLY_STATE_XSAVE_BYTES_ARCH" "$INTERRUPT_FUNC" \
-  "auto-spill must accumulate spilled bytes for bandwidth profiling"
-assert_contains "bx_poly_auto_spill_cycles[[:space:]]*\\+=" "$INTERRUPT_FUNC" \
-  "auto-spill must accumulate estimated spill cycles"
+assert_not_contains "bx_poly_spill_buffer|bx_poly_spill_resume_rip|bx_poly_auto_spill_" "$INTERRUPT_FUNC" \
+  "raw interrupt capture must not retain the retired auto-spill trampoline path"
 assert_contains "bx_poly_state_dirty" "$BOCHS_CPU" \
   "Bochs model must track the Poly state dirty bit"
-assert_contains "spill_full_state[[:space:]]*=[[:space:]]*bx_poly_state_dirty" "$INTERRUPT_FUNC" \
-  "auto-spill must decide full-state write from the dirty bit"
-assert_contains "if[[:space:]]*\\(spill_full_state\\)" "$INTERRUPT_FUNC" \
-  "auto-spill must skip the 8KB state write when dirty is clear"
-assert_contains "bx_poly_auto_spill_bytes[[:space:]]*\\+=[[:space:]]*BX_POLY_STATE_XSAVE_BYTES_ARCH" "$INTERRUPT_FUNC" \
-  "auto-spill byte accounting must remain tied to full 8KB writes"
 assert_contains "0x3ca06800" "$BOCHS_CPU" \
   "Bochs AArch64 raw frontend must support AdvSIMD register-offset STR Q used by real glibc ld.so"
 assert_contains "0x3ce06800" "$BOCHS_CPU" \
@@ -465,8 +444,8 @@ assert_contains "BX_POLY_X86_CTRL_EVENT_PTR_SET" "$BOCHS_CPU" \
   "Bochs must implement the v2 event-frame control"
 assert_contains "frame[[:space:]]*==[[:space:]]*0 && bytes[[:space:]]*==[[:space:]]*0" "$BOCHS_CPU" \
   "Bochs must allow PSET_EVENT_PTR(0, 0) to unregister v2 event frames"
-assert_contains "BX_POLY_X86_CTRL_SPILL_DESC_SET" "$BOCHS_CPU" \
-  "Bochs must implement the v2 spill descriptor control"
+assert_not_contains "BX_POLY_X86_CTRL_SPILL_DESC_SET" "$BOCHS_CPU" \
+  "Bochs must not implement the retired v2 spill descriptor control"
 assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_DUMP_STATE" "$BOCHS_CPU" \
   "Bochs must implement the v2 debug-note export control"
 assert_contains "export_poly_v2_debug_note" "$BOCHS_CPU" \
@@ -547,18 +526,14 @@ assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must not use legacy raw spill pointer setup"
 assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must clear the v2 canonical event frame registration"
-assert_contains "POLY_OP_SPILL_DESC_SET" "$POLYBINFMT_EXEC" \
-  "binfmt helper must clear the v2 spill descriptor registration"
+assert_not_contains "POLY_OP_SPILL_DESC_SET" "$POLYBINFMT_EXEC" \
+  "binfmt helper must not use the retired v2 spill descriptor registration"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must not use legacy monitor-packet control"
 assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYEXEC" \
   "userspace monitor must register a v2 canonical event frame"
-assert_contains "POLY_OP_SPILL_DESC_SET" "$POLYEXEC" \
-  "userspace monitor must register a v2 spill descriptor"
-assert_contains "populate_poly_v2_spill_descriptor" "$POLYEXEC" \
-  "userspace monitor must populate the v2 spill descriptor"
-assert_contains "__thread struct poly_xsave_state poly_auto_spill_state" "$POLYEXEC" \
-  "userspace monitor must allocate a unique auto-spill state image per thread"
+assert_not_contains "POLY_OP_SPILL_DESC_SET|populate_poly_v2_spill_descriptor|poly_auto_spill_state" "$POLYEXEC" \
+  "userspace monitor must not retain retired v2 spill descriptor plumbing"
 assert_contains "poly_v2_event_to_runtime_packet" "$POLYEXEC" \
   "userspace monitor must consume the v2 event frame as the default trap dispatch payload"
 assert_contains "polyapp_event_frame_to_packet" "$POLYAPP" \
@@ -589,48 +564,36 @@ assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYTHREAD" \
   "polythread must register a v2 canonical event frame"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|polythread_monitor_packet" "$POLYTHREAD" \
   "polythread must not depend on legacy monitor-packet publication"
-assert_contains "reserved_070\\[2\\]" "$ROOT_DIR/tools/include/polycpuid.h" \
-  "v2 spill descriptors must reserve the retired monitor-packet descriptor slots"
-assert_not_contains "poly_auto_spill_descriptor\\.monitor_packet_" "$POLYEXEC" \
-  "v2 spill descriptors must not program monitor-packet descriptor fields"
 assert_contains "refresh_poly_trap_event_frame" "$POLYEXEC" \
   "userspace monitor must register v2 event frames even without auto-spill"
-assert_contains "auto_spill_env != NULL && auto_spill_env\\[0\\] != '\\\\0' &&" "$POLYEXEC" \
-  "userspace monitor must keep deprecated auto-spill disabled unless explicitly requested"
+assert_not_contains "POLYEXEC_AUTO_SPILL|polyexec_use_auto_spill" "$POLYEXEC" \
+  "userspace monitor must not retain the deprecated auto-spill runtime flag"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|poly_monitor_packet|read_poly_monitor_packet" "$POLYEXEC" \
   "userspace monitor must not retain the legacy monitor-packet trap dispatch fallback"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|poly_monitor_packet_(set|get)" "$NATIVECHECK" \
   "nativecheck must not exercise retired monitor-packet control opcodes"
-assert_contains "poly_auto_spill_resume_info" "$POLYEXEC" \
-  "userspace monitor auto-spill resume handoff must be per-thread"
-assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
-  "userspace monitor must provide an x86 auto-spill resume trampoline"
+assert_not_contains "poly_auto_spill_resume_info|poly_auto_spill_resume_trampoline" "$POLYEXEC" \
+  "userspace monitor must not retain the retired auto-spill resume trampoline"
 assert_not_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
   "userspace monitor must not use the deprecated PRESTORE opcode"
 assert_contains "POLY_OP_DERIVE_STATE" "$POLYEXEC" \
-  "userspace monitor must activate auto-spill state through PDERIVE_STATE"
-assert_contains "POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$POLYEXEC" \
-  "userspace monitor must request v2 state activation before resuming a raw frontend"
+  "userspace monitor must use PDERIVE_STATE for OS-neutral state derivation"
 assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
   "userspace monitor must use v2 memory probing for guest range validation"
 assert_contains "POLY_CPUID_V2_FEATURE_EVENT_COMPLETE" "$POLYEXEC" \
   "userspace monitor must gate unproven v2 event completion on CPUID"
 assert_not_contains "poly_prefault_(executable|writable)_mappings|poly_prefault_(executable|writable)_mapping_line" "$POLYEXEC" \
   "userspace monitor must not retain broad /proc/self/maps prefault walkers"
-assert_contains "POLY_SPILL_REASON_PAGE_FAULT" "$POLYEXEC" \
-  "userspace monitor must classify auto-spilled page faults"
-assert_contains "event_args\\[3\\]" "$POLYEXEC" \
-  "userspace monitor must read the spilled CR2 fault address"
-assert_contains "header\\.foreign_pc" "$POLYEXEC" \
-  "userspace monitor must read the spilled Poly PC"
-assert_contains "Poly Page Fault at Address" "$POLYEXEC" \
-  "userspace monitor must print the Poly page-fault diagnostic"
+assert_contains "POLYEXEC_SIGNAL: signo=0x" "$POLYEXEC" \
+  "userspace monitor must report fatal signal diagnostics without auto-spill"
+assert_contains "POLYEXEC_FATAL_DEBUG_NOTE" "$POLYEXEC" \
+  "userspace monitor must emit fatal debug-note diagnostics without auto-spill"
 assert_contains "selftest-pagefault" "$POLYEXEC" \
   "userspace monitor must expose a deliberate Poly page-fault self-test"
 assert_contains "POLY_FATAL_DEBUG_NOTE_ELF_OK" "$BOOT_SCRIPT" \
   "page-fault boot coverage must verify the fatal v2 debug-note ELF artifact"
-assert_contains "POLYEXEC_AUTO_SPILL_STATUS" "$POLYEXEC" \
-  "userspace monitor must retain opt-in deprecated auto-spill profiling counters"
+assert_not_contains "POLYEXEC_AUTO_SPILL_STATUS|poly_auto_spill_count_status" "$POLYEXEC" \
+  "userspace monitor must not retain retired auto-spill profiling counters"
 assert_contains "PT_INTERP" "$POLYEXEC" \
   "userspace monitor must parse ELF interpreter metadata for dynamic process binaries"
 assert_contains "interp=%s" "$POLYEXEC" \
@@ -694,11 +657,11 @@ assert_contains "POLY_AARCH64_O_DIRECTORY" "$POLYEXEC" \
 assert_contains "poly_translate_open_flags" "$POLYEXEC" \
   "userspace monitor openat proxy must translate foreign open flags before host syscalls"
 assert_contains "--threads" "$POLYEXEC" \
-  "userspace monitor must expose an in-process pthread auto-spill stress mode"
+  "userspace monitor must expose an in-process pthread stress mode"
 assert_contains "pthread_create" "$POLYEXEC" \
   "userspace monitor thread stress must spawn pthreads inside one address space"
-assert_contains "duplicate auto-spill buffer" "$POLYEXEC" \
-  "userspace monitor thread stress must verify per-thread spill-buffer uniqueness"
+assert_not_contains "duplicate auto-spill buffer|spill_buffer" "$POLYEXEC" \
+  "userspace monitor thread stress must not depend on retired auto-spill buffers"
 assert_contains "compiler_args\\+=\\(-pthread\\)" "$BOOT_SCRIPT" \
   "boot image must link polyexec with pthread support"
 assert_contains "RUN_POLY_EXEC_FOCUSED" "$BOOT_SCRIPT" \
@@ -710,13 +673,13 @@ assert_contains "poly_entry" "$POLYEXEC_THREAD_PREEMPT_STRESS_SRC" \
 assert_contains "ret" "$POLYEXEC_THREAD_PREEMPT_STRESS_SRC" \
   "thread preemption stress fixture must return through the monitor instead of exiting"
 assert_contains "aarch64-thread-preempt-stress-real\\.so#poly_entry=42" "$BOOT_SCRIPT" \
-  "boot image must run the AArch64 pthread auto-spill stress fixture"
+  "boot image must run the AArch64 pthread stress fixture"
 assert_contains "riscv-thread-preempt-stress-real\\.so#poly_entry=42" "$BOOT_SCRIPT" \
-  "boot image must run the RISC-V pthread auto-spill stress fixture"
+  "boot image must run the RISC-V pthread stress fixture"
 assert_contains "POLYEXEC_THREADS_OK: threads=4 path=/usr/lib/polyapps/aarch64-thread-preempt-stress-real" "$BOOT_SCRIPT" \
-  "boot validation must gate the AArch64 pthread auto-spill stress result"
+  "boot validation must gate the AArch64 pthread stress result"
 assert_contains "POLYEXEC_THREADS_OK: threads=4 path=/usr/lib/polyapps/riscv-thread-preempt-stress-real" "$BOOT_SCRIPT" \
-  "boot validation must gate the RISC-V pthread auto-spill stress result"
+  "boot validation must gate the RISC-V pthread stress result"
 assert_contains "--atomic-threads" "$POLYEXEC" \
   "userspace monitor must expose an SMP shared-counter pthread stress mode"
 assert_contains "SYS_sched_setaffinity" "$POLYEXEC" \
@@ -751,8 +714,8 @@ assert_contains 'POLYEXEC_AFFINITY_CHURN_OK: cpus=\$BOCHS_CPU_COUNT migrations=\
   "boot validation must gate AArch64 cross-core affinity churn"
 assert_contains 'POLYEXEC_AFFINITY_CHURN_OK: cpus=\$BOCHS_CPU_COUNT migrations=\[1-9\]\[0-9\]\* threads=\$POLY_SMP_THREADS path=/usr/lib/polyapps/riscv-smp-atomic-real' "$BOOT_SCRIPT" \
   "boot validation must gate RISC-V cross-core affinity churn"
-assert_contains "POLY_ALPINE_POLYEXEC_AUTO_SPILL\" != \"\" &&" "$BOOT_SCRIPT" \
-  "boot validation must require auto-spill counters only when the deprecated path is explicitly enabled"
+assert_not_contains "POLY_ALPINE_POLYEXEC_AUTO_SPILL|POLYEXEC_AUTO_SPILL_STATUS" "$BOOT_SCRIPT" \
+  "boot validation must not expose the retired auto-spill runtime path"
 assert_contains "ldxr" "$POLYEXEC_SMP_ATOMIC_SRC" \
   "AArch64 SMP fixture must use native load-linked"
 assert_contains "stxr" "$POLYEXEC_SMP_ATOMIC_SRC" \
@@ -999,12 +962,6 @@ assert_contains "setuid\\(65534\\)" "$POLYEXEC_NONROOT_RUNNER_SRC" \
   "non-root wrapper must drop the monitor to uid 65534 before exec"
 assert_contains "execvp\\(argv\\[1\\]" "$POLYEXEC_NONROOT_RUNNER_SRC" \
   "non-root wrapper must exec the monitor after dropping privileges"
-assert_contains "POLYEXEC_RESULT: .* value=[$]expected" "$POLY_PREEMPT_STRESS" \
-  "preemption stress harness must verify per-instance math results"
-assert_contains "POLYEXEC_AUTO_SPILL_STATUS: count=\\[1-9\\]" "$POLY_PREEMPT_STRESS" \
-  "preemption stress harness must require observed auto-spills"
-assert_contains "--process" "$POLY_PREEMPT_STRESS" \
-  "preemption stress harness must support process-mode Poly payloads"
 assert_contains "fmov d31" "$POLYEXEC_PREEMPT_STRESS_SRC" \
   "preemption stress fixture must keep the full AArch64 FP bank live"
 assert_contains "\\.irp r,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31" "$POLYEXEC_PREEMPT_STRESS_SRC" \
@@ -1013,10 +970,8 @@ assert_contains "fmv\\.d\\.x f\\\\\\\\r" "$POLYEXEC_PREEMPT_STRESS_SRC" \
   "preemption stress fixture must write RISC-V FP registers"
 assert_contains "POLYEXEC_PREEMPT_STRESS_REAL_SRC" "$BOOT_SCRIPT" \
   "boot image must build the preemption stress fixture"
-assert_contains "RUN_POLY_PREEMPT_STRESS" "$BOOT_SCRIPT" \
-  "boot script must expose an end-to-end preemption stress section"
-assert_contains "POLY_PREEMPT_STRESS_OK" "$BOOT_SCRIPT" \
-  "boot script must mark successful preemption stress completion"
+assert_not_contains "RUN_POLY_PREEMPT_STRESS|POLY_PREEMPT_STRESS_OK" "$BOOT_SCRIPT" \
+  "boot script must not retain the retired auto-spill preemption stress section"
 assert_contains "CPL[[:space:]]*!=[[:space:]]*3" "$RESTORE_FUNC" \
   "raw interrupt restore must only run on return to userspace"
 assert_contains "bx_poly_interrupted_raw_valid" "$RESTORE_FUNC" \
