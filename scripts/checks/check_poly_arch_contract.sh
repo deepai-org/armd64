@@ -508,10 +508,12 @@ assert_contains "POLY_SECCOMP_POLICY_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must require the seccomp policy fixture marker"
 assert_contains "BX_POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$BOCHS_CPU" \
   "PDERIVE_STATE must expose an activation flag for resume imports"
-assert_contains "bx_poly_derive_resume_target_valid[[:space:]]*=[[:space:]]*true" "$BOCHS_CPU" \
-  "PDERIVE_STATE ACTIVATE_DST must arm a pending raw frontend resume target"
-assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_derive_resume_target_rip" "$BOCHS_CPU" \
-  "PENTER after PDERIVE_STATE ACTIVATE_DST must resume at the imported foreign PC"
+assert_contains "poly_ud: derived v2 activation enter" "$BOCHS_CPU" \
+  "PDERIVE_STATE ACTIVATE_DST must atomically enter the imported raw frontend"
+assert_contains "RIP[[:space:]]*=[[:space:]]*saved_rip" "$BOCHS_CPU" \
+  "PDERIVE_STATE ACTIVATE_DST must jump directly to the imported foreign PC"
+assert_contains "bx_poly_derive_resume_target_valid[[:space:]]*=[[:space:]]*false" "$BOCHS_CPU" \
+  "PDERIVE_STATE ACTIVATE_DST must not leave a racy pending PENTER resume"
 assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
   "userspace monitor must install a SIGSEGV handler for Poly fault translation"
 assert_contains "poly_write_fatal_debug_note" "$POLYEXEC" \
@@ -590,6 +592,20 @@ assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
   "userspace monitor must use v2 memory probing for guest range validation"
 assert_contains "POLY_CPUID_V2_FEATURE_EVENT_COMPLETE" "$POLYEXEC" \
   "userspace monitor must gate unproven v2 event completion on CPUID"
+assert_contains "!aarch64_rt_sigreturn" "$POLYEXEC" \
+  "rt_sigreturn imports must bypass PCOMPLETE_EVENT and resume only through PDERIVE_STATE"
+assert_contains "state->trap_restore.x86_gpr\\[15\\] = monitor_sp" "$POLYEXEC" \
+  "rt_sigreturn imports must preserve the native monitor stack separately from the guest SP"
+assert_contains "frame.saved_trap_restore.x86_gpr\\[15\\] != 0" "$POLYEXEC" \
+  "rt_sigreturn imports must derive the monitor stack from the saved trap frame contract"
+assert_not_contains "native_return_sp" "$POLYEXEC" \
+  "rt_sigreturn imports must not treat the guest signal SP as a native return stack"
+assert_not_contains "frame.signum == SIGCHLD[[:space:]]*\\)[[:space:]]*poly_clear_native_return_state" "$POLYEXEC" \
+  "rt_sigreturn imports must not special-case SIGCHLD by erasing saved native-return metadata"
+assert_contains "poly_clear_foreign_return_transition_state\\(state\\)" "$POLYEXEC" \
+  "redirected rt_sigreturn imports must preserve native-return metadata while clearing foreign transition frames"
+assert_contains "restore_entry_stack_for_import_state" "$POLYEXEC" \
+  "rt_sigreturn imports must not overwrite the imported guest SP with the monitor stack"
 assert_contains "POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE" "$POLYEXEC" \
   "userspace monitor must gate io_uring/shared-ring ordering on PFENCE CPUID"
 assert_contains "POLY_CPUID_V2_FEATURE_MONITOR_ENTRY_FRAME" "$POLYEXEC" \

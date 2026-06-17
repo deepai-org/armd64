@@ -904,6 +904,8 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
     const struct poly_runtime_event_record *packet,
     const struct poly_xsave_state *trap_state, int has_trap_state);
 static void poly_clear_native_return_state(struct poly_xsave_state *state);
+static void poly_clear_foreign_return_transition_state(
+    struct poly_xsave_state *state);
 static void poly_clear_return_transition_state(struct poly_xsave_state *state);
 static int poly_guest_read_u64(uint64_t address, uint64_t *out);
 static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
@@ -4389,18 +4391,15 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     return 1;
   }
 
-  const uint64_t native_return_sp = state->aarch64_gpr[31];
   state->event_record = frame.saved_event_record;
   memcpy(state->event_args, frame.saved_event_args, sizeof(state->event_args));
   state->native_return = frame.saved_native_return;
-  if (frame.signum == SIGCHLD)
-    poly_clear_native_return_state(state);
   memcpy(state->aarch64_gpr, frame.ucontext.mcontext.regs,
     sizeof(state->aarch64_gpr));
-	  const uint64_t restored_sp = frame.ucontext.mcontext.sp;
-	  const uint64_t monitor_sp = native_return_sp != 0 ?
-	    native_return_sp : frame.saved_trap_restore.x86_gpr[15];
-  state->aarch64_gpr[31] = monitor_sp;
+  const uint64_t restored_sp = frame.ucontext.mcontext.sp;
+  const uint64_t monitor_sp = frame.saved_trap_restore.x86_gpr[15] != 0 ?
+    frame.saved_trap_restore.x86_gpr[15] : poly_current_x86_rsp();
+  state->aarch64_gpr[31] = restored_sp;
   uint64_t restored_pc = frame.ucontext.mcontext.pc;
   if (restored_pc == 0) {
     if (frame.saved_event_record.resume_pc != 0)
@@ -4412,7 +4411,7 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     (frame.interrupted_pc != 0 && restored_pc != frame.interrupted_pc) ||
     restored_sp != frame.aarch64_gpr[31];
   if (redirected_context) {
-    poly_clear_return_transition_state(state);
+    poly_clear_foreign_return_transition_state(state);
   }
   state->header.current_mode = POLY_MODE_RAW_AARCH64;
   state->header.foreign_pc = restored_pc;
@@ -4439,10 +4438,10 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     state->trap_restore.aarch64_fpsr = frame.aarch64_fpsr;
     poly_sanitize_aarch64_trap_restore_payload(&state->trap_restore);
     /*
-     * Import-time C execution stays on state->aarch64_gpr[31] above. The trap
-     * return restore stack is the AArch64 ucontext SP that raw code resumes on.
+     * Import-time C execution and native trap restoration stay on the monitor
+     * stack.  The guest SP is carried only in the AArch64 restore payload.
      */
-    state->trap_restore.x86_gpr[15] = restored_sp;
+    state->trap_restore.x86_gpr[15] = monitor_sp;
   } else {
     memset(&state->event_record, 0, sizeof(state->event_record));
     memset(state->event_args, 0, sizeof(state->event_args));
@@ -4466,7 +4465,7 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     state->trap_restore.aarch64_fpcr = frame.aarch64_fpcr;
     state->trap_restore.aarch64_fpsr = frame.aarch64_fpsr;
     poly_sanitize_aarch64_trap_restore_payload(&state->trap_restore);
-    state->trap_restore.x86_gpr[15] = restored_sp;
+    state->trap_restore.x86_gpr[15] = monitor_sp;
   }
   poly_guest_sigmask_shadow = frame.guest_sigmask;
   poly_guest_sigmask_shadow_valid = 1;
@@ -4502,30 +4501,30 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     poly_write_hex64_stderr(frame_addr);
     poly_write_literal_stderr(" resume=0x");
     poly_write_hex64_stderr(frame.saved_event_record.resume_pc);
-	    poly_write_literal_stderr(" restore_rsp=0x");
-	    poly_write_hex64_stderr(frame.saved_trap_restore.x86_gpr[15]);
-	    poly_write_literal_stderr(" monitor_sp=0x");
-	    poly_write_hex64_stderr(monitor_sp);
+    poly_write_literal_stderr(" restore_rsp=0x");
+    poly_write_hex64_stderr(frame.saved_trap_restore.x86_gpr[15]);
+    poly_write_literal_stderr(" monitor_sp=0x");
+    poly_write_hex64_stderr(monitor_sp);
     poly_write_literal_stderr(" restore_x0=0x");
     poly_write_hex64_stderr(frame.aarch64_gpr[0]);
     poly_write_literal_stderr(" restore_x30=0x");
     poly_write_hex64_stderr(frame.aarch64_gpr[30]);
     poly_write_literal_stderr(" restore_sp=0x");
     poly_write_hex64_stderr(frame.aarch64_gpr[31]);
-	    poly_write_literal_stderr(" restored_pc=0x");
-	    poly_write_hex64_stderr(restored_pc);
-	    poly_write_literal_stderr(" restored_uc_x28=0x");
-	    poly_write_hex64_stderr(frame.ucontext.mcontext.regs[28]);
-	    poly_write_literal_stderr(" restored_uc_x29=0x");
-	    poly_write_hex64_stderr(frame.ucontext.mcontext.regs[29]);
-	    poly_write_literal_stderr(" restored_uc_x30=0x");
-	    poly_write_hex64_stderr(frame.ucontext.mcontext.regs[30]);
-	    poly_write_literal_stderr(" restored_uc_sp=0x");
-	    poly_write_hex64_stderr(frame.ucontext.mcontext.sp);
-	    poly_write_literal_stderr(" redirected=0x");
-	    poly_write_hex64_stderr((uint64_t) redirected_context);
-	    poly_write_literal_stderr("\n");
-	  }
+    poly_write_literal_stderr(" restored_pc=0x");
+    poly_write_hex64_stderr(restored_pc);
+    poly_write_literal_stderr(" restored_uc_x28=0x");
+    poly_write_hex64_stderr(frame.ucontext.mcontext.regs[28]);
+    poly_write_literal_stderr(" restored_uc_x29=0x");
+    poly_write_hex64_stderr(frame.ucontext.mcontext.regs[29]);
+    poly_write_literal_stderr(" restored_uc_x30=0x");
+    poly_write_hex64_stderr(frame.ucontext.mcontext.regs[30]);
+    poly_write_literal_stderr(" restored_uc_sp=0x");
+    poly_write_hex64_stderr(frame.ucontext.mcontext.sp);
+    poly_write_literal_stderr(" redirected=0x");
+    poly_write_hex64_stderr((uint64_t) redirected_context);
+    poly_write_literal_stderr("\n");
+  }
   return 1;
 }
 
@@ -6936,6 +6935,7 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
   const struct poly_xsave_state *import_state = trap_state;
   int use_pderive_return = 0;
   int restore_entry_stack_for_trap_restore = 0;
+  int restore_entry_stack_for_import_state = 0;
   int completed_event_return = 0;
   if (has_trap_state && trap_state != NULL) {
     const int deliver_guest_illegal =
@@ -6964,7 +6964,7 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
         return_state->header.foreign_pc = foreign_pc;
       }
     }
-    if (!deliver_guest_illegal) {
+    if (!deliver_guest_illegal && !aarch64_rt_sigreturn) {
       if (poly_complete_event_result_registers(return_state, packet->mode,
             result, packet->next_pc)) {
         use_pderive_return = 1;
@@ -6982,12 +6982,14 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
       saved_result = return_state->trap_restore.aarch64_gpr[0];
       use_pderive_return = 1;
       restore_entry_stack_for_trap_restore = 1;
+      restore_entry_stack_for_import_state = 1;
     }
     else if (packet->mode == POLY_MODE_RAW_AARCH64 &&
         poly_try_deliver_aarch64_signal(return_state, 0, 0, 0)) {
       saved_result = return_state->trap_restore.aarch64_gpr[0];
       use_pderive_return = 1;
       restore_entry_stack_for_trap_restore = 1;
+      restore_entry_stack_for_import_state = 1;
     }
     else if (aarch64_rt_sigreturn) {
       use_pderive_return = 1;
@@ -7012,7 +7014,7 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
     }
     if (packet->reason == POLY_TRAP_SYSCALL &&
         packet->mode == POLY_MODE_RAW_AARCH64) {
-      if (restore_entry_stack_for_trap_restore) {
+      if (restore_entry_stack_for_import_state) {
         return_state->aarch64_gpr[31] = poly_current_x86_rsp();
         poly_clear_native_return_state(return_state);
       }
@@ -7092,7 +7094,7 @@ static void poly_clear_native_return_state(
     sizeof(state->native_return.reserved));
 }
 
-static void poly_clear_return_transition_state(
+static void poly_clear_foreign_return_transition_state(
     struct poly_xsave_state *state) {
   memset(&state->transition, 0, sizeof(state->transition));
   state->import_return.top = 0;
@@ -7103,6 +7105,11 @@ static void poly_clear_return_transition_state(
   state->cross_return.depth = POLY_STATE_XSAVE_CROSS_RETURN_DEPTH;
   memset(state->cross_return.frames, 0, sizeof(state->cross_return.frames));
   memset(state->cross_return.reserved, 0, sizeof(state->cross_return.reserved));
+}
+
+static void poly_clear_return_transition_state(
+    struct poly_xsave_state *state) {
+  poly_clear_foreign_return_transition_state(state);
   poly_clear_native_return_state(state);
 }
 
@@ -8609,16 +8616,24 @@ static size_t poly_frontend_entry_alignment(uint32_t frontend) {
   return frontend == POLY_ARCH_AARCH64 || frontend == POLY_ARCH_RISCV ? 4U : 1U;
 }
 
-static size_t x86_penter_frontend_size_at(size_t offset, uint32_t frontend) {
+static size_t x86_penter_frontend_max_size(uint32_t frontend) {
   const size_t align = poly_frontend_entry_alignment(frontend);
-  const size_t target = offset + POLY_X86_PENTER_BASE_SIZE;
-  const size_t pad = align > 1 ? ((align - (target & (align - 1U))) & (align - 1U)) : 0;
+  return POLY_X86_PENTER_BASE_SIZE + (align > 1 ? align - 1U : 0);
+}
+
+static size_t x86_penter_frontend_size_for_code(const uint8_t *code,
+    size_t offset, uint32_t frontend) {
+  const size_t align = poly_frontend_entry_alignment(frontend);
+  const uintptr_t target =
+    (uintptr_t) code + offset + POLY_X86_PENTER_BASE_SIZE;
+  const size_t pad = align > 1 ?
+    ((align - ((size_t) target & (align - 1U))) & (align - 1U)) : 0;
   return POLY_X86_PENTER_BASE_SIZE + pad;
 }
 
 static void emit_x86_entry_alignment(uint8_t *code, size_t *offset,
     uint32_t frontend) {
-  size_t pad = x86_penter_frontend_size_at(*offset, frontend) -
+  size_t pad = x86_penter_frontend_size_for_code(code, *offset, frontend) -
     POLY_X86_PENTER_BASE_SIZE;
   while (pad-- > 0)
     code[(*offset)++] = 0x90;
@@ -8879,7 +8894,7 @@ static void run_poly_process_entry(const uint8_t *code,
     memset(&initial_state.trap_restore, 0, sizeof(initial_state.trap_restore));
     initial_state.header.current_mode = (uint32_t) arch;
     initial_state.header.foreign_pc = (uint64_t) (uintptr_t)
-      (code + x86_penter_frontend_size_at(0, (uint32_t) arch));
+      (code + x86_penter_frontend_size_for_code(code, 0, (uint32_t) arch));
     initial_state.header.foreign_tls_base = tls_base;
     initial_state.header.spill_reason = POLY_SPILL_REASON_NONE;
     initial_state.frontend_tls.flags = 1;
@@ -9341,6 +9356,8 @@ static int emit_poly_trampoline(const struct poly_program *program,
     else
       code[offset++] = 0x90; // pad to the shared x86 trampoline size.
   }
+  while (offset < prefix_size)
+    code[offset++] = 0x90;
   if (offset != prefix_size) {
     fprintf(stderr, "POLYEXEC_FAIL: internal trampoline size mismatch: %s\n",
       program->path);
@@ -9351,9 +9368,9 @@ static int emit_poly_trampoline(const struct poly_program *program,
 
 static size_t poly_trampoline_prefix_size(int arch) {
   if (arch == POLY_ARCH_AARCH64)
-    return x86_penter_frontend_size_at(0, POLY_ARCH_AARCH64) + 4 + 20;
+    return x86_penter_frontend_max_size(POLY_ARCH_AARCH64) + 4 + 20;
   if (arch == POLY_ARCH_RISCV)
-    return x86_penter_frontend_size_at(0, POLY_ARCH_RISCV) + 8 + 12;
+    return x86_penter_frontend_max_size(POLY_ARCH_RISCV) + 8 + 12;
   if (arch == POLY_ARCH_X86)
     return POLY_X86_TRAMPOLINE_SIZE;
   return 0;
@@ -9486,7 +9503,7 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
   (void) return_pc;
   size_t offset = 0;
   if (program->arch == POLY_ARCH_AARCH64) {
-    const size_t penter_size = x86_penter_frontend_size_at(20,
+    const size_t penter_size = x86_penter_frontend_size_for_code(code, 20,
       POLY_ARCH_AARCH64);
     const uint64_t resolver_return_pc =
       (uint64_t) (uintptr_t) (code + 20 + penter_size + 8);
@@ -9507,7 +9524,7 @@ static int emit_poly_resolver_trampoline(const struct poly_program *program,
   }
 
   if (program->arch == POLY_ARCH_RISCV) {
-    const size_t penter_size = x86_penter_frontend_size_at(20,
+    const size_t penter_size = x86_penter_frontend_size_for_code(code, 20,
       POLY_ARCH_RISCV);
     const uint64_t resolver_return_pc =
       (uint64_t) (uintptr_t) (code + 20 + penter_size + 8);
