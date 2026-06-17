@@ -4637,6 +4637,8 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   }
   const uint64_t signal_sp = (stack_top - (uint64_t) total_size) & ~0xfULL;
   const uint64_t frame_sp = signal_sp + (uint64_t) call_area_size;
+  if (!poly_guest_range_is_mapped(signal_sp, total_size, 1))
+    poly_prefault_range(signal_sp, (uint64_t) total_size, 1);
   if (!poly_guest_range_is_mapped(signal_sp, total_size, 1)) {
     poly_write_literal_stderr(
       "POLYEXEC_GUEST_SIGNAL_FRAME_BADSP: signum=0x");
@@ -5162,8 +5164,6 @@ static uint64_t poly_dispatch_rt_sigaction(uint64_t mode, uint64_t signum,
 
 static void poly_prefault_range(uint64_t address, uint64_t length,
     int writable) {
-  if (!polyexec_use_auto_spill)
-    return;
   if (address == 0 || length == 0 || length > (uint64_t) SIZE_MAX)
     return;
   volatile uint8_t *bytes = (volatile uint8_t *) (uintptr_t) address;

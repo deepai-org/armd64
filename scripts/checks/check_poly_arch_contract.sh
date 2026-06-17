@@ -641,6 +641,14 @@ assert_contains "dynamic-libc" "$POLYEXEC" \
   "real ld.so handoff must be limited to the explicit dynamic smoke invocation"
 assert_contains "poly_prefault_range" "$POLYEXEC" \
   "real ld.so mmap/mprotect translation must prefault mapped pages for raw Poly memory access"
+if awk '
+    /^static void poly_prefault_range\(/ { in_func = 1 }
+    in_func && /polyexec_use_auto_spill/ { found = 1 }
+    in_func && /^}/ { exit found ? 0 : 1 }
+    END { if (!in_func) exit 1 }
+  ' "$POLYEXEC"; then
+  fail "raw Poly prefaulting must not depend on deprecated auto-spill being enabled"
+fi
 assert_contains "fstat\\(\\(int\\) arg4" "$POLYEXEC" \
   "file-backed mmap prefaulting must avoid SIGBUS beyond the mapped file bytes"
 assert_contains "aarch64-real-python3\\.elf" "$POLYEXEC" \
