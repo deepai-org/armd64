@@ -533,6 +533,7 @@ static const char *process_cross_report_path;
 static __thread uint64_t poly_mode_x86_saved_rsp;
 static __thread struct poly_xsave_state poly_auto_spill_state
   __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
+static __thread struct poly_xsave_state *poly_auto_spill_state_mapping;
 static __thread struct poly_xsave_state *poly_auto_spill_state_active;
 static __thread struct poly_v2_event_frame poly_auto_spill_event_frame
   __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
@@ -1083,8 +1084,28 @@ static uint64_t poly_spill_desc_set(uint64_t descriptor, uint64_t bytes) {
 }
 
 static struct poly_xsave_state *poly_auto_spill_active_state(void) {
-  return poly_auto_spill_state_active != NULL ?
-    poly_auto_spill_state_active : &poly_auto_spill_state;
+  if (poly_auto_spill_state_active != NULL)
+    return poly_auto_spill_state_active;
+  if (poly_auto_spill_state_mapping != NULL)
+    return poly_auto_spill_state_mapping;
+  return &poly_auto_spill_state;
+}
+
+static int ensure_poly_auto_spill_state_mapping(void) {
+  if (poly_auto_spill_state_mapping != NULL)
+    return 0;
+  void *mapping = mmap(NULL, POLY_STATE_XSAVE_BYTES_ARCH,
+    PROT_READ | PROT_WRITE,
+    MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+  if (mapping == MAP_FAILED) {
+    mapping = mmap(NULL, POLY_STATE_XSAVE_BYTES_ARCH,
+      PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mapping == MAP_FAILED)
+      return -1;
+  }
+  memset(mapping, 0, POLY_STATE_XSAVE_BYTES_ARCH);
+  poly_auto_spill_state_mapping = (struct poly_xsave_state *) mapping;
+  return 0;
 }
 
 static void populate_poly_v2_spill_descriptor(uint64_t buffer,
@@ -2461,8 +2482,10 @@ static void poly_auto_spill_resume_trampoline(void) {
 }
 
 static int install_poly_auto_spill(void) {
-  memset(&poly_auto_spill_state, 0, sizeof(poly_auto_spill_state));
-  poly_auto_spill_state_active = &poly_auto_spill_state;
+  if (ensure_poly_auto_spill_state_mapping() < 0)
+    return -1;
+  memset(poly_auto_spill_state_mapping, 0, POLY_STATE_XSAVE_BYTES_ARCH);
+  poly_auto_spill_state_active = poly_auto_spill_state_mapping;
 
   if (poly_install_auto_spill_signal_actions() < 0)
     return -1;
@@ -7746,7 +7769,8 @@ uint64_t poly_trap_vector_dispatch(void) {
       report_poly_events();
       report_poly_syscall_summary();
       poly_report_seccomp_summary();
-      if (poly_process_exit_finalizers.program != NULL) {
+      if (poly_trace_syscalls_enabled() &&
+          poly_process_exit_finalizers.program != NULL) {
         printf("POLYEXEC_PROCESS_EXIT: arch=%s code=%llu path=%s\n",
           poly_process_exit_finalizers.program->arch_name,
           (unsigned long long) poly_process_terminal_exit_code,
