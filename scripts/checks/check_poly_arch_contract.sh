@@ -491,6 +491,14 @@ assert_contains "POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$ROOT_DIR/tools/include/po
   "public CPUID contract must expose an implemented v2 feature mask"
 assert_contains "regs\\.ebx[[:space:]]*=[[:space:]]*POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$ROOT_DIR/tools/include/polycpuid.h" \
   "public v2 CPUID expectation must use the implemented feature mask"
+assert_not_contains "POLY_CPUID_V2_IMPLEMENTED_FEATURES = .*1U << 1" "$ROOT_DIR/tools/include/polycpuid.h" \
+  "public v2 CPUID must not advertise the deprecated spill descriptor as a production feature"
+assert_contains "POLY_CPUID_V2_REQUIRED_FEATURES = \\(1U << 0\\)" "$ROOT_DIR/tools/include/polycpuid.h" \
+  "public v2 CPUID must require only canonical event frames"
+assert_not_contains "BX_POLY_CPUID_V2_IMPLEMENTED_FEATURES = .*1U << 1" "$BOCHS_CPU" \
+  "Bochs v2 CPUID must not advertise the deprecated spill descriptor as a production feature"
+assert_contains "BX_POLY_CPUID_V2_REQUIRED_FEATURES = \\(1U << 0\\)" "$BOCHS_CPU" \
+  "Bochs v2 CPUID must require only canonical event frames"
 assert_contains "poly_cpuid_expected_v2_leaf" "$POLYEXEC" \
   "userspace monitor must validate the v2 CPUID discovery leaf"
 assert_contains "poly_cpuid_expected_v2_leaf" "$NATIVECHECK" \
@@ -585,6 +593,8 @@ assert_not_contains "poly_auto_spill_descriptor\\.monitor_packet_" "$POLYEXEC" \
   "v2 spill descriptors must not program monitor-packet descriptor fields"
 assert_contains "refresh_poly_trap_event_frame" "$POLYEXEC" \
   "userspace monitor must register v2 event frames even without auto-spill"
+assert_contains "auto_spill_env != NULL && auto_spill_env\\[0\\] != '\\\\0' &&" "$POLYEXEC" \
+  "userspace monitor must keep deprecated auto-spill disabled unless explicitly requested"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|poly_monitor_packet|read_poly_monitor_packet" "$POLYEXEC" \
   "userspace monitor must not retain the legacy monitor-packet trap dispatch fallback"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET|POLY_OP_MONITOR_PACKET_GET|poly_monitor_packet_(set|get)" "$NATIVECHECK" \
@@ -614,7 +624,7 @@ assert_contains "selftest-pagefault" "$POLYEXEC" \
 assert_contains "POLY_FATAL_DEBUG_NOTE_ELF_OK" "$BOOT_SCRIPT" \
   "page-fault boot coverage must verify the fatal v2 debug-note ELF artifact"
 assert_contains "POLYEXEC_AUTO_SPILL_STATUS" "$POLYEXEC" \
-  "userspace monitor must report auto-spill profiling counters"
+  "userspace monitor must retain opt-in deprecated auto-spill profiling counters"
 assert_contains "PT_INTERP" "$POLYEXEC" \
   "userspace monitor must parse ELF interpreter metadata for dynamic process binaries"
 assert_contains "interp=%s" "$POLYEXEC" \
@@ -727,8 +737,8 @@ assert_contains 'POLYEXEC_AFFINITY_CHURN_OK: cpus=\$BOCHS_CPU_COUNT migrations=\
   "boot validation must gate AArch64 cross-core affinity churn"
 assert_contains 'POLYEXEC_AFFINITY_CHURN_OK: cpus=\$BOCHS_CPU_COUNT migrations=\[1-9\]\[0-9\]\* threads=\$POLY_SMP_THREADS path=/usr/lib/polyapps/riscv-smp-atomic-real' "$BOOT_SCRIPT" \
   "boot validation must gate RISC-V cross-core affinity churn"
-assert_contains "POLYEXEC_AUTO_SPILL_STATUS: count=\\[1-9\\]\\[0-9\\]\\*" "$BOOT_SCRIPT" \
-  "boot validation must require nonzero auto-spill under SMP migration pressure"
+assert_contains "POLY_ALPINE_POLYEXEC_AUTO_SPILL\" != \"\" &&" "$BOOT_SCRIPT" \
+  "boot validation must require auto-spill counters only when the deprecated path is explicitly enabled"
 assert_contains "ldxr" "$POLYEXEC_SMP_ATOMIC_SRC" \
   "AArch64 SMP fixture must use native load-linked"
 assert_contains "stxr" "$POLYEXEC_SMP_ATOMIC_SRC" \

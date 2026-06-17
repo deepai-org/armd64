@@ -1,6 +1,13 @@
 # Poly ISA v2 Draft
 
-Status: design draft, not a frozen compatibility contract.
+Status: historical design draft, superseded for production use by
+`docs/poly-isa-userspace-offload-proposal.md`.
+
+This file records the descriptor-backed auto-spill prototype and historical v2
+bring-up details. New production work should use the userspace-offload
+proposal, which keeps canonical event frames but replaces mandatory
+interrupt-time spill descriptors with OS-neutral memory-probe, state-derive,
+event-complete, debug-note, and shared-memory-ordering primitives.
 
 Objective: thin the Ring 3 monitor by moving precise, OS-neutral execution
 state primitives into the ISA. v2 must make core dumps, signal delivery,

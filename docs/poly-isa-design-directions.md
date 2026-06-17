@@ -1,5 +1,12 @@
 # Poly ISA Design Directions
 
+Status: historical. Production v2 direction now lives in
+`docs/poly-isa-userspace-offload-proposal.md`.
+
+The auto-spill descriptor/trampoline path described below remains useful
+context for legacy stress tests, but it is no longer the advertised production
+contract.
+
 Poly is an OS-neutral multi-frontend CPU extension for running existing
 precompiled x86_64, AArch64, and RISC-V64 code in one virtual address space.
 For commands and current control-op encodings, see `docs/poly-isa.md`.

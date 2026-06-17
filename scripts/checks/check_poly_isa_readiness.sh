@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ISA_DOC="$ROOT_DIR/docs/poly-isa.md"
+OFFLOAD_DOC="$ROOT_DIR/docs/poly-isa-userspace-offload-proposal.md"
 V2_ISA_DOC="$ROOT_DIR/docs/poly-isa-v2-draft.md"
 DESIGN_DOC="$ROOT_DIR/docs/poly-isa-design-directions.md"
 HEADER="$ROOT_DIR/tools/include/polycpuid.h"
@@ -51,14 +52,14 @@ assert_contains "register-only ABI signature slots" "$ISA_DOC" \
   "ISA boundary must keep fast PCALL signatures register-only"
 assert_contains "runtime policy" "$ISA_DOC" \
   "ISA boundary must leave complex ABI/syscall/helper policy to userspace"
-assert_contains "versioned v2 spill descriptor" "$ISA_DOC" \
-  "ISA boundary must require descriptor-owned spill state"
+assert_contains "canonical event frames plus OS-neutral state transforms" "$ISA_DOC" \
+  "ISA boundary must require canonical event frames and OS-neutral state transforms"
 assert_contains "PSET_EVENT_PTR" "$ISA_DOC" \
   "ISA boundary must include v2 event-frame setup"
-assert_contains "PSET_SPILL_DESC" "$ISA_DOC" \
-  "ISA boundary must include v2 spill descriptor setup"
-assert_contains "trampoline RIP" "$ISA_DOC" \
-  "ISA boundary must route OS-visible interrupts through the monitor trampoline"
+assert_contains "legacy spill descriptor remains an opt-in" "$ISA_DOC" \
+  "ISA boundary must mark descriptor auto-spill as an opt-in prototype path"
+assert_contains "not required by CPUID" "$ISA_DOC" \
+  "ISA boundary must not require the deprecated spill descriptor through CPUID"
 assert_contains "OS-neutral v2 event frames" "$ISA_DOC" \
   "ISA boundary must require OS-neutral v2 event frames"
 assert_contains "transition-stack return cookie" "$ISA_DOC" \
@@ -73,6 +74,24 @@ assert_contains "timing closure" "$ISA_DOC" \
   "ISA boundary must not claim FPGA timing closure"
 assert_not_contains "PSET_SPILL_PTR" "$ISA_DOC" \
   "active ISA quick reference must not advertise the retired raw spill pointer control"
+
+assert_contains "^# Poly ISA Userspace Offload Proposal" "$OFFLOAD_DOC" \
+  "userspace offload proposal document must exist"
+for offload_primitive in \
+  "PMEM_PROBE_RANGE" \
+  "PDERIVE_STATE" \
+  "PCOMPLETE_EVENT" \
+  "PDUMP_STATE" \
+  "PFENCE"; do
+  assert_contains "$offload_primitive" "$OFFLOAD_DOC" \
+    "userspace offload proposal must define ${offload_primitive}"
+done
+assert_contains "No Linux syscall numbers in hardware" "$OFFLOAD_DOC" \
+  "userspace offload proposal must keep Linux policy out of hardware"
+assert_contains "No BPF or seccomp evaluator in hardware" "$OFFLOAD_DOC" \
+  "userspace offload proposal must keep seccomp policy in userspace"
+assert_contains "No ELF, DWARF, GDB, minidump, or core-file format in hardware" "$OFFLOAD_DOC" \
+  "userspace offload proposal must keep debug file formats in userspace"
 
 assert_contains "^# Poly ISA v2 Draft" "$V2_ISA_DOC" \
   "active ISA v2 draft document must exist"

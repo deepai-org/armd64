@@ -4620,7 +4620,6 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
     interrupted_pc = state->aarch64_gpr[30];
   if (total_size >= stack_size)
     return 0;
-  void *signal_stack = NULL;
   uint64_t stack_top = 0;
   const int use_altstack =
     (action_flags & POLY_LINUX_SA_ONSTACK) != 0 &&
@@ -4632,18 +4631,9 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
     stack_top = poly_aarch64_guest_sigaltstack_sp +
       poly_aarch64_guest_sigaltstack_size;
   } else {
-    signal_stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
-      MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
-    if (signal_stack == MAP_FAILED) {
-      poly_write_literal_stderr(
-        "POLYEXEC_GUEST_SIGNAL_STACK_MMAP_FAIL: signum=0x");
-      poly_write_hex64_stderr(signum);
-      poly_write_literal_stderr(" errno=0x");
-      poly_write_hex64_stderr((uint64_t) errno);
-      poly_write_literal_stderr("\n");
+    if (sp < (uint64_t) total_size)
       return 0;
-    }
-    stack_top = (uint64_t) (uintptr_t) signal_stack + (uint64_t) stack_size;
+    stack_top = sp;
   }
   const uint64_t signal_sp = (stack_top - (uint64_t) total_size) & ~0xfULL;
   const uint64_t frame_sp = signal_sp + (uint64_t) call_area_size;
@@ -4656,8 +4646,6 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
     poly_write_literal_stderr(" frame=0x");
     poly_write_hex64_stderr(frame_sp);
     poly_write_literal_stderr("\n");
-    if (signal_stack != NULL)
-      munmap(signal_stack, stack_size);
     return 0;
   }
 
@@ -7194,6 +7182,18 @@ static void poly_sanitize_trap_state_for_import(struct poly_xsave_state *state) 
     sizeof(state->pre_trap_restore_reserved));
   memset(state->reserved, 0, sizeof(state->reserved));
   memset(state->state_key.reserved, 0, sizeof(state->state_key.reserved));
+  state->aarch64_status.nzcv &= POLY_AARCH64_NZCV_MASK;
+  state->aarch64_status.fpcr &= POLY_AARCH64_FPCR_RMODE_MASK;
+  state->aarch64_status.fpsr &= POLY_AARCH64_FPSR_MASK;
+  state->aarch64_status.reservation_addr = 0;
+  state->aarch64_status.reservation_size = 0;
+  memset(state->aarch64_status.reserved, 0,
+    sizeof(state->aarch64_status.reserved));
+  state->riscv_status.fcsr &= POLY_RISCV_FCSR_MASK;
+  state->riscv_status.reservation_addr = 0;
+  state->riscv_status.reservation_size = 0;
+  memset(state->riscv_status.reserved, 0,
+    sizeof(state->riscv_status.reserved));
   if (state->import_return.depth != POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH ||
       state->import_return.top > POLY_STATE_XSAVE_IMPORT_RETURN_DEPTH) {
     state->import_return.top = 0;
@@ -14178,7 +14178,8 @@ int main(int argc, char **argv) {
     trap_vector_env == NULL || strcmp(trap_vector_env, "0") != 0;
   const char *auto_spill_env = getenv("POLYEXEC_AUTO_SPILL");
   polyexec_use_auto_spill =
-    auto_spill_env == NULL || strcmp(auto_spill_env, "0") != 0;
+    auto_spill_env != NULL && auto_spill_env[0] != '\0' &&
+    strcmp(auto_spill_env, "0") != 0;
   const char *fatal_debug_note_env = getenv("POLYEXEC_FATAL_DEBUG_NOTE_DIR");
   if (fatal_debug_note_env != NULL && fatal_debug_note_env[0] != '\0' &&
       strcmp(fatal_debug_note_env, "0") != 0)

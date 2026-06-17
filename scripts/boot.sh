@@ -14552,9 +14552,12 @@ EOF
           sleep 1
           continue
         fi
-        if [[ "$(grep -Ec "POLYEXEC_AUTO_SPILL_STATUS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 2 ]]; then
-          sleep 1
-          continue
+        if [[ "$POLY_ALPINE_POLYEXEC_AUTO_SPILL" != "" &&
+              "$POLY_ALPINE_POLYEXEC_AUTO_SPILL" != "0" ]]; then
+          if [[ "$(grep -Ec "POLYEXEC_AUTO_SPILL_STATUS: count=[1-9][0-9]*" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+            sleep 1
+            continue
+          fi
         fi
       fi
       if [[ "$RUN_POLY_FPU_TORTURE" == "1" ]]; then

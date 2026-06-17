@@ -39,10 +39,11 @@ make check-poly-contracts
 | RISC-V64 | `0x0000700b | ((subop & 0x7f) << 25)` |
 
 Subops cover `PENTER`, `PSWITCH`, `PCALL`, signature-slot calls, setup/query,
-`PLANDING`, `PTRAPRET`, `PSET_EVENT_PTR`, `PSET_SPILL_DESC`, and `PRESTORE`.
-The retired v1 raw spill-pointer control is not part of the active control
-surface; monitor code uses the v2 event frame and spill descriptor. ABI
-signature setup writes a register-only signature slot as
+`PLANDING`, `PTRAPRET`, and `PSET_EVENT_PTR`. The prototype also contains
+opt-in spill-descriptor controls used by legacy stress tests, but that path is
+not advertised as a production v2 feature because it makes the monitor depend
+on raw interrupt-time userspace memory being reachable through the post-entry
+host exception context. ABI signature setup writes a register-only signature slot as
 `kind | (register_map << 32)`. Query returns the same encoded value, so
 runtimes and hardware can verify the exact RAT/register-map policy instead of
 inferring it from the kind alone.
@@ -62,21 +63,22 @@ allocation.
 
 CPUID `POLY_CPUID_BASE + 10` reports the implemented v2 feature mask, not the
 entire v2 draft roadmap. The active mask currently covers canonical event
-frames, spill descriptors, `PDUMP_STATE` debug-note export,
-`PMEM_PROBE_RANGE` non-faulting memory accessibility probes,
-`PDERIVE_STATE` thread-state derivation, and policy preflight for
+frames, `PDUMP_STATE` debug-note export, `PMEM_PROBE_RANGE` non-faulting
+memory accessibility probes, `PDERIVE_STATE` thread-state derivation, and
+policy preflight for
 seccomp-style userspace mediation. `PCOMPLETE_EVENT` trap-result completion
 and explicit `PFENCE` shared-memory ordering remain draft v2 primitives, but
 are not advertised by CPUID until their executable control encoding and boot
 probes are proven. Core-file or
 minidump wrapping remains userspace policy on top of the debug-note blob;
 `polyexec` now has an opt-in fatal-fault path that writes a valid ELF
-`PT_NOTE` container carrying the v2 layout from `PDUMP_STATE` or, in a fatal
-post-spill context, from the validated spill state/event pair. Draft features
+`PT_NOTE` container carrying the v2 layout from `PDUMP_STATE`. Draft features
 such as hardware ABI-descriptor caching and diagnostic counters must not be
 advertised until their control paths and tests exist. The software-owned ABI
 descriptor decoder is runtime policy and does not require a hardware feature
-bit.
+bit. `docs/poly-isa-userspace-offload-proposal.md` is the canonical proposal
+for moving the remaining clone/signal/result/debug/shared-memory burden out of
+`polyexec` without baking Linux policy into the ISA.
 
 ## FPGA/Silicon ISA Readiness Boundary
 
@@ -97,16 +99,14 @@ implement the architecture below without inheriting emulator or runtime policy:
   those slots in rename/RAT logic; stack arguments, aggregates, variadics,
   lazy binding, syscall translation, libcalls, debugger policy, and helper
   imports remain userspace runtime policy.
-- Foreign architectural state is an explicit user-owned spill/import image,
-  registered through a versioned v2 spill descriptor. The descriptor names the
-  state image, canonical event frame, resume RIP, resume stack, owner cookie,
-  and generation. The OS is not in the Poly state-management loop.
-- `PSET_EVENT_PTR` registers the per-thread canonical event frame and
-  `PSET_SPILL_DESC` registers the per-thread spill/resume descriptor. On
-  raw-mode interrupt or fault, hardware writes the state image, publishes the
-  event frame, switches back to x86, and makes the OS see the descriptor's
-  trampoline RIP. `PRESTORE` imports the descriptor-selected image before
-  `PENTER` resumes raw Poly code.
+- Foreign architectural state is explicit and user-owned. Production v2 relies
+  on canonical event frames plus OS-neutral state transforms such as
+  `PDERIVE_STATE`, `PCOMPLETE_EVENT`, and `PDUMP_STATE`, not on a monitor-owned
+  interrupt-time trampoline. The legacy spill descriptor remains an opt-in
+  prototype control for preemption stress, but it is not required by CPUID.
+- `PSET_EVENT_PTR` registers the per-thread canonical event frame. Recoverable
+  traps, syscalls, and faults publish precise event/result metadata to that
+  frame and return through the normal monitor-vector path.
 - Recoverable exits publish OS-neutral v2 event frames before monitor-vector
   redirect. The default `polyexec` trap-vector path consumes that v2 event
   frame directly. Failed event-frame writes or invalid event addresses prevent
