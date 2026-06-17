@@ -39,7 +39,7 @@ Frontend IDs: `0` x86_64, `1` AArch64, `2` RISC-V64, `3..255` reserved.
 | `PLANDING` | Validate an indirect cross-frontend target when enabled. |
 | `PSET_EVENT_PTR addr, bytes` | Register the per-thread canonical event frame. |
 | `PSET_SPILL_DESC addr, bytes` | Register the per-thread spill image, event frame, resume stack, and x86 monitor trampoline through a versioned descriptor. |
-| `PRESTORE buffer` | Import an auto-spilled image before resuming Poly code. |
+| `PDERIVE_STATE ... ACTIVATE_DST` | Validate and activate an already-derived state image before resuming Poly code. |
 
 These are decoded control instructions, not `#UD` envelopes.
 
@@ -107,7 +107,7 @@ event metadata, hardware transition stack, ABI signature slots, AArch64 GPR/FP/S
 RISC-V GPR/FP state, per-frontend TLS bases, user monitor addresses, and
 landing-pad policy. The OS does not save or restore it; hardware writes it to
 user memory before an OS-visible interrupt/fault boundary, and the Ring 3
-monitor imports it with `PRESTORE`.
+monitor imports it with `PDERIVE_STATE ACTIVATE_DST`.
 
 For zero-kernel-change execution, the monitor allocates one aligned 8KB spill
 image and one canonical event frame per thread, then registers them with
@@ -138,7 +138,8 @@ hidden side effects before the runtime can inspect the event record.
 Trap-vector, event-frame, and descriptor addresses are architectural control
 addresses. Non-canonical values, invalid frontend alignment, unaligned event
 frames, and event/descriptor ranges that cross the canonical boundary are
-rejected by the control instruction or `PRESTORE` before mutating state. The
+rejected by the control instruction or v2 derive/import activation before
+mutating state. The
 CPU does not pre-walk or pin event pages; event delivery writes through normal
 virtual-memory semantics, so missing permissions or unmapped pages fault at the
 event write like a hardware store.

@@ -288,9 +288,9 @@ Required semantics:
 - On a raw-mode interrupt/fault, hardware writes the state image, writes the
   canonical event frame, updates `last_*`, switches back to x86, and makes the
   unmodified OS see `resume_rip`.
-- `PRESTORE` consumes a descriptor generation, validates the state image and
-  event sequence, imports the requested frontend state, and clears transient
-  spill-valid bits before `PENTER` resumes raw code.
+- `PDERIVE_STATE` with `ACTIVATE_DST` validates an already-derived state image,
+  imports the requested frontend state, and arms the raw frontend PC consumed
+  by the following `PENTER`.
 - `policy_hook_*` is metadata for userspace monitors. Hardware must not call
   it, interpret it, or enforce its result.
 
@@ -485,7 +485,7 @@ around monitor-visible shared memory:
 
 - foreign stores before a syscall-like event are visible to x86 monitor code
   before the monitor issues a host syscall
-- x86 monitor or host-shared writes before `PRESTORE/PENTER` are visible to the
+- x86 monitor or host-shared writes before `PDERIVE_STATE/PENTER` are visible to the
   resumed foreign frontend
 - `PFENCE scope` exposes explicit acquire/release/full ordering points for
   runtimes that hand ownership of rings or queues between frontends
@@ -523,7 +523,7 @@ v2 should expose counters and a small optional event-history ring:
 - auto-spill count, bytes, and cycles
 - failed descriptor validations
 - memory-probe failures
-- `PRESTORE` imports and rejected generations
+- v2 derive/import activations and rejected generations
 - policy-preflight exits
 - shared-memory fence counts
 
@@ -564,6 +564,6 @@ cases in `polyexec`.
 | Return-cookie recovery remains native-return based | Bochs/nativecheck return-cookie probes; RTL transition-stack tests |
 | TSO barriers/fences preserve x86 shared-memory ordering | memory-order CPUID bit; RTL memory-order tests |
 | User spill import/export uses the 8KB explicit state image | `poly_xsave_state` layout; `polylayout --check`; state import/export tests |
-| Auto-spill trampoline uses descriptor-backed v2 state | `PSET_SPILL_DESC`, `PRESTORE`, page-fault/preemption gates |
+| Auto-spill trampoline uses descriptor-backed v2 state | `PSET_SPILL_DESC`, `PDERIVE_STATE ACTIVATE_DST`, page-fault/preemption gates |
 | CPUID discovery covers v2 sizes and implemented features | `POLY_CPUID_BASE + 10`; CPUID contract check |
 | Zero-kernel-change OS behavior remains intact | unmodified Bochs/Linux boot gates; polyexec page-fault and nativecheck gates |

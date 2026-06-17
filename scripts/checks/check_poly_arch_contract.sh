@@ -457,8 +457,8 @@ assert_contains "spill_header_only_o" "$RTL_INTERRUPT_BOUNDARY" \
   "RTL interrupt boundary must expose header-only spill decisions"
 assert_contains "poly_state_dirty_q" "$RTL_FRONTEND_CORE" \
   "RTL frontend core must maintain an internal Poly state dirty bit"
-assert_contains "BX_POLY_X86_CTRL_PRESTORE" "$BOCHS_CPU" \
-  "x86 control path must implement PRESTORE"
+assert_not_contains "BX_POLY_X86_CTRL_PRESTORE" "$BOCHS_CPU" \
+  "x86 control path must not retain the deprecated PRESTORE opcode"
 assert_not_contains "BX_POLY_X86_CTRL_SPILL_PTR_SET" "$BOCHS_CPU" \
   "Bochs must not implement the retired raw spill pointer control"
 assert_contains "BX_POLY_X86_CTRL_EVENT_PTR_SET" "$BOCHS_CPU" \
@@ -519,10 +519,12 @@ assert_contains "aarch64-process-seccomp-policy-real\\.elf" "$ROOT_DIR/scripts/b
   "boot syscall coverage must run an AArch64 seccomp policy fixture"
 assert_contains "POLY_SECCOMP_POLICY_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must require the seccomp policy fixture marker"
-assert_contains "bx_poly_prestore_target_valid[[:space:]]*=[[:space:]]*bx_poly_is_raw_mode\\(saved_mode\\)" "$BOCHS_CPU" \
-  "PRESTORE must arm a pending raw frontend resume target"
-assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_prestore_target_rip" "$BOCHS_CPU" \
-  "PENTER after PRESTORE must resume at the spilled foreign PC"
+assert_contains "BX_POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$BOCHS_CPU" \
+  "PDERIVE_STATE must expose an activation flag for resume imports"
+assert_contains "bx_poly_derive_resume_target_valid[[:space:]]*=[[:space:]]*true" "$BOCHS_CPU" \
+  "PDERIVE_STATE ACTIVATE_DST must arm a pending raw frontend resume target"
+assert_contains "target_rip[[:space:]]*=[[:space:]]*bx_poly_derive_resume_target_rip" "$BOCHS_CPU" \
+  "PENTER after PDERIVE_STATE ACTIVATE_DST must resume at the imported foreign PC"
 assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
   "userspace monitor must install a SIGSEGV handler for Poly fault translation"
 assert_contains "poly_write_fatal_debug_note" "$POLYEXEC" \
@@ -603,8 +605,12 @@ assert_contains "poly_auto_spill_resume_info" "$POLYEXEC" \
   "userspace monitor auto-spill resume handoff must be per-thread"
 assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
   "userspace monitor must provide an x86 auto-spill resume trampoline"
-assert_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
-  "userspace monitor must PRESTORE before resuming a raw frontend"
+assert_not_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
+  "userspace monitor must not use the deprecated PRESTORE opcode"
+assert_contains "POLY_OP_DERIVE_STATE" "$POLYEXEC" \
+  "userspace monitor must activate auto-spill state through PDERIVE_STATE"
+assert_contains "POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$POLYEXEC" \
+  "userspace monitor must request v2 state activation before resuming a raw frontend"
 assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
   "userspace monitor must use v2 memory probing for guest range validation"
 assert_contains "POLY_CPUID_V2_FEATURE_EVENT_COMPLETE" "$POLYEXEC" \

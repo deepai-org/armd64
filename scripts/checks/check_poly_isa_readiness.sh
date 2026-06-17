@@ -129,8 +129,10 @@ assert_contains "## Canonical Event Frame" "$V2_ISA_DOC" \
   "active ISA v2 draft must cover canonical event frames"
 assert_contains "struct poly_v2_event_frame" "$V2_ISA_DOC" \
   "active ISA v2 draft must define canonical event-frame layout"
-assert_contains "PRESTORE" "$V2_ISA_DOC" \
-  "active ISA v2 draft must define state restore from descriptor-selected images"
+assert_not_contains "PRESTORE" "$V2_ISA_DOC" \
+  "active ISA v2 draft must not retain the deprecated PRESTORE opcode"
+assert_contains "ACTIVATE_DST" "$V2_ISA_DOC" \
+  "active ISA v2 draft must define v2 state activation for descriptor-selected images"
 assert_contains "zero-kernel-change contract" "$V2_ISA_DOC" \
   "active ISA v2 draft must document the zero-kernel OS contract"
 assert_contains "unmodified OS" "$V2_ISA_DOC" \
@@ -211,7 +213,6 @@ for symbol in \
   POLY_STATE_XSAVE_FLAG_USER_SPILL \
   POLY_STATE_XSAVE_FLAG_MONITOR_TRAMPOLINE \
   POLY_STATE_XSAVE_FLAG_OS_XSAVE_NOT_REQUIRED \
-  POLY_X86_CTRL_PRESTORE \
   POLY_X86_CTRL_EVENT_PTR_SET \
   POLY_X86_CTRL_SPILL_DESC_SET \
   POLY_X86_CTRL_AUTO_SPILL_COUNT_STATUS \

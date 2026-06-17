@@ -96,11 +96,11 @@ extern char **environ;
   POLY_X86_CTRL_AUTO_SPILL_BYTES_STATUS_ASM
 #define POLY_OP_AUTO_SPILL_CYCLES_STATUS \
   POLY_X86_CTRL_AUTO_SPILL_CYCLES_STATUS_ASM
-#define POLY_OP_PRESTORE POLY_X86_CTRL_PRESTORE_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_SPILL_DESC_SET POLY_X86_CTRL_SPILL_DESC_SET_ASM
 #define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
 #define POLY_OP_MEM_PROBE_RANGE POLY_X86_CTRL_MEM_PROBE_RANGE_ASM
+#define POLY_OP_DERIVE_STATE POLY_X86_CTRL_DERIVE_STATE_ASM
 #define POLY_OP_COMPLETE_EVENT POLY_X86_CTRL_COMPLETE_EVENT_ASM
 
 #define POLYEXEC_SYSCALL_SUMMARY_MAX 512
@@ -118,6 +118,9 @@ extern char **environ;
 #define POLY_V2_DEBUG_NOTE_MAGIC \
   ((((uint64_t) POLY_V2_DEBUG_NOTE_MAGIC_HI) << 32) | \
     POLY_V2_DEBUG_NOTE_MAGIC_LO)
+#define POLY_V2_DERIVE_DESC_MAGIC \
+  ((((uint64_t) POLY_V2_DERIVE_DESC_MAGIC_HI) << 32) | \
+    POLY_V2_DERIVE_DESC_MAGIC_LO)
 #define POLY_V2_COMPLETE_DESC_MAGIC \
   ((((uint64_t) POLY_V2_COMPLETE_DESC_MAGIC_HI) << 32) | \
     POLY_V2_COMPLETE_DESC_MAGIC_LO)
@@ -539,6 +542,8 @@ static __thread struct poly_v2_event_frame poly_auto_spill_event_frame
   __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
 static __thread struct poly_v2_spill_descriptor poly_auto_spill_descriptor
   __attribute__((aligned(POLY_V2_SPILL_DESC_ALIGN)));
+static __thread struct poly_v2_derive_descriptor poly_auto_spill_resume_desc
+  __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
 static __thread struct poly_v2_debug_note poly_fatal_debug_note
   __attribute__((aligned(POLY_V2_DEBUG_NOTE_ALIGN)));
 static __thread uint64_t poly_v2_last_event_sequence;
@@ -562,6 +567,7 @@ static volatile uint32_t
 struct poly_auto_spill_resume_info {
   uint64_t buffer;
   uint64_t mode;
+  uint64_t descriptor;
 };
 static __thread volatile uint64_t *poly_thread_atomic_counter;
 static __thread uint64_t poly_thread_atomic_iterations;
@@ -2316,6 +2322,25 @@ static int poly_install_auto_spill_signal_actions(void) {
   return 0;
 }
 
+static void poly_auto_spill_fill_resume_info(
+    struct poly_auto_spill_resume_info *resume_info,
+    struct poly_xsave_state *spill_state) {
+  memset(&poly_auto_spill_resume_desc, 0,
+    sizeof(poly_auto_spill_resume_desc));
+  poly_auto_spill_resume_desc.magic = POLY_V2_DERIVE_DESC_MAGIC;
+  poly_auto_spill_resume_desc.bytes = POLY_V2_DERIVE_DESC_BYTES;
+  poly_auto_spill_resume_desc.version = POLY_V2_DERIVE_DESC_VERSION;
+  poly_auto_spill_resume_desc.header_bytes =
+    POLY_V2_DERIVE_DESC_HEADER_BYTES;
+  poly_auto_spill_resume_desc.flags = POLY_V2_DERIVE_FLAG_ACTIVATE_DST;
+  poly_auto_spill_resume_desc.frontend = spill_state->header.current_mode;
+
+  resume_info->buffer = (uint64_t) (uintptr_t) spill_state;
+  resume_info->mode = spill_state->header.current_mode;
+  resume_info->descriptor =
+    (uint64_t) (uintptr_t) &poly_auto_spill_resume_desc;
+}
+
 __attribute__((noinline, used))
 static void poly_auto_spill_resume_dispatch(
     struct poly_auto_spill_resume_info *resume_info) {
@@ -2337,8 +2362,7 @@ static void poly_auto_spill_resume_dispatch(
         "POLYEXEC_FAIL: auto-spill refresh failed during resume\n");
       _exit(125);
     }
-    resume_info->buffer = (uint64_t) (uintptr_t) spill_state;
-    resume_info->mode = spill_state->header.current_mode;
+    poly_auto_spill_fill_resume_info(resume_info, spill_state);
     return;
   }
 
@@ -2367,8 +2391,7 @@ static void poly_auto_spill_resume_dispatch(
         poly_write_hex64_stderr(spill_state->header.foreign_pc);
         poly_write_literal_stderr("\n");
       }
-      resume_info->buffer = (uint64_t) (uintptr_t) spill_state;
-      resume_info->mode = spill_state->header.current_mode;
+      poly_auto_spill_fill_resume_info(resume_info, spill_state);
       return;
     }
     if (spill_state->header.current_mode == POLY_MODE_RAW_AARCH64 &&
@@ -2382,8 +2405,7 @@ static void poly_auto_spill_resume_dispatch(
           "POLYEXEC_FAIL: auto-spill refresh failed during signal delivery\n");
         _exit(125);
       }
-      resume_info->buffer = (uint64_t) (uintptr_t) spill_state;
-      resume_info->mode = spill_state->header.current_mode;
+      poly_auto_spill_fill_resume_info(resume_info, spill_state);
       return;
     }
     report_poly_spill_page_fault();
@@ -2414,8 +2436,7 @@ static void poly_auto_spill_resume_dispatch(
           "POLYEXEC_FAIL: auto-spill refresh failed during fault delivery\n");
         _exit(125);
       }
-      resume_info->buffer = (uint64_t) (uintptr_t) spill_state;
-      resume_info->mode = spill_state->header.current_mode;
+      poly_auto_spill_fill_resume_info(resume_info, spill_state);
       return;
     }
     report_poly_spill_page_fault();
@@ -2458,6 +2479,8 @@ static void poly_auto_spill_resume_trampoline(void) {
     "movq %rax, 88(%rbp)\n"
     "movq 8(%rsp), %rax\n"
     "movq %rax, 8(%rbp)\n"
+    "movq 16(%rsp), %rax\n"
+    "movq %rax, 96(%rbp)\n"
     "movq %rbp, %rsp\n"
     "popq %rbp\n"
     "popq %r15\n"
@@ -2476,7 +2499,7 @@ static void poly_auto_spill_resume_trampoline(void) {
     "movq %rdx, %rax\n"
     "movl $0, poly_auto_spill_resume_stack_lock(%rip)\n"
     ".p2align 2\n"
-    POLY_OP_PRESTORE
+    POLY_OP_DERIVE_STATE
     POLY_X86_CTRL_PENTER_MODE_ASM
     "ud2\n");
 }
