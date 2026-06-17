@@ -12240,7 +12240,8 @@ int main(void) {
       return 1;
     if (run_poly_v2_derive_state_probe() != 0)
       return 1;
-    if (run_poly_v2_complete_event_probe() != 0)
+    if ((v2.ebx & POLY_CPUID_V2_FEATURE_EVENT_COMPLETE) != 0 &&
+        run_poly_v2_complete_event_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;

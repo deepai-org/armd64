@@ -502,7 +502,7 @@ assert_contains "run_poly_v2_mem_probe_range_probe" "$NATIVECHECK" \
 assert_contains "run_poly_v2_derive_state_probe" "$NATIVECHECK" \
   "nativecheck must exercise PDERIVE_STATE before the derive bit is advertised"
 assert_contains "run_poly_v2_complete_event_probe" "$NATIVECHECK" \
-  "nativecheck must exercise PCOMPLETE_EVENT before the completion bit is advertised"
+  "nativecheck must retain a PCOMPLETE_EVENT probe for when the completion bit is advertised"
 assert_contains "poly_seccomp_preflight_syscall" "$POLYEXEC" \
   "userspace monitor must evaluate guest seccomp policy before host syscall dispatch"
 assert_contains "poly_seccomp_dispatch_control" "$POLYEXEC" \
@@ -595,10 +595,10 @@ assert_contains "poly_auto_spill_resume_trampoline" "$POLYEXEC" \
   "userspace monitor must provide an x86 auto-spill resume trampoline"
 assert_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
   "userspace monitor must PRESTORE before resuming a raw frontend"
-assert_contains "POLY_OP_COMPLETE_EVENT" "$POLYEXEC" \
-  "userspace monitor must use v2 event completion for trap-return result state"
 assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
   "userspace monitor must use v2 memory probing for guest range validation"
+assert_contains "POLY_CPUID_V2_FEATURE_EVENT_COMPLETE" "$POLYEXEC" \
+  "userspace monitor must gate unproven v2 event completion on CPUID"
 assert_not_contains "poly_prefault_(executable|writable)_mappings|poly_prefault_(executable|writable)_mapping_line" "$POLYEXEC" \
   "userspace monitor must not retain broad /proc/self/maps prefault walkers"
 assert_contains "POLY_SPILL_REASON_PAGE_FAULT" "$POLYEXEC" \

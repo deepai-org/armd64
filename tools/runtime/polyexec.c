@@ -621,6 +621,7 @@ static volatile uint64_t poly_event_import_count;
 static volatile uint64_t poly_event_illegal_count;
 static volatile uint64_t poly_event_other_count;
 static volatile uint64_t poly_process_terminal_exit_code;
+static uint32_t poly_v2_runtime_features;
 static uint8_t *process_brk_mapping;
 static size_t process_brk_mapping_size;
 static uint64_t process_brk_current;
@@ -1256,6 +1257,7 @@ static int read_poly_base_contract(int require_trap_vector) {
       expected_v2.edx);
     return -1;
   }
+  poly_v2_runtime_features = v2.ebx;
 
   const struct poly_cpuid_regs x86_controls =
     poly_read_cpuid(POLY_CPUID_BASE + 2, 5);
@@ -7265,6 +7267,8 @@ static int poly_complete_event_result_registers(struct poly_xsave_state *state,
     uint64_t mode, uint64_t result) {
   if (state == NULL ||
       (mode != POLY_MODE_RAW_AARCH64 && mode != POLY_MODE_RAW_RISCV))
+    return 0;
+  if ((poly_v2_runtime_features & POLY_CPUID_V2_FEATURE_EVENT_COMPLETE) == 0)
     return 0;
   struct poly_v2_complete_descriptor desc
     __attribute__((aligned(POLY_V2_COMPLETE_DESC_ALIGN)));
