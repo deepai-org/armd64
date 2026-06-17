@@ -6859,14 +6859,6 @@ static void poly_sanitize_trap_state_for_import(struct poly_xsave_state *state) 
     poly_sanitize_riscv_trap_restore_payload(&state->trap_restore);
 }
 
-static void poly_clear_completed_event_state(struct poly_xsave_state *state) {
-  memset(&state->event_record, 0, sizeof(state->event_record));
-  memset(state->event_args, 0, sizeof(state->event_args));
-  memset(state->pre_trap_restore_reserved, 0,
-    sizeof(state->pre_trap_restore_reserved));
-  memset(&state->trap_restore, 0, sizeof(state->trap_restore));
-}
-
 static void poly_set_clone_child_event_record_state(
     const struct poly_runtime_event_record *packet,
     struct poly_xsave_state *trap_state);
@@ -6925,6 +6917,18 @@ static int poly_complete_event_result_registers(struct poly_xsave_state *state,
   desc.result0 = result;
   desc.event_sequence = poly_v2_last_event_sequence;
   return poly_complete_event_value(state, &desc) == 0;
+}
+
+static int poly_clear_completed_event_state(struct poly_xsave_state *state,
+    uint64_t mode) {
+  if (state == NULL ||
+      (mode != POLY_MODE_RAW_AARCH64 && mode != POLY_MODE_RAW_RISCV))
+    return -1;
+  struct poly_v2_derive_descriptor desc
+    __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+  poly_init_derive_descriptor(&desc, mode);
+  desc.flags = POLY_V2_DERIVE_FLAG_CLEAR_EVENT_STATE;
+  return poly_derive_state_value(state, state, &desc) == 0 ? 0 : -1;
 }
 
 static uint64_t poly_trap_vector_return_result(uint64_t result,
@@ -7019,8 +7023,12 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
         poly_clear_native_return_state(return_state);
       }
     }
-    if (completed_event_return && !restore_entry_stack_for_trap_restore)
-      poly_clear_completed_event_state(return_state);
+    if (completed_event_return && !restore_entry_stack_for_trap_restore &&
+        poly_clear_completed_event_state(return_state, packet->mode) < 0) {
+      poly_write_literal_stderr(
+        "POLYEXEC_FAIL: PDERIVE_STATE rejected completed-event clear\n");
+      poly_x86_exit_group_now(125);
+    }
     poly_sanitize_trap_state_for_import(return_state);
     if (poly_activate_state_with_pderive(return_state) < 0) {
       poly_write_literal_stderr(
