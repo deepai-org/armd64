@@ -462,6 +462,10 @@ assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_COMPLETE_EVENT" "$
   "Bochs must implement the v2 event-completion control"
 assert_contains "complete_poly_v2_event" "$BOCHS_CPU" \
   "Bochs must complete frontend events through a dedicated helper"
+assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_FENCE" "$BOCHS_CPU" \
+  "Bochs must implement the v2 shared-memory fence control"
+assert_contains "op[[:space:]]*==[[:space:]]*BX_POLY_X86_CTRL_MONITOR_ENTRY_SET" "$BOCHS_CPU" \
+  "Bochs must implement the v2 monitor-entry stack/frame contract"
 assert_contains "BX_POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$BOCHS_CPU" \
   "Bochs v2 CPUID must advertise only implemented v2 features"
 assert_not_contains "BX_POLY_CPUID_V2_FEATURES" "$BOCHS_CPU" \
@@ -470,11 +474,11 @@ assert_contains "POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$ROOT_DIR/tools/include/po
   "public CPUID contract must expose an implemented v2 feature mask"
 assert_contains "regs\\.ebx[[:space:]]*=[[:space:]]*POLY_CPUID_V2_IMPLEMENTED_FEATURES" "$ROOT_DIR/tools/include/polycpuid.h" \
   "public v2 CPUID expectation must use the implemented feature mask"
-assert_not_contains "POLY_CPUID_V2_IMPLEMENTED_FEATURES = .*1U << 1" "$ROOT_DIR/tools/include/polycpuid.h" \
+assert_not_contains "POLY_CPUID_V2_IMPLEMENTED_FEATURES = .*1U << 1([^0-9]|$)" "$ROOT_DIR/tools/include/polycpuid.h" \
   "public v2 CPUID must not advertise the deprecated spill descriptor as a production feature"
 assert_contains "POLY_CPUID_V2_REQUIRED_FEATURES = \\(1U << 0\\)" "$ROOT_DIR/tools/include/polycpuid.h" \
   "public v2 CPUID must require only canonical event frames"
-assert_not_contains "BX_POLY_CPUID_V2_IMPLEMENTED_FEATURES = .*1U << 1" "$BOCHS_CPU" \
+assert_not_contains "BX_POLY_CPUID_V2_IMPLEMENTED_FEATURES = .*1U << 1([^0-9]|$)" "$BOCHS_CPU" \
   "Bochs v2 CPUID must not advertise the deprecated spill descriptor as a production feature"
 assert_contains "BX_POLY_CPUID_V2_REQUIRED_FEATURES = \\(1U << 0\\)" "$BOCHS_CPU" \
   "Bochs v2 CPUID must require only canonical event frames"
@@ -490,6 +494,10 @@ assert_contains "run_poly_v2_derive_state_probe" "$NATIVECHECK" \
   "nativecheck must exercise PDERIVE_STATE before the derive bit is advertised"
 assert_contains "run_poly_v2_complete_event_probe" "$NATIVECHECK" \
   "nativecheck must retain a PCOMPLETE_EVENT probe for when the completion bit is advertised"
+assert_contains "run_poly_v2_fence_probe" "$NATIVECHECK" \
+  "nativecheck must exercise PFENCE when the shared-memory fence bit is advertised"
+assert_contains "run_poly_v2_monitor_entry_probe" "$NATIVECHECK" \
+  "nativecheck must exercise the monitor-entry contract when the bit is advertised"
 assert_contains "poly_seccomp_preflight_syscall" "$POLYEXEC" \
   "userspace monitor must evaluate guest seccomp policy before host syscall dispatch"
 assert_contains "poly_seccomp_dispatch_control" "$POLYEXEC" \
@@ -582,6 +590,10 @@ assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
   "userspace monitor must use v2 memory probing for guest range validation"
 assert_contains "POLY_CPUID_V2_FEATURE_EVENT_COMPLETE" "$POLYEXEC" \
   "userspace monitor must gate unproven v2 event completion on CPUID"
+assert_contains "POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE" "$POLYEXEC" \
+  "userspace monitor must gate io_uring/shared-ring ordering on PFENCE CPUID"
+assert_contains "POLY_CPUID_V2_FEATURE_MONITOR_ENTRY_FRAME" "$POLYEXEC" \
+  "userspace monitor must use the v2 monitor-entry stack/frame contract"
 assert_not_contains "poly_prefault_(executable|writable)_mappings|poly_prefault_(executable|writable)_mapping_line" "$POLYEXEC" \
   "userspace monitor must not retain broad /proc/self/maps prefault walkers"
 assert_contains "POLYEXEC_SIGNAL: signo=0x" "$POLYEXEC" \

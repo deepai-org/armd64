@@ -55,7 +55,9 @@
 #define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
 #define POLY_OP_MEM_PROBE_RANGE POLY_X86_CTRL_MEM_PROBE_RANGE_ASM
 #define POLY_OP_DERIVE_STATE POLY_X86_CTRL_DERIVE_STATE_ASM
+#define POLY_OP_FENCE POLY_X86_CTRL_FENCE_ASM
 #define POLY_OP_COMPLETE_EVENT POLY_X86_CTRL_COMPLETE_EVENT_ASM
+#define POLY_OP_MONITOR_ENTRY_SET POLY_X86_CTRL_MONITOR_ENTRY_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
@@ -806,6 +808,15 @@ static inline uint64_t poly_derive_state(struct poly_xsave_state *dst,
   return result;
 }
 
+static inline uint64_t poly_fence(uint64_t scope) {
+  uint64_t result = scope;
+  asm volatile(POLY_OP_FENCE
+    : "+a"(result)
+    :
+    : "r15", "memory");
+  return result;
+}
+
 static inline uint64_t poly_complete_event(struct poly_xsave_state *state,
     const struct poly_v2_complete_descriptor *descriptor) {
   uint64_t result = (uint64_t) (uintptr_t) state;
@@ -813,6 +824,16 @@ static inline uint64_t poly_complete_event(struct poly_xsave_state *state,
     : "+a"(result)
     : "d"((uint64_t) (uintptr_t) descriptor)
     : "rcx", "r15", "memory");
+  return result;
+}
+
+static inline uint64_t poly_monitor_entry_set(
+    const struct poly_v2_monitor_entry_descriptor *descriptor) {
+  uint64_t result = (uint64_t) (uintptr_t) descriptor;
+  asm volatile(POLY_OP_MONITOR_ENTRY_SET
+    : "+a"(result)
+    :
+    : "r15", "memory");
   return result;
 }
 
@@ -7119,6 +7140,63 @@ static int run_poly_v2_complete_event_probe(void) {
   return 0;
 }
 
+static int run_poly_v2_fence_probe(void) {
+  if (poly_fence(POLY_V2_FENCE_SCOPE_RELEASE) != 0 ||
+      poly_fence(POLY_V2_FENCE_SCOPE_ACQUIRE) != 0 ||
+      poly_fence(POLY_V2_FENCE_SCOPE_FULL) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 fence valid scopes failed\n", stderr);
+    return 1;
+  }
+  if (poly_fence(0) != (uint64_t) -EINVAL) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 fence rejected invalid scope\n",
+      stderr);
+    return 1;
+  }
+  puts("NATIVE_POLY_V2_FENCE_OK");
+  return 0;
+}
+
+static int run_poly_v2_monitor_entry_probe(void) {
+  static struct poly_v2_monitor_entry_descriptor desc
+    __attribute__((aligned(POLY_V2_MONITOR_ENTRY_DESC_ALIGN)));
+  static uint8_t stack[4096]
+    __attribute__((aligned(POLY_V2_MONITOR_ENTRY_DESC_ALIGN)));
+  const uint64_t monitor_magic =
+    ((uint64_t) POLY_V2_MONITOR_ENTRY_DESC_MAGIC_HI << 32) |
+    POLY_V2_MONITOR_ENTRY_DESC_MAGIC_LO;
+
+  memset(&desc, 0, sizeof(desc));
+  desc.magic = monitor_magic;
+  desc.bytes = POLY_V2_MONITOR_ENTRY_DESC_BYTES;
+  desc.version = POLY_V2_MONITOR_ENTRY_DESC_VERSION;
+  desc.header_bytes = POLY_V2_MONITOR_ENTRY_DESC_HEADER_BYTES;
+  desc.flags = POLY_V2_MONITOR_ENTRY_FLAG_ENABLE |
+    POLY_V2_MONITOR_ENTRY_FLAG_X86_SYSV;
+  desc.target_mode = POLY_MODE_X86;
+  desc.entry_pc = (uint64_t) (uintptr_t) poly_trap_vector_handler;
+  desc.stack_base = (uint64_t) (uintptr_t) stack;
+  desc.stack_bytes = sizeof(stack);
+  desc.frame_bytes = 64;
+  if (poly_monitor_entry_set(&desc) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 monitor entry enable failed\n",
+      stderr);
+    return 1;
+  }
+  desc.flags = 0;
+  desc.target_mode = 0;
+  desc.entry_pc = 0;
+  desc.stack_base = 0;
+  desc.stack_bytes = 0;
+  desc.frame_bytes = 0;
+  if (poly_monitor_entry_set(&desc) != 0) {
+    fputs("NATIVE_CHECK_FAIL: poly v2 monitor entry disable failed\n",
+      stderr);
+    return 1;
+  }
+  puts("NATIVE_POLY_V2_MONITOR_ENTRY_OK");
+  return 0;
+}
+
 static int run_poly_state_key_probe(void) {
   const uint64_t key_a = 0x53544154454b4101ULL;
   const uint64_t key_b = 0x53544154454b4202ULL;
@@ -12227,8 +12305,14 @@ int main(void) {
       return 1;
     if (run_poly_v2_derive_state_probe() != 0)
       return 1;
+    if ((v2.ebx & POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE) != 0 &&
+        run_poly_v2_fence_probe() != 0)
+      return 1;
     if ((v2.ebx & POLY_CPUID_V2_FEATURE_EVENT_COMPLETE) != 0 &&
         run_poly_v2_complete_event_probe() != 0)
+      return 1;
+    if ((v2.ebx & POLY_CPUID_V2_FEATURE_MONITOR_ENTRY_FRAME) != 0 &&
+        run_poly_v2_monitor_entry_probe() != 0)
       return 1;
     if (run_poly_state_key_probe() != 0)
       return 1;

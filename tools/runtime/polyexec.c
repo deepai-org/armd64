@@ -88,18 +88,21 @@ extern char **environ;
 #define POLY_OP_STATE_KEY_SET POLY_X86_CTRL_STATE_KEY_SET_ASM
 #define POLY_OP_STATE_KEY_GET POLY_X86_CTRL_STATE_KEY_GET_ASM
 #define POLY_OP_STATE_EXPORT POLY_X86_CTRL_STATE_EXPORT_ASM
-#define POLY_OP_STATE_IMPORT POLY_X86_CTRL_STATE_IMPORT_ASM
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
 #define POLY_OP_DUMP_STATE POLY_X86_CTRL_DUMP_STATE_ASM
 #define POLY_OP_MEM_PROBE_RANGE POLY_X86_CTRL_MEM_PROBE_RANGE_ASM
+#define POLY_OP_PENTER_MODE POLY_X86_CTRL_PENTER_MODE_ASM
 #define POLY_OP_DERIVE_STATE POLY_X86_CTRL_DERIVE_STATE_ASM
+#define POLY_OP_FENCE POLY_X86_CTRL_FENCE_ASM
 #define POLY_OP_COMPLETE_EVENT POLY_X86_CTRL_COMPLETE_EVENT_ASM
+#define POLY_OP_MONITOR_ENTRY_SET POLY_X86_CTRL_MONITOR_ENTRY_SET_ASM
 
 #define POLYEXEC_SYSCALL_SUMMARY_MAX 512
 #define POLY_RUNTIME_SIGNAL_ALT_STACK_SIZE (64U * 1024U)
 #define POLY_TRAP_VECTOR_STACK_SIZE (64U * 1024U)
 #define POLY_TRAP_VECTOR_STACK_COUNT 8U
+#define POLY_MONITOR_ENTRY_FRAME_BYTES 160U
 #define POLY_V2_EVENT_MAGIC \
   ((((uint64_t) POLY_V2_EVENT_MAGIC_HI) << 32) | POLY_V2_EVENT_MAGIC_LO)
 #define POLY_V2_DEBUG_NOTE_MAGIC \
@@ -108,6 +111,12 @@ extern char **environ;
 #define POLY_V2_COMPLETE_DESC_MAGIC \
   ((((uint64_t) POLY_V2_COMPLETE_DESC_MAGIC_HI) << 32) | \
     POLY_V2_COMPLETE_DESC_MAGIC_LO)
+#define POLY_V2_DERIVE_DESC_MAGIC \
+  ((((uint64_t) POLY_V2_DERIVE_DESC_MAGIC_HI) << 32) | \
+    POLY_V2_DERIVE_DESC_MAGIC_LO)
+#define POLY_V2_MONITOR_ENTRY_DESC_MAGIC \
+  ((((uint64_t) POLY_V2_MONITOR_ENTRY_DESC_MAGIC_HI) << 32) | \
+    POLY_V2_MONITOR_ENTRY_DESC_MAGIC_LO)
 #define POLYEXEC_ELF_NOTE_NAME "POLY"
 #define POLYEXEC_ELF_NOTE_NAMESZ 5U
 #define POLYEXEC_ELF_NOTE_TYPE_V2_DEBUG 0x32564744U
@@ -530,15 +539,28 @@ static __thread uint8_t
   poly_runtime_signal_alt_stack[POLY_RUNTIME_SIGNAL_ALT_STACK_SIZE]
   __attribute__((aligned(16)));
 static __thread int poly_runtime_signal_alt_stack_installed;
-uint8_t poly_trap_vector_stacks[POLY_TRAP_VECTOR_STACK_COUNT]
-  [POLY_TRAP_VECTOR_STACK_SIZE]
-  __attribute__((used, aligned(16)));
-static volatile uint32_t
-  poly_trap_vector_stack_locks[POLY_TRAP_VECTOR_STACK_COUNT];
+static __thread uint8_t *poly_monitor_entry_stack_mapping;
+static __thread size_t poly_monitor_entry_stack_mapping_size;
+static __thread int poly_monitor_entry_stack_prefaulted;
 static __thread volatile uint64_t *poly_thread_atomic_counter;
 static __thread uint64_t poly_thread_atomic_iterations;
 static __thread uint64_t poly_thread_atomic_index;
 static __thread uint64_t poly_thread_atomic_count;
+
+struct poly_monitor_entry_frame {
+  uint64_t magic;
+  uint64_t bytes;
+  uint64_t sequence;
+  uint64_t old_rsp;
+  uint64_t old_r11;
+  uint64_t reason_mode;
+  uint64_t number;
+  uint64_t pc;
+  uint64_t next_pc;
+  uint64_t selector;
+  uint64_t args[8];
+  uint64_t reserved[2];
+};
 
 struct poly_request {
   char path[160];
@@ -875,7 +897,7 @@ static int run_irelative_resolver(const struct poly_program *program,
 static int emit_process_cross_isa_call_stub(int caller_arch, int callee_arch,
     uint64_t target, int bridge_kind, uint32_t signature_slot,
     uint64_t *stub_addr);
-static void poly_trap_vector_handler(void);
+static void poly_trap_vector_entry(void);
 static void clear_poly_trap_vector(void);
 static uint64_t get_x86_fs_base(void);
 static uint64_t poly_trap_vector_return_result(uint64_t result,
@@ -957,8 +979,16 @@ static inline void poly_state_export(struct poly_xsave_state *state) {
   asm volatile(POLY_OP_STATE_EXPORT :: "a"(state) : "r15", "memory");
 }
 
-static inline void poly_state_import(const struct poly_xsave_state *state) {
-  asm volatile(POLY_OP_STATE_IMPORT :: "a"(state) : "r15", "memory");
+static inline uint64_t poly_derive_state_value(struct poly_xsave_state *dst,
+    const struct poly_xsave_state *src,
+    const struct poly_v2_derive_descriptor *descriptor) {
+  uint64_t result = (uint64_t) (uintptr_t) dst;
+  asm volatile(POLY_OP_DERIVE_STATE
+    : "+a"(result)
+    : "d"((uint64_t) (uintptr_t) src),
+      "c"((uint64_t) (uintptr_t) descriptor)
+    : "r15", "memory");
+  return result;
 }
 
 static inline uint64_t poly_complete_event_value(struct poly_xsave_state *state,
@@ -968,6 +998,22 @@ static inline uint64_t poly_complete_event_value(struct poly_xsave_state *state,
     : "+a"(result)
     : "d"((uint64_t) (uintptr_t) descriptor)
     : "rcx", "r15", "memory");
+  return result;
+}
+
+static inline uint64_t poly_fence_value(uint64_t scope) {
+  uint64_t result = scope;
+  asm volatile(POLY_OP_FENCE : "+a"(result) :: "r15", "memory");
+  return result;
+}
+
+static inline uint64_t poly_monitor_entry_set_value(
+    const struct poly_v2_monitor_entry_descriptor *descriptor) {
+  uint64_t result = (uint64_t) (uintptr_t) descriptor;
+  asm volatile(POLY_OP_MONITOR_ENTRY_SET
+    : "+a"(result)
+    :
+    : "r15", "memory");
   return result;
 }
 
@@ -986,6 +1032,32 @@ static inline uint64_t poly_mem_probe_range_value(uint64_t address,
   if (metadata_out != NULL)
     *metadata_out = metadata;
   return status;
+}
+
+static void poly_init_derive_descriptor(
+    struct poly_v2_derive_descriptor *desc, uint64_t frontend) {
+  memset(desc, 0, sizeof(*desc));
+  desc->magic = POLY_V2_DERIVE_DESC_MAGIC;
+  desc->bytes = POLY_V2_DERIVE_DESC_BYTES;
+  desc->version = POLY_V2_DERIVE_DESC_VERSION;
+  desc->header_bytes = POLY_V2_DERIVE_DESC_HEADER_BYTES;
+  desc->frontend = (uint32_t) frontend;
+}
+
+static int poly_activate_state_with_pderive(struct poly_xsave_state *state) {
+  if (state == NULL)
+    return -1;
+  const uint64_t frontend = state->header.current_mode;
+  struct poly_v2_derive_descriptor desc
+    __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+  poly_init_derive_descriptor(&desc, frontend);
+  desc.flags = POLY_V2_DERIVE_FLAG_ACTIVATE_DST;
+  if (poly_derive_state_value(state, state, &desc) != 0)
+    return -1;
+
+  register uint64_t r15 __asm__("r15") = frontend;
+  asm volatile(POLY_OP_PENTER_MODE : "+r"(r15) :: "memory");
+  return -1;
 }
 
 static int install_poly_thread_state_key(void) {
@@ -1043,6 +1115,62 @@ static uint64_t poly_event_ptr_set(uint64_t frame, uint64_t bytes) {
     :
     : "memory");
   return frame;
+}
+
+static uint8_t *poly_get_monitor_entry_stack(size_t *stack_size) {
+  if (poly_monitor_entry_stack_mapping) {
+    *stack_size = poly_monitor_entry_stack_mapping_size;
+    return poly_monitor_entry_stack_mapping;
+  }
+
+  uint8_t *mapping = mmap(NULL, POLY_TRAP_VECTOR_STACK_SIZE,
+    PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+  if (mapping == MAP_FAILED)
+    return NULL;
+
+  poly_monitor_entry_stack_mapping = mapping;
+  poly_monitor_entry_stack_mapping_size = POLY_TRAP_VECTOR_STACK_SIZE;
+  *stack_size = POLY_TRAP_VECTOR_STACK_SIZE;
+  return mapping;
+}
+
+static void poly_prefault_monitor_entry_stack(uint8_t *stack,
+    size_t stack_size) {
+  if (poly_monitor_entry_stack_prefaulted)
+    return;
+  volatile uint8_t *volatile_stack = stack;
+  for (size_t offset = 0; offset < stack_size; offset += 4096)
+    volatile_stack[offset] = volatile_stack[offset];
+  volatile_stack[stack_size - 1] = volatile_stack[stack_size - 1];
+  poly_monitor_entry_stack_prefaulted = 1;
+}
+
+static int poly_monitor_entry_set(int enable) {
+  if ((poly_v2_runtime_features &
+        POLY_CPUID_V2_FEATURE_MONITOR_ENTRY_FRAME) == 0)
+    return -1;
+  struct poly_v2_monitor_entry_descriptor desc
+    __attribute__((aligned(POLY_V2_MONITOR_ENTRY_DESC_ALIGN)));
+  memset(&desc, 0, sizeof(desc));
+  desc.magic = POLY_V2_MONITOR_ENTRY_DESC_MAGIC;
+  desc.bytes = POLY_V2_MONITOR_ENTRY_DESC_BYTES;
+  desc.version = POLY_V2_MONITOR_ENTRY_DESC_VERSION;
+  desc.header_bytes = POLY_V2_MONITOR_ENTRY_DESC_HEADER_BYTES;
+  if (enable) {
+    size_t stack_size = 0;
+    uint8_t *stack = poly_get_monitor_entry_stack(&stack_size);
+    if (!stack)
+      return -1;
+    poly_prefault_monitor_entry_stack(stack, stack_size);
+    desc.flags = POLY_V2_MONITOR_ENTRY_FLAG_ENABLE |
+      POLY_V2_MONITOR_ENTRY_FLAG_X86_SYSV;
+    desc.target_mode = POLY_MODE_X86;
+    desc.entry_pc = (uint64_t) (uintptr_t) poly_trap_vector_entry;
+    desc.stack_base = (uint64_t) (uintptr_t) stack;
+    desc.stack_bytes = stack_size;
+    desc.frame_bytes = POLY_MONITOR_ENTRY_FRAME_BYTES;
+  }
+  return poly_monitor_entry_set_value(&desc) == 0 ? 0 : -1;
 }
 
 static int refresh_poly_trap_event_frame(void) {
@@ -3261,23 +3389,24 @@ static long poly_x86_syscall6(long number, uint64_t arg0, uint64_t arg1,
 
 static long poly_x86_clone_monitor_child(uint64_t flags,
     uint64_t child_stack, uint64_t parent_tid, uint64_t child_tid,
-    uint64_t tls) {
+    uint64_t tls, struct poly_clone_child_handoff *handoff) {
   register long rax __asm__("rax") = SYS_clone;
   register long rdi __asm__("rdi") = (long) flags;
   register long rsi __asm__("rsi") = (long) child_stack;
   register long rdx __asm__("rdx") = (long) parent_tid;
   register long r10 __asm__("r10") = (long) child_tid;
   register long r8 __asm__("r8") = (long) tls;
+  register long r9 __asm__("r9") = (long) handoff;
   asm volatile(
       "syscall\n"
       "testq %%rax, %%rax\n"
       "jnz 1f\n"
-      "popq %%rdi\n"
+      "movq %%r9, %%rdi\n"
       "call poly_clone_child_entry\n"
       "ud2\n"
       "1:\n"
       : "+r"(rax)
-      : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8)
+      : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
       : "rcx", "r11", "memory");
   return rax;
 }
@@ -4157,6 +4286,27 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   state->trap_restore.mode = POLY_MODE_RAW_AARCH64;
   state->trap_restore.aarch64_gpr_valid_mask = POLY_AARCH64_GPR_VALID_MASK;
   poly_sanitize_aarch64_trap_restore_payload(&state->trap_restore);
+  {
+    uint64_t empty_event_args[POLY_V2_EVENT_ARG_COUNT] = { 0 };
+    struct poly_v2_derive_descriptor desc
+      __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+    poly_init_derive_descriptor(&desc, POLY_MODE_RAW_AARCH64);
+    desc.flags = POLY_V2_DERIVE_FLAG_CHILD_PC |
+      POLY_V2_DERIVE_FLAG_CHILD_SP |
+      POLY_V2_DERIVE_FLAG_CHILD_RETURN |
+      POLY_V2_DERIVE_FLAG_EVENT_RECORD;
+    desc.child_pc = handler;
+    desc.child_sp = signal_sp;
+    desc.child_return_value = signum;
+    desc.event_reason = POLY_TRAP_BREAK;
+    desc.event_number = 0;
+    desc.event_selector = 0;
+    desc.event_flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+      POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
+    desc.event_args = (uint64_t) (uintptr_t) empty_event_args;
+    if (poly_derive_state_value(state, state, &desc) != 0)
+      return 0;
+  }
   /*
    * Keep the monitor on its native stack while the foreign frontend sees the
    * synthetic AArch64 signal stack through x31/sp.  Trap/syscall handling from
@@ -4325,6 +4475,27 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
   poly_guest_sigmask_shadow_valid = 1;
   poly_aarch64_active_signal_frame = 0;
   *result_out = frame.ucontext.mcontext.regs[0];
+  {
+    struct poly_v2_derive_descriptor desc
+      __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+    poly_init_derive_descriptor(&desc, POLY_MODE_RAW_AARCH64);
+    desc.flags = POLY_V2_DERIVE_FLAG_CHILD_PC |
+      POLY_V2_DERIVE_FLAG_CHILD_SP |
+      POLY_V2_DERIVE_FLAG_CHILD_RETURN |
+      POLY_V2_DERIVE_FLAG_EVENT_RECORD;
+    desc.child_pc = restored_pc;
+    desc.child_sp = restored_sp;
+    desc.child_return_value = *result_out;
+    desc.event_reason = state->event_record.reason;
+    desc.event_number = state->event_record.number;
+    desc.event_selector = state->event_record.selector;
+    desc.event_flags = state->event_record.flags;
+    desc.event_args = (uint64_t) (uintptr_t) state->event_args;
+    if (poly_derive_state_value(state, state, &desc) != 0) {
+      *result_out = (uint64_t) -EINVAL;
+      return 1;
+    }
+  }
 
   if (poly_trace_protected_signal_waits_enabled()) {
     poly_write_literal_stderr(
@@ -4600,7 +4771,7 @@ static void poly_prefault_writable_range(uint64_t address, uint64_t length) {
   poly_prefault_range(address, length, 1);
 }
 
-static void poly_trap_vector_handler(void);
+static void poly_trap_vector_entry(void);
 
 static int poly_handle_structured_foreign_syscall(uint64_t number,
     uint64_t mode, uint64_t arg0, uint64_t arg1, uint64_t arg2,
@@ -5266,6 +5437,31 @@ static int poly_v2_event_to_runtime_packet(
   for (size_t n = 0; n < POLY_V2_EVENT_ARG_COUNT; n++)
     packet->args[n] = event->args[n];
   poly_v2_last_event_sequence = event->sequence;
+  return 0;
+}
+
+static int poly_monitor_entry_frame_to_runtime_packet(
+    const struct poly_monitor_entry_frame *frame,
+    struct poly_runtime_event_record *packet) {
+  if (frame == NULL || packet == NULL ||
+      frame->magic != POLY_V2_MONITOR_ENTRY_DESC_MAGIC ||
+      frame->bytes < POLY_MONITOR_ENTRY_FRAME_BYTES ||
+      frame->sequence == 0 ||
+      frame->next_pc == 0 ||
+      !poly_is_raw_foreign_mode((uint32_t) (frame->reason_mode >> 32)))
+    return -1;
+  memset(packet, 0, sizeof(*packet));
+  packet->reason = (uint32_t) frame->reason_mode;
+  packet->mode = (uint32_t) (frame->reason_mode >> 32);
+  packet->number = frame->number;
+  packet->selector = frame->selector;
+  packet->pc = frame->pc;
+  packet->next_pc = frame->next_pc;
+  packet->flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+    POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
+  for (size_t n = 0; n < 8; n++)
+    packet->args[n] = frame->args[n];
+  poly_v2_last_event_sequence = frame->sequence;
   return 0;
 }
 
@@ -6704,10 +6900,17 @@ static int poly_aarch64_rt_sigreturn_packet(
     packet->mode == POLY_MODE_RAW_AARCH64 && packet->number == 139;
 }
 
+static int poly_is_io_uring_syscall(long x86_number) {
+  return x86_number == SYS_io_uring_setup ||
+    x86_number == SYS_io_uring_enter ||
+    x86_number == SYS_io_uring_register;
+}
+
 static int poly_complete_event_result_registers(struct poly_xsave_state *state,
-    uint64_t mode, uint64_t result) {
+    uint64_t mode, uint64_t result, uint64_t resume_pc) {
   if (state == NULL ||
-      (mode != POLY_MODE_RAW_AARCH64 && mode != POLY_MODE_RAW_RISCV))
+      (mode != POLY_MODE_RAW_AARCH64 && mode != POLY_MODE_RAW_RISCV) ||
+      resume_pc == 0)
     return 0;
   if ((poly_v2_runtime_features & POLY_CPUID_V2_FEATURE_EVENT_COMPLETE) == 0)
     return 0;
@@ -6718,9 +6921,12 @@ static int poly_complete_event_result_registers(struct poly_xsave_state *state,
   desc.bytes = POLY_V2_COMPLETE_DESC_BYTES;
   desc.version = POLY_V2_COMPLETE_DESC_VERSION;
   desc.header_bytes = POLY_V2_COMPLETE_DESC_HEADER_BYTES;
-  desc.flags = POLY_V2_COMPLETE_FLAG_SET_RESULT0;
+  desc.flags = POLY_V2_COMPLETE_FLAG_SET_RESUME_PC |
+    POLY_V2_COMPLETE_FLAG_SET_RESULT0;
   desc.frontend = (uint32_t) mode;
+  desc.resume_pc = resume_pc;
   desc.result0 = result;
+  desc.event_sequence = poly_v2_last_event_sequence;
   return poly_complete_event_value(state, &desc) == 0;
 }
 
@@ -6730,6 +6936,7 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
   volatile uint64_t saved_result = result;
   struct poly_xsave_state *return_state = &poly_trap_return_state;
   const struct poly_xsave_state *import_state = trap_state;
+  int use_pderive_return = 0;
   if (has_trap_state && trap_state != NULL) {
     const int deliver_guest_illegal =
       packet->reason == POLY_TRAP_ILLEGAL &&
@@ -6755,44 +6962,56 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
         return_state->header.foreign_pc = foreign_pc;
       }
     }
-    const int completed_result =
-      !deliver_guest_illegal &&
-      poly_complete_event_result_registers(return_state, packet->mode,
-        result);
-    if (!completed_result &&
-        packet->mode == POLY_MODE_RAW_AARCH64 && !deliver_guest_illegal) {
-      return_state->aarch64_gpr[0] = result;
-      return_state->trap_restore.aarch64_gpr[0] = result;
-    }
-    else if (!completed_result && packet->mode == POLY_MODE_RAW_RISCV) {
-      return_state->riscv_gpr[10] = result;
-      return_state->trap_restore.riscv_gpr[10] = result;
+    if (!deliver_guest_illegal &&
+        !poly_complete_event_result_registers(return_state, packet->mode,
+          result, packet->next_pc)) {
+      poly_write_literal_stderr(
+        "POLYEXEC_FAIL: PCOMPLETE_EVENT rejected trap result\n");
+      poly_x86_exit_group_now(125);
     }
     import_state = return_state;
     if (deliver_guest_illegal &&
         poly_try_deliver_aarch64_signal(return_state, SIGILL, packet->pc,
           ILL_ILLOPC)) {
       saved_result = return_state->trap_restore.aarch64_gpr[0];
+      use_pderive_return = 1;
     }
     else if (packet->mode == POLY_MODE_RAW_AARCH64 &&
         poly_try_deliver_aarch64_signal(return_state, 0, 0, 0)) {
       saved_result = return_state->trap_restore.aarch64_gpr[0];
+      use_pderive_return = 1;
+    }
+    else if (aarch64_rt_sigreturn) {
+      use_pderive_return = 1;
     }
   }
   poly_trace_trap_return_result(packet, import_state, has_trap_state, result);
   if (poly_trap_vector_active) {
     (void) refresh_poly_trap_event_frame();
+    if (poly_monitor_entry_set(1) < 0) {
+      poly_write_literal_stderr(
+        "POLYEXEC_FAIL: monitor entry contract rejected\n");
+      poly_x86_exit_group_now(125);
+    }
     poly_trap_vector_mode_set_value(POLY_MODE_X86);
-    poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
+    poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_entry);
   }
   if (has_trap_state && import_state != NULL) {
+    if (!use_pderive_return) {
+      asm volatile(POLY_OP_TRAP_RETURN ::: "memory");
+      __builtin_unreachable();
+    }
     if (packet->reason == POLY_TRAP_SYSCALL &&
         packet->mode == POLY_MODE_RAW_AARCH64) {
       return_state->aarch64_gpr[31] = poly_current_x86_rsp();
       poly_clear_native_return_state(return_state);
     }
     poly_sanitize_trap_state_for_import(return_state);
-    poly_state_import(return_state);
+    if (poly_activate_state_with_pderive(return_state) < 0) {
+      poly_write_literal_stderr(
+        "POLYEXEC_FAIL: PDERIVE_STATE rejected trap import\n");
+      poly_x86_exit_group_now(125);
+    }
   }
   return saved_result;
 }
@@ -6960,28 +7179,32 @@ static int poly_prepare_clone_child_handoff(
     }
   }
   handoff->packet = *packet;
-  memcpy(&handoff->state, trap_state, sizeof(handoff->state));
-  poly_set_clone_child_event_record_state(packet, &handoff->state);
-  poly_set_clone_child_frontend_state(packet->mode, foreign_stack,
-    foreign_tls, &handoff->state, 1);
-  handoff->state.header.current_mode = (uint32_t) packet->mode;
-  handoff->state.header.foreign_pc = packet->next_pc;
-  if (packet->mode == POLY_MODE_RAW_AARCH64) {
-    handoff->state.aarch64_gpr[0] = 0;
-    handoff->state.trap_restore.aarch64_gpr[0] = 0;
-    handoff->state.trap_restore.aarch64_gpr_valid_mask =
-      POLY_AARCH64_GPR_VALID_MASK;
-    poly_clear_native_return_state(&handoff->state);
-  }
-  if (packet->mode == POLY_MODE_RAW_AARCH64)
-    handoff->state.header.foreign_tls_base = foreign_tls;
-  handoff->state.header.reserved0 = 0;
+  struct poly_v2_derive_descriptor desc
+    __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+  poly_init_derive_descriptor(&desc, packet->mode);
+  desc.flags = POLY_V2_DERIVE_FLAG_CHILD_RETURN |
+    POLY_V2_DERIVE_FLAG_CHILD_PC |
+    POLY_V2_DERIVE_FLAG_CLEAR_EVENT_STATE;
+  if (foreign_stack != 0)
+    desc.flags |= POLY_V2_DERIVE_FLAG_CHILD_SP;
+  if (foreign_tls != 0)
+    desc.flags |= POLY_V2_DERIVE_FLAG_CHILD_TLS;
+  desc.child_sp = foreign_stack;
+  desc.child_tls = foreign_tls;
+  desc.child_return_value = 0;
+  desc.child_pc = packet->next_pc;
   if (polyexec_use_explicit_state_key) {
-    handoff->state.state_key.flags = POLY_STATE_KEY_FLAG_EXPLICIT;
-    handoff->state.state_key.explicit_key =
-      (uint64_t) (uintptr_t) &handoff->state_key_anchor;
-    handoff->state.state_key.supported_flags = POLY_STATE_KEY_FLAG_EXPLICIT;
+    desc.flags |= POLY_V2_DERIVE_FLAG_REPLACE_STATE_KEY;
+    desc.state_key = (uint64_t) (uintptr_t) &handoff->state_key_anchor;
   }
+  if (poly_derive_state_value(&handoff->state, trap_state, &desc) != 0) {
+    munmap(handoff, mapping_size);
+    return -1;
+  }
+  handoff->state.header.current_mode = (uint32_t) packet->mode;
+  if (packet->mode == POLY_MODE_RAW_AARCH64)
+    poly_clear_native_return_state(&handoff->state);
+  handoff->state.header.reserved0 = 0;
   handoff->mapping = handoff;
   handoff->mapping_size = mapping_size;
   handoff->foreign_stack = foreign_stack;
@@ -7024,35 +7247,22 @@ static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
       (unsigned long long) handoff->state.state_key.explicit_key);
   }
   (void) refresh_poly_trap_event_frame();
+  if (poly_monitor_entry_set(1) < 0)
+    poly_x86_exit_group_now(125);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
-  poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
-  if (handoff->packet.mode == POLY_MODE_RAW_AARCH64 &&
-      handoff->packet.number == 220) {
-    handoff->state.trap_restore.x86_gpr[15] = handoff->foreign_stack;
-    poly_sanitize_trap_state_for_import(&handoff->state);
-    poly_state_import(&handoff->state);
-  } else if (handoff->state.header.foreign_pc != handoff->packet.next_pc) {
-    poly_sanitize_trap_state_for_import(&handoff->state);
-    poly_state_import(&handoff->state);
-  } else {
-    (void) poly_trap_vector_return_result(0, &handoff->packet,
-      &handoff->state, 1);
+  poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_entry);
+  poly_sanitize_trap_state_for_import(&handoff->state);
+  if (poly_activate_state_with_pderive(&handoff->state) < 0) {
+    poly_write_literal_stderr(
+      "POLYEXEC_FAIL: PDERIVE_STATE rejected clone child import\n");
+    poly_x86_exit_group_now(125);
   }
-  if (poly_trace_syscalls_enabled()) {
-    fprintf(stderr,
-      "POLYEXEC_CLONE_CHILD_TRAP_RETURN: mode=%llu pc=0x%llx sp=0x%llx x0=0x%llx restore_rsp=0x%llx\n",
-      (unsigned long long) handoff->packet.mode,
-      (unsigned long long) handoff->state.header.foreign_pc,
-      (unsigned long long) handoff->state.aarch64_gpr[31],
-      (unsigned long long) handoff->state.aarch64_gpr[0],
-      (unsigned long long) handoff->state.trap_restore.x86_gpr[15]);
-  }
-  asm volatile(POLY_OP_TRAP_RETURN ::: "memory");
   __builtin_unreachable();
 }
 
 __attribute__((noinline, used))
-uint64_t poly_trap_vector_dispatch(void) {
+uint64_t poly_trap_vector_dispatch(
+    const struct poly_monitor_entry_frame *monitor_frame) {
   struct poly_runtime_event_record packet;
   struct poly_v2_event_frame event;
   struct poly_xsave_state trap_state __attribute__((aligned(64)));
@@ -7060,11 +7270,14 @@ uint64_t poly_trap_vector_dispatch(void) {
   int has_v2_event = 0;
 
   has_v2_event = read_poly_v2_event_frame(&event);
-  if (has_v2_event < 0)
+  if (has_v2_event < 0 &&
+      poly_monitor_entry_frame_to_runtime_packet(monitor_frame, &packet) < 0)
     return (uint64_t) -EIO;
   if (has_v2_event <= 0 ||
-      poly_v2_event_to_runtime_packet(&event, &packet) < 0)
-    return (uint64_t) -EIO;
+      poly_v2_event_to_runtime_packet(&event, &packet) < 0) {
+    if (poly_monitor_entry_frame_to_runtime_packet(monitor_frame, &packet) < 0)
+      return (uint64_t) -EIO;
+  }
   if ((packet.flags & POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE) != 0) {
     poly_state_export(&trap_state);
     has_trap_state = 1;
@@ -7203,10 +7416,7 @@ uint64_t poly_trap_vector_dispatch(void) {
       return poly_trap_vector_return_result(seccomp_control_result,
         &packet, &trap_state, has_trap_state);
     }
-    if (poly_disable_io_uring_enabled() &&
-        (x86_number == SYS_io_uring_setup ||
-         x86_number == SYS_io_uring_enter ||
-         x86_number == SYS_io_uring_register)) {
+    if (poly_disable_io_uring_enabled() && poly_is_io_uring_syscall(x86_number)) {
       poly_trace_syscall_result(&packet, "io-uring-disabled", x86_number,
         (uint64_t) -ENOSYS);
       return poly_trap_vector_return_result((uint64_t) -ENOSYS,
@@ -7240,12 +7450,15 @@ uint64_t poly_trap_vector_dispatch(void) {
       foreign_clone_child_stack = args[1];
       foreign_clone_tls =
         (args[0] & (uint64_t) CLONE_SETTLS) != 0 ? args[3] : 0;
+      const int host_clone_needs_tls =
+        (args[0] & ((uint64_t) CLONE_SETTLS | (uint64_t) CLONE_VM)) != 0;
       const uint64_t child_tid = args[4];
       args[3] = child_tid;
       args[4] = foreign_clone_tls;
-      if (foreign_clone_child_stack != 0) {
+      {
         raw_foreign_clone = 1;
-        if ((args[0] & (uint64_t) CLONE_VM) != 0 &&
+        if (foreign_clone_child_stack != 0 &&
+            (args[0] & (uint64_t) CLONE_VM) != 0 &&
             (args[0] & (uint64_t) CLONE_VFORK) != 0 &&
             (args[0] & (uint64_t) CLONE_THREAD) == 0) {
           uint64_t expanded_foreign_stack = 0;
@@ -7406,28 +7619,29 @@ uint64_t poly_trap_vector_dispatch(void) {
             (unsigned long long) musl_expected_exec,
             (unsigned long long) clone_handoff->state.state_key.explicit_key);
         }
-        if (clone_handoff->native_tls_base != 0)
+        if (host_clone_needs_tls && clone_handoff->native_tls_base != 0)
           args[0] |= (uint64_t) CLONE_SETTLS;
         else
           args[0] &= ~(uint64_t) CLONE_SETTLS;
-        args[1] = native_clone_child_stack;
-        args[4] = clone_handoff->native_tls_base;
-      }
-      else if (poly_trace_syscalls_enabled()) {
-        fprintf(stderr,
-          "POLYEXEC_CLONE_FORK: mode=%llu flags=0x%llx parent_tid=0x%llx child_tid=0x%llx tls=0x%llx\n",
-          (unsigned long long) packet.mode,
-          (unsigned long long) args[0],
-          (unsigned long long) args[2],
-          (unsigned long long) child_tid,
-          (unsigned long long) foreign_clone_tls);
+        if (foreign_clone_child_stack != 0)
+          args[1] = native_clone_child_stack;
+        args[4] = host_clone_needs_tls ? clone_handoff->native_tls_base : 0;
       }
     }
+    const int io_uring_syscall = poly_is_io_uring_syscall(x86_number);
+    if (io_uring_syscall &&
+        (poly_v2_runtime_features &
+          POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE) != 0)
+      (void) poly_fence_value(POLY_V2_FENCE_SCOPE_RELEASE);
     uint64_t syscall_result = raw_foreign_clone ?
       (uint64_t) poly_x86_clone_monitor_child(args[0], args[1], args[2],
-        args[3], args[4]) :
+        args[3], args[4], clone_handoff) :
       (uint64_t) poly_x86_syscall6(x86_number, args[0], args[1], args[2],
         args[3], args[4], args[5]);
+    if (io_uring_syscall &&
+        (poly_v2_runtime_features &
+          POLY_CPUID_V2_FEATURE_SHARED_MEMORY_FENCE) != 0)
+      (void) poly_fence_value(POLY_V2_FENCE_SCOPE_ACQUIRE);
     (void) clone_handoff;
     poly_trace_syscall_result(&packet, "generic", x86_number,
       syscall_result);
@@ -7449,357 +7663,13 @@ uint64_t poly_trap_vector_dispatch(void) {
     &packet, &trap_state, has_trap_state);
 }
 
-__attribute__((naked, noinline, used))
-static void poly_trap_vector_handler(void) {
-  __asm__(
-    "lock btsl $0, poly_trap_vector_stack_locks+0(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot0\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+4(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot1\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+8(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot2\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+12(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot3\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+16(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot4\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+20(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot5\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+24(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot6\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+28(%rip)\n"
-    "jnc .Lpoly_trap_vector_slot7\n"
-    ".Lpoly_trap_vector_wait:\n"
-    "pause\n"
-    "lock btsl $0, poly_trap_vector_stack_locks+0(%rip)\n"
-    "jc .Lpoly_trap_vector_wait\n"
-    ".Lpoly_trap_vector_slot0:\n"
-    "movq %r11, poly_trap_vector_stacks+65528(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+65520(%rip)\n"
-    "leaq poly_trap_vector_stacks+65520(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+65528(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+0(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    ".Lpoly_trap_vector_slot1:\n"
-    "movq %r11, poly_trap_vector_stacks+131064(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+131056(%rip)\n"
-    "leaq poly_trap_vector_stacks+131056(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+131064(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+4(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    ".Lpoly_trap_vector_slot2:\n"
-    "movq %r11, poly_trap_vector_stacks+196600(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+196592(%rip)\n"
-    "leaq poly_trap_vector_stacks+196592(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+196600(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+8(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    ".Lpoly_trap_vector_slot3:\n"
-    "movq %r11, poly_trap_vector_stacks+262136(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+262128(%rip)\n"
-    "leaq poly_trap_vector_stacks+262128(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+262136(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+12(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    ".Lpoly_trap_vector_slot4:\n"
-    "movq %r11, poly_trap_vector_stacks+327672(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+327664(%rip)\n"
-    "leaq poly_trap_vector_stacks+327664(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+327672(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+16(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    ".Lpoly_trap_vector_slot5:\n"
-    "movq %r11, poly_trap_vector_stacks+393208(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+393200(%rip)\n"
-    "leaq poly_trap_vector_stacks+393200(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+393208(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+20(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    ".Lpoly_trap_vector_slot6:\n"
-    "movq %r11, poly_trap_vector_stacks+458744(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+458736(%rip)\n"
-    "leaq poly_trap_vector_stacks+458736(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+458744(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+24(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n"
-    ".Lpoly_trap_vector_slot7:\n"
-    "movq %r11, poly_trap_vector_stacks+524280(%rip)\n"
-    "movq %rsp, poly_trap_vector_stacks+524272(%rip)\n"
-    "leaq poly_trap_vector_stacks+524272(%rip), %rsp\n"
-    "pushq %rbx\n"
-    "pushq %rcx\n"
-    "pushq %rdx\n"
-    "pushq %rsi\n"
-    "pushq %rdi\n"
-    "pushq %r8\n"
-    "pushq %r9\n"
-    "pushq %r10\n"
-    "pushq poly_trap_vector_stacks+524280(%rip)\n"
-    "pushq %r12\n"
-    "pushq %r13\n"
-    "pushq %r14\n"
-    "pushq %r15\n"
-    "pushq %rbp\n"
-    "movq %rsp, %rbp\n"
-    "andq $-16, %rsp\n"
-    "subq $128, %rsp\n"
-    "call poly_trap_vector_dispatch\n"
-    "movq %rbp, %rsp\n"
-    "popq %rbp\n"
-    "popq %r15\n"
-    "popq %r14\n"
-    "popq %r13\n"
-    "popq %r12\n"
-    "popq %r11\n"
-    "popq %r10\n"
-    "popq %r9\n"
-    "popq %r8\n"
-    "popq %rdi\n"
-    "popq %rsi\n"
-    "popq %rdx\n"
-    "popq %rcx\n"
-    "popq %rbx\n"
-    "movq (%rsp), %rsp\n"
-    "movl $0, poly_trap_vector_stack_locks+28(%rip)\n"
-    POLY_OP_TRAP_RETURN
-    "ud2\n");
+__attribute__((noreturn, noinline, used))
+static void poly_trap_vector_entry(void) {
+  const struct poly_monitor_entry_frame *monitor_frame;
+  asm volatile("movq %%r15, %0" : "=r"(monitor_frame) :: "memory");
+  (void) poly_trap_vector_dispatch(monitor_frame);
+  asm volatile(POLY_OP_TRAP_RETURN ::: "memory");
+  __builtin_unreachable();
 }
 
 static void install_poly_trap_vector(void) {
@@ -7812,14 +7682,20 @@ static void install_poly_trap_vector(void) {
   poly_event_illegal_count = 0;
   poly_event_other_count = 0;
   (void) refresh_poly_trap_event_frame();
+  if (poly_monitor_entry_set(1) < 0) {
+    poly_write_literal_stderr(
+      "POLYEXEC_FAIL: monitor entry contract rejected\n");
+    poly_x86_exit_group_now(125);
+  }
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
-  poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_handler);
+  poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_entry);
   poly_trap_vector_active = 1;
 }
 
 static void clear_poly_trap_vector(void) {
   poly_trap_vector_set_value(0);
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
+  (void) poly_monitor_entry_set(0);
   (void) poly_event_ptr_set(0, 0);
   poly_trap_vector_active = 0;
 }
@@ -8897,7 +8773,6 @@ __attribute__((noreturn))
 static void run_poly_process_entry(const uint8_t *code,
     uint64_t initial_sp, uint64_t tls_base, uint64_t x86_fs_base,
     uint64_t state_key, int use_trap_vector, int arch) {
-  (void) arch;
   if (x86_fs_base != 0) {
     register long rax __asm__("rax") = SYS_arch_prctl;
     register long rdi __asm__("rdi") = ARCH_SET_FS;
@@ -8932,16 +8807,49 @@ static void run_poly_process_entry(const uint8_t *code,
       : "memory");
   }
   if (use_trap_vector) {
-    uint64_t value = (uint64_t) (uintptr_t) &poly_runtime_event_frame;
-    uint64_t bytes = POLY_V2_EVENT_BYTES;
-    asm volatile(POLY_OP_EVENT_PTR_SET
-      : "+a"(value), "+d"(bytes)
-      :
-      : "memory");
-    value = POLY_MODE_X86;
-    asm volatile(POLY_OP_TRAP_VECTOR_MODE_SET : "+a"(value) :: "memory");
-    value = (uint64_t) (uintptr_t) poly_trap_vector_handler;
-    asm volatile(POLY_OP_TRAP_VECTOR_SET : "+a"(value) :: "memory");
+    if (refresh_poly_trap_event_frame() < 0 || poly_monitor_entry_set(1) < 0) {
+      poly_write_literal_stderr(
+        "POLYEXEC_FAIL: monitor entry contract rejected\n");
+      poly_x86_exit_group_now(125);
+    }
+    poly_trap_vector_mode_set_value(POLY_MODE_X86);
+    poly_trap_vector_set_value((uint64_t) (uintptr_t) poly_trap_vector_entry);
+  }
+  if (arch == POLY_ARCH_AARCH64 || arch == POLY_ARCH_RISCV) {
+    struct poly_xsave_state initial_state
+      __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
+    poly_state_export(&initial_state);
+    poly_clear_return_transition_state(&initial_state);
+    memset(&initial_state.event_record, 0, sizeof(initial_state.event_record));
+    memset(initial_state.event_args, 0, sizeof(initial_state.event_args));
+    memset(&initial_state.trap_restore, 0, sizeof(initial_state.trap_restore));
+    initial_state.header.current_mode = (uint32_t) arch;
+    initial_state.header.foreign_pc = (uint64_t) (uintptr_t)
+      (code + x86_penter_frontend_size_at(0, (uint32_t) arch));
+    initial_state.header.foreign_tls_base = tls_base;
+    initial_state.header.spill_reason = POLY_SPILL_REASON_NONE;
+    initial_state.frontend_tls.flags = 1;
+    initial_state.frontend_tls.active_mode = (uint64_t) arch;
+    initial_state.frontend_tls.aarch64_tls_base =
+      arch == POLY_ARCH_AARCH64 ? tls_base : 0;
+    initial_state.frontend_tls.riscv_tls_base =
+      arch == POLY_ARCH_RISCV ? tls_base : 0;
+    if (arch == POLY_ARCH_AARCH64) {
+      initial_state.aarch64_gpr[0] = 0;
+      initial_state.aarch64_gpr[31] = initial_sp;
+    } else {
+      initial_state.riscv_gpr[2] = initial_sp;
+      initial_state.riscv_gpr[4] = tls_base;
+      initial_state.riscv_gpr[10] = 0;
+    }
+    if (poly_activate_state_with_pderive(&initial_state) < 0) {
+      poly_write_literal_stderr(
+        "POLYEXEC_FAIL: initial PDERIVE activation rejected\n");
+      poly_x86_exit_group_now(125);
+    }
+    poly_write_literal_stderr(
+      "POLYEXEC_FAIL: initial PDERIVE activation returned\n");
+    poly_x86_exit_group_now(125);
   }
   asm volatile(
       "movq %0, %%r11\n"
