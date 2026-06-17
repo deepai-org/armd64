@@ -3401,9 +3401,8 @@ static long poly_x86_clone_monitor_child(uint64_t flags,
       "syscall\n"
       "testq %%rax, %%rax\n"
       "jnz 1f\n"
-      "movq %%r9, %%rdi\n"
-      "call poly_clone_child_entry\n"
-      "ud2\n"
+      "movq (%%rsp), %%rdi\n"
+      "jmp poly_clone_child_entry\n"
       "1:\n"
       : "+r"(rax)
       : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
@@ -6870,6 +6869,14 @@ static void poly_sanitize_trap_state_for_import(struct poly_xsave_state *state) 
     poly_sanitize_riscv_trap_restore_payload(&state->trap_restore);
 }
 
+static void poly_clear_completed_event_state(struct poly_xsave_state *state) {
+  memset(&state->event_record, 0, sizeof(state->event_record));
+  memset(state->event_args, 0, sizeof(state->event_args));
+  memset(state->pre_trap_restore_reserved, 0,
+    sizeof(state->pre_trap_restore_reserved));
+  memset(&state->trap_restore, 0, sizeof(state->trap_restore));
+}
+
 static void poly_set_clone_child_event_record_state(
     const struct poly_runtime_event_record *packet,
     struct poly_xsave_state *trap_state);
@@ -6937,6 +6944,8 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
   struct poly_xsave_state *return_state = &poly_trap_return_state;
   const struct poly_xsave_state *import_state = trap_state;
   int use_pderive_return = 0;
+  int restore_entry_stack_for_trap_restore = 0;
+  int completed_event_return = 0;
   if (has_trap_state && trap_state != NULL) {
     const int deliver_guest_illegal =
       packet->reason == POLY_TRAP_ILLEGAL &&
@@ -6948,6 +6957,8 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
       rt_sigreturn_resume_pc = trap_state->event_record.resume_pc != 0 ?
         trap_state->event_record.resume_pc : trap_state->header.foreign_pc;
     memcpy(return_state, trap_state, sizeof(*return_state));
+    return_state->header.current_mode = (uint32_t) packet->mode;
+    return_state->header.reserved0 = 0;
     poly_set_clone_child_event_record_state(packet, return_state);
     if (aarch64_rt_sigreturn && rt_sigreturn_resume_pc != 0) {
       return_state->event_record.trap_pc = rt_sigreturn_resume_pc;
@@ -6962,12 +6973,16 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
         return_state->header.foreign_pc = foreign_pc;
       }
     }
-    if (!deliver_guest_illegal &&
-        !poly_complete_event_result_registers(return_state, packet->mode,
-          result, packet->next_pc)) {
-      poly_write_literal_stderr(
-        "POLYEXEC_FAIL: PCOMPLETE_EVENT rejected trap result\n");
-      poly_x86_exit_group_now(125);
+    if (!deliver_guest_illegal) {
+      if (poly_complete_event_result_registers(return_state, packet->mode,
+            result, packet->next_pc)) {
+        use_pderive_return = 1;
+        completed_event_return = 1;
+      } else {
+        poly_write_literal_stderr(
+          "POLYEXEC_FAIL: PCOMPLETE_EVENT rejected trap result\n");
+        poly_x86_exit_group_now(125);
+      }
     }
     import_state = return_state;
     if (deliver_guest_illegal &&
@@ -6975,14 +6990,17 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
           ILL_ILLOPC)) {
       saved_result = return_state->trap_restore.aarch64_gpr[0];
       use_pderive_return = 1;
+      restore_entry_stack_for_trap_restore = 1;
     }
     else if (packet->mode == POLY_MODE_RAW_AARCH64 &&
         poly_try_deliver_aarch64_signal(return_state, 0, 0, 0)) {
       saved_result = return_state->trap_restore.aarch64_gpr[0];
       use_pderive_return = 1;
+      restore_entry_stack_for_trap_restore = 1;
     }
     else if (aarch64_rt_sigreturn) {
       use_pderive_return = 1;
+      restore_entry_stack_for_trap_restore = 1;
     }
   }
   poly_trace_trap_return_result(packet, import_state, has_trap_state, result);
@@ -7003,9 +7021,13 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
     }
     if (packet->reason == POLY_TRAP_SYSCALL &&
         packet->mode == POLY_MODE_RAW_AARCH64) {
-      return_state->aarch64_gpr[31] = poly_current_x86_rsp();
-      poly_clear_native_return_state(return_state);
+      if (restore_entry_stack_for_trap_restore) {
+        return_state->aarch64_gpr[31] = poly_current_x86_rsp();
+        poly_clear_native_return_state(return_state);
+      }
     }
+    if (completed_event_return && !restore_entry_stack_for_trap_restore)
+      poly_clear_completed_event_state(return_state);
     poly_sanitize_trap_state_for_import(return_state);
     if (poly_activate_state_with_pderive(return_state) < 0) {
       poly_write_literal_stderr(
@@ -7179,17 +7201,34 @@ static int poly_prepare_clone_child_handoff(
     }
   }
   handoff->packet = *packet;
+  uint64_t child_frontend_stack = foreign_stack;
+  if (child_frontend_stack == 0) {
+    if (packet->mode == POLY_MODE_RAW_AARCH64) {
+      if ((trap_state->trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) != 0 &&
+          trap_state->trap_restore.aarch64_gpr[31] != 0)
+        child_frontend_stack = trap_state->trap_restore.aarch64_gpr[31];
+      else
+        child_frontend_stack = trap_state->aarch64_gpr[31];
+    }
+    else if (packet->mode == POLY_MODE_RAW_RISCV) {
+      if ((trap_state->trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) != 0 &&
+          trap_state->trap_restore.riscv_gpr[2] != 0)
+        child_frontend_stack = trap_state->trap_restore.riscv_gpr[2];
+      else
+        child_frontend_stack = trap_state->riscv_gpr[2];
+    }
+  }
   struct poly_v2_derive_descriptor desc
     __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
   poly_init_derive_descriptor(&desc, packet->mode);
   desc.flags = POLY_V2_DERIVE_FLAG_CHILD_RETURN |
     POLY_V2_DERIVE_FLAG_CHILD_PC |
     POLY_V2_DERIVE_FLAG_CLEAR_EVENT_STATE;
-  if (foreign_stack != 0)
+  if (child_frontend_stack != 0)
     desc.flags |= POLY_V2_DERIVE_FLAG_CHILD_SP;
   if (foreign_tls != 0)
     desc.flags |= POLY_V2_DERIVE_FLAG_CHILD_TLS;
-  desc.child_sp = foreign_stack;
+  desc.child_sp = child_frontend_stack;
   desc.child_tls = foreign_tls;
   desc.child_return_value = 0;
   desc.child_pc = packet->next_pc;
@@ -7202,8 +7241,6 @@ static int poly_prepare_clone_child_handoff(
     return -1;
   }
   handoff->state.header.current_mode = (uint32_t) packet->mode;
-  if (packet->mode == POLY_MODE_RAW_AARCH64)
-    poly_clear_native_return_state(&handoff->state);
   handoff->state.header.reserved0 = 0;
   handoff->mapping = handoff;
   handoff->mapping_size = mapping_size;
@@ -7226,12 +7263,6 @@ __attribute__((noreturn, noinline, used))
 static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
   if (handoff == NULL)
     poly_x86_exit_group_now(127);
-  if (polyexec_use_explicit_state_key) {
-    const uint64_t key = (uint64_t) (uintptr_t) &handoff->state_key_anchor;
-    if (key == 0 || poly_state_key_set(key) != 0 ||
-        poly_state_key_get() != key)
-      poly_x86_exit_group_now(126);
-  }
   if (install_poly_signal_diagnostics() < 0)
     poly_x86_exit_group_now(125);
   if (poly_trace_syscalls_enabled()) {
@@ -7252,11 +7283,18 @@ static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
   poly_trap_vector_mode_set_value(POLY_MODE_X86);
   poly_trap_vector_set_value((uint64_t) (void *) poly_trap_vector_entry);
   poly_sanitize_trap_state_for_import(&handoff->state);
-  if (poly_activate_state_with_pderive(&handoff->state) < 0) {
+  const uint64_t frontend = handoff->state.header.current_mode;
+  struct poly_v2_derive_descriptor desc
+    __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+  poly_init_derive_descriptor(&desc, frontend);
+  desc.flags = POLY_V2_DERIVE_FLAG_ACTIVATE_DST;
+  if (poly_derive_state_value(&handoff->state, &handoff->state, &desc) != 0) {
     poly_write_literal_stderr(
       "POLYEXEC_FAIL: PDERIVE_STATE rejected clone child import\n");
     poly_x86_exit_group_now(125);
   }
+  register uint64_t r15 __asm__("r15") = frontend;
+  asm volatile(POLY_OP_PENTER_MODE : "+r"(r15) :: "memory");
   __builtin_unreachable();
 }
 
@@ -7579,7 +7617,7 @@ uint64_t poly_trap_vector_dispatch(
             }
           }
           fprintf(stderr,
-            "POLYEXEC_CLONE_HANDOFF: mode=%llu flags=0x%llx pc=0x%llx next=0x%llx foreign_stack=0x%llx foreign_tls=0x%llx parent_tid=0x%llx child_tid=0x%llx native_stack=0x%llx native_tls=0x%llx restore_rsp=0x%llx a64_x10=0x%llx a64_x12=0x%llx a64_pd_start=0x%llx a64_pd_arg=0x%llx a64_x29=0x%llx a64_x30=0x%llx stack_ok=%d stack_q0=0x%llx stack_q1=0x%llx start0=0x%llx start1=0x%llx start2=0x%llx start3=0x%llx start_arg0=0x%llx start_arg1=0x%llx start_arg2=0x%llx start_arg3=0x%llx start_global=0x%llx spawn_exec_arg=0x%llx spawn_actions=0x%llx spawn_thread=0x%llx spawn_exec_arg1=0x%llx spawn_exec_arg2=0x%llx spawn_thread_exec=0x%llx musl_default_exec=0x%llx musl_expected_exec=0x%llx state_key=0x%llx\n",
+            "POLYEXEC_CLONE_HANDOFF: mode=%llu flags=0x%llx pc=0x%llx next=0x%llx foreign_stack=0x%llx foreign_tls=0x%llx parent_tid=0x%llx child_tid=0x%llx native_stack=0x%llx native_tls=0x%llx restore_rsp=0x%llx a64_x10=0x%llx a64_x12=0x%llx a64_pd_start=0x%llx a64_pd_arg=0x%llx a64_x29=0x%llx a64_x30=0x%llx a64_x31=0x%llx stack_ok=%d stack_q0=0x%llx stack_q1=0x%llx start0=0x%llx start1=0x%llx start2=0x%llx start3=0x%llx start_arg0=0x%llx start_arg1=0x%llx start_arg2=0x%llx start_arg3=0x%llx start_global=0x%llx spawn_exec_arg=0x%llx spawn_actions=0x%llx spawn_thread=0x%llx spawn_exec_arg1=0x%llx spawn_exec_arg2=0x%llx spawn_thread_exec=0x%llx musl_default_exec=0x%llx musl_expected_exec=0x%llx state_key=0x%llx\n",
             (unsigned long long) packet.mode,
             (unsigned long long) args[0],
             (unsigned long long) packet.pc,
@@ -7597,6 +7635,7 @@ uint64_t poly_trap_vector_dispatch(
             (unsigned long long) aarch64_pthread_arg,
             (unsigned long long) clone_handoff->state.aarch64_gpr[29],
             (unsigned long long) clone_handoff->state.aarch64_gpr[30],
+            (unsigned long long) clone_handoff->state.aarch64_gpr[31],
             foreign_stack_words_ok,
             (unsigned long long) foreign_stack_word0,
             (unsigned long long) foreign_stack_word1,
@@ -7623,8 +7662,7 @@ uint64_t poly_trap_vector_dispatch(
           args[0] |= (uint64_t) CLONE_SETTLS;
         else
           args[0] &= ~(uint64_t) CLONE_SETTLS;
-        if (foreign_clone_child_stack != 0)
-          args[1] = native_clone_child_stack;
+        args[1] = native_clone_child_stack;
         args[4] = host_clone_needs_tls ? clone_handoff->native_tls_base : 0;
       }
     }
