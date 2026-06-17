@@ -1880,10 +1880,11 @@ static void poly_dump_native_signal_context_stderr(void *ucontext) {
     return;
   const ucontext_t *ctx = (const ucontext_t *) ucontext;
   const greg_t *regs = ctx->uc_mcontext.gregs;
+  const uint64_t rsp = (uint64_t) regs[REG_RSP];
   poly_write_literal_stderr("POLYEXEC_NATIVE_CONTEXT: rip=0x");
   poly_write_hex64_stderr((uint64_t) regs[REG_RIP]);
   poly_write_literal_stderr(" rsp=0x");
-  poly_write_hex64_stderr((uint64_t) regs[REG_RSP]);
+  poly_write_hex64_stderr(rsp);
   poly_write_literal_stderr(" rbp=0x");
   poly_write_hex64_stderr((uint64_t) regs[REG_RBP]);
   poly_write_literal_stderr(" rax=0x");
@@ -1895,6 +1896,22 @@ static void poly_dump_native_signal_context_stderr(void *ucontext) {
   poly_write_literal_stderr(" rdx=0x");
   poly_write_hex64_stderr((uint64_t) regs[REG_RDX]);
   poly_write_literal_stderr("\n");
+  if (rsp != 0 && poly_guest_range_is_mapped(rsp, 4 * sizeof(uint64_t), 0)) {
+    const uint64_t *stack = (const uint64_t *) (uintptr_t) rsp;
+    poly_write_literal_stderr("POLYEXEC_NATIVE_STACK: sp0=0x");
+    poly_write_hex64_stderr(stack[0]);
+    poly_write_literal_stderr(" sp1=0x");
+    poly_write_hex64_stderr(stack[1]);
+    poly_write_literal_stderr(" sp2=0x");
+    poly_write_hex64_stderr(stack[2]);
+    poly_write_literal_stderr(" sp3=0x");
+    poly_write_hex64_stderr(stack[3]);
+    poly_write_literal_stderr(" fs=0x");
+    poly_write_hex64_stderr(get_x86_fs_base());
+    poly_write_literal_stderr(" state_key=0x");
+    poly_write_hex64_stderr(poly_state_key_get());
+    poly_write_literal_stderr("\n");
+  }
 #else
   (void) ucontext;
 #endif
@@ -3684,32 +3701,10 @@ static uint64_t poly_dispatch_private_exec_file_mmap(uint64_t address,
   return (uint64_t) (uintptr_t) mapping;
 }
 
-static void poly_sanitize_guest_sigaction(struct poly_linux_ksigaction *action) {
-  if (action->handler != (uint64_t) (uintptr_t) SIG_DFL &&
-      action->handler != (uint64_t) (uintptr_t) SIG_IGN) {
-    action->handler = (uint64_t) (uintptr_t) SIG_DFL;
-    action->flags = 0;
-  }
-  action->restorer = 0;
-}
-
 static int poly_guest_write_ksigaction(uint64_t address,
     const struct poly_linux_ksigaction *value);
 static int poly_guest_read_ksigaction(uint64_t address,
     struct poly_linux_ksigaction *out);
-
-static void poly_store_default_guest_sigaction(uint64_t oldact) {
-  if (oldact == 0)
-    return;
-  struct poly_linux_ksigaction guest_oldact;
-  memset(&guest_oldact, 0, sizeof(guest_oldact));
-  guest_oldact.handler = (uint64_t) (uintptr_t) SIG_DFL;
-  if (!poly_guest_write_ksigaction(oldact, &guest_oldact)) {
-    poly_write_literal_stderr("POLYEXEC_GUEST_SIGACTION_BADPTR: oldact=0x");
-    poly_write_hex64_stderr(oldact);
-    poly_write_literal_stderr("\n");
-  }
-}
 
 static void poly_store_guest_signal_action(uint64_t signum, uint64_t oldact) {
   if (oldact == 0)
@@ -3987,9 +3982,12 @@ static int poly_guest_signal_action_deliverable(uint64_t signum,
       handler == (uint64_t) (uintptr_t) SIG_IGN ||
       handler == 0)
     return 0;
-  uint64_t restorer = action->restorer;
-  if (restorer == 0)
-    restorer = poly_aarch64_vdso_rt_sigreturn;
+  /*
+   * AArch64 Linux does not require user sigaction restorers.  Keep virtual
+   * signal return on polyexec's controlled VDSO path so sigreturn import is
+   * always mediated by PDERIVE_STATE.
+   */
+  uint64_t restorer = poly_aarch64_vdso_rt_sigreturn;
   if (restorer == 0) {
     poly_write_literal_stderr(
       "POLYEXEC_GUEST_SIGNAL_NO_RESTORER: signum=0x");
@@ -4660,22 +4658,29 @@ static uint64_t poly_dispatch_rt_sigaction(uint64_t mode, uint64_t signum,
     return (uint64_t) -ENOSYS;
   if (sigsetsize != 8)
     return (uint64_t) -EINVAL;
+  if (signum == 0 || signum >= sizeof(poly_guest_signal_action_shadow_valid))
+    return (uint64_t) -EINVAL;
+  if (act != 0 && (signum == SIGKILL || signum == SIGSTOP))
+    return (uint64_t) -EINVAL;
+
+  struct poly_linux_ksigaction guest_act;
+  int have_guest_act = 0;
+  if (act != 0) {
+    have_guest_act = poly_guest_read_ksigaction(act, &guest_act);
+    if (!have_guest_act) {
+      poly_write_literal_stderr("POLYEXEC_GUEST_SIGACTION_BADPTR: act=0x");
+      poly_write_hex64_stderr(act);
+      poly_write_literal_stderr("\n");
+      return (uint64_t) -EFAULT;
+    }
+  }
+
   const int protected_runtime_signal =
     poly_is_protected_runtime_signal(signum);
   if (signum == SIGCHLD && poly_virtual_sigchld_enabled())
     return poly_dispatch_virtual_sigchld_action(act, oldact);
   if (signum == SIGSEGV || signum == SIGBUS || signum == SIGILL ||
       protected_runtime_signal) {
-    struct poly_linux_ksigaction guest_act;
-    int have_guest_act = 0;
-    if (act != 0) {
-      have_guest_act = poly_guest_read_ksigaction(act, &guest_act);
-      if (!have_guest_act) {
-        poly_write_literal_stderr("POLYEXEC_GUEST_SIGACTION_BADPTR: act=0x");
-        poly_write_hex64_stderr(act);
-        poly_write_literal_stderr("\n");
-      }
-    }
     if (poly_trace_protected_signal_waits_enabled()) {
       poly_write_literal_stderr("POLYEXEC_GUEST_SIGACTION_VIRTUAL: signum=0x");
       poly_write_hex64_stderr(signum);
@@ -4716,38 +4721,24 @@ static uint64_t poly_dispatch_rt_sigaction(uint64_t mode, uint64_t signum,
     return 0;
   }
 
-  struct poly_linux_ksigaction host_act;
-  struct poly_linux_ksigaction host_oldact;
-  struct poly_linux_ksigaction *host_act_ptr = NULL;
-  struct poly_linux_ksigaction *host_oldact_ptr = NULL;
+  poly_store_guest_signal_action(signum, oldact);
+  if (!have_guest_act)
+    return 0;
 
-  if (act != 0) {
-    if (!poly_guest_read_ksigaction(act, &host_act)) {
-      poly_write_literal_stderr("POLYEXEC_GUEST_SIGACTION_BADPTR: act=0x");
-      poly_write_hex64_stderr(act);
-      poly_write_literal_stderr("\n");
-      return 0;
-    }
-    poly_sanitize_guest_sigaction(&host_act);
-    host_act_ptr = &host_act;
-  }
-  if (oldact != 0) {
-    memset(&host_oldact, 0, sizeof(host_oldact));
-    host_oldact_ptr = &host_oldact;
-  }
+  poly_guest_signal_action_shadow[signum] = guest_act;
+  poly_guest_signal_action_shadow_valid[signum] = 1;
 
-  long status = poly_x86_syscall6(SYS_rt_sigaction, signum,
-    (uint64_t) (uintptr_t) host_act_ptr,
-    (uint64_t) (uintptr_t) host_oldact_ptr, sigsetsize, 0, 0);
-  if (status == 0 && oldact != 0) {
-    poly_sanitize_guest_sigaction(&host_oldact);
-    if (!poly_guest_write_ksigaction(oldact, &host_oldact)) {
-      poly_write_literal_stderr("POLYEXEC_GUEST_SIGACTION_BADPTR: oldact=0x");
-      poly_write_hex64_stderr(oldact);
-      poly_write_literal_stderr("\n");
-    }
+  if (guest_act.handler == (uint64_t) (uintptr_t) SIG_DFL ||
+      guest_act.handler == (uint64_t) (uintptr_t) SIG_IGN) {
+    void (*host_handler)(int) =
+      guest_act.handler == (uint64_t) (uintptr_t) SIG_IGN ? SIG_IGN : SIG_DFL;
+    if (poly_set_host_signal_handler(signum, host_handler) < 0)
+      return (uint64_t) -errno;
+  } else if (signum < 8U * sizeof(poly_pending_virtual_signal_mask)) {
+    if (poly_set_host_virtual_signal_handler(signum, &guest_act) < 0)
+      return (uint64_t) -errno;
   }
-  return (uint64_t) status;
+  return 0;
 }
 
 static void poly_prefault_range(uint64_t address, uint64_t length,
@@ -7115,6 +7106,13 @@ static void poly_clear_return_transition_state(
   poly_clear_native_return_state(state);
 }
 
+static void poly_reset_monitor_thread_runtime_caches(void) {
+  poly_runtime_signal_alt_stack_installed = 0;
+  poly_monitor_entry_stack_mapping = NULL;
+  poly_monitor_entry_stack_mapping_size = 0;
+  poly_monitor_entry_stack_prefaulted = 0;
+}
+
 #define POLY_CLONE_MONITOR_STACK_SIZE (256U * 1024U)
 #define POLY_CLONE_VFORK_FOREIGN_STACK_SIZE (256U * 1024U)
 #define POLY_CLONE_NATIVE_TLS_BEFORE (256U * 1024U)
@@ -7164,6 +7162,19 @@ static int poly_prepare_clone_native_tls(
     if (poly_guest_range_is_mapped(source, POLY_CLONE_NATIVE_TLS_PAGE, 0))
       memcpy(mapping + offset, (const void *) (uintptr_t) source,
         POLY_CLONE_NATIVE_TLS_PAGE);
+  }
+
+  /*
+   * Static TLS access may go through copied TCB/DTV pointers, not only direct
+   * negative FS offsets.  Re-home any pointer that still targets the copied
+   * parent TLS window so the raw clone monitor child never observes mixed
+   * parent/child TLS state.
+   */
+  for (size_t offset = 0; offset + sizeof(uint64_t) <= mapping_size;
+       offset += sizeof(uint64_t)) {
+    uint64_t *slot = (uint64_t *) (void *) (mapping + offset);
+    if (*slot >= source_base && *slot < source_end)
+      *slot = (uint64_t) (uintptr_t) mapping + (*slot - source_base);
   }
 
   handoff->native_tls_mapping = mapping;
@@ -7263,6 +7274,11 @@ __attribute__((noreturn, noinline, used))
 static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
   if (handoff == NULL)
     poly_x86_exit_group_now(127);
+  if (polyexec_use_explicit_state_key &&
+      (handoff->state.state_key.explicit_key == 0 ||
+       poly_state_key_set(handoff->state.state_key.explicit_key) != 0))
+    poly_x86_exit_group_now(125);
+  poly_reset_monitor_thread_runtime_caches();
   if (install_poly_signal_diagnostics() < 0)
     poly_x86_exit_group_now(125);
   if (poly_trace_syscalls_enabled()) {
