@@ -639,6 +639,7 @@ static __thread int poly_guest_sigmask_shadow_valid;
 static uint64_t poly_aarch64_vdso_rt_sigreturn;
 static volatile sig_atomic_t poly_pending_virtual_signal_mask;
 static __thread uint64_t poly_aarch64_active_signal_frame;
+static __thread uint64_t poly_riscv_active_signal_frame;
 static __thread uint64_t poly_aarch64_guest_sigaltstack_sp;
 static __thread uint64_t poly_aarch64_guest_sigaltstack_size;
 static __thread int32_t poly_aarch64_guest_sigaltstack_flags = 2;
@@ -730,13 +731,15 @@ struct poly_linux_ksigaction {
 };
 
 #define POLY_AARCH64_VSIGFRAME_MAGIC 0x50534c4147534631ULL
+#define POLY_RISCV_VSIGFRAME_MAGIC 0x50534c5256534631ULL
 #define POLY_AARCH64_GPR_VALID_MASK 0x7fffffffULL
 #define POLY_AARCH64_GPR_VALID_MASK_FULL 0xffffffffULL
+#define POLY_RISCV_GPR_VALID_MASK_FULL 0xffffffffULL
 #define POLY_AARCH64_NZCV_MASK 0x0fULL
 #define POLY_AARCH64_FPCR_RMODE_MASK (3ULL << 22)
 #define POLY_AARCH64_FPSR_MASK 0x9fULL
 #define POLY_RISCV_FCSR_MASK 0xffULL
-#define POLY_AARCH64_VSIG_STACK_SIZE 65536U
+#define POLY_VSIG_STACK_SIZE 65536U
 #define POLY_LINUX_SA_ONSTACK 0x08000000ULL
 #define POLY_LINUX_SS_ONSTACK 1
 #define POLY_LINUX_SS_DISABLE 2
@@ -867,6 +870,52 @@ struct poly_aarch64_virtual_signal_frame {
   uint64_t interrupted_pc;
 };
 
+struct poly_riscv_siginfo {
+  int32_t si_signo;
+  int32_t si_errno;
+  int32_t si_code;
+  int32_t reserved0;
+  uint64_t fault_addr;
+  uint8_t reserved[104];
+};
+
+struct poly_riscv_sigcontext {
+  uint64_t pc;
+  uint64_t regs[32];
+  uint64_t fcsr;
+  uint8_t reserved[512];
+};
+
+struct poly_riscv_ucontext {
+  uint64_t uc_flags;
+  uint64_t uc_link;
+  uint64_t stack_sp;
+  int32_t stack_flags;
+  uint32_t stack_pad;
+  uint64_t stack_size;
+  uint64_t sigmask;
+  uint8_t reserved[128];
+  struct poly_riscv_sigcontext mcontext;
+};
+
+struct poly_riscv_virtual_signal_frame {
+  uint64_t magic;
+  uint64_t size;
+  uint64_t signum;
+  uint64_t handler_args[4];
+  struct poly_riscv_siginfo siginfo;
+  struct poly_riscv_ucontext ucontext;
+  struct poly_event_record saved_event_record;
+  uint64_t saved_event_args[POLY_V2_EVENT_ARG_COUNT];
+  struct poly_trap_restore_state saved_trap_restore;
+  struct poly_native_return_state saved_native_return;
+  uint64_t riscv_gpr[32];
+  struct poly_u128 riscv_fp[32];
+  uint64_t riscv_fcsr;
+  uint64_t guest_sigmask;
+  uint64_t interrupted_pc;
+};
+
 static struct poly_linux_ksigaction poly_guest_signal_action_shadow[65];
 static unsigned char poly_guest_signal_action_shadow_valid[65];
 
@@ -909,6 +958,8 @@ static void poly_clear_foreign_return_transition_state(
 static void poly_clear_return_transition_state(struct poly_xsave_state *state);
 static int poly_guest_read_u64(uint64_t address, uint64_t *out);
 static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
+    uint64_t forced_signum, uint64_t fault_address, uint64_t fault_code);
+static int poly_try_deliver_riscv_signal(struct poly_xsave_state *state,
     uint64_t forced_signum, uint64_t fault_address, uint64_t fault_code);
 static int poly_trace_protected_signal_waits_enabled(void);
 static int poly_guest_range_is_mapped(uint64_t address, size_t length,
@@ -3971,7 +4022,7 @@ static int poly_guest_write_ksigaction(uint64_t address,
   return 1;
 }
 
-static int poly_guest_signal_action_deliverable(uint64_t signum,
+static int poly_guest_signal_action_deliverable(uint64_t mode, uint64_t signum,
     uint64_t *handler_out, uint64_t *restorer_out, uint64_t *flags_out,
     uint64_t *mask_out) {
   if (signum >= sizeof(poly_guest_signal_action_shadow_valid) ||
@@ -3984,12 +4035,19 @@ static int poly_guest_signal_action_deliverable(uint64_t signum,
       handler == (uint64_t) (uintptr_t) SIG_IGN ||
       handler == 0)
     return 0;
-  /*
-   * AArch64 Linux does not require user sigaction restorers.  Keep virtual
-   * signal return on polyexec's controlled VDSO path so sigreturn import is
-   * always mediated by PDERIVE_STATE.
-   */
-  uint64_t restorer = poly_aarch64_vdso_rt_sigreturn;
+  uint64_t restorer = 0;
+  if (mode == POLY_MODE_RAW_AARCH64) {
+    /*
+     * AArch64 Linux does not require user sigaction restorers.  Keep virtual
+     * signal return on polyexec's controlled VDSO path so sigreturn import is
+     * always mediated by PDERIVE_STATE.
+     */
+    restorer = poly_aarch64_vdso_rt_sigreturn;
+  } else if (mode == POLY_MODE_RAW_RISCV) {
+    restorer = action->restorer;
+  } else {
+    return 0;
+  }
   if (restorer == 0) {
     poly_write_literal_stderr(
       "POLYEXEC_GUEST_SIGNAL_NO_RESTORER: signum=0x");
@@ -4023,8 +4081,11 @@ static int64_t poly_dispatch_guest_sigaltstack(uint64_t mode,
     &poly_riscv_guest_sigaltstack_size : &poly_aarch64_guest_sigaltstack_size;
   int32_t *guest_flags = mode == POLY_MODE_RAW_RISCV ?
     &poly_riscv_guest_sigaltstack_flags : &poly_aarch64_guest_sigaltstack_flags;
-  const int on_signal_stack = mode == POLY_MODE_RAW_AARCH64 &&
-    poly_aarch64_active_signal_frame != 0;
+  const int on_signal_stack =
+    (mode == POLY_MODE_RAW_AARCH64 &&
+      poly_aarch64_active_signal_frame != 0) ||
+    (mode == POLY_MODE_RAW_RISCV &&
+      poly_riscv_active_signal_frame != 0);
 
   if (old_stack_addr != 0) {
     if (!poly_guest_range_is_mapped(old_stack_addr,
@@ -4099,7 +4160,8 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   uint64_t action_mask = 0;
   if (forced_signum != 0) {
     if (state->header.current_mode != POLY_MODE_RAW_AARCH64 ||
-        !poly_guest_signal_action_deliverable(forced_signum, &handler,
+        !poly_guest_signal_action_deliverable(POLY_MODE_RAW_AARCH64,
+          forced_signum, &handler,
           &restorer, &action_flags, &action_mask))
       return 0;
     signum = forced_signum;
@@ -4114,8 +4176,8 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
         continue;
       if (poly_guest_signal_mask_blocks(candidate))
         continue;
-      if (poly_guest_signal_action_deliverable(candidate, &handler, &restorer,
-            &action_flags, &action_mask)) {
+      if (poly_guest_signal_action_deliverable(POLY_MODE_RAW_AARCH64,
+            candidate, &handler, &restorer, &action_flags, &action_mask)) {
         signum = candidate;
         break;
       }
@@ -4129,7 +4191,7 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   const size_t frame_size =
     (sizeof(struct poly_aarch64_virtual_signal_frame) + 15U) & ~(size_t) 15U;
   const size_t total_size = call_area_size + frame_size;
-  const size_t stack_size = POLY_AARCH64_VSIG_STACK_SIZE;
+  const size_t stack_size = POLY_VSIG_STACK_SIZE;
   uint64_t saved_gpr[32];
   struct poly_u128 saved_fp[32];
   uint64_t saved_nzcv = state->aarch64_status.nzcv;
@@ -4364,6 +4426,236 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
   return 1;
 }
 
+static int poly_try_deliver_riscv_signal(struct poly_xsave_state *state,
+    uint64_t forced_signum, uint64_t fault_address, uint64_t fault_code) {
+  if (state == NULL || poly_riscv_active_signal_frame != 0)
+    return 0;
+
+  uint64_t signum = 0;
+  uint64_t handler = 0;
+  uint64_t restorer = 0;
+  uint64_t action_flags = 0;
+  uint64_t action_mask = 0;
+  if (forced_signum != 0) {
+    if (state->header.current_mode != POLY_MODE_RAW_RISCV ||
+        !poly_guest_signal_action_deliverable(POLY_MODE_RAW_RISCV,
+          forced_signum, &handler, &restorer, &action_flags, &action_mask))
+      return 0;
+    signum = forced_signum;
+  } else {
+    if (poly_pending_virtual_signal_mask == 0 ||
+        state->event_record.source_mode != POLY_MODE_RAW_RISCV)
+      return 0;
+    for (uint64_t candidate = 1; candidate <= 31; candidate++) {
+      const sig_atomic_t bit =
+        (sig_atomic_t) (1U << (unsigned) (candidate - 1));
+      if ((poly_pending_virtual_signal_mask & bit) == 0)
+        continue;
+      if (poly_guest_signal_mask_blocks(candidate))
+        continue;
+      if (poly_guest_signal_action_deliverable(POLY_MODE_RAW_RISCV,
+            candidate, &handler, &restorer, &action_flags, &action_mask)) {
+        signum = candidate;
+        break;
+      }
+      poly_pending_virtual_signal_mask &= ~bit;
+    }
+  }
+  if (signum == 0)
+    return 0;
+
+  const size_t call_area_size = 32U;
+  const size_t frame_size =
+    (sizeof(struct poly_riscv_virtual_signal_frame) + 15U) & ~(size_t) 15U;
+  const size_t total_size = call_area_size + frame_size;
+  const size_t stack_size = POLY_VSIG_STACK_SIZE;
+  uint64_t saved_gpr[32];
+  struct poly_u128 saved_fp[32];
+  uint64_t saved_fcsr = state->riscv_status.fcsr;
+  memcpy(saved_gpr, state->riscv_gpr, sizeof(saved_gpr));
+  memcpy(saved_fp, state->riscv_fp, sizeof(saved_fp));
+  if ((state->trap_restore.flags &
+        (POLY_TRAP_RESTORE_FLAG_VALID |
+         POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID)) ==
+        (POLY_TRAP_RESTORE_FLAG_VALID |
+         POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID) &&
+      state->trap_restore.mode == POLY_MODE_RAW_RISCV &&
+      state->trap_restore.riscv_gpr_valid_mask != 0) {
+    memcpy(saved_gpr, state->trap_restore.riscv_gpr, sizeof(saved_gpr));
+    memcpy(saved_fp, state->trap_restore.riscv_fp, sizeof(saved_fp));
+    saved_fcsr = state->trap_restore.riscv_fcsr;
+  }
+  saved_gpr[0] = 0;
+  const uint64_t sp = saved_gpr[2];
+  uint64_t interrupted_pc = state->header.foreign_pc;
+  if (forced_signum == 0 &&
+      state->event_record.source_mode == POLY_MODE_RAW_RISCV &&
+      state->event_record.resume_pc != 0)
+    interrupted_pc = state->event_record.resume_pc;
+  if (interrupted_pc == 0 && state->event_record.resume_pc != 0)
+    interrupted_pc = state->event_record.resume_pc;
+  if (interrupted_pc == 0 && state->event_record.trap_pc != 0)
+    interrupted_pc = state->event_record.trap_pc;
+  if (interrupted_pc == 0 && state->riscv_gpr[1] != 0 &&
+      poly_guest_range_is_mapped(state->riscv_gpr[1], 4, 0))
+    interrupted_pc = state->riscv_gpr[1];
+  if (total_size >= stack_size)
+    return 0;
+  uint64_t stack_top = 0;
+  const int use_altstack =
+    (action_flags & POLY_LINUX_SA_ONSTACK) != 0 &&
+    (poly_riscv_guest_sigaltstack_flags & POLY_LINUX_SS_DISABLE) == 0 &&
+    poly_riscv_guest_sigaltstack_size >= total_size &&
+    poly_guest_range_is_mapped(poly_riscv_guest_sigaltstack_sp,
+      (size_t) poly_riscv_guest_sigaltstack_size, 1);
+  if (use_altstack) {
+    stack_top = poly_riscv_guest_sigaltstack_sp +
+      poly_riscv_guest_sigaltstack_size;
+  } else {
+    if (sp < (uint64_t) total_size)
+      return 0;
+    stack_top = sp;
+  }
+  const uint64_t signal_sp = (stack_top - (uint64_t) total_size) & ~0xfULL;
+  const uint64_t frame_sp = signal_sp + (uint64_t) call_area_size;
+  if (!poly_guest_range_is_mapped(signal_sp, total_size, 1))
+    poly_prefault_range(signal_sp, (uint64_t) total_size, 1);
+  if (!poly_guest_range_is_mapped(signal_sp, total_size, 1)) {
+    poly_write_literal_stderr("POLYEXEC_GUEST_RISCV_SIGNAL_FRAME_BADSP: signum=0x");
+    poly_write_hex64_stderr(signum);
+    poly_write_literal_stderr(" sp=0x");
+    poly_write_hex64_stderr(sp);
+    poly_write_literal_stderr(" frame=0x");
+    poly_write_hex64_stderr(frame_sp);
+    poly_write_literal_stderr("\n");
+    return 0;
+  }
+
+  struct poly_riscv_virtual_signal_frame frame;
+  memset(&frame, 0, sizeof(frame));
+  frame.magic = POLY_RISCV_VSIGFRAME_MAGIC;
+  frame.size = sizeof(frame);
+  frame.signum = signum;
+  frame.handler_args[1] = signum;
+  frame.handler_args[2] = frame_sp +
+    offsetof(struct poly_riscv_virtual_signal_frame, siginfo);
+  frame.handler_args[3] = frame_sp +
+    offsetof(struct poly_riscv_virtual_signal_frame, ucontext);
+  frame.siginfo.si_signo = (int32_t) signum;
+  frame.siginfo.si_code = (int32_t) fault_code;
+  frame.siginfo.fault_addr = fault_address;
+  frame.ucontext.mcontext.pc = interrupted_pc;
+  memcpy(frame.ucontext.mcontext.regs, saved_gpr,
+    sizeof(frame.ucontext.mcontext.regs));
+  frame.ucontext.mcontext.regs[0] = 0;
+  frame.ucontext.mcontext.fcsr = saved_fcsr & POLY_RISCV_FCSR_MASK;
+  frame.ucontext.stack_sp = poly_riscv_guest_sigaltstack_sp;
+  frame.ucontext.stack_flags = poly_riscv_guest_sigaltstack_flags;
+  if (use_altstack)
+    frame.ucontext.stack_flags |= POLY_LINUX_SS_ONSTACK;
+  frame.ucontext.stack_size = poly_riscv_guest_sigaltstack_size;
+  frame.saved_event_record = state->event_record;
+  memcpy(frame.saved_event_args, state->event_args,
+    sizeof(frame.saved_event_args));
+  frame.saved_trap_restore = state->trap_restore;
+  if (frame.saved_event_record.reason == 0)
+    memset(frame.saved_event_args, 0, sizeof(frame.saved_event_args));
+  if (frame.saved_trap_restore.x86_gpr[15] == 0)
+    frame.saved_trap_restore.x86_gpr[15] = poly_current_x86_rsp();
+  frame.saved_native_return = state->native_return;
+  poly_clear_native_return_state(state);
+  memcpy(frame.riscv_gpr, saved_gpr, sizeof(frame.riscv_gpr));
+  frame.riscv_gpr[0] = 0;
+  memcpy(frame.riscv_fp, saved_fp, sizeof(frame.riscv_fp));
+  frame.riscv_fcsr = saved_fcsr & POLY_RISCV_FCSR_MASK;
+  frame.guest_sigmask = poly_guest_sigmask_shadow_valid ?
+    poly_guest_sigmask_shadow : 0;
+  frame.interrupted_pc = interrupted_pc;
+  uint64_t *handler_args = (uint64_t *) (uintptr_t) signal_sp;
+  handler_args[1] = signum;
+  handler_args[2] = frame.handler_args[2];
+  handler_args[3] = frame.handler_args[3];
+  memcpy((void *) (uintptr_t) frame_sp, &frame, sizeof(frame));
+
+  if (forced_signum == 0)
+    poly_pending_virtual_signal_mask &=
+      ~((sig_atomic_t) (1U << (unsigned) (signum - 1)));
+  uint64_t handler_sigmask = frame.guest_sigmask | action_mask;
+  if ((action_flags & SA_NODEFER) == 0)
+    handler_sigmask = poly_sigset_add_signal(handler_sigmask, (int) signum);
+  poly_guest_sigmask_shadow = handler_sigmask;
+  poly_guest_sigmask_shadow_valid = 1;
+  poly_riscv_active_signal_frame = frame_sp;
+  state->header.current_mode = POLY_MODE_RAW_RISCV;
+  state->header.foreign_pc = handler;
+  memset(&state->event_record, 0, sizeof(state->event_record));
+  state->event_record.source_mode = POLY_MODE_RAW_RISCV;
+  state->event_record.reason = POLY_TRAP_BREAK;
+  state->event_record.trap_pc = interrupted_pc != 0 ? interrupted_pc : handler;
+  state->event_record.resume_pc = handler;
+  state->event_record.flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+    POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
+  state->riscv_gpr[0] = 0;
+  state->riscv_gpr[1] = restorer;
+  state->riscv_gpr[2] = signal_sp;
+  state->riscv_gpr[10] = signum;
+  state->riscv_gpr[11] = frame.handler_args[2];
+  state->riscv_gpr[12] = frame.handler_args[3];
+  memcpy(state->trap_restore.riscv_gpr, frame.riscv_gpr,
+    sizeof(state->trap_restore.riscv_gpr));
+  memcpy(state->trap_restore.riscv_fp, frame.riscv_fp,
+    sizeof(state->trap_restore.riscv_fp));
+  state->trap_restore.riscv_fcsr = frame.riscv_fcsr;
+  state->trap_restore.riscv_gpr[0] = 0;
+  state->trap_restore.riscv_gpr[1] = restorer;
+  state->trap_restore.riscv_gpr[2] = signal_sp;
+  state->trap_restore.riscv_gpr[10] = signum;
+  state->trap_restore.riscv_gpr[11] = frame.handler_args[2];
+  state->trap_restore.riscv_gpr[12] = frame.handler_args[3];
+  state->trap_restore.x86_gpr[15] = frame.saved_trap_restore.x86_gpr[15];
+  state->trap_restore.flags = POLY_TRAP_RESTORE_FLAG_VALID |
+    POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID;
+  state->trap_restore.mode = POLY_MODE_RAW_RISCV;
+  state->trap_restore.riscv_gpr_valid_mask = POLY_RISCV_GPR_VALID_MASK_FULL;
+  poly_sanitize_riscv_trap_restore_payload(&state->trap_restore);
+  {
+    uint64_t empty_event_args[POLY_V2_EVENT_ARG_COUNT] = { 0 };
+    struct poly_v2_derive_descriptor desc
+      __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+    poly_init_derive_descriptor(&desc, POLY_MODE_RAW_RISCV);
+    desc.flags = POLY_V2_DERIVE_FLAG_CHILD_PC |
+      POLY_V2_DERIVE_FLAG_CHILD_SP |
+      POLY_V2_DERIVE_FLAG_CHILD_RETURN |
+      POLY_V2_DERIVE_FLAG_EVENT_RECORD;
+    desc.child_pc = handler;
+    desc.child_sp = signal_sp;
+    desc.child_return_value = signum;
+    desc.event_reason = POLY_TRAP_BREAK;
+    desc.event_number = 0;
+    desc.event_selector = 0;
+    desc.event_flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+      POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
+    desc.event_args = (uint64_t) (uintptr_t) empty_event_args;
+    if (poly_derive_state_value(state, state, &desc) != 0)
+      return 0;
+  }
+
+  if (poly_trace_protected_signal_waits_enabled()) {
+    poly_write_literal_stderr("POLYEXEC_GUEST_RISCV_SIGNAL_DELIVER: signum=0x");
+    poly_write_hex64_stderr(signum);
+    poly_write_literal_stderr(" handler=0x");
+    poly_write_hex64_stderr(handler);
+    poly_write_literal_stderr(" restorer=0x");
+    poly_write_hex64_stderr(restorer);
+    poly_write_literal_stderr(" frame=0x");
+    poly_write_hex64_stderr(frame_sp);
+    poly_write_literal_stderr(" entry_sp=0x");
+    poly_write_hex64_stderr(signal_sp);
+    poly_write_literal_stderr("\n");
+  }
+  return 1;
+}
+
 static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     int has_trap_state, uint64_t *result_out) {
   if (result_out == NULL)
@@ -4523,6 +4815,146 @@ static int poly_handle_aarch64_rt_sigreturn(struct poly_xsave_state *state,
     poly_write_hex64_stderr(frame.ucontext.mcontext.sp);
     poly_write_literal_stderr(" redirected=0x");
     poly_write_hex64_stderr((uint64_t) redirected_context);
+    poly_write_literal_stderr("\n");
+  }
+  return 1;
+}
+
+static int poly_handle_riscv_rt_sigreturn(struct poly_xsave_state *state,
+    int has_trap_state, uint64_t *result_out) {
+  if (result_out == NULL)
+    return 0;
+  if (!has_trap_state || state == NULL) {
+    *result_out = (uint64_t) -EINVAL;
+    return 1;
+  }
+
+  uint64_t frame_addr = poly_riscv_active_signal_frame;
+  if (frame_addr == 0 && state->riscv_gpr[2] != 0)
+    frame_addr = state->riscv_gpr[2] + 32U;
+  if (!poly_guest_range_is_mapped(frame_addr,
+        sizeof(struct poly_riscv_virtual_signal_frame), 0)) {
+    *result_out = (uint64_t) -EFAULT;
+    return 1;
+  }
+
+  struct poly_riscv_virtual_signal_frame frame;
+  memcpy(&frame, (const void *) (uintptr_t) frame_addr, sizeof(frame));
+  if (frame.magic != POLY_RISCV_VSIGFRAME_MAGIC ||
+      frame.size != sizeof(frame) || frame.signum == 0 ||
+      frame.signum >= sizeof(poly_guest_signal_action_shadow_valid)) {
+    *result_out = (uint64_t) -EINVAL;
+    return 1;
+  }
+
+  state->event_record = frame.saved_event_record;
+  memcpy(state->event_args, frame.saved_event_args, sizeof(state->event_args));
+  state->native_return = frame.saved_native_return;
+  memcpy(state->riscv_gpr, frame.ucontext.mcontext.regs,
+    sizeof(state->riscv_gpr));
+  state->riscv_gpr[0] = 0;
+  const uint64_t restored_sp = frame.ucontext.mcontext.regs[2];
+  const uint64_t monitor_sp = frame.saved_trap_restore.x86_gpr[15] != 0 ?
+    frame.saved_trap_restore.x86_gpr[15] : poly_current_x86_rsp();
+  state->riscv_gpr[2] = restored_sp;
+  uint64_t restored_pc = frame.ucontext.mcontext.pc;
+  if (restored_pc == 0) {
+    if (frame.saved_event_record.resume_pc != 0)
+      restored_pc = frame.saved_event_record.resume_pc;
+    else if (frame.saved_event_record.trap_pc != 0)
+      restored_pc = frame.saved_event_record.trap_pc;
+  }
+  const int redirected_context =
+    (frame.interrupted_pc != 0 && restored_pc != frame.interrupted_pc) ||
+    restored_sp != frame.riscv_gpr[2];
+  if (redirected_context)
+    poly_clear_foreign_return_transition_state(state);
+  state->header.current_mode = POLY_MODE_RAW_RISCV;
+  state->header.foreign_pc = restored_pc;
+  memcpy(state->riscv_fp, frame.riscv_fp, sizeof(state->riscv_fp));
+  state->riscv_status.fcsr = frame.ucontext.mcontext.fcsr &
+    POLY_RISCV_FCSR_MASK;
+  if (state->event_record.reason != 0) {
+    state->event_record.resume_pc = restored_pc;
+    state->event_record.flags |= POLY_EVENT_RECORD_REQUIRED_FLAGS |
+      POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
+    state->trap_restore = frame.saved_trap_restore;
+    state->trap_restore.flags = POLY_TRAP_RESTORE_FLAG_VALID |
+      POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID;
+    state->trap_restore.mode = POLY_MODE_RAW_RISCV;
+    state->trap_restore.riscv_gpr_valid_mask =
+      POLY_RISCV_GPR_VALID_MASK_FULL;
+    memcpy(state->trap_restore.riscv_gpr, frame.ucontext.mcontext.regs,
+      sizeof(state->trap_restore.riscv_gpr));
+    state->trap_restore.riscv_gpr[0] = 0;
+    state->trap_restore.riscv_gpr[2] = restored_sp;
+    memcpy(state->trap_restore.riscv_fp, frame.riscv_fp,
+      sizeof(state->trap_restore.riscv_fp));
+    state->trap_restore.riscv_fcsr = frame.ucontext.mcontext.fcsr &
+      POLY_RISCV_FCSR_MASK;
+    poly_sanitize_riscv_trap_restore_payload(&state->trap_restore);
+    state->trap_restore.x86_gpr[15] = monitor_sp;
+  } else {
+    memset(&state->event_record, 0, sizeof(state->event_record));
+    memset(state->event_args, 0, sizeof(state->event_args));
+    state->event_record.source_mode = POLY_MODE_RAW_RISCV;
+    state->event_record.reason = POLY_TRAP_BREAK;
+    state->event_record.trap_pc = restored_pc;
+    state->event_record.resume_pc = restored_pc;
+    state->event_record.flags = POLY_EVENT_RECORD_REQUIRED_FLAGS |
+      POLY_EVENT_RECORD_FLAG_TRAP_RETURN_RESTORE;
+    memset(&state->trap_restore, 0, sizeof(state->trap_restore));
+    state->trap_restore.flags = POLY_TRAP_RESTORE_FLAG_VALID |
+      POLY_TRAP_RESTORE_FLAG_RISCV_STATE_VALID;
+    state->trap_restore.mode = POLY_MODE_RAW_RISCV;
+    state->trap_restore.riscv_gpr_valid_mask =
+      POLY_RISCV_GPR_VALID_MASK_FULL;
+    memcpy(state->trap_restore.riscv_gpr, frame.ucontext.mcontext.regs,
+      sizeof(state->trap_restore.riscv_gpr));
+    state->trap_restore.riscv_gpr[0] = 0;
+    state->trap_restore.riscv_gpr[2] = restored_sp;
+    memcpy(state->trap_restore.riscv_fp, frame.riscv_fp,
+      sizeof(state->trap_restore.riscv_fp));
+    state->trap_restore.riscv_fcsr = frame.ucontext.mcontext.fcsr &
+      POLY_RISCV_FCSR_MASK;
+    poly_sanitize_riscv_trap_restore_payload(&state->trap_restore);
+    state->trap_restore.x86_gpr[15] = monitor_sp;
+  }
+  poly_guest_sigmask_shadow = frame.guest_sigmask;
+  poly_guest_sigmask_shadow_valid = 1;
+  poly_riscv_active_signal_frame = 0;
+  *result_out = frame.ucontext.mcontext.regs[10];
+  {
+    struct poly_v2_derive_descriptor desc
+      __attribute__((aligned(POLY_V2_DERIVE_DESC_ALIGN)));
+    poly_init_derive_descriptor(&desc, POLY_MODE_RAW_RISCV);
+    desc.flags = POLY_V2_DERIVE_FLAG_CHILD_PC |
+      POLY_V2_DERIVE_FLAG_CHILD_SP |
+      POLY_V2_DERIVE_FLAG_CHILD_RETURN |
+      POLY_V2_DERIVE_FLAG_EVENT_RECORD;
+    desc.child_pc = restored_pc;
+    desc.child_sp = restored_sp;
+    desc.child_return_value = *result_out;
+    desc.event_reason = state->event_record.reason;
+    desc.event_number = state->event_record.number;
+    desc.event_selector = state->event_record.selector;
+    desc.event_flags = state->event_record.flags;
+    desc.event_args = (uint64_t) (uintptr_t) state->event_args;
+    if (poly_derive_state_value(state, state, &desc) != 0) {
+      *result_out = (uint64_t) -EINVAL;
+      return 1;
+    }
+  }
+
+  if (poly_trace_protected_signal_waits_enabled()) {
+    poly_write_literal_stderr("POLYEXEC_GUEST_RISCV_SIGNAL_RETURN: signum=0x");
+    poly_write_hex64_stderr(frame.signum);
+    poly_write_literal_stderr(" frame=0x");
+    poly_write_hex64_stderr(frame_addr);
+    poly_write_literal_stderr(" restored_pc=0x");
+    poly_write_hex64_stderr(restored_pc);
+    poly_write_literal_stderr(" restored_sp=0x");
+    poly_write_hex64_stderr(restored_sp);
     poly_write_literal_stderr("\n");
   }
   return 1;
@@ -6889,6 +7321,12 @@ static int poly_aarch64_rt_sigreturn_packet(
     packet->mode == POLY_MODE_RAW_AARCH64 && packet->number == 139;
 }
 
+static int poly_riscv_rt_sigreturn_packet(
+    const struct poly_runtime_event_record *packet) {
+  return packet != NULL && packet->reason == POLY_TRAP_SYSCALL &&
+    packet->mode == POLY_MODE_RAW_RISCV && packet->number == 139;
+}
+
 static int poly_is_io_uring_syscall(long x86_number) {
   return x86_number == SYS_io_uring_setup ||
     x86_number == SYS_io_uring_enter ||
@@ -6947,15 +7385,18 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
       packet->mode == POLY_MODE_RAW_AARCH64;
     const int aarch64_rt_sigreturn =
       poly_aarch64_rt_sigreturn_packet(packet);
+    const int riscv_rt_sigreturn =
+      poly_riscv_rt_sigreturn_packet(packet);
     uint64_t rt_sigreturn_resume_pc = 0;
-    if (aarch64_rt_sigreturn)
+    if (aarch64_rt_sigreturn || riscv_rt_sigreturn)
       rt_sigreturn_resume_pc = trap_state->event_record.resume_pc != 0 ?
         trap_state->event_record.resume_pc : trap_state->header.foreign_pc;
     memcpy(return_state, trap_state, sizeof(*return_state));
     return_state->header.current_mode = (uint32_t) packet->mode;
     return_state->header.reserved0 = 0;
     poly_set_clone_child_event_record_state(packet, return_state);
-    if (aarch64_rt_sigreturn && rt_sigreturn_resume_pc != 0) {
+    if ((aarch64_rt_sigreturn || riscv_rt_sigreturn) &&
+        rt_sigreturn_resume_pc != 0) {
       return_state->event_record.trap_pc = rt_sigreturn_resume_pc;
       return_state->event_record.resume_pc = rt_sigreturn_resume_pc;
       return_state->header.foreign_pc = rt_sigreturn_resume_pc;
@@ -6968,7 +7409,8 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
         return_state->header.foreign_pc = foreign_pc;
       }
     }
-    if (!deliver_guest_illegal && !aarch64_rt_sigreturn) {
+    if (!deliver_guest_illegal && !aarch64_rt_sigreturn &&
+        !riscv_rt_sigreturn) {
       if (poly_complete_event_result_registers(return_state, packet->mode,
             result, packet->next_pc)) {
         use_pderive_return = 1;
@@ -6995,7 +7437,14 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
       restore_entry_stack_for_trap_restore = 1;
       restore_entry_stack_for_import_state = 1;
     }
-    else if (aarch64_rt_sigreturn) {
+    else if (packet->mode == POLY_MODE_RAW_RISCV &&
+        poly_try_deliver_riscv_signal(return_state, 0, 0, 0)) {
+      saved_result = return_state->trap_restore.riscv_gpr[10];
+      use_pderive_return = 1;
+      restore_entry_stack_for_trap_restore = 1;
+      restore_entry_stack_for_import_state = 1;
+    }
+    else if (aarch64_rt_sigreturn || riscv_rt_sigreturn) {
       use_pderive_return = 1;
       restore_entry_stack_for_trap_restore = 1;
     }
@@ -7020,6 +7469,13 @@ static uint64_t poly_trap_vector_return_result(uint64_t result,
         packet->mode == POLY_MODE_RAW_AARCH64) {
       if (restore_entry_stack_for_import_state) {
         return_state->aarch64_gpr[31] = poly_current_x86_rsp();
+        poly_clear_native_return_state(return_state);
+      }
+    }
+    if (packet->reason == POLY_TRAP_SYSCALL &&
+        packet->mode == POLY_MODE_RAW_RISCV) {
+      if (restore_entry_stack_for_import_state) {
+        return_state->riscv_gpr[2] = poly_current_x86_rsp();
         poly_clear_native_return_state(return_state);
       }
     }
@@ -7389,6 +7845,16 @@ uint64_t poly_trap_vector_dispatch(
       if (poly_handle_aarch64_rt_sigreturn(&trap_state, has_trap_state,
             &sigreturn_result)) {
         poly_trace_syscall_result(&packet, "aarch64-rt-sigreturn", -1,
+          sigreturn_result);
+        return poly_trap_vector_return_result(sigreturn_result,
+          &packet, &trap_state, has_trap_state);
+      }
+    }
+    if (packet.mode == POLY_MODE_RAW_RISCV && packet.number == 139) {
+      uint64_t sigreturn_result = 0;
+      if (poly_handle_riscv_rt_sigreturn(&trap_state, has_trap_state,
+            &sigreturn_result)) {
+        poly_trace_syscall_result(&packet, "riscv-rt-sigreturn", -1,
           sigreturn_result);
         return poly_trap_vector_return_result(sigreturn_result,
           &packet, &trap_state, has_trap_state);

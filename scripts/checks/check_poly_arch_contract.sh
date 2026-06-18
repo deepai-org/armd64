@@ -870,6 +870,8 @@ assert_contains "POLYEXEC_VDSO_MAP: arch=aarch64" "$BOOT_SCRIPT" \
   "focused boot validation must gate the AArch64 vDSO auxv mapping"
 assert_contains "riscv-process-signal-mask-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the RISC-V signal mask edge fixture"
+assert_contains "riscv-process-signal-handler-real\\.elf=42" "$BOOT_SCRIPT" \
+  "focused boot must run the RISC-V signal handler/rt_sigreturn fixture"
 assert_contains "riscv-process-exception-real\\.elf=42" "$BOOT_SCRIPT" \
   "focused boot must run the RISC-V C++ exception fixture"
 assert_contains "riscv-process-setjmp-real\\.elf=42" "$BOOT_SCRIPT" \
@@ -916,14 +918,22 @@ assert_contains "POLY_SIGNAL_HANDLER_OK signum=10 count=1 x19=restored" "$BOOT_S
   "boot validation must gate the signal handler/rt_sigreturn success marker"
 assert_contains "POLY_SIGNAL_HANDLER_MASK_OK blocked=1 delivered_after_unblock=1" "$BOOT_SCRIPT" \
   "boot validation must gate masked virtual signal delivery"
+assert_contains 'grep -c "POLY_SIGNAL_HANDLER_OK signum=10 count=1 x19=restored"' "$BOOT_SCRIPT" \
+  "boot validation must require signal handler success markers from both AArch64 and RISC-V"
+assert_contains 'grep -c "POLY_SIGNAL_HANDLER_MASK_OK blocked=1 delivered_after_unblock=1"' "$BOOT_SCRIPT" \
+  "boot validation must require masked handler delivery markers from both AArch64 and RISC-V"
 assert_contains "poly_rt_sigreturn_restorer" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
-  "signal handler fixture must provide an AArch64 rt_sigreturn restorer"
+  "signal handler fixture must provide a guest rt_sigreturn restorer"
 assert_contains "POLY_SYS_RT_SIGPROCMASK" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
   "signal handler fixture must verify guest signal masks"
 assert_contains "POLY_SYS_RT_SIGACTION" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
   "signal handler fixture must install the handler through rt_sigaction"
 assert_contains "POLY_SYS_KILL" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
   "signal handler fixture must raise a protected runtime signal"
+assert_contains "#elif defined\\(__riscv\\)" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
+  "signal handler fixture must compile for RISC-V as well as AArch64"
+assert_contains "li a7, 139" "$POLYEXEC_PROCESS_SIGNAL_HANDLER_SRC" \
+  "RISC-V signal handler fixture must invoke rt_sigreturn through ecall 139"
 assert_contains "POLY_VDSO_TIME_OK iterations=64" "$BOOT_SCRIPT" \
   "boot validation must gate the AArch64 vDSO time fixture marker"
 assert_contains "POLYEXEC_RESULT: arch=aarch64 value=42 process=1 path=/usr/lib/polyapps/aarch64-process-vdso-time-real" "$BOOT_SCRIPT" \
@@ -944,6 +954,8 @@ assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/po
   "boot validation must gate the RISC-V setjmp/longjmp process result"
 assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-signal-mask-real" "$BOOT_SCRIPT" \
   "boot validation must gate the RISC-V signal mask edge result"
+assert_contains "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-signal-handler-real" "$BOOT_SCRIPT" \
+  "boot validation must gate the RISC-V signal handler/rt_sigreturn result"
 assert_contains "throw std::runtime_error" "$POLYEXEC_PROCESS_EXCEPTION_SRC" \
   "C++ exception fixture must throw through the foreign ABI unwinder"
 assert_contains "catch \\(const std::runtime_error" "$POLYEXEC_PROCESS_EXCEPTION_SRC" \

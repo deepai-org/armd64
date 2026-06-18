@@ -4250,6 +4250,11 @@ build_poly_elf_payloads() {
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_SIGNAL_HANDLER_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-signal-handler-real.elf"
+  riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_RELOC_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-reloc-real.elf"
   riscv64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
@@ -9666,6 +9671,11 @@ if [ "$RUN_POLY_EXEC_FOCUSED" = "1" ]; then
 	    /usr/bin/polyexec --process \
 	      /usr/lib/polyapps/riscv-process-signal-mask-real.elf=42 \
 	      mask-edge >/dev/ttyS0 2>&1
+	    POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS="$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS" \
+	      POLYEXEC_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS" \
+	      POLYEXEC_PROTECT_RUNTIME_SIGNALS=1 /usr/bin/polyexec --process \
+	      /usr/lib/polyapps/riscv-process-signal-handler-real.elf=42 \
+	      handler-return >/dev/ttyS0 2>&1
     echo "POLY_EXEC_FOCUSED_OK" >/dev/ttyS0 2>&1
 fi
 
@@ -14492,6 +14502,18 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-signal-mask-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-signal-handler-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -c "POLY_SIGNAL_HANDLER_OK signum=10 count=1 x19=restored" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -c "POLY_SIGNAL_HANDLER_MASK_OK blocked=1 delivered_after_unblock=1" "$SERIAL_LOG" || true)" -lt 2 ]]; then
           sleep 1
           continue
         fi

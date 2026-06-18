@@ -46,6 +46,19 @@ static long poly_syscall6(long number, long arg0, long arg1, long arg2,
       : "x6", "x7", "x9", "x10", "x11", "x12", "x13", "x14", "x15",
         "x16", "x17", "x18", "cc", "memory");
   return x0;
+#elif defined(__riscv)
+  register long a0 __asm__("a0") = arg0;
+  register long a1 __asm__("a1") = arg1;
+  register long a2 __asm__("a2") = arg2;
+  register long a3 __asm__("a3") = arg3;
+  register long a4 __asm__("a4") = arg4;
+  register long a5 __asm__("a5") = arg5;
+  register long a7 __asm__("a7") = number;
+  __asm__ volatile("ecall"
+      : "+r"(a0)
+      : "r"(a1), "r"(a2), "r"(a3), "r"(a4), "r"(a5), "r"(a7)
+      : "memory");
+  return a0;
 #else
 #error unsupported architecture
 #endif
@@ -101,6 +114,7 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
 
   uint64_t handler_addr = 0;
   uint64_t restorer_addr = 0;
+#if defined(__aarch64__)
   __asm__ volatile(
     "adrp %0, poly_sigusr1_handler\n"
     "add %0, %0, :lo12:poly_sigusr1_handler\n"
@@ -109,6 +123,13 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     "adrp %0, poly_rt_sigreturn_restorer\n"
     "add %0, %0, :lo12:poly_rt_sigreturn_restorer\n"
     : "=r"(restorer_addr));
+#elif defined(__riscv)
+  __asm__ volatile("lla %0, poly_sigusr1_handler" : "=r"(handler_addr));
+  __asm__ volatile("lla %0, poly_rt_sigreturn_restorer" :
+    "=r"(restorer_addr));
+#else
+#error unsupported architecture
+#endif
 
   struct poly_linux_ksigaction action;
   action.handler = handler_addr;
@@ -120,7 +141,13 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 10;
 
   const uint64_t x19_sentinel = 0x13579bdf2468ace0ULL;
+#if defined(__aarch64__)
   __asm__ volatile("mov x19, %0" :: "r"(x19_sentinel) : "x19", "memory");
+#elif defined(__riscv)
+  __asm__ volatile("mv s3, %0" :: "r"(x19_sentinel) : "s3", "memory");
+#else
+#error unsupported architecture
+#endif
 
   long pid = poly_syscall0(POLY_SYS_GETPID);
   if (pid <= 1)
@@ -129,7 +156,13 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
     return 12;
 
   uint64_t x19_restored = 0;
+#if defined(__aarch64__)
   __asm__ volatile("mov %0, x19" : "=r"(x19_restored));
+#elif defined(__riscv)
+  __asm__ volatile("mv %0, s3" : "=r"(x19_restored));
+#else
+#error unsupported architecture
+#endif
   if (poly_handler_count != 1)
     return 20;
   if (poly_handler_signum != POLY_SIGUSR1)
@@ -182,6 +215,7 @@ uint64_t poly_process_main(uint64_t *initial_sp) {
   return 42;
 }
 
+#if defined(__aarch64__)
 __asm__(
   ".type poly_rt_sigreturn_restorer, %function\n"
   "poly_rt_sigreturn_restorer:\n"
@@ -217,3 +251,42 @@ __asm__(
   "bl poly_process_main\n"
   "mov x8, #93\n"
   "svc #0\n");
+#elif defined(__riscv)
+__asm__(
+  ".type poly_rt_sigreturn_restorer, @function\n"
+  "poly_rt_sigreturn_restorer:\n"
+  "li a7, 139\n"
+  "ecall\n"
+  "ret\n"
+  ".size poly_rt_sigreturn_restorer, . - poly_rt_sigreturn_restorer\n"
+  "\n"
+  ".type poly_sigusr1_handler, @function\n"
+  "poly_sigusr1_handler:\n"
+  ".option push\n"
+  ".option norelax\n"
+  "lla t0, poly_handler_signum\n"
+  "sd a0, 0(t0)\n"
+  "lla t0, poly_handler_x19_before\n"
+  "sd s3, 0(t0)\n"
+  "li t1, 0x2468ace02468ace0\n"
+  "mv s3, t1\n"
+  "lla t0, poly_handler_x19_after\n"
+  "sd s3, 0(t0)\n"
+  "lla t0, poly_handler_count\n"
+  "ld t1, 0(t0)\n"
+  "addi t1, t1, 1\n"
+  "sd t1, 0(t0)\n"
+  ".option pop\n"
+  "ret\n"
+  ".size poly_sigusr1_handler, . - poly_sigusr1_handler\n"
+  "\n"
+  ".global _start\n"
+  ".type _start, @function\n"
+  "_start:\n"
+  "mv a0, sp\n"
+  "call poly_process_main\n"
+  "li a7, 93\n"
+  "ecall\n");
+#else
+#error unsupported architecture
+#endif
