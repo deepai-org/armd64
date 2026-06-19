@@ -71,9 +71,11 @@ seccomp-style userspace mediation. Core-file or
 minidump wrapping remains userspace policy on top of the debug-note blob;
 `polyexec` now has an opt-in fatal-fault path that writes a Linux ELF64
 `ET_CORE` container with the OS-neutral `POLY` note from `PDUMP_STATE`,
-GDB-compatible `NT_PRSTATUS`/`NT_PRPSINFO`/`NT_AUXV` notes, and a stack
-`PT_LOAD` segment. Mapped-object `NT_FILE` metadata and fully symbolic unwind
-polish remain userspace follow-up work, not ISA policy. Draft features such as
+GDB-compatible `NT_SIGINFO`/`NT_PRSTATUS`/`NT_PRPSINFO`/`NT_AUXV` notes,
+`NT_FILE` metadata for the main executable, executable and stack `PT_LOAD`
+segments, and symbolized fatal frames for the AArch64/RISC-V validation
+fixtures. Broader multi-object mapping enumeration and perfect unwind polish
+remain userspace follow-up work, not ISA policy. Draft features such as
 hardware ABI-descriptor caching and diagnostic counters must not be advertised
 until their control paths and tests exist. The software-owned ABI descriptor
 decoder is runtime policy and does not require a hardware feature bit.

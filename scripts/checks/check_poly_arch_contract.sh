@@ -536,6 +536,12 @@ assert_contains "poly_write_fatal_debug_note" "$POLYEXEC" \
   "userspace monitor must synthesize a v2 debug-note artifact on fatal Poly faults"
 assert_contains "PT_NOTE" "$POLYEXEC" \
   "fatal Poly debug artifacts must be wrapped in an ELF note container"
+assert_contains "NT_SIGINFO" "$POLYEXEC" \
+  "fatal Poly ELF cores must include signal information for debuggers"
+assert_contains "NT_FILE" "$POLYEXEC" \
+  "fatal Poly ELF cores must include mapped-file metadata for debuggers"
+assert_contains "PT_LOAD" "$POLYEXEC" \
+  "fatal Poly ELF cores must include loadable memory segments for debuggers"
 assert_contains "POLYEXEC_FATAL_DEBUG_NOTE_DIR" "$POLYEXEC" \
   "fatal Poly debug-note output must be opt-in through a runtime directory"
 assert_contains "poly_abi_descriptor_signature_kind" "$POLYEXEC" \
@@ -644,6 +650,14 @@ assert_contains "gdb-multiarch" "$BOOT_SCRIPT" \
   "host-side core validation must use gdb-multiarch"
 assert_contains "POLY_GDB_CORE_VALIDATION_HOST_OK" "$BOOT_SCRIPT" \
   "boot coverage must require host-side GDB core validation"
+assert_contains "poly_crash_leaf" "$BOOT_SCRIPT" \
+  "host-side core validation must require a symbolized guest crash frame"
+assert_contains "info proc mappings" "$BOOT_SCRIPT" \
+  "host-side core validation must require mapped executable visibility"
+assert_contains "NT_SIGINFO" "$BOOT_SCRIPT" \
+  "host-side core validation must require signal-info notes"
+assert_contains "NT_FILE" "$BOOT_SCRIPT" \
+  "host-side core validation must require mapped-file notes"
 assert_contains "boot-poly-gdb-core-validation" "$ROOT_DIR/Makefile" \
   "Makefile must expose a dedicated GDB core validation boot target"
 assert_not_contains "POLYEXEC_AUTO_SPILL_STATUS|poly_auto_spill_count_status" "$POLYEXEC" \

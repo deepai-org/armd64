@@ -124,6 +124,7 @@ extern char **environ;
 #define POLYEXEC_ELF_CORE_NOTE_NAMESZ 5U
 #define POLYEXEC_CORE_STACK_BYTES (64U * 1024U)
 #define POLYEXEC_CORE_PAGE_BYTES 4096U
+#define POLYEXEC_CORE_MAX_FILE_MAPPINGS 16U
 
 #ifndef TIOCGWINSZ
 #define TIOCGWINSZ 0x5413
@@ -437,6 +438,8 @@ enum {
 
 struct poly_load_segment {
   uint64_t vaddr;
+  uint64_t offset;
+  uint64_t filesz;
   uint64_t memsz;
   uint32_t flags;
 };
@@ -1747,6 +1750,15 @@ struct poly_elf_siginfo64 {
   int32_t si_errno;
 };
 
+struct poly_elf_nt_siginfo64 {
+  int32_t si_signo;
+  int32_t si_errno;
+  int32_t si_code;
+  int32_t reserved0;
+  uint64_t fault_addr;
+  uint8_t reserved[104];
+};
+
 struct poly_elf_timeval64 {
   int64_t tv_sec;
   int64_t tv_usec;
@@ -1805,6 +1817,16 @@ struct poly_elf_prpsinfo64 {
 struct poly_elf_auxv64 {
   uint64_t a_type;
   uint64_t a_val;
+};
+
+struct poly_core_file_mapping {
+  uint64_t start;
+  uint64_t end;
+  uint64_t file_page_offset;
+  const uint8_t *memory;
+  size_t filesz;
+  uint32_t flags;
+  const char *path;
 };
 
 static size_t poly_align4_size(size_t value) {
@@ -1946,6 +1968,127 @@ static size_t poly_guest_stack_core_range(const struct poly_v2_debug_note *note,
     return 0;
   *stack_vaddr = start;
   return bytes;
+}
+
+static size_t poly_collect_core_file_mappings(
+    struct poly_core_file_mapping mappings[POLYEXEC_CORE_MAX_FILE_MAPPINGS]) {
+  const struct poly_process_exit_finalizer_context *ctx =
+    &poly_process_exit_finalizers;
+  const struct poly_program *program = ctx->program;
+  if (!ctx->active || program == NULL || ctx->loaded_image == NULL)
+    return 0;
+
+  size_t count = 0;
+  const uint64_t load_bias =
+    (uint64_t) (uintptr_t) ctx->loaded_image - program->base_vaddr;
+  for (size_t n = 0; n < program->load_segment_count &&
+       count < POLYEXEC_CORE_MAX_FILE_MAPPINGS; n++) {
+    const struct poly_load_segment *segment = &program->load_segments[n];
+    if (segment->memsz == 0 ||
+        segment->vaddr > UINT64_MAX - segment->memsz)
+      continue;
+    const uint64_t page_vaddr =
+      poly_core_page_align_down(segment->vaddr);
+    const uint64_t page_end =
+      poly_core_page_align_up(segment->vaddr + segment->memsz);
+    if (page_end <= page_vaddr ||
+        page_vaddr < program->base_vaddr ||
+        page_end - program->base_vaddr > program->code_size ||
+        page_end - page_vaddr > SIZE_MAX ||
+        load_bias > UINT64_MAX - page_vaddr)
+      continue;
+    const uint64_t start = load_bias + page_vaddr;
+    if (start > UINT64_MAX - (page_end - page_vaddr))
+      continue;
+    mappings[count].start = start;
+    mappings[count].end = start + (page_end - page_vaddr);
+    mappings[count].file_page_offset =
+      poly_core_page_align_down(segment->offset) / POLYEXEC_CORE_PAGE_BYTES;
+    mappings[count].memory =
+      ctx->loaded_image + (size_t) (page_vaddr - program->base_vaddr);
+    mappings[count].filesz = (size_t) (page_end - page_vaddr);
+    mappings[count].flags = segment->flags;
+    mappings[count].path = program->path;
+    count++;
+  }
+  return count;
+}
+
+static size_t poly_core_nt_file_desc_size(
+    const struct poly_core_file_mapping *mappings, size_t count) {
+  if (count == 0)
+    return 0;
+  size_t bytes = 2U * sizeof(uint64_t) + count * 3U * sizeof(uint64_t);
+  for (size_t n = 0; n < count; n++)
+    bytes += strlen(mappings[n].path) + 1U;
+  return bytes;
+}
+
+static int poly_write_elf_nt_file_note(int fd,
+    const struct poly_core_file_mapping *mappings, size_t count) {
+  if (count == 0)
+    return 0;
+  const size_t desc_size = poly_core_nt_file_desc_size(mappings, count);
+  const uint8_t zero_pad[4] = { 0, 0, 0, 0 };
+  Elf64_Nhdr nhdr;
+  memset(&nhdr, 0, sizeof(nhdr));
+  nhdr.n_namesz = POLYEXEC_ELF_CORE_NOTE_NAMESZ;
+  nhdr.n_descsz = (uint32_t) desc_size;
+  nhdr.n_type = NT_FILE;
+
+  const uint64_t header[2] = {
+    (uint64_t) count,
+    POLYEXEC_CORE_PAGE_BYTES,
+  };
+  if (poly_write_all_fd(fd, &nhdr, sizeof(nhdr)) < 0 ||
+      poly_write_all_fd(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
+        POLYEXEC_ELF_CORE_NOTE_NAMESZ) < 0 ||
+      poly_write_all_fd(fd, zero_pad,
+        poly_align4_size(POLYEXEC_ELF_CORE_NOTE_NAMESZ) -
+        POLYEXEC_ELF_CORE_NOTE_NAMESZ) < 0 ||
+      poly_write_all_fd(fd, header, sizeof(header)) < 0)
+    return -1;
+  for (size_t n = 0; n < count; n++) {
+    const uint64_t entry[3] = {
+      mappings[n].start,
+      mappings[n].end,
+      mappings[n].file_page_offset,
+    };
+    if (poly_write_all_fd(fd, entry, sizeof(entry)) < 0)
+      return -1;
+  }
+  for (size_t n = 0; n < count; n++) {
+    const size_t path_len = strlen(mappings[n].path) + 1U;
+    if (poly_write_all_fd(fd, mappings[n].path, path_len) < 0)
+      return -1;
+  }
+  return poly_write_all_fd(fd, zero_pad, poly_align4_size(desc_size) -
+    desc_size);
+}
+
+static int poly_write_zero_padding_to_offset(int fd, size_t target_offset) {
+  off_t current = lseek(fd, 0, SEEK_CUR);
+  if (current < 0 || (uint64_t) current > (uint64_t) target_offset)
+    return -1;
+  static const uint8_t zero_page[POLYEXEC_CORE_PAGE_BYTES];
+  uint64_t remaining = (uint64_t) target_offset - (uint64_t) current;
+  while (remaining != 0) {
+    const size_t chunk = remaining > sizeof(zero_page) ?
+      sizeof(zero_page) : (size_t) remaining;
+    if (poly_write_all_fd(fd, zero_page, chunk) < 0)
+      return -1;
+    remaining -= chunk;
+  }
+  return 0;
+}
+
+static int poly_write_core_load_segment(int fd, size_t offset,
+    const void *memory, size_t bytes) {
+  if (bytes == 0)
+    return 0;
+  if (poly_write_zero_padding_to_offset(fd, offset) < 0)
+    return -1;
+  return poly_write_all_fd(fd, memory, bytes);
 }
 
 static void poly_init_prstatus_common(struct poly_elf_siginfo64 *info,
@@ -2239,6 +2382,13 @@ static uint16_t poly_debug_note_elf_machine(uint32_t frontend) {
 
 static int poly_write_fatal_debug_note_elf(const char *path,
     const struct poly_v2_debug_note *note, int signum) {
+  struct poly_elf_nt_siginfo64 siginfo;
+  memset(&siginfo, 0, sizeof(siginfo));
+  siginfo.si_signo = signum;
+  siginfo.si_code = poly_runtime_signal_code;
+  siginfo.fault_addr = note->fault_address != 0 ? note->fault_address :
+    (uint64_t) poly_runtime_signal_addr;
+
   struct poly_elf_prstatus_aarch64 aarch64_status;
   struct poly_elf_prstatus_riscv riscv_status;
   const void *prstatus = NULL;
@@ -2256,8 +2406,14 @@ static int poly_write_fatal_debug_note_elf(const char *path,
   struct poly_elf_prpsinfo64 prpsinfo;
   poly_fill_prpsinfo(&prpsinfo);
   const struct poly_elf_auxv64 auxv[1] = {{ AT_NULL, 0 }};
+  struct poly_core_file_mapping
+    file_mappings[POLYEXEC_CORE_MAX_FILE_MAPPINGS];
+  const size_t file_mapping_count =
+    poly_collect_core_file_mappings(file_mappings);
 
   size_t note_filesz = 0;
+  note_filesz += poly_elf_note_size(POLYEXEC_ELF_CORE_NOTE_NAMESZ,
+    sizeof(siginfo));
   if (prstatus != NULL)
     note_filesz += poly_elf_note_size(POLYEXEC_ELF_CORE_NOTE_NAMESZ,
       prstatus_size);
@@ -2265,17 +2421,18 @@ static int poly_write_fatal_debug_note_elf(const char *path,
     sizeof(prpsinfo));
   note_filesz += poly_elf_note_size(POLYEXEC_ELF_CORE_NOTE_NAMESZ,
     sizeof(auxv));
+  if (file_mapping_count != 0)
+    note_filesz += poly_elf_note_size(POLYEXEC_ELF_CORE_NOTE_NAMESZ,
+      poly_core_nt_file_desc_size(file_mappings, file_mapping_count));
   note_filesz += poly_elf_note_size(POLYEXEC_ELF_NOTE_NAMESZ,
     sizeof(*note));
 
   uint64_t stack_vaddr = 0;
   const size_t stack_filesz = poly_guest_stack_core_range(note, &stack_vaddr);
-  const uint16_t phnum = stack_filesz != 0 ? 2U : 1U;
+  const uint16_t phnum = (uint16_t) (1U + file_mapping_count +
+    (stack_filesz != 0 ? 1U : 0U));
   const size_t note_offset = sizeof(Elf64_Ehdr) +
     (size_t) phnum * sizeof(Elf64_Phdr);
-  const size_t stack_offset = stack_filesz != 0 ?
-    (size_t) poly_core_page_align_up((uint64_t) note_offset +
-      (uint64_t) note_filesz) : 0;
 
   Elf64_Ehdr ehdr;
   memset(&ehdr, 0, sizeof(ehdr));
@@ -2295,21 +2452,38 @@ static int poly_write_fatal_debug_note_elf(const char *path,
   ehdr.e_phentsize = sizeof(Elf64_Phdr);
   ehdr.e_phnum = phnum;
 
-  Elf64_Phdr phdr[2];
+  Elf64_Phdr phdr[1U + POLYEXEC_CORE_MAX_FILE_MAPPINGS + 1U];
   memset(phdr, 0, sizeof(phdr));
   phdr[0].p_type = PT_NOTE;
   phdr[0].p_offset = note_offset;
   phdr[0].p_filesz = note_filesz;
   phdr[0].p_align = 4;
+  size_t phdr_index = 1;
+  size_t next_load_offset = (size_t) poly_core_page_align_up(
+    (uint64_t) note_offset + (uint64_t) note_filesz);
+  for (size_t n = 0; n < file_mapping_count; n++) {
+    phdr[phdr_index].p_type = PT_LOAD;
+    phdr[phdr_index].p_flags = file_mappings[n].flags;
+    phdr[phdr_index].p_offset = next_load_offset;
+    phdr[phdr_index].p_vaddr = file_mappings[n].start;
+    phdr[phdr_index].p_paddr = 0;
+    phdr[phdr_index].p_filesz = file_mappings[n].filesz;
+    phdr[phdr_index].p_memsz = file_mappings[n].filesz;
+    phdr[phdr_index].p_align = POLYEXEC_CORE_PAGE_BYTES;
+    next_load_offset = (size_t) poly_core_page_align_up(
+      (uint64_t) next_load_offset + (uint64_t) file_mappings[n].filesz);
+    phdr_index++;
+  }
   if (stack_filesz != 0) {
-    phdr[1].p_type = PT_LOAD;
-    phdr[1].p_flags = PF_R | PF_W;
-    phdr[1].p_offset = stack_offset;
-    phdr[1].p_vaddr = stack_vaddr;
-    phdr[1].p_paddr = 0;
-    phdr[1].p_filesz = stack_filesz;
-    phdr[1].p_memsz = stack_filesz;
-    phdr[1].p_align = POLYEXEC_CORE_PAGE_BYTES;
+    phdr[phdr_index].p_type = PT_LOAD;
+    phdr[phdr_index].p_flags = PF_R | PF_W;
+    phdr[phdr_index].p_offset = next_load_offset;
+    phdr[phdr_index].p_vaddr = stack_vaddr;
+    phdr[phdr_index].p_paddr = 0;
+    phdr[phdr_index].p_filesz = stack_filesz;
+    phdr[phdr_index].p_memsz = stack_filesz;
+    phdr[phdr_index].p_align = POLYEXEC_CORE_PAGE_BYTES;
+    phdr_index++;
   }
 
   int fd = open(path, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
@@ -2318,6 +2492,11 @@ static int poly_write_fatal_debug_note_elf(const char *path,
   int status = 0;
   if (poly_write_all_fd(fd, &ehdr, sizeof(ehdr)) < 0 ||
       poly_write_all_fd(fd, phdr, (size_t) phnum * sizeof(Elf64_Phdr)) < 0)
+    status = -1;
+  if (status == 0 &&
+      poly_write_elf_note(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
+        POLYEXEC_ELF_CORE_NOTE_NAMESZ, NT_SIGINFO, &siginfo,
+        sizeof(siginfo)) < 0)
     status = -1;
   if (status == 0 && prstatus != NULL &&
       poly_write_elf_note(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
@@ -2329,30 +2508,27 @@ static int poly_write_fatal_debug_note_elf(const char *path,
          POLYEXEC_ELF_CORE_NOTE_NAMESZ, NT_PRPSINFO, &prpsinfo,
          sizeof(prpsinfo)) < 0 ||
        poly_write_elf_note(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
-         POLYEXEC_ELF_CORE_NOTE_NAMESZ, NT_AUXV, auxv, sizeof(auxv)) < 0 ||
-       poly_write_elf_note(fd, POLYEXEC_ELF_NOTE_NAME,
-         POLYEXEC_ELF_NOTE_NAMESZ, POLYEXEC_ELF_NOTE_TYPE_V2_DEBUG,
-         note, sizeof(*note)) < 0))
+         POLYEXEC_ELF_CORE_NOTE_NAMESZ, NT_AUXV, auxv, sizeof(auxv)) < 0))
     status = -1;
-  if (status == 0 && stack_filesz != 0) {
-    off_t current = lseek(fd, 0, SEEK_CUR);
-    if (current < 0 || (uint64_t) current > (uint64_t) stack_offset)
+  if (status == 0 &&
+      poly_write_elf_nt_file_note(fd, file_mappings, file_mapping_count) < 0)
+    status = -1;
+  if (status == 0 &&
+      poly_write_elf_note(fd, POLYEXEC_ELF_NOTE_NAME,
+        POLYEXEC_ELF_NOTE_NAMESZ, POLYEXEC_ELF_NOTE_TYPE_V2_DEBUG,
+        note, sizeof(*note)) < 0)
+    status = -1;
+  phdr_index = 1;
+  for (size_t n = 0; status == 0 && n < file_mapping_count; n++) {
+    if (poly_write_core_load_segment(fd, (size_t) phdr[phdr_index].p_offset,
+          file_mappings[n].memory, file_mappings[n].filesz) < 0)
       status = -1;
-    else {
-      static const uint8_t zero_page[POLYEXEC_CORE_PAGE_BYTES];
-      uint64_t remaining = (uint64_t) stack_offset - (uint64_t) current;
-      while (status == 0 && remaining != 0) {
-        const size_t chunk = remaining > sizeof(zero_page) ?
-          sizeof(zero_page) : (size_t) remaining;
-        if (poly_write_all_fd(fd, zero_page, chunk) < 0)
-          status = -1;
-        remaining -= chunk;
-      }
-      if (status == 0 &&
-          poly_write_all_fd(fd, (const void *) (uintptr_t) stack_vaddr,
-            stack_filesz) < 0)
-        status = -1;
-    }
+    phdr_index++;
+  }
+  if (status == 0 && stack_filesz != 0) {
+    if (poly_write_core_load_segment(fd, (size_t) phdr[phdr_index].p_offset,
+          (const void *) (uintptr_t) stack_vaddr, stack_filesz) < 0)
+      status = -1;
   }
   if (close(fd) < 0)
     status = -1;
@@ -2732,6 +2908,8 @@ static int record_load_segment(struct poly_program *program,
     return -1;
   }
   program->load_segments[program->load_segment_count].vaddr = phdr->p_vaddr;
+  program->load_segments[program->load_segment_count].offset = phdr->p_offset;
+  program->load_segments[program->load_segment_count].filesz = phdr->p_filesz;
   program->load_segments[program->load_segment_count].memsz = phdr->p_memsz;
   program->load_segments[program->load_segment_count].flags = phdr->p_flags;
   program->load_segment_count++;
@@ -12320,7 +12498,8 @@ static int load_elf_program(const char *path, const char *symbol_name,
       continue;
 
     if (phdr->p_filesz > phdr->p_memsz ||
-        phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset ||
+        (phdr->p_filesz != 0 &&
+         (phdr->p_offset > size || phdr->p_filesz > size - phdr->p_offset)) ||
         phdr->p_vaddr > UINT64_MAX - phdr->p_memsz ||
         phdr->p_vaddr > UINT64_MAX - phdr->p_filesz) {
       fprintf(stderr, "POLYEXEC_FAIL: bad ELF load segment: %s\n", path);

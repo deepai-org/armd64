@@ -373,13 +373,16 @@ writes an ELF64 `ET_CORE`/`PT_NOTE` container whose vendor `POLY` note payload
 uses this `poly_v2_debug_note` layout. The runtime asks `PDUMP_STATE` first and
 can synthesize the same layout directly from the validated spill descriptor's
 state/event pair when the fault context cannot execute a live dump control.
-Linux/GDB-specific `NT_PRSTATUS` register notes and stack-memory segments are
-intentionally a higher-level runtime compatibility layer, not part of the ISA.
+Linux/GDB-specific signal notes, register notes, mapped-file notes, and memory
+segments are intentionally a higher-level runtime compatibility layer, not part
+of the ISA.
 The current Linux `polyexec` runtime implements that layer for fatal
 single-thread cores by wrapping the OS-neutral note/state record in ELF64
-`ET_CORE` files that `gdb-multiarch` can load for AArch64 and RISC-V register
-inspection. Mapped-object `NT_FILE` notes and fully symbolic unwind metadata
-remain runtime/debugger-format work above `PDUMP_STATE`.
+`ET_CORE` files with `NT_SIGINFO`, `NT_PRSTATUS`, `NT_PRPSINFO`, `NT_AUXV`,
+main-executable `NT_FILE` metadata, executable and stack `PT_LOAD` segments,
+and symbolized fatal frames that `gdb-multiarch` can load for AArch64 and
+RISC-V inspection. Broader multi-object `NT_FILE` enumeration and perfect
+unwind metadata remain runtime/debugger-format work above `PDUMP_STATE`.
 
 ## Memory Probe
 

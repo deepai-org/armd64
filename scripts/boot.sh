@@ -915,7 +915,7 @@ build_poly_elf_payloads() {
     "$POLYEXEC_PROCESS_IO_URING_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-io-uring-real.elf"
   aarch64-linux-gnu-gcc -O0 -g -fno-builtin -fno-tree-vectorize \
-    -fno-omit-frame-pointer -fno-stack-protector -fPIC -shared \
+    -fno-omit-frame-pointer -fno-stack-protector -no-pie \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_CRASH_REAL_SRC" \
@@ -4261,7 +4261,7 @@ build_poly_elf_payloads() {
     "$POLYEXEC_PROCESS_IO_URING_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-io-uring-real.elf"
   riscv64-linux-gnu-gcc -O0 -g -fno-builtin -fno-tree-vectorize \
-    -fno-omit-frame-pointer -fno-stack-protector -fPIC -shared \
+    -fno-omit-frame-pointer -fno-stack-protector -no-pie \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
     "$POLYEXEC_PROCESS_CRASH_REAL_SRC" \
@@ -14130,15 +14130,29 @@ validate_poly_gdb_core() {
     echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch core lacks NT_PRPSINFO" >&2
     return 1
   }
+  grep -q "NT_SIGINFO" "$readelf_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch core lacks NT_SIGINFO" >&2
+    return 1
+  }
+  grep -q "NT_FILE" "$readelf_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch core lacks NT_FILE" >&2
+    return 1
+  }
 
   gdb-multiarch -q -batch \
     -ex "set pagination off" \
+    -ex "set sysroot $TMP_DIR/initramfs-root" \
     -ex "file $exe" \
     -ex "core-file $core" \
     -ex "info files" \
+    -ex "info proc mappings" \
     -ex "info registers" \
     -ex "bt" \
     > "$gdb_log" 2>&1
+  if grep -Eq "Can't open file /usr/lib/polyapps" "$gdb_log"; then
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb did not resolve mapped object" >&2
+    return 1
+  fi
   grep -Eq "Core was generated|Program terminated with signal SIGSEGV" \
     "$gdb_log" || {
     echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb did not accept core" >&2
@@ -14154,6 +14168,14 @@ validate_poly_gdb_core() {
   }
   grep -Eq "^#0[[:space:]]+" "$gdb_log" || {
     echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb lacks backtrace frame" >&2
+    return 1
+  }
+  grep -q "$arch-process-crash-real.elf" "$gdb_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb lacks mapped executable" >&2
+    return 1
+  }
+  grep -q "poly_crash_leaf" "$gdb_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb lacks symbolized crash frame" >&2
     return 1
   }
   echo "POLY_GDB_CORE_VALIDATION_HOST_OK: arch=$arch core=$core"
