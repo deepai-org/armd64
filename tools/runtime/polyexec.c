@@ -1047,9 +1047,10 @@ static inline uint64_t poly_derive_state_value(struct poly_xsave_state *dst,
 static inline uint64_t poly_complete_event_value(struct poly_xsave_state *state,
     const struct poly_v2_complete_descriptor *descriptor) {
   uint64_t result = (uint64_t) (uintptr_t) state;
+  uint64_t descriptor_reg = (uint64_t) (uintptr_t) descriptor;
   asm volatile(POLY_OP_COMPLETE_EVENT
-    : "+a"(result)
-    : "d"((uint64_t) (uintptr_t) descriptor)
+    : "+a"(result), "+d"(descriptor_reg)
+    :
     : "rcx", "r15", "memory");
   return result;
 }

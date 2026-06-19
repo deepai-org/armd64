@@ -677,6 +677,7 @@ static uint64_t nativecheck_generic_switch_riscv_x86_add(void) {
 
 static void poly_trap_vector_handler(void);
 static void poly_trap_vector_xsave_roundtrip_handler(void);
+static struct poly_v2_event_frame *nativecheck_active_event_frame;
 
 static inline void poly_trap_vector_clear(void) {
   asm volatile(
@@ -820,9 +821,10 @@ static inline uint64_t poly_fence(uint64_t scope) {
 static inline uint64_t poly_complete_event(struct poly_xsave_state *state,
     const struct poly_v2_complete_descriptor *descriptor) {
   uint64_t result = (uint64_t) (uintptr_t) state;
+  uint64_t descriptor_reg = (uint64_t) (uintptr_t) descriptor;
   asm volatile(POLY_OP_COMPLETE_EVENT
-    : "+a"(result)
-    : "d"((uint64_t) (uintptr_t) descriptor)
+    : "+a"(result), "+d"(descriptor_reg)
+    :
     : "rcx", "r15", "memory");
   return result;
 }
@@ -834,6 +836,44 @@ static inline uint64_t poly_monitor_entry_set(
     : "+a"(result)
     :
     : "r15", "memory");
+  return result;
+}
+
+static struct poly_xsave_state nativecheck_trap_complete_state
+  __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
+static struct poly_v2_complete_descriptor nativecheck_trap_complete_desc
+  __attribute__((aligned(POLY_V2_COMPLETE_DESC_ALIGN)));
+
+static __attribute__((noinline, used))
+uint64_t nativecheck_complete_trap_result(uint64_t result) {
+  poly_state_export(&nativecheck_trap_complete_state);
+  const uint32_t frontend =
+    nativecheck_trap_complete_state.event_record.source_mode;
+  if (frontend != POLY_MODE_RAW_AARCH64 && frontend != POLY_MODE_RAW_RISCV)
+    return (uint64_t) -EINVAL;
+
+  memset(&nativecheck_trap_complete_desc, 0,
+    sizeof(nativecheck_trap_complete_desc));
+  nativecheck_trap_complete_desc.magic =
+    ((uint64_t) POLY_V2_COMPLETE_DESC_MAGIC_HI << 32) |
+      POLY_V2_COMPLETE_DESC_MAGIC_LO;
+  nativecheck_trap_complete_desc.bytes = POLY_V2_COMPLETE_DESC_BYTES;
+  nativecheck_trap_complete_desc.version = POLY_V2_COMPLETE_DESC_VERSION;
+  nativecheck_trap_complete_desc.header_bytes =
+    POLY_V2_COMPLETE_DESC_HEADER_BYTES;
+  nativecheck_trap_complete_desc.flags =
+    POLY_V2_COMPLETE_FLAG_SET_RESUME_PC |
+    POLY_V2_COMPLETE_FLAG_SET_RESULT0;
+  nativecheck_trap_complete_desc.frontend = frontend;
+  nativecheck_trap_complete_desc.resume_pc =
+    nativecheck_trap_complete_state.event_record.resume_pc;
+  nativecheck_trap_complete_desc.result0 = result;
+  nativecheck_trap_complete_desc.event_sequence =
+    nativecheck_active_event_frame != NULL ?
+      nativecheck_active_event_frame->sequence : 0;
+  if (poly_complete_event(&nativecheck_trap_complete_state,
+        &nativecheck_trap_complete_desc) != 0)
+    return (uint64_t) -EINVAL;
   return result;
 }
 
@@ -4743,6 +4783,8 @@ static void poly_trap_vector_handler(void) {
     "cmpq $7, %rsi\n"
     "jne 9f\n"
     "movq $6464, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4754,6 +4796,8 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $39, %rax\n"
     "syscall\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4771,6 +4815,8 @@ static void poly_trap_vector_handler(void) {
     "cmpq $0, %rsi\n"
     "jne 9f\n"
     "movq $6565, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4782,6 +4828,8 @@ static void poly_trap_vector_handler(void) {
     "jne 9f\n"
     "movq $39, %rax\n"
     "syscall\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4824,6 +4872,8 @@ static void poly_trap_vector_handler(void) {
     "cmpq $99, %r14\n"
     "jne 9f\n"
     "movq $5555, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4852,6 +4902,8 @@ static void poly_trap_vector_handler(void) {
     "cmpq $18, %r14\n"
     "jne 9f\n"
     "movq $4444, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4880,6 +4932,8 @@ static void poly_trap_vector_handler(void) {
     "cmpq $5, %r14\n"
     "jne 9f\n"
     "movq $4545, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4892,6 +4946,8 @@ static void poly_trap_vector_handler(void) {
     "cmpq $4, %rsi\n"
     "jne 9f\n"
     "movq $4664, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4904,6 +4960,8 @@ static void poly_trap_vector_handler(void) {
     "cmpq $4, %rsi\n"
     "jne 9f\n"
     "movq $4665, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -4914,12 +4972,16 @@ static void poly_trap_vector_handler(void) {
     "cmpq $2, %rsi\n"
     "jne 9f\n"
     "movq $4666, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
     "ud2\n"
     "9:\n"
     "movq $0xffffffffffffffff, %rax\n"
+    "movq %rax, %rdi\n"
+    "call nativecheck_complete_trap_result\n"
     "pxor %xmm0, %xmm0\n"
     "pxor %xmm8, %xmm8\n"
     POLY_OP_TRAP_RETURN
@@ -5143,6 +5205,7 @@ static int run_poly_trap_vector_probe(void) {
   uint64_t expected_pid = (uint64_t) getpid();
   static struct poly_v2_event_frame event_frame
     __attribute__((aligned(POLY_V2_EVENT_ALIGN)));
+  nativecheck_active_event_frame = &event_frame;
   if (NATIVECHECK_IMPORT_UNKNOWN_SELECTOR >= POLY_IMPORT_SELECTOR_COUNT) {
     fprintf(stderr,
       "NATIVE_CHECK_FAIL: poly unknown import selector outside selector window selector=%u count=%u\n",
