@@ -6866,11 +6866,27 @@ static int poly_seccomp_action_supported(uint32_t action) {
   }
 }
 
+static int poly_seccomp_dispatch_guest_bpf(long x86_number,
+    uint64_t *result_out) {
+  if (x86_number != SYS_bpf || result_out == NULL)
+    return 0;
+
+  /*
+   * Guest BPF programs are policy objects in the monitor, not host programs.
+   * Never hand guest bpf() payloads to the host kernel with translated syscall
+   * numbers or guest pointers.
+   */
+  *result_out = (uint64_t) -EPERM;
+  return 1;
+}
+
 static int poly_seccomp_dispatch_control(
     const struct poly_runtime_event_record *packet, long x86_number,
     uint64_t *result_out) {
   if (packet == NULL || result_out == NULL)
     return 0;
+  if (poly_seccomp_dispatch_guest_bpf(x86_number, result_out))
+    return 1;
 
   if (x86_number == SYS_prctl) {
     const uint64_t option = packet->args[0];

@@ -504,6 +504,8 @@ assert_contains "poly_seccomp_preflight_syscall" "$POLYEXEC" \
   "userspace monitor must evaluate guest seccomp policy before host syscall dispatch"
 assert_contains "poly_seccomp_dispatch_control" "$POLYEXEC" \
   "userspace monitor must intercept guest seccomp filter installation"
+assert_contains "poly_seccomp_dispatch_guest_bpf" "$POLYEXEC" \
+  "userspace monitor must not pass guest bpf policy syscalls through to the host"
 assert_contains "aarch64-process-seccomp-policy-real\\.elf" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must run an AArch64 seccomp policy fixture"
 assert_contains "riscv-process-seccomp-policy-real\\.elf" "$ROOT_DIR/scripts/boot.sh" \
