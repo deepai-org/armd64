@@ -69,13 +69,16 @@ memory accessibility probes, `PDERIVE_STATE` thread-state derivation/import,
 the hardware monitor-entry stack/frame contract, and policy preflight for
 seccomp-style userspace mediation. Core-file or
 minidump wrapping remains userspace policy on top of the debug-note blob;
-`polyexec` now has an opt-in fatal-fault path that writes a valid ELF
-`PT_NOTE` container carrying the v2 layout from `PDUMP_STATE`. Draft features
-such as hardware ABI-descriptor caching and diagnostic counters must not be
-advertised until their control paths and tests exist. The software-owned ABI
-descriptor decoder is runtime policy and does not require a hardware feature
-bit. `docs/poly-isa-userspace-offload-proposal.md` is the canonical proposal
-for moving the remaining clone/signal/result/debug/shared-memory burden out of
+`polyexec` now has an opt-in fatal-fault path that writes a Linux ELF64
+`ET_CORE` container with the OS-neutral `POLY` note from `PDUMP_STATE`,
+GDB-compatible `NT_PRSTATUS`/`NT_PRPSINFO`/`NT_AUXV` notes, and a stack
+`PT_LOAD` segment. Mapped-object `NT_FILE` metadata and fully symbolic unwind
+polish remain userspace follow-up work, not ISA policy. Draft features such as
+hardware ABI-descriptor caching and diagnostic counters must not be advertised
+until their control paths and tests exist. The software-owned ABI descriptor
+decoder is runtime policy and does not require a hardware feature bit.
+`docs/poly-isa-userspace-offload-proposal.md` is the canonical proposal for
+moving the remaining clone/signal/result/debug/shared-memory burden out of
 `polyexec` without baking Linux policy into the ISA.
 
 ## FPGA/Silicon ISA Readiness Boundary

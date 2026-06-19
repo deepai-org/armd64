@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     cpio \
     flex \
+    gdb-multiarch \
     bochs \
     bochs-x \
     bochsbios \

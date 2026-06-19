@@ -375,6 +375,11 @@ can synthesize the same layout directly from the validated spill descriptor's
 state/event pair when the fault context cannot execute a live dump control.
 Linux/GDB-specific `NT_PRSTATUS` register notes and stack-memory segments are
 intentionally a higher-level runtime compatibility layer, not part of the ISA.
+The current Linux `polyexec` runtime implements that layer for fatal
+single-thread cores by wrapping the OS-neutral note/state record in ELF64
+`ET_CORE` files that `gdb-multiarch` can load for AArch64 and RISC-V register
+inspection. Mapped-object `NT_FILE` notes and fully symbolic unwind metadata
+remain runtime/debugger-format work above `PDUMP_STATE`.
 
 ## Memory Probe
 

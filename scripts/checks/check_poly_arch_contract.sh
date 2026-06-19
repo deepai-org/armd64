@@ -636,6 +636,16 @@ assert_contains "selftest-pagefault" "$POLYEXEC" \
   "userspace monitor must expose a deliberate Poly page-fault self-test"
 assert_contains "POLY_FATAL_DEBUG_NOTE_ELF_OK" "$BOOT_SCRIPT" \
   "page-fault boot coverage must verify the fatal v2 debug-note ELF artifact"
+assert_contains "polyexec_process_crash_real\\.c" "$BOOT_SCRIPT" \
+  "boot coverage must build real crashing process fixtures for core validation"
+assert_contains "RUN_POLY_GDB_CORE_VALIDATION" "$BOOT_SCRIPT" \
+  "boot coverage must expose opt-in GDB core validation"
+assert_contains "gdb-multiarch" "$BOOT_SCRIPT" \
+  "host-side core validation must use gdb-multiarch"
+assert_contains "POLY_GDB_CORE_VALIDATION_HOST_OK" "$BOOT_SCRIPT" \
+  "boot coverage must require host-side GDB core validation"
+assert_contains "boot-poly-gdb-core-validation" "$ROOT_DIR/Makefile" \
+  "Makefile must expose a dedicated GDB core validation boot target"
 assert_not_contains "POLYEXEC_AUTO_SPILL_STATUS|poly_auto_spill_count_status" "$POLYEXEC" \
   "userspace monitor must not retain retired auto-spill profiling counters"
 assert_contains "PT_INTERP" "$POLYEXEC" \

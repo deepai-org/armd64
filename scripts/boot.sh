@@ -69,6 +69,7 @@ POLYEXEC_PROCESS_START_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_proc
 POLYEXEC_PROCESS_SYSCALL_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_syscall_real.c"
 POLYEXEC_PROCESS_SECCOMP_POLICY_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_seccomp_policy_real.c"
 POLYEXEC_PROCESS_IO_URING_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_io_uring_real.c"
+POLYEXEC_PROCESS_CRASH_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_crash_real.c"
 POLYEXEC_PROCESS_RELOC_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_reloc_real.c"
 POLYEXEC_PROCESS_NEEDED_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_needed_real.c"
 POLYEXEC_PROCESS_LIBC_MAIN_REAL_SRC="$ROOT_DIR/tools/fixtures/polyexec/polyexec_process_libc_main_real.c"
@@ -399,6 +400,7 @@ RUN_POLY_SMP_STRESS="${RUN_POLY_SMP_STRESS:-0}"
 RUN_POLY_FPU_TORTURE="${RUN_POLY_FPU_TORTURE:-0}"
 RUN_POLY_JIT_SELFTEST="${RUN_POLY_JIT_SELFTEST:-0}"
 RUN_POLY_PAGEFAULT_SELFTEST="${RUN_POLY_PAGEFAULT_SELFTEST:-0}"
+RUN_POLY_GDB_CORE_VALIDATION="${RUN_POLY_GDB_CORE_VALIDATION:-0}"
 POLY_SMP_THREADS="${POLY_SMP_THREADS:-4}"
 POLY_SMP_ATOMIC_ITERATIONS="${POLY_SMP_ATOMIC_ITERATIONS:-4096}"
 BOCHS_CPU_COUNT="${BOCHS_CPU_COUNT:-1}"
@@ -912,6 +914,12 @@ build_poly_elf_payloads() {
   aarch64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
     "$POLYEXEC_PROCESS_IO_URING_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-io-uring-real.elf"
+  aarch64-linux-gnu-gcc -O0 -g -fno-builtin -fno-tree-vectorize \
+    -fno-omit-frame-pointer -fno-stack-protector -fPIC -shared \
+    -nostdlib -nodefaultlibs \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_CRASH_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/aarch64-process-crash-real.elf"
   aarch64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -4252,6 +4260,12 @@ build_poly_elf_payloads() {
     -march=rv64gc -mabi=lp64d \
     "$POLYEXEC_PROCESS_IO_URING_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-io-uring-real.elf"
+  riscv64-linux-gnu-gcc -O0 -g -fno-builtin -fno-tree-vectorize \
+    -fno-omit-frame-pointer -fno-stack-protector -fPIC -shared \
+    -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
+    -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
+    "$POLYEXEC_PROCESS_CRASH_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-crash-real.elf"
   riscv64-linux-gnu-gcc -O2 -fno-builtin -fno-tree-vectorize -fPIC -shared \
     -nostdlib -nodefaultlibs -march=rv64gc -mabi=lp64d \
     -Wl,-e,_start -Wl,--hash-style=sysv -Wl,--build-id=none \
@@ -8774,6 +8788,7 @@ RUN_POLY_SMP_STRESS="$RUN_POLY_SMP_STRESS"
 RUN_POLY_FPU_TORTURE="$RUN_POLY_FPU_TORTURE"
 RUN_POLY_JIT_SELFTEST="$RUN_POLY_JIT_SELFTEST"
 RUN_POLY_PAGEFAULT_SELFTEST="$RUN_POLY_PAGEFAULT_SELFTEST"
+RUN_POLY_GDB_CORE_VALIDATION="$RUN_POLY_GDB_CORE_VALIDATION"
 POLY_SMP_THREADS="$POLY_SMP_THREADS"
 POLY_SMP_ATOMIC_ITERATIONS="$POLY_SMP_ATOMIC_ITERATIONS"
 RUN_POLY_CALL="$RUN_POLY_CALL"
@@ -9857,6 +9872,51 @@ if [ "$RUN_POLY_PAGEFAULT_SELFTEST" = "1" ]; then
         echo "POLY_PAGEFAULT_SELFTEST_FAIL: status=\$pagefault_status" >/dev/ttyS0 2>&1
         exit 1
     fi
+fi
+
+if [ "$RUN_POLY_GDB_CORE_VALIDATION" = "1" ]; then
+    echo "POLY_GDB_CORE_VALIDATION_START" >/dev/ttyS0
+    echo "1 4 1 7" > /proc/sys/kernel/printk 2>/dev/null || true
+    for arch in aarch64 riscv; do
+        note_dir="/tmp/poly-gdb-core-\$arch"
+        rm -rf "\$note_dir"
+        mkdir -p "\$note_dir"
+        set +e
+        POLYEXEC_FATAL_DEBUG_NOTE_DIR="\$note_dir" \
+          /usr/bin/polyexec --process \
+          /usr/lib/polyapps/\$arch-process-crash-real.elf \
+          >/dev/ttyS0 2>&1
+        crash_status="\$?"
+        set -e
+        if [ "\$crash_status" != "139" ]; then
+            echo "POLY_GDB_CORE_VALIDATION_FAIL: arch=\$arch status=\$crash_status" >/dev/ttyS0
+            exit 1
+        fi
+        fatal_note=""
+        for candidate in "\$note_dir"/*.core; do
+            if [ -s "\$candidate" ]; then
+                fatal_note="\$candidate"
+                break
+            fi
+        done
+        if [ -z "\$fatal_note" ]; then
+            echo "POLY_GDB_CORE_VALIDATION_FAIL: arch=\$arch missing-core" >/dev/ttyS0
+            exit 1
+        fi
+        fatal_note_magic="\$(/bin/busybox dd if="\$fatal_note" bs=1 count=4 2>/dev/null | /bin/busybox od -An -tx1)"
+        case "\$fatal_note_magic" in
+            *"7f 45 4c 46"*) ;;
+            *)
+                echo "POLY_GDB_CORE_VALIDATION_FAIL: arch=\$arch bad-magic=\$fatal_note_magic" >/dev/ttyS0
+                exit 1
+                ;;
+        esac
+        echo "POLY_GDB_CORE_\${arch}_PATH: \$fatal_note" >/dev/ttyS0
+        echo "POLY_GDB_CORE_\${arch}_B64_BEGIN" >/dev/ttyS0
+        /bin/busybox base64 "\$fatal_note" >/dev/ttyS0
+        echo "POLY_GDB_CORE_\${arch}_B64_END" >/dev/ttyS0
+    done
+    echo "POLY_GDB_CORE_VALIDATION_GUEST_OK" >/dev/ttyS0
 fi
 
 if [ "$RUN_POLY_ARCH_TRAP_EXEC" = "1" ]; then
@@ -13979,6 +14039,8 @@ boot_sections_complete() {
   required_section_complete "$RUN_POLY_FPU_TORTURE" "POLY_FPU_TORTURE_OK" || return 1
   required_section_complete "$RUN_POLY_JIT_SELFTEST" "POLY_JIT_SELFTEST_OK" || return 1
   required_section_complete "$RUN_POLY_PAGEFAULT_SELFTEST" "POLY_PAGEFAULT_SELFTEST_OK" || return 1
+  required_section_complete "$RUN_POLY_GDB_CORE_VALIDATION" \
+    "POLY_GDB_CORE_VALIDATION_GUEST_OK" || return 1
   required_section_complete "$RUN_POLY_CALL" "POLYCALL_OK" || return 1
   required_section_complete "$RUN_POLY_THREAD" "POLYTHREAD_OK" || return 1
   required_section_complete "$RUN_POLY_SIGNAL" "POLYSIGNAL_OK" || return 1
@@ -14011,6 +14073,96 @@ boot_sections_complete() {
       serial_has_marker "NATIVE_CPUID_POLY_ABSENT" || return 1
     fi
   fi
+}
+
+extract_serial_base64_block() {
+  local begin="$1"
+  local end="$2"
+  local output="$3"
+  awk -v begin="$begin" -v end="$end" '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+    }
+    line == begin { active = 1; next }
+    line == end { active = 0; next }
+    active { print line }
+  ' "$SERIAL_LOG" | base64 -d > "$output"
+}
+
+validate_poly_gdb_core() {
+  local arch="$1"
+  local machine_pattern="$2"
+  local exe="$TMP_DIR/initramfs-root/usr/lib/polyapps/$arch-process-crash-real.elf"
+  local core="$OUT_DIR/poly-gdb-core-$arch.core"
+  local readelf_log="$OUT_DIR/poly-gdb-core-$arch.readelf.txt"
+  local gdb_log="$OUT_DIR/poly-gdb-core-$arch.gdb.txt"
+
+  if ! command -v gdb-multiarch >/dev/null 2>&1; then
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: gdb-multiarch not found" >&2
+    return 1
+  fi
+  if [[ ! -s "$exe" ]]; then
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: missing executable $exe" >&2
+    return 1
+  fi
+  extract_serial_base64_block "POLY_GDB_CORE_${arch}_B64_BEGIN" \
+    "POLY_GDB_CORE_${arch}_B64_END" "$core"
+  if [[ ! -s "$core" ]]; then
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: empty decoded core for $arch" >&2
+    return 1
+  fi
+
+  readelf -h -n "$core" > "$readelf_log"
+  grep -Eq "Type:[[:space:]]+CORE" "$readelf_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch core is not ET_CORE" >&2
+    return 1
+  }
+  grep -Eq "Machine:[[:space:]]+$machine_pattern" "$readelf_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch core has wrong machine" >&2
+    return 1
+  }
+  grep -q "NT_PRSTATUS" "$readelf_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch core lacks NT_PRSTATUS" >&2
+    return 1
+  }
+  grep -q "NT_PRPSINFO" "$readelf_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch core lacks NT_PRPSINFO" >&2
+    return 1
+  }
+
+  gdb-multiarch -q -batch \
+    -ex "set pagination off" \
+    -ex "file $exe" \
+    -ex "core-file $core" \
+    -ex "info files" \
+    -ex "info registers" \
+    -ex "bt" \
+    > "$gdb_log" 2>&1
+  grep -Eq "Core was generated|Program terminated with signal SIGSEGV" \
+    "$gdb_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb did not accept core" >&2
+    return 1
+  }
+  grep -Eq "^pc[[:space:]]+0x[0-9a-fA-F]+" "$gdb_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb lacks pc register" >&2
+    return 1
+  }
+  grep -Eq "^sp[[:space:]]+0x[0-9a-fA-F]+" "$gdb_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb lacks sp register" >&2
+    return 1
+  }
+  grep -Eq "^#0[[:space:]]+" "$gdb_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb lacks backtrace frame" >&2
+    return 1
+  }
+  echo "POLY_GDB_CORE_VALIDATION_HOST_OK: arch=$arch core=$core"
+}
+
+validate_poly_gdb_cores() {
+  [[ "$RUN_POLY_GDB_CORE_VALIDATION" == "1" ]] || return 0
+  validate_poly_gdb_core aarch64 AArch64 || return 1
+  validate_poly_gdb_core riscv "RISC-V" || return 1
 }
 
 main() {
@@ -16282,12 +16434,14 @@ EOF
   fi
   wait "$bochs_pid" 2>/dev/null || true
 
-  if (( success > 0 )); then
+  if (( success > 0 )) && validate_poly_gdb_cores; then
     echo "Boot smoke test passed."
     exit 0
   fi
 
-  if (( success < 0 )); then
+  if (( success > 0 )); then
+    echo "Boot smoke test failed during host-side validation."
+  elif (( success < 0 )); then
     echo "Boot smoke test failed due to a fatal guest or emulator log pattern."
   else
     echo "Boot smoke test failed."
