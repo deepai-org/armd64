@@ -14343,6 +14343,7 @@ validate_poly_gdb_core() {
     -ex "info files" \
     -ex "info proc mappings" \
     -ex "info registers" \
+    -ex 'p $_siginfo' \
     -ex "bt" \
     > "$gdb_log" 2>&1
   if grep -Eq "Can't open file /usr/lib/polyapps" "$gdb_log"; then
@@ -14360,6 +14361,10 @@ validate_poly_gdb_core() {
   }
   grep -Eq "^sp[[:space:]]+0x[0-9a-fA-F]+" "$gdb_log" || {
     echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb lacks sp register" >&2
+    return 1
+  }
+  grep -Eq "si_signo[[:space:]]*=[[:space:]]*11" "$gdb_log" || {
+    echo "POLY_GDB_CORE_VALIDATION_FAIL: $arch gdb cannot read SIGSEGV siginfo" >&2
     return 1
   }
   grep -Eq "^#0[[:space:]]+" "$gdb_log" || {

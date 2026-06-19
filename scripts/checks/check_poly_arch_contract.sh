@@ -666,6 +666,8 @@ assert_contains "RUN_POLY_GDB_CORE_VALIDATION" "$BOOT_SCRIPT" \
   "boot coverage must expose opt-in GDB core validation"
 assert_contains "gdb-multiarch" "$BOOT_SCRIPT" \
   "host-side core validation must use gdb-multiarch"
+assert_contains '\$_siginfo' "$BOOT_SCRIPT" \
+  "host-side core validation must prove GDB can read signal info"
 assert_contains "POLY_GDB_CORE_VALIDATION_HOST_OK" "$BOOT_SCRIPT" \
   "boot coverage must require host-side GDB core validation"
 assert_contains "poly_crash_leaf" "$BOOT_SCRIPT" \

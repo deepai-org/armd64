@@ -2493,15 +2493,15 @@ static int poly_write_fatal_debug_note_elf(const char *path,
   if (poly_write_all_fd(fd, &ehdr, sizeof(ehdr)) < 0 ||
       poly_write_all_fd(fd, phdr, (size_t) phnum * sizeof(Elf64_Phdr)) < 0)
     status = -1;
-  if (status == 0 &&
-      poly_write_elf_note(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
-        POLYEXEC_ELF_CORE_NOTE_NAMESZ, NT_SIGINFO, &siginfo,
-        sizeof(siginfo)) < 0)
-    status = -1;
   if (status == 0 && prstatus != NULL &&
       poly_write_elf_note(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
         POLYEXEC_ELF_CORE_NOTE_NAMESZ, NT_PRSTATUS, prstatus,
         prstatus_size) < 0)
+    status = -1;
+  if (status == 0 &&
+      poly_write_elf_note(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
+        POLYEXEC_ELF_CORE_NOTE_NAMESZ, NT_SIGINFO, &siginfo,
+        sizeof(siginfo)) < 0)
     status = -1;
   if (status == 0 &&
       (poly_write_elf_note(fd, POLYEXEC_ELF_CORE_NOTE_NAME,
