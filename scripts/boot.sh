@@ -13786,7 +13786,25 @@ if [ "$RUN_POLY_ALPINE_FIO_IO_URING" = "1" ]; then
   echo "POLY_ALPINE_FIO_IO_URING_CMD: fio --ioengine=io_uring" >/dev/ttyS0
   /bin/busybox timeout 600 \
     /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c \
-      'fio --name=poly-fio-uring --filename=/tmp/poly-fio-uring.dat --ioengine=io_uring --rw=write --bs=4k --size=64k --iodepth=4 --numjobs=1 --direct=0 --output-format=normal && rm -f /tmp/poly-fio-uring.dat' \
+      'set -e
+       run_fio() {
+         name="\$1"
+         shift
+         echo "POLY_ALPINE_FIO_IO_URING_CASE: \$name"
+         fio --name="\$name" --filename=/tmp/poly-fio-uring.dat \
+           --ioengine=io_uring --bs=4k --size=64k --numjobs=1 \
+           --output-format=normal "\$@"
+       }
+       rm -f /tmp/poly-fio-uring.dat
+       run_fio poly-fio-uring-write --rw=write --iodepth=4 --direct=0
+       run_fio poly-fio-uring-read --rw=read --iodepth=4 --direct=0
+       run_fio poly-fio-uring-randrw-q8 --rw=randrw --iodepth=8 --direct=0
+       if run_fio poly-fio-uring-direct-read --rw=read --iodepth=2 --direct=1 --readonly; then
+         echo "POLY_ALPINE_FIO_IO_URING_DIRECT_OK"
+       else
+         echo "POLY_ALPINE_FIO_IO_URING_DIRECT_SKIP"
+       fi
+       rm -f /tmp/poly-fio-uring.dat' \
     >/dev/ttyS0 2>&1 || {
     echo "POLY_ALPINE_FIO_IO_URING_FAIL: fio workload" >/dev/ttyS0
     exit 1

@@ -420,6 +420,8 @@ assert_contains "0x9eae0000" "$BOCHS_CPU" \
   "Bochs AArch64 raw frontend must support FMOV X,V.d[1] used by unmodified python3 startup"
 assert_contains "0x1e600400" "$BOCHS_CPU" \
   "Bochs AArch64 raw frontend must support FCCMP D used by unmodified python3 startup"
+assert_contains "0x1e020000" "$BOCHS_CPU" \
+  "Bochs AArch64 raw frontend must support fixed-point SCVTF/UCVTF used by unmodified fio"
 assert_contains "write_virtual_byte\\(BX_SEG_REG_DS, addr, \\(Bit8u\\) value\\)" "$BOCHS_CPU" \
   "Bochs AArch64 raw frontend must support scalar FP STR B used by unmodified python3 startup"
 assert_contains "ip link set lo up" "$BOOT_SCRIPT" \
@@ -518,8 +520,14 @@ assert_contains "POLY_IO_URING_NOP_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must require the io_uring shared-ring marker"
 assert_contains "RUN_POLY_ALPINE_FIO_IO_URING" "$ROOT_DIR/scripts/boot.sh" \
   "boot coverage must expose an opt-in fio io_uring workload"
-assert_contains "fio --name=poly-fio-uring" "$ROOT_DIR/scripts/boot.sh" \
+assert_contains "ioengine=io_uring" "$ROOT_DIR/scripts/boot.sh" \
   "fio workload must explicitly run through the io_uring engine"
+assert_contains "poly-fio-uring-read" "$ROOT_DIR/scripts/boot.sh" \
+  "fio workload must cover io_uring reads"
+assert_contains "poly-fio-uring-randrw-q8" "$ROOT_DIR/scripts/boot.sh" \
+  "fio workload must cover a deeper mixed read/write queue"
+assert_contains "--direct=1" "$ROOT_DIR/scripts/boot.sh" \
+  "fio workload must probe direct I/O where the guest filesystem supports it"
 assert_contains "POLY_ALPINE_FIO_IO_URING_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot coverage must require the fio io_uring marker"
 assert_contains "boot-poly-alpine-fio-io-uring" "$ROOT_DIR/Makefile" \
@@ -832,6 +840,8 @@ assert_contains "fflag_nx" "$POLYEXEC_FPU_TORTURE_SRC" \
   "RISC-V FPU torture fixture must check inexact fflags status"
 assert_contains "0x3ff0000000000001" "$POLYEXEC_FPU_TORTURE_SRC" \
   "FPU torture fixture must check rounding-mode-sensitive results"
+assert_contains "scvtf d31, %w1, #2" "$POLYEXEC_FPU_TORTURE_SRC" \
+  "AArch64 FPU torture fixture must cover fixed-point SCVTF used by fio"
 assert_contains "RUN_POLY_JIT_SELFTEST" "$BOOT_SCRIPT" \
   "boot image must expose a dedicated JIT/self-modifying-code proof mode"
 assert_contains "aarch64-jit-selfmod-real\\.elf=42" "$BOOT_SCRIPT" \

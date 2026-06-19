@@ -115,6 +115,17 @@ static uint64_t a64_fcvtmu64(uint64_t value) {
   return out;
 }
 
+static uint64_t a64_scvtf_fixed_d_w(int32_t value) {
+  uint64_t out;
+  __asm__ volatile(
+    "scvtf d31, %w1, #2\n"
+    "fmov %x0, d31\n"
+    : "=r"(out)
+    : "r"(value)
+    : "v31", "memory");
+  return out;
+}
+
 static uint64_t a64_rehash_small_probe(void) {
   uint64_t branch_taken = 0;
   uint64_t selected = 0;
@@ -230,6 +241,10 @@ static uint64_t run_aarch64_fpu_torture(void) {
   a64_write_fpsr(0);
   if (a64_rehash_small_probe() != UINT64_C(0x00000001000c000c))
     return 28;
+
+  a64_write_fpsr(0);
+  if (a64_scvtf_fixed_d_w(-9) != UINT64_C(0xc002000000000000))
+    return 29;
 
   a64_write_fpcr(0);
   a64_write_fpsr(0);
