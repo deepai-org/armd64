@@ -62,6 +62,11 @@ RISC-V64 code.
   frames plus the userspace-offload ISA proposal. Raw-mode page faults use the
   normal monitor-vector/signal path; the old auto-spill descriptor/trampoline
   implementation and its profiling counters have been removed.
+- Direct AArch64/RISC-V seccomp policy fixtures pass through `polyexec`, but a
+  full Podman container-runtime seccomp profile is not yet a completed gate:
+  current `podman run` smoke attempts stall before a container profile can be
+  validated. Treat Podman/runc startup under `polyexec` as the remaining
+  enterprise-container blocker.
 - Hardware transition-stack depth, same-cycle push/pop conflicts, underflow,
   overflow, and return-cookie recovery behavior now have directed tests and a
   Yosys temporal-induction proof over a reduced-depth instance; full-depth
