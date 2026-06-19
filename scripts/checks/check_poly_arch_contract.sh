@@ -506,6 +506,14 @@ assert_contains "aarch64-process-seccomp-policy-real\\.elf" "$ROOT_DIR/scripts/b
   "boot syscall coverage must run an AArch64 seccomp policy fixture"
 assert_contains "POLY_SECCOMP_POLICY_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must require the seccomp policy fixture marker"
+assert_contains "polyexec_process_io_uring_real\\.c" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must build a real io_uring shared-ring fixture"
+assert_contains "aarch64-process-io-uring-real\\.elf=42" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must run the AArch64 io_uring shared-ring fixture"
+assert_contains "riscv-process-io-uring-real\\.elf=42" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must run the RISC-V io_uring shared-ring fixture"
+assert_contains "POLY_IO_URING_NOP_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must require the io_uring shared-ring marker"
 assert_contains "BX_POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$BOCHS_CPU" \
   "PDERIVE_STATE must expose an activation flag for resume imports"
 assert_contains "poly_ud: derived v2 activation enter" "$BOCHS_CPU" \
