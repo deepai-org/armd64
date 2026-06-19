@@ -2025,7 +2025,19 @@ static uint64_t poly_debug_note_pc_from_event(
     return state->event_record.resume_pc;
   if (state->event_record.trap_pc != 0)
     return state->event_record.trap_pc;
+  if ((state->transition.active.flags &
+       POLY_TRANSITION_FLAG_INTERRUPTED_RAW) != 0 &&
+      state->transition.active.return_pc != 0)
+    return state->transition.active.return_pc;
   return state->header.foreign_pc;
+}
+
+static int poly_state_has_interrupted_raw_frontend(
+    const struct poly_xsave_state *state, uint32_t frontend) {
+  return (state->transition.active.flags &
+          POLY_TRANSITION_FLAG_INTERRUPTED_RAW) != 0 &&
+    state->transition.active.target_mode == frontend &&
+    poly_is_raw_foreign_mode(frontend);
 }
 
 static int poly_synthesize_aarch64_debug_note_from_state(
@@ -2126,6 +2138,79 @@ static int poly_synthesize_riscv_debug_note_from_state(
   return 0;
 }
 
+static int poly_synthesize_interrupted_aarch64_debug_note_from_state(
+    struct poly_v2_debug_note *note, const struct poly_xsave_state *state) {
+  if (!poly_state_has_interrupted_raw_frontend(state, POLY_MODE_RAW_AARCH64))
+    return -1;
+
+  memset(note, 0, sizeof(*note));
+  note->magic = POLY_V2_DEBUG_NOTE_MAGIC;
+  note->bytes = POLY_V2_DEBUG_NOTE_BYTES;
+  note->version = POLY_V2_DEBUG_NOTE_VERSION;
+  note->header_bytes = POLY_V2_DEBUG_NOTE_HEADER_BYTES;
+  note->selector = POLY_V2_DUMP_SELECTOR_LIVE;
+  note->flags = POLY_V2_DEBUG_NOTE_FLAG_HAS_XSAVE |
+    POLY_V2_DEBUG_NOTE_FLAG_SPILLED;
+  note->frontend = POLY_MODE_RAW_AARCH64;
+  note->current_mode = state->header.current_mode;
+  note->state_layout_version = state->header.layout_version;
+  note->state_bytes = state->header.total_bytes;
+  note->pc = poly_debug_note_pc_from_event(state);
+  note->sp = state->aarch64_gpr[31];
+  note->tls = state->frontend_tls.aarch64_tls_base != 0 ?
+    state->frontend_tls.aarch64_tls_base : state->header.foreign_tls_base;
+  note->status0 = state->aarch64_status.nzcv;
+  note->status1 = state->aarch64_status.fpcr;
+  note->event_kind = 0;
+  note->fault_address = (uint64_t) poly_runtime_signal_addr;
+  note->gpr_valid_mask = POLY_AARCH64_GPR_VALID_MASK_FULL;
+  note->fp_valid_mask = 0xffffffffULL;
+  note->state_key = state->state_key.explicit_key;
+  note->xsave_offset = POLY_V2_DEBUG_NOTE_XSAVE_OFFSET;
+  note->xsave_bytes = sizeof(note->state);
+  note->state = *state;
+  note->state.header.current_mode = POLY_MODE_RAW_AARCH64;
+  note->state.header.foreign_pc = note->pc;
+  note->state.header.foreign_tls_base = note->tls;
+  return 0;
+}
+
+static int poly_synthesize_interrupted_riscv_debug_note_from_state(
+    struct poly_v2_debug_note *note, const struct poly_xsave_state *state) {
+  if (!poly_state_has_interrupted_raw_frontend(state, POLY_MODE_RAW_RISCV))
+    return -1;
+
+  memset(note, 0, sizeof(*note));
+  note->magic = POLY_V2_DEBUG_NOTE_MAGIC;
+  note->bytes = POLY_V2_DEBUG_NOTE_BYTES;
+  note->version = POLY_V2_DEBUG_NOTE_VERSION;
+  note->header_bytes = POLY_V2_DEBUG_NOTE_HEADER_BYTES;
+  note->selector = POLY_V2_DUMP_SELECTOR_LIVE;
+  note->flags = POLY_V2_DEBUG_NOTE_FLAG_HAS_XSAVE |
+    POLY_V2_DEBUG_NOTE_FLAG_SPILLED;
+  note->frontend = POLY_MODE_RAW_RISCV;
+  note->current_mode = state->header.current_mode;
+  note->state_layout_version = state->header.layout_version;
+  note->state_bytes = state->header.total_bytes;
+  note->pc = poly_debug_note_pc_from_event(state);
+  note->sp = state->riscv_gpr[2];
+  note->tls = state->frontend_tls.riscv_tls_base != 0 ?
+    state->frontend_tls.riscv_tls_base : state->header.foreign_tls_base;
+  note->status0 = state->riscv_status.fcsr;
+  note->event_kind = 0;
+  note->fault_address = (uint64_t) poly_runtime_signal_addr;
+  note->gpr_valid_mask = POLY_RISCV_GPR_VALID_MASK_FULL;
+  note->fp_valid_mask = 0xffffffffULL;
+  note->state_key = state->state_key.explicit_key;
+  note->xsave_offset = POLY_V2_DEBUG_NOTE_XSAVE_OFFSET;
+  note->xsave_bytes = sizeof(note->state);
+  note->state = *state;
+  note->state.header.current_mode = POLY_MODE_RAW_RISCV;
+  note->state.header.foreign_pc = note->pc;
+  note->state.header.foreign_tls_base = note->tls;
+  return 0;
+}
+
 static int poly_synthesize_debug_note_from_trap_state(
     struct poly_v2_debug_note *note) {
   struct poly_xsave_state state
@@ -2135,7 +2220,11 @@ static int poly_synthesize_debug_note_from_trap_state(
   if (state.header.magic != POLY_STATE_XSAVE_MAGIC)
     return -1;
   if (poly_synthesize_aarch64_debug_note_from_state(note, &state) == 0 ||
-      poly_synthesize_riscv_debug_note_from_state(note, &state) == 0)
+      poly_synthesize_riscv_debug_note_from_state(note, &state) == 0 ||
+      poly_synthesize_interrupted_aarch64_debug_note_from_state(
+        note, &state) == 0 ||
+      poly_synthesize_interrupted_riscv_debug_note_from_state(
+        note, &state) == 0)
     return 0;
   return -1;
 }
