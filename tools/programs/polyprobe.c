@@ -62,6 +62,7 @@
 #define POLY_OP_ABI_SIGNATURE_SET POLY_X86_CTRL_ABI_SIGNATURE_SET_ASM
 #define POLY_OP_ABI_SIGNATURE_GET POLY_X86_CTRL_ABI_SIGNATURE_GET_ASM
 #define POLY_OP_EVENT_PTR_SET POLY_X86_CTRL_EVENT_PTR_SET_ASM
+#define POLY_OP_COMPLETE_EVENT POLY_X86_CTRL_COMPLETE_EVENT_ASM
 #define POLY_OP_LANDING_POLICY_SET POLY_X86_CTRL_LANDING_POLICY_SET_ASM
 #define POLY_OP_LANDING_POLICY_GET POLY_X86_CTRL_LANDING_POLICY_GET_ASM
 #define POLY_ABI_GPR_CLOBBERS \
@@ -92,6 +93,10 @@
   ((((uint64_t) POLY_V2_EVENT_MAGIC_HI) << 32) | POLY_V2_EVENT_MAGIC_LO)
 
 static struct poly_xsave_state polyprobe_state __attribute__((aligned(64)));
+static struct poly_xsave_state polyprobe_trap_complete_state
+  __attribute__((aligned(POLY_STATE_XSAVE_ALIGN_ARCH)));
+static struct poly_v2_complete_descriptor polyprobe_trap_complete_desc
+  __attribute__((aligned(POLY_V2_COMPLETE_DESC_ALIGN)));
 static uint32_t polyprobe_native_signature_slot =
   POLY_ABI_SIGNATURE_SLOT_NATIVE_REGS;
 static uint32_t polyprobe_fp64_signature_slot =
@@ -106,6 +111,8 @@ struct polyprobe_event_packet {
   uint64_t resume_pc;
   uint64_t args[POLY_V2_EVENT_ARG_COUNT];
 };
+
+static int poly_is_raw_foreign_mode(uint64_t mode);
 
 static const struct poly_v2_event_frame *polyprobe_current_event_frame;
 static const uint64_t polyprobe_aarch64_event_args[POLY_V2_EVENT_ARG_COUNT] =
@@ -248,6 +255,50 @@ static inline uint64_t poly_state_key_get(void) {
 static inline void poly_state_export(struct poly_xsave_state *state) {
   uint64_t rax = (uint64_t) (uintptr_t) state;
   asm volatile(POLY_OP_STATE_EXPORT : "+a"(rax) :: "memory");
+}
+
+static inline uint64_t poly_complete_event(struct poly_xsave_state *state,
+    const struct poly_v2_complete_descriptor *descriptor) {
+  uint64_t result = (uint64_t) (uintptr_t) state;
+  uint64_t descriptor_reg = (uint64_t) (uintptr_t) descriptor;
+  asm volatile(POLY_OP_COMPLETE_EVENT
+    : "+a"(result), "+d"(descriptor_reg)
+    :
+    : "rcx", "r15", "memory");
+  return result;
+}
+
+__attribute__((noinline, used))
+uint64_t polyprobe_complete_trap_result(uint64_t result) {
+  poly_state_export(&polyprobe_trap_complete_state);
+  const uint32_t frontend =
+    polyprobe_trap_complete_state.event_record.source_mode;
+  if (!poly_is_raw_foreign_mode(frontend))
+    return POLY_ERR_INVAL;
+
+  memset(&polyprobe_trap_complete_desc, 0,
+    sizeof(polyprobe_trap_complete_desc));
+  polyprobe_trap_complete_desc.magic =
+    ((uint64_t) POLY_V2_COMPLETE_DESC_MAGIC_HI << 32) |
+      POLY_V2_COMPLETE_DESC_MAGIC_LO;
+  polyprobe_trap_complete_desc.bytes = POLY_V2_COMPLETE_DESC_BYTES;
+  polyprobe_trap_complete_desc.version = POLY_V2_COMPLETE_DESC_VERSION;
+  polyprobe_trap_complete_desc.header_bytes =
+    POLY_V2_COMPLETE_DESC_HEADER_BYTES;
+  polyprobe_trap_complete_desc.flags =
+    POLY_V2_COMPLETE_FLAG_SET_RESUME_PC |
+    POLY_V2_COMPLETE_FLAG_SET_RESULT0;
+  polyprobe_trap_complete_desc.frontend = frontend;
+  polyprobe_trap_complete_desc.resume_pc =
+    polyprobe_trap_complete_state.event_record.resume_pc;
+  polyprobe_trap_complete_desc.result0 = result;
+  polyprobe_trap_complete_desc.event_sequence =
+    polyprobe_current_event_frame != NULL ?
+      polyprobe_current_event_frame->sequence : 0;
+  if (poly_complete_event(&polyprobe_trap_complete_state,
+        &polyprobe_trap_complete_desc) != 0)
+    return POLY_ERR_INVAL;
+  return result;
 }
 
 static inline void poly_state_import(struct poly_xsave_state *state) {
@@ -614,6 +665,8 @@ static void polyprobe_trap_vector_handler(void) {
     "andq $-16, %rsp\n"
     "subq $128, %rsp\n"
     "call polyprobe_trap_vector_dispatch\n"
+    "movq %rax, %rdi\n"
+    "call polyprobe_complete_trap_result\n"
     "movq %rbp, %rsp\n"
     "popq %rbp\n"
     "popq %r15\n"
