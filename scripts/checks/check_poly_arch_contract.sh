@@ -514,6 +514,14 @@ assert_contains "riscv-process-io-uring-real\\.elf=42" "$ROOT_DIR/scripts/boot.s
   "boot syscall coverage must run the RISC-V io_uring shared-ring fixture"
 assert_contains "POLY_IO_URING_NOP_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must require the io_uring shared-ring marker"
+assert_contains "RUN_POLY_ALPINE_FIO_IO_URING" "$ROOT_DIR/scripts/boot.sh" \
+  "boot coverage must expose an opt-in fio io_uring workload"
+assert_contains "fio --name=poly-fio-uring" "$ROOT_DIR/scripts/boot.sh" \
+  "fio workload must explicitly run through the io_uring engine"
+assert_contains "POLY_ALPINE_FIO_IO_URING_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "boot coverage must require the fio io_uring marker"
+assert_contains "boot-poly-alpine-fio-io-uring" "$ROOT_DIR/Makefile" \
+  "Makefile must expose a dedicated fio io_uring boot target"
 assert_contains "BX_POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$BOCHS_CPU" \
   "PDERIVE_STATE must expose an activation flag for resume imports"
 assert_contains "poly_ud: derived v2 activation enter" "$BOCHS_CPU" \
