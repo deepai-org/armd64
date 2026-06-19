@@ -4258,6 +4258,10 @@ build_poly_elf_payloads() {
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-syscall-real.elf"
   riscv64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
     -march=rv64gc -mabi=lp64d \
+    "$POLYEXEC_PROCESS_SECCOMP_POLICY_REAL_SRC" \
+    -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-seccomp-policy-real.elf"
+  riscv64-linux-gnu-gcc -O2 -static -s -fno-stack-protector \
+    -march=rv64gc -mabi=lp64d \
     "$POLYEXEC_PROCESS_IO_URING_REAL_SRC" \
     -o "$TMP_DIR/initramfs-root/usr/lib/polyapps/riscv-process-io-uring-real.elf"
   riscv64-linux-gnu-gcc -O0 -g -fno-builtin -fno-tree-vectorize \
@@ -9118,6 +9122,9 @@ if [ "$RUN_POLY_EXEC_SYSCALL" = "1" ]; then
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-syscall-real.elf=42 \
       probe >/dev/ttyS0 2>&1
+    /usr/bin/polyexec --process \
+      /usr/lib/polyapps/riscv-process-seccomp-policy-real.elf=42 \
+      seccomp-policy >/dev/ttyS0 2>&1
     /usr/bin/polyexec --process \
       /usr/lib/polyapps/riscv-process-io-uring-real.elf=42 \
       io-uring-nop >/dev/ttyS0 2>&1
@@ -14611,6 +14618,10 @@ EOF
           continue
         fi
         if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-syscall-real\\.elf" "$SERIAL_LOG"; then
+          sleep 1
+          continue
+        fi
+        if ! grep -Eq "POLYEXEC_RESULT: arch=riscv value=42 process=1 path=/usr/lib/polyapps/riscv-process-seccomp-policy-real\\.elf" "$SERIAL_LOG"; then
           sleep 1
           continue
         fi

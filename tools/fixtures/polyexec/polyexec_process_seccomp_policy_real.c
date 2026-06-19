@@ -26,13 +26,21 @@
 #define POLY_SECCOMP_MODE_FILTER 2
 #define POLY_SECCOMP_RET_ERRNO 0x00050000U
 #define POLY_SECCOMP_RET_ALLOW 0x7fff0000U
-#define POLY_AUDIT_ARCH_AARCH64 0xc00000b7U
-#define POLY_AARCH64_SYS_MKDIRAT 34
 #define POLY_BPF_LD_W_ABS 0x20
 #define POLY_BPF_JMP_JEQ_K 0x15
 #define POLY_BPF_RET_K 0x06
 #define POLY_SECCOMP_NR_OFFSET 0
 #define POLY_SECCOMP_ARCH_OFFSET 4
+
+#if defined(__aarch64__)
+#define POLY_AUDIT_ARCH 0xc00000b7U
+#elif defined(__riscv) && __riscv_xlen == 64
+#define POLY_AUDIT_ARCH 0xc00000f3U
+#else
+#error "unsupported seccomp policy fixture architecture"
+#endif
+
+#define POLY_SYS_MKDIRAT 34
 
 struct poly_bpf_insn {
   uint16_t code;
@@ -54,9 +62,9 @@ static long poly_prctl(long option, long arg2, long arg3, long arg4,
 int main(void) {
   struct poly_bpf_insn filter[] = {
     { POLY_BPF_LD_W_ABS, 0, 0, POLY_SECCOMP_ARCH_OFFSET },
-    { POLY_BPF_JMP_JEQ_K, 0, 3, POLY_AUDIT_ARCH_AARCH64 },
+    { POLY_BPF_JMP_JEQ_K, 0, 3, POLY_AUDIT_ARCH },
     { POLY_BPF_LD_W_ABS, 0, 0, POLY_SECCOMP_NR_OFFSET },
-    { POLY_BPF_JMP_JEQ_K, 1, 0, POLY_AARCH64_SYS_MKDIRAT },
+    { POLY_BPF_JMP_JEQ_K, 1, 0, POLY_SYS_MKDIRAT },
     { POLY_BPF_RET_K, 0, 0, POLY_SECCOMP_RET_ALLOW },
     { POLY_BPF_RET_K, 0, 0, POLY_SECCOMP_RET_ERRNO | EPERM },
   };

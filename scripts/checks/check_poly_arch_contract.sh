@@ -504,6 +504,8 @@ assert_contains "poly_seccomp_dispatch_control" "$POLYEXEC" \
   "userspace monitor must intercept guest seccomp filter installation"
 assert_contains "aarch64-process-seccomp-policy-real\\.elf" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must run an AArch64 seccomp policy fixture"
+assert_contains "riscv-process-seccomp-policy-real\\.elf" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must run a RISC-V seccomp policy fixture"
 assert_contains "POLY_SECCOMP_POLICY_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must require the seccomp policy fixture marker"
 assert_contains "polyexec_process_io_uring_real\\.c" "$ROOT_DIR/scripts/boot.sh" \
