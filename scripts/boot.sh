@@ -420,6 +420,7 @@ RUN_POLY_ALPINE_PODMAN_SMOKE="${RUN_POLY_ALPINE_PODMAN_SMOKE:-0}"
 RUN_POLY_ALPINE_NODE_SMOKE="${RUN_POLY_ALPINE_NODE_SMOKE:-0}"
 RUN_POLY_ALPINE_POSTGRES_SMOKE="${RUN_POLY_ALPINE_POSTGRES_SMOKE:-0}"
 RUN_POLY_ALPINE_FIO_IO_URING="${RUN_POLY_ALPINE_FIO_IO_URING:-0}"
+RUN_POLY_ALPINE_SQLITE_STRESS="${RUN_POLY_ALPINE_SQLITE_STRESS:-0}"
 POLY_ALPINE_TRACE_SYSCALLS="${POLY_ALPINE_TRACE_SYSCALLS:-0}"
 POLY_ALPINE_TRACE_POSTGRES_SYSCALLS="${POLY_ALPINE_TRACE_POSTGRES_SYSCALLS:-0}"
 POLY_ALPINE_TRACE_TRAP_RETURNS="${POLY_ALPINE_TRACE_TRAP_RETURNS:-0}"
@@ -472,7 +473,8 @@ if [[ "$RUN_GUEST_NETWORK_SMOKE" == "1" ||
       "$RUN_POLY_ALPINE_PODMAN_SMOKE" == "1" ||
       "$RUN_POLY_ALPINE_NODE_SMOKE" == "1" ||
       "$RUN_POLY_ALPINE_POSTGRES_SMOKE" == "1" ||
-      "$RUN_POLY_ALPINE_FIO_IO_URING" == "1" ]]; then
+      "$RUN_POLY_ALPINE_FIO_IO_URING" == "1" ||
+      "$RUN_POLY_ALPINE_SQLITE_STRESS" == "1" ]]; then
   RUN_GUEST_NETWORK=1
 fi
 RUN_NATIVE_CHECK="${RUN_NATIVE_CHECK:-0}"
@@ -7754,7 +7756,8 @@ build_binfmt_module() {
       "$RUN_POLY_ALPINE_PODMAN_SMOKE" != "1" &&
       "$RUN_POLY_ALPINE_NODE_SMOKE" != "1" &&
       "$RUN_POLY_ALPINE_POSTGRES_SMOKE" != "1" &&
-      "$RUN_POLY_ALPINE_FIO_IO_URING" != "1" ]]; then
+      "$RUN_POLY_ALPINE_FIO_IO_URING" != "1" &&
+      "$RUN_POLY_ALPINE_SQLITE_STRESS" != "1" ]]; then
     return
   fi
 
@@ -8040,7 +8043,8 @@ build_oci_alpine_aarch64_rootfs() {
       "$RUN_POLY_ALPINE_PODMAN_SMOKE" != "1" &&
       "$RUN_POLY_ALPINE_NODE_SMOKE" != "1" &&
       "$RUN_POLY_ALPINE_POSTGRES_SMOKE" != "1" &&
-      "$RUN_POLY_ALPINE_FIO_IO_URING" != "1" ]]; then
+      "$RUN_POLY_ALPINE_FIO_IO_URING" != "1" &&
+      "$RUN_POLY_ALPINE_SQLITE_STRESS" != "1" ]]; then
     return
   fi
   if ! command -v python3 >/dev/null 2>&1; then
@@ -8337,6 +8341,96 @@ PY
         --exclude='.INSTALL' \
         --exclude='*.trigger'
     done < "$fio_pkg_list"
+  fi
+
+  if [[ "$RUN_POLY_ALPINE_SQLITE_STRESS" == "1" ]]; then
+    local main_index="$CACHE_DIR/apkindex-aarch64-main.tar.gz"
+    local community_index="$CACHE_DIR/apkindex-aarch64-community.tar.gz"
+    local sqlite_pkg_list="$CACHE_DIR/oci-alpine-sqlite-aarch64-packages.txt"
+    rm -f "$main_index" "$community_index"
+    download "$ALPINE_AARCH64_MAIN_URL/aarch64/APKINDEX.tar.gz" "$main_index"
+    download "$ALPINE_AARCH64_COMMUNITY_URL/aarch64/APKINDEX.tar.gz" \
+      "$community_index"
+    python3 - "$main_index" "$ALPINE_AARCH64_MAIN_URL/aarch64" \
+      "$community_index" "$ALPINE_AARCH64_COMMUNITY_URL/aarch64" \
+      "$sqlite_pkg_list" <<'PY'
+import re
+import sys
+import tarfile
+from collections import deque
+
+index_specs = [(sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])]
+out_path = sys.argv[5]
+packages = {}
+providers = {}
+
+def add_field(pkg, key, value):
+    if key in pkg:
+        pkg[key] += " " + value
+    else:
+        pkg[key] = value
+
+for index_path, repo_url in index_specs:
+    with tarfile.open(index_path, "r:gz") as tf:
+        data = tf.extractfile("APKINDEX").read().decode("utf-8")
+    current = {}
+    for line in data.splitlines() + [""]:
+        if not line:
+            name = current.get("P")
+            if name:
+                current["repo"] = repo_url
+                packages[name] = current
+                providers[name] = name
+                for provided in current.get("p", "").split():
+                    providers[provided.split("=", 1)[0]] = name
+            current = {}
+            continue
+        if len(line) >= 2 and line[1] == ":":
+            add_field(current, line[0], line[2:])
+
+def dep_key(dep):
+    dep = re.split(r"[<>=~]", dep, 1)[0]
+    if not dep or dep.startswith("/"):
+        return None
+    if dep == "so:libc.musl-aarch64.so.1":
+        return None
+    return dep
+
+wanted = []
+seen = set()
+queue = deque(["sqlite"])
+while queue:
+    dep = queue.popleft()
+    key = dep_key(dep)
+    if not key:
+        continue
+    name = packages.get(key, {}).get("P") or providers.get(key)
+    if not name:
+        raise SystemExit(f"Unable to resolve Alpine aarch64 dependency: {dep}")
+    if name in seen:
+        continue
+    pkg = packages[name]
+    seen.add(name)
+    wanted.append(name)
+    for child in pkg.get("D", "").split():
+        queue.append(child)
+
+with open(out_path, "w", encoding="utf-8") as f:
+    for name in wanted:
+        pkg = packages[name]
+        f.write(f"{name} {pkg['repo']}/{name}-{pkg['V']}.apk\n")
+PY
+    while read -r pkg_name pkg_url; do
+      [[ -n "$pkg_name" && -n "$pkg_url" ]] || continue
+      local pkg_file="$CACHE_DIR/apk-aarch64-${pkg_url##*/}"
+      download "$pkg_url" "$pkg_file"
+      tar --warning=no-unknown-keyword -xzf "$pkg_file" -C "$rootfs_dir" \
+        --exclude='.PKGINFO' \
+        --exclude='.SIGN.*' \
+        --exclude='.DESCRIPTION' \
+        --exclude='.INSTALL' \
+        --exclude='*.trigger'
+    done < "$sqlite_pkg_list"
   fi
 
   if [[ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" == "1" ]]; then
@@ -8807,6 +8901,7 @@ RUN_POLY_ALPINE_PODMAN_SMOKE="$RUN_POLY_ALPINE_PODMAN_SMOKE"
 RUN_POLY_ALPINE_NODE_SMOKE="$RUN_POLY_ALPINE_NODE_SMOKE"
 RUN_POLY_ALPINE_POSTGRES_SMOKE="$RUN_POLY_ALPINE_POSTGRES_SMOKE"
 RUN_POLY_ALPINE_FIO_IO_URING="$RUN_POLY_ALPINE_FIO_IO_URING"
+RUN_POLY_ALPINE_SQLITE_STRESS="$RUN_POLY_ALPINE_SQLITE_STRESS"
 POLY_ALPINE_TRACE_SYSCALLS="$POLY_ALPINE_TRACE_SYSCALLS"
 POLY_ALPINE_TRACE_POSTGRES_SYSCALLS="$POLY_ALPINE_TRACE_POSTGRES_SYSCALLS"
 POLY_ALPINE_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS"
@@ -13812,6 +13907,80 @@ if [ "$RUN_POLY_ALPINE_FIO_IO_URING" = "1" ]; then
   echo "POLY_ALPINE_FIO_IO_URING_OK" >/dev/ttyS0
 fi
 
+if [ "$RUN_POLY_ALPINE_SQLITE_STRESS" = "1" ]; then
+  echo "POLY_ALPINE_SQLITE_STRESS_START" >/dev/ttyS0
+  if [ -f /lib/modules/poly/binfmt_misc.ko ]; then
+    insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
+  fi
+  mkdir -p /proc/sys/fs/binfmt_misc || {
+    echo "POLY_ALPINE_SQLITE_STRESS_FAIL: mkdir binfmt_misc" >/dev/ttyS0
+    exit 1
+  }
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
+    echo "POLY_ALPINE_SQLITE_STRESS_FAIL: binfmt_misc unavailable" >/dev/ttyS0
+    exit 1
+  fi
+  if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
+    echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
+  fi
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+    > /proc/sys/fs/binfmt_misc/register || {
+    echo "POLY_ALPINE_SQLITE_STRESS_FAIL: register aarch64" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_SQLITE_STRESS_BINFMT_REGISTERED" >/dev/ttyS0
+  if [ ! -x /oci-alpine-arm64/usr/bin/sqlite3 ]; then
+    echo "POLY_ALPINE_SQLITE_STRESS_FAIL: staged sqlite3 missing" >/dev/ttyS0
+    exit 1
+  fi
+  echo "POLY_ALPINE_SQLITE_STRESS_CMD: sqlite3 WAL transaction/index workload" \
+    >/dev/ttyS0
+  /bin/busybox timeout 600 \
+    /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c \
+      'set -e
+       db=/tmp/poly-sqlite-stress.db
+       sql=/tmp/poly-sqlite-stress.sql
+       rm -f "\$db" "\$db-shm" "\$db-wal" "\$sql"
+       cat > "\$sql" <<'"'"'SQL'"'"'
+PRAGMA journal_mode=WAL;
+PRAGMA synchronous=NORMAL;
+PRAGMA temp_store=MEMORY;
+CREATE TABLE kv(k INTEGER PRIMARY KEY, v TEXT NOT NULL);
+WITH RECURSIVE seq(x) AS (
+  VALUES(1)
+  UNION ALL SELECT x + 1 FROM seq WHERE x < 512
+)
+INSERT INTO kv(k, v) SELECT x, printf('"'"'value-%04d'"'"', x) FROM seq;
+BEGIN IMMEDIATE;
+UPDATE kv SET v = v || '"'"'-hot'"'"' WHERE k BETWEEN 32 AND 480 AND k % 7 = 0;
+INSERT INTO kv(k, v) SELECT k + 10000, v FROM kv WHERE k <= 128;
+DELETE FROM kv WHERE k % 11 = 0;
+COMMIT;
+CREATE INDEX kv_v ON kv(v);
+PRAGMA wal_checkpoint(FULL);
+SQL
+       sqlite3 "\$db" < "\$sql"
+       integrity="\$(sqlite3 "\$db" "PRAGMA integrity_check;")"
+       rows="\$(sqlite3 "\$db" "SELECT count(*) FROM kv;")"
+       hot="\$(sqlite3 "\$db" "SELECT count(*) FROM kv WHERE v LIKE '"'"'%-hot'"'"';")"
+       total="\$(sqlite3 "\$db" "SELECT sum(k) FROM kv;")"
+       if [ "\$integrity" != ok ] ||
+           [ "\$rows" != 583 ] ||
+           [ "\$hot" != 71 ] ||
+           [ "\$total" != 1296978 ]; then
+         echo "POLY_ALPINE_SQLITE_STRESS_MISMATCH: rows=\$rows hot=\$hot total=\$total integrity=\$integrity"
+         exit 1
+       fi
+       echo "POLY_ALPINE_SQLITE_STRESS_RESULT: rows=\$rows hot=\$hot total=\$total integrity=\$integrity"
+       rm -f "\$db" "\$db-shm" "\$db-wal" "\$sql"' \
+    >/dev/ttyS0 2>&1 || {
+    echo "POLY_ALPINE_SQLITE_STRESS_FAIL: sqlite workload" >/dev/ttyS0
+    exit 1
+  }
+  echo "POLY_ALPINE_SQLITE_STRESS_OK" >/dev/ttyS0
+fi
+
 if [ "$RUN_POLY_ALPINE_NODE_SMOKE" = "1" ]; then
   echo "POLY_ALPINE_NODE_SMOKE_START" >/dev/ttyS0
   if [ "$POLY_ALPINE_DISABLE_ASLR" = "1" ] &&
@@ -14081,6 +14250,8 @@ boot_sections_complete() {
     "POLY_ALPINE_POSTGRES_SMOKE_OK" || return 1
   required_section_complete "$RUN_POLY_ALPINE_FIO_IO_URING" \
     "POLY_ALPINE_FIO_IO_URING_OK" || return 1
+  required_section_complete "$RUN_POLY_ALPINE_SQLITE_STRESS" \
+    "POLY_ALPINE_SQLITE_STRESS_OK" || return 1
   required_section_complete "$RUN_POLY_ALPINE_NODE_SMOKE" \
     "POLY_ALPINE_NODE_SMOKE_OK" || return 1
   required_section_complete "$RUN_GUEST_NETWORK_SMOKE" "POLY_GUEST_NETWORK_HTTP_OK" || return 1

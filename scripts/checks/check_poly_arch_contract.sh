@@ -532,6 +532,14 @@ assert_contains "POLY_ALPINE_FIO_IO_URING_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot coverage must require the fio io_uring marker"
 assert_contains "boot-poly-alpine-fio-io-uring" "$ROOT_DIR/Makefile" \
   "Makefile must expose a dedicated fio io_uring boot target"
+assert_contains "RUN_POLY_ALPINE_SQLITE_STRESS" "$ROOT_DIR/scripts/boot.sh" \
+  "boot coverage must expose an opt-in SQLite sustained workload"
+assert_contains "POLY_ALPINE_SQLITE_STRESS_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "boot coverage must require the SQLite stress marker"
+assert_contains "sqlite3 WAL transaction/index workload" "$ROOT_DIR/scripts/boot.sh" \
+  "SQLite stress must exercise transactional storage behavior"
+assert_contains "boot-poly-alpine-sqlite-stress" "$ROOT_DIR/Makefile" \
+  "Makefile must expose a dedicated SQLite stress boot target"
 assert_contains "BX_POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$BOCHS_CPU" \
   "PDERIVE_STATE must expose an activation flag for resume imports"
 assert_contains "poly_ud: derived v2 activation enter" "$BOCHS_CPU" \
