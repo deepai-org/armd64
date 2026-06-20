@@ -34,6 +34,14 @@ Primary targets:
   call/thread/signal, binfmt dispatch, and benchmark trap-delta validation.
 - `make boot-poly-full-real-xsave-arch-traps`: broad regression with the guest
   Poly XCR0 module loaded, requiring direct XSAVE/XRSTOR state handling.
+- `make boot-poly-gdb-core-validation`: fatal AArch64/RISC-V process cores
+  wrapped from Poly debug notes and loaded by `gdb-multiarch`.
+- `make boot-poly-alpine-fio-io-uring`: AArch64 Alpine `fio` workload through
+  `ioengine=io_uring`, covering shared-ring syscall handoff.
+- `make boot-poly-alpine-sqlite-stress`: guest-native SQLite WAL transaction
+  and index workload through the process/container path.
+- `make boot-poly-alpine-runc-version-smoke`: focused process-mode runc startup
+  smoke before full Podman container launch.
 
 Focused targets exist for nativecheck, probe, app payload, neutral switching,
 process loader, syscall/trap, call/thread/signal, benchmark, and binfmt
@@ -45,9 +53,18 @@ specific subsystem.
 - The prototype boots an Alpine-based x86_64 initramfs under Bochs.
 - It runs native x86 checks plus AArch64/RISC-V raw execution, foreign traps,
   direct AArch64<->RISC-V transitions, cross-ISA calls, threads, signals,
-  benchmarks, and binfmt smoke tests.
+  benchmarks, binfmt smoke tests, GDB-loadable fatal core artifacts, and
+  io_uring shared-ring syscall fixtures.
 - The compatibility subset includes integer, FP, fixed 128-bit vector,
   atomics, TLS, ELF relocation, dynamic linking, and import/syscall trap paths.
+- `polyexec` uses the v2 OS-neutral runtime primitives for event-frame dispatch,
+  state derivation/import, event completion, debug-note export, memory probing,
+  and shared-memory ordering; Linux-specific formats such as ELF cores, seccomp
+  filters, and io_uring rings remain userspace policy.
+- Alpine process-mode binfmt now uses fd-backed open-binary handoff for
+  namespace/chroot launchers. Direct runc startup has targeted coverage; full
+  Podman seccomp-profile container validation is still a remaining integration
+  gate.
 - It is not a complete implementation of every AArch64/RISC-V extension or
   every possible precompiled binary. Unsupported foreign instructions produce
   canonical v2 event frames.
@@ -79,6 +96,9 @@ specific subsystem.
   context-switch contract.
 - Foreign `svc`/`ecall`, breakpoints, illegal instructions, and faults publish
   OS-neutral v2 event frames for a runtime or OS handler.
+- OS-neutral v2 controls cover non-faulting memory probes, state derivation and
+  activation, trap-result completion, register/debug-note export, monitor-entry
+  stack/frame setup, and explicit shared-memory fences.
 - Trap vectors are frontend-aligned control targets; event-frame addresses are
   canonical and aligned.
 - AArch64 and RISC-V64 can switch or call each other directly without bouncing
@@ -90,4 +110,6 @@ specific subsystem.
 ## Docs
 
 - Quick ISA reference: `docs/poly-isa.md`
+- Userspace offload proposal: `docs/poly-isa-userspace-offload-proposal.md`
+- Current readiness audit: `docs/poly-readiness-audit.md`
 - Hardware and ABI direction: `docs/poly-isa-design-directions.md`
