@@ -14975,6 +14975,14 @@ EOF
           sleep 1
           continue
         fi
+        if [[ "$(grep -c "POLY_IO_URING_RW_OK" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
+        if [[ "$(grep -c "POLY_IO_URING_TIMEOUT_CANCEL_OK" "$SERIAL_LOG" || true)" -lt 2 ]]; then
+          sleep 1
+          continue
+        fi
         if [[ "$(grep -c "POLY_SYSV_IPC_OK: shm=1 sem=1 fcntl=1" "$SERIAL_LOG" || true)" -lt 2 ]]; then
           sleep 1
           continue

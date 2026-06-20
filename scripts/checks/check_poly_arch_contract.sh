@@ -520,6 +520,10 @@ assert_contains "riscv-process-io-uring-real\\.elf=42" "$ROOT_DIR/scripts/boot.s
   "boot syscall coverage must run the RISC-V io_uring shared-ring fixture"
 assert_contains "POLY_IO_URING_NOP_OK" "$ROOT_DIR/scripts/boot.sh" \
   "boot syscall coverage must require the io_uring shared-ring marker"
+assert_contains "POLY_IO_URING_RW_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must require io_uring read/write completion markers"
+assert_contains "POLY_IO_URING_TIMEOUT_CANCEL_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "boot syscall coverage must require io_uring timeout cancellation markers"
 assert_contains "RUN_POLY_ALPINE_FIO_IO_URING" "$ROOT_DIR/scripts/boot.sh" \
   "boot coverage must expose an opt-in fio io_uring workload"
 assert_contains "ioengine=io_uring" "$ROOT_DIR/scripts/boot.sh" \
