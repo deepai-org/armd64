@@ -422,16 +422,22 @@ RUN_POLY_ALPINE_POSTGRES_SMOKE="${RUN_POLY_ALPINE_POSTGRES_SMOKE:-0}"
 RUN_POLY_ALPINE_FIO_IO_URING="${RUN_POLY_ALPINE_FIO_IO_URING:-0}"
 RUN_POLY_ALPINE_SQLITE_STRESS="${RUN_POLY_ALPINE_SQLITE_STRESS:-0}"
 POLY_ALPINE_TRACE_SYSCALLS="${POLY_ALPINE_TRACE_SYSCALLS:-0}"
+POLY_ALPINE_BINFMT_TRACE="${POLY_ALPINE_BINFMT_TRACE:-0}"
 POLY_ALPINE_TRACE_POSTGRES_SYSCALLS="${POLY_ALPINE_TRACE_POSTGRES_SYSCALLS:-0}"
+POLY_ALPINE_TRACE_PROCESS_LIFECYCLE="${POLY_ALPINE_TRACE_PROCESS_LIFECYCLE:-0}"
+POLY_ALPINE_TRACE_PODMAN_STORAGE_PATHS="${POLY_ALPINE_TRACE_PODMAN_STORAGE_PATHS:-0}"
+POLY_ALPINE_TRACE_PODMAN_SYNC_FDS="${POLY_ALPINE_TRACE_PODMAN_SYNC_FDS:-0}"
 POLY_ALPINE_TRACE_TRAP_RETURNS="${POLY_ALPINE_TRACE_TRAP_RETURNS:-0}"
 POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS="${POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS:-0}"
+POLY_ALPINE_FATAL_DEBUG_NOTE_DIR="${POLY_ALPINE_FATAL_DEBUG_NOTE_DIR:-/tmp/polyexec-fatal-notes}"
 POLY_ALPINE_AARCH64_HWCAP="${POLY_ALPINE_AARCH64_HWCAP:-}"
 POLY_ALPINE_DISABLE_ASLR="${POLY_ALPINE_DISABLE_ASLR:-0}"
 POLY_ALPINE_DUMP_MAPS_ON_FAULT="${POLY_ALPINE_DUMP_MAPS_ON_FAULT:-0}"
 POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT="${POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT:-0}"
 if [[ -z "${POLY_ALPINE_PROTECT_RUNTIME_SIGNALS+x}" ]]; then
   POLY_ALPINE_PROTECT_RUNTIME_SIGNALS=0
-  if [[ "$RUN_POLY_ALPINE_POSTGRES_SMOKE" == "1" ]]; then
+  if [[ "$RUN_POLY_ALPINE_POSTGRES_SMOKE" == "1" ||
+        "$RUN_POLY_ALPINE_PODMAN_SMOKE" == "1" ]]; then
     POLY_ALPINE_PROTECT_RUNTIME_SIGNALS=1
   fi
 fi
@@ -464,6 +470,8 @@ POLY_ALPINE_POSTGRES_PGBENCH_SCALE="${POLY_ALPINE_POSTGRES_PGBENCH_SCALE:-1}"
 POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS="${POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS:-dtg}"
 POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS="${POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS:-10}"
 POLY_ALPINE_PODMAN_RUN_TIMEOUT="${POLY_ALPINE_PODMAN_RUN_TIMEOUT:-1200}"
+POLY_ALPINE_PODMAN_SMOKE_MODE="${POLY_ALPINE_PODMAN_SMOKE_MODE:-http}"
+POLY_ALPINE_PODMAN_EXTRA_RUN_ARGS="${POLY_ALPINE_PODMAN_EXTRA_RUN_ARGS:-}"
 POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC="${POLY_ALPINE_TRIGGER_PIPE_DIAGNOSTIC:-0}"
 RUN_GUEST_NETWORK="${RUN_GUEST_NETWORK:-0}"
 RUN_GUEST_NETWORK_SMOKE="${RUN_GUEST_NETWORK_SMOKE:-0}"
@@ -7933,10 +7941,15 @@ $ALPINE_AARCH64_MAIN_URL
 $ALPINE_AARCH64_COMMUNITY_URL
 EOF
   cat > "$rootfs_dir/etc/polyexec-binfmt.env" <<EOF
+POLYBINFMT_TRACE=$POLY_ALPINE_BINFMT_TRACE
 POLYEXEC_TRACE_SYSCALLS=$POLY_ALPINE_TRACE_SYSCALLS
 POLYEXEC_TRACE_POSTGRES_SYSCALLS=$POLY_ALPINE_TRACE_POSTGRES_SYSCALLS
+POLYEXEC_TRACE_PROCESS_LIFECYCLE=$POLY_ALPINE_TRACE_PROCESS_LIFECYCLE
+POLYEXEC_TRACE_PODMAN_STORAGE_PATHS=$POLY_ALPINE_TRACE_PODMAN_STORAGE_PATHS
+POLYEXEC_TRACE_PODMAN_SYNC_FDS=$POLY_ALPINE_TRACE_PODMAN_SYNC_FDS
 POLYEXEC_TRACE_TRAP_RETURNS=$POLY_ALPINE_TRACE_TRAP_RETURNS
 POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS=$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS
+POLYEXEC_FATAL_DEBUG_NOTE_DIR=$POLY_ALPINE_FATAL_DEBUG_NOTE_DIR
 POLYEXEC_AARCH64_HWCAP=$POLY_ALPINE_AARCH64_HWCAP
 POLYEXEC_DUMP_MAPS_ON_FAULT=$POLY_ALPINE_DUMP_MAPS_ON_FAULT
 POLYEXEC_DUMP_AARCH64_NODE_CHAIN_ON_FAULT=$POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT
@@ -8149,10 +8162,15 @@ $ALPINE_AARCH64_COMMUNITY_URL
 EOF
   fi
   cat > "$rootfs_dir/etc/polyexec-binfmt.env" <<EOF
+POLYBINFMT_TRACE=$POLY_ALPINE_BINFMT_TRACE
 POLYEXEC_TRACE_SYSCALLS=$POLY_ALPINE_TRACE_SYSCALLS
 POLYEXEC_TRACE_POSTGRES_SYSCALLS=$POLY_ALPINE_TRACE_POSTGRES_SYSCALLS
+POLYEXEC_TRACE_PROCESS_LIFECYCLE=$POLY_ALPINE_TRACE_PROCESS_LIFECYCLE
+POLYEXEC_TRACE_PODMAN_STORAGE_PATHS=$POLY_ALPINE_TRACE_PODMAN_STORAGE_PATHS
+POLYEXEC_TRACE_PODMAN_SYNC_FDS=$POLY_ALPINE_TRACE_PODMAN_SYNC_FDS
 POLYEXEC_TRACE_TRAP_RETURNS=$POLY_ALPINE_TRACE_TRAP_RETURNS
 POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS=$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS
+POLYEXEC_FATAL_DEBUG_NOTE_DIR=$POLY_ALPINE_FATAL_DEBUG_NOTE_DIR
 POLYEXEC_AARCH64_HWCAP=$POLY_ALPINE_AARCH64_HWCAP
 POLYEXEC_DUMP_MAPS_ON_FAULT=$POLY_ALPINE_DUMP_MAPS_ON_FAULT
 POLYEXEC_DUMP_AARCH64_NODE_CHAIN_ON_FAULT=$POLY_ALPINE_DUMP_AARCH64_NODE_CHAIN_ON_FAULT
@@ -8903,7 +8921,11 @@ RUN_POLY_ALPINE_POSTGRES_SMOKE="$RUN_POLY_ALPINE_POSTGRES_SMOKE"
 RUN_POLY_ALPINE_FIO_IO_URING="$RUN_POLY_ALPINE_FIO_IO_URING"
 RUN_POLY_ALPINE_SQLITE_STRESS="$RUN_POLY_ALPINE_SQLITE_STRESS"
 POLY_ALPINE_TRACE_SYSCALLS="$POLY_ALPINE_TRACE_SYSCALLS"
+POLY_ALPINE_BINFMT_TRACE="$POLY_ALPINE_BINFMT_TRACE"
 POLY_ALPINE_TRACE_POSTGRES_SYSCALLS="$POLY_ALPINE_TRACE_POSTGRES_SYSCALLS"
+POLY_ALPINE_TRACE_PROCESS_LIFECYCLE="$POLY_ALPINE_TRACE_PROCESS_LIFECYCLE"
+POLY_ALPINE_TRACE_PODMAN_STORAGE_PATHS="$POLY_ALPINE_TRACE_PODMAN_STORAGE_PATHS"
+POLY_ALPINE_TRACE_PODMAN_SYNC_FDS="$POLY_ALPINE_TRACE_PODMAN_SYNC_FDS"
 POLY_ALPINE_TRACE_TRAP_RETURNS="$POLY_ALPINE_TRACE_TRAP_RETURNS"
 POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS="$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS"
 POLY_ALPINE_AARCH64_HWCAP="$POLY_ALPINE_AARCH64_HWCAP"
@@ -8932,6 +8954,17 @@ POLY_ALPINE_POSTGRES_PGBENCH_SCALE="$POLY_ALPINE_POSTGRES_PGBENCH_SCALE"
 POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS="$POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS"
 POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS="$POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS"
 POLY_ALPINE_PODMAN_RUN_TIMEOUT="$POLY_ALPINE_PODMAN_RUN_TIMEOUT"
+POLY_ALPINE_PODMAN_SMOKE_MODE="$POLY_ALPINE_PODMAN_SMOKE_MODE"
+POLY_ALPINE_PODMAN_EXTRA_RUN_ARGS="$POLY_ALPINE_PODMAN_EXTRA_RUN_ARGS"
+
+poly_guest_fail() {
+  echo "\$1" >/dev/ttyS0
+  poweroff -f || halt -f || true
+  while true; do
+    sleep 60
+  done
+}
+
 export POLY_ALPINE_NODE_EXTRA_FLAGS
 export POLY_ALPINE_NODE_UV_USE_IO_URING
 export POLY_ALPINE_NODE_POLYEXEC_DISABLE_IO_URING
@@ -8949,6 +8982,9 @@ export POLY_ALPINE_POSTGRES_PGBENCH_SCALE
 export POLY_ALPINE_POSTGRES_PGBENCH_INIT_STEPS
 export POLY_ALPINE_POSTGRES_PGBENCH_TRANSACTIONS
 export POLY_ALPINE_PODMAN_RUN_TIMEOUT
+export POLY_ALPINE_PODMAN_SMOKE_MODE
+export POLY_ALPINE_PODMAN_EXTRA_RUN_ARGS
+export POLY_ALPINE_BINFMT_TRACE
 RUN_GUEST_NETWORK="$RUN_GUEST_NETWORK"
 RUN_GUEST_NETWORK_SMOKE="$RUN_GUEST_NETWORK_SMOKE"
 RUN_NATIVE_CHECK="$RUN_NATIVE_CHECK"
@@ -9945,6 +9981,7 @@ if [ "$RUN_POLY_PAGEFAULT_SELFTEST" = "1" ]; then
     mkdir -p /tmp/poly-fatal-debug-notes
     set +e
     POLYEXEC_FATAL_DEBUG_NOTE_DIR=/tmp/poly-fatal-debug-notes \
+      POLYEXEC_FATAL_CORE_WRAPPER=1 \
       /usr/bin/polyexec --selftest-pagefault >/dev/ttyS0 2>&1
     pagefault_status="\$?"
     set -e
@@ -9985,6 +10022,7 @@ if [ "$RUN_POLY_GDB_CORE_VALIDATION" = "1" ]; then
         mkdir -p "\$note_dir"
         set +e
         POLYEXEC_FATAL_DEBUG_NOTE_DIR="\$note_dir" \
+          POLYEXEC_FATAL_CORE_WRAPPER=1 \
           /usr/bin/polyexec --process \
           /usr/lib/polyapps/\$arch-process-crash-real.elf \
           >/dev/ttyS0 2>&1
@@ -13402,7 +13440,8 @@ if [ "$RUN_POLY_ALPINE_BINFMT_SMOKE" = "1" ]; then
     timeout_seconds="\$2"
     shift 2
     echo "POLY_ALPINE_BINFMT_SMOKE_CMD: \$label" >/dev/ttyS0
-    POLYEXEC_TRACE_SYSCALLS="\$POLY_ALPINE_TRACE_SYSCALLS" \
+      POLYEXEC_TRACE_SYSCALLS="\$POLY_ALPINE_TRACE_SYSCALLS" \
+      POLYEXEC_TRACE_PROCESS_LIFECYCLE="\$POLY_ALPINE_TRACE_PROCESS_LIFECYCLE" \
       POLYEXEC_TRACE_TRAP_RETURNS="\$POLY_ALPINE_TRACE_TRAP_RETURNS" \
       POLYEXEC_TRACE_PROTECTED_SIGNAL_WAITS="\$POLY_ALPINE_TRACE_PROTECTED_SIGNAL_WAITS" \
       POLYEXEC_AARCH64_HWCAP="\$POLY_ALPINE_AARCH64_HWCAP" \
@@ -13587,21 +13626,18 @@ if [ "$RUN_POLY_ALPINE_PODMAN_SMOKE" = "1" ]; then
     insmod /lib/modules/poly/binfmt_misc.ko >/dev/ttyS0 2>&1 || true
   fi
   mkdir -p /proc/sys/fs/binfmt_misc || {
-    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: mkdir binfmt_misc" >/dev/ttyS0
-    exit 1
+    poly_guest_fail "POLY_ALPINE_PODMAN_SMOKE_FAIL: mkdir binfmt_misc"
   }
   mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
   if [ ! -w /proc/sys/fs/binfmt_misc/register ]; then
-    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: binfmt_misc unavailable" >/dev/ttyS0
-    exit 1
+    poly_guest_fail "POLY_ALPINE_PODMAN_SMOKE_FAIL: binfmt_misc unavailable"
   fi
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
   echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
     > /proc/sys/fs/binfmt_misc/register || {
-    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: register aarch64" >/dev/ttyS0
-    exit 1
+    poly_guest_fail "POLY_ALPINE_PODMAN_SMOKE_FAIL: register aarch64"
   }
   echo "POLY_ALPINE_PODMAN_BINFMT_REGISTERED" >/dev/ttyS0
 
@@ -13609,8 +13645,15 @@ if [ "$RUN_POLY_ALPINE_PODMAN_SMOKE" = "1" ]; then
   if [ ! -s /oci-alpine-arm64/etc/resolv.conf ]; then
     echo "nameserver 10.0.2.3" > /oci-alpine-arm64/etc/resolv.conf
   fi
-  echo "POLY_ALPINE_PODMAN_SMOKE_CMD: podman run --arch=arm64 alpine sh -c \"apk add curl && curl http://example.com\"" \
-    >/dev/ttyS0
+  if [ "$POLY_ALPINE_PODMAN_SMOKE_MODE" = "runc-version" ]; then
+    echo "POLY_ALPINE_PODMAN_SMOKE_CMD: runc --version" >/dev/ttyS0
+  elif [ "$POLY_ALPINE_PODMAN_SMOKE_MODE" = "local" ]; then
+    echo "POLY_ALPINE_PODMAN_SMOKE_CMD: podman run --rm $POLY_ALPINE_PODMAN_EXTRA_RUN_ARGS --rootfs /poly-image/alpine-aarch64 /bin/sh -c \"echo POLY_ALPINE_PODMAN_LOCAL_RUN_OK\"" \
+      >/dev/ttyS0
+  else
+    echo "POLY_ALPINE_PODMAN_SMOKE_CMD: podman run --arch=arm64 alpine sh -c \"apk add curl && curl http://example.com\"" \
+      >/dev/ttyS0
+  fi
   /bin/busybox timeout "\$POLY_ALPINE_PODMAN_RUN_TIMEOUT" \
     /usr/bin/polycontainer-run /oci-alpine-arm64 /bin/sh -c '
       set -eu
@@ -13620,13 +13663,38 @@ if [ "$RUN_POLY_ALPINE_PODMAN_SMOKE" = "1" ]; then
       export GODEBUG=asyncpreemptoff=1
       export GOTRACEBACK=system
       export GOMAXPROCS=1
+      export PODMAN_IGNORE_CGROUPSV1_WARNING=1
+      export POLYEXEC_PROTECT_RUNTIME_SIGNALS="$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS"
+      export POLYEXEC_FATAL_DEBUG_NOTE_DIR="$POLY_ALPINE_FATAL_DEBUG_NOTE_DIR"
+      if [ "$POLY_ALPINE_BINFMT_TRACE" = "1" ]; then
+        export POLYBINFMT_TRACE=1
+      fi
+      export POLY_LD_LIBRARY_PATH=/lib:/usr/lib
+      export LD_LIBRARY_PATH=/lib:/usr/lib
       PATH=/usr/bin:/bin:/usr/sbin:/sbin
       mkdir -p /etc/containers /run/user/0 \
         /run/containers/storage /var/lib/containers/storage /dev/shm \
-        /sys/fs/cgroup
+        /sys/fs/cgroup "\$POLYEXEC_FATAL_DEBUG_NOTE_DIR"
       chmod 700 /run/user/0
       chmod 1777 /dev/shm
       mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
+      if ! grep -q " /sys/fs/cgroup " /proc/mounts 2>/dev/null; then
+        mount -t tmpfs cgroup_root /sys/fs/cgroup 2>/dev/null || true
+      fi
+      if [ -r /proc/cgroups ]; then
+        while read -r controller hierarchy groups enabled; do
+          case "\$controller" in
+            ""|\#*) continue ;;
+          esac
+          if [ "\$enabled" != "1" ]; then
+            continue
+          fi
+          mkdir -p "/sys/fs/cgroup/\$controller"
+          mount -t cgroup -o "\$controller" cgroup \
+            "/sys/fs/cgroup/\$controller" 2>/dev/null || true
+        done < /proc/cgroups
+      fi
+      echo POLY_ALPINE_PODMAN_CGROUPS_READY
       cat > /etc/containers/storage.conf <<'\''PODMAN_STORAGE'\''
 [storage]
 driver = "vfs"
@@ -13642,32 +13710,112 @@ runtime = "runc"
 [containers]
 netns = "host"
 PODMAN_CONTAINERS
-      podman --version
-      if ! podman image exists alpine:latest; then
-        cp /etc/resolv.conf /poly-image/alpine-aarch64/etc/resolv.conf 2>/dev/null || true
-        if [ ! -s /poly-image/alpine-aarch64/etc/resolv.conf ]; then
-          echo "nameserver 10.0.2.3" > /poly-image/alpine-aarch64/etc/resolv.conf
+      if [ "$POLY_ALPINE_PODMAN_SMOKE_MODE" != "runc-version" ]; then
+        podman --version
+      fi
+      cp /etc/resolv.conf /poly-image/alpine-aarch64/etc/resolv.conf 2>/dev/null || true
+      if [ ! -s /poly-image/alpine-aarch64/etc/resolv.conf ]; then
+        echo "nameserver 10.0.2.3" > /poly-image/alpine-aarch64/etc/resolv.conf
+      fi
+      if [ "$POLY_ALPINE_PODMAN_SMOKE_MODE" = "runc-version" ]; then
+        echo POLY_ALPINE_RUNC_VERSION_START
+        /usr/bin/runc --version > /tmp/poly-runc-version.txt
+        cat /tmp/poly-runc-version.txt || true
+        grep -q "runc version" /tmp/poly-runc-version.txt
+        echo POLY_ALPINE_RUNC_VERSION_OK
+      elif [ "$POLY_ALPINE_PODMAN_SMOKE_MODE" = "local" ]; then
+        echo POLY_ALPINE_PODMAN_ROOTFS_READY
+        echo POLY_ALPINE_PODMAN_CONTAINER_LOCAL_START
+        rm -f /tmp/poly-podman-local.txt
+        set +e
+        podman run --rm $POLY_ALPINE_PODMAN_EXTRA_RUN_ARGS \
+          --rootfs /poly-image/alpine-aarch64 \
+          /bin/sh -c "echo POLY_ALPINE_PODMAN_LOCAL_RUN_OK" \
+          > /tmp/poly-podman-local.txt 2>&1
+        podman_status="\$?"
+        set -e
+        if [ "\$podman_status" != "0" ]; then
+          {
+            echo "POLY_ALPINE_PODMAN_LOCAL_RUN_FAIL: status=\$podman_status"
+            echo "POLY_ALPINE_PODMAN_LOCAL_OUTPUT_BEGIN"
+            cat /tmp/poly-podman-local.txt || true
+            echo "POLY_ALPINE_PODMAN_LOCAL_OUTPUT_END"
+            podman ps -a || true
+            podman logs --latest || true
+            if [ -d "\$POLYEXEC_FATAL_DEBUG_NOTE_DIR" ]; then
+              echo "POLY_ALPINE_PODMAN_FATAL_NOTES_BEGIN: \$POLYEXEC_FATAL_DEBUG_NOTE_DIR"
+              find "\$POLYEXEC_FATAL_DEBUG_NOTE_DIR" -maxdepth 1 -type f \
+                \( -name "*.core" -o -name "*.note" \) -print 2>/dev/null |
+                sort | while read -r note; do
+                echo "POLY_ALPINE_PODMAN_FATAL_NOTE_BEGIN: \$note"
+                ls -l "\$note" || true
+                od -An -tx1 -N 64 "\$note" || true
+                echo "POLY_ALPINE_PODMAN_FATAL_NOTE_END: \$note"
+              done
+              echo "POLY_ALPINE_PODMAN_FATAL_NOTES_END: \$POLYEXEC_FATAL_DEBUG_NOTE_DIR"
+            fi
+            for storage_root in /var/lib/containers/storage /run/containers/storage; do
+              find "\$storage_root" -maxdepth 4 -type d 2>/dev/null || true
+              for userdata in "\$storage_root"/vfs-containers/*/userdata \
+                  "\$storage_root"/overlay-containers/*/userdata; do
+                if [ ! -d "\$userdata" ]; then
+                  continue
+                fi
+                echo "POLY_ALPINE_PODMAN_USERDATA_BEGIN: \$userdata"
+                ls -la "\$userdata" || true
+                for log_file in oci-log ctr.log log.json; do
+                  if [ -f "\$userdata/\$log_file" ]; then
+                    echo "POLY_ALPINE_PODMAN_USERDATA_FILE_BEGIN: \$userdata/\$log_file"
+                    sed -n '1,220p' "\$userdata/\$log_file" || true
+                    echo "POLY_ALPINE_PODMAN_USERDATA_FILE_END: \$userdata/\$log_file"
+                  fi
+                done
+                for state_file in pidfile conmon.pid exit conmon-pid; do
+                  if [ -f "\$userdata/\$state_file" ]; then
+                    echo "POLY_ALPINE_PODMAN_USERDATA_FILE_BEGIN: \$userdata/\$state_file"
+                    cat "\$userdata/\$state_file" || true
+                    echo
+                    echo "POLY_ALPINE_PODMAN_USERDATA_FILE_END: \$userdata/\$state_file"
+                  fi
+                done
+                if [ -f "\$userdata/config.json" ]; then
+                  echo "POLY_ALPINE_PODMAN_USERDATA_FILE_BEGIN: \$userdata/config.json"
+                  sed -n '1,180p' "\$userdata/config.json" || true
+                  echo "POLY_ALPINE_PODMAN_USERDATA_FILE_END: \$userdata/config.json"
+                fi
+                echo "POLY_ALPINE_PODMAN_USERDATA_END: \$userdata"
+              done
+            done
+          } | tee /dev/ttyS0
+          exit "\$podman_status"
         fi
+        cat /tmp/poly-podman-local.txt || true
+        grep -q "POLY_ALPINE_PODMAN_LOCAL_RUN_OK" /tmp/poly-podman-local.txt
+        echo POLY_ALPINE_PODMAN_CONTAINER_LOCAL_OK
+      else
         rm -f /run/poly-podman-alpine-rootfs.tar
+        echo POLY_ALPINE_PODMAN_IMPORT_TAR_START
         tar -C /poly-image/alpine-aarch64 -cf /run/poly-podman-alpine-rootfs.tar .
+        echo POLY_ALPINE_PODMAN_IMPORT_TAR_OK
+        echo POLY_ALPINE_PODMAN_IMPORT_START
         podman import --arch arm64 --os linux \
           /run/poly-podman-alpine-rootfs.tar alpine:latest >/dev/null
+        echo POLY_ALPINE_PODMAN_IMPORT_OK
+        echo POLY_ALPINE_PODMAN_LOCAL_IMAGE_OK
+        podman run --arch=arm64 alpine sh -c "apk add curl >/dev/null && curl -fsSL http://example.com/" \
+          > /tmp/poly-podman-example.html
+        cat /tmp/poly-podman-example.html || true
+        if [ ! -s /tmp/poly-podman-example.html ]; then
+          echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_BODY_EMPTY
+        elif grep -qi "Example Domain" /tmp/poly-podman-example.html; then
+          echo POLY_ALPINE_PODMAN_CONTAINER_EXAMPLE_DOMAIN_OK
+        else
+          echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_BODY_OK
+        fi
+        echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_OK
       fi
-      echo POLY_ALPINE_PODMAN_LOCAL_IMAGE_OK
-      podman run --arch=arm64 alpine sh -c "apk add curl >/dev/null && curl -fsSL http://example.com/" \
-        > /tmp/poly-podman-example.html
-      cat /tmp/poly-podman-example.html || true
-      if [ ! -s /tmp/poly-podman-example.html ]; then
-        echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_BODY_EMPTY
-      elif grep -qi "Example Domain" /tmp/poly-podman-example.html; then
-        echo POLY_ALPINE_PODMAN_CONTAINER_EXAMPLE_DOMAIN_OK
-      else
-        echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_BODY_OK
-      fi
-      echo POLY_ALPINE_PODMAN_CONTAINER_HTTP_OK
     ' >/dev/ttyS0 2>&1 || {
-    echo "POLY_ALPINE_PODMAN_SMOKE_FAIL: podman run" >/dev/ttyS0
-    exit 1
+    poly_guest_fail "POLY_ALPINE_PODMAN_SMOKE_FAIL: podman run"
   }
   echo "POLY_ALPINE_PODMAN_SMOKE_OK" >/dev/ttyS0
 fi

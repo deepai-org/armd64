@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
+#include <elf.h>
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -11,6 +13,14 @@
 #include <unistd.h>
 
 #include "../include/polycpuid.h"
+
+#ifndef EM_AARCH64
+#define EM_AARCH64 183
+#endif
+
+#ifndef EM_RISCV
+#define EM_RISCV 243
+#endif
 
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
 #define POLY_OP_TRAP_VECTOR_MODE_SET POLY_X86_CTRL_TRAP_VECTOR_MODE_SET_ASM
@@ -128,37 +138,150 @@ static void load_env_file(const char *path) {
     if (!equals || equals == start)
       continue;
     *equals = '\0';
-    setenv(start, equals + 1, 0);
+    const char *existing = getenv(start);
+    if (!existing || existing[0] == '\0')
+      setenv(start, equals + 1, 1);
   }
   fclose(file);
 }
 
-static void log_fd_kind(int fd) {
+static int env_nonempty(const char *name) {
+  const char *value = getenv(name);
+  return value && value[0] != '\0';
+}
+
+static int env_enabled(const char *name) {
+  const char *value = getenv(name);
+  return value && value[0] != '\0' && strcmp(value, "0") != 0;
+}
+
+static void set_default_library_path(void) {
+  if (env_nonempty("POLY_LD_LIBRARY_PATH") || env_nonempty("LD_LIBRARY_PATH"))
+    return;
+
+  /*
+   * Nested container launchers can scrub the environment before invoking the
+   * foreign OCI runtime. Keep the binfmt process-mode loader usable for normal
+   * root filesystems without requiring every launcher to propagate Poly vars.
+   */
+  setenv("POLY_LD_LIBRARY_PATH", "/lib:/usr/lib", 1);
+}
+
+static int path_is_supported_foreign_elf(const char *path) {
+  if (path == NULL || path[0] == '\0')
+    return 0;
+
+  int fd = open(path, O_RDONLY | O_CLOEXEC);
+  if (fd < 0)
+    return 0;
+
+  unsigned char ident[EI_NIDENT];
+  ssize_t got = read(fd, ident, sizeof(ident));
+  if (got != (ssize_t) sizeof(ident) ||
+      ident[EI_MAG0] != ELFMAG0 ||
+      ident[EI_MAG1] != ELFMAG1 ||
+      ident[EI_MAG2] != ELFMAG2 ||
+      ident[EI_MAG3] != ELFMAG3 ||
+      ident[EI_CLASS] != ELFCLASS64 ||
+      ident[EI_DATA] != ELFDATA2LSB) {
+    close(fd);
+    return 0;
+  }
+
+  if (lseek(fd, 0, SEEK_SET) != 0) {
+    close(fd);
+    return 0;
+  }
+  Elf64_Ehdr ehdr;
+  got = read(fd, &ehdr, sizeof(ehdr));
+  close(fd);
+  if (got != (ssize_t) sizeof(ehdr))
+    return 0;
+  return ehdr.e_machine == EM_AARCH64 || ehdr.e_machine == EM_RISCV;
+}
+
+static FILE *open_trace_file(void) {
+  int fd = open("/dev/ttyS0", O_WRONLY | O_CLOEXEC | O_NOCTTY);
+  if (fd < 0)
+    return stderr;
+  FILE *file = fdopen(fd, "w");
+  if (!file) {
+    close(fd);
+    return stderr;
+  }
+  return file;
+}
+
+static void close_trace_file(FILE *file) {
+  if (file && file != stderr)
+    fclose(file);
+}
+
+static void log_fd_kind(FILE *file, int fd) {
   struct stat st;
   if (fstat(fd, &st) != 0) {
-    fprintf(stderr, " fd%d=err:%s", fd, strerror(errno));
+    fprintf(file, " fd%d=err:%s", fd, strerror(errno));
     return;
   }
   if (S_ISFIFO(st.st_mode))
-    fprintf(stderr, " fd%d=pipe", fd);
+    fprintf(file, " fd%d=pipe", fd);
   else if (S_ISCHR(st.st_mode))
-    fprintf(stderr, " fd%d=chr:%u:%u", fd, (unsigned) major(st.st_rdev),
+    fprintf(file, " fd%d=chr:%u:%u", fd, (unsigned) major(st.st_rdev),
       (unsigned) minor(st.st_rdev));
   else if (S_ISREG(st.st_mode))
-    fprintf(stderr, " fd%d=reg", fd);
+    fprintf(file, " fd%d=reg", fd);
   else
-    fprintf(stderr, " fd%d=mode:%o", fd, (unsigned) (st.st_mode & S_IFMT));
+    fprintf(file, " fd%d=mode:%o", fd, (unsigned) (st.st_mode & S_IFMT));
+}
+
+static void log_env_value(FILE *file, const char *name) {
+  const char *value = getenv(name);
+  if (value && value[0] != '\0')
+    fprintf(file, " %s=%s", name, value);
+}
+
+static void log_binfmt_argv(FILE *file, const char *label, int argc,
+    char **argv) {
+  fprintf(file, "%s: argc=%d", label, argc);
+  for (int i = 0; i < argc; i++)
+    fprintf(file, " [%d]=%s", i, argv[i] ? argv[i] : "(null)");
+  fprintf(file, "\n");
+}
+
+static void log_binfmt_fds(FILE *file) {
+  fprintf(file, "POLYBINFMT_FDS:");
+  for (int fd = 0; fd <= 20; fd++)
+    log_fd_kind(file, fd);
+  fprintf(file, "\n");
+}
+
+static void log_binfmt_env(FILE *file) {
+  fprintf(file, "POLYBINFMT_ENV:");
+  log_env_value(file, "_OCI_STARTPIPE");
+  log_env_value(file, "_OCI_SYNCPIPE");
+  log_env_value(file, "_OCI_ATTACHPIPE");
+  log_env_value(file, "POLYEXEC_STDOUT_PASSTHROUGH");
+  log_env_value(file, "POLYEXEC_PROCESS_NO_FORK");
+  log_env_value(file, "POLY_LD_LIBRARY_PATH");
+  log_env_value(file, "LD_LIBRARY_PATH");
+  fprintf(file, "\n");
 }
 
 int main(int argc, char **argv) {
   clear_poly_cpu_state();
 
-  const int trace = getenv("POLYBINFMT_TRACE") != NULL;
+  setenv("POLY_PROCESS_REAL_INTERPRETER", "1", 0);
+  setenv("POLYEXEC_STDOUT_PASSTHROUGH", "1", 0);
+  load_env_file("/etc/polyexec-binfmt.env");
+  set_default_library_path();
+
+  const int trace = env_enabled("POLYBINFMT_TRACE");
+  FILE *trace_file = NULL;
   if (trace) {
-    fprintf(stderr, "POLYBINFMT_ARGV: argc=%d", argc);
-    for (int i = 0; i < argc; i++)
-      fprintf(stderr, " [%d]=%s", i, argv[i] ? argv[i] : "(null)");
-    fprintf(stderr, "\n");
+    trace_file = open_trace_file();
+    log_binfmt_argv(trace_file, "POLYBINFMT_ARGV", argc, argv);
+    log_binfmt_fds(trace_file);
+    log_binfmt_env(trace_file);
   }
 
   if (argc < 2 || argv[1] == NULL || argv[1][0] == '\0') {
@@ -166,15 +289,24 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  const char *path = argv[1];
-  int first_arg = 2;
+  int path_index = 1;
+  int argv0_index = argc > 2 ? 2 : -1;
   /*
    * The binfmt_misc P flag preserves the foreign argv0 after the path.
-   * polyexec --process synthesizes argv0 from the executable path, so only
-   * forward the real arguments that follow the preserved argv0.
+   * Some container re-exec paths are easier to diagnose if we defensively
+   * validate the image argument instead of blindly trusting argv positions.
    */
-  if (first_arg < argc)
-    first_arg++;
+  if (!path_is_supported_foreign_elf(argv[path_index]) && argc > 2 &&
+      path_is_supported_foreign_elf(argv[2])) {
+    path_index = 2;
+    argv0_index = 1;
+  }
+  const char *path = argv[path_index];
+  if (argv0_index > 0 && argv[argv0_index] != NULL &&
+      argv[argv0_index][0] != '\0')
+    setenv("POLYEXEC_GUEST_ARGV0", argv[argv0_index], 1);
+
+  const int first_arg = argc > 2 ? 3 : 2;
 
   const int forwarded = argc - first_arg;
   char **exec_argv = calloc((size_t) forwarded + 4, sizeof(*exec_argv));
@@ -182,9 +314,6 @@ int main(int argc, char **argv) {
     fprintf(stderr, "POLYBINFMT_EXEC_FAIL: allocation failed\n");
     return 1;
   }
-
-  setenv("POLY_PROCESS_REAL_INTERPRETER", "1", 0);
-  load_env_file("/etc/polyexec-binfmt.env");
 
   int out = 0;
   exec_argv[out++] = (char *) "/usr/bin/polyexec";
@@ -195,11 +324,16 @@ int main(int argc, char **argv) {
   exec_argv[out] = NULL;
 
   if (trace) {
-    fprintf(stderr, "POLYBINFMT_EXECV: path=%s", path);
-    log_fd_kind(STDIN_FILENO);
-    log_fd_kind(STDOUT_FILENO);
-    log_fd_kind(STDERR_FILENO);
-    fprintf(stderr, "\n");
+    fprintf(trace_file,
+      "POLYBINFMT_EXECV: path_index=%d argv0_index=%d path=%s forwarded=%d",
+      path_index, argv0_index, path, forwarded);
+    for (int i = 0; exec_argv[i]; i++)
+      fprintf(trace_file, " argv%d=%s", i, exec_argv[i]);
+    fprintf(trace_file, "\n");
+    log_binfmt_fds(trace_file);
+    log_binfmt_env(trace_file);
+    close_trace_file(trace_file);
+    trace_file = NULL;
   }
 
   execv(exec_argv[0], exec_argv);

@@ -3,8 +3,10 @@
 #include <errno.h>
 #include <elf.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -334,12 +336,18 @@ extern char **environ;
 #define POLY_RISCV_HWPROBE_EXT_ZICNTR (1ULL << 50)
 #define POLY_RISCV_HWPROBE_KEY_CPUPERF_0 5
 
+/*
+ * AArch64 overrides these four fcntl flags before including asm-generic.
+ * The remaining flags below are inherited from the generic Linux layout.
+ */
 #define POLY_AARCH64_O_DIRECTORY 040000ULL
 #define POLY_AARCH64_O_NOFOLLOW 0100000ULL
 #define POLY_AARCH64_O_DIRECT 0200000ULL
 #define POLY_AARCH64_O_LARGEFILE 0400000ULL
+#define POLY_AARCH64_O_DSYNC 00010000ULL
 #define POLY_AARCH64_O_NOATIME 01000000ULL
 #define POLY_AARCH64_O_CLOEXEC 02000000ULL
+#define POLY_AARCH64___O_SYNC 04000000ULL
 #define POLY_AARCH64_O_PATH 010000000ULL
 #define POLY_AARCH64___O_TMPFILE 020000000ULL
 #define POLY_AARCH64_O_TMPFILE \
@@ -531,6 +539,7 @@ static int polyexec_dump_maps_on_fault = -1;
 static int polyexec_dump_aarch64_node_chain_on_fault = -1;
 static int polyexec_protect_runtime_signals = -1;
 static const char *polyexec_fatal_debug_note_dir;
+static int polyexec_fatal_core_wrapper = -1;
 static const char *process_cross_report_path;
 static __thread uint64_t poly_mode_x86_saved_rsp;
 static __thread struct poly_v2_event_frame poly_runtime_event_frame
@@ -571,6 +580,7 @@ struct poly_monitor_entry_frame {
 
 struct poly_request {
   char path[160];
+  char argv0[160];
   char symbol[80];
   uint64_t expected;
   int check_expected;
@@ -628,6 +638,11 @@ static size_t process_brk_mapping_size;
 static uint64_t process_brk_current;
 static int polyexec_trace_syscalls = -1;
 static int polyexec_trace_postgres_syscalls = -1;
+static int polyexec_trace_process_lifecycle = -1;
+static int polyexec_trace_podman_syscalls = -1;
+static int polyexec_trace_podman_storage_paths = -1;
+static int polyexec_trace_podman_sync_fds = -1;
+static int polyexec_lifecycle_trace_fd = -2;
 static int polyexec_trace_trap_returns = -1;
 static int polyexec_trace_protected_signal_waits = -1;
 static int polyexec_disable_io_uring = -1;
@@ -640,11 +655,16 @@ static int polyexec_watchdog_signal;
 static timer_t polyexec_watchdog_timer;
 static int polyexec_stdout_passthrough = -1;
 static int polyexec_saved_stdout = -1;
+static int polyexec_quiet_process_monitor_diagnostics;
+
+static void poly_ignore_write_result(ssize_t n) {
+  (void) n;
+}
 static int poly_trap_vector_active;
 static __thread uint64_t poly_guest_sigmask_shadow;
 static __thread int poly_guest_sigmask_shadow_valid;
 static uint64_t poly_aarch64_vdso_rt_sigreturn;
-static volatile sig_atomic_t poly_pending_virtual_signal_mask;
+static __thread volatile sig_atomic_t poly_pending_virtual_signal_mask;
 static __thread uint64_t poly_aarch64_active_signal_frame;
 static __thread uint64_t poly_riscv_active_signal_frame;
 static __thread uint64_t poly_aarch64_guest_sigaltstack_sp;
@@ -671,6 +691,36 @@ static uint64_t poly_seccomp_preflight_count;
 static uint64_t poly_seccomp_denied_count;
 
 static int poly_prefault_guest_mmaps_enabled(void);
+static int poly_trace_process_lifecycle_enabled(void);
+static int poly_lifecycle_trace_output_fd(void);
+
+static void poly_monitor_diag_printf(const char *fmt, ...)
+  __attribute__((format(printf, 1, 2)));
+
+static void poly_monitor_diag_printf(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  if (polyexec_quiet_process_monitor_diagnostics) {
+    if (poly_trace_process_lifecycle_enabled()) {
+      const int fd = poly_lifecycle_trace_output_fd();
+      if (fd >= 0)
+        (void) vdprintf(fd, fmt, ap);
+    }
+  } else {
+    (void) vprintf(fmt, ap);
+  }
+  va_end(ap);
+}
+
+static int poly_promote_internal_fd(int fd) {
+  if (fd < 0 || fd >= 1024)
+    return fd;
+  int promoted = fcntl(fd, F_DUPFD_CLOEXEC, 1024);
+  if (promoted < 0)
+    return fd;
+  close(fd);
+  return promoted;
+}
 
 #define POLY_SECCOMP_MAX_FILTERS 16
 #define POLY_SECCOMP_MAX_INSNS 4096
@@ -1132,7 +1182,7 @@ static int install_poly_thread_state_key(void) {
         (unsigned long long) poly_state_key_get());
       return -1;
     }
-    puts("POLYEXEC_STATE_KEY: explicit=0");
+    poly_monitor_diag_printf("POLYEXEC_STATE_KEY: explicit=0\n");
     return 0;
   }
 
@@ -1144,7 +1194,7 @@ static int install_poly_thread_state_key(void) {
       (unsigned long long) key, (unsigned long long) poly_state_key_get());
     return -1;
   }
-  printf("POLYEXEC_STATE_KEY: explicit=1 key=0x%llx\n",
+  poly_monitor_diag_printf("POLYEXEC_STATE_KEY: explicit=1 key=0x%llx\n",
     (unsigned long long) key);
   return 0;
 }
@@ -1870,10 +1920,12 @@ static int poly_append_u64_dec(char *path, size_t path_size, size_t *pos,
 }
 
 static int poly_build_fatal_debug_note_path(char *path, size_t path_size,
-    int signum) {
+    int signum, const char *suffix) {
   size_t pos = 0;
   if (path_size == 0 || polyexec_fatal_debug_note_dir == NULL ||
       polyexec_fatal_debug_note_dir[0] == '\0')
+    return -1;
+  if (suffix == NULL || suffix[0] == '\0')
     return -1;
   path[0] = '\0';
   if (poly_append_cstr(path, path_size, &pos,
@@ -1890,7 +1942,7 @@ static int poly_build_fatal_debug_note_path(char *path, size_t path_size,
         (uint64_t) syscall(SYS_gettid)) < 0 ||
       poly_append_cstr(path, path_size, &pos, "-sig") < 0 ||
       poly_append_u64_dec(path, path_size, &pos, (uint64_t) signum) < 0 ||
-      poly_append_cstr(path, path_size, &pos, ".core") < 0)
+      poly_append_cstr(path, path_size, &pos, suffix) < 0)
     return -1;
   return 0;
 }
@@ -2535,6 +2587,26 @@ static int poly_write_fatal_debug_note_elf(const char *path,
   return status;
 }
 
+static int poly_write_fatal_debug_note_raw(const char *path,
+    const struct poly_v2_debug_note *note) {
+  int fd = open(path, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
+  if (fd < 0)
+    return -1;
+  int status = poly_write_all_fd(fd, note, sizeof(*note));
+  if (close(fd) < 0)
+    status = -1;
+  return status;
+}
+
+static int poly_fatal_core_wrapper_enabled(void) {
+  if (polyexec_fatal_core_wrapper < 0) {
+    const char *value = getenv("POLYEXEC_FATAL_CORE_WRAPPER");
+    polyexec_fatal_core_wrapper =
+      value != NULL && value[0] != '\0' && strcmp(value, "0") != 0;
+  }
+  return polyexec_fatal_core_wrapper;
+}
+
 static void poly_write_fatal_debug_note(int signum, const char *reason) {
   if (polyexec_fatal_debug_note_dir == NULL ||
       polyexec_fatal_debug_note_dir[0] == '\0')
@@ -2562,7 +2634,39 @@ static void poly_write_fatal_debug_note(int signum, const char *reason) {
   }
 
   char path[512];
-  if (poly_build_fatal_debug_note_path(path, sizeof(path), signum) < 0 ||
+  if (poly_build_fatal_debug_note_path(path, sizeof(path), signum,
+        ".note") < 0 ||
+      poly_write_fatal_debug_note_raw(path, &poly_fatal_debug_note) < 0) {
+    poly_write_literal_stderr("POLYEXEC_FATAL_DEBUG_NOTE_FAIL: raw-write\n");
+  } else {
+    poly_write_literal_stderr("POLYEXEC_FATAL_DEBUG_NOTE_RAW: path=");
+    poly_write_literal_stderr(path);
+    poly_write_literal_stderr(" reason=");
+    poly_write_literal_stderr(reason != NULL ? reason : "unknown");
+    poly_write_literal_stderr(" selector=0x");
+    poly_write_hex64_stderr(poly_fatal_debug_note.selector);
+    poly_write_literal_stderr(" frontend=0x");
+    poly_write_hex64_stderr(poly_fatal_debug_note.frontend);
+    poly_write_literal_stderr(" pc=0x");
+    poly_write_hex64_stderr(poly_fatal_debug_note.pc);
+    poly_write_literal_stderr(" event=0x");
+    poly_write_hex64_stderr(poly_fatal_debug_note.event_kind);
+    poly_write_literal_stderr("\n");
+  }
+
+  if (!poly_is_raw_foreign_mode(poly_fatal_debug_note.frontend)) {
+    poly_write_literal_stderr(
+      "POLYEXEC_FATAL_DEBUG_NOTE_CORE_SKIP: non-raw-frontend\n");
+    return;
+  }
+  if (!poly_fatal_core_wrapper_enabled()) {
+    poly_write_literal_stderr(
+      "POLYEXEC_FATAL_DEBUG_NOTE_CORE_SKIP: wrapper-disabled\n");
+    return;
+  }
+
+  if (poly_build_fatal_debug_note_path(path, sizeof(path), signum,
+        ".core") < 0 ||
       poly_write_fatal_debug_note_elf(path, &poly_fatal_debug_note,
         signum) < 0) {
     poly_write_literal_stderr("POLYEXEC_FATAL_DEBUG_NOTE_FAIL: write\n");
@@ -2647,6 +2751,16 @@ static void poly_dump_exported_signal_state_stderr(void) {
       state.aarch64_gpr, state.frontend_tls.aarch64_tls_base);
     poly_dump_aarch64_node_chain_stderr("POLYEXEC_AARCH64_NODE_CHAIN: ",
       state.aarch64_gpr);
+  } else if ((state.trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) != 0 &&
+      state.trap_restore.mode == POLY_MODE_RAW_AARCH64 &&
+      poly_aarch64_trap_restore_gpr_mask_usable(
+        state.trap_restore.aarch64_gpr_valid_mask)) {
+    poly_dump_aarch64_gprs_stderr("POLYEXEC_AARCH64_TRAP_RESTORE_REGS: ",
+      state.trap_restore.aarch64_gpr,
+      state.frontend_tls.aarch64_tls_base);
+    poly_dump_aarch64_node_chain_stderr(
+      "POLYEXEC_AARCH64_TRAP_RESTORE_NODE_CHAIN: ",
+      state.trap_restore.aarch64_gpr);
   } else if (state.header.current_mode == POLY_MODE_RAW_RISCV) {
     poly_write_literal_stderr("POLYEXEC_RISCV_REGS: x10=0x");
     poly_write_hex64_stderr(state.riscv_gpr[10]);
@@ -2658,6 +2772,22 @@ static void poly_dump_exported_signal_state_stderr(void) {
     poly_write_hex64_stderr(state.riscv_gpr[13]);
     poly_write_literal_stderr(" sp=0x");
     poly_write_hex64_stderr(state.riscv_gpr[2]);
+    poly_write_literal_stderr(" tls=0x");
+    poly_write_hex64_stderr(state.frontend_tls.riscv_tls_base);
+    poly_write_literal_stderr("\n");
+  } else if ((state.trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) != 0 &&
+      state.trap_restore.mode == POLY_MODE_RAW_RISCV &&
+      state.trap_restore.riscv_gpr_valid_mask != 0) {
+    poly_write_literal_stderr("POLYEXEC_RISCV_TRAP_RESTORE_REGS: x10=0x");
+    poly_write_hex64_stderr(state.trap_restore.riscv_gpr[10]);
+    poly_write_literal_stderr(" x11=0x");
+    poly_write_hex64_stderr(state.trap_restore.riscv_gpr[11]);
+    poly_write_literal_stderr(" x12=0x");
+    poly_write_hex64_stderr(state.trap_restore.riscv_gpr[12]);
+    poly_write_literal_stderr(" x13=0x");
+    poly_write_hex64_stderr(state.trap_restore.riscv_gpr[13]);
+    poly_write_literal_stderr(" sp=0x");
+    poly_write_hex64_stderr(state.trap_restore.riscv_gpr[2]);
     poly_write_literal_stderr(" tls=0x");
     poly_write_hex64_stderr(state.frontend_tls.riscv_tls_base);
     poly_write_literal_stderr("\n");
@@ -2839,6 +2969,12 @@ struct poly_linux_generic_epoll_event {
   uint32_t events;
   uint32_t pad;
   uint64_t data;
+};
+
+struct poly_linux_open_how {
+  uint64_t flags;
+  uint64_t mode;
+  uint64_t resolve;
 };
 
 struct poly_riscv_hwprobe_pair {
@@ -4453,6 +4589,7 @@ static int poly_virtual_sigchld_enabled(void);
 static uint64_t poly_host_visible_virtual_signal_mask(uint64_t mask) {
   if (polyexec_watchdog_signal > 0)
     mask = poly_sigset_clear_signal(mask, polyexec_watchdog_signal);
+  mask = poly_sigset_clear_signal(mask, SIGURG);
   if (poly_protect_runtime_signals_enabled()) {
     mask = poly_sigset_clear_signal(mask, SIGALRM);
     mask = poly_sigset_clear_signal(mask, SIGUSR1);
@@ -4516,6 +4653,8 @@ static int poly_virtual_sigchld_enabled(void) {
 }
 
 static int poly_is_protected_runtime_signal(uint64_t signum) {
+  if (signum == SIGURG)
+    return 1;
   if (!poly_protect_runtime_signals_enabled())
     return 0;
   return signum == SIGALRM || signum == SIGUSR1 || signum == SIGUSR2;
@@ -4536,6 +4675,7 @@ static int poly_set_host_signal_handler(uint64_t signum,
   struct sigaction action;
   memset(&action, 0, sizeof(action));
   action.sa_handler = handler;
+  action.sa_flags = SA_ONSTACK;
   sigemptyset(&action.sa_mask);
   if (sigaction((int) signum, &action, NULL) != 0) {
     fprintf(stderr,
@@ -4551,6 +4691,7 @@ static int poly_set_host_virtual_signal_handler(uint64_t signum,
   struct sigaction action;
   memset(&action, 0, sizeof(action));
   action.sa_handler = poly_virtual_signal_host_handler;
+  action.sa_flags = SA_ONSTACK;
   sigemptyset(&action.sa_mask);
 #ifdef SA_NOCLDSTOP
   if (signum == SIGCHLD && guest_act != NULL &&
@@ -4572,6 +4713,9 @@ static int poly_set_host_virtual_signal_handler(uint64_t signum,
 }
 
 static int poly_install_protected_runtime_signal_handlers(void) {
+  if (poly_set_host_signal_handler(SIGURG,
+        poly_virtual_signal_host_handler) < 0)
+    return -1;
   if (!poly_protect_runtime_signals_enabled())
     return 0;
   if (poly_set_host_signal_handler(SIGALRM,
@@ -4655,6 +4799,28 @@ static int poly_guest_read_u64(uint64_t address, uint64_t *out) {
     return 0;
   *out = *(const uint64_t *) (uintptr_t) address;
   return 1;
+}
+
+static int poly_guest_cstring_contains(uint64_t address, const char *needle) {
+  if (address == 0 || needle == NULL || needle[0] == '\0')
+    return 0;
+  const size_t needle_len = strlen(needle);
+  size_t matched = 0;
+  for (size_t offset = 0; offset < 1024; offset++) {
+    if (!poly_guest_range_is_mapped(address + (uint64_t) offset, 1, 0))
+      return 0;
+    const char ch = *(const char *) (uintptr_t) (address + (uint64_t) offset);
+    if (ch == '\0')
+      return 0;
+    while (matched != 0 && ch != needle[matched])
+      matched = 0;
+    if (ch == needle[matched]) {
+      matched++;
+      if (matched == needle_len)
+        return 1;
+    }
+  }
+  return 0;
 }
 
 static int poly_guest_read_ksigaction(uint64_t address,
@@ -4893,6 +5059,24 @@ static int poly_try_deliver_aarch64_signal(struct poly_xsave_state *state,
     poly_aarch64_guest_sigaltstack_size >= total_size &&
     poly_guest_range_is_mapped(poly_aarch64_guest_sigaltstack_sp,
       (size_t) poly_aarch64_guest_sigaltstack_size, 1);
+  if (signum == SIGCHLD && forced_signum == 0 &&
+      (action_flags & POLY_LINUX_SA_ONSTACK) != 0 && !use_altstack) {
+    poly_pending_virtual_signal_mask &=
+      ~((sig_atomic_t) (1U << (unsigned) (signum - 1)));
+    if (poly_trace_protected_signal_waits_enabled()) {
+      poly_write_literal_stderr(
+        "POLYEXEC_GUEST_SIGNAL_SUPPRESS_NO_ALTSTACK: mode=aarch64 signum=0x");
+      poly_write_hex64_stderr(signum);
+      poly_write_literal_stderr(" guest_alt_sp=0x");
+      poly_write_hex64_stderr(poly_aarch64_guest_sigaltstack_sp);
+      poly_write_literal_stderr(" guest_alt_size=0x");
+      poly_write_hex64_stderr(poly_aarch64_guest_sigaltstack_size);
+      poly_write_literal_stderr(" guest_alt_flags=0x");
+      poly_write_hex64_stderr((uint64_t) poly_aarch64_guest_sigaltstack_flags);
+      poly_write_literal_stderr("\n");
+    }
+    return 0;
+  }
   if (use_altstack) {
     stack_top = poly_aarch64_guest_sigaltstack_sp +
       poly_aarch64_guest_sigaltstack_size;
@@ -5166,6 +5350,24 @@ static int poly_try_deliver_riscv_signal(struct poly_xsave_state *state,
     poly_riscv_guest_sigaltstack_size >= total_size &&
     poly_guest_range_is_mapped(poly_riscv_guest_sigaltstack_sp,
       (size_t) poly_riscv_guest_sigaltstack_size, 1);
+  if (signum == SIGCHLD && forced_signum == 0 &&
+      (action_flags & POLY_LINUX_SA_ONSTACK) != 0 && !use_altstack) {
+    poly_pending_virtual_signal_mask &=
+      ~((sig_atomic_t) (1U << (unsigned) (signum - 1)));
+    if (poly_trace_protected_signal_waits_enabled()) {
+      poly_write_literal_stderr(
+        "POLYEXEC_GUEST_SIGNAL_SUPPRESS_NO_ALTSTACK: mode=riscv signum=0x");
+      poly_write_hex64_stderr(signum);
+      poly_write_literal_stderr(" guest_alt_sp=0x");
+      poly_write_hex64_stderr(poly_riscv_guest_sigaltstack_sp);
+      poly_write_literal_stderr(" guest_alt_size=0x");
+      poly_write_hex64_stderr(poly_riscv_guest_sigaltstack_size);
+      poly_write_literal_stderr(" guest_alt_flags=0x");
+      poly_write_hex64_stderr((uint64_t) poly_riscv_guest_sigaltstack_flags);
+      poly_write_literal_stderr("\n");
+    }
+    return 0;
+  }
   if (use_altstack) {
     stack_top = poly_riscv_guest_sigaltstack_sp +
       poly_riscv_guest_sigaltstack_size;
@@ -5712,12 +5914,15 @@ static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode,
   if (mode != POLY_MODE_RAW_AARCH64)
     return flags;
 
-  const uint64_t translated_mask = POLY_AARCH64_O_DIRECT |
+  const uint64_t translated_mask = POLY_AARCH64_O_DSYNC |
+    POLY_AARCH64_O_DIRECT |
     POLY_AARCH64_O_LARGEFILE | POLY_AARCH64_O_DIRECTORY |
     POLY_AARCH64_O_NOFOLLOW | POLY_AARCH64_O_NOATIME |
-    POLY_AARCH64_O_CLOEXEC | POLY_AARCH64_O_PATH |
-    POLY_AARCH64___O_TMPFILE;
+    POLY_AARCH64_O_CLOEXEC | POLY_AARCH64___O_SYNC |
+    POLY_AARCH64_O_PATH | POLY_AARCH64___O_TMPFILE;
   uint64_t translated = flags & ~translated_mask;
+  if ((flags & POLY_AARCH64_O_DSYNC) != 0)
+    translated |= O_DSYNC;
   if ((flags & POLY_AARCH64_O_DIRECTORY) != 0)
     translated |= O_DIRECTORY;
   if ((flags & POLY_AARCH64_O_DIRECT) != 0) {
@@ -5734,6 +5939,8 @@ static uint64_t poly_translate_open_flags(uint64_t flags, uint64_t mode,
     translated |= O_NOATIME;
   if ((flags & POLY_AARCH64_O_CLOEXEC) != 0)
     translated |= O_CLOEXEC;
+  if ((flags & POLY_AARCH64___O_SYNC) != 0)
+    translated |= O_SYNC;
   if ((flags & POLY_AARCH64_O_PATH) != 0)
     translated |= O_PATH;
   if ((flags & POLY_AARCH64___O_TMPFILE) != 0)
@@ -5786,17 +5993,8 @@ static uint64_t poly_dispatch_rt_sigaction(uint64_t mode, uint64_t signum,
     poly_store_guest_signal_action(signum, oldact);
     if (have_guest_act) {
       if (protected_runtime_signal) {
-        if (guest_act.handler == (uint64_t) (uintptr_t) SIG_DFL ||
-            guest_act.handler == (uint64_t) (uintptr_t) SIG_IGN) {
-          void (*host_handler)(int) =
-            guest_act.handler == (uint64_t) (uintptr_t) SIG_IGN ? SIG_IGN :
-              SIG_DFL;
-          if (poly_set_host_signal_handler(signum, host_handler) < 0)
-            return (uint64_t) -errno;
-        } else if (poly_set_host_virtual_signal_handler(signum,
-              &guest_act) < 0) {
+        if (poly_set_host_virtual_signal_handler(signum, &guest_act) < 0)
           return (uint64_t) -errno;
-        }
       }
       if (signum < sizeof(poly_guest_signal_action_shadow_valid)) {
         poly_guest_signal_action_shadow[signum] = guest_act;
@@ -5916,6 +6114,39 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
       *result = (uint64_t) status;
       return 1;
     }
+    case 437: {
+      if (arg2 == 0) {
+        *result = (uint64_t) -EFAULT;
+        return 1;
+      }
+      if (arg3 < sizeof(struct poly_linux_open_how)) {
+        *result = (uint64_t) -EINVAL;
+        return 1;
+      }
+      if (arg3 > 4096 || arg3 > (uint64_t) SIZE_MAX) {
+        *result = (uint64_t) -E2BIG;
+        return 1;
+      }
+      const size_t how_size = (size_t) arg3;
+      if (!poly_guest_range_is_mapped(arg2, how_size, 0)) {
+        *result = (uint64_t) -EFAULT;
+        return 1;
+      }
+      void *how_buffer = calloc(1, how_size);
+      if (how_buffer == NULL) {
+        *result = (uint64_t) -ENOMEM;
+        return 1;
+      }
+      memcpy(how_buffer, (const void *) (uintptr_t) arg2, how_size);
+      struct poly_linux_open_how *how =
+        (struct poly_linux_open_how *) how_buffer;
+      how->flags = poly_translate_open_flags(how->flags, mode, arg0, arg1);
+      status = poly_x86_syscall6(SYS_openat2, arg0, arg1,
+        (uint64_t) (uintptr_t) how_buffer, arg3, 0, 0);
+      free(how_buffer);
+      *result = (uint64_t) status;
+      return 1;
+    }
     case 61: {
       if (arg2 > SIZE_MAX) {
         *result = (uint64_t) -EINVAL;
@@ -6005,6 +6236,45 @@ static int poly_handle_structured_foreign_syscall(uint64_t number,
         return 0;
       *result = poly_dispatch_rt_sigprocmask(arg0, arg1, arg2, arg3);
       return 1;
+    case 129:
+      if (poly_is_raw_foreign_mode(mode) &&
+          poly_is_protected_runtime_signal(arg1)) {
+        if (poly_trace_protected_signal_waits_enabled()) {
+          poly_write_literal_stderr(
+            "POLYEXEC_PROTECTED_SIGNAL_SEND_IGNORED: syscall=kill signum=0x");
+          poly_write_hex64_stderr(arg1);
+          poly_write_literal_stderr("\n");
+        }
+        *result = 0;
+        return 1;
+      }
+      return 0;
+    case 130:
+      if (poly_is_raw_foreign_mode(mode) &&
+          poly_is_protected_runtime_signal(arg1)) {
+        if (poly_trace_protected_signal_waits_enabled()) {
+          poly_write_literal_stderr(
+            "POLYEXEC_PROTECTED_SIGNAL_SEND_IGNORED: syscall=tkill signum=0x");
+          poly_write_hex64_stderr(arg1);
+          poly_write_literal_stderr("\n");
+        }
+        *result = 0;
+        return 1;
+      }
+      return 0;
+    case 131:
+      if (poly_is_raw_foreign_mode(mode) &&
+          poly_is_protected_runtime_signal(arg2)) {
+        if (poly_trace_protected_signal_waits_enabled()) {
+          poly_write_literal_stderr(
+            "POLYEXEC_PROTECTED_SIGNAL_SEND_IGNORED: syscall=tgkill signum=0x");
+          poly_write_hex64_stderr(arg2);
+          poly_write_literal_stderr("\n");
+        }
+        *result = 0;
+        return 1;
+      }
+      return 0;
     case 160:
       status = poly_x86_syscall6(SYS_uname, arg0, 0, 0, 0, 0, 0);
       if (status == 0 && arg0 != 0) {
@@ -6387,6 +6657,12 @@ static int poly_generic_linux_syscall_to_x86(uint64_t number, long *x86_number) 
     case 282: *x86_number = SYS_userfaultfd; return 1;
     case 283: *x86_number = SYS_membarrier; return 1;
     case 284: *x86_number = SYS_mlock2; return 1;
+#ifdef SYS_preadv2
+    case 286: *x86_number = SYS_preadv2; return 1;
+#endif
+#ifdef SYS_pwritev2
+    case 287: *x86_number = SYS_pwritev2; return 1;
+#endif
     case 288: *x86_number = SYS_pkey_mprotect; return 1;
     case 289: *x86_number = SYS_pkey_alloc; return 1;
     case 290: *x86_number = SYS_pkey_free; return 1;
@@ -7434,6 +7710,82 @@ static int poly_trace_postgres_syscalls_enabled(void) {
   return polyexec_trace_postgres_syscalls;
 }
 
+static int poly_trace_process_lifecycle_enabled(void) {
+  if (polyexec_trace_process_lifecycle < 0) {
+    const char *value = getenv("POLYEXEC_TRACE_PROCESS_LIFECYCLE");
+    polyexec_trace_process_lifecycle =
+      value != NULL && value[0] != '\0' && strcmp(value, "0") != 0;
+  }
+  return polyexec_trace_process_lifecycle;
+}
+
+static int poly_trace_podman_syscalls_enabled(void) {
+  if (polyexec_trace_podman_syscalls < 0) {
+    const char *value = getenv("POLYEXEC_TRACE_PODMAN_SYSCALLS");
+    polyexec_trace_podman_syscalls =
+      value != NULL && value[0] != '\0' && strcmp(value, "0") != 0;
+  }
+  return polyexec_trace_podman_syscalls;
+}
+
+static int poly_trace_podman_storage_paths_enabled(void) {
+  if (polyexec_trace_podman_storage_paths < 0) {
+    const char *value = getenv("POLYEXEC_TRACE_PODMAN_STORAGE_PATHS");
+    polyexec_trace_podman_storage_paths =
+      value != NULL && value[0] != '\0' && strcmp(value, "0") != 0;
+  }
+  return polyexec_trace_podman_storage_paths;
+}
+
+static int poly_trace_podman_sync_fds_enabled(void) {
+  if (polyexec_trace_podman_sync_fds < 0) {
+    const char *value = getenv("POLYEXEC_TRACE_PODMAN_SYNC_FDS");
+    polyexec_trace_podman_sync_fds =
+      value != NULL && value[0] != '\0' && strcmp(value, "0") != 0;
+  }
+  return polyexec_trace_podman_sync_fds;
+}
+
+static int poly_lifecycle_trace_output_fd(void) {
+  if (polyexec_lifecycle_trace_fd != -2)
+    return polyexec_lifecycle_trace_fd;
+  int fd = open("/dev/ttyS0", O_WRONLY | O_CLOEXEC | O_NOCTTY);
+  if (fd < 0)
+    fd = polyexec_quiet_process_monitor_diagnostics ? -1 : STDERR_FILENO;
+  else
+    fd = poly_promote_internal_fd(fd);
+  polyexec_lifecycle_trace_fd = fd;
+  return fd;
+}
+
+static void poly_lifecycle_printf(const char *fmt, ...)
+  __attribute__((format(printf, 1, 2)));
+
+static void poly_lifecycle_printf(const char *fmt, ...) {
+  const int fd = poly_lifecycle_trace_output_fd();
+  if (fd < 0)
+    return;
+  va_list ap;
+  va_start(ap, fmt);
+  (void) vdprintf(fd, fmt, ap);
+  va_end(ap);
+}
+
+static int poly_process_report_path_is(const char *base_name) {
+  if (process_cross_report_path == NULL || base_name == NULL)
+    return 0;
+  const char *base = strrchr(process_cross_report_path, '/');
+  base = base != NULL ? base + 1 : process_cross_report_path;
+  return strcmp(base, base_name) == 0;
+}
+
+static int poly_trace_container_runtime_lifecycle_enabled(void) {
+  return poly_trace_process_lifecycle_enabled() &&
+    (poly_process_report_path_is("podman") ||
+     poly_process_report_path_is("conmon") ||
+     poly_process_report_path_is("runc"));
+}
+
 static int poly_syscall_summary_enabled(void) {
   if (polyexec_syscall_summary < 0) {
     const char *value = getenv("POLYEXEC_SYSCALL_SUMMARY");
@@ -7492,7 +7844,7 @@ static void poly_redirect_stdout_diagnostics(void) {
   if (!poly_stdout_passthrough_enabled() || polyexec_saved_stdout >= 0)
     return;
   fflush(stdout);
-  int saved = dup(STDOUT_FILENO);
+  int saved = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 1024);
   if (saved < 0)
     return;
   if (dup2(STDERR_FILENO, STDOUT_FILENO) < 0) {
@@ -7615,7 +7967,10 @@ static const char *poly_aarch64_syscall_name(uint64_t number) {
     case 226: return "mprotect";
     case 220: return "clone";
     case 221: return "execve";
+    case 277: return "seccomp";
     case 278: return "getrandom";
+    case 286: return "preadv2";
+    case 287: return "pwritev2";
     case 260: return "wait4";
     case 261: return "prlimit64";
     case 281: return "execveat";
@@ -7625,6 +7980,8 @@ static const char *poly_aarch64_syscall_name(uint64_t number) {
     case 426: return "io_uring_enter";
     case 427: return "io_uring_register";
     case 435: return "clone3";
+    case 437: return "openat2";
+    case 439: return "faccessat2";
     default: return "-";
   }
 }
@@ -7696,12 +8053,21 @@ static void poly_trace_syscall_result(
     poly_trace_postgres_syscalls_enabled() && process_cross_report_path != NULL &&
     (strcmp(process_cross_report_path, "/usr/libexec/postgresql18/postgres") == 0 ||
      strcmp(process_cross_report_path, "/usr/libexec/postgresql18/postgres.polyreal") == 0);
-  if (!poly_trace_syscalls_enabled() &&
-      !poly_trace_protected_signal_wait_syscall(packet, x86_number) &&
-      !trace_postgres)
-    return;
+  const int trace_conmon =
+    poly_trace_process_lifecycle_enabled() &&
+    poly_process_report_path_is("conmon");
+  const int trace_runc =
+    poly_trace_process_lifecycle_enabled() &&
+    poly_process_report_path_is("runc");
+  const int trace_podman =
+    poly_trace_podman_syscalls_enabled() &&
+    poly_process_report_path_is("podman");
   const char *open_path = NULL;
   const char *stat_path = NULL;
+  const char *path_arg0 = NULL;
+  const char *path_arg1 = NULL;
+  const char *path_arg2 = NULL;
+  const char *path_arg3 = NULL;
   uint64_t translated_open_flags = 0;
   if (packet->number == 56 && packet->args[1] != 0) {
     open_path = (const char *) (uintptr_t) packet->args[1];
@@ -7711,9 +8077,110 @@ static void poly_trace_syscall_result(
   }
   if (packet->number == 79 && packet->args[1] != 0)
     stat_path = (const char *) (uintptr_t) packet->args[1];
-  fprintf(stderr,
-    "POLYEXEC_SYSCALL: path=%s mode=%llu nr=%llu x86=%ld result=%lld pc=0x%llx next=0x%llx flags=0x%llx args=0x%llx,0x%llx,0x%llx,0x%llx,0x%llx,0x%llx",
+  switch (packet->number) {
+    case 34:
+    case 35:
+    case 53:
+    case 78:
+    case 439:
+      path_arg1 = (const char *) (uintptr_t) packet->args[1];
+      break;
+    case 36:
+      path_arg0 = (const char *) (uintptr_t) packet->args[0];
+      path_arg2 = (const char *) (uintptr_t) packet->args[2];
+      break;
+    case 37:
+    case 38:
+    case 276:
+      path_arg1 = (const char *) (uintptr_t) packet->args[1];
+      path_arg3 = (const char *) (uintptr_t) packet->args[3];
+      break;
+    case 39:
+    case 41:
+      path_arg0 = (const char *) (uintptr_t) packet->args[0];
+      if (packet->number == 41)
+        path_arg1 = (const char *) (uintptr_t) packet->args[1];
+      break;
+    case 40:
+      path_arg0 = (const char *) (uintptr_t) packet->args[0];
+      path_arg1 = (const char *) (uintptr_t) packet->args[1];
+      path_arg2 = (const char *) (uintptr_t) packet->args[2];
+      break;
+    case 428:
+    case 442:
+      path_arg1 = (const char *) (uintptr_t) packet->args[1];
+      break;
+    case 429:
+      path_arg1 = (const char *) (uintptr_t) packet->args[1];
+      path_arg3 = (const char *) (uintptr_t) packet->args[3];
+      break;
+    default:
+      break;
+  }
+  const int path_arg0_is_container_storage = path_arg0 != NULL &&
+    (poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg0,
+       "/run/containers/storage") ||
+     poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg0,
+       "/var/lib/containers/storage"));
+  const int path_arg1_is_container_storage =
+    ((open_path != NULL &&
+      (poly_guest_cstring_contains((uint64_t) (uintptr_t) open_path,
+         "/run/containers/storage") ||
+       poly_guest_cstring_contains((uint64_t) (uintptr_t) open_path,
+         "/var/lib/containers/storage"))) ||
+     (stat_path != NULL &&
+      (poly_guest_cstring_contains((uint64_t) (uintptr_t) stat_path,
+         "/run/containers/storage") ||
+       poly_guest_cstring_contains((uint64_t) (uintptr_t) stat_path,
+         "/var/lib/containers/storage"))) ||
+     (path_arg1 != NULL &&
+      (poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg1,
+         "/run/containers/storage") ||
+       poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg1,
+         "/var/lib/containers/storage"))));
+  const int path_arg2_is_container_storage = path_arg2 != NULL &&
+    (poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg2,
+       "/run/containers/storage") ||
+     poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg2,
+       "/var/lib/containers/storage"));
+  const int path_arg3_is_container_storage = path_arg3 != NULL &&
+    (poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg3,
+       "/run/containers/storage") ||
+     poly_guest_cstring_contains((uint64_t) (uintptr_t) path_arg3,
+       "/var/lib/containers/storage"));
+  const int trace_podman_container_path =
+    poly_trace_process_lifecycle_enabled() &&
+    poly_trace_podman_storage_paths_enabled() &&
+    poly_process_report_path_is("podman") &&
+    (path_arg0_is_container_storage || path_arg1_is_container_storage ||
+     path_arg2_is_container_storage || path_arg3_is_container_storage);
+  const int trace_podman_sync_fd =
+    poly_trace_process_lifecycle_enabled() &&
+    poly_trace_podman_sync_fds_enabled() &&
+    poly_process_report_path_is("podman") &&
+    (packet->number == 63 || packet->number == 64) &&
+    packet->args[0] <= 16;
+  if (!poly_trace_syscalls_enabled() &&
+      !poly_trace_protected_signal_wait_syscall(packet, x86_number) &&
+      !trace_postgres &&
+      !trace_conmon &&
+      !trace_runc &&
+      !trace_podman &&
+      !trace_podman_container_path &&
+      !trace_podman_sync_fd)
+    return;
+  const int trace_fd = (trace_conmon || trace_runc || trace_podman ||
+    trace_podman_container_path || trace_podman_sync_fd) ?
+    poly_lifecycle_trace_output_fd() : STDERR_FILENO;
+  if (trace_fd < 0)
+    return;
+  dprintf(trace_fd,
+    "POLYEXEC_SYSCALL: path=%s host_pid=%ld host_tid=%ld mode=%llu"
+    " nr=%llu x86=%ld result=%lld pc=0x%llx next=0x%llx flags=0x%llx"
+    " args=0x%llx,0x%llx,0x%llx,0x%llx,0x%llx,0x%llx",
     path,
+    poly_x86_syscall6(SYS_getpid, 0, 0, 0, 0, 0, 0),
+    poly_x86_syscall6(SYS_gettid, 0, 0, 0, 0, 0, 0),
     (unsigned long long) packet->mode,
     (unsigned long long) packet->number,
     x86_number,
@@ -7728,15 +8195,75 @@ static void poly_trace_syscall_result(
     (unsigned long long) packet->args[4],
     (unsigned long long) packet->args[5]);
   if (open_path != NULL)
-    fprintf(stderr, " open_path=%s open_flags=0x%llx translated_flags=0x%llx",
+    dprintf(trace_fd,
+      " open_path=%s open_flags=0x%llx translated_flags=0x%llx",
       open_path,
       (unsigned long long) packet->args[2],
       (unsigned long long) translated_open_flags);
   if (stat_path != NULL)
-    fprintf(stderr, " stat_path=%s", stat_path);
+    dprintf(trace_fd, " stat_path=%s", stat_path);
+  if (path_arg0 != NULL)
+    dprintf(trace_fd, " path0=%s", path_arg0);
+  if (path_arg1 != NULL)
+    dprintf(trace_fd, " path1=%s", path_arg1);
+  if (path_arg2 != NULL)
+    dprintf(trace_fd, " path2=%s", path_arg2);
+  if (path_arg3 != NULL)
+    dprintf(trace_fd, " path3=%s", path_arg3);
   if (trace_postgres && process_cross_report_path != NULL)
-    fprintf(stderr, " program=%s", process_cross_report_path);
-  fputc('\n', stderr);
+    dprintf(trace_fd, " program=%s", process_cross_report_path);
+  if (trace_conmon || trace_runc || trace_podman ||
+      trace_podman_container_path || trace_podman_sync_fd) {
+    dprintf(trace_fd, " program=%s", process_cross_report_path);
+    if (packet->number == 21 && packet->args[3] != 0) {
+      const struct poly_linux_generic_epoll_event *event =
+        (const struct poly_linux_generic_epoll_event *)
+          (uintptr_t) packet->args[3];
+      dprintf(trace_fd, " epoll_op=%llu epoll_fd=%llu epoll_target=%llu"
+        " epoll_events=0x%x epoll_data=0x%llx",
+        (unsigned long long) packet->args[1],
+        (unsigned long long) packet->args[0],
+        (unsigned long long) packet->args[2],
+        event->events,
+        (unsigned long long) event->data);
+    }
+    if ((packet->number == 22 || packet->number == 441) &&
+        packet->args[1] != 0 && (int64_t) result > 0) {
+      const struct poly_linux_generic_epoll_event *event =
+        (const struct poly_linux_generic_epoll_event *)
+          (uintptr_t) packet->args[1];
+      dprintf(trace_fd, " epoll_fd=%llu epoll_result0_events=0x%x"
+        " epoll_result0_data=0x%llx",
+        (unsigned long long) packet->args[0],
+        event->events,
+        (unsigned long long) event->data);
+    }
+    if ((packet->number == 63 || packet->number == 64) && packet->args[1] != 0) {
+      const uint8_t *buf = (const uint8_t *) (uintptr_t) packet->args[1];
+      const uint64_t requested_len = packet->args[2];
+      uint64_t available_len = requested_len;
+      if (packet->number == 63 && (int64_t) result >= 0 &&
+          (uint64_t) result < available_len)
+        available_len = result;
+      const size_t n = available_len < 96 ? (size_t) available_len : 96;
+      dprintf(trace_fd, " io_fd=%llu io_len=%llu io_hex=",
+        (unsigned long long) packet->args[0],
+        (unsigned long long) requested_len);
+      if (buf != NULL && (int64_t) result >= 0) {
+        for (size_t i = 0; i < n; i++)
+          dprintf(trace_fd, "%02x", buf[i]);
+        dprintf(trace_fd, " io_ascii=");
+        for (size_t i = 0; i < n; i++) {
+          const uint8_t c = buf[i];
+          char out = c >= 32 && c <= 126 ? (char) c : '.';
+          poly_ignore_write_result(write(trace_fd, &out, 1));
+        }
+      } else {
+        dprintf(trace_fd, "(unavailable)");
+      }
+    }
+  }
+  poly_ignore_write_result(write(trace_fd, "\n", 1));
 }
 
 static int poly_path_is_aarch64_elf(const char *path) {
@@ -7776,10 +8303,134 @@ static int poly_count_guest_argv(uint64_t argv_addr, size_t *argc_out) {
   return -1;
 }
 
+static int poly_env_has_key(char *const *envp, size_t envc,
+    const char *key) {
+  const size_t key_len = strlen(key);
+  for (size_t n = 0; n < envc; n++) {
+    if (strncmp(envp[n], key, key_len) == 0 && envp[n][key_len] == '=')
+      return 1;
+  }
+  return 0;
+}
+
+static int poly_env_entry_has_key(const char *env, const char *key) {
+  if (env == NULL || key == NULL)
+    return 0;
+  const size_t key_len = strlen(key);
+  return strncmp(env, key, key_len) == 0 && env[key_len] == '=';
+}
+
+static int poly_path_basename_is(const char *path, const char *base_name) {
+  if (path == NULL || base_name == NULL)
+    return 0;
+  const char *base = strrchr(path, '/');
+  base = base != NULL ? base + 1 : path;
+  return strcmp(base, base_name) == 0;
+}
+
+static int poly_path_is_oci_runtime_helper(const char *path) {
+  return poly_path_basename_is(path, "conmon") ||
+    poly_path_basename_is(path, "runc");
+}
+
+static int poly_env_is_oci_protocol_key(const char *env) {
+  return env != NULL &&
+    (strncmp(env, "_OCI_", 5) == 0 ||
+     strncmp(env, "LISTEN_", 7) == 0 ||
+     strncmp(env, "NOTIFY_SOCKET=", 14) == 0);
+}
+
+static void poly_trace_guest_cstring_limited(uint64_t address, size_t max_len) {
+  const int fd = poly_lifecycle_trace_output_fd();
+  if (fd < 0)
+    return;
+  if (address == 0) {
+    dprintf(fd, "(null)");
+    return;
+  }
+  int wrote_any = 0;
+  for (size_t offset = 0; offset < max_len; offset++) {
+    if (!poly_guest_range_is_mapped(address + (uint64_t) offset, 1, 0)) {
+      dprintf(fd, wrote_any ? "(unmapped)" : "(unmapped@0x%llx)",
+        (unsigned long long) address);
+      return;
+    }
+    const unsigned char ch =
+      *(const unsigned char *) (uintptr_t) (address + (uint64_t) offset);
+    if (ch == '\0')
+      return;
+    const char out = ch >= 32 && ch <= 126 ? (char) ch : '.';
+    poly_ignore_write_result(write(fd, &out, 1));
+    wrote_any = 1;
+  }
+  dprintf(fd, "...");
+}
+
+static int poly_env_parse_fd_value(const char *env, int *fd_out) {
+  if (env == NULL || fd_out == NULL)
+    return 0;
+  const char *equals = strchr(env, '=');
+  if (equals == NULL || equals[1] == '\0')
+    return 0;
+  errno = 0;
+  char *end = NULL;
+  long fd = strtol(equals + 1, &end, 10);
+  if (errno != 0 || end == equals + 1 || *end != '\0' ||
+      fd < 0 || fd > INT_MAX)
+    return 0;
+  *fd_out = (int) fd;
+  return 1;
+}
+
+static void poly_trace_fd_description(const char *label, int fd) {
+  char proc_path[64];
+  char target[256];
+  snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
+  ssize_t n = readlink(proc_path, target, sizeof(target) - 1);
+  if (n < 0) {
+    poly_lifecycle_printf(" %s_fd=%d fd_status=closed err=%d",
+      label, fd, errno);
+    return;
+  }
+  target[n] = '\0';
+  int flags = fcntl(fd, F_GETFD);
+  poly_lifecycle_printf(" %s_fd=%d fd_status=open cloexec=%d fd_target=%s",
+    label, fd, flags >= 0 && (flags & FD_CLOEXEC) != 0, target);
+}
+
+static void poly_trace_oci_protocol_env_fd(const char *env) {
+  int fd = -1;
+  if (!poly_env_parse_fd_value(env, &fd))
+    return;
+  char label[64];
+  size_t label_len = 0;
+  while (env[label_len] != '\0' && env[label_len] != '=' &&
+      label_len + 1 < sizeof(label)) {
+    char ch = env[label_len];
+    label[label_len] = ch == '_' ? '-' : ch;
+    label_len++;
+  }
+  label[label_len] = '\0';
+  poly_trace_fd_description(label, fd);
+}
+
 static int poly_handle_raw_aarch64_execve(uint64_t path_addr,
     uint64_t argv_addr, uint64_t envp_addr, uint64_t *result_out) {
   if (result_out == NULL)
     return 0;
+  if (poly_trace_process_lifecycle_enabled() &&
+      !poly_stdout_passthrough_enabled()) {
+    poly_lifecycle_printf(
+      "POLYEXEC_RAW_AARCH64_EXECVE_ATTEMPT: host_pid=%ld host_tid=%ld"
+      " path_addr=0x%llx argv_addr=0x%llx envp_addr=0x%llx path=",
+      poly_x86_syscall6(SYS_getpid, 0, 0, 0, 0, 0, 0),
+      poly_x86_syscall6(SYS_gettid, 0, 0, 0, 0, 0, 0),
+      (unsigned long long) path_addr,
+      (unsigned long long) argv_addr,
+      (unsigned long long) envp_addr);
+    poly_trace_guest_cstring_limited(path_addr, 160);
+    poly_lifecycle_printf("\n");
+  }
   const char *path = (const char *) (uintptr_t) path_addr;
   if (!poly_path_is_aarch64_elf(path))
     return 0;
@@ -7800,6 +8451,27 @@ static int poly_handle_raw_aarch64_execve(uint64_t path_addr,
     new_argv[n + 3] = (char *) (uintptr_t) old_argv[n + 1];
   new_argv[extra_argc + 3] = NULL;
 
+  const int trace_conmon_exec = poly_path_basename_is(path, "conmon");
+  const int trace_runtime_exec =
+    trace_conmon_exec || poly_path_basename_is(path, "runc");
+  if (poly_trace_process_lifecycle_enabled() &&
+      !(poly_stdout_passthrough_enabled() && trace_runtime_exec)) {
+    poly_lifecycle_printf(
+      "POLYEXEC_RAW_AARCH64_EXECVE: host_pid=%ld host_tid=%ld"
+      " path=%s argc=%zu forwarded=%zu",
+      poly_x86_syscall6(SYS_getpid, 0, 0, 0, 0, 0, 0),
+      poly_x86_syscall6(SYS_gettid, 0, 0, 0, 0, 0, 0),
+      path, old_argc, extra_argc);
+    const size_t max_trace_argc = trace_runtime_exec ? old_argc : 24;
+    for (size_t n = 0; n < old_argc && n < max_trace_argc; n++) {
+      const char *arg = (const char *) (uintptr_t) old_argv[n];
+      poly_lifecycle_printf(" argv%zu=%s", n, arg != NULL ? arg : "(null)");
+    }
+    if (old_argc > max_trace_argc)
+      poly_lifecycle_printf(" argv_more=%zu", old_argc - max_trace_argc);
+    poly_lifecycle_printf("\n");
+  }
+
   char *const *old_envp = envp_addr != 0 ?
     (char *const *) (uintptr_t) envp_addr : environ;
   size_t envc = 0;
@@ -7811,11 +8483,46 @@ static int poly_handle_raw_aarch64_execve(uint64_t path_addr,
     }
     envc++;
   }
-  char **new_envp = __builtin_alloca((envc + 2) * sizeof(*new_envp));
-  for (size_t n = 0; n < envc; n++)
-    new_envp[n] = old_envp[n];
-  new_envp[envc] = (char *) "POLYEXEC_STDOUT_PASSTHROUGH=1";
-  new_envp[envc + 1] = NULL;
+  if (poly_trace_process_lifecycle_enabled() && trace_runtime_exec &&
+      !(poly_stdout_passthrough_enabled() && trace_runtime_exec)) {
+    for (size_t n = 0; n < envc; n++) {
+      if (poly_env_is_oci_protocol_key(old_envp[n])) {
+        poly_lifecycle_printf(
+          "POLYEXEC_RAW_AARCH64_EXECVE_ENV: path=%s env=%s",
+          path, old_envp[n]);
+        if (poly_trace_podman_sync_fds_enabled())
+          poly_trace_oci_protocol_env_fd(old_envp[n]);
+        poly_lifecycle_printf("\n");
+      }
+    }
+  }
+  char **new_envp = __builtin_alloca((envc + 6) * sizeof(*new_envp));
+  size_t new_envc = 0;
+  for (size_t n = 0; n < envc; n++) {
+    if (poly_env_entry_has_key(old_envp[n], "POLYEXEC_GUEST_ARGV0"))
+      continue;
+    new_envp[new_envc++] = old_envp[n];
+  }
+  char *guest_argv0_env = NULL;
+  if (old_argc > 0 && old_argv[0] != 0) {
+    const char *guest_argv0 = (const char *) (uintptr_t) old_argv[0];
+    const size_t prefix_len = strlen("POLYEXEC_GUEST_ARGV0=");
+    const size_t argv0_len = strnlen(guest_argv0, 4096);
+    if (argv0_len < 4096) {
+      guest_argv0_env = __builtin_alloca(prefix_len + argv0_len + 1);
+      memcpy(guest_argv0_env, "POLYEXEC_GUEST_ARGV0=", prefix_len);
+      memcpy(guest_argv0_env + prefix_len, guest_argv0, argv0_len + 1);
+      new_envp[new_envc++] = guest_argv0_env;
+    }
+  }
+  new_envp[new_envc++] = (char *) "POLYEXEC_STDOUT_PASSTHROUGH=1";
+  new_envp[new_envc++] = (char *) "POLYEXEC_PROCESS_NO_FORK=1";
+  if (!poly_env_has_key(new_envp, new_envc, "POLY_PROCESS_REAL_INTERPRETER"))
+    new_envp[new_envc++] = (char *) "POLY_PROCESS_REAL_INTERPRETER=1";
+  if (poly_protect_runtime_signals_enabled() &&
+      !poly_env_has_key(new_envp, new_envc, "POLYEXEC_PROTECT_RUNTIME_SIGNALS"))
+    new_envp[new_envc++] = (char *) "POLYEXEC_PROTECT_RUNTIME_SIGNALS=1";
+  new_envp[new_envc] = NULL;
 
   execve(new_argv[0], new_argv, new_envp);
   const int saved_errno = errno;
@@ -8396,6 +9103,21 @@ static int poly_prepare_clone_child_handoff(
     munmap(handoff, mapping_size);
     return -1;
   }
+  /*
+   * Clone-child imports are derived state, not trap returns.  A parent
+   * trap-restore bank can describe a different stack/result path and must not
+   * be honored when the child first enters the frontend.
+   */
+  memset(&handoff->state.trap_restore, 0,
+    sizeof(handoff->state.trap_restore));
+  memset(handoff->state.pre_trap_restore_reserved, 0,
+    sizeof(handoff->state.pre_trap_restore_reserved));
+  /*
+   * Clone children resume at the guest clone return site. Parent return
+   * transition stacks are scoped to the parent monitor thread and must not be
+   * imported into the new host thread.
+   */
+  poly_clear_return_transition_state(&handoff->state);
   handoff->state.header.current_mode = (uint32_t) packet->mode;
   handoff->state.header.reserved0 = 0;
   handoff->mapping = handoff;
@@ -8407,9 +9129,6 @@ static int poly_prepare_clone_child_handoff(
   stack_top &= ~(uintptr_t) 0xf;
   uint64_t *handoff_slot = (uint64_t *) (stack_top - sizeof(uint64_t));
   *handoff_slot = (uint64_t) (uintptr_t) handoff;
-  if ((handoff->state.trap_restore.flags & POLY_TRAP_RESTORE_FLAG_VALID) != 0)
-    handoff->state.trap_restore.x86_gpr[15] =
-      (uint64_t) stack_top;
   *handoff_out = handoff;
   *native_child_stack_out = (uint64_t) (uintptr_t) handoff_slot;
   return 0;
@@ -8426,9 +9145,14 @@ static void poly_clone_child_entry(struct poly_clone_child_handoff *handoff) {
   poly_reset_monitor_thread_runtime_caches();
   if (install_poly_signal_diagnostics() < 0)
     poly_x86_exit_group_now(125);
-  if (poly_trace_syscalls_enabled()) {
-    fprintf(stderr,
-      "POLYEXEC_CLONE_CHILD_ENTRY: mode=%llu nr=%llu pc=0x%llx next=0x%llx foreign_stack=0x%llx foreign_tls=0x%llx native_tls=0x%llx state_key=0x%llx\n",
+  if (poly_trace_syscalls_enabled() ||
+      poly_trace_container_runtime_lifecycle_enabled()) {
+    poly_lifecycle_printf(
+      "POLYEXEC_CLONE_CHILD_ENTRY: host_pid=%ld host_tid=%ld mode=%llu"
+      " nr=%llu pc=0x%llx next=0x%llx foreign_stack=0x%llx"
+      " foreign_tls=0x%llx native_tls=0x%llx state_key=0x%llx\n",
+      poly_x86_syscall6(SYS_getpid, 0, 0, 0, 0, 0, 0),
+      poly_x86_syscall6(SYS_gettid, 0, 0, 0, 0, 0, 0),
       (unsigned long long) handoff->packet.mode,
       (unsigned long long) handoff->packet.number,
       (unsigned long long) handoff->packet.pc,
@@ -8659,8 +9383,19 @@ uint64_t poly_trap_vector_dispatch(
       foreign_clone_child_stack = args[1];
       foreign_clone_tls =
         (args[0] & (uint64_t) CLONE_SETTLS) != 0 ? args[3] : 0;
-      const int host_clone_needs_tls =
-        (args[0] & ((uint64_t) CLONE_SETTLS | (uint64_t) CLONE_VM)) != 0;
+      const uint64_t guest_clone_flags = args[0];
+      const int guest_process_vfork =
+        (guest_clone_flags & (uint64_t) CLONE_VM) != 0 &&
+        (guest_clone_flags & (uint64_t) CLONE_VFORK) != 0 &&
+        (guest_clone_flags & (uint64_t) CLONE_THREAD) == 0;
+      uint64_t host_clone_flags = guest_clone_flags;
+      /*
+       * Guest vfork depends on CLONE_VM sharing until exec/exit.  The child
+       * still gets a separate native monitor TLS block below, so preserving
+       * host CLONE_VM gives the guest its real fork/exec handoff semantics
+       * without reusing the parent's monitor TLS base.
+       */
+      (void) guest_process_vfork;
       const uint64_t child_tid = args[4];
       args[3] = child_tid;
       args[4] = foreign_clone_tls;
@@ -8689,6 +9424,16 @@ uint64_t poly_trap_vector_dispatch(
             return poly_trap_vector_return_result((uint64_t) -ENOMEM,
             &packet, &trap_state, has_trap_state);
         }
+        /*
+         * The guest TLS belongs to the derived frontend state.  The host child
+         * still enters C monitor code first, so it must use the native TLS block
+         * prepared for this handoff even for process/vfork clones that do not
+         * request guest CLONE_SETTLS.
+         */
+        if (clone_handoff->native_tls_base != 0)
+          host_clone_flags |= (uint64_t) CLONE_SETTLS;
+        else
+          host_clone_flags &= ~(uint64_t) CLONE_SETTLS;
         uint64_t foreign_stack_word0 = 0;
         uint64_t foreign_stack_word1 = 0;
         uint64_t musl_default_exec = 0;
@@ -8709,7 +9454,8 @@ uint64_t poly_trap_vector_dispatch(
                 (const void *) (uintptr_t) (musl_base + 0xbff88), 8);
           }
         }
-        if (poly_trace_syscalls_enabled()) {
+        if (poly_trace_syscalls_enabled() ||
+            poly_trace_container_runtime_lifecycle_enabled()) {
           uint64_t spawn_exec_arg = 0;
           uint64_t spawn_file_actions = 0;
           uint64_t spawn_thread = 0;
@@ -8787,10 +9533,11 @@ uint64_t poly_trap_vector_dispatch(
                 (const void *) (uintptr_t) (spawn_thread + 272), 8);
             }
           }
-          fprintf(stderr,
-            "POLYEXEC_CLONE_HANDOFF: mode=%llu flags=0x%llx pc=0x%llx next=0x%llx foreign_stack=0x%llx foreign_tls=0x%llx parent_tid=0x%llx child_tid=0x%llx native_stack=0x%llx native_tls=0x%llx restore_rsp=0x%llx a64_x10=0x%llx a64_x12=0x%llx a64_pd_start=0x%llx a64_pd_arg=0x%llx a64_x29=0x%llx a64_x30=0x%llx a64_x31=0x%llx stack_ok=%d stack_q0=0x%llx stack_q1=0x%llx start0=0x%llx start1=0x%llx start2=0x%llx start3=0x%llx start_arg0=0x%llx start_arg1=0x%llx start_arg2=0x%llx start_arg3=0x%llx start_global=0x%llx spawn_exec_arg=0x%llx spawn_actions=0x%llx spawn_thread=0x%llx spawn_exec_arg1=0x%llx spawn_exec_arg2=0x%llx spawn_thread_exec=0x%llx musl_default_exec=0x%llx musl_expected_exec=0x%llx state_key=0x%llx\n",
+          poly_lifecycle_printf(
+            "POLYEXEC_CLONE_HANDOFF: mode=%llu flags=0x%llx host_flags=0x%llx pc=0x%llx next=0x%llx foreign_stack=0x%llx foreign_tls=0x%llx parent_tid=0x%llx child_tid=0x%llx native_stack=0x%llx native_tls=0x%llx restore_rsp=0x%llx a64_x10=0x%llx a64_x12=0x%llx a64_pd_start=0x%llx a64_pd_arg=0x%llx a64_x29=0x%llx a64_x30=0x%llx a64_x31=0x%llx stack_ok=%d stack_q0=0x%llx stack_q1=0x%llx start0=0x%llx start1=0x%llx start2=0x%llx start3=0x%llx start_arg0=0x%llx start_arg1=0x%llx start_arg2=0x%llx start_arg3=0x%llx start_global=0x%llx spawn_exec_arg=0x%llx spawn_actions=0x%llx spawn_thread=0x%llx spawn_exec_arg1=0x%llx spawn_exec_arg2=0x%llx spawn_thread_exec=0x%llx musl_default_exec=0x%llx musl_expected_exec=0x%llx state_key=0x%llx\n",
             (unsigned long long) packet.mode,
-            (unsigned long long) args[0],
+            (unsigned long long) guest_clone_flags,
+            (unsigned long long) host_clone_flags,
             (unsigned long long) packet.pc,
             (unsigned long long) packet.next_pc,
             (unsigned long long) foreign_clone_child_stack,
@@ -8829,12 +9576,11 @@ uint64_t poly_trap_vector_dispatch(
             (unsigned long long) musl_expected_exec,
             (unsigned long long) clone_handoff->state.state_key.explicit_key);
         }
-        if (host_clone_needs_tls && clone_handoff->native_tls_base != 0)
-          args[0] |= (uint64_t) CLONE_SETTLS;
-        else
-          args[0] &= ~(uint64_t) CLONE_SETTLS;
+        args[0] = host_clone_flags;
         args[1] = native_clone_child_stack;
-        args[4] = host_clone_needs_tls ? clone_handoff->native_tls_base : 0;
+        args[4] =
+          (host_clone_flags & (uint64_t) CLONE_SETTLS) != 0 ?
+            clone_handoff->native_tls_base : 0;
       }
     }
     const int io_uring_syscall = poly_is_io_uring_syscall(x86_number);
@@ -8867,6 +9613,22 @@ uint64_t poly_trap_vector_dispatch(
     return poly_trap_vector_return_result(
       poly_handle_foreign_import(packet.number, packet.args),
       &packet, &trap_state, has_trap_state);
+
+  if (packet.reason == POLY_TRAP_ILLEGAL &&
+      poly_trace_process_lifecycle_enabled()) {
+    poly_lifecycle_printf(
+      "POLYEXEC_ILLEGAL_TRAP: mode=%llu pc=0x%llx next=0x%llx selector=0x%llx number=0x%llx flags=0x%llx args=0x%llx,0x%llx,0x%llx,0x%llx\n",
+      (unsigned long long) packet.mode,
+      (unsigned long long) packet.pc,
+      (unsigned long long) packet.next_pc,
+      (unsigned long long) packet.selector,
+      (unsigned long long) packet.number,
+      (unsigned long long) packet.flags,
+      (unsigned long long) packet.args[0],
+      (unsigned long long) packet.args[1],
+      (unsigned long long) packet.args[2],
+      (unsigned long long) packet.args[3]);
+  }
 
   return poly_trap_vector_return_result((uint64_t) -ENOSYS,
     &packet, &trap_state, has_trap_state);
@@ -10290,7 +11052,8 @@ static int map_process_aarch64_vdso(uint64_t *at_sysinfo_ehdr_out) {
   munmap(file_image, file_size);
 
   *at_sysinfo_ehdr_out = (uint64_t) (uintptr_t) mapping;
-  printf("POLYEXEC_VDSO_MAP: arch=aarch64 path=%s addr=0x%llx sigreturn=0x%llx bytes=%zu\n",
+  poly_monitor_diag_printf(
+    "POLYEXEC_VDSO_MAP: arch=aarch64 path=%s addr=0x%llx sigreturn=0x%llx bytes=%zu\n",
     path, (unsigned long long) *at_sysinfo_ehdr_out,
     (unsigned long long) poly_aarch64_vdso_rt_sigreturn, file_size);
   return 0;
@@ -10352,7 +11115,9 @@ static int build_process_stack(const struct poly_program *program,
       cursor[n] = (uint8_t) (0xa5U ^ (uint8_t) n ^ (uint8_t) getpid());
   }
   random_ptr = (uint64_t) (uintptr_t) cursor;
-  if (copy_stack_string(stack, &cursor, request->path, &argv_ptrs[0]) < 0) {
+  const char *guest_argv0 = request->argv0[0] != '\0' ?
+    request->argv0 : request->path;
+  if (copy_stack_string(stack, &cursor, guest_argv0, &argv_ptrs[0]) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: process argv0 does not fit stack\n");
     free(argv_ptrs);
     free(env_ptrs);
@@ -10378,7 +11143,16 @@ static int build_process_stack(const struct poly_program *program,
       return -1;
     }
   }
-  execfn_ptr = argv_ptrs[0];
+  if (strcmp(guest_argv0, request->path) == 0) {
+    execfn_ptr = argv_ptrs[0];
+  } else if (copy_stack_string(stack, &cursor, request->path,
+        &execfn_ptr) < 0) {
+    fprintf(stderr, "POLYEXEC_FAIL: process execfn does not fit stack\n");
+    free(argv_ptrs);
+    free(env_ptrs);
+    munmap(stack, stack_size);
+    return -1;
+  }
 
   const uint64_t load_bias =
     (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
@@ -12073,6 +12847,14 @@ static int call_process_initializer(const struct poly_program *program,
     uint8_t *loaded_image, uint8_t *trampoline_code, size_t prefix_size,
     uint64_t return_pc, uint64_t target_pc, uint8_t *scratch,
     const char *kind) {
+  if (poly_trace_process_lifecycle_enabled()) {
+    const uint64_t load_bias =
+      (uint64_t) (uintptr_t) loaded_image - program->base_vaddr;
+    poly_lifecycle_printf(
+      "POLYEXEC_PROCESS_LIFECYCLE_BEGIN: kind=%s arch=%s path=%s target=0x%llx load_bias=0x%llx\n",
+      kind, program->arch_name, program->path,
+      (unsigned long long) target_pc, (unsigned long long) load_bias);
+  }
   if (emit_poly_trampoline(program, trampoline_code, prefix_size, return_pc,
         target_pc, 0) < 0) {
     fprintf(stderr, "POLYEXEC_FAIL: unsupported %s lifecycle branch: %s\n",
@@ -12081,6 +12863,12 @@ static int call_process_initializer(const struct poly_program *program,
   }
   (void) run_poly_entry(trampoline_code, scratch);
   poly_mode_x86();
+  if (poly_trace_process_lifecycle_enabled()) {
+    poly_lifecycle_printf(
+      "POLYEXEC_PROCESS_LIFECYCLE_END: kind=%s arch=%s path=%s target=0x%llx\n",
+      kind, program->arch_name, program->path,
+      (unsigned long long) target_pc);
+  }
   (void) loaded_image;
   return 0;
 }
@@ -12107,6 +12895,12 @@ static int run_process_initializer_array(const struct poly_program *program,
   for (size_t n = 0; n < init_count; n++) {
     const uint64_t init_target =
       read_u64_le(loaded_image + array_offset + n * sizeof(uint64_t));
+    if (poly_trace_process_lifecycle_enabled()) {
+      poly_lifecycle_printf(
+        "POLYEXEC_PROCESS_INIT_ARRAY: kind=%s arch=%s path=%s index=%zu target=0x%llx\n",
+        kind, program->arch_name, program->path, n,
+        (unsigned long long) init_target);
+    }
     if (init_target != 0 &&
         call_process_initializer(program, loaded_image, trampoline_code,
           prefix_size, return_pc, init_target, scratch, kind) < 0)
@@ -12917,7 +13711,16 @@ static const char *process_library_path(void) {
   const char *library_path = getenv("POLY_LD_LIBRARY_PATH");
   if (library_path && library_path[0] != '\0')
     return library_path;
-  return getenv("LD_LIBRARY_PATH");
+  library_path = getenv("LD_LIBRARY_PATH");
+  if (library_path && library_path[0] != '\0')
+    return library_path;
+
+  /*
+   * Process-mode execution is often entered through binfmt from launchers that
+   * scrub environment variables. Keep normal rootfs library discovery working
+   * even when Poly-specific variables cannot be propagated to nested execs.
+   */
+  return "/lib:/usr/lib";
 }
 
 static int find_process_needed_path(const char *owner_path, const char *needed,
@@ -13832,9 +14635,18 @@ static int emit_and_run_process(struct poly_program *program,
     program->arch == POLY_ARCH_X86 ? process_runtime_x86_tls_base : 0;
   const uint64_t process_state_key = polyexec_use_explicit_state_key ?
     (uint64_t) (uintptr_t) &poly_state_key_anchor : 0;
-  printf("POLYEXEC_MAIN_LOAD: arch=%s at_base=0x%llx entry=0x%llx path=%s\n",
+  poly_monitor_diag_printf(
+    "POLYEXEC_MAIN_LOAD: arch=%s at_base=0x%llx entry=0x%llx path=%s\n",
     program->arch_name, (unsigned long long) main_load_bias,
     (unsigned long long) entry_pc, program->path);
+  if (poly_trace_process_lifecycle_enabled()) {
+    poly_lifecycle_printf(
+      "POLYEXEC_PROCESS_ENTRY_BEGIN: arch=%s path=%s entry=0x%llx load_bias=0x%llx initial_sp=0x%llx tls=0x%llx\n",
+      program->arch_name, program->path,
+      (unsigned long long) entry_pc, (unsigned long long) main_load_bias,
+      (unsigned long long) initial_sp,
+      (unsigned long long) (uintptr_t) process_tls);
+  }
   poly_restore_passthrough_stdout();
   run_poly_process_entry(code, initial_sp, (uint64_t) (uintptr_t) process_tls,
     startup_x86_tls_base, process_state_key, use_trap_vector, program->arch);
@@ -14073,10 +14885,12 @@ static int emit_and_run_process_interpreter(struct poly_program *program,
     return -1;
   }
 
-  printf("POLYEXEC_INTERP_LOAD: arch=%s interp=%s resolved=%s at_base=0x%llx path=%s\n",
+  poly_monitor_diag_printf(
+    "POLYEXEC_INTERP_LOAD: arch=%s interp=%s resolved=%s at_base=0x%llx path=%s\n",
     program->arch_name, program->interp_path, interp_path,
     (unsigned long long) interp_load_bias, program->path);
-  printf("POLYEXEC_MAIN_LOAD: arch=%s at_base=0x%llx entry=0x%llx path=%s\n",
+  poly_monitor_diag_printf(
+    "POLYEXEC_MAIN_LOAD: arch=%s at_base=0x%llx entry=0x%llx path=%s\n",
     program->arch_name, (unsigned long long) main_load_bias,
     (unsigned long long) (main_load_bias + program->base_vaddr +
       (uint64_t) program->entry_offset),
@@ -14099,6 +14913,17 @@ static int emit_and_run_process_interpreter(struct poly_program *program,
   process_runtime_host_fs_base = get_x86_fs_base();
   const uint64_t process_state_key = polyexec_use_explicit_state_key ?
     (uint64_t) (uintptr_t) &poly_state_key_anchor : 0;
+  if (poly_trace_process_lifecycle_enabled()) {
+    poly_lifecycle_printf(
+      "POLYEXEC_PROCESS_ENTRY_BEGIN: arch=%s path=%s interp=%s entry=0x%llx interp_base=0x%llx main_base=0x%llx initial_sp=0x%llx tls=0x%llx\n",
+      program->arch_name, program->path, interp_path,
+      (unsigned long long) (interp_load_bias + interp_program.base_vaddr +
+        (uint64_t) interp_program.entry_offset),
+      (unsigned long long) interp_load_bias,
+      (unsigned long long) main_load_bias,
+      (unsigned long long) initial_sp,
+      (unsigned long long) (uintptr_t) process_tls);
+  }
   poly_restore_passthrough_stdout();
   run_poly_process_entry(code, initial_sp, (uint64_t) (uintptr_t) process_tls,
     0, process_state_key, use_trap_vector, program->arch);
@@ -14200,6 +15025,31 @@ static int poly_process_uses_real_interpreter(const struct poly_program *program
     strcmp(base, "riscv-process-dynamic-libc-real.elf") == 0;
 }
 
+static int emit_and_run_process_current(struct poly_program *program,
+    const struct poly_request *request, int extra_argc, char **extra_argv,
+    uint64_t *result, int use_trap_vector) {
+  uint64_t child_result = 0;
+  if (install_poly_signal_diagnostics() < 0)
+    return -1;
+  if (use_trap_vector)
+    install_poly_trap_vector();
+  const int use_interpreter = poly_process_uses_real_interpreter(program,
+    request, extra_argc, extra_argv);
+  if ((use_interpreter ?
+        emit_and_run_process_interpreter(program, request, extra_argc,
+          extra_argv, &child_result, use_trap_vector) :
+        emit_and_run_process(program, request, extra_argc, extra_argv,
+          &child_result, use_trap_vector)) < 0)
+    return -1;
+  poly_resume_stdout_diagnostics();
+  report_poly_events();
+  report_poly_syscall_summary();
+  poly_report_seccomp_summary();
+  fflush(NULL);
+  *result = child_result;
+  return 0;
+}
+
 static int emit_and_run_process_child(struct poly_program *program,
     const struct poly_request *request, int extra_argc, char **extra_argv,
     uint64_t *result, int use_trap_vector) {
@@ -14213,23 +15063,9 @@ static int emit_and_run_process_child(struct poly_program *program,
 
   if (pid == 0) {
     uint64_t child_result = 0;
-    if (install_poly_signal_diagnostics() < 0)
+    if (emit_and_run_process_current(program, request, extra_argc,
+          extra_argv, &child_result, use_trap_vector) < 0)
       poly_child_exit_now(125);
-    if (use_trap_vector)
-      install_poly_trap_vector();
-    const int use_interpreter = poly_process_uses_real_interpreter(program,
-      request, extra_argc, extra_argv);
-    if ((use_interpreter ?
-          emit_and_run_process_interpreter(program, request, extra_argc,
-            extra_argv, &child_result, use_trap_vector) :
-          emit_and_run_process(program, request, extra_argc, extra_argv,
-            &child_result, use_trap_vector)) < 0)
-      poly_child_exit_now(125);
-    poly_resume_stdout_diagnostics();
-    report_poly_events();
-    report_poly_syscall_summary();
-    poly_report_seccomp_summary();
-    fflush(NULL);
     poly_child_exit_now((int) (child_result & 0xff));
   }
 
@@ -14660,11 +15496,15 @@ int main(int argc, char **argv) {
     return 2;
   }
 
+  polyexec_quiet_process_monitor_diagnostics =
+    strcmp(argv[1], "--process") == 0 && poly_stdout_passthrough_enabled();
   poly_redirect_stdout_diagnostics();
-  puts("POLYEXEC: start");
+  if (!polyexec_quiet_process_monitor_diagnostics)
+    poly_monitor_diag_printf("POLYEXEC: start\n");
   if (apply_env_rlimit_nofile() < 0)
     return 2;
-  if (prepare_syscall_fixture_file() < 0)
+  const int process_mode = strcmp(argv[1], "--process") == 0;
+  if (!process_mode && prepare_syscall_fixture_file() < 0)
     return 1;
   const char *trap_vector_env = getenv("POLYEXEC_TRAP_VECTOR");
   const int use_trap_vector =
@@ -14779,7 +15619,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (strcmp(argv[1], "--process") == 0) {
+  if (process_mode) {
     if (argc < 3) {
       fprintf(stderr, "POLYEXEC_FAIL: --process requires a foreign ELF\n");
       return 2;
@@ -14787,6 +15627,19 @@ int main(int argc, char **argv) {
     struct poly_request request;
     if (parse_request(argv[2], &request) < 0)
       return 1;
+    const char *guest_argv0 = getenv("POLYEXEC_GUEST_ARGV0");
+    if (guest_argv0 != NULL && guest_argv0[0] != '\0') {
+      size_t argv0_len = strlen(guest_argv0);
+      if (argv0_len >= sizeof(request.argv0)) {
+        fprintf(stderr, "POLYEXEC_FAIL: preserved guest argv0 is too long\n");
+        return 2;
+      }
+      memcpy(request.argv0, guest_argv0, argv0_len + 1);
+    }
+    unsetenv("POLYEXEC_GUEST_ARGV0");
+    if (polyexec_quiet_process_monitor_diagnostics &&
+        poly_path_is_oci_runtime_helper(request.path))
+      polyexec_trace_process_lifecycle = 0;
 
     struct poly_program program;
     if (load_elf_program(request.path, request.symbol, &program) < 0)
@@ -14798,15 +15651,23 @@ int main(int argc, char **argv) {
       return 1;
     }
 
-    printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u process=1 interp=%s interp_mode=%u path=%s%s%s\n",
+    poly_monitor_diag_printf(
+      "POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u process=1 interp=%s interp_mode=%u path=%s%s%s\n",
       program.arch_name, program.code_size, program.entry_offset,
       program.load_segment_count, program.relro_size != 0,
       program.has_interp ? program.interp_path : "-", use_interpreter,
       program.path, request.symbol[0] ? "#" : "", request.symbol);
 
     uint64_t result = 0;
-    if (emit_and_run_process_child(&program, &request, argc - 3, argv + 3,
-          &result, use_trap_vector) < 0) {
+    const char *no_fork_env = getenv("POLYEXEC_PROCESS_NO_FORK");
+    const int no_fork = no_fork_env != NULL && no_fork_env[0] != '\0' &&
+      strcmp(no_fork_env, "0") != 0;
+    const int run_status = no_fork ?
+      emit_and_run_process_current(&program, &request, argc - 3, argv + 3,
+        &result, use_trap_vector) :
+      emit_and_run_process_child(&program, &request, argc - 3, argv + 3,
+        &result, use_trap_vector);
+    if (run_status < 0) {
       free_program(&program);
       return 1;
     }
@@ -14846,7 +15707,8 @@ int main(int argc, char **argv) {
     if (load_elf_program(request.path, request.symbol, &program) < 0)
       return 1;
 
-    printf("POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u path=%s%s%s\n",
+    poly_monitor_diag_printf(
+      "POLYEXEC_ELF: arch=%s bytes=%zu entry=%zu loads=%zu relro=%u path=%s%s%s\n",
       program.arch_name, program.code_size, program.entry_offset,
       program.load_segment_count, program.relro_size != 0,
       program.path, request.symbol[0] ? "#" : "", request.symbol);

@@ -542,6 +542,42 @@ assert_contains "sqlite3 WAL transaction/index workload" "$ROOT_DIR/scripts/boot
   "SQLite stress must exercise transactional storage behavior"
 assert_contains "boot-poly-alpine-sqlite-stress" "$ROOT_DIR/Makefile" \
   "Makefile must expose a dedicated SQLite stress boot target"
+assert_contains "POLY_ALPINE_PODMAN_SMOKE_MODE" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman smoke must expose a focused local mode before seccomp profile validation"
+assert_contains "POLY_ALPINE_RUNC_VERSION_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman readiness must expose a direct runc process-mode smoke before full container startup"
+assert_contains "POLYEXEC_TRACE_PROCESS_LIFECYCLE" "$ROOT_DIR/tools/runtime/polyexec.c" \
+  "polyexec must expose opt-in process lifecycle tracing for runtime loader diagnostics"
+assert_contains "POLYEXEC_TRACE_PODMAN_STORAGE_PATHS" "$ROOT_DIR/tools/runtime/polyexec.c" \
+  "Podman storage-path tracing must remain opt-in instead of flooding lifecycle logs by default"
+assert_contains "POLY_ALPINE_TRACE_PODMAN_STORAGE_PATHS" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman storage-path diagnostics must be controllable from the boot harness"
+assert_contains "POLYEXEC_TRACE_PODMAN_SYNC_FDS" "$ROOT_DIR/tools/runtime/polyexec.c" \
+  "Podman sync-pipe diagnostics must be available without enabling the full Podman syscall stream"
+assert_contains "POLY_ALPINE_TRACE_PODMAN_SYNC_FDS" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman sync-pipe diagnostics must be controllable from the boot harness"
+assert_contains "POLY_ALPINE_FATAL_DEBUG_NOTE_DIR" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman failure diagnostics must enable guest-native fatal core/debug-note artifacts"
+assert_contains "boot-poly-alpine-runc-version-smoke" "$ROOT_DIR/Makefile" \
+  "Makefile must expose a dedicated runc startup target"
+assert_contains "POLY_ALPINE_PODMAN_CONTAINER_LOCAL_OK" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman local smoke must require a guest container command marker"
+assert_contains "POLY_ALPINE_PODMAN_LOCAL_RUN_FAIL" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman local smoke failures must dump guest-side runtime evidence before exit"
+assert_contains "POLY_ALPINE_PODMAN_USERDATA_BEGIN" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman local smoke failures must expose OCI userdata logs for conmon/runc diagnosis"
+assert_contains "POLY_ALPINE_PODMAN_CGROUPS_READY" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman local smoke must prepare cgroup mounts for the OCI runtime"
+assert_contains 'POLYEXEC_PROTECT_RUNTIME_SIGNALS="\$POLY_ALPINE_PROTECT_RUNTIME_SIGNALS"' "$ROOT_DIR/scripts/boot.sh" \
+  "Podman smoke guest environment must expose protected runtime signals to nested polyexec monitors"
+assert_contains "boot-poly-alpine-podman-local-smoke" "$ROOT_DIR/Makefile" \
+  "Makefile must expose a dedicated local Podman startup target"
+assert_contains '\$RUN_POLY_ALPINE_PODMAN_SMOKE" == "1"' "$ROOT_DIR/scripts/boot.sh" \
+  "Podman/runc smoke must enable protected runtime signals for Go SIGURG preemption"
+assert_contains "POLY_ALPINE_PROTECT_RUNTIME_SIGNALS=1" "$ROOT_DIR/scripts/boot.sh" \
+  "Podman/runc smoke must set protected runtime signal delivery when selected"
+assert_contains "POLY_ALPINE_PROTECT_RUNTIME_SIGNALS=1" "$ROOT_DIR/Makefile" \
+  "Podman/runc boot targets must advertise protected runtime signal delivery"
 assert_contains "BX_POLY_V2_DERIVE_FLAG_ACTIVATE_DST" "$BOCHS_CPU" \
   "PDERIVE_STATE must expose an activation flag for resume imports"
 assert_contains "poly_ud: derived v2 activation enter" "$BOCHS_CPU" \
@@ -554,6 +590,14 @@ assert_contains "sigaction\\(SIGSEGV" "$POLYEXEC" \
   "userspace monitor must install a SIGSEGV handler for Poly fault translation"
 assert_contains "poly_write_fatal_debug_note" "$POLYEXEC" \
   "userspace monitor must synthesize a v2 debug-note artifact on fatal Poly faults"
+assert_contains "poly_write_fatal_debug_note_raw" "$POLYEXEC" \
+  "fatal Poly diagnostics must write a raw PDUMP_STATE artifact before full core wrapping"
+assert_contains "POLYEXEC_FATAL_DEBUG_NOTE_RAW" "$POLYEXEC" \
+  "fatal Poly diagnostics must report raw debug-note artifacts in crash logs"
+assert_contains "POLYEXEC_FATAL_DEBUG_NOTE_CORE_SKIP" "$POLYEXEC" \
+  "fatal Poly diagnostics must not force guest-core wrapping for native monitor faults"
+assert_contains "POLYEXEC_FATAL_CORE_WRAPPER" "$POLYEXEC" \
+  "fatal Poly diagnostics must keep ELF core wrapping as an explicit opt-in"
 assert_contains "PT_NOTE" "$POLYEXEC" \
   "fatal Poly debug artifacts must be wrapped in an ELF note container"
 assert_contains "NT_SIGINFO" "$POLYEXEC" \
@@ -564,6 +608,30 @@ assert_contains "PT_LOAD" "$POLYEXEC" \
   "fatal Poly ELF cores must include loadable memory segments for debuggers"
 assert_contains "POLYEXEC_FATAL_DEBUG_NOTE_DIR" "$POLYEXEC" \
   "fatal Poly debug-note output must be opt-in through a runtime directory"
+assert_contains "scrub environment variables" "$POLYEXEC" \
+  "process-mode dependency resolution must tolerate nested launchers that scrub loader variables"
+assert_contains "POLY_PROCESS_REAL_INTERPRETER=1" "$POLYEXEC" \
+  "nested guest execve must preserve real-interpreter process mode for ordinary dynamic ELFs"
+assert_contains "POLYEXEC_PROTECT_RUNTIME_SIGNALS=1" "$POLYEXEC" \
+  "nested guest execve must preserve protected runtime signal delivery for scrubbed OCI runtime launches"
+assert_contains "POLYEXEC_PROCESS_NO_FORK=1" "$POLYEXEC" \
+  "nested guest execve must preserve exec-like PID and fd ownership for protocol helpers"
+assert_contains "emit_and_run_process_current" "$POLYEXEC" \
+  "process mode must expose a no-fork path for execve-like helper semantics"
+assert_contains "case 286: \*x86_number = SYS_preadv2" "$POLYEXEC" \
+  "AArch64 process-mode syscall translation must support preadv2 for modern container runtimes"
+assert_contains "case 287: \*x86_number = SYS_pwritev2" "$POLYEXEC" \
+  "AArch64 process-mode syscall translation must support pwritev2 for modern container runtimes"
+assert_contains 'case 286: return "preadv2"' "$POLYEXEC" \
+  "AArch64 syscall traces must name preadv2 for diagnostics"
+assert_contains 'case 287: return "pwritev2"' "$POLYEXEC" \
+  "AArch64 syscall traces must name pwritev2 for diagnostics"
+assert_contains "POLY_AARCH64_O_DIRECTORY 040000" "$POLYEXEC" \
+  "AArch64 open flag translation must use the arch override for O_DIRECTORY"
+assert_contains "POLY_AARCH64_O_NOFOLLOW 0100000" "$POLYEXEC" \
+  "AArch64 open flag translation must use the arch override for O_NOFOLLOW"
+assert_contains "POLY_AARCH64___O_SYNC" "$POLYEXEC" \
+  "AArch64 open flag translation must preserve explicit sync semantics for runtime logs"
 assert_contains "poly_abi_descriptor_signature_kind" "$POLYEXEC" \
   "userspace monitor must use the v2 software-owned ABI descriptor API"
 assert_not_contains "poly_abi_legacy_bridge" "$POLYEXEC" \
@@ -578,6 +646,18 @@ assert_not_contains "POLY_OP_SPILL_PTR_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must not use legacy raw spill pointer setup"
 assert_contains "POLY_OP_EVENT_PTR_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must clear the v2 canonical event frame registration"
+assert_contains "set_default_library_path" "$POLYBINFMT_EXEC" \
+  "binfmt helper must provide a default process library path for scrubbed nested launchers"
+assert_contains "POLYEXEC_STDOUT_PASSTHROUGH" "$POLYBINFMT_EXEC" \
+  "binfmt helper must keep monitor diagnostics off guest stdout/protocol pipes"
+assert_contains "env_enabled\\(\"POLYBINFMT_TRACE\"\\)" "$POLYBINFMT_EXEC" \
+  "binfmt helper must load image runtime env before deciding whether to trace"
+assert_contains 'POLYBINFMT_TRACE=\$POLY_ALPINE_BINFMT_TRACE' "$ROOT_DIR/scripts/boot.sh" \
+  "Alpine images must propagate binfmt wrapper tracing into scrubbed nested launches"
+assert_contains 'POLYEXEC_FATAL_DEBUG_NOTE_DIR=\$POLY_ALPINE_FATAL_DEBUG_NOTE_DIR' "$ROOT_DIR/scripts/boot.sh" \
+  "Alpine images must propagate fatal debug-note output into scrubbed nested launches"
+assert_contains '-name "\*.note"' "$ROOT_DIR/scripts/boot.sh" \
+  "Podman failure diagnostics must include raw debug notes when ELF core wrapping cannot finish"
 assert_not_contains "POLY_OP_SPILL_DESC_SET" "$POLYBINFMT_EXEC" \
   "binfmt helper must not use the retired v2 spill descriptor registration"
 assert_not_contains "POLY_OP_MONITOR_PACKET_SET" "$POLYBINFMT_EXEC" \
@@ -630,8 +710,20 @@ assert_not_contains "POLY_OP_PRESTORE" "$POLYEXEC" \
   "userspace monitor must not use the deprecated PRESTORE opcode"
 assert_contains "POLY_OP_DERIVE_STATE" "$POLYEXEC" \
   "userspace monitor must use PDERIVE_STATE for OS-neutral state derivation"
+assert_contains "poly_clear_return_transition_state\\(&handoff->state\\)" "$POLYEXEC" \
+  "clone child derivation must clear parent return-transition metadata after PDERIVE_STATE"
 assert_contains "POLY_OP_MEM_PROBE_RANGE" "$POLYEXEC" \
   "userspace monitor must use v2 memory probing for guest range validation"
+assert_contains "__thread volatile sig_atomic_t poly_pending_virtual_signal_mask" "$POLYEXEC" \
+  "pending virtual signal delivery must be thread-local like guest sigmask and alt-stack state"
+assert_contains "POLYEXEC_GUEST_SIGNAL_SUPPRESS_NO_ALTSTACK" "$POLYEXEC" \
+  "virtual SIGCHLD delivery must not run SA_ONSTACK guest handlers without a mapped guest alt stack"
+assert_contains "signum == SIGURG" "$POLYEXEC" \
+  "Go-style SIGURG preemption must be virtualized before guest signal stacks are installed"
+assert_contains "poly_set_host_signal_handler\\(SIGURG" "$POLYEXEC" \
+  "protected runtime signal setup must preinstall the SIGURG virtual handler"
+assert_contains "POLYEXEC_PROTECTED_SIGNAL_SEND_IGNORED" "$POLYEXEC" \
+  "protected runtime signal sends must not inject host signals into guest monitor threads"
 assert_contains "POLY_CPUID_V2_FEATURE_EVENT_COMPLETE" "$POLYEXEC" \
   "userspace monitor must gate unproven v2 event completion on CPUID"
 assert_contains "!aarch64_rt_sigreturn" "$POLYEXEC" \
@@ -662,6 +754,8 @@ assert_contains "selftest-pagefault" "$POLYEXEC" \
   "userspace monitor must expose a deliberate Poly page-fault self-test"
 assert_contains "POLY_FATAL_DEBUG_NOTE_ELF_OK" "$BOOT_SCRIPT" \
   "page-fault boot coverage must verify the fatal v2 debug-note ELF artifact"
+assert_contains "POLYEXEC_FATAL_CORE_WRAPPER=1" "$BOOT_SCRIPT" \
+  "core/debug boot coverage must explicitly opt into ELF core wrapping"
 assert_contains "polyexec_process_crash_real\\.c" "$BOOT_SCRIPT" \
   "boot coverage must build real crashing process fixtures for core validation"
 assert_contains "RUN_POLY_GDB_CORE_VALIDATION" "$BOOT_SCRIPT" \
@@ -746,6 +840,10 @@ assert_contains "POLY_AARCH64_O_DIRECTORY" "$POLYEXEC" \
   "userspace monitor openat proxy must know AArch64 directory-open flag layout"
 assert_contains "poly_translate_open_flags" "$POLYEXEC" \
   "userspace monitor openat proxy must translate foreign open flags before host syscalls"
+assert_contains "struct poly_linux_open_how" "$POLYEXEC" \
+  "userspace monitor openat2 proxy must copy the Linux open_how ABI explicitly"
+assert_contains "SYS_openat2" "$POLYEXEC" \
+  "userspace monitor openat2 proxy must translate foreign open flags before host syscalls"
 assert_contains "--threads" "$POLYEXEC" \
   "userspace monitor must expose an in-process pthread stress mode"
 assert_contains "pthread_create" "$POLYEXEC" \
