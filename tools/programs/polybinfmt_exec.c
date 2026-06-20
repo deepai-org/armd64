@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <elf.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -20,6 +21,10 @@
 
 #ifndef EM_RISCV
 #define EM_RISCV 243
+#endif
+
+#ifndef AT_EXECFD
+#define AT_EXECFD 2
 #endif
 
 #define POLY_OP_TRAP_VECTOR_SET POLY_X86_CTRL_TRAP_VECTOR_SET_ASM
@@ -167,6 +172,28 @@ static void set_default_library_path(void) {
   setenv("POLY_LD_LIBRARY_PATH", "/lib:/usr/lib", 1);
 }
 
+static int fd_is_supported_foreign_elf(int fd) {
+  if (fd < 0)
+    return 0;
+
+  unsigned char ident[EI_NIDENT];
+  ssize_t got = pread(fd, ident, sizeof(ident), 0);
+  if (got != (ssize_t) sizeof(ident) ||
+      ident[EI_MAG0] != ELFMAG0 ||
+      ident[EI_MAG1] != ELFMAG1 ||
+      ident[EI_MAG2] != ELFMAG2 ||
+      ident[EI_MAG3] != ELFMAG3 ||
+      ident[EI_CLASS] != ELFCLASS64 ||
+      ident[EI_DATA] != ELFDATA2LSB)
+    return 0;
+
+  Elf64_Ehdr ehdr;
+  got = pread(fd, &ehdr, sizeof(ehdr), 0);
+  if (got != (ssize_t) sizeof(ehdr))
+    return 0;
+  return ehdr.e_machine == EM_AARCH64 || ehdr.e_machine == EM_RISCV;
+}
+
 static int path_is_supported_foreign_elf(const char *path) {
   if (path == NULL || path[0] == '\0')
     return 0;
@@ -175,29 +202,63 @@ static int path_is_supported_foreign_elf(const char *path) {
   if (fd < 0)
     return 0;
 
-  unsigned char ident[EI_NIDENT];
-  ssize_t got = read(fd, ident, sizeof(ident));
-  if (got != (ssize_t) sizeof(ident) ||
-      ident[EI_MAG0] != ELFMAG0 ||
-      ident[EI_MAG1] != ELFMAG1 ||
-      ident[EI_MAG2] != ELFMAG2 ||
-      ident[EI_MAG3] != ELFMAG3 ||
-      ident[EI_CLASS] != ELFCLASS64 ||
-      ident[EI_DATA] != ELFDATA2LSB) {
-    close(fd);
-    return 0;
-  }
-
-  if (lseek(fd, 0, SEEK_SET) != 0) {
-    close(fd);
-    return 0;
-  }
-  Elf64_Ehdr ehdr;
-  got = read(fd, &ehdr, sizeof(ehdr));
+  int supported = fd_is_supported_foreign_elf(fd);
   close(fd);
-  if (got != (ssize_t) sizeof(ehdr))
+  return supported;
+}
+
+static int parse_binfmt_fd_arg(const char *arg, int *fd_out) {
+  if (arg == NULL || arg[0] == '\0' || fd_out == NULL)
     return 0;
-  return ehdr.e_machine == EM_AARCH64 || ehdr.e_machine == EM_RISCV;
+  char *end = NULL;
+  errno = 0;
+  long fd = strtol(arg, &end, 10);
+  if (errno != 0 || end == arg || *end != '\0' || fd < 0 || fd > INT_MAX)
+    return 0;
+  *fd_out = (int) fd;
+  return 1;
+}
+
+static int binfmt_fd_path_from_fd(int fd, char *out, size_t out_size) {
+  if (!fd_is_supported_foreign_elf(fd))
+    return 0;
+
+  int flags = fcntl(fd, F_GETFD);
+  if (flags >= 0 && (flags & FD_CLOEXEC) != 0)
+    (void) fcntl(fd, F_SETFD, flags & ~FD_CLOEXEC);
+  if (snprintf(out, out_size, "/proc/self/fd/%d", fd) >= (int) out_size)
+    return 0;
+  return 1;
+}
+
+static int binfmt_fd_arg_path(const char *arg, char *out, size_t out_size) {
+  int fd = -1;
+  if (!parse_binfmt_fd_arg(arg, &fd))
+    return 0;
+  return binfmt_fd_path_from_fd(fd, out, out_size);
+}
+
+static int binfmt_auxv_execfd_path(char *out, size_t out_size) {
+  int fd = open("/proc/self/auxv", O_RDONLY | O_CLOEXEC);
+  if (fd < 0)
+    return 0;
+
+  struct {
+    unsigned long type;
+    unsigned long value;
+  } entry;
+  while (read(fd, &entry, sizeof(entry)) == (ssize_t) sizeof(entry)) {
+    if (entry.type == AT_EXECFD) {
+      close(fd);
+      if (entry.value > (unsigned long) INT_MAX)
+        return 0;
+      return binfmt_fd_path_from_fd((int) entry.value, out, out_size);
+    }
+    if (entry.type == 0)
+      break;
+  }
+  close(fd);
+  return 0;
 }
 
 static FILE *open_trace_file(void) {
@@ -289,19 +350,38 @@ int main(int argc, char **argv) {
     return 2;
   }
 
+  char fd_path[64];
+  int path_from_fd = 0;
   int path_index = 1;
   int argv0_index = argc > 2 ? 2 : -1;
+  const char *path = NULL;
   /*
-   * The binfmt_misc P flag preserves the foreign argv0 after the path.
+   * The binfmt_misc P flag preserves the foreign argv0 after the image
+   * argument. With O, that image argument is an already-open fd number; keep it
+   * alive across exec and pass polyexec a procfs fd path so container/chroot
+   * launchers do not have to make the original pathname resolvable.
+   */
+  if (binfmt_auxv_execfd_path(fd_path, sizeof(fd_path))) {
+    path = fd_path;
+    path_from_fd = 1;
+  } else if (binfmt_fd_arg_path(argv[path_index], fd_path,
+        sizeof(fd_path))) {
+    path = fd_path;
+    path_from_fd = 1;
+  }
+  if (path == NULL) {
+    path = argv[path_index];
+  }
+  /*
    * Some container re-exec paths are easier to diagnose if we defensively
    * validate the image argument instead of blindly trusting argv positions.
    */
-  if (!path_is_supported_foreign_elf(argv[path_index]) && argc > 2 &&
+  if (!path_from_fd && !path_is_supported_foreign_elf(path) && argc > 2 &&
       path_is_supported_foreign_elf(argv[2])) {
     path_index = 2;
     argv0_index = 1;
+    path = argv[path_index];
   }
-  const char *path = argv[path_index];
   if (argv0_index > 0 && argv[argv0_index] != NULL &&
       argv[argv0_index][0] != '\0')
     setenv("POLYEXEC_GUEST_ARGV0", argv[argv0_index], 1);
@@ -325,8 +405,8 @@ int main(int argc, char **argv) {
 
   if (trace) {
     fprintf(trace_file,
-      "POLYBINFMT_EXECV: path_index=%d argv0_index=%d path=%s forwarded=%d",
-      path_index, argv0_index, path, forwarded);
+      "POLYBINFMT_EXECV: path_index=%d argv0_index=%d path_from_fd=%d path=%s forwarded=%d",
+      path_index, argv0_index, path_from_fd, path, forwarded);
     for (int i = 0; exec_argv[i]; i++)
       fprintf(trace_file, " argv%d=%s", i, exec_argv[i]);
     fprintf(trace_file, "\n");

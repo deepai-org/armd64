@@ -13401,7 +13401,7 @@ if [ "$RUN_POLY_ALPINE_BINFMT_SMOKE" = "1" ]; then
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:POF' \
     > /proc/sys/fs/binfmt_misc/register || {
     echo "POLY_ALPINE_BINFMT_SMOKE_FAIL: register aarch64" >/dev/ttyS0
     exit 1
@@ -13583,7 +13583,7 @@ if [ "$RUN_POLY_ALPINE_CONTAINER_SMOKE" = "1" ]; then
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:POF' \
     > /proc/sys/fs/binfmt_misc/register || {
     echo "POLY_ALPINE_CONTAINER_SMOKE_FAIL: register aarch64" >/dev/ttyS0
     exit 1
@@ -13635,7 +13635,7 @@ if [ "$RUN_POLY_ALPINE_PODMAN_SMOKE" = "1" ]; then
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:POF' \
     > /proc/sys/fs/binfmt_misc/register || {
     poly_guest_fail "POLY_ALPINE_PODMAN_SMOKE_FAIL: register aarch64"
   }
@@ -13837,7 +13837,7 @@ if [ "$RUN_POLY_ALPINE_POSTGRES_SMOKE" = "1" ]; then
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:POF' \
     > /proc/sys/fs/binfmt_misc/register || {
     echo "POLY_ALPINE_POSTGRES_SMOKE_FAIL: register aarch64" >/dev/ttyS0
     exit 1
@@ -14016,7 +14016,7 @@ if [ "$RUN_POLY_ALPINE_FIO_IO_URING" = "1" ]; then
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:POF' \
     > /proc/sys/fs/binfmt_misc/register || {
     echo "POLY_ALPINE_FIO_IO_URING_FAIL: register aarch64" >/dev/ttyS0
     exit 1
@@ -14072,7 +14072,7 @@ if [ "$RUN_POLY_ALPINE_SQLITE_STRESS" = "1" ]; then
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:POF' \
     > /proc/sys/fs/binfmt_misc/register || {
     echo "POLY_ALPINE_SQLITE_STRESS_FAIL: register aarch64" >/dev/ttyS0
     exit 1
@@ -14151,7 +14151,7 @@ if [ "$RUN_POLY_ALPINE_NODE_SMOKE" = "1" ]; then
   if [ -e /proc/sys/fs/binfmt_misc/poly-aarch64 ]; then
     echo -1 > /proc/sys/fs/binfmt_misc/poly-aarch64 || true
   fi
-  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:PF' \
+  echo ':poly-aarch64:M:18:\xb7::/usr/bin/polybinfmt-exec:POF' \
     > /proc/sys/fs/binfmt_misc/register || {
     echo "POLY_ALPINE_NODE_SMOKE_FAIL: register aarch64" >/dev/ttyS0
     exit 1

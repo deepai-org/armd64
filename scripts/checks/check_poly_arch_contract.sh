@@ -654,6 +654,14 @@ assert_contains "set_default_library_path" "$POLYBINFMT_EXEC" \
   "binfmt helper must provide a default process library path for scrubbed nested launchers"
 assert_contains "POLYEXEC_STDOUT_PASSTHROUGH" "$POLYBINFMT_EXEC" \
   "binfmt helper must keep monitor diagnostics off guest stdout/protocol pipes"
+assert_contains "binfmt_fd_arg_path" "$POLYBINFMT_EXEC" \
+  "binfmt helper must accept binfmt_misc O-flag open-binary fd arguments"
+assert_contains "AT_EXECFD" "$POLYBINFMT_EXEC" \
+  "binfmt helper must accept Linux open-binary execfd auxv handoff"
+assert_contains "/proc/self/fd/%d" "$POLYBINFMT_EXEC" \
+  "binfmt helper must preserve open-binary fd access across polyexec handoff"
+assert_contains 'polybinfmt-exec:POF' "$ROOT_DIR/scripts/boot.sh" \
+  "Alpine process-mode binfmt registrations must use preserve-argv0, open-binary, and fixed-interpreter flags"
 assert_contains "env_enabled\\(\"POLYBINFMT_TRACE\"\\)" "$POLYBINFMT_EXEC" \
   "binfmt helper must load image runtime env before deciding whether to trace"
 assert_contains 'POLYBINFMT_TRACE=\$POLY_ALPINE_BINFMT_TRACE' "$ROOT_DIR/scripts/boot.sh" \

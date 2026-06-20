@@ -35,6 +35,7 @@ RISC-V64 code.
 | Hardware-shaped native return recovery | `rtl/poly_return_cookie_recover.sv` detects ordinary native returns to the Poly return cookie and requests transition-stack recovery; `rtl/poly_transition_stack_return_formal.sv` proves return-cookie resumes are sourced from the current transition-stack top and are blocked on empty, invalid, or non-cookie cases; `rtl/poly_frontend_fpga_top.sv` exposes the recovered frontend/PC/SP/flags frame, transition pop frame, and return-cookie error diagnostics to the FPGA integration boundary. |
 | Fast-path cycle budget | `rtl/poly_transition_cycle_budget.sv` models fixed-cycle `PSWITCH`, register-only `PCALL`, native return-cookie recovery, and event-frame fixed work plus memory-response latency; `rtl/poly_frontend_core.sv` drives that budget model from committed transition, return-cookie, and event-frame events. |
 | OS-neutral syscall/libcall boundary | Trap-packet contract in `docs/poly-isa-design-directions.md`; Bochs `handle_poly_syscall_trap`; userspace monitor policy in `tools/runtime/polyexec.c`. |
+| Process-mode binfmt handoff | Alpine process-mode binfmt registrations now use `POF` so preserve-argv0, open-binary handoff, and fixed-interpreter behavior are requested together. `polybinfmt-exec` accepts both numeric open-binary fd arguments and `AT_EXECFD`, preserves the fd across `polyexec`, and passes `/proc/self/fd/N` so namespace/chroot launchers do not need the original guest path to be resolvable in the monitor namespace. `boot-poly-alpine-runc-version-smoke` passed with this path. |
 | Sustained storage workload | `boot-poly-alpine-sqlite-stress` stages Alpine AArch64 `sqlite`, registers binfmt, and runs a guest-native SQLite WAL transaction/index workload through `polycontainer-run`. The 2026-06-20 boot gate passed with `POLY_ALPINE_SQLITE_STRESS_RESULT: rows=583 hot=71 total=1296978 integrity=ok` and `POLY_ALPINE_SQLITE_STRESS_OK`. |
 | Shared-ring I/O workload | `boot-poly-exec-syscall-arch-traps` runs AArch64 and RISC-V `polyexec_process_io_uring_real.c` fixtures that validate NOP, file read/write SQEs, and timeout-remove cancellation completions through shared rings. `boot-poly-alpine-fio-io-uring` stages Alpine AArch64 `fio`, registers binfmt, and runs write/read/randrw jobs with `ioengine=io_uring`; direct I/O is attempted and skipped only if the guest filesystem rejects it. The 2026-06-20 boot gates passed, validating the `PFENCE`/shared-ring handoff path beyond the original small NOP fixture. |
 | Explicit per-thread state | Fixed 8KB user state/import image in `tools/include/polycpuid.h`; silicon-facing layout/check program in `tools/programs/polylayout.c`; Bochs state export/import plus `PDERIVE_STATE` in `proc_ctrl.cc`. The legacy real-XSAVE boot gate remains useful bring-up coverage, but is no longer the production OS contract. |
@@ -64,10 +65,13 @@ RISC-V64 code.
   normal monitor-vector/signal path; the old auto-spill descriptor/trampoline
   implementation and its profiling counters have been removed.
 - Direct AArch64/RISC-V seccomp policy fixtures pass through `polyexec`, but a
-  full Podman container-runtime seccomp profile is not yet a completed gate:
-  current `podman run` smoke attempts stall before a container profile can be
-  validated. Treat Podman/runc startup under `polyexec` as the remaining
-  enterprise-container blocker.
+  full Podman container-runtime seccomp profile is not yet a completed gate.
+  The first process-mode binfmt entry now uses fd-backed `/proc/self/fd/N`
+  handoff and the direct runc-version smoke passes, but Podman still fails later
+  when runc invokes the container `init` path as a pathless relative executable
+  (`POLYEXEC_FAIL: unable to open init`). Treat that nested runc startup path as
+  the remaining enterprise-container blocker before validating full Podman
+  seccomp profiles.
 - Hardware transition-stack depth, same-cycle push/pop conflicts, underflow,
   overflow, and return-cookie recovery behavior now have directed tests and a
   Yosys temporal-induction proof over a reduced-depth instance; full-depth
