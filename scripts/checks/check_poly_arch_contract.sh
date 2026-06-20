@@ -560,6 +560,12 @@ assert_contains "POLYEXEC_TRACE_PODMAN_SYNC_FDS" "$ROOT_DIR/tools/runtime/polyex
   "Podman sync-pipe diagnostics must be available without enabling the full Podman syscall stream"
 assert_contains "POLY_ALPINE_TRACE_PODMAN_SYNC_FDS" "$ROOT_DIR/scripts/boot.sh" \
   "Podman sync-pipe diagnostics must be controllable from the boot harness"
+assert_contains "poly_resolve_aarch64_execve_program" "$ROOT_DIR/tools/runtime/polyexec.c" \
+  "process-mode raw execve must resolve non-ELF monitor reexec paths back to the guest image"
+assert_contains "poly_path_is_monitor_self_exec" "$ROOT_DIR/tools/runtime/polyexec.c" \
+  "process-mode raw execve must recognize /proc/self/exe monitor self-reexec"
+assert_contains 'strcmp\(path, "init"\) == 0' "$ROOT_DIR/tools/runtime/polyexec.c" \
+  "runc internal init reexec must stay backed by the current guest runtime image"
 assert_contains "POLY_ALPINE_FATAL_DEBUG_NOTE_DIR" "$ROOT_DIR/scripts/boot.sh" \
   "Podman failure diagnostics must enable guest-native fatal core/debug-note artifacts"
 assert_contains "boot-poly-alpine-runc-version-smoke" "$ROOT_DIR/Makefile" \

@@ -8283,6 +8283,44 @@ static int poly_path_is_aarch64_elf(const char *path) {
     ehdr.e_machine == EM_AARCH64;
 }
 
+static int poly_path_is_monitor_self_exec(const char *path) {
+  if (path == NULL || path[0] == '\0')
+    return 0;
+  if (strcmp(path, "/proc/self/exe") == 0 ||
+      strcmp(path, "/proc/thread-self/exe") == 0 ||
+      strcmp(path, "/usr/bin/polyexec") == 0)
+    return 1;
+
+  char self_path[PATH_MAX];
+  ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
+  if (n <= 0)
+    return 0;
+  self_path[n] = '\0';
+  return strcmp(path, self_path) == 0;
+}
+
+static const char *poly_resolve_aarch64_execve_program(const char *path) {
+  if (poly_path_is_aarch64_elf(path))
+    return path;
+
+  if (process_cross_report_path == NULL ||
+      !poly_path_is_aarch64_elf(process_cross_report_path))
+    return NULL;
+
+  if (poly_path_is_monitor_self_exec(path))
+    return process_cross_report_path;
+
+  /*
+   * runc uses a pathless internal "init" reexec stage after the monitor has
+   * become the host executable. In process mode that still means "run the
+   * current guest runc image with a different argv0/argv vector".
+   */
+  if (poly_process_report_path_is("runc") && strcmp(path, "init") == 0)
+    return process_cross_report_path;
+
+  return NULL;
+}
+
 static int poly_count_guest_argv(uint64_t argv_addr, size_t *argc_out) {
   if (argc_out == NULL)
     return -1;
@@ -8432,7 +8470,8 @@ static int poly_handle_raw_aarch64_execve(uint64_t path_addr,
     poly_lifecycle_printf("\n");
   }
   const char *path = (const char *) (uintptr_t) path_addr;
-  if (!poly_path_is_aarch64_elf(path))
+  const char *exec_path = poly_resolve_aarch64_execve_program(path);
+  if (exec_path == NULL)
     return 0;
 
   size_t old_argc = 0;
@@ -8446,22 +8485,22 @@ static int poly_handle_raw_aarch64_execve(uint64_t path_addr,
   char **new_argv = __builtin_alloca((extra_argc + 4) * sizeof(*new_argv));
   new_argv[0] = (char *) "/usr/bin/polyexec";
   new_argv[1] = (char *) "--process";
-  new_argv[2] = (char *) path;
+  new_argv[2] = (char *) exec_path;
   for (size_t n = 0; n < extra_argc; n++)
     new_argv[n + 3] = (char *) (uintptr_t) old_argv[n + 1];
   new_argv[extra_argc + 3] = NULL;
 
-  const int trace_conmon_exec = poly_path_basename_is(path, "conmon");
+  const int trace_conmon_exec = poly_path_basename_is(exec_path, "conmon");
   const int trace_runtime_exec =
-    trace_conmon_exec || poly_path_basename_is(path, "runc");
+    trace_conmon_exec || poly_path_basename_is(exec_path, "runc");
   if (poly_trace_process_lifecycle_enabled() &&
       !(poly_stdout_passthrough_enabled() && trace_runtime_exec)) {
     poly_lifecycle_printf(
       "POLYEXEC_RAW_AARCH64_EXECVE: host_pid=%ld host_tid=%ld"
-      " path=%s argc=%zu forwarded=%zu",
+      " path=%s exec_path=%s argc=%zu forwarded=%zu",
       poly_x86_syscall6(SYS_getpid, 0, 0, 0, 0, 0, 0),
       poly_x86_syscall6(SYS_gettid, 0, 0, 0, 0, 0, 0),
-      path, old_argc, extra_argc);
+      path, exec_path, old_argc, extra_argc);
     const size_t max_trace_argc = trace_runtime_exec ? old_argc : 24;
     for (size_t n = 0; n < old_argc && n < max_trace_argc; n++) {
       const char *arg = (const char *) (uintptr_t) old_argv[n];
@@ -8488,8 +8527,8 @@ static int poly_handle_raw_aarch64_execve(uint64_t path_addr,
     for (size_t n = 0; n < envc; n++) {
       if (poly_env_is_oci_protocol_key(old_envp[n])) {
         poly_lifecycle_printf(
-          "POLYEXEC_RAW_AARCH64_EXECVE_ENV: path=%s env=%s",
-          path, old_envp[n]);
+          "POLYEXEC_RAW_AARCH64_EXECVE_ENV: path=%s exec_path=%s env=%s",
+          path, exec_path, old_envp[n]);
         if (poly_trace_podman_sync_fds_enabled())
           poly_trace_oci_protocol_env_fd(old_envp[n]);
         poly_lifecycle_printf("\n");
